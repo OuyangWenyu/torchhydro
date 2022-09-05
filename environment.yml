@@ -1,0 +1,13 @@
+name: mlflow
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - mlflow
+  - scikit-learn
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cudatoolkit=11.6
+  - tensorboardx
