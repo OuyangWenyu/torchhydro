@@ -1,2 +1,32 @@
-# hydrus_pro
-这是水文水资源中的python教程第二部，第一部分是基础部分，是hydrus
+<!--
+ * @Author: Wenyu Ouyang
+ * @Date: 2022-05-28 17:46:32
+ * @LastEditTime: 2022-09-09 14:42:40
+ * @LastEditors: Wenyu Ouyang
+ * @Description: README for torchhydro
+ * @FilePath: \torchhydro\README.md
+ * Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
+-->
+# torchhydro
+
+
+[![image](https://img.shields.io/pypi/v/torchhydro.svg)](https://pypi.python.org/pypi/torchhydro)
+[![image](https://img.shields.io/conda/vn/conda-forge/torchhydro.svg)](https://anaconda.org/conda-forge/torchhydro)
+
+
+**datasets, samplers, transforms, and pre-trained models for hydrology and water resources**
+
+
+-   Free software: BSD license
+-   Documentation: https://OuyangWenyu.github.io/torchhydro
+    
+
+## Features
+
+-   TODO
+
+## Credits
+
+This package is inspired by [TorchGeo](https://torchgeo.readthedocs.io/en/stable/).
+
+It was created with [Cookiecutter](https://github.com/cookiecutter/cookiecutter) and the [giswqs/pypackage](https://github.com/giswqs/pypackage) project template.

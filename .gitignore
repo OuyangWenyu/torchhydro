@@ -130,3 +130,6 @@ dmypy.json
 
 # mlflow
 mlruns/
+
+# IDE settings
+.vscode/

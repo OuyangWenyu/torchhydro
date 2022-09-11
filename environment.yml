@@ -1,13 +1,13 @@
-name: mlflow
+name: torchhydro
 channels:
   - pytorch
   - conda-forge
   - defaults
 dependencies:
-  - mlflow
-  - scikit-learn
   - pytorch
   - torchvision
   - torchaudio
-  - cudatoolkit=11.6
+  - cudatoolkit=11.3
   - tensorboardx
+  - mlflow
+  - scikit-learn
