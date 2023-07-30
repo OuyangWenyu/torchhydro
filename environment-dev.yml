@@ -1,0 +1,27 @@
+name: torchhydro
+channels:
+  - pyg
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - numpy=1.23
+  - xarray
+  - netcdf4
+  - geopandas
+  - matplotlib
+  - scikit-learn
+  - pytorch=1.12
+  - pytorch-scatter
+  - tensorboard
+  - torchvision
+  - tqdm
+  - pytest
+  - black
+  - flake8
+  - pip
+  - pip:
+    - tbparse
+    - hydroutils
+    - hydrodataset
