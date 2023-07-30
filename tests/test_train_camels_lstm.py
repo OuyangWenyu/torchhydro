@@ -1,9 +1,9 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2023-07-30 14:49:24
+LastEditTime: 2023-07-30 22:02:17
 LastEditors: Wenyu Ouyang
-Description: 
+Description: Test a full training and evaluating process
 FilePath: \torchhydro\tests\test_train_camels_lstm.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
@@ -11,7 +11,7 @@ import os
 import pytest
 import hydrodataset as hds
 from datasets.config import cmd, default_config_file, update_cfg
-from models.trainer import train_and_evaluate
+from trainers.trainer import train_and_evaluate
 
 
 @pytest.fixture()
@@ -27,7 +27,7 @@ def config():
         ctx=0,
         model_name="KuaiLSTM",
         model_param={
-            "n_input_features": 6,
+            "n_input_features": 23,
             "n_output_features": 1,
             "n_hidden_states": 256,
         },
@@ -46,7 +46,7 @@ def config():
         batch_size=5,
         rho=20,  # batch_size=100, rho=365,
         var_t=["dayl", "prcp", "srad", "tmax", "tmin", "vp"],
-        var_c=["None"],
+        # var_c=["None"],
         var_out=["streamflow"],
         data_loader="KuaiDataset",
         scaler="DapengScaler",
@@ -67,7 +67,8 @@ def config():
         save_epoch=1,
         te=5,
         train_period=["2000-10-01", "2001-10-01"],
-        test_period=["2001-10-01", "2002-10-01"],
+        valid_period=["2001-10-01", "2002-10-01"],
+        test_period=["2002-10-01", "2003-10-01"],
         loss_func="RMSESum",
         opt="Adadelta",
         which_first_tensor="sequence",

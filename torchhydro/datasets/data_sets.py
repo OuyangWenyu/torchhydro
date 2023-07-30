@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-07-29 20:47:05
+LastEditTime: 2023-07-30 22:08:09
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: \HydroTL\hydrotl\data\data_sets.py
+FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import logging
@@ -42,7 +42,17 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
             )
     elif fill_nan == "mean":
         # fill with mean
-        da = da.fillna(da.mean())
+        for var in da["variable"].values:
+            var_data = da.sel(variable=var)  # select the data for the current variable
+            mean_val = var_data.mean(
+                dim="basin"
+            )  # calculate the mean across all basins
+            filled_data = var_data.fillna(
+                mean_val
+            )  # fill NaN values with the calculated mean
+            da.loc[
+                dict(variable=var)
+            ] = filled_data  # update the original dataarray with the filled data
     elif fill_nan == "interpolate":
         # fill interpolation
         for i in range(da.shape[0]):
@@ -93,7 +103,7 @@ class BaseDataset(Dataset):
             ).to_numpy()
         ).T
         if self.c is not None and self.c.shape[-1] > 0:
-            c = self.c.loc[basin].values
+            c = self.c.sel(basin=basin).values
             c = np.tile(c, (seq_length, 1))
             x = np.concatenate((x, c), axis=1)
         y = (
@@ -127,6 +137,7 @@ class BaseDataset(Dataset):
         data_attr_ds = self.data_source.read_attr_xrdataset(
             self.t_s_dict["sites_id"],
             self.data_params["constant_cols"],
+            all_number=True,
         )
 
         # trans to dataarray to better use xbatch
@@ -134,33 +145,16 @@ class BaseDataset(Dataset):
             data_flow_ds = unify_streamflow_unit(
                 data_flow_ds, self.data_source.read_area(self.t_s_dict["sites_id"])
             )
-            data_flow = data_flow_ds.to_array(dim="variable")
-            units_dict = {
-                var: data_flow_ds[var].attrs["units"]
-                for var in data_flow_ds.variables
-                if "units" in data_flow_ds[var].attrs
-            }
-            data_flow.attrs["units"] = units_dict
+            data_flow = self._trans2da_and_setunits(data_flow_ds)
         else:
             data_flow = None
         if data_forcing_ds is not None:
-            data_forcing = data_forcing_ds.to_array(dim="variable")
-            units_dict = {
-                var: data_forcing_ds[var].attrs["units"]
-                for var in data_forcing_ds.variables
-                if "units" in data_forcing_ds[var].attrs
-            }
-            data_forcing.attrs["units"] = units_dict
+            data_forcing = self._trans2da_and_setunits(data_forcing_ds)
         else:
             data_forcing = None
         if data_attr_ds is not None:
-            data_attr = data_attr_ds.to_array(dim="variable")
-            units_dict = {
-                var: data_attr_ds[var].attrs["units"]
-                for var in data_attr_ds.variables
-                if "units" in data_attr_ds[var].attrs
-            }
-            data_flow.attrs["units"] = units_dict
+            # firstly, we should transform some str type data to float type
+            data_attr = self._trans2da_and_setunits(data_attr_ds)
         else:
             data_attr = None
 
@@ -180,6 +174,17 @@ class BaseDataset(Dataset):
         self.target_scaler = scaler_hub.target_scaler
         self.warmup_length = self.data_params["warmup_length"]
         self._create_lookup_table()
+
+    def _trans2da_and_setunits(self, ds):
+        """Set units for dataarray transfromed from dataset"""
+        result = ds.to_array(dim="variable")
+        units_dict = {
+            var: ds[var].attrs["units"]
+            for var in ds.variables
+            if "units" in ds[var].attrs
+        }
+        result.attrs["units"] = units_dict
+        return result
 
     def kill_nan(self, x, c, y):
         data_params = self.data_params
@@ -293,7 +298,9 @@ class KuaiDataset(BaseDataset):
             )
         )
         assert n_iter_ep >= 1
-        return n_iter_ep
+        # __len__ means the number of all samples, then, the number of loops in a epoch is __len__()/batch_size = n_iter_ep
+        # hence we return n_iter_ep * batch_size
+        return n_iter_ep * batch_size
 
     def __getitem__(self, index):
         if self.train_mode:
@@ -305,7 +312,7 @@ class KuaiDataset(BaseDataset):
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float()
         # TODO: not CHECK attributes reading
-        c = self.c[index, :]
+        c = self.c.sel(basin=basin).values
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
         xc = np.concatenate((x, c), axis=1)
         return torch.from_numpy(xc).float(), torch.from_numpy(y).float()

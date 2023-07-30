@@ -11,7 +11,7 @@ from typing import Union
 
 import torch
 from torch import distributions as tdist, Tensor
-from models.training_utils import get_the_device
+from models.model_utils import get_the_device
 
 
 def deal_gap_data(output, target, data_gap, device):

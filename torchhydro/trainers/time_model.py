@@ -22,7 +22,7 @@ from models.model_dict_function import (
     pytorch_model_dict,
     pytorch_model_wrapper_dict,
 )
-from models.training_utils import get_the_device
+from models.model_utils import get_the_device
 
 
 class TimeSeriesModel(ABC):

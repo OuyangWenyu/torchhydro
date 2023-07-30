@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-07-29 10:33:38
+LastEditTime: 2023-07-30 23:00:47
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
-FilePath: \HydroTL\hydrotl\models\pytorch_training.py
+FilePath: \torchhydro\torchhydro\trainers\pytorch_training.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import os
@@ -17,13 +17,13 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from hydroutils.hydro_stat import stat_error
 from hydroutils import hydro_file
-from datasets.data_sets import KuaiDataset, BasinFlowDataset
-from models.time_model import PyTorchForecast
+import xarray as xr
+from trainers.time_model import PyTorchForecast
 from models.model_dict_function import (
     pytorch_opt_dict,
     pytorch_criterion_dict,
 )
-from models.training_utils import EarlyStopper
+from models.model_utils import EarlyStopper
 from models.crits import (
     GaussianLoss,
     UncertaintyWeights,
@@ -322,37 +322,46 @@ def evaluate_validation(
     tuple
         metrics
     """
-    if type(fill_nan) is list:
-        if len(fill_nan) != len(target_col):
-            raise Exception("length of fill_nan must be equal to target_col's")
+    if type(fill_nan) is list and len(fill_nan) != len(target_col):
+        raise Exception("length of fill_nan must be equal to target_col's")
     eval_log = {}
     for i in range(len(target_col)):
+        pred = output[:, :, i : i + 1]
+        obs = labels[:, :, i : i + 1]
         # renormalization to get real metrics
-        if type(validation_data_loader.dataset) in [
-            BasinFlowDataset,
-            KuaiDataset,
-        ]:
-            # TODO: now only test for BasinFlowDataset
-            valid_dataset = TestDataModel(validation_data_loader.dataset)
-            pred = valid_dataset.inverse_scale(output[:, :, i : i + 1])
-            obs = valid_dataset.inverse_scale(labels[:, :, i : i + 1])
-        else:
-            pred = output[:, :, i : i + 1]
-            obs = labels[:, :, i : i + 1]
-        pred = pred.reshape(pred.shape[0], pred.shape[1])
-        obs = obs.reshape(obs.shape[0], obs.shape[1])
+        target_data = validation_data_loader.dataset.y
+        preds_xr = validation_data_loader.dataset.target_scaler.inverse_transform(
+            xr.DataArray(
+                pred.transpose(2, 0, 1),
+                dims=target_data.dims,
+                coords=target_data.coords,
+            )
+        )
+        obss_xr = validation_data_loader.dataset.target_scaler.inverse_transform(
+            xr.DataArray(
+                obs.transpose(2, 0, 1),
+                dims=target_data.dims,
+                coords=target_data.coords,
+            )
+        )
+        obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
+        pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
         if type(fill_nan) is str:
-            inds = stat_error(obs, pred, fill_nan)
+            inds = stat_error(
+                obs_xr.to_numpy(),
+                pred_xr.to_numpy(),
+                fill_nan,
+            )
         else:
             inds = stat_error(
-                obs,
-                pred,
+                obs_xr.to_numpy(),
+                pred_xr.to_numpy(),
                 fill_nan[i],
             )
         for evaluation_metric in evaluation_metrics:
-            eval_log[evaluation_metric + " of " + target_col[i]] = inds[
+            eval_log[f"{evaluation_metric} of {target_col[i]}"] = inds[
                 evaluation_metric
-            ].tolist()
+            ]
     return eval_log
 
 

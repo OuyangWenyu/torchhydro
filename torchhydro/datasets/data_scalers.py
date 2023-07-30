@@ -251,7 +251,7 @@ class DapengScaler(object):
             if var in self.prcp_norm_cols:
                 mean_prep = self.data_source.read_mean_prcp(self.t_s_dict["sites_id"])
                 pred.loc[dict(variable=var)] = _prcp_norm(
-                    pred.sel(variable=var),
+                    pred.sel(variable=var).to_numpy(),
                     mean_prep.to_array().to_numpy().T,
                     to_norm=False,
                 )
@@ -305,7 +305,7 @@ class DapengScaler(object):
         attr_lst = self.data_params["constant_cols"]
         for k in range(len(attr_lst)):
             var = attr_lst[k]
-            stat_dict[var] = cal_stat(attr_data[:, k])
+            stat_dict[var] = cal_stat(attr_data.sel(variable=var).to_numpy())
 
         return stat_dict
 
@@ -334,10 +334,11 @@ class DapengScaler(object):
             if var in self.prcp_norm_cols:
                 mean_prep = self.data_source.read_mean_prcp(self.t_s_dict["sites_id"])
                 out.loc[dict(variable=var)] = _prcp_norm(
-                    data.sel(variable=var),
+                    data.sel(variable=var).to_numpy(),
                     mean_prep.to_array().to_numpy().T,
                     to_norm=True,
                 )
+                out.attrs['units'][var] = 'dimensionless'
         out = _trans_norm(
             out,
             target_cols,
@@ -456,24 +457,29 @@ def _trans_norm(
         var_lst = [var_lst]
     out = xr.full_like(x, np.nan)
     for item in var_lst:
-        var = item
-        stat = stat_dict[var]
+        stat = stat_dict[item]
         if to_norm:
-            out.loc[dict(variable=var)] = (
-                (np.log10(np.sqrt(x.sel(variable=var)) + 0.1) - stat[2]) / stat[3]
-                if var in log_norm_cols
-                else (x.sel(variable=var) - stat[2]) / stat[3]
+            out.loc[dict(variable=item)] = (
+                (np.log10(np.sqrt(x.sel(variable=item)) + 0.1) - stat[2]) / stat[3]
+                if item in log_norm_cols
+                else (x.sel(variable=item) - stat[2]) / stat[3]
             )
-        elif var in log_norm_cols:
-            out.loc[dict(variable=var)] = (
-                np.power(10, x.sel(variable=var) * stat[3] + stat[2]) - 0.1
+        elif item in log_norm_cols:
+            out.loc[dict(variable=item)] = (
+                np.power(10, x.sel(variable=item) * stat[3] + stat[2]) - 0.1
             ) ** 2
         else:
-            out.loc[dict(variable=var)] = x.sel(variable=var) * stat[3] + stat[2]
+            out.loc[dict(variable=item)] = x.sel(variable=item) * stat[3] + stat[2]
+    if to_norm:
+        # after normalization, all units are dimensionless 
+        out.attrs = {}
+    # after denormalization, recover units
+    else:
+        out.attrs.update(x.attrs)
     return out
 
 
-def _prcp_norm(x: xr.DataArray, mean_prep: np.array, to_norm: bool) -> np.array:
+def _prcp_norm(x: np.array, mean_prep: np.array, to_norm: bool) -> np.array:
     """
     Normalize or denormalize data with mean precipitation.
 
