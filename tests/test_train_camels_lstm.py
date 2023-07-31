@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2023-07-31 16:03:03
+LastEditTime: 2023-07-31 19:40:33
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: /torchhydro/tests/test_train_camels_lstm.py
@@ -10,8 +10,8 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 import os
 import pytest
 import hydrodataset as hds
-from datasets.config import cmd, default_config_file, update_cfg
-from trainers.trainer import train_and_evaluate
+from torchhydro.datasets.config import cmd, default_config_file, update_cfg
+from torchhydro.trainers.trainer import train_and_evaluate
 
 
 @pytest.fixture()
