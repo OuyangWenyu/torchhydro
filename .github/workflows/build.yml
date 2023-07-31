@@ -35,6 +35,8 @@ jobs:
                   pip install --user --no-cache-dir Cython
                   pip install --user -r requirements.txt
                   pip install --user -r requirements_dev.txt
+            - name: Add project root to PYTHONPATH
+              run: echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
             - name: PKG-TEST
               run: |
                   python -m unittest discover tests/
