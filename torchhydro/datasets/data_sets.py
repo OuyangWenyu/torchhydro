@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-07-30 22:08:09
+LastEditTime: 2023-07-31 15:15:17
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: \torchhydro\torchhydro\datasets\data_sets.py
+FilePath: /torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import logging
@@ -306,7 +306,7 @@ class KuaiDataset(BaseDataset):
         if self.train_mode:
             return super(KuaiDataset, self).__getitem__(index)
         # TODO: not CHECK warmup_length yet because we don't use warmup_length for pure DL models
-        basin, time = self.lookup_table[index]
+        basin = self.t_s_dict["sites_id"][index]
         x = self.x.sel(basin=basin).to_numpy().T
         y = self.y.sel(basin=basin).to_numpy().T
         if self.c is None or self.c.shape[-1] == 0:

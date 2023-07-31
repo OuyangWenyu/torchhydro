@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import pickle as pkl
@@ -328,6 +329,8 @@ class DapengScaler(object):
         stat_dict = self.stat_dict
         data = self.data_target
         out = xr.full_like(data, np.nan)
+        # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
+        out.attrs = copy.deepcopy(data.attrs)
         target_cols = self.data_params["target_cols"]
         for i in range(len(target_cols)):
             var = target_cols[i]
@@ -338,7 +341,7 @@ class DapengScaler(object):
                     mean_prep.to_array().to_numpy().T,
                     to_norm=True,
                 )
-                out.attrs['units'][var] = 'dimensionless'
+                out.attrs["units"][var] = "dimensionless"
         out = _trans_norm(
             out,
             target_cols,
@@ -417,6 +420,7 @@ def _trans_norm(
     stat_dict: dict,
     log_norm_cols: list = None,
     to_norm: bool = True,
+    **kwargs,
 ) -> np.array:
     """
     Normalization or inverse normalization
@@ -471,11 +475,14 @@ def _trans_norm(
         else:
             out.loc[dict(variable=item)] = x.sel(variable=item) * stat[3] + stat[2]
     if to_norm:
-        # after normalization, all units are dimensionless 
+        # after normalization, all units are dimensionless
         out.attrs = {}
     # after denormalization, recover units
     else:
-        out.attrs.update(x.attrs)
+        if "recover_units" in kwargs.keys() and kwargs["recover_units"] is not None:
+            recover_units = kwargs["recover_units"]
+            for item in var_lst:
+                out.attrs["units"][item] = recover_units[item]
     return out
 
 

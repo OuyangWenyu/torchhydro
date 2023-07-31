@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-07-30 23:00:47
+LastEditTime: 2023-07-31 15:55:47
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
-FilePath: \torchhydro\torchhydro\trainers\pytorch_training.py
+FilePath: /torchhydro/torchhydro/trainers/pytorch_training.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import os
@@ -139,26 +139,18 @@ def model_train(forecast_model: PyTorchForecast) -> None:
         forecast_model.training,
         batch_size=training_params["batch_size"],
         shuffle=True,
-        sampler=None,
-        batch_sampler=None,
         num_workers=worker_num,
         pin_memory=pin_memory,
-        drop_last=False,
         timeout=0,
-        worker_init_fn=None,
     )
     if data_params["t_range_valid"] is not None:
         validation_data_loader = DataLoader(
             forecast_model.validation,
             batch_size=training_params["batch_size"],
             shuffle=False,
-            sampler=None,
-            batch_sampler=None,
             num_workers=worker_num,
             pin_memory=pin_memory,
-            drop_last=False,
             timeout=0,
-            worker_init_fn=None,
         )
     session_params = []
     # use tensorboard to visualize the training process
@@ -325,25 +317,28 @@ def evaluate_validation(
     if type(fill_nan) is list and len(fill_nan) != len(target_col):
         raise Exception("length of fill_nan must be equal to target_col's")
     eval_log = {}
+    # renormalization to get real metrics
+    target_scaler = validation_data_loader.dataset.target_scaler
+    target_data = target_scaler.data_target
+    # the units are dimensionless
+    units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
+    preds_xr = target_scaler.inverse_transform(
+        xr.DataArray(
+            output.transpose(2, 0, 1),
+            dims=target_data.dims,
+            coords=target_data.coords,
+            attrs={"units": units},
+        )
+    )
+    obss_xr = target_scaler.inverse_transform(
+        xr.DataArray(
+            labels.transpose(2, 0, 1),
+            dims=target_data.dims,
+            coords=target_data.coords,
+            attrs={"units": units},
+        )
+    )
     for i in range(len(target_col)):
-        pred = output[:, :, i : i + 1]
-        obs = labels[:, :, i : i + 1]
-        # renormalization to get real metrics
-        target_data = validation_data_loader.dataset.y
-        preds_xr = validation_data_loader.dataset.target_scaler.inverse_transform(
-            xr.DataArray(
-                pred.transpose(2, 0, 1),
-                dims=target_data.dims,
-                coords=target_data.coords,
-            )
-        )
-        obss_xr = validation_data_loader.dataset.target_scaler.inverse_transform(
-            xr.DataArray(
-                obs.transpose(2, 0, 1),
-                dims=target_data.dims,
-                coords=target_data.coords,
-            )
-        )
         obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
         pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
         if type(fill_nan) is str:
@@ -361,7 +356,7 @@ def evaluate_validation(
         for evaluation_metric in evaluation_metrics:
             eval_log[f"{evaluation_metric} of {target_col[i]}"] = inds[
                 evaluation_metric
-            ]
+            ].tolist()
     return eval_log
 
 
@@ -529,19 +524,20 @@ def torch_single_train(
 
 
 def plot_hist_img(model, writer, global_step):
-    for tag, parm in model.named_parameters():
-        writer.add_histogram(tag + "_hist", parm.detach().cpu().numpy(), global_step)
-        if len(parm.shape) == 2:
-            img_format = "HW"
-            if parm.shape[0] > parm.shape[1]:
-                img_format = "WH"
-            # TODO: a bug for add_image, need to fix
-            # writer.add_image(
-            #     tag + "_img",
-            #     parm.detach().cpu().numpy(),
-            #     global_step,
-            #     dataformats=img_format,
-            # )
+    # TODO: a bug for add_histogram and add_image, maybe version problem, need to fix
+    pass
+    # for tag, parm in model.named_parameters():
+    #     writer.add_histogram(tag + "_hist", parm.detach().cpu().numpy(), global_step)
+    #     if len(parm.shape) == 2:
+    #         img_format = "HW"
+    #         if parm.shape[0] > parm.shape[1]:
+    #             img_format = "WH"
+    #             writer.add_image(
+    #               tag + "_img",
+    #               parm.detach().cpu().numpy(),
+    #               global_step,
+    #               dataformats=img_format,
+    #             )
 
 
 def compute_validation(

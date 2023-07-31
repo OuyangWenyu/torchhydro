@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2023-07-30 22:02:17
+LastEditTime: 2023-07-31 09:30:26
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
-FilePath: \torchhydro\tests\test_train_camels_lstm.py
+FilePath: /torchhydro/tests/test_train_camels_lstm.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
@@ -24,7 +24,7 @@ def config():
         source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_us"),
         source_region="US",
         download=0,
-        ctx=0,
+        ctx=[0],
         model_name="KuaiLSTM",
         model_param={
             "n_input_features": 23,
@@ -75,6 +75,7 @@ def config():
     )
     update_cfg(config_data, args)
     return config_data
+
 
 def test_train_evaluate(config):
     train_and_evaluate(config)
