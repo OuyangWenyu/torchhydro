@@ -1,0 +1,11 @@
+numpy
+xarray
+netCDF4
+geopandas
+scikit-learn
+tqdm
+pytest
+tbparse
+
+hydroutils
+hydrodataset
