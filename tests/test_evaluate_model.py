@@ -3,11 +3,11 @@ import hydrodataset as hds
 import pytest
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
 from hydroutils.hydro_plot import plot_ts
-from torchhydro.datasets.config import cmd, default_config_file, update_cfg
-from torchhydro.datasets.data_dict import data_sources_dict
-from torchhydro.trainers.evaluator import evaluate_model
-from torchhydro.trainers.time_model import PyTorchForecast
-from torchhydro.trainers.trainer import set_random_seed
+from datasets.config import cmd, default_config_file, update_cfg
+from datasets.data_dict import data_sources_dict
+from trainers.evaluator import evaluate_model
+from trainers.time_model import PyTorchForecast
+from trainers.trainer import set_random_seed
 
 
 @pytest.fixture()
