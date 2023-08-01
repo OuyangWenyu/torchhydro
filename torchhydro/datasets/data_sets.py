@@ -16,7 +16,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 import pint_xarray
 from hydrodataset import HydroDataset
-from datasets.data_scalers import ScalerHub, unify_streamflow_unit, wrap_t_s_dict
+from torchhydro.datasets.data_scalers import ScalerHub, unify_streamflow_unit, wrap_t_s_dict
 import xarray as xr
 
 LOGGER = logging.getLogger(__name__)
