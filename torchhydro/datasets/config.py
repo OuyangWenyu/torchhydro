@@ -15,7 +15,7 @@ import os
 import pandas as pd
 import numpy as np
 from hydroutils import hydro_file
-from datasets.data_constant import (
+from torchhydro.datasets.data_constant import (
     DAYMET_NAME,
     ET_MODIS_NAME,
     PET_MODIS_NAME,
