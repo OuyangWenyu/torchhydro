@@ -10,7 +10,7 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 from hydrodataset import Camels
 
 # more data types which cannot be easily treated same with attribute or forcing data
-from datasets.data_sets import (
+from torchhydro.datasets.data_sets import (
     KuaiDataset,
     BasinFlowDataset,
     BasinSingleFlowDataset,
