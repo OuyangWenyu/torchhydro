@@ -17,12 +17,12 @@ import os
 from datetime import datetime
 from hydrodataset import HydroDataset
 
-from datasets.data_dict import dataloaders_dict
-from models.model_dict_function import (
+from torchhydro.datasets.data_dict import dataloaders_dict
+from torchhydro.models.model_dict_function import (
     pytorch_model_dict,
     pytorch_model_wrapper_dict,
 )
-from models.model_utils import get_the_device
+from torchhydro.models.model_utils import get_the_device
 
 
 class TimeSeriesModel(ABC):

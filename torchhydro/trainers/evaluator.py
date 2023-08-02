@@ -16,8 +16,8 @@ import torch
 from torch.utils.data import DataLoader
 from hydroutils.hydro_stat import stat_error
 
-from trainers.time_model import PyTorchForecast
-from models.model_utils import get_the_device
+from torchhydro.trainers.time_model import PyTorchForecast
+from torchhydro.models.model_utils import get_the_device
 
 
 def evaluate_model(model: PyTorchForecast) -> Tuple[Dict, np.array, np.array]:

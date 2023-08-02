@@ -18,13 +18,13 @@ from tqdm import tqdm
 from hydroutils.hydro_stat import stat_error
 from hydroutils import hydro_file
 import xarray as xr
-from trainers.time_model import PyTorchForecast
-from models.model_dict_function import (
+from torchhydro.trainers.time_model import PyTorchForecast
+from torchhydro.models.model_dict_function import (
     pytorch_opt_dict,
     pytorch_criterion_dict,
 )
-from models.model_utils import EarlyStopper
-from models.crits import (
+from torchhydro.models.model_utils import EarlyStopper
+from torchhydro.models.crits import (
     GaussianLoss,
     UncertaintyWeights,
 )

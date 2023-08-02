@@ -7,7 +7,7 @@ Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \HydroTL\hydrotl\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
-from models.cudnnlstm import (
+from torchhydro.models.cudnnlstm import (
     CudnnLstmModel,
     LinearCudnnLstmModel,
     CNN1dLCmodel,
@@ -16,7 +16,7 @@ from models.cudnnlstm import (
     KuaiLstm,
 )
 from torch.optim import Adam, SGD, Adadelta
-from models.crits import (
+from torchhydro.models.crits import (
     RMSELoss,
     RmseLoss,
     MultiOutLoss,
