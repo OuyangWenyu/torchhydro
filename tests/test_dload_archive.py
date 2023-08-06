@@ -27,5 +27,3 @@ def test_download_archive():
         res = req.request(method='GET', url=url)
         zip_file = zif.ZipFile(io.BytesIO(res.content), 'r')
         zif.ZipFile.extractall(zip_file, path='datas')
-
-
