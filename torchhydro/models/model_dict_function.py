@@ -24,7 +24,7 @@ from torchhydro.models.crits import (
     DynamicTaskPrior,
     MultiOutWaterBalanceLoss,
 )
-
+from torchhydro.models.dpl4xaj import DplLstmXaj
 
 """
 Utility dictionaries to map a string to a class.
@@ -36,6 +36,8 @@ pytorch_model_dict = {
     "DapengCNNLSTM": CNN1dLCmodel,
     "LSTMKernel": CudnnLstmModelLstmKernel,
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
+    # Uncompleted
+    "DplLstmXaj": DplLstmXaj
 }
 
 pytorch_model_wrapper_dict = {}

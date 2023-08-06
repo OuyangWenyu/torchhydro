@@ -9,3 +9,10 @@ tbparse
 
 hydroutils
 hydrodataset
+pandas
+torch~=1.13.0
+hydroerr
+setuptools~=65.5.0
+torchvision~=0.14.0
+matplotlib~=3.5.3
+seaborn~=0.12.1

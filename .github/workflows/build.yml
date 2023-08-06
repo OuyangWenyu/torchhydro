@@ -37,7 +37,10 @@ jobs:
                   pip install --user -r requirements_dev.txt
                   pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
             - name: Add project root to PYTHONPATH
-              run: echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
+              run: echo "PYTHONPATH=${PYTHONPATH}$(pwd)" >> $GITHUB_ENV
             - name: PKG-TEST
               run: |
-                  pytest tests
+                  pytest tests/test_dload_archive.py
+                  pytest tests/test_data_cache.py
+                  pytest tests/test_train_camels_lstm.py
+                  pytest tests/test_evaluate_model.py
