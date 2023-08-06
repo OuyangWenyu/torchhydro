@@ -26,4 +26,4 @@ def test_download_archive():
     elif is_windows():
         res = req.request(method='GET', url=url)
         zip_file = zif.ZipFile(io.BytesIO(res.content), 'r')
-        zif.ZipFile.extractall(zip_file, path='datas')
+        zif.ZipFile.extractall(zip_file, path=os.path.abspath('C:\\Users\\runneradmin\\.hydrodataset\\cache\\camels\\camels_us'))
