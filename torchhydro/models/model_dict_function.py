@@ -15,7 +15,7 @@ from torchhydro.models.cudnnlstm import (
     CNN1dLCmodel,
     CudnnLstmModelLstmKernel,
     CudnnLstmModelMultiOutput,
-    KuaiLstm,
+    KuaiLstm, CpuLstmModel,
 )
 from torch.optim import Adam, SGD, Adadelta
 from torchhydro.models.crits import (
@@ -40,7 +40,7 @@ pytorch_model_dict = {
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
     # Uncompleted
     "DplLstmXaj": DplLstmXaj,
-    "OriginLSTM": torch.nn.LSTM
+    "CpuLSTM": CpuLstmModel
 }
 
 pytorch_model_wrapper_dict = {}
