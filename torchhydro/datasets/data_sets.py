@@ -12,7 +12,7 @@ import sys
 from typing import Optional
 import numpy as np
 import torch
-import xarray
+import pint_xarray
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from hydrodataset import HydroDataset
