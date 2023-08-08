@@ -25,7 +25,7 @@ def config():
         source_region="US",
         download=0,
         ctx=[0],
-        model_name="KuaiLstm",
+        model_name="OriginLSTM",
         model_param={
             "n_input_features": 23,
             "n_output_features": 1,

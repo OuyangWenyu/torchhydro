@@ -7,6 +7,8 @@ Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \HydroTL\hydrotl\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+import torch.nn
+
 from torchhydro.models.cudnnlstm import (
     CudnnLstmModel,
     LinearCudnnLstmModel,
@@ -37,7 +39,8 @@ pytorch_model_dict = {
     "LSTMKernel": CudnnLstmModelLstmKernel,
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
     # Uncompleted
-    "DplLstmXaj": DplLstmXaj
+    "DplLstmXaj": DplLstmXaj,
+    "OriginLSTM": torch.nn.LSTM
 }
 
 pytorch_model_wrapper_dict = {}
