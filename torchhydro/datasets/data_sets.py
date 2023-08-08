@@ -12,9 +12,9 @@ import sys
 from typing import Optional
 import numpy as np
 import torch
+import xarray
 from torch.utils.data import Dataset
 from tqdm import tqdm
-import pint_xarray
 from hydrodataset import HydroDataset
 from torchhydro.datasets.data_scalers import ScalerHub, unify_streamflow_unit, wrap_t_s_dict
 import xarray as xr
@@ -124,22 +124,27 @@ class BaseDataset(Dataset):
         self.t_s_dict = wrap_t_s_dict(
             self.data_source, self.data_params, self.loader_type
         )
+        # y
         data_flow_ds = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             self.t_s_dict["t_final_range"],
             self.data_params["target_cols"],
         )
+        # x
         data_forcing_ds = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             self.t_s_dict["t_final_range"],
             self.data_params["relevant_cols"],
         )
+        # c
         data_attr_ds = self.data_source.read_attr_xrdataset(
             self.t_s_dict["sites_id"],
             self.data_params["constant_cols"],
             all_number=True,
         )
-
+        self.x_origin = np.copy(data_forcing_ds.to_array().to_numpy())
+        self.y_origin = np.copy(data_flow_ds.to_array().to_numpy())
+        self.c_origin = np.copy(data_attr_ds.to_array().to_numpy())
         # trans to dataarray to better use xbatch
         if data_flow_ds is not None:
             data_flow_ds = unify_streamflow_unit(
@@ -298,7 +303,7 @@ class KuaiDataset(BaseDataset):
             )
         )
         assert n_iter_ep >= 1
-        # __len__ means the number of all samples, then, the number of loops in a epoch is __len__()/batch_size = n_iter_ep
+        # __len__ means the number of all samples, then, the number of loops in an epoch is __len__()/batch_size = n_iter_ep
         # hence we return n_iter_ep * batch_size
         return n_iter_ep * batch_size
 
@@ -316,3 +321,107 @@ class KuaiDataset(BaseDataset):
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
         xc = np.concatenate((x, c), axis=1)
         return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+
+
+class DplDataset(BaseDataset):
+    """pytorch dataset for Differential parameter learning"""
+
+    def __init__(
+        self, data_source: HydroDataset, data_params: dict, loader_type: str
+    ):
+        """
+        Parameters
+        ----------
+        data_source
+            object for reading source data
+        data_params
+            parameters for reading source data
+        loader_type
+            train, vaild or test
+        """
+        super(DplDataset, self).__init__(data_source, data_params, loader_type)
+        # we don't use y_un_norm as its name because in the main function we will use "y"
+        # For physical hydrological models, we need warmup, hence the target values should exclude data in warmup period
+        self.warmup_length = data_params["warmup_length"]
+        self.target_as_input = data_params["target_as_input"]
+        self.constant_only = data_params["constant_only"]
+        if self.target_as_input and (not self.train_mode):
+            # if the target is used as input and train_mode is False,
+            # we need to get the target data in training period to generate pbm params
+            self.train_dataset = DplDataset(
+                data_source, data_params, loader_type="train"
+            )
+
+    def __getitem__(self, item):
+        """
+        Get one mini-batch for dPL (differential parameter learning) model
+
+        Parameters
+        ----------
+        item
+            index
+
+        Returns
+        -------
+        tuple
+            a mini-batch data;
+            x_train (not normalized forcing), z_train (normalized data for DL model), y_train (not normalized output)
+        """
+        if self.train_mode:
+            xc_norm, _ = super(DplDataset, self).__getitem__(item)
+            basin, idx = self.lookup_table[item]
+            warmup_length = self.warmup_length
+            if self.target_as_input:
+                # y_morn and xc_norm are concatenated and used for DL model
+                y_norm = torch.from_numpy(
+                    self.y[basin, idx - warmup_length: idx + self.rho, :]
+                ).float()
+                # the order of xc_norm and y_norm matters, please be careful!
+                z_train = torch.cat((xc_norm, y_norm), -1)
+            elif self.constant_only:
+                # only use attributes data for DL model
+                z_train = torch.from_numpy(self.c[basin, :]).float()
+            else:
+                z_train = xc_norm
+            x_train = self.x_origin[basin, idx - warmup_length: idx + self.rho, :]
+            y_train = self.y_origin[basin, idx: idx + self.rho, :]
+        else:
+            x_norm = self.x[item, :, :]
+            if self.target_as_input:
+                # when target_as_input is True,
+                # we need to use training data to generate pbm params
+                x_norm = self.train_dataset.x[item, :, :]
+            if self.c is None or self.c.shape[-1] == 0:
+                xc_norm = torch.from_numpy(x_norm).float()
+            else:
+                c_norm = self.c[item, :]
+                c_norm = (
+                    np.repeat(c_norm, x_norm.shape[0], axis=0)
+                    .reshape(c_norm.shape[0], -1)
+                    .T
+                )
+                xc_norm = torch.from_numpy(
+                    np.concatenate((x_norm, c_norm), axis=1)
+                ).float()
+            warmup_length = self.warmup_length
+            if self.target_as_input:
+                # when target_as_input is True,
+                # we need to use training data to generate pbm params
+                # when used as input, warmup_length not included for y
+                y_norm = torch.from_numpy(self.train_dataset.y[item, :, :]).float()
+                # the order of xc_norm and y_norm matters, please be careful!
+                z_train = torch.cat((xc_norm, y_norm), -1)
+            elif self.constant_only:
+                # only use attributes data for DL model
+                z_train = torch.from_numpy(self.c[item, :]).float()
+            else:
+                z_train = xc_norm
+            x_train = self.x_origin[item, :, :]
+            y_train = self.y_origin[item, warmup_length:, :]
+
+        return (torch.from_numpy(x_train).float(), z_train), torch.from_numpy(
+            y_train
+        ).float()
+
+    def __len__(self):
+        return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])

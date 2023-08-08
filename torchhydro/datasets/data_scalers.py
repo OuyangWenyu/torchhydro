@@ -4,6 +4,8 @@ import os
 import pickle as pkl
 from collections import OrderedDict
 import shutil
+
+import xarray
 import xarray as xr
 from hydrodataset import HydroDataset
 import numpy as np
@@ -545,7 +547,7 @@ def wrap_t_s_dict(
     return OrderedDict(sites_id=basins_id, t_final_range=t_range_list)
 
 
-def unify_streamflow_unit(ds, area=None, inverse=False):
+def unify_streamflow_unit(ds: xarray.Dataset, area=None, inverse=False):
     """Unify the unit of xr_dataset to be mm/day in a basin or inverse
 
     Parameters

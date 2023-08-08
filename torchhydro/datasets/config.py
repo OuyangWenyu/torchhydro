@@ -877,7 +877,7 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_params"]["train_but_not_real"] = True
     if new_args.which_first_tensor is not None:
         cfg_file["training_params"]["which_first_tensor"] = new_args.which_first_tensor
-    print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
+    # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 
 def get_config_file(cfg_dir):

@@ -14,6 +14,7 @@ from torchhydro.datasets.data_sets import (
     KuaiDataset,
     BasinFlowDataset,
     BasinSingleFlowDataset,
+    DplDataset,
 )
 
 data_sources_dict = {
@@ -23,5 +24,7 @@ data_sources_dict = {
 dataloaders_dict = {
     "StreamflowDataset": BasinFlowDataset,
     "SingleflowDataset": BasinSingleFlowDataset,
+    # 不完全遍历
     "KuaiDataset": KuaiDataset,
+    "DplDataset": DplDataset
 }
