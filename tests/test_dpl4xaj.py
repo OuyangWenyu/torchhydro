@@ -13,19 +13,15 @@ import os
 import HydroErr as he
 import hydrodataset as hds
 import numpy as np
-import pandas as pd
 import pytest
 import torch
-import xarray as xr
-from hydrodataset import HydroDataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from torchhydro.datasets.config import cmd, default_config_file, update_cfg
 from torchhydro.datasets.data_dict import data_sources_dict
-from torchhydro.datasets.data_sets import KuaiDataset, DplDataset
+from torchhydro.datasets.data_sets import DplDataset
 from torchhydro.models.dpl4xaj import DplLstmXaj
-from torchhydro.trainers.evaluator import infer_on_torch_model
 from torchhydro.trainers.trainer import set_random_seed
 
 
@@ -84,7 +80,22 @@ def config_data():
 def config_data1():
     args = cmd(gage_id=[
         "01078000",
-    ],)
+    ],
+        var_t=["dayl", "prcp", "srad", "tmax", "tmin", "vp"],
+        var_out=["streamflow"],
+        scaler_params={
+            "prcp_norm_cols": ["streamflow"],
+            "gamma_norm_cols": [
+                "prcp",
+                "pr",
+                "total_precipitation",
+                "potential_evaporation",
+                "ET",
+                "PET",
+                "ET_sum",
+                "ssm",
+            ],
+        }, )
     config_data1 = default_config_file()
     update_cfg(config_data1, args)
     return config_data1
@@ -187,4 +198,3 @@ def test_train_model(config_data, dpl, config_data1):
         preds = preds.reshape(2, -1)
         nse = np.array([he.nse(preds[i], obs[i]) for i in range(obs.shape[0])])
         tqdm.write(f"epoch {epoch} -- Validation NSE mean: {nse.mean():.2f}")
-
