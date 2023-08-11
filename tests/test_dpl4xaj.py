@@ -15,6 +15,7 @@ import hydrodataset as hds
 import numpy as np
 import pytest
 import torch
+from numpy import isnan
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -22,6 +23,7 @@ from torchhydro.datasets.config import cmd, default_config_file, update_cfg
 from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.datasets.data_sets import DplDataset
 from torchhydro.models.dpl4xaj import DplLstmXaj
+from torchhydro.models.model_dict_function import pytorch_opt_dict, pytorch_criterion_dict
 from torchhydro.trainers.trainer import set_random_seed
 
 
@@ -37,14 +39,15 @@ def config_data():
         model_name="DplLstmXaj",
         model_param={
             "n_input_features": 23,
-            "n_output_features": 1,
-            "n_hidden_states": 32,
+            "n_output_features": 15,
+            "n_hidden_states": 64,
         },
         gage_id=[
             "01013500",
         ],
-        batch_size=5,
-        rho=18,  # batch_size=100, rho=365,
+        batch_size=16,
+        warmup_length=8,
+        rho=5,  # batch_size=100, rho=365,
         var_t=["dayl", "prcp", "srad", "tmax", "tmin", "vp"],
         var_out=["streamflow"],
         data_loader="DplDataset",
@@ -77,38 +80,13 @@ def config_data():
 
 
 @pytest.fixture()
-def config_data1():
-    args = cmd(gage_id=[
-        "01078000",
-    ],
-        var_t=["dayl", "prcp", "srad", "tmax", "tmin", "vp"],
-        var_out=["streamflow"],
-        scaler_params={
-            "prcp_norm_cols": ["streamflow"],
-            "gamma_norm_cols": [
-                "prcp",
-                "pr",
-                "total_precipitation",
-                "potential_evaporation",
-                "ET",
-                "PET",
-                "ET_sum",
-                "ssm",
-            ],
-        }, )
-    config_data1 = default_config_file()
-    update_cfg(config_data1, args)
-    return config_data1
-
-
-@pytest.fixture()
 def device():
     return "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
 @pytest.fixture()
-def dpl(device):
-    dpl_ = DplLstmXaj(5, 15, 18, kernel_size=15, warmup_length=0)
+def dpl(device, config_data):
+    dpl_ = DplLstmXaj(15, 15, 64, kernel_size=15, warmup_length=10)
     return dpl_.to(device)
 
 
@@ -124,11 +102,20 @@ def train_epoch(model, optimizer, loader, loss_func, epoch):
         # delete previously stored gradients from the model
         optimizer.zero_grad()
         # push data to GPU (if available)
-        xs, ys = xs.to(device), ys.to(device)
+        if type(xs) is list:
+            xs = [data_tmp.permute(2, 1, 0) for data_tmp in xs]
+            # Will bring error
+            for data_tmp_np in xs:
+                data_tmp_np[isnan(data_tmp_np)] = 0
+            xs = [data_tmp.to(device) for data_tmp in xs]
+        else:
+            xs = xs.to(device)
+        ys = ys.to(device)
         # get model predictions
-        y_hat = model(xs, ys)
+        output = model(*xs)
+        # y_hat = model(xs, ys)
         # calculate loss
-        loss = loss_func(y_hat, ys)
+        loss = loss_func(output, ys)
         # calculate gradients
         loss.backward()
         # update the weights
@@ -149,16 +136,22 @@ def eval_model(model, loader):
     with torch.no_grad():
         # request mini-batch of data from the loader
         for xs, ys in loader:
+            if type(xs) is list:
+                xs = [data_tmp.permute(2, 1, 0) for data_tmp in xs]
+                xs = [data_tmp.to(device) for data_tmp in xs]
+            else:
+                xs = xs.to(device)
             # push data to GPU (if available)
-            xs, ys = xs.to(device), ys.to(device)
+            ys = ys.to(device)
             # get model predictions
+            output = model(*xs)
             y_hat = model(xs, ys)
             obs.append(ys)
             preds.append(y_hat)
     return torch.cat(obs), torch.cat(preds)
 
 
-def test_train_model(config_data, dpl, config_data1):
+def test_train_model(config_data, dpl):
     seed = int(config_data["training_params"]["random_seed"])
     set_random_seed(seed)
     data_source_name = config_data['data_params']['data_source_name']
@@ -175,9 +168,9 @@ def test_train_model(config_data, dpl, config_data1):
         timeout=0,
         worker_init_fn=None,
     ), DataLoader(
-        DplDataset(data_source, config_data1['data_params'], 'test'),
-        batch_size=config_data1["training_params"]["batch_size"],
-        shuffle=True,
+        DplDataset(data_source, config_data['data_params'], 'test'),
+        batch_size=config_data["training_params"]["batch_size"],
+        shuffle=False,
         sampler=None,
         batch_sampler=None,
         drop_last=False,
@@ -185,8 +178,8 @@ def test_train_model(config_data, dpl, config_data1):
         worker_init_fn=None,
     )
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
-    optimizer = config_data["training_params"]["optimizer"]
-    loss_func = config_data["training_params"]["criterion"]
+    optimizer = pytorch_opt_dict[config_data["training_params"]["optimizer"]](params=dpl.parameters())
+    loss_func = pytorch_criterion_dict[config_data["training_params"]["criterion"]]()
     # Now we train the model
     for epoch in range(num_epochs):
         train_epoch(dpl, optimizer, train_dataloader, loss_func, epoch)

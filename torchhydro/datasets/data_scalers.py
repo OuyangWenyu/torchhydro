@@ -4,8 +4,7 @@ import os
 import pickle as pkl
 from collections import OrderedDict
 import shutil
-
-import xarray
+import pint_xarray  # noqa: F401
 import xarray as xr
 from hydrodataset import HydroDataset
 import numpy as np
@@ -92,7 +91,7 @@ class ScalerHub(object):
                 if data_tmp.ndim == 3:
                     # for forcings and outputs
                     num_instances, num_time_steps, num_features = data_tmp.shape
-                    data_tmp = data_tmp.reshape(-1, num_features)
+                    data_tmp = data_tmp.to_numpy().reshape(-1, num_features)
                     save_file = os.path.join(
                         data_params["test_path"], f"{norm_keys[i]}_scaler.pkl"
                     )
@@ -209,7 +208,6 @@ class DapengScaler(object):
         self.gamma_norm_cols = gamma_norm_cols
         # both prcp_norm_cols and gamma_norm_cols use log(\sqrt(x)+.1) method to normalize
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
-
         # save stat_dict of training period in test_path for valid/test
         stat_file = os.path.join(data_params["test_path"], "dapengscaler_stat.json")
         # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
@@ -547,7 +545,7 @@ def wrap_t_s_dict(
     return OrderedDict(sites_id=basins_id, t_final_range=t_range_list)
 
 
-def unify_streamflow_unit(ds: xarray.Dataset, area=None, inverse=False):
+def unify_streamflow_unit(ds: xr.Dataset, area=None, inverse=False):
     """Unify the unit of xr_dataset to be mm/day in a basin or inverse
 
     Parameters
