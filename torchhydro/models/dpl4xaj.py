@@ -832,7 +832,6 @@ class Xaj4Dpl(nn.Module):
 
         conv_uh = KernelConv(a, theta, self.kernel_size)
         qs_ = conv_uh(runoff_im + rss)
-
         qs = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         for i in range(inputs.shape[0]):
             if i == 0:

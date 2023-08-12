@@ -8,21 +8,19 @@ FilePath: /torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import logging
-import os
 import sys
 from typing import Optional
+
 import numpy as np
-import pandas as pd
-import torch
 import pint_xarray  # noqa: F401
+import torch
+import xarray as xr
+from hydrodataset import HydroDataset
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from hydrodataset import HydroDataset, hydro_utils, Camels
 from xarray import DataArray
 
 from torchhydro.datasets.data_scalers import ScalerHub, unify_streamflow_unit, wrap_t_s_dict
-import hydrodataset as hds
-import xarray as xr
 
 LOGGER = logging.getLogger(__name__)
 
@@ -102,21 +100,21 @@ class BaseDataset(Dataset):
             self.x.sel(
                 basin=basin,
                 time=slice(
-                    time - np.timedelta64(warmup_length),
-                    time + np.timedelta64(seq_length - 1, "D"),
+                    time - np.timedelta64(warmup_length, "D"),
+                    time + np.timedelta64(seq_length, "D"),
                 ),
             ).to_numpy()
         ).T
         if self.c is not None and self.c.shape[-1] > 0:
             c = self.c.sel(basin=basin).values
-            c = np.tile(c, (seq_length, 1))
+            c = np.tile(c, (warmup_length + seq_length + 1, 1))
             x = np.concatenate((x, c), axis=1)
         y = (
             self.y.sel(
                 basin=basin,
                 time=slice(
-                    time,
-                    time + np.timedelta64(seq_length - 1, "D"),
+                    time - np.timedelta64(warmup_length, "D"),
+                    time + np.timedelta64(seq_length, "D"),
                 ),
             )
             .to_numpy()
@@ -148,9 +146,6 @@ class BaseDataset(Dataset):
             self.data_params["constant_cols"],
             all_number=True,
         )
-        data = self.read_camels_us_model_output_data(camels=hds.Camels(),gage_id_lst=self.t_s_dict["sites_id"],
-                                                     t_range=self.t_s_dict["t_final_range"],
-                                                     var_lst=["PET"])
         self.x_origin = data_forcing_ds
         self.y_origin = data_flow_ds
         self.c_origin = data_attr_ds
@@ -232,92 +227,6 @@ class BaseDataset(Dataset):
             )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
-
-    def read_camels_us_model_output_data(
-        self,
-        camels: Camels,
-        gage_id_lst: list = None,
-        t_range: list = None,
-        var_lst: list = None,
-        forcing_type="daymet",
-    ) -> np.array:
-        """
-        Read model output data
-
-        Parameters
-        ----------
-        camels : [type]
-            [description]
-        gage_id_lst : [type]
-            [description]
-        var_lst : [type]
-            [description]
-        t_range : [type]
-            [description]
-        forcing_type : str, optional
-            [description], by default "daymet"
-            :param camels:
-        """
-        t_range_list = hydro_utils.t_range_days(t_range)
-        model_out_put_var_lst = [
-            "SWE",
-            "PRCP",
-            "RAIM",
-            "TAIR",
-            "PET",
-            "ET",
-            "MOD_RUN",
-            "OBS_RUN",
-        ]
-        if not set(var_lst).issubset(set(model_out_put_var_lst)):
-            raise RuntimeError("not in this list")
-        nt = t_range_list.shape[0]
-        chosen_camels_mods = np.full([len(gage_id_lst), nt, len(var_lst)], np.nan)
-        count = 0
-        for usgs_id in tqdm(gage_id_lst, desc="Read model output data of CAMELS-US"):
-            gage_id_df = camels.sites
-            huc02_ = gage_id_df[gage_id_df["gauge_id"] == usgs_id]["huc_02"].values[0]
-            file_path_dir = os.path.join(
-                camels.data_source_dir,
-                "basin_timeseries_v1p2_modelOutput_" + forcing_type,
-                "model_output_" + forcing_type,
-                "model_output",
-                "flow_timeseries",
-                forcing_type,
-                huc02_,
-            )
-            sac_random_seeds = [
-                "05",
-                "11",
-                "27",
-                "33",
-                "48",
-                "59",
-                "66",
-                "72",
-                "80",
-                "94",
-            ]
-            files = [
-                os.path.join(
-                    file_path_dir, usgs_id + "_" + random_seed + "_model_output.txt"
-                )
-                for random_seed in sac_random_seeds
-            ]
-            results = []
-            for file in files:
-                result = pd.read_csv(file, sep="\s+")
-                df_date = result[["YR", "MNTH", "DY"]]
-                df_date.columns = ["year", "month", "day"]
-                date = pd.to_datetime(df_date).values.astype("datetime64[D]")
-                [c, ind1, ind2] = np.intersect1d(
-                    date, t_range_list, return_indices=True
-                )
-                results.append(result[var_lst].values[ind1])
-            result_np = np.array(results)
-            chosen_camels_mods[count, ind2, :] = np.mean(result_np, axis=0)
-            count = count + 1
-        return chosen_camels_mods
 
 
 class BasinSingleFlowDataset(BaseDataset):
@@ -463,23 +372,31 @@ class DplDataset(BaseDataset):
             x_train (not normalized forcing), z_train (normalized data for DL model), y_train (not normalized output)
         """
         if self.train_mode:
-            xc_norm, _ = super(DplDataset, self).__getitem__(item)
+            xc_rho_norm, y_rho_norm = super(DplDataset, self).__getitem__(item)
             basin, idx = self.lookup_table[item]
             warmup_length = self.warmup_length
             if self.target_as_input:
-                # y_morn and xc_norm are concatenated and used for DL model
+                # y_morn and xc_rho_norm are concatenated and used for DL model
                 y_norm = torch.from_numpy(
                     self.y[basin, idx - warmup_length: idx + self.rho, :]
                 ).float()
-                # the order of xc_norm and y_norm matters, please be careful!
-                z_train = torch.cat((xc_norm, y_norm), -1)
+                # the order of xc_rho_norm and y_norm matters, please be careful!
+                z_train = torch.cat((xc_rho_norm, y_norm), -1)
             elif self.constant_only:
                 # only use attributes data for DL model
                 z_train = torch.from_numpy(self.c[basin, :]).float()
             else:
-                z_train = xc_norm
-            x_train = self.x_origin.sel(basin=basin, time=slice(idx - warmup_length, idx + self.rho)).to_array().to_numpy()
-            y_train = self.y_origin.sel(basin=basin, time=slice(idx, idx + self.rho)).to_array().to_numpy()
+                z_train = xc_rho_norm
+            # 应为(14, 16, 23), (time, batch, attributes)
+            # x_train.shape = (6, 14), xc_rho_norm = (5, 23), align to (14, 23)
+            x_train_rel = self.x_origin.sel(basin=basin, time=slice(idx - np.timedelta64(warmup_length, 'D'), idx + np.timedelta64(
+                self.rho, 'D'))).to_array().to_numpy().T
+            # 也可以把x_train和x_total_np的部分拼接，反正attr多少行都一样
+            c_origin_np = self.c_origin.to_array().to_numpy()
+            x_train_attr = np.repeat(c_origin_np, x_train_rel.shape[0]).reshape(c_origin_np.shape[0], x_train_rel.shape[0]).T
+            x_train = np.concatenate((x_train_rel, x_train_attr), axis=1)
+            y_train = self.y_origin.sel(basin=basin, time=slice(idx - np.timedelta64(warmup_length, 'D'), idx + np.timedelta64(
+                self.rho, 'D'))).to_array().to_numpy().T
         else:
             x_norm = self.x[item, :, :]
             if self.target_as_input:
@@ -487,12 +404,12 @@ class DplDataset(BaseDataset):
                 # we need to use training data to generate pbm params
                 x_norm = self.train_dataset.x[item, :, :]
             if self.c is None or self.c.shape[-1] == 0:
-                xc_norm = torch.from_numpy(x_norm).float()
+                xc_rho_norm = torch.from_numpy(x_norm).float()
             else:
                 c_norm = self.c[item, :]
                 pre_norm: DataArray = np.repeat(c_norm, x_norm.shape[0], axis=0)
                 c_norm = pre_norm.to_numpy().reshape(c_norm.shape[0], -1).T
-                xc_norm = torch.from_numpy(
+                xc_rho_norm = torch.from_numpy(
                     np.concatenate((x_norm, c_norm), axis=1)
                 ).float()
             warmup_length = self.warmup_length
@@ -501,14 +418,13 @@ class DplDataset(BaseDataset):
                 # we need to use training data to generate pbm params
                 # when used as input, warmup_length not included for y
                 y_norm = torch.from_numpy(self.train_dataset.y[item, :, :]).float()
-                # the order of xc_norm and y_norm matters, please be careful!
-                z_train = torch.cat((xc_norm, y_norm), -1)
+                # the order of xc_rho_norm and y_norm matters, please be careful!
+                z_train = torch.cat((xc_rho_norm, y_norm), -1)
             elif self.constant_only:
                 # only use attributes data for DL model
                 z_train = torch.from_numpy(self.c[item, :]).float()
             else:
-                z_train = xc_norm
-            # x_origin.sel
+                z_train = xc_rho_norm
             x_train = self.x_origin.to_array().to_numpy()[item, :, :]
             y_train = self.y_origin.to_array().to_numpy()[item, warmup_length:, :]
         xyz_train = (torch.from_numpy(x_train).float(), z_train), torch.from_numpy(y_train).float()

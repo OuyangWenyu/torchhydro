@@ -19,7 +19,7 @@ from numpy import isnan
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from torchhydro.datasets.config import cmd, default_config_file, update_cfg
+from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.datasets.data_sets import DplDataset
 from torchhydro.models.dpl4xaj import DplLstmXaj
@@ -86,7 +86,7 @@ def device():
 
 @pytest.fixture()
 def dpl(device, config_data):
-    dpl_ = DplLstmXaj(15, 15, 64, kernel_size=15, warmup_length=10)
+    dpl_ = DplLstmXaj(23, 15, 64, kernel_size=15, warmup_length=8)
     return dpl_.to(device)
 
 
@@ -103,19 +103,20 @@ def train_epoch(model, optimizer, loader, loss_func, epoch):
         optimizer.zero_grad()
         # push data to GPU (if available)
         if type(xs) is list:
-            xs = [data_tmp.permute(2, 1, 0) for data_tmp in xs]
+            xs = [data_tmp.permute(1, 0, 2) for data_tmp in xs]
             # Will bring error
             for data_tmp_np in xs:
                 data_tmp_np[isnan(data_tmp_np)] = 0
             xs = [data_tmp.to(device) for data_tmp in xs]
         else:
             xs = xs.to(device)
-        ys = ys.to(device)
+        ys = ys.permute(1, 0, 2).to(device)
         # get model predictions
         output = model(*xs)
         # y_hat = model(xs, ys)
         # calculate loss
-        loss = loss_func(output, ys)
+        ys_rho = ys[model.pb_model.warmup_length:, :, :]
+        loss = loss_func(output, ys_rho)
         # calculate gradients
         loss.backward()
         # update the weights
