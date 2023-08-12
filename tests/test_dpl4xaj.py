@@ -138,18 +138,21 @@ def eval_model(model, loader):
         # request mini-batch of data from the loader
         for xs, ys in loader:
             if type(xs) is list:
-                xs = [data_tmp.permute(2, 1, 0) for data_tmp in xs]
+                xs = [data_tmp.permute(1, 0, 2) for data_tmp in xs]
+                for data_tmp_np in xs:
+                    data_tmp_np[isnan(data_tmp_np)] = 0
                 xs = [data_tmp.to(device) for data_tmp in xs]
             else:
                 xs = xs.to(device)
             # push data to GPU (if available)
-            ys = ys.to(device)
+            ys = ys.permute(1, 0, 2).to(device)
             # get model predictions
             output = model(*xs)
-            y_hat = model(xs, ys)
-            obs.append(ys)
-            preds.append(y_hat)
-    return torch.cat(obs), torch.cat(preds)
+            # y_hat = model(xs, ys)
+            ys_rho = ys[model.pb_model.warmup_length:, :, :]
+            obs.append(ys_rho)
+            preds.append(output)
+    return torch.cat(obs[:-1]), torch.cat(preds[:-1])
 
 
 def test_train_model(config_data, dpl):
@@ -185,10 +188,7 @@ def test_train_model(config_data, dpl):
     for epoch in range(num_epochs):
         train_epoch(dpl, optimizer, train_dataloader, loss_func, epoch)
         obs, preds = eval_model(dpl, eval_dataloader)
-        preds = eval_dataloader.dataset.local_denormalization(
-            preds.cpu().numpy(), variable="streamflow"
-        )
+        preds = preds.cpu().numpy().reshape(2, -1)
         obs = obs.cpu().numpy().reshape(2, -1)
-        preds = preds.reshape(2, -1)
         nse = np.array([he.nse(preds[i], obs[i]) for i in range(obs.shape[0])])
         tqdm.write(f"epoch {epoch} -- Validation NSE mean: {nse.mean():.2f}")

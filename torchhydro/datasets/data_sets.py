@@ -223,7 +223,7 @@ class BaseDataset(Dataset):
             lookup.extend(
                 (basin, dates[f])
                 for f in range(warmup_length, time_length)
-                if f < time_length - rho + 1
+                if f < time_length - rho
             )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
@@ -387,11 +387,8 @@ class DplDataset(BaseDataset):
                 z_train = torch.from_numpy(self.c[basin, :]).float()
             else:
                 z_train = xc_rho_norm
-            # 应为(14, 16, 23), (time, batch, attributes)
-            # x_train.shape = (6, 14), xc_rho_norm = (5, 23), align to (14, 23)
             x_train_rel = self.x_origin.sel(basin=basin, time=slice(idx - np.timedelta64(warmup_length, 'D'), idx + np.timedelta64(
                 self.rho, 'D'))).to_array().to_numpy().T
-            # 也可以把x_train和x_total_np的部分拼接，反正attr多少行都一样
             c_origin_np = self.c_origin.to_array().to_numpy()
             x_train_attr = np.repeat(c_origin_np, x_train_rel.shape[0]).reshape(c_origin_np.shape[0], x_train_rel.shape[0]).T
             x_train = np.concatenate((x_train_rel, x_train_attr), axis=1)
