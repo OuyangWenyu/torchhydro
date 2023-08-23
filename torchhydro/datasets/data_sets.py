@@ -18,7 +18,6 @@ import xarray as xr
 from hydrodataset import HydroDataset
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from xarray import DataArray
 
 from torchhydro.datasets.data_scalers import ScalerHub, unify_streamflow_unit, wrap_t_s_dict
 
@@ -391,23 +390,23 @@ class DplDataset(BaseDataset):
                 self.rho, 'D'))).to_array().to_numpy().T
             c_origin_np = self.c_origin.to_array().to_numpy()
             x_train_attr = np.repeat(c_origin_np, x_train_rel.shape[0]).reshape(c_origin_np.shape[0], x_train_rel.shape[0]).T
+            # x_train.shape, z_train.shape = (14, 23), y_train.shape = (1, 23)
             x_train = np.concatenate((x_train_rel, x_train_attr), axis=1)
             y_train = self.y_origin.sel(basin=basin, time=slice(idx - np.timedelta64(warmup_length, 'D'), idx + np.timedelta64(
                 self.rho, 'D'))).to_array().to_numpy().T
         else:
-            x_norm = self.x[item, :, :]
+            x_norm = self.x[:, :, item]
             if self.target_as_input:
                 # when target_as_input is True,
                 # we need to use training data to generate pbm params
-                x_norm = self.train_dataset.x[item, :, :]
+                x_norm = self.train_dataset.x[:, :, item]
             if self.c is None or self.c.shape[-1] == 0:
-                xc_rho_norm = torch.from_numpy(x_norm).float()
+                xc_norm = torch.from_numpy(x_norm).float()
             else:
-                c_norm = self.c[item, :]
-                pre_norm: DataArray = np.repeat(c_norm, x_norm.shape[0], axis=0)
-                c_norm = pre_norm.to_numpy().reshape(c_norm.shape[0], -1).T
-                xc_rho_norm = torch.from_numpy(
-                    np.concatenate((x_norm, c_norm), axis=1)
+                # pre_norm: ndarray = np.repeat(self.c, x_norm.shape[0], axis=0)
+                c_norm = self.c.to_numpy().reshape(self.c.shape[0], -1)
+                xc_norm = torch.from_numpy(
+                    np.concatenate((x_norm, c_norm), axis=0)
                 ).float()
             warmup_length = self.warmup_length
             if self.target_as_input:
@@ -416,14 +415,16 @@ class DplDataset(BaseDataset):
                 # when used as input, warmup_length not included for y
                 y_norm = torch.from_numpy(self.train_dataset.y[item, :, :]).float()
                 # the order of xc_rho_norm and y_norm matters, please be careful!
-                z_train = torch.cat((xc_rho_norm, y_norm), -1)
+                z_train = torch.cat((xc_norm, y_norm), -1)
             elif self.constant_only:
                 # only use attributes data for DL model
                 z_train = torch.from_numpy(self.c[item, :]).float()
             else:
-                z_train = xc_rho_norm
-            x_train = self.x_origin.to_array().to_numpy()[item, :, :]
-            y_train = self.y_origin.to_array().to_numpy()[item, warmup_length:, :]
+                z_train = xc_norm
+            x_train_rel = self.x_origin.to_array().to_numpy()[:, :, item]
+            x_train = np.concatenate((x_train_rel, self.c.to_numpy())).T
+            y_train = self.y_origin.to_array().to_numpy()[:, :, item]
+            z_train = z_train.T
         xyz_train = (torch.from_numpy(x_train).float(), z_train), torch.from_numpy(y_train).float()
         return xyz_train
 

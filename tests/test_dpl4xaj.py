@@ -9,6 +9,7 @@ FilePath: /hydro-model-xaj/test/test_dpl4xaj.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
+from functools import reduce
 
 import HydroErr as he
 import hydrodataset as hds
@@ -24,6 +25,7 @@ from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.datasets.data_sets import DplDataset
 from torchhydro.models.dpl4xaj import DplLstmXaj
 from torchhydro.models.model_dict_function import pytorch_opt_dict, pytorch_criterion_dict
+from torchhydro.trainers.evaluator import evaluate_model
 from torchhydro.trainers.trainer import set_random_seed
 
 
