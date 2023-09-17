@@ -33,13 +33,12 @@ jobs:
                   pip install --user -r requirements.txt
                   pip install --user -r requirements_dev.txt
                   pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-                  pip install kaggle
             - name: Add project root to PYTHONPATH
               run: echo "PYTHONPATH=${PYTHONPATH}$(pwd)" >> $GITHUB_ENV
             - name: Download Camels data
               run: |
                   pytest tests/test_write_json.py
-                  kaggle datasets download -d headwater/Camels-data-sample -p /home/runner/.hydrodataset/cache/camels/camels_us/ --unzip
+                  kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/camels/camels_us/ --unzip
             - name: PKG-TEST
               run: |
                   pytest tests/test_data_cache.py
