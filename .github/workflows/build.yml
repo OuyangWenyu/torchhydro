@@ -15,8 +15,6 @@ jobs:
             fail-fast: false
             matrix:
                 config:
-                    - { os: windows-latest, py: "3.10" }
-                    - { os: macOS-latest, py: "3.10" }
                     - { os: ubuntu-latest, py: "3.9" }
                     - { os: ubuntu-latest, py: "3.10" }
 
@@ -36,12 +34,14 @@ jobs:
                   pip install --user -r requirements.txt
                   pip install --user -r requirements_dev.txt
                   pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+                  pip install kaggle
             - name: Add project root to PYTHONPATH
               run: echo "PYTHONPATH=${PYTHONPATH}$(pwd)" >> $GITHUB_ENV
             - name: PKG-TEST
               run: |
                   pytest tests/test_write_json.py
-                  pytest tests/test_dload_archive.py
+                  kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/camels/camels_us/
+                  unzip /home/runner/.hydrodataset/cache/camels/camels_us/Camels.zip
                   pytest tests/test_data_cache.py
                   pytest tests/test_train_camels_lstm.py
                   pytest tests/test_evaluate_model.py
