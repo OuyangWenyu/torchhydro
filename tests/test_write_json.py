@@ -1,3 +1,4 @@
+import json
 import platform
 
 
@@ -14,7 +15,7 @@ def test_wjson():
     json_str = '{"username":"headwater","key":"96e459c7c7353d1233d0d702292f5b0d"}'
     if is_64bit_ubuntu():
         with open('/home/runner/.kaggle/kaggle.json', 'w+') as fp:
-            fp.write(json_str)
+            json.dump(json_str, fp)
     elif is_windows():
         with open('C:\\Users\\runneradmin\\.kaggle\\kaggle.json', 'w+') as fp:
-            fp.write(json_str)
+            json.dump(json_str, fp)
