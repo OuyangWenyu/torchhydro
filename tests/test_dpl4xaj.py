@@ -9,6 +9,7 @@ FilePath: /hydro-model-xaj/test/test_dpl4xaj.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
+from functools import reduce
 
 import HydroErr as he
 import hydrodataset as hds
@@ -24,6 +25,7 @@ from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.datasets.data_sets import DplDataset
 from torchhydro.models.dpl4xaj import DplLstmXaj
 from torchhydro.models.model_dict_function import pytorch_opt_dict, pytorch_criterion_dict
+from torchhydro.trainers.evaluator import evaluate_model
 from torchhydro.trainers.trainer import set_random_seed
 
 
@@ -192,3 +194,87 @@ def test_train_model(config_data, dpl):
         obs = obs.cpu().numpy().reshape(2, -1)
         nse = np.array([he.nse(preds[i], obs[i]) for i in range(obs.shape[0])])
         tqdm.write(f"epoch {epoch} -- Validation NSE mean: {nse.mean():.2f}")
+
+
+def test_evaluate_model(config_data, dpl, device):
+    data_source = data_sources_dict['CAMELS']()
+    dataloader = DataLoader(
+        DplDataset(data_source, config_data['data_params'], 'test'),
+        batch_size=config_data["training_params"]["batch_size"],
+        shuffle=False,
+        sampler=None,
+        batch_sampler=None,
+        drop_last=False,
+        timeout=0,
+        worker_init_fn=None,
+    )
+    preds, obs = generate_predictions(dpl, dataloader, True, torch.device(device), config_data['data_params'])
+    eval_log, preds_xr, obss_xr = evaluate_model(dpl)
+    print(eval_log, preds_xr, obss_xr)
+
+
+def generate_predictions(
+    model,
+    test_dataloader,
+    seq_first: bool,
+    device: torch.device,
+    data_params: dict,
+    return_cell_state: bool = False,
+) -> np.ndarray:
+    """Perform Evaluation on the test (or valid) data.
+
+    Parameters
+    ----------
+    model : DplLstmXaj
+        _description_
+    test_model : TestDataModel
+        _description_
+    seq_first
+        _description_
+    device : torch.device
+        _description_
+    data_params : dict
+        _description_
+    return_cell_state : bool, optional
+        if True, time-loop evaluation for cell states, by default False
+        NOTE: ONLY for LSTM models
+
+    Returns
+    -------
+    np.ndarray
+        _description_
+    """
+    model.train(mode=False)
+    # here the batch is just an index of lookup table, so any batch size could be chosen
+    test_preds = []
+    obss = []
+    with torch.no_grad():
+        for i_batch, (xs, ys) in enumerate(test_dataloader):
+            # here the a batch doesn't mean a basin; it is only an index in lookup table
+            # for NtoN mode, only basin is index in lookup table, so the batch is same as basin
+            # for Nto1 mode, batch is only an index
+            if seq_first:
+                xs = xs.transpose(0, 1)
+                ys = ys.transpose(0, 1)
+            xs = xs.to(device)
+            ys = ys.to(device)
+            output = model(xs)
+            if type(output) is tuple:
+                others = output[1:]
+                # Convention: y_p must be the first output of model
+                output = output[0]
+            if seq_first:
+                output = output.transpose(0, 1)
+                ys = ys.transpose(0, 1)
+            test_preds.append(output.cpu().numpy())
+            obss.append(ys.cpu().numpy())
+        pred = reduce(lambda x, y: np.vstack((x, y)), test_preds)
+        obs = reduce(lambda x, y: np.vstack((x, y)), obss)
+    if pred.ndim == 2:
+        # TODO: check
+        # the ndim is 2 meaning we use an Nto1 mode
+        # as lookup table is (basin 1's all time length, basin 2's all time length, ...)
+        # params of reshape should be (basin size, time length)
+        pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
+        obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
+    return pred, obs
