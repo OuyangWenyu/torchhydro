@@ -40,6 +40,7 @@ jobs:
               run: echo "PYTHONPATH=${PYTHONPATH}$(pwd)" >> $GITHUB_ENV
             - name: PKG-TEST
               run: |
+                  pytest tests/test_write_json.py
                   pytest tests/test_dload_archive.py
                   pytest tests/test_data_cache.py
                   pytest tests/test_train_camels_lstm.py
