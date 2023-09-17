@@ -18,6 +18,6 @@ def test_wjson():
         with open('/home/runner/.kaggle/kaggle.json', 'w+') as fp:
             fp.write(json_str)
     elif is_windows():
-        os.mkdir("C:\\Users\\runneradmin\\.kaggle\\")
+        os.mkdir("C:\\Users\\runneradmin\\.kaggle")
         with open('C:\\Users\\runneradmin\\.kaggle\\kaggle.json', 'w+') as fp:
             fp.write(json_str)
