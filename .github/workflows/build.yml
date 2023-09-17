@@ -40,8 +40,7 @@ jobs:
             - name: PKG-TEST
               run: |
                   pytest tests/test_write_json.py
-                  kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/camels/camels_us/
-                  unzip /home/runner/.hydrodataset/cache/camels/camels_us/Camels.zip
+                  kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/camels/camels_us/ --unzip
                   pytest tests/test_data_cache.py
                   pytest tests/test_train_camels_lstm.py
                   pytest tests/test_evaluate_model.py
