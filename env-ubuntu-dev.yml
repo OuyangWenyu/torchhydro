@@ -23,5 +23,8 @@ dependencies:
   - pip
   - pip:
     - tbparse
+    - setuptools
+    - wheel
+    - twine
     - hydroutils
     - hydrodataset

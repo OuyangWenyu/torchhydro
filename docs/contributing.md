@@ -66,7 +66,7 @@ Ready to contribute? Here's how to set up torchhydro for local development.
     $ conda install -c conda-forge mamba
     $ conda install -c pyg pytorch-scatter
     $ mamba install -c conda-forge numpy xarray netcdf4 geopandas scikit-learn tensorboard tqdm pytest black flake8 pip
-    $ pip install tbparse hydroutils hydrodataset
+    $ pip install tbparse setuptools wheel twine hydroutils hydrodataset 
     ```
 
 1.  Create a branch for local development:
