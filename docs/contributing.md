@@ -56,17 +56,20 @@ Ready to contribute? Here's how to set up torchhydro for local development.
     $ git clone git@github.com:your_name_here/torchhydro.git
     ```
 
-3.  Install your local copy into a virtualenv. Assuming you have
-    virtualenvwrapper installed, this is how you set up your fork for
-    local development:
+3.  Install your local copy into a conda virtual environment. 
+    this is how you set up your fork for local development:
 
     ```shell
-    $ mkvirtualenv torchhydro
-    $ cd torchhydro/
-    $ python setup.py develop
+    $ conda create -n torchhydro
+    $ conda activate torchhydro
+    $ conda install  -c pytorch pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=10.2
+    $ conda install -c conda-forge mamba
+    $ conda install -c pyg pytorch-scatter
+    $ mamba install -c conda-forge numpy xarray netcdf4 geopandas scikit-learn tensorboard tqdm pytest black flake8 pip
+    $ pip install tbparse hydroutils hydrodataset
     ```
 
-4.  Create a branch for local development:
+1.  Create a branch for local development:
 
     ```shell
     $ git checkout -b name-of-your-bugfix-or-feature
@@ -74,7 +77,7 @@ Ready to contribute? Here's how to set up torchhydro for local development.
 
     Now you can make your changes locally.
 
-5.  When you're done making changes, check that your changes pass flake8
+2.  When you're done making changes, check that your changes pass flake8
     and the tests, including testing other Python versions with tox:
 
     ```shell
@@ -85,7 +88,7 @@ Ready to contribute? Here's how to set up torchhydro for local development.
 
     To get flake8 and tox, just pip install them into your virtualenv.
 
-6.  Commit your changes and push your branch to GitHub:
+3.  Commit your changes and push your branch to GitHub:
 
     ```shell
     $ git add .
@@ -93,7 +96,7 @@ Ready to contribute? Here's how to set up torchhydro for local development.
     $ git push origin name-of-your-bugfix-or-feature
     ```
 
-7.  Submit a pull request through the GitHub website.
+4.  Submit a pull request through the GitHub website.
 
 ## Pull Request Guidelines
 

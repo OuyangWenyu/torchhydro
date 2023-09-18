@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2023-07-31 22:04:50
+LastEditTime: 2023-09-18 14:26:07
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: /torchhydro/tests/test_train_camels_lstm.py
@@ -24,7 +24,7 @@ def config():
         source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_us"),
         source_region="US",
         download=0,
-        ctx=[0],
+        ctx=[1],
         model_name="CpuLSTM",
         model_param={
             "n_input_features": 23,
