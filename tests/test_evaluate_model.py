@@ -25,7 +25,7 @@ def config_data():
         download=0,
         source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_us"),
         source_region="US",
-        ctx=[0],
+        ctx=[-1],
         model_name="CpuLSTM",
         model_param={
             "n_input_features": 23,
