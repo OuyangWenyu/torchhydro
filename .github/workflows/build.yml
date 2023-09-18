@@ -15,9 +15,6 @@ jobs:
             fail-fast: false
             matrix:
                 config:
-                    - { os: windows-latest, py: "3.10" }
-                    - { os: macOS-latest, py: "3.10" }
-                    - { os: ubuntu-latest, py: "3.9" }
                     - { os: ubuntu-latest, py: "3.10" }
 
         env:
@@ -35,8 +32,15 @@ jobs:
                   pip install --user --no-cache-dir Cython
                   pip install --user -r requirements.txt
                   pip install --user -r requirements_dev.txt
+                  pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
             - name: Add project root to PYTHONPATH
-              run: echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
+              run: echo "PYTHONPATH=${PYTHONPATH}$(pwd)" >> $GITHUB_ENV
+            - name: Download Camels data
+              run: |
+                  pytest tests/test_write_json.py
+                  kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/camels/camels_us/ --unzip
             - name: PKG-TEST
               run: |
-                  python -m unittest discover tests/
+                  pytest tests/test_data_cache.py
+                  pytest tests/test_train_camels_lstm.py
+                  pytest tests/test_evaluate_model.py

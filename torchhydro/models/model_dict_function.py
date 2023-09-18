@@ -7,16 +7,18 @@ Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \HydroTL\hydrotl\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
-from models.cudnnlstm import (
+import torch.nn
+
+from torchhydro.models.cudnnlstm import (
     CudnnLstmModel,
     LinearCudnnLstmModel,
     CNN1dLCmodel,
     CudnnLstmModelLstmKernel,
     CudnnLstmModelMultiOutput,
-    KuaiLstm,
+    KuaiLstm, CpuLstmModel,
 )
 from torch.optim import Adam, SGD, Adadelta
-from models.crits import (
+from torchhydro.models.crits import (
     RMSELoss,
     RmseLoss,
     MultiOutLoss,
@@ -24,7 +26,7 @@ from models.crits import (
     DynamicTaskPrior,
     MultiOutWaterBalanceLoss,
 )
-
+from torchhydro.models.dpl4xaj import DplLstmXaj
 
 """
 Utility dictionaries to map a string to a class.
@@ -36,6 +38,9 @@ pytorch_model_dict = {
     "DapengCNNLSTM": CNN1dLCmodel,
     "LSTMKernel": CudnnLstmModelLstmKernel,
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
+    # Uncompleted
+    "DplLstmXaj": DplLstmXaj,
+    "CpuLSTM": CpuLstmModel
 }
 
 pytorch_model_wrapper_dict = {}

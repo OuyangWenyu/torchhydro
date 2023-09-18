@@ -10,7 +10,7 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 import os
 import pytest
 import hydrodataset as hds
-from torchhydro.datasets.config import cmd, default_config_file, update_cfg
+from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
 
@@ -25,7 +25,7 @@ def config():
         source_region="US",
         download=0,
         ctx=[0],
-        model_name="KuaiLSTM",
+        model_name="CpuLSTM",
         model_param={
             "n_input_features": 23,
             "n_output_features": 1,

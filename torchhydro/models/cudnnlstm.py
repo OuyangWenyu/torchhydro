@@ -16,8 +16,8 @@ import torch.nn as nn
 from torch.nn import Parameter
 import torch.nn.functional as F
 
-from models.ann import SimpleAnn
-from models.dropout import DropMask, create_mask
+from torchhydro.models.ann import SimpleAnn
+from torchhydro.models.dropout import DropMask, create_mask
 
 
 class LstmCellTied(torch.nn.Module):

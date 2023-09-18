@@ -3,7 +3,7 @@ import hydrodataset as hds
 import pytest
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
 from hydroutils.hydro_plot import plot_ts
-from torchhydro.datasets.config import cmd, default_config_file, update_cfg
+from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.trainers.evaluator import evaluate_model
 from torchhydro.trainers.time_model import PyTorchForecast
@@ -26,7 +26,7 @@ def config_data():
         source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_us"),
         source_region="US",
         ctx=[0],
-        model_name="KuaiLSTM",
+        model_name="CpuLSTM",
         model_param={
             "n_input_features": 23,
             "n_output_features": 1,

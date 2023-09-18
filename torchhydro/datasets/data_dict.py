@@ -10,10 +10,11 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 from hydrodataset import Camels
 
 # more data types which cannot be easily treated same with attribute or forcing data
-from datasets.data_sets import (
+from torchhydro.datasets.data_sets import (
     KuaiDataset,
     BasinFlowDataset,
     BasinSingleFlowDataset,
+    DplDataset,
 )
 
 data_sources_dict = {
@@ -23,5 +24,7 @@ data_sources_dict = {
 dataloaders_dict = {
     "StreamflowDataset": BasinFlowDataset,
     "SingleflowDataset": BasinSingleFlowDataset,
+    # 不完全遍历
     "KuaiDataset": KuaiDataset,
+    "DplDataset": DplDataset
 }

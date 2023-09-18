@@ -133,5 +133,5 @@ mlruns/
 
 # IDE settings
 .vscode/
-
+.idea
 results/

@@ -17,10 +17,10 @@ import pandas as pd
 import torch
 from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import serialize_numpy, unserialize_numpy
-from datasets.data_dict import data_sources_dict
-from trainers.evaluator import evaluate_model
-from trainers.pytorch_training import model_train, save_model_params_log
-from trainers.time_model import PyTorchForecast
+from torchhydro.datasets.data_dict import data_sources_dict
+from torchhydro.trainers.evaluator import evaluate_model
+from torchhydro.trainers.pytorch_training import model_train, save_model_params_log
+from torchhydro.trainers.time_model import PyTorchForecast
 
 
 def set_random_seed(seed):
