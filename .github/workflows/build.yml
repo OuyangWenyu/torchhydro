@@ -42,8 +42,7 @@ jobs:
               env:
                   KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
                   KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-            # - name: PKG-TEST
-            #   run: |
-            #       pytest tests/test_data_cache.py
-            #       pytest tests/test_train_camels_lstm.py
+            - name: PKG-TEST
+              run: |
+                  pytest tests/test_train_camels_lstm.py
             #       pytest tests/test_evaluate_model.py
