@@ -3,7 +3,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2023-07-31 17:41:57
+LastEditTime: 2023-09-18 16:11:57
 LastEditors: Wenyu Ouyang
 Description: The setup script
 FilePath: /torchhydro/setup.py
@@ -38,7 +38,7 @@ test_requirements = [
 setup(
     author="Wenyu Ouyang",
     author_email="wenyuouyang@outlook.com",
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Developers",
