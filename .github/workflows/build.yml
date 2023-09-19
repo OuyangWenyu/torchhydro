@@ -47,4 +47,4 @@ jobs:
             - name: PKG-TEST
               run: |
                   pytest tests/test_train_camels_lstm.py
-            #       pytest tests/test_evaluate_model.py
+                  pytest tests/test_evaluate_model.py
