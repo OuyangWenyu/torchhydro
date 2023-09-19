@@ -38,7 +38,9 @@ jobs:
             - name: Add project root to PYTHONPATH
               run: echo "PYTHONPATH=${PYTHONPATH}$(pwd)" >> $GITHUB_ENV
             - name: Download Camels data
-              run: kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/ --unzip
+              run: |
+                kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/camels/camels_us/ --unzip
+                kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/ --unzip
               env:
                   KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
                   KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}

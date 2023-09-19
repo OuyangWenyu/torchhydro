@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2023-09-18 14:43:15
+LastEditTime: 2023-09-19 09:20:59
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: /torchhydro/tests/test_train_camels_lstm.py

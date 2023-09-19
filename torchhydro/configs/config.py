@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-07-30 14:41:09
+LastEditTime: 2023-09-19 09:15:00
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: \torchhydro\torchhydro\datasets\config.py
+FilePath: /torchhydro/torchhydro/configs/config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import argparse
@@ -674,7 +674,7 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_params"]["data_source_name"] = new_args.source
     if new_args.source_path is not None:
         cfg_file["data_params"]["data_path"] = new_args.source_path
-        if len(new_args.source_path) == 1:
+        if type(new_args.source_path) == list and len(new_args.source_path) == 1:
             cfg_file["data_params"]["data_path"] = new_args.source_path[0]
     if new_args.source_region is not None:
         cfg_file["data_params"]["data_region"] = new_args.source_region
