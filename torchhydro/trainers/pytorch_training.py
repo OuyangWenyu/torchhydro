@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-07-31 15:55:47
+LastEditTime: 2023-09-19 21:01:00
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
 FilePath: /torchhydro/torchhydro/trainers/pytorch_training.py
@@ -128,6 +128,7 @@ def model_train(forecast_model: PyTorchForecast) -> None:
     opt = pytorch_opt_dict[training_params["optimizer"]](
         params_in_opt, **training_params["optim_params"]
     )
+    lr_scheduler = training_params["lr_scheduler"]
     max_epochs = training_params["epochs"]
     save_epoch = training_params["save_epoch"]
     save_iter = 0
@@ -168,6 +169,10 @@ def model_train(forecast_model: PyTorchForecast) -> None:
     if not os.path.exists(param_save_dir):
         os.makedirs(param_save_dir)
     for epoch in range(start_epoch, max_epochs + 1):
+        if lr_scheduler is not None and epoch in lr_scheduler.keys():
+            # now we only support manual setting lr scheduler
+            for param_group in opt.param_groups:
+                param_group["lr"] = lr_scheduler[epoch]
         t0 = time.time()
         total_loss, n_iter_ep = torch_single_train(
             forecast_model.model,

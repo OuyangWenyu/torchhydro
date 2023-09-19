@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2023-09-19 09:20:59
+LastEditTime: 2023-09-19 21:10:35
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: /torchhydro/tests/test_train_camels_lstm.py
@@ -43,12 +43,14 @@ def config():
             "01057000",
             "01170100",
         ],
-        batch_size=5,
+        # batch_size=5,
+        batch_size=50,
         rho=20,  # batch_size=100, rho=365,
         var_t=["dayl", "prcp", "srad", "tmax", "tmin", "vp"],
         # var_c=["None"],
         var_out=["streamflow"],
-        data_loader="KuaiDataset",
+        # data_loader="KuaiDataset",
+        data_loader="StreamflowDataset",
         scaler="DapengScaler",
         scaler_params={
             "prcp_norm_cols": ["streamflow"],
@@ -70,7 +72,9 @@ def config():
         valid_period=["2001-10-01", "2002-10-01"],
         test_period=["2002-10-01", "2003-10-01"],
         loss_func="RMSESum",
-        opt="Adadelta",
+        opt="Adam",
+        # key is epoch, start from 1
+        lr_scheduler={1: 1e-2, 2: 5e-3, 3: 1e-3},
         which_first_tensor="sequence",
     )
     update_cfg(config_data, args)

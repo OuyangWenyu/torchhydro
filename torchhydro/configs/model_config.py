@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-10-25 21:16:22
-LastEditTime: 2022-12-25 16:06:05
+LastEditTime: 2023-09-19 20:33:31
 LastEditors: Wenyu Ouyang
-Description: some basic config for hydro-model-xaj models
-FilePath: \hydro-model-xaj\hydromodel\models\model_config.py
+Description: some basic config for hydrological models
+FilePath: /torchhydro/torchhydro/configs/model_config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 from collections import OrderedDict

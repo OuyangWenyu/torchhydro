@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-19 09:15:00
+LastEditTime: 2023-09-19 20:50:27
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: /torchhydro/torchhydro/configs/config.py
@@ -180,6 +180,7 @@ def default_config_file():
             "optim_params": {
                 "lr": 0.001,
             },
+            "lr_scheduler": None,
             "epochs": 20,
             # save_epoch ==0 means only save once in the final epoch
             "save_epoch": 0,
@@ -221,6 +222,7 @@ def cmd(
     valid_period=None,
     test_period=None,
     opt=None,
+    lr_scheduler=None,
     cache_read=None,
     cache_write=None,
     cache_path=None,
@@ -629,6 +631,13 @@ def cmd(
         default=which_first_tensor,
         type=str,
     )
+    parser.add_argument(
+        "--lr_scheduler",
+        dest="lr_scheduler",
+        help="The learning rate scheduler",
+        default=lr_scheduler,
+        type=json.loads,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -877,6 +886,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_params"]["train_but_not_real"] = True
     if new_args.which_first_tensor is not None:
         cfg_file["training_params"]["which_first_tensor"] = new_args.which_first_tensor
+    if new_args.lr_scheduler is not None:
+        cfg_file["training_params"]["lr_scheduler"] = new_args.lr_scheduler
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 
