@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-09-19 21:27:26
+LastEditTime: 2023-09-20 17:36:51
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /torchhydro/torchhydro/datasets/data_sets.py
+FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import logging
@@ -116,20 +116,21 @@ class BaseDataset(Dataset):
                 basin=basin,
                 time=slice(
                     time - np.timedelta64(warmup_length, "D"),
-                    time + np.timedelta64(seq_length, "D"),
+                    time + np.timedelta64(seq_length - 1, "D"),
                 ),
             ).to_numpy()
         ).T
         if self.c is not None and self.c.shape[-1] > 0:
             c = self.c.sel(basin=basin).values
-            c = np.tile(c, (warmup_length + seq_length + 1, 1))
+            c = np.tile(c, (warmup_length + seq_length, 1))
             x = np.concatenate((x, c), axis=1)
+        # for y, we don't need warmup as warmup are only used for get initial value for some state variables
         y = (
             self.y.sel(
                 basin=basin,
                 time=slice(
-                    time - np.timedelta64(warmup_length, "D"),
-                    time + np.timedelta64(seq_length, "D"),
+                    time,
+                    time + np.timedelta64(seq_length - 1, "D"),
                 ),
             )
             .to_numpy()
@@ -240,7 +241,7 @@ class BaseDataset(Dataset):
             lookup.extend(
                 (basin, dates[f])
                 for f in range(warmup_length, time_length)
-                if f < time_length - rho
+                if f < time_length - rho + 1
             )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
@@ -266,6 +267,8 @@ class BasinSingleFlowDataset(BaseDataset):
 class KuaiDataset(BaseDataset):
     """mini-batch data model from Kuai Fang's paper: https://doi.org/10.1002/2017GL075619
     He used a random pick-up that we don't need to iterate all samples. Then, we can train model more quickly
+
+    TODO: seems wrong, bugs need to be fixed
     """
 
     def __init__(self, data_source: HydroDataset, data_params: dict, loader_type: str):
@@ -352,13 +355,13 @@ class DplDataset(BaseDataset):
             x_train (not normalized forcing), z_train (normalized data for DL model), y_train (not normalized output)
         """
         if self.train_mode:
-            xc_rho_norm, y_rho_norm = super(DplDataset, self).__getitem__(item)
-            basin, idx = self.lookup_table[item]
+            xc_rho_norm, _ = super(DplDataset, self).__getitem__(item)
+            basin, time = self.lookup_table[item]
             warmup_length = self.warmup_length
             if self.target_as_input:
                 # y_morn and xc_rho_norm are concatenated and used for DL model
                 y_norm = torch.from_numpy(
-                    self.y[basin, idx - warmup_length : idx + self.rho, :]
+                    self.y[basin, time - warmup_length : time + self.rho, :]
                 ).float()
                 # the order of xc_rho_norm and y_norm matters, please be careful!
                 z_train = torch.cat((xc_rho_norm, y_norm), -1)
@@ -367,32 +370,24 @@ class DplDataset(BaseDataset):
                 z_train = torch.from_numpy(self.c[basin, :]).float()
             else:
                 z_train = xc_rho_norm
-            x_train_rel = (
+            x_train = (
                 self.x_origin.sel(
                     basin=basin,
                     time=slice(
-                        idx - np.timedelta64(warmup_length, "D"),
-                        idx + np.timedelta64(self.rho, "D"),
+                        time - np.timedelta64(warmup_length, "D"),
+                        time + np.timedelta64(self.rho - 1, "D"),
                     ),
                 )
                 .to_array()
                 .to_numpy()
                 .T
             )
-            c_origin_np = self.c_origin.to_array().to_numpy()
-            x_train_attr = (
-                np.repeat(c_origin_np, x_train_rel.shape[0])
-                .reshape(c_origin_np.shape[0], x_train_rel.shape[0])
-                .T
-            )
-            # x_train.shape, z_train.shape = (14, 23), y_train.shape = (1, 23)
-            x_train = np.concatenate((x_train_rel, x_train_attr), axis=1)
             y_train = (
                 self.y_origin.sel(
                     basin=basin,
                     time=slice(
-                        idx - np.timedelta64(warmup_length, "D"),
-                        idx + np.timedelta64(self.rho, "D"),
+                        time,
+                        time + np.timedelta64(self.rho - 1, "D"),
                     ),
                 )
                 .to_array()
@@ -426,14 +421,12 @@ class DplDataset(BaseDataset):
                 z_train = torch.from_numpy(self.c[item, :]).float()
             else:
                 z_train = xc_norm
-            x_train_rel = self.x_origin.to_array().to_numpy()[:, :, item]
-            x_train = np.concatenate((x_train_rel, self.c.to_numpy())).T
+            x_train = self.x_origin.to_array().to_numpy()[:, :, item]
             y_train = self.y_origin.to_array().to_numpy()[:, :, item]
             z_train = z_train.T
-        xyz_train = (torch.from_numpy(x_train).float(), z_train), torch.from_numpy(
+        return (torch.from_numpy(x_train).float(), z_train), torch.from_numpy(
             y_train
         ).float()
-        return xyz_train
 
     def __len__(self):
         return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])

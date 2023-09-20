@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-07-29 11:42:01
+LastEditTime: 2023-09-20 16:44:00
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath: \HydroTL\hydrotl\models\time_model.py
+FilePath: \torchhydro\torchhydro\trainers\time_model.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -232,7 +232,6 @@ class PyTorchForecast(TimeSeriesModel):
             os.mkdir(final_path)
         time_stamp = datetime.now().strftime("%d_%B_%Y%I_%M%p")
         model_name = f"{time_stamp}_model.pth"
-        params_name = f"{time_stamp}.json"
         model_save_path = os.path.join(final_path, model_name)
         params_save_path = os.path.join(final_path, f"{time_stamp}.json")
         if torch.cuda.device_count() > 1 and len(self.device_num) > 1:
