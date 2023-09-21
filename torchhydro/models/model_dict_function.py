@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-20 14:42:13
+LastEditTime: 2023-09-21 11:11:05
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
-FilePath: \torchhydro\torchhydro\models\model_dict_function.py
+FilePath: /torchhydro/torchhydro/models/model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import torch.nn
@@ -38,7 +38,6 @@ pytorch_model_dict = {
     "DapengCNNLSTM": CNN1dLCmodel,
     "LSTMKernel": CudnnLstmModelLstmKernel,
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
-    # TODO: Uncompleted
     "DplLstmXaj": DplLstmXaj,
     "CpuLSTM": CpuLstmModel
 }

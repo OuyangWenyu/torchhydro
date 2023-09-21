@@ -1,16 +1,16 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-09-09 14:47:42
-LastEditTime: 2023-09-20 14:33:19
+LastEditTime: 2023-09-21 16:31:17
 LastEditors: Wenyu Ouyang
-Description: 
-FilePath: \torchhydro\experiments\run_camelslstm_experiments.py
+Description: a script to run experiments for LSTM - CAMELS
+FilePath: /torchhydro/experiments/run_camelslstm_experiments.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
 import hydrodataset as hds
-from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.trainers.trainer import train_and_evaluate
+from configs.config import cmd, default_config_file, update_cfg
+from trainers.trainer import train_and_evaluate
 
 VAR_C_CHOSEN_FROM_CAMELS_US = [
     "elev_mean",
@@ -75,19 +75,6 @@ def run_normal_dl(
         # data_loader="KuaiDataset",
         data_loader="StreamflowDataset",
         scaler="DapengScaler",
-        scaler_params={
-            "prcp_norm_cols": ["streamflow"],
-            "gamma_norm_cols": [
-                "prcp",
-                "pr",
-                "total_precipitation",
-                "potential_evaporation",
-                "ET",
-                "PET",
-                "ET_sum",
-                "ssm",
-            ],
-        },
         batch_size=512,
         rho=366,
         var_t=var_t,
@@ -109,4 +96,4 @@ def run_normal_dl(
     print("All processes are finished!")
 
 
-run_normal_dl("ndl/exp001")
+run_normal_dl("ndl/explstm")

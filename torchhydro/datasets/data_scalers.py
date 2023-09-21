@@ -2,7 +2,6 @@ import copy
 import json
 import os
 import pickle as pkl
-from collections import OrderedDict
 import shutil
 import pint_xarray  # noqa: F401
 import xarray as xr
@@ -19,6 +18,13 @@ from hydroutils.hydro_stat import (
     cal_stat_prcp_norm,
     cal_stat_gamma,
     cal_stat,
+)
+
+from torchhydro.datasets.data_utils import (
+    _trans_norm,
+    _prcp_norm,
+    wrap_t_s_dict,
+    unify_streamflow_unit,
 )
 
 SCALER_DICT = {
@@ -71,6 +77,7 @@ class ScalerHub(object):
             assert "data_source" in list(kwargs.keys())
             gamma_norm_cols = data_params["scaler_params"]["gamma_norm_cols"]
             prcp_norm_cols = data_params["scaler_params"]["prcp_norm_cols"]
+            pbm_norm = data_params["scaler_params"]["pbm_norm"]
             scaler = DapengScaler(
                 target_vars,
                 relevant_vars,
@@ -80,10 +87,12 @@ class ScalerHub(object):
                 kwargs["data_source"],
                 prcp_norm_cols=prcp_norm_cols,
                 gamma_norm_cols=gamma_norm_cols,
+                pbm_norm=pbm_norm,
             )
             x, y, c = scaler.load_data()
             self.target_scaler = scaler
         elif scaler_type in SCALER_DICT.keys():
+            # TODO: not fully tested, espacially for pbm models
             all_vars = [target_vars, relevant_vars, constant_vars]
             for i in range(len(all_vars)):
                 data_tmp = all_vars[i]
@@ -158,6 +167,7 @@ class DapengScaler(object):
         other_vars: dict = None,
         prcp_norm_cols=None,
         gamma_norm_cols=None,
+        pbm_norm=False,
     ):
         """
         The normalization and denormalization methods from Dapeng's 1st WRR paper.
@@ -183,6 +193,8 @@ class DapengScaler(object):
             data items which use _prcp_norm method to normalize
         gamma_norm_cols
             data items which use log(\sqrt(x)+.1) method to normalize
+        pbm_norm
+            if true, use pbm_norm method to normalize; the output of pbms is not normalized data, so its inverse is different.
         """
         if prcp_norm_cols is None:
             prcp_norm_cols = [
@@ -208,6 +220,7 @@ class DapengScaler(object):
         self.gamma_norm_cols = gamma_norm_cols
         # both prcp_norm_cols and gamma_norm_cols use log(\sqrt(x)+.1) method to normalize
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
+        self.pbm_norm = pbm_norm
         # save stat_dict of training period in test_path for valid/test
         stat_file = os.path.join(data_params["test_path"], "dapengscaler_stat.json")
         # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
@@ -240,22 +253,28 @@ class DapengScaler(object):
         """
         stat_dict = self.stat_dict
         target_cols = self.data_params["target_cols"]
-        pred = _trans_norm(
-            target_values,
-            target_cols,
-            stat_dict,
-            log_norm_cols=self.log_norm_cols,
-            to_norm=False,
-        )
-        for i in range(len(self.data_params["target_cols"])):
-            var = self.data_params["target_cols"][i]
-            if var in self.prcp_norm_cols:
-                mean_prep = self.data_source.read_mean_prcp(self.t_s_dict["sites_id"])
-                pred.loc[dict(variable=var)] = _prcp_norm(
-                    pred.sel(variable=var).to_numpy(),
-                    mean_prep.to_array().to_numpy().T,
-                    to_norm=False,
-                )
+        if self.pbm_norm:
+            # for pbm's output, its unit is mm/day, so we don't need to recover its unit
+            pred = target_values
+        else:
+            pred = _trans_norm(
+                target_values,
+                target_cols,
+                stat_dict,
+                log_norm_cols=self.log_norm_cols,
+                to_norm=False,
+            )
+            for i in range(len(self.data_params["target_cols"])):
+                var = self.data_params["target_cols"][i]
+                if var in self.prcp_norm_cols:
+                    mean_prep = self.data_source.read_mean_prcp(
+                        self.t_s_dict["sites_id"]
+                    )
+                    pred.loc[dict(variable=var)] = _prcp_norm(
+                        pred.sel(variable=var).to_numpy(),
+                        mean_prep.to_array().to_numpy().T,
+                        to_norm=False,
+                    )
         # add attrs for units
         pred.attrs.update(self.data_target.attrs)
         # trans to xarray dataset
@@ -412,166 +431,3 @@ class DapengScaler(object):
         y = self.get_data_obs()
         c = self.get_data_const()
         return x, y, c
-
-
-def _trans_norm(
-    x: xr.DataArray,
-    var_lst: list,
-    stat_dict: dict,
-    log_norm_cols: list = None,
-    to_norm: bool = True,
-    **kwargs,
-) -> np.array:
-    """
-    Normalization or inverse normalization
-
-    There are two normalization formulas:
-
-    .. math:: normalized_x = (x - mean) / std
-
-    and
-
-     .. math:: normalized_x = [log_{10}(\sqrt{x} + 0.1) - mean] / std
-
-     The later is only for vars in log_norm_cols; mean is mean value; std means standard deviation
-
-    Parameters
-    ----------
-    x
-        data to be normalized or denormalized
-    var_lst
-        the type of variables
-    stat_dict
-        statistics of all variables
-    log_norm_cols
-        which cols use the second norm method
-    to_norm
-        if true, normalize; else denormalize
-
-    Returns
-    -------
-    np.array
-        normalized or denormalized data
-    """
-    if x is None:
-        return None
-    if log_norm_cols is None:
-        log_norm_cols = []
-    if type(var_lst) is str:
-        var_lst = [var_lst]
-    out = xr.full_like(x, np.nan)
-    for item in var_lst:
-        stat = stat_dict[item]
-        if to_norm:
-            out.loc[dict(variable=item)] = (
-                (np.log10(np.sqrt(x.sel(variable=item)) + 0.1) - stat[2]) / stat[3]
-                if item in log_norm_cols
-                else (x.sel(variable=item) - stat[2]) / stat[3]
-            )
-        elif item in log_norm_cols:
-            out.loc[dict(variable=item)] = (
-                np.power(10, x.sel(variable=item) * stat[3] + stat[2]) - 0.1
-            ) ** 2
-        else:
-            out.loc[dict(variable=item)] = x.sel(variable=item) * stat[3] + stat[2]
-    if to_norm:
-        # after normalization, all units are dimensionless
-        out.attrs = {}
-    # after denormalization, recover units
-    else:
-        if "recover_units" in kwargs.keys() and kwargs["recover_units"] is not None:
-            recover_units = kwargs["recover_units"]
-            for item in var_lst:
-                out.attrs["units"][item] = recover_units[item]
-    return out
-
-
-def _prcp_norm(x: np.array, mean_prep: np.array, to_norm: bool) -> np.array:
-    """
-    Normalize or denormalize data with mean precipitation.
-
-    The formula is as follows when normalizing (denormalize equation is its inversion):
-
-    .. math:: normalized_x = \frac{x}{precipitation}
-
-    Parameters
-    ----------
-    x
-        data to be normalized or denormalized
-    mean_prep
-        basins' mean precipitation
-    to_norm
-        if true, normalize; else denormalize
-
-    Returns
-    -------
-    np.array
-        normalized or denormalized data
-    """
-    tempprep = np.tile(mean_prep, (1, x.shape[1]))
-    return x / tempprep if to_norm else x * tempprep
-
-
-def wrap_t_s_dict(
-    data_source: HydroDataset, data_params: dict, loader_type: str
-) -> OrderedDict:
-    """
-    Basins and periods
-
-    Parameters
-    ----------
-    data_source
-        source data object
-    data_params
-        Parameters for reading from data source
-    loader_type
-        train, valid or test
-
-    Returns
-    -------
-    OrderedDict
-        OrderedDict(sites_id=basins_id, t_final_range=t_range_list)
-    """
-    basins_id = data_params["object_ids"]
-    if type(basins_id) is str and basins_id == "ALL":
-        basins_id = data_source.read_object_ids().tolist()
-    # assert all(x < y for x, y in zip(basins_id, basins_id[1:]))
-    if f"t_range_{loader_type}" in data_params:
-        t_range_list = data_params[f"t_range_{loader_type}"]
-    else:
-        raise Exception(
-            f"Error! The mode {loader_type} was not found in the data_source params dict. Please add it."
-        )
-    return OrderedDict(sites_id=basins_id, t_final_range=t_range_list)
-
-
-def unify_streamflow_unit(ds: xr.Dataset, area=None, inverse=False):
-    """Unify the unit of xr_dataset to be mm/day in a basin or inverse
-
-    Parameters
-    ----------
-    ds: xarray dataset
-        _description_
-    area:
-        area of each basin
-
-    Returns
-    -------
-    _type_
-        _description_
-    """
-    # use pint to convert unit
-    if not inverse:
-        target_unit = "mm/d"
-        q = ds.pint.quantify()
-        a = area.pint.quantify()
-        r = q[list(q.keys())[0]] / a[list(a.keys())[0]]
-        result = r.pint.to(target_unit).to_dataset(name=list(q.keys())[0])
-    else:
-        target_unit = "m^3/s"
-        r = ds.pint.quantify()
-        a = area.pint.quantify()
-        q = r[list(r.keys())[0]] * a[list(a.keys())[0]]
-        result = q.pint.to(target_unit).to_dataset(name=list(r.keys())[0])
-    # dequantify to get normal xr_dataset
-    return result.pint.dequantify()

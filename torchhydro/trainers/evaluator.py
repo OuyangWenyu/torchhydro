@@ -1,23 +1,23 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-07-30 10:48:57
+LastEditTime: 2023-09-21 16:18:52
 LastEditors: Wenyu Ouyang
 Description: Testing functions for hydroDL models
-FilePath: \HydroTL\hydrotl\models\evaluator.py
+FilePath: /torchhydro/torchhydro/trainers/evaluator.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import os
 from typing import Dict, Tuple
 from functools import reduce
 import numpy as np
-import xarray as xr
 import torch
 from torch.utils.data import DataLoader
 from hydroutils.hydro_stat import stat_error
 
 from torchhydro.trainers.time_model import PyTorchForecast
 from torchhydro.models.model_utils import get_the_device
+from torchhydro.trainers.train_utils import denormalize4eval, model_infer
 
 
 def evaluate_model(model: PyTorchForecast) -> Tuple[Dict, np.array, np.array]:
@@ -60,11 +60,7 @@ def evaluate_model(model: PyTorchForecast) -> Tuple[Dict, np.array, np.array]:
             model.params["model_params"],
             weight_path=os.path.join(model_filepath, f"model_Ep{str(test_epoch)}.pth"),
         )
-    pred, obs, test_data = infer_on_torch_model(model)
-    print("Un-transforming data")
-    preds_xr = test_data.target_scaler.inverse_transform(pred)
-    obss_xr = test_data.target_scaler.inverse_transform(obs)
-
+    preds_xr, obss_xr, test_data = infer_on_torch_model(model)
     #  Then evaluate the model metrics
     if type(fill_nan) is list and len(fill_nan) != len(target_col):
         raise Exception("length of fill_nan must be equal to target_col's")
@@ -104,7 +100,7 @@ def infer_on_torch_model(
     model: PyTorchForecast,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Function to handle both test evaluation and inference on a test data-frame.
+    infer using trained model and unnormalized results
     """
     data_params = model.params["data_params"]
     training_params = model.params["training_params"]
@@ -128,17 +124,7 @@ def infer_on_torch_model(
         device=device,
         data_params=data_params,
     )
-    # transform to xarray dataarray
-    pred_xr = xr.DataArray(
-        pred.transpose(2, 0, 1),
-        dims=model.test_data.y.dims,
-        coords=model.test_data.y.coords,
-    )
-    obs_xr = xr.DataArray(
-        obs.transpose(2, 0, 1),
-        dims=model.test_data.y.dims,
-        coords=model.test_data.y.coords,
-    )
+    pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
     return pred_xr, obs_xr, model.test_data
 
 
@@ -183,19 +169,7 @@ def generate_predictions(
             # here the a batch doesn't mean a basin; it is only an index in lookup table
             # for NtoN mode, only basin is index in lookup table, so the batch is same as basin
             # for Nto1 mode, batch is only an index
-            if seq_first:
-                xs = xs.transpose(0, 1)
-                ys = ys.transpose(0, 1)
-            xs = xs.to(device)
-            ys = ys.to(device)
-            output = model(xs)
-            if type(output) is tuple:
-                others = output[1:]
-                # Convention: y_p must be the first output of model
-                output = output[0]
-            if seq_first:
-                output = output.transpose(0, 1)
-                ys = ys.transpose(0, 1)
+            ys, output = model_infer(seq_first, device, model, xs, ys)
             test_preds.append(output.cpu().numpy())
             obss.append(ys.cpu().numpy())
         pred = reduce(lambda x, y: np.vstack((x, y)), test_preds)

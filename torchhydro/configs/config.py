@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-19 20:50:27
+LastEditTime: 2023-09-21 15:49:05
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: /torchhydro/torchhydro/configs/config.py
@@ -15,17 +15,23 @@ import os
 import pandas as pd
 import numpy as np
 from hydroutils import hydro_file
-from torchhydro.datasets.data_constant import (
-    DAYMET_NAME,
-    ET_MODIS_NAME,
-    PET_MODIS_NAME,
-    PET_NLDAS_NAME,
-    PRCP_NLDAS_NAME,
-    Q_CAMELS_CC_NAME,
-    SSM_SMAP_NAME,
-    PRCP_DAYMET_NAME,
-    Q_CAMELS_US_NAME,
-)
+
+DAYMET_NAME = "daymet"
+SSM_SMAP_NAME = "ssm"
+ET_MODIS_NAME = "ET"
+Q_CAMELS_US_NAME = "usgsFlow"
+# Q_CAMELS_CC_NAME = "Q_fix"
+Q_CAMELS_CC_NAME = "Q"
+PRCP_DAYMET_NAME = "prcp"
+PRCP_NLDAS_NAME = "total_precipitation"
+PET_MODIS_NAME = "PET"
+PET_NLDAS_NAME = "potential_evaporation"
+NLDAS_NAME = "nldas"
+ERA5LAND_NAME = "era5land"
+ET_ERA5LAND_NAME = "total_evaporation"
+PRCP_ERA5LAND_NAME = "total_precipitation"
+PET_DAYMET_NAME = "PET"
+PET_ERA5LAND_NAME = "potential_evaporation"
 
 
 def default_config_file():
@@ -168,6 +174,7 @@ def default_config_file():
                     "ssma",
                     "susma",
                 ],
+                "pbm_norm": False,
             },
             "stat_dict_file": None,
         },

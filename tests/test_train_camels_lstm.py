@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2023-09-20 16:49:45
+LastEditTime: 2023-09-21 16:23:59
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
-FilePath: \torchhydro\tests\test_train_camels_lstm.py
+FilePath: /torchhydro/tests/test_train_camels_lstm.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
@@ -50,19 +50,6 @@ def config():
         var_out=["streamflow"],
         data_loader="StreamflowDataset",
         scaler="DapengScaler",
-        scaler_params={
-            "prcp_norm_cols": ["streamflow"],
-            "gamma_norm_cols": [
-                "prcp",
-                "pr",
-                "total_precipitation",
-                "potential_evaporation",
-                "ET",
-                "PET",
-                "ET_sum",
-                "ssm",
-            ],
-        },
         train_epoch=5,
         save_epoch=1,
         te=5,

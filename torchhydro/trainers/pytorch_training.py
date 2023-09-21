@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-19 21:01:00
+LastEditTime: 2023-09-21 16:04:02
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
 FilePath: /torchhydro/torchhydro/trainers/pytorch_training.py
@@ -17,8 +17,6 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from hydroutils.hydro_stat import stat_error
 from hydroutils import hydro_file
-import xarray as xr
-from torchhydro.trainers.time_model import PyTorchForecast
 from torchhydro.models.model_dict_function import (
     pytorch_opt_dict,
     pytorch_criterion_dict,
@@ -28,6 +26,8 @@ from torchhydro.models.crits import (
     GaussianLoss,
     UncertaintyWeights,
 )
+from torchhydro.trainers.time_model import PyTorchForecast
+from torchhydro.trainers.train_utils import model_infer, denormalize4eval
 
 
 def model_train(forecast_model: PyTorchForecast) -> None:
@@ -323,26 +323,7 @@ def evaluate_validation(
         raise Exception("length of fill_nan must be equal to target_col's")
     eval_log = {}
     # renormalization to get real metrics
-    target_scaler = validation_data_loader.dataset.target_scaler
-    target_data = target_scaler.data_target
-    # the units are dimensionless
-    units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
-    preds_xr = target_scaler.inverse_transform(
-        xr.DataArray(
-            output.transpose(2, 0, 1),
-            dims=target_data.dims,
-            coords=target_data.coords,
-            attrs={"units": units},
-        )
-    )
-    obss_xr = target_scaler.inverse_transform(
-        xr.DataArray(
-            labels.transpose(2, 0, 1),
-            dims=target_data.dims,
-            coords=target_data.coords,
-            attrs={"units": units},
-        )
-    )
+    preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels)
     for i in range(len(target_col)):
         obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
         pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
@@ -571,49 +552,19 @@ def compute_validation(
     tuple
         validation observations (numpy array), predictions (numpy array) and the loss of validation
     """
-    # TODO: not fully support dPL model yet, only support dpl-ann and dpl-lstm models' final-mode computation now, else are not tested
     model.eval()
     seq_first = False if kwargs["which_first_tensor"] == "batch" else True
     obs = []
     preds = []
-    if seq_first:
-        cat_dim = 1
-    else:
-        cat_dim = 0
     with torch.no_grad():
         for src, trg in data_loader:
-            if type(src) is list:
-                xs = [
-                    data_tmp.permute([1, 0, 2]).to(device)
-                    if seq_first and data_tmp.ndim == 3
-                    else data_tmp.to(device)
-                    for data_tmp in src
-                ]
-            else:
-                xs = [
-                    src.permute([1, 0, 2]).to(device)
-                    if seq_first and src.ndim == 3
-                    else src.to(device)
-                ]
-            trg = (
-                trg.permute([1, 0, 2]).to(device)
-                if seq_first and trg.ndim == 3
-                else trg.to(device)
-            )
-            output = model(*xs)
-            if type(output) is tuple:
-                others = output[1:]
-                # Convention: y_p must be the first output of model
-                output = output[0]
+            trg, output = model_infer(seq_first, device, model, src, trg)
             obs.append(trg)
             preds.append(output)
-        obs_final = torch.cat(obs, dim=cat_dim)
-        pred_final = torch.cat(preds, dim=cat_dim)
+        # first dim is batch
+        obs_final = torch.cat(obs, dim=0)
+        pred_final = torch.cat(preds, dim=0)
         valid_loss = compute_loss(obs_final, pred_final, criterion)
-    if seq_first:
-        y_obs = obs_final.detach().cpu().numpy().swapaxes(0, 1)
-        y_pred = pred_final.detach().cpu().numpy().swapaxes(0, 1)
-    else:
-        y_obs = obs_final.detach().cpu().numpy()
-        y_pred = pred_final.detach().cpu().numpy()
+    y_obs = obs_final.detach().cpu().numpy()
+    y_pred = pred_final.detach().cpu().numpy()
     return y_obs, y_pred, valid_loss

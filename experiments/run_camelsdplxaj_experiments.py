@@ -1,3 +1,12 @@
+"""
+Author: Wenyu Ouyang
+Date: 2023-09-20 20:05:10
+LastEditTime: 2023-09-21 13:54:42
+LastEditors: Wenyu Ouyang
+Description: 
+FilePath: /torchhydro/experiments/run_camelsdplxaj_experiments.py
+Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
+"""
 import os
 from configs.config import cmd, default_config_file, update_cfg
 import hydrodataset as hds
@@ -5,7 +14,7 @@ import hydrodataset as hds
 from trainers.trainer import train_and_evaluate
 
 
-def run_dplxaj():
+def run_dplxaj(train_period=None, valid_period=None, test_period=None):
     """
     Use attr and forcing as input for dPL model
 
@@ -17,6 +26,12 @@ def run_dplxaj():
     -------
 
     """
+    if train_period is None:
+        train_period = ["1985-10-01", "1995-10-01"]
+    if valid_period is None:
+        valid_period = ["1995-10-01", "2000-10-01"]
+    if test_period is None:
+        test_period = ["2000-10-01", "2010-10-01"]
     config = default_config_file()
     args = cmd(
         sub="test_camels/expdplxaj",
@@ -49,6 +64,7 @@ def run_dplxaj():
                 "ET_sum",
                 "ssm",
             ],
+            "pbm_norm": True,
         },
         gage_id=[
             "01013500",
@@ -62,8 +78,11 @@ def run_dplxaj():
             "01057000",
             "01170100",
         ],
-        batch_size=5,
-        rho=30,  # batch_size=100, rho=365,
+        train_period=train_period,
+        valid_period=valid_period,
+        test_period=test_period,
+        batch_size=20,
+        rho=30,
         var_t=[
             "prcp",
             "PET",
@@ -77,8 +96,8 @@ def run_dplxaj():
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,
-        train_epoch=20,
-        te=20,
+        train_epoch=2,
+        te=2,
         warmup_length=10,
         opt="Adadelta",
         which_first_tensor="sequence",
@@ -87,4 +106,8 @@ def run_dplxaj():
     train_and_evaluate(config)
 
 
-run_dplxaj()
+run_dplxaj(
+    train_period=["1985-10-01", "1986-10-01"],
+    valid_period=["1986-10-01", "1987-10-01"],
+    test_period=["1987-10-01", "1988-10-01"],
+)
