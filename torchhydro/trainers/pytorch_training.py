@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-21 16:04:02
+LastEditTime: 2023-09-21 20:01:41
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
 FilePath: /torchhydro/torchhydro/trainers/pytorch_training.py
@@ -17,17 +17,17 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from hydroutils.hydro_stat import stat_error
 from hydroutils import hydro_file
+from torchhydro.datasets.data_sets import KuaiSampler
 from torchhydro.models.model_dict_function import (
     pytorch_opt_dict,
     pytorch_criterion_dict,
 )
-from torchhydro.models.model_utils import EarlyStopper
 from torchhydro.models.crits import (
     GaussianLoss,
     UncertaintyWeights,
 )
 from torchhydro.trainers.time_model import PyTorchForecast
-from torchhydro.trainers.train_utils import model_infer, denormalize4eval
+from torchhydro.trainers.train_utils import model_infer, denormalize4eval, EarlyStopper
 
 
 def model_train(forecast_model: PyTorchForecast) -> None:
@@ -52,20 +52,9 @@ def model_train(forecast_model: PyTorchForecast) -> None:
     training_params = forecast_model.params["training_params"]
     # The file path to load model weights from; defaults to "model_save"
     model_filepath = forecast_model.params["data_params"]["test_path"]
-
-    es = None
-    worker_num = 0
-    pin_memory = False
     data_params = forecast_model.params["data_params"]
     num_targets = training_params["multi_targets"]
-    if "num_workers" in training_params:
-        worker_num = training_params["num_workers"]
-        print("using " + str(worker_num) + " workers")
-    if "pin_memory" in training_params:
-        pin_memory = training_params["pin_memory"]
-        print("Pin memory set to " + str(pin_memory))
-    if "train_but_not_real" in training_params:
-        train_but_not_real = training_params["train_but_not_real"]
+    es = None
     if "early_stopping" in forecast_model.params:
         es = EarlyStopper(forecast_model.params["early_stopping"]["patience"])
     criterion_init_params = {}
@@ -135,24 +124,10 @@ def model_train(forecast_model: PyTorchForecast) -> None:
     if "save_iter" in training_params:
         save_iter = training_params["save_iter"]
     start_epoch = training_params["start_epoch"]
-    # this means we'll use PyTorch's DataLoader to load the data into batches in each epoch
-    data_loader = DataLoader(
-        forecast_model.training,
-        batch_size=training_params["batch_size"],
-        shuffle=True,
-        num_workers=worker_num,
-        pin_memory=pin_memory,
-        timeout=0,
+    # use PyTorch's DataLoader to load the data into batches in each epoch
+    data_loader, validation_data_loader = get_train_valid_dataloader(
+        forecast_model, training_params, data_params
     )
-    if data_params["t_range_valid"] is not None:
-        validation_data_loader = DataLoader(
-            forecast_model.validation,
-            batch_size=training_params["batch_size"],
-            shuffle=False,
-            num_workers=worker_num,
-            pin_memory=pin_memory,
-            timeout=0,
-        )
     session_params = []
     # use tensorboard to visualize the training process
     hyper_param_set = (
@@ -185,7 +160,6 @@ def model_train(forecast_model: PyTorchForecast) -> None:
             save_model_iter_dir=param_save_dir,
             save_model_iter=save_iter,
             i_epoch=epoch,
-            train_but_not_real=train_but_not_real,
             which_first_tensor=training_params["which_first_tensor"],
         )
         log_str = "Epoch {} Loss {:.3f} time {:.2f}".format(
@@ -279,6 +253,55 @@ def model_train(forecast_model: PyTorchForecast) -> None:
     forecast_model.params["run"] = session_params
     forecast_model.save_model(model_filepath, max_epochs)
     save_model_params_log(forecast_model.params, training_save_dir)
+
+
+def get_train_valid_dataloader(forecast_model, training_params, data_params):
+    worker_num = 0
+    pin_memory = False
+    if "num_workers" in training_params:
+        worker_num = training_params["num_workers"]
+        print("using " + str(worker_num) + " workers")
+    if "pin_memory" in training_params:
+        pin_memory = training_params["pin_memory"]
+        print("Pin memory set to " + str(pin_memory))
+    train_dataset = forecast_model.training
+    sampler = None
+    if data_params["sampler"] is not None:
+        # now we only have one special sampler from Kuai Fang's Deep Learning papers
+        batch_size = data_params["batch_size"]
+        rho = data_params["forecast_history"]
+        warmup_length = data_params["warmup_length"]
+        ngrid = train_dataset.y.basin.size
+        nt = train_dataset.y.time.size
+        sampler = KuaiSampler(
+            train_dataset,
+            batch_size=batch_size,
+            warmup_length=warmup_length,
+            rho=rho,
+            ngrid=ngrid,
+            nt=nt,
+        )
+    data_loader = DataLoader(
+        train_dataset,
+        batch_size=training_params["batch_size"],
+        shuffle=(sampler is None),
+        sampler=sampler,
+        num_workers=worker_num,
+        pin_memory=pin_memory,
+        timeout=0,
+    )
+    if data_params["t_range_valid"] is not None:
+        valid_dataset = forecast_model.validation
+        validation_data_loader = DataLoader(
+            valid_dataset,
+            batch_size=training_params["batch_size"],
+            shuffle=False,
+            num_workers=worker_num,
+            pin_memory=pin_memory,
+            timeout=0,
+        )
+
+    return data_loader, validation_data_loader
 
 
 def save_model_params_log(params, save_log_path):
@@ -445,14 +468,6 @@ def torch_single_train(
     save_iter = kwargs["save_model_iter"]
     save_dir = kwargs["save_model_iter_dir"]
 
-    train_but_not_real = kwargs["train_but_not_real"]
-    if train_but_not_real:
-        weight_path = os.path.join(save_dir, "model_Ep{}.pth".format(i_epoch))
-        checkpoint = torch.load(weight_path, map_location=device)
-        model.load_state_dict(checkpoint, strict=True)
-        plot_hist_img(model, writer, i_epoch)
-        # no train, no loss, give it -999
-        return -999, len(data_loader)
     for i, (src, trg) in enumerate(pbar):
         # iEpoch starts from 1, iIter starts from 0, we hope both start from 1
         iter_now = i + 1

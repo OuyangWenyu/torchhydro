@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-20 20:05:10
-LastEditTime: 2023-09-21 13:54:42
+LastEditTime: 2023-09-21 20:10:25
 LastEditors: Wenyu Ouyang
 Description: 
 FilePath: /torchhydro/experiments/run_camelsdplxaj_experiments.py
@@ -50,7 +50,7 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
             "param_limit_func": "clamp",
         },
         loss_func="RMSESum",
-        data_loader="DplDataset",
+        dataset="DplDataset",
         scaler="DapengScaler",
         scaler_params={
             "prcp_norm_cols": ["streamflow"],

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-09-09 14:47:42
-LastEditTime: 2023-09-21 16:31:17
+LastEditTime: 2023-09-21 20:13:44
 LastEditors: Wenyu Ouyang
 Description: a script to run experiments for LSTM - CAMELS
 FilePath: /torchhydro/experiments/run_camelslstm_experiments.py
@@ -72,8 +72,8 @@ def run_normal_dl(
             "n_hidden_states": 256,
         },
         loss_func="RMSESum",
-        # data_loader="KuaiDataset",
-        data_loader="StreamflowDataset",
+        sampler="KuaiSampler",
+        dataset="StreamflowDataset",
         scaler="DapengScaler",
         batch_size=512,
         rho=366,

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-21 15:49:05
+LastEditTime: 2023-09-21 19:52:14
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: /torchhydro/torchhydro/configs/config.py
@@ -135,8 +135,6 @@ def default_config_file():
             "constant_only": False,
             # more other cols, use dict to express!
             "other_cols": None,
-            # data_loader for loading data to models
-            "data_loader": "StreamflowDataset",
             # only numerical scaler: for categorical vars, they are transformed to numerical vars when reading them
             "scaler": "StandardScaler",
             # Some parameters for the chosen scaler function, default is DapengScaler's
@@ -177,6 +175,10 @@ def default_config_file():
                 "pbm_norm": False,
             },
             "stat_dict_file": None,
+            # dataset for pytorch dataset
+            "dataset": "StreamflowDataset",
+            # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
+            "sampler": None,
         },
         "training_params": {
             # if train_mode is False, don't train and evaluate
@@ -220,7 +222,8 @@ def cmd(
     download=0,
     scaler=None,
     scaler_params=None,
-    data_loader=None,
+    dataset=None,
+    sampler=None,
     ctx=None,
     rs=None,
     gage_id_file=None,
@@ -321,10 +324,17 @@ def cmd(
         type=json.loads,
     )
     parser.add_argument(
-        "--data_loader",
-        dest="data_loader",
-        help="Choose a data loader class",
-        default=data_loader,
+        "--dataset",
+        dest="dataset",
+        help="Choose a dataset class for PyTorch",
+        default=dataset,
+        type=str,
+    )
+    parser.add_argument(
+        "--sampler",
+        dest="sampler",
+        help="None or KuaiSampler",
+        default=sampler,
         type=str,
     )
     parser.add_argument(
@@ -705,8 +715,10 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_params"]["scaler"] = new_args.scaler
     if new_args.scaler_params is not None:
         cfg_file["data_params"]["scaler_params"] = new_args.scaler_params
-    if new_args.data_loader is not None:
-        cfg_file["data_params"]["data_loader"] = new_args.data_loader
+    if new_args.dataset is not None:
+        cfg_file["data_params"]["dataset"] = new_args.dataset
+    if new_args.sampler is not None:
+        cfg_file["data_params"]["sampler"] = new_args.sampler
     if new_args.ctx is not None:
         cfg_file["training_params"]["device"] = new_args.ctx
     if new_args.rs is not None:

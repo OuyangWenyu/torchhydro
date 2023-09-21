@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-20 16:44:00
+LastEditTime: 2023-09-21 19:58:07
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath: \torchhydro\torchhydro\trainers\time_model.py
+FilePath: /torchhydro/torchhydro/trainers/time_model.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -17,7 +17,7 @@ import os
 from datetime import datetime
 from hydrodataset import HydroDataset
 
-from torchhydro.datasets.data_dict import dataloaders_dict
+from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.models.model_dict_function import (
     pytorch_model_dict,
     pytorch_model_wrapper_dict,
@@ -53,12 +53,12 @@ class TimeSeriesModel(ABC):
             )
         else:
             self.model = self.load_model(model_base, params["model_params"])
-        self.training = self.make_data_load(data_source, params["data_params"], "train")
+        self.training = self.make_dataset(data_source, params["data_params"], "train")
         if params["data_params"]["t_range_valid"] is not None:
-            self.validation = self.make_data_load(
+            self.validation = self.make_dataset(
                 data_source, params["data_params"], "valid"
             )
-        self.test_data = self.make_data_load(data_source, params["data_params"], "test")
+        self.test_data = self.make_dataset(data_source, params["data_params"], "test")
 
     @abstractmethod
     def load_model(
@@ -84,11 +84,11 @@ class TimeSeriesModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def make_data_load(
+    def make_dataset(
         self, data_source: HydroDataset, params: Dict, loader_type: str
     ) -> object:
         """
-        Initializes a data loader based on the provided data_source.
+        Initializes a pytorch dataset based on the provided data_source.
 
         Parameters
         ----------
@@ -102,7 +102,7 @@ class TimeSeriesModel(ABC):
         Returns
         -------
         object
-            a class for loading data from data source
+            a dataset class loading data from data source
         """
         raise NotImplementedError
 
@@ -241,11 +241,11 @@ class PyTorchForecast(TimeSeriesModel):
         with open(params_save_path, "w+") as p:
             json.dump(self.params, p)
 
-    def make_data_load(
+    def make_dataset(
         self, data_source_model: HydroDataset, data_params: Dict, loader_type: str
     ):
         """
-        Initializes a data loader based on the provided data_source.
+        Initializes a pytorch dataset based on the provided data_source.
 
         Parameters
         ----------
@@ -259,11 +259,11 @@ class PyTorchForecast(TimeSeriesModel):
         Returns
         -------
         object
-            an object initializing from class in dataloaders_dict in data_dict.py
+            an object initializing from class in datasets_dict in data_dict.py
         """
-        the_loader = data_params["data_loader"]
-        if the_loader in list(dataloaders_dict.keys()):
-            loader = dataloaders_dict[the_loader](
+        dataset = data_params["dataset"]
+        if dataset in list(datasets_dict.keys()):
+            loader = datasets_dict[dataset](
                 data_source_model, data_params, loader_type
             )
         else:

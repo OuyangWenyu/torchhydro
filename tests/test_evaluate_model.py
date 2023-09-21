@@ -1,3 +1,12 @@
+"""
+Author: Wenyu Ouyang
+Date: 2023-09-18 14:34:53
+LastEditTime: 2023-09-21 20:08:37
+LastEditors: Wenyu Ouyang
+Description: A simple evaluate model test
+FilePath: /torchhydro/tests/test_evaluate_model.py
+Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
+"""
 import os
 import hydrodataset as hds
 import pytest
@@ -48,21 +57,8 @@ def config_data():
         rho=20,  # batch_size=100, rho=365,
         var_t=["dayl", "prcp", "srad", "tmax", "tmin", "vp"],
         var_out=["streamflow"],
-        data_loader="KuaiDataset",
+        dataset="StreamflowDataset",
         scaler="DapengScaler",
-        scaler_params={
-            "prcp_norm_cols": ["streamflow"],
-            "gamma_norm_cols": [
-                "prcp",
-                "pr",
-                "total_precipitation",
-                "potential_evaporation",
-                "ET",
-                "PET",
-                "ET_sum",
-                "ssm",
-            ],
-        },
         train_epoch=5,
         save_epoch=1,
         te=5,

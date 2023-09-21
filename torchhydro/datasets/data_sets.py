@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-09-21 15:45:47
+LastEditTime: 2023-09-21 19:47:40
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: /torchhydro/torchhydro/datasets/data_sets.py
@@ -10,7 +10,7 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 import logging
 import sys
 from typing import Optional
-
+from torch.utils.data import RandomSampler
 import numpy as np
 import pint_xarray  # noqa: F401
 import torch
@@ -260,39 +260,40 @@ class BasinSingleFlowDataset(BaseDataset):
         return self.num_samples
 
 
-class KuaiDataset(BaseDataset):
-    """mini-batch data model from Kuai Fang's paper: https://doi.org/10.1002/2017GL075619
-    He used a random pick-up that we don't need to iterate all samples. Then, we can train model more quickly
+class KuaiSampler(RandomSampler):
+    def __init__(
+        self,
+        data_source,
+        batch_size,
+        warmup_length,
+        rho,
+        ngrid,
+        nt,
+    ):
+        """a sampler from Kuai Fang's paper: https://doi.org/10.1002/2017GL075619
+           He used a random pick-up that we don't need to iterate all samples.
+           Then, we can train model more quickly
 
-    TODO: seems wrong, bugs need to be fixed
-    """
-
-    def __init__(self, data_source: HydroDataset, data_params: dict, loader_type: str):
-        """
         Parameters
         ----------
-        data_source
-            object for reading source data
-        data_params
-            parameters for reading source data
-        loader_type
-            train, vaild or test
+        data_source : torch.utils.data.Dataset
+            just a object of dataset class inherited from torch.utils.data.Dataset
+        batch_size : int
+            we need batch_size to calculate the number of samples in an epoch
+        warmup_length : int
+            warmup length, typically for physical hydrological models
+        rho : int
+            sequence length of a mini-batch
+        ngrid : int
+            number of basins
+        nt : int
+            number of all periods
         """
-        super().__init__(data_source, data_params, loader_type)
-
-    def __len__(self):
-        if not self.train_mode:
-            return len(self.t_s_dict["sites_id"])
-        # batch_size * rho must be smaller than ngrid * nt, if not, the value logged will be negative that is wrong
-        batch_size = self.data_params["batch_size"]
-        rho = self.rho
-        warmup_length = self.data_params["warmup_length"]
-        ngrid = self.y.basin.shape[0]
-        nt = self.y.time.shape[0]
         while batch_size * rho >= ngrid * nt:
             # try to use a smaller batch_size to make the model runnable
             batch_size = int(batch_size / 10)
         batch_size = max(batch_size, 1)
+        # 99% chance that all periods' data are used in an epoch
         n_iter_ep = int(
             np.ceil(
                 np.log(0.01)
@@ -302,10 +303,8 @@ class KuaiDataset(BaseDataset):
         assert n_iter_ep >= 1
         # __len__ means the number of all samples, then, the number of loops in an epoch is __len__()/batch_size = n_iter_ep
         # hence we return n_iter_ep * batch_size
-        return n_iter_ep * batch_size
-
-    def __getitem__(self, index):
-        return super(KuaiDataset, self).__getitem__(index)
+        num_samples = n_iter_ep * batch_size
+        super(KuaiSampler, self).__init__(data_source, num_samples=num_samples)
 
 
 class DplDataset(BaseDataset):
