@@ -26,5 +26,6 @@ dependencies:
     - setuptools
     - wheel
     - twine
+    - bump2version
     - hydroutils
     - hydrodataset
