@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2023-09-21 16:23:59
+LastEditTime: 2023-09-24 20:31:57
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
-FilePath: /torchhydro/tests/test_train_camels_lstm.py
+FilePath: \torchhydro\tests\test_train_camels_lstm.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
@@ -51,9 +51,9 @@ def config():
         dataset="StreamflowDataset",
         sampler="KuaiSampler",
         scaler="DapengScaler",
-        train_epoch=5,
+        train_epoch=2,
         save_epoch=1,
-        te=5,
+        te=2,
         train_period=["2000-10-01", "2001-10-01"],
         valid_period=["2001-10-01", "2002-10-01"],
         test_period=["2002-10-01", "2003-10-01"],

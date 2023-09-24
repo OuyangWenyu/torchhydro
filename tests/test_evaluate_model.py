@@ -15,7 +15,7 @@ from hydroutils.hydro_plot import plot_ts
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.trainers.evaluator import evaluate_model
-from torchhydro.trainers.time_model import PyTorchForecast
+from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed
 
 
@@ -82,7 +82,7 @@ def test_evaluate_model(config_data):
     data_source = data_sources_dict[data_source_name](
         data_params["data_path"], data_params["download"]
     )
-    model = PyTorchForecast(
+    model = DeepHydro(
         config_data["model_params"]["model_name"], data_source, config_data
     )
     eval_log, preds_xr, obss_xr = evaluate_model(model)

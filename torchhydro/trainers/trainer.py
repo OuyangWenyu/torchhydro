@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-09-24 14:26:52
+LastEditTime: 2023-09-24 20:18:56
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
@@ -16,11 +16,11 @@ from typing import Dict, Tuple, Union
 import pandas as pd
 import torch
 from hydroutils.hydro_stat import stat_error
-from hydroutils.hydro_file import serialize_numpy, unserialize_numpy
+from hydroutils.hydro_file import unserialize_numpy
 from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.trainers.evaluator import evaluate_model
-from torchhydro.trainers.pytorch_training import model_train, save_model_params_log
-from torchhydro.trainers.time_model import PyTorchForecast
+from torchhydro.trainers.train_logger import save_model_params_log
+from torchhydro.trainers.deep_hydro import DeepHydro
 
 
 def set_random_seed(seed):
@@ -65,7 +65,7 @@ def train_and_evaluate(params: Dict):
             "weight_path" in params["model_params"]
             and params["model_params"]["continue_train"]
         ) or ("weight_path" not in params["model_params"]):
-            model_train(model)
+            model.model_train()
         test_acc = evaluate_model(model)
         print("summary test_accuracy", test_acc[0])
         # save the results
@@ -106,7 +106,7 @@ def _dl_model(params):
         data_source = data_sources_dict[data_source_name](
             data_params["data_path"], data_params["download"]
         )
-    return PyTorchForecast(params["model_params"]["model_name"], data_source, params)
+    return DeepHydro(params["model_params"]["model_name"], data_source, params)
 
 
 def save_result(save_dir, epoch, pred, obs, pred_name="flow_pred", obs_name="flow_obs"):

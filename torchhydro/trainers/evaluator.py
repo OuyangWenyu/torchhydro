@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-21 16:18:52
+LastEditTime: 2023-09-24 16:01:12
 LastEditors: Wenyu Ouyang
 Description: Testing functions for hydroDL models
-FilePath: /torchhydro/torchhydro/trainers/evaluator.py
+FilePath: \torchhydro\torchhydro\trainers\evaluator.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import os
@@ -15,12 +15,12 @@ import torch
 from torch.utils.data import DataLoader
 from hydroutils.hydro_stat import stat_error
 
-from torchhydro.trainers.time_model import PyTorchForecast
+from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.models.model_utils import get_the_device
 from torchhydro.trainers.train_utils import denormalize4eval, model_infer
 
 
-def evaluate_model(model: PyTorchForecast) -> Tuple[Dict, np.array, np.array]:
+def evaluate_model(model: DeepHydro) -> Tuple[Dict, np.array, np.array]:
     """
     A function to evaluate a model, called at end of training.
 
@@ -63,7 +63,7 @@ def evaluate_model(model: PyTorchForecast) -> Tuple[Dict, np.array, np.array]:
     preds_xr, obss_xr, test_data = infer_on_torch_model(model)
     #  Then evaluate the model metrics
     if type(fill_nan) is list and len(fill_nan) != len(target_col):
-        raise Exception("length of fill_nan must be equal to target_col's")
+        raise ValueError("length of fill_nan must be equal to target_col's")
     for i in range(len(target_col)):
         obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
         pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
@@ -97,7 +97,7 @@ def evaluate_model(model: PyTorchForecast) -> Tuple[Dict, np.array, np.array]:
 
 
 def infer_on_torch_model(
-    model: PyTorchForecast,
+    model: DeepHydro,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     infer using trained model and unnormalized results
@@ -129,7 +129,7 @@ def infer_on_torch_model(
 
 
 def generate_predictions(
-    ts_model: PyTorchForecast,
+    ts_model: DeepHydro,
     test_dataloader,
     seq_first: bool,
     device: torch.device,
@@ -165,7 +165,7 @@ def generate_predictions(
     test_preds = []
     obss = []
     with torch.no_grad():
-        for i_batch, (xs, ys) in enumerate(test_dataloader):
+        for xs, ys in test_dataloader:
             # here the a batch doesn't mean a basin; it is only an index in lookup table
             # for NtoN mode, only basin is index in lookup table, so the batch is same as basin
             # for Nto1 mode, batch is only an index
