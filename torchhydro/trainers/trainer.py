@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-09-24 20:18:56
+LastEditTime: 2023-09-24 21:20:59
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
@@ -20,7 +20,7 @@ from hydroutils.hydro_file import unserialize_numpy
 from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.trainers.evaluator import evaluate_model
 from torchhydro.trainers.train_logger import save_model_params_log
-from torchhydro.trainers.deep_hydro import DeepHydro
+from torchhydro.trainers.deep_hydro import model_type_dict
 
 
 def set_random_seed(seed):
@@ -106,7 +106,9 @@ def _dl_model(params):
         data_source = data_sources_dict[data_source_name](
             data_params["data_path"], data_params["download"]
         )
-    return DeepHydro(params["model_params"]["model_name"], data_source, params)
+    model_type = params["model_params"]["model_type"]
+    model_name = params["model_params"]["model_name"]
+    return model_type_dict[model_type](model_name, data_source, params)
 
 
 def save_result(save_dir, epoch, pred, obs, pred_name="flow_pred", obs_name="flow_obs"):

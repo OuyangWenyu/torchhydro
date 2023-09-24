@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-24 21:01:22
+LastEditTime: 2023-09-24 21:45:35
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -9,17 +9,14 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
 from abc import ABC, abstractmethod
-import time
+import copy
 from typing import Dict
 import numpy as np
 import torch
 from torch import nn
-import json
-import os
-from datetime import datetime
 from hydrodataset import HydroDataset
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 from torchhydro.datasets.data_sets import KuaiSampler
 
 from torchhydro.datasets.data_dict import datasets_dict
@@ -32,6 +29,7 @@ from torchhydro.models.model_dict_function import (
 from torchhydro.models.model_utils import get_the_device
 from torchhydro.trainers.train_utils import (
     EarlyStopper,
+    average_weights,
     evaluate_validation,
     compute_validation,
     torch_single_train,
@@ -223,7 +221,7 @@ class DeepHydro(DeepHydroInterface):
             wrapper_name = model_params["model_wrapper"]
             wrapper_params = model_params["model_wrapper_param"]
             model = pytorch_model_wrapper_dict[wrapper_name](model, **wrapper_params)
-        return model        
+        return model
 
     def make_dataset(
         self, data_source_model: HydroDataset, data_params: Dict, loader_type: str
@@ -407,43 +405,138 @@ class FedLearnHydro(DeepHydro):
     ):
         super().__init__(model_base, data_source_model, params_dict)
 
+    def get_dataset():
+        """Returns train and test datasets and a user group which is a dict where
+        the keys are the user index and the values are the corresponding data for
+        each of those users.
+        """
+
+        data_dir = "../data/cifar/"
+        apply_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ]
+        )
+
+        train_dataset = datasets.CIFAR10(
+            data_dir, train=True, download=True, transform=apply_transform
+        )
+
+        test_dataset = datasets.CIFAR10(
+            data_dir, train=False, download=True, transform=apply_transform
+        )
+
+        # sample training data amongst users
+        if args.iid:
+            # Sample IID user data from Mnist
+            user_groups = cifar_iid(train_dataset, args.num_users)
+        else:
+            # Sample Non-IID user data from Mnist
+            if args.unequal:
+                # Chose uneuqal splits for every user
+                raise NotImplementedError()
+            else:
+                # Chose euqal splits for every user
+                user_groups = cifar_noniid(train_dataset, args.num_users)
+
+        return train_dataset, test_dataset, user_groups
+
     def model_train(self) -> None:
-        # Set mode to train model
-        model.train()
-        epoch_loss = []
+        # define paths
+        train_dataset, valid_dataset, user_groups = self.get_dataset()
 
-        # Set optimizer for the local updates
-        if self.args.optimizer == "sgd":
-            optimizer = torch.optim.SGD(
-                model.parameters(), lr=self.args.lr, momentum=0.5
+        # BUILD MODEL
+        global_model = self.model
+
+        # copy weights
+        global_weights = global_model.state_dict()
+
+        # Training
+        train_loss, train_accuracy = [], []
+        val_acc_list, net_list = [], []
+        cv_loss, cv_acc = [], []
+        print_every = 2
+        val_loss_pre, counter = 0, 0
+
+        for epoch in tqdm(range(self.params.epochs)):
+            local_weights, local_losses = [], []
+            print(f"\n | Global Training Round : {epoch+1} |\n")
+
+            global_model.train()
+            m = max(int(self.params.frac * self.params.num_users), 1)
+            idxs_users = np.random.choice(
+                range(self.params.num_users), m, replace=False
             )
-        elif self.args.optimizer == "adam":
-            optimizer = torch.optim.Adam(
-                model.parameters(), lr=self.args.lr, weight_decay=1e-4
-            )
 
-        for iter in range(self.args.local_ep):
-            batch_loss = []
-            for batch_idx, (images, labels) in enumerate(self.trainloader):
-                images, labels = images.to(self.device), labels.to(self.device)
+            for idx in idxs_users:
+                local_model = DeepHydro(
+                    args=args,
+                    dataset=train_dataset,
+                    idxs=user_groups[idx],
+                    logger=logger,
+                )
+                w, loss = local_model.model_train(
+                    model=copy.deepcopy(global_model), global_round=epoch
+                )
+                local_weights.append(copy.deepcopy(w))
+                local_losses.append(copy.deepcopy(loss))
 
-                model.zero_grad()
-                log_probs = model(images)
-                loss = self.criterion(log_probs, labels)
-                loss.backward()
-                optimizer.step()
+            # update global weights
+            global_weights = average_weights(local_weights)
 
-                if self.args.verbose and (batch_idx % 10 == 0):
-                    print(
-                        "| Global Round : {} | Local Epoch : {} | [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
-                            global_round,
-                            iter,
-                            batch_idx * len(images),
-                            len(self.trainloader.dataset),
-                            100.0 * batch_idx / len(self.trainloader),
-                            loss.item(),
-                        )
-                    )
-                self.logger.add_scalar("loss", loss.item())
-                batch_loss.append(loss.item())
-            epoch_loss.append(sum(batch_loss) / len(batch_loss))
+            # update global weights
+            global_model.load_state_dict(global_weights)
+
+            loss_avg = sum(local_losses) / len(local_losses)
+            train_loss.append(loss_avg)
+
+            # Calculate avg training accuracy over all users at every epoch
+            list_acc, list_loss = [], []
+            global_model.eval()
+            for c in range(args.num_users):
+                local_model = DeepHydro(
+                    args=args,
+                    dataset=train_dataset,
+                    idxs=user_groups[idx],
+                    logger=logger,
+                )
+                acc, loss = local_model.inference(model=global_model)
+                list_acc.append(acc)
+                list_loss.append(loss)
+            train_accuracy.append(sum(list_acc) / len(list_acc))
+
+            # print global training loss after every 'i' rounds
+            if (epoch + 1) % print_every == 0:
+                print(f" \nAvg Training Stats after {epoch+1} global rounds:")
+                print(f"Training Loss : {np.mean(np.array(train_loss))}")
+                print("Train Accuracy: {:.2f}% \n".format(100 * train_accuracy[-1]))
+
+        # Test inference after completion of training
+        test_acc, test_loss = test_inference(args, global_model, valid_dataset)
+
+        print(f" \n Results after {args.epochs} global rounds of training:")
+        print("|---- Avg Train Accuracy: {:.2f}%".format(100 * train_accuracy[-1]))
+        print("|---- Test Accuracy: {:.2f}%".format(100 * test_acc))
+
+        # Saving the objects train_loss and train_accuracy:
+        file_name = "../save/objects/{}_{}_{}_C[{}]_iid[{}]_E[{}]_B[{}].pkl".format(
+            args.dataset,
+            args.model,
+            args.epochs,
+            args.frac,
+            args.iid,
+            args.local_ep,
+            args.local_bs,
+        )
+
+        with open(file_name, "wb") as f:
+            pickle.dump([train_loss, train_accuracy], f)
+
+        print("\n Total Run Time: {0:0.4f}".format(time.time() - start_time))
+
+
+model_type_dict = {
+    "Normal": DeepHydro,
+    "FedLearn": FedLearnHydro,
+}

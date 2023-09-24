@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:06:12
-LastEditTime: 2023-09-24 20:17:49
+LastEditTime: 2023-09-24 21:41:35
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -9,6 +9,7 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
 
+import copy
 from hydroutils.hydro_stat import stat_error
 import torch
 import torch.optim as optim
@@ -353,3 +354,15 @@ def compute_validation(
     y_obs = obs_final.detach().cpu().numpy()
     y_pred = pred_final.detach().cpu().numpy()
     return y_obs, y_pred, valid_loss
+
+
+def average_weights(w):
+    """
+    Returns the average of the weights.
+    """
+    w_avg = copy.deepcopy(w[0])
+    for key in w_avg.keys():
+        for i in range(1, len(w)):
+            w_avg[key] += w[i][key]
+        w_avg[key] = torch.div(w_avg[key], len(w))
+    return w_avg

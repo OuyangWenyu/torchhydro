@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-21 19:52:14
+LastEditTime: 2023-09-24 21:50:43
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: /torchhydro/torchhydro/configs/config.py
+FilePath: \torchhydro\torchhydro\configs\config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import argparse
@@ -44,10 +44,10 @@ def default_config_file():
         configurations
     """
 
-    config_default = {
+    return {
         "model_params": {
-            # now only PyTorch is supported
-            "model_type": "PyTorch",
+            # model_type including normal deep learning, federated learning, multi-task learning, etc.
+            "model_type": "Normal",
             # supported models can be seen in hydroDL/model_dict_function.py
             "model_name": "LSTM",
             # the details of model parameters for the "model_name" model
@@ -209,9 +209,12 @@ def default_config_file():
             "which_first_tensor": "sequence",
         },
         # For evaluation
-        "evaluate_params": {"metrics": ["NSE"], "fill_nan": "no", "test_epoch": 20},
+        "evaluate_params": {
+            "metrics": ["NSE"],
+            "fill_nan": "no",
+            "test_epoch": 20,
+        },
     }
-    return config_default
 
 
 def cmd(
@@ -244,6 +247,7 @@ def cmd(
     save_epoch=None,
     save_iter=None,
     te=None,
+    model_type=None,
     model_name=None,
     weight_path=None,
     continue_train=None,
@@ -423,6 +427,13 @@ def cmd(
         help="length of time sequence when training",
         default=rho,
         type=int,
+    )
+    parser.add_argument(
+        "--model_type",
+        dest="model_type",
+        help="The type of DL model",
+        default=model_type,
+        type=str,
     )
     parser.add_argument(
         "--model_name",
@@ -810,6 +821,8 @@ def update_cfg(cfg_file, new_args):
                 )
         else:
             cfg_file["data_params"]["cache_write"] = False
+    if new_args.model_type is not None:
+        cfg_file["model_params"]["model_type"] = new_args.model_type
     if new_args.model_name is not None:
         cfg_file["model_params"]["model_name"] = new_args.model_name
     if new_args.weight_path is not None:
