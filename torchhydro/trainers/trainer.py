@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-07-30 14:57:09
+LastEditTime: 2023-09-24 14:26:52
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
-FilePath: \torchhydro\torchhydro\models\trainer.py
+FilePath: \torchhydro\torchhydro\trainers\trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import fnmatch
@@ -59,6 +59,40 @@ def train_and_evaluate(params: Dict):
     """
     random_seed = params["training_params"]["random_seed"]
     set_random_seed(random_seed)
+    model = _dl_model(params)
+    if params["training_params"]["train_mode"]:
+        if (
+            "weight_path" in params["model_params"]
+            and params["model_params"]["continue_train"]
+        ) or ("weight_path" not in params["model_params"]):
+            model_train(model)
+        test_acc = evaluate_model(model)
+        print("summary test_accuracy", test_acc[0])
+        # save the results
+        save_result(
+            params["data_params"]["test_path"],
+            params["evaluate_params"]["test_epoch"],
+            test_acc[1],
+            test_acc[2],
+        )
+    param_file_exist = any(
+        (
+            fnmatch.fnmatch(file, "*.json")
+            and "_stat" not in file  # statistics json file
+            and "_dict" not in file  # data cache json file
+        )
+        for file in os.listdir(params["data_params"]["test_path"])
+    )
+    if not param_file_exist:
+        # although we save params log during training, but sometimes we directly evaluate a model
+        # so here we still save params log if param file does not exist
+        # no param file was saved yet, here we save data and params setting
+        save_param_log_path = params["data_params"]["test_path"]
+        save_model_params_log(params, save_param_log_path)
+
+
+def _dl_model(params):
+    """Get deep learning model"""
     data_params = params["data_params"]
     data_source_name = data_params["data_source_name"]
     if data_source_name in ["CAMELS", "CAMELS_SERIES"]:
@@ -72,36 +106,7 @@ def train_and_evaluate(params: Dict):
         data_source = data_sources_dict[data_source_name](
             data_params["data_path"], data_params["download"]
         )
-    model = PyTorchForecast(params["model_params"]["model_name"], data_source, params)
-    if params["training_params"]["train_mode"]:
-        if (
-            "weight_path" in params["model_params"]
-            and params["model_params"]["continue_train"]
-        ) or ("weight_path" not in params["model_params"]):
-            model_train(model)
-        test_acc = evaluate_model(model)
-        print("summary test_accuracy", test_acc[0])
-        # save the results
-        save_result(
-            data_params["test_path"],
-            params["evaluate_params"]["test_epoch"],
-            test_acc[1],
-            test_acc[2],
-        )
-    param_file_exist = any(
-        (
-            fnmatch.fnmatch(file, "*.json")
-            and "_stat" not in file  # statistics json file
-            and "_dict" not in file  # data cache json file
-        )
-        for file in os.listdir(data_params["test_path"])
-    )
-    if not param_file_exist:
-        # although we save params log during training, but sometimes we directly evaluate a model
-        # so here we still save params log if param file does not exist
-        # no param file was saved yet, here we save data and params setting
-        save_param_log_path = params["data_params"]["test_path"]
-        save_model_params_log(params, save_param_log_path)
+    return PyTorchForecast(params["model_params"]["model_name"], data_source, params)
 
 
 def save_result(save_dir, epoch, pred, obs, pred_name="flow_pred", obs_name="flow_obs"):
