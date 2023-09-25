@@ -46,7 +46,7 @@ class ScalerHub(object):
         relevant_vars: np.array,
         constant_vars: np.array = None,
         data_cfgs: dict = None,
-        loader_type: str = None,
+        is_tra_val_te: str = None,
         **kwargs,
     ):
         """
@@ -64,7 +64,7 @@ class ScalerHub(object):
             other required variables
         data_cfgs
             configs for reading data
-        loader_type
+        is_tra_val_te
             train, valid or test
         kwargs
             other optional parameters for ScalerHub
@@ -83,7 +83,7 @@ class ScalerHub(object):
                 relevant_vars,
                 constant_vars,
                 data_cfgs,
-                loader_type,
+                is_tra_val_te,
                 kwargs["data_source"],
                 prcp_norm_cols=prcp_norm_cols,
                 gamma_norm_cols=gamma_norm_cols,
@@ -104,7 +104,7 @@ class ScalerHub(object):
                     save_file = os.path.join(
                         data_cfgs["test_path"], f"{norm_keys[i]}_scaler.pkl"
                     )
-                    if loader_type == "train" and data_cfgs["stat_dict_file"] is None:
+                    if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
                         data_norm = scaler.fit_transform(data_tmp)
                         # Save scaler in test_path for valid/test
                         with open(save_file, "wb") as outfile:
@@ -127,7 +127,7 @@ class ScalerHub(object):
                     save_file = os.path.join(
                         data_cfgs["test_path"], f"{norm_keys[i]}_scaler.pkl"
                     )
-                    if loader_type == "train" and data_cfgs["stat_dict_file"] is None:
+                    if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
                         data_norm = scaler.fit_transform(data_tmp)
                         # Save scaler in test_path for valid/test
                         with open(save_file, "wb") as outfile:
@@ -162,7 +162,7 @@ class DapengScaler(object):
         relevant_vars: np.array,
         constant_vars: np.array,
         data_cfgs: dict,
-        loader_type: str,
+        is_tra_val_te: str,
         data_source: HydroDataset,
         other_vars: dict = None,
         prcp_norm_cols=None,
@@ -183,7 +183,7 @@ class DapengScaler(object):
             input static variables
         data_cfgs
             data parameter config in data source
-        loader_type
+        is_tra_val_te
             train/valid/test
         data_source
             all config about data source
@@ -214,7 +214,7 @@ class DapengScaler(object):
         self.data_attr = constant_vars
         self.data_source = data_source
         self.data_cfgs = data_cfgs
-        self.t_s_dict = wrap_t_s_dict(data_source, data_cfgs, loader_type)
+        self.t_s_dict = wrap_t_s_dict(data_source, data_cfgs, is_tra_val_te)
         self.data_other = other_vars
         self.prcp_norm_cols = prcp_norm_cols
         self.gamma_norm_cols = gamma_norm_cols
@@ -224,7 +224,7 @@ class DapengScaler(object):
         # save stat_dict of training period in test_path for valid/test
         stat_file = os.path.join(data_cfgs["test_path"], "dapengscaler_stat.json")
         # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
-        if loader_type == "train" and data_cfgs["stat_dict_file"] is None:
+        if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
             self.stat_dict = self.cal_stat_all()
             with open(stat_file, "w") as fp:
                 json.dump(self.stat_dict, fp)

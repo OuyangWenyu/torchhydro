@@ -27,7 +27,7 @@ def config():
         ctx=[-1],
         model_type="FedLearn",
         model_name="CpuLSTM",
-        model_param={
+        model_hyperparam={
             "n_input_features": 23,
             "n_output_features": 1,
             "n_hidden_states": 256,

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-09-25 15:02:10
+LastEditTime: 2023-09-25 20:24:51
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: /torchhydro/torchhydro/datasets/data_sets.py
@@ -66,7 +66,7 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
 class BaseDataset(Dataset):
     """Base data set class to load and preprocess data (batch-first) using PyTorch's Dataset"""
 
-    def __init__(self, data_source: HydroDataset, data_cfgs: dict, loader_type: str):
+    def __init__(self, data_source: HydroDataset, data_cfgs: dict, is_tra_val_te: str):
         """
         Parameters
         ----------
@@ -74,16 +74,18 @@ class BaseDataset(Dataset):
             object for reading source data
         data_cfgs
             parameters for reading source data
-        loader_type
+        is_tra_val_te
             train, vaild or test
         """
         super(BaseDataset, self).__init__()
         self.data_source = data_source
         self.data_cfgs = data_cfgs
-        if loader_type in {"train", "valid", "test"}:
-            self.loader_type = loader_type
+        if is_tra_val_te in {"train", "valid", "test"}:
+            self.is_tra_val_te = is_tra_val_te
         else:
-            raise ValueError("'loader_type' must be one of 'train', 'valid' or 'test' ")
+            raise ValueError(
+                "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
+            )
         # load and preprocess data
         self._load_data()
 
@@ -134,9 +136,9 @@ class BaseDataset(Dataset):
         return torch.from_numpy(x).float(), torch.from_numpy(y).float()
 
     def _load_data(self):
-        train_mode = self.loader_type == "train"
+        train_mode = self.is_tra_val_te == "train"
         self.t_s_dict = wrap_t_s_dict(
-            self.data_source, self.data_cfgs, self.loader_type
+            self.data_source, self.data_cfgs, self.is_tra_val_te
         )
         # y
         data_flow_ds = self.data_source.read_ts_xrdataset(
@@ -184,7 +186,7 @@ class BaseDataset(Dataset):
             data_forcing,
             data_attr,
             data_cfgs=self.data_cfgs,
-            loader_type=self.loader_type,
+            is_tra_val_te=self.is_tra_val_te,
             data_source=self.data_source,
         )
 
@@ -238,12 +240,12 @@ class BaseDataset(Dataset):
         warmup_length = self.warmup_length
         dates = self.y["time"].to_numpy()
         time_length = len(dates)
-        loader_type = self.loader_type
+        is_tra_val_te = self.is_tra_val_te
         for basin in tqdm(
             basins,
             file=sys.stdout,
             disable=False,
-            desc="Creating " + loader_type + " lookup table",
+            desc="Creating " + is_tra_val_te + " lookup table",
         ):
             # some dataloader load data with warmup period, so leave some periods for it
             # [warmup_len] -> time_start -> [rho]
@@ -259,9 +261,9 @@ class BaseDataset(Dataset):
 class BasinSingleFlowDataset(BaseDataset):
     """one time length output for each grid in a batch"""
 
-    def __init__(self, data_source: HydroDataset, data_cfgs: dict, loader_type: str):
+    def __init__(self, data_source: HydroDataset, data_cfgs: dict, is_tra_val_te: str):
         super(BasinSingleFlowDataset, self).__init__(
-            data_source, data_cfgs, loader_type
+            data_source, data_cfgs, is_tra_val_te
         )
 
     def __getitem__(self, index):
@@ -276,7 +278,7 @@ class BasinSingleFlowDataset(BaseDataset):
 class DplDataset(BaseDataset):
     """pytorch dataset for Differential parameter learning"""
 
-    def __init__(self, data_source: HydroDataset, data_cfgs: dict, loader_type: str):
+    def __init__(self, data_source: HydroDataset, data_cfgs: dict, is_tra_val_te: str):
         """
         Parameters
         ----------
@@ -284,10 +286,10 @@ class DplDataset(BaseDataset):
             object for reading source data
         data_cfgs
             configs for reading source data
-        loader_type
+        is_tra_val_te
             train, vaild or test
         """
-        super(DplDataset, self).__init__(data_source, data_cfgs, loader_type)
+        super(DplDataset, self).__init__(data_source, data_cfgs, is_tra_val_te)
         # we don't use y_un_norm as its name because in the main function we will use "y"
         # For physical hydrological models, we need warmup, hence the target values should exclude data in warmup period
         self.warmup_length = data_cfgs["warmup_length"]
@@ -297,7 +299,7 @@ class DplDataset(BaseDataset):
             # if the target is used as input and train_mode is False,
             # we need to get the target data in training period to generate pbm params
             self.train_dataset = DplDataset(
-                data_source, data_cfgs, loader_type="train"
+                data_source, data_cfgs, is_tra_val_te="train"
             )
 
     def __getitem__(self, item):

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-25 19:15:43
+LastEditTime: 2023-09-25 19:24:11
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: /torchhydro/torchhydro/configs/config.py
@@ -51,7 +51,7 @@ def default_config_file():
             # supported models can be seen in hydroDL/model_dict_function.py
             "model_name": "LSTM",
             # the details of model parameters for the "model_name" model
-            "model_param": {
+            "model_hyperparam": {
                 # the rho in LSTM
                 "seq_length": 30,
                 # the size of input (feature number)
@@ -68,7 +68,7 @@ def default_config_file():
             # the wrapper class's parameters
             "model_wrapper_param": None,
             # federated learning parameters
-            "fl_params": {
+            "fl_hyperparam": {
                 # sampling for federated learning
                 "fl_sample": "basin",
                 # number of users for federated learning
@@ -276,7 +276,7 @@ def cmd(
     t_rm_nan=1,
     n_output=None,
     loss_func=None,
-    model_param=None,
+    model_hyperparam=None,
     weight_path_add=None,
     var_t_type=None,
     var_o=None,
@@ -636,10 +636,10 @@ def cmd(
         type=str,
     )
     parser.add_argument(
-        "--model_param",
-        dest="model_param",
-        help="the model_param in model_cfgs",
-        default=model_param,
+        "--model_hyperparam",
+        dest="model_hyperparam",
+        help="the model_hyperparam in model_cfgs",
+        default=model_hyperparam,
         type=json.loads,
     )
     parser.add_argument(
@@ -788,15 +788,15 @@ def update_cfg(cfg_file, new_args):
         if new_args.fl_sample not in ["basin", "region"]:
             # basin means each client is a basin
             raise ValueError("fl_sample must be 'basin' or 'region'")
-        cfg_file["model_cfgs"]["fl_params"]["fl_sample"] = new_args.fl_sample
+        cfg_file["model_cfgs"]["fl_hyperparam"]["fl_sample"] = new_args.fl_sample
     if new_args.fl_num_users is not None:
-        cfg_file["model_cfgs"]["fl_params"]["fl_num_users"] = new_args.fl_num_users
+        cfg_file["model_cfgs"]["fl_hyperparam"]["fl_num_users"] = new_args.fl_num_users
     if new_args.fl_local_ep is not None:
-        cfg_file["model_cfgs"]["fl_params"]["fl_local_ep"] = new_args.fl_local_ep
+        cfg_file["model_cfgs"]["fl_hyperparam"]["fl_local_ep"] = new_args.fl_local_ep
     if new_args.fl_local_bs is not None:
-        cfg_file["model_cfgs"]["fl_params"]["fl_local_bs"] = new_args.fl_local_bs
+        cfg_file["model_cfgs"]["fl_hyperparam"]["fl_local_bs"] = new_args.fl_local_bs
     if new_args.fl_frac is not None:
-        cfg_file["model_cfgs1"]["fl_params"]["fl_frac"] = new_args.fl_frac
+        cfg_file["model_cfgs1"]["fl_hyperparam"]["fl_frac"] = new_args.fl_frac
     if new_args.ctx is not None:
         cfg_file["training_cfgs"]["device"] = new_args.ctx
     if new_args.rs is not None:
@@ -907,25 +907,27 @@ def update_cfg(cfg_file, new_args):
             raise AttributeError(
                 "Please make sure size of vars in data_cfgs/target_cols is same as n_output"
             )
-    if new_args.model_param is None:
+    if new_args.model_hyperparam is None:
         if new_args.batch_size is not None:
             batch_size = new_args.batch_size
-            cfg_file["model_cfgs"]["model_param"]["batch_size"] = batch_size
+            cfg_file["model_cfgs"]["model_hyperparam"]["batch_size"] = batch_size
             cfg_file["data_cfgs"]["batch_size"] = batch_size
             cfg_file["training_cfgs"]["batch_size"] = batch_size
         if new_args.rho is not None:
             rho = new_args.rho
-            cfg_file["model_cfgs"]["model_param"]["seq_length"] = rho
+            cfg_file["model_cfgs"]["model_hyperparam"]["seq_length"] = rho
             cfg_file["data_cfgs"]["forecast_history"] = rho
         if new_args.n_output is not None:
-            cfg_file["model_cfgs"]["model_param"][
+            cfg_file["model_cfgs"]["model_hyperparam"][
                 "output_seq_len"
             ] = new_args.n_output
     else:
-        cfg_file["model_cfgs"]["model_param"] = new_args.model_param
-        if "batch_size" in new_args.model_param.keys():
-            cfg_file["data_cfgs"]["batch_size"] = new_args.model_param["batch_size"]
-            cfg_file["training_cfgs"]["batch_size"] = new_args.model_param[
+        cfg_file["model_cfgs"]["model_hyperparam"] = new_args.model_hyperparam
+        if "batch_size" in new_args.model_hyperparam.keys():
+            cfg_file["data_cfgs"]["batch_size"] = new_args.model_hyperparam[
+                "batch_size"
+            ]
+            cfg_file["training_cfgs"]["batch_size"] = new_args.model_hyperparam[
                 "batch_size"
             ]
         elif new_args.batch_size is not None:
@@ -934,12 +936,12 @@ def update_cfg(cfg_file, new_args):
             cfg_file["training_cfgs"]["batch_size"] = batch_size
         else:
             raise NotImplemented("Please set the batch_size!!!")
-        if "seq_length" in new_args.model_param.keys():
-            cfg_file["data_cfgs"]["forecast_history"] = new_args.model_param[
+        if "seq_length" in new_args.model_hyperparam.keys():
+            cfg_file["data_cfgs"]["forecast_history"] = new_args.model_hyperparam[
                 "seq_length"
             ]
-        elif "forecast_history" in new_args.model_param.keys():
-            cfg_file["data_cfgs"]["forecast_history"] = new_args.model_param[
+        elif "forecast_history" in new_args.model_hyperparam.keys():
+            cfg_file["data_cfgs"]["forecast_history"] = new_args.model_hyperparam[
                 "forecast_history"
             ]
         elif new_args.rho is not None:
@@ -949,10 +951,10 @@ def update_cfg(cfg_file, new_args):
                 "Please set the time_sequence length in a batch when training!!!"
             )
         if (
-            "output_seq_len" in new_args.model_param.keys()
+            "output_seq_len" in new_args.model_hyperparam.keys()
             and new_args.n_output is not None
         ):
-            assert new_args.model_param["output_seq_len"] == new_args.n_output
+            assert new_args.model_hyperparam["output_seq_len"] == new_args.n_output
     if new_args.metrics is not None:
         cfg_file["evaluation_cfgs"]["metrics"] = new_args.metrics
     if new_args.fill_nan is not None:
@@ -963,9 +965,9 @@ def update_cfg(cfg_file, new_args):
             raise RuntimeError("testing epoch cannot be larger than training epoch")
     if new_args.warmup_length > 0:
         cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
-        if "warmup_length" in new_args.model_param.keys() and (
+        if "warmup_length" in new_args.model_hyperparam.keys() and (
             not cfg_file["data_cfgs"]["warmup_length"]
-            == new_args.model_param["warmup_length"]
+            == new_args.model_hyperparam["warmup_length"]
         ):
             raise RuntimeError(
                 "Please set same warmup_length in model_cfgs and data_cfgs"

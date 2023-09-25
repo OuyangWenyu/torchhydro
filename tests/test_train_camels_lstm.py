@@ -26,7 +26,7 @@ def config():
         download=0,
         ctx=[-1],
         model_name="CpuLSTM",
-        model_param={
+        model_hyperparam={
             "n_input_features": 23,
             "n_output_features": 1,
             "n_hidden_states": 256,

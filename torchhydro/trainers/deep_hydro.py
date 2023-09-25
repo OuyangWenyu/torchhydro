@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-25 19:09:12
+LastEditTime: 2023-09-25 20:49:54
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
@@ -9,6 +9,7 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
 from abc import ABC, abstractmethod
+from collections import defaultdict
 import copy
 from typing import Dict
 import numpy as np
@@ -52,54 +53,37 @@ class DeepHydroInterface(ABC):
         cfgs
             configs for initializing DeepHydro
         """
-        self.cfgs = cfgs
-        if "weight_path" in cfgs["model_cfgs"]:
-            self.model = self.load_model(
-                cfgs["model_cfgs"],
-                cfgs["model_cfgs"]["weight_path"],
-            )
-        else:
-            self.model = self.load_model(cfgs["model_cfgs"])
-        self.traindataset = self.make_dataset(data_source, cfgs["data_cfgs"], "train")
+        self._data_source = data_source
+        self._cfgs = cfgs
+        self.model = self.load_model()
+        self.traindataset = self.make_dataset("train")
         if cfgs["data_cfgs"]["t_range_valid"] is not None:
-            self.validdataset = self.make_dataset(
-                data_source, cfgs["data_cfgs"], "valid"
-            )
-        self.testdataset = self.make_dataset(data_source, cfgs["data_cfgs"], "test")
+            self.validdataset = self.make_dataset("valid")
+        self.testdataset = self.make_dataset("test")
+
+    @property
+    def data_source(self):
+        """data source"""
+        return self._data_source
+
+    @property
+    def cfgs(self):
+        """all configs"""
+        return self._cfgs
 
     @abstractmethod
-    def load_model(self, model_cfgs: Dict, weight_path=None) -> object:
-        """
-        Get a time series forecast model and it varies based on the underlying framework used
-
-        Parameters
-        ----------
-        model_cfgs
-            model configs
-        weight_path
-            where we put model's weights
-
-        Returns
-        -------
-        object
-            a Hydro DL model
-        """
+    def load_model(self) -> object:
+        """Get a Hydro DL model"""
         raise NotImplementedError
 
     @abstractmethod
-    def make_dataset(
-        self, data_source: HydroDataset, data_cfgs: Dict, loader_type: str
-    ) -> object:
+    def make_dataset(self, is_tra_val_te: str) -> object:
         """
         Initializes a pytorch dataset based on the provided data_source.
 
         Parameters
         ----------
-        data_source
-            a class for a given data source
-        data_cfgs
-            configs for loading data source
-        loader_type
+        is_tra_val_te
             train or valid or test
 
         Returns
@@ -122,7 +106,7 @@ class DeepHydro(DeepHydroInterface):
     The Base Trainer class for Hydrological Deep Learning models
     """
 
-    def __init__(self, data_source: HydroDataset, cfgs: Dict):
+    def __init__(self, data_source: HydroDataset, cfgs: Dict, pre_model=None):
         """
         Parameters
         ----------
@@ -130,58 +114,52 @@ class DeepHydro(DeepHydroInterface):
             data source where we read data from
         params_dict
             parameters set for the model
+        pre_model
+            a pre-trained model, if it is not None,
+            we will use its weights to initialize this model
+            by default None
         """
         self.device_num = cfgs["training_cfgs"]["device"]
         self.device = get_the_device(self.device_num)
+        self.pre_model = pre_model
         super().__init__(data_source, cfgs)
         print(f"Torch is using {str(self.device)}")
 
-    def load_model(self, model_cfgs: Dict, weight_path: str = None, strict=True):
+    def load_model(self, weight_path: str = None, strict=False):
         """
         Load a time series forecast model in pytorch_model_dict in model_dict_function.py
 
         Parameters
         ----------
-        model_cfgs
-            model configs
         weight_path
             where we put model's weights
-        strict
-            whether to strictly enforce that the keys in 'state_dict` match the keys returned by this module's
-            'torch.nn.Module.state_dict` function; its default: ``True``
+        strict: bool, optional
+            whether to strictly enforce that the keys in 'state_dict`
+            match the keys returned by this module's 'torch.nn.Module.state_dict` function;
+            by default False
         Returns
         -------
         object
             model in pytorch_model_dict in model_dict_function.py
         """
+        model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
+        if weight_path is None:
+            # we prioritize the weight path in this function parameter
+            if "weight_path" in model_cfgs:
+                # then if weight path in cfgs is not None, we will use it
+                weight_path = model_cfgs["weight_path"]
         if model_name not in pytorch_model_dict:
             raise NotImplementedError(
                 f"Error the model {model_name} was not found in the model dict. Please add it."
             )
-        model = pytorch_model_dict[model_name](**model_cfgs["model_param"])
-        if weight_path is not None:
-            # if the model has been trained
-            strict = False
-            checkpoint = torch.load(weight_path, map_location=self.device)
-            if "weight_path_add" in model_cfgs:
-                if "excluded_layers" in model_cfgs["weight_path_add"]:
-                    # delete some layers from source model if we don't need them
-                    excluded_layers = model_cfgs["weight_path_add"]["excluded_layers"]
-                    for layer in excluded_layers:
-                        del checkpoint[layer]
-                    print("sucessfully deleted layers")
-                else:
-                    print("directly loading identically-named layers of source model")
-            if "tl_tag" in model.__dict__ and model.tl_tag:
-                # it means target model's structure is different with source model's
-                # when model.tl_tag is true.
-                # our transfer learning model now only support one whole part -- tl_part
-                model.tl_part.load_state_dict(checkpoint, strict=strict)
-            else:
-                # directly load model's weights
-                model.load_state_dict(checkpoint, strict=strict)
-            print("Weights sucessfully loaded")
+        if self.pre_model is not None:
+            model = self._load_pretrain_model()
+        elif weight_path is not None:
+            # load model from pth file (saved weights and biases)
+            model = self._load_model_from_pth(model_cfgs, weight_path, strict)
+        else:
+            model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
         if torch.cuda.device_count() > 1 and len(self.device_num) > 1:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
             which_first_tensor = self.cfgs["training_cfgs"]["which_first_tensor"]
@@ -208,19 +186,42 @@ class DeepHydro(DeepHydroInterface):
             model = pytorch_model_wrapper_dict[wrapper_name](model, **wrapper_params)
         return model
 
-    def make_dataset(
-        self, data_source: HydroDataset, data_cfgs: Dict, loader_type: str
-    ):
+    def _load_pretrain_model(self):
+        """load a pretrained model as the initial model"""
+        model = self.pre_model
+        return model
+
+    def _load_model_from_pth(self, model_cfgs, weight_path, strict):
+        model_name = model_cfgs["model_name"]
+        model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
+        checkpoint = torch.load(weight_path, map_location=self.device)
+        if "weight_path_add" in model_cfgs:
+            if "excluded_layers" in model_cfgs["weight_path_add"]:
+                # delete some layers from source model if we don't need them
+                excluded_layers = model_cfgs["weight_path_add"]["excluded_layers"]
+                for layer in excluded_layers:
+                    del checkpoint[layer]
+                print("sucessfully deleted layers")
+            else:
+                print("directly loading identically-named layers of source model")
+        if "tl_tag" in model.__dict__ and model.tl_tag:
+            # it means target model's structure is different with source model's
+            # when model.tl_tag is true.
+            # our transfer learning model now only support one whole part -- tl_part
+            model.tl_part.load_state_dict(checkpoint, strict=strict)
+        else:
+            # directly load model's weights
+            model.load_state_dict(checkpoint, strict=strict)
+        print("Weights sucessfully loaded")
+        return model
+
+    def make_dataset(self, is_tra_val_te: str):
         """
         Initializes a pytorch dataset based on the provided data_source.
 
         Parameters
         ----------
-        data_source: Hydrodataset
-            data_source read data from data source
-        data_cfgs
-            configs for loading data
-        loader_type
+        is_tra_val_te
             train or valid or test
 
         Returns
@@ -228,9 +229,13 @@ class DeepHydro(DeepHydroInterface):
         object
             an object initializing from class in datasets_dict in data_dict.py
         """
+        data_source = self.data_source
+        data_cfgs = self.cfgs["data_cfgs"]
         dataset_name = data_cfgs["dataset"]
         if dataset_name in list(datasets_dict.keys()):
-            dataset = datasets_dict[dataset_name](data_source, data_cfgs, loader_type)
+            dataset = datasets_dict[dataset_name](
+                data_source, data_cfgs, is_tra_val_te
+            )
         else:
             raise NotImplementedError(
                 "Error the dataset "
@@ -385,18 +390,18 @@ class DeepHydro(DeepHydroInterface):
 class FedLearnHydro(DeepHydro):
     """Federated Learning Hydrological DL model"""
 
-    def __init__(self, data_source: HydroDataset, params_dict: Dict):
-        super().__init__(data_source, params_dict)
+    def __init__(self, data_source: HydroDataset, cfgs: Dict):
+        super().__init__(data_source, cfgs)
         # a user group which is a dict where the keys are the user index
         # and the values are the corresponding data for each of those users
         train_dataset = self.traindataset
-        fl_params = self.cfgs["model_cfgs"]["fl_params"]
+        fl_hyperparam = self.cfgs["model_cfgs"]["fl_hyperparam"]
         # sample training data amongst users
-        if fl_params["fl_sample"] == "basin":
+        if fl_hyperparam["fl_sample"] == "basin":
             # Sample a basin for a user
             user_groups = fl_sample_basin(train_dataset)
         else:
-            if fl_params["fl_sample"] != "region":
+            if fl_hyperparam["fl_sample"] != "region":
                 raise NotImplementedError()
             else:
                 # Sample a region for a user
@@ -423,29 +428,27 @@ class FedLearnHydro(DeepHydro):
         model_cfgs = self.cfgs["model_cfgs"]
         max_epochs = training_cfgs["epochs"]
         start_epoch = training_cfgs["start_epoch"]
-        fl_params = model_cfgs["fl_params"]
+        fl_hyperparam = model_cfgs["fl_hyperparam"]
         # total rounds in a FL system is max_epochs
         for epoch in tqdm(range(start_epoch, max_epochs + 1)):
             local_weights, local_losses = [], []
             print(f"\n | Global Training Round : {epoch} |\n")
 
             global_model.train()
-            m = max(int(fl_params["fl_frac"] * self.num_users), 1)
+            m = max(int(fl_hyperparam["fl_frac"] * self.num_users), 1)
             # randomly select m users, they will be the clients in this round
             idxs_users = np.random.choice(range(self.num_users), m, replace=False)
 
             for idx in idxs_users:
                 # each user will be used to train the model locally
                 # user_gourps[idx] means the idx of dataset for a user
-                self.user_groups[idx]
+                user_cfgs = self._get_a_user_cfgs(idx)
                 local_model = DeepHydro(
-                    model_cfgs["model_name"],
                     self.data_source,
-                    self.cfgs,
+                    user_cfgs,
+                    pre_model=copy.deepcopy(global_model),
                 )
-                w, loss = local_model.model_train(
-                    model=copy.deepcopy(global_model), global_round=epoch
-                )
+                w, loss = local_model.model_train()
                 local_weights.append(copy.deepcopy(w))
                 local_losses.append(copy.deepcopy(loss))
 
@@ -463,11 +466,11 @@ class FedLearnHydro(DeepHydro):
             global_model.eval()
             for c in range(self.num_users):
                 local_model = DeepHydro(
-                    model_cfgs["model_name"],
                     self.data_source,
                     self.cfgs,
+                    pre_model=global_model,
                 )
-                acc, loss = local_model.inference(model=global_model)
+                acc, loss = local_model.inference()
                 list_acc.append(acc)
                 list_loss.append(loss)
             train_accuracy.append(sum(list_acc) / len(list_acc))
@@ -500,6 +503,27 @@ class FedLearnHydro(DeepHydro):
             pickle.dump([train_loss, train_accuracy], f)
 
         print("\n Total Run Time: {0:0.4f}".format(time.time() - start_time))
+
+    def _get_a_user_cfgs(self, idx):
+        user = self.user_groups[idx]
+        # Use defaultdict to collect dates for each basin
+        basin_dates = defaultdict(list)
+
+        for _, (basin, time) in user.items():
+            basin_dates[basin].append(time)
+
+        # Initialize a list to store distinct basins
+        unique_strings = []
+
+        # for each basin, we can find its date range
+        date_ranges = {}
+        for basin, times in basin_dates.items():
+            unique_strings.append(basin)
+            date_ranges[basin] = (np.min(times), np.max(times))
+        user_cfgs = copy.deepcopy(self.cfgs)
+        # update data_cfgs
+        self.update(self.user_groups[idx])
+        return user_cfgs
 
 
 model_type_dict = {

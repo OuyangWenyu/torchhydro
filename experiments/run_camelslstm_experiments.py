@@ -66,7 +66,7 @@ def run_normal_dl(
         download=0,
         ctx=[0],
         model_name="KuaiLSTM",
-        model_param={
+        model_hyperparam={
             "n_input_features": len(var_c) + len(var_t),
             "n_output_features": 1,
             "n_hidden_states": 256,

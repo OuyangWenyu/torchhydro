@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-20 20:05:10
-LastEditTime: 2023-09-21 20:10:25
+LastEditTime: 2023-09-25 19:20:51
 LastEditors: Wenyu Ouyang
 Description: 
 FilePath: /torchhydro/experiments/run_camelsdplxaj_experiments.py
@@ -41,7 +41,7 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         download=0,
         ctx=[0],
         model_name="DplLstmXaj",
-        model_param={
+        model_hyperparam={
             "n_input_features": 25,
             "n_output_features": 15,
             "n_hidden_states": 256,
