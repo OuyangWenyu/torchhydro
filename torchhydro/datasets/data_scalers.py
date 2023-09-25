@@ -45,7 +45,7 @@ class ScalerHub(object):
         target_vars: np.array,
         relevant_vars: np.array,
         constant_vars: np.array = None,
-        data_params: dict = None,
+        data_cfgs: dict = None,
         loader_type: str = None,
         **kwargs,
     ):
@@ -62,27 +62,27 @@ class ScalerHub(object):
             static input variables
         other_vars
             other required variables
-        data_params
-            parameters for reading data
+        data_cfgs
+            configs for reading data
         loader_type
             train, valid or test
         kwargs
             other optional parameters for ScalerHub
         """
-        self.data_params = data_params
+        self.data_cfgs = data_cfgs
         norm_keys = ["target_vars", "relevant_vars", "constant_vars"]
         norm_dict = {}
-        scaler_type = data_params["scaler"]
+        scaler_type = data_cfgs["scaler"]
         if scaler_type == "DapengScaler":
             assert "data_source" in list(kwargs.keys())
-            gamma_norm_cols = data_params["scaler_params"]["gamma_norm_cols"]
-            prcp_norm_cols = data_params["scaler_params"]["prcp_norm_cols"]
-            pbm_norm = data_params["scaler_params"]["pbm_norm"]
+            gamma_norm_cols = data_cfgs["scaler_params"]["gamma_norm_cols"]
+            prcp_norm_cols = data_cfgs["scaler_params"]["prcp_norm_cols"]
+            pbm_norm = data_cfgs["scaler_params"]["pbm_norm"]
             scaler = DapengScaler(
                 target_vars,
                 relevant_vars,
                 constant_vars,
-                data_params,
+                data_cfgs,
                 loader_type,
                 kwargs["data_source"],
                 prcp_norm_cols=prcp_norm_cols,
@@ -102,16 +102,16 @@ class ScalerHub(object):
                     num_instances, num_time_steps, num_features = data_tmp.shape
                     data_tmp = data_tmp.to_numpy().reshape(-1, num_features)
                     save_file = os.path.join(
-                        data_params["test_path"], f"{norm_keys[i]}_scaler.pkl"
+                        data_cfgs["test_path"], f"{norm_keys[i]}_scaler.pkl"
                     )
-                    if loader_type == "train" and data_params["stat_dict_file"] is None:
+                    if loader_type == "train" and data_cfgs["stat_dict_file"] is None:
                         data_norm = scaler.fit_transform(data_tmp)
                         # Save scaler in test_path for valid/test
                         with open(save_file, "wb") as outfile:
                             pkl.dump(scaler, outfile)
                     else:
-                        if data_params["stat_dict_file"] is not None:
-                            shutil.copy(data_params["stat_dict_file"], save_file)
+                        if data_cfgs["stat_dict_file"] is not None:
+                            shutil.copy(data_cfgs["stat_dict_file"], save_file)
                         if not os.path.isfile(save_file):
                             raise FileNotFoundError(
                                 "Please genereate xx_scaler.pkl file"
@@ -125,16 +125,16 @@ class ScalerHub(object):
                 else:
                     # for attributes
                     save_file = os.path.join(
-                        data_params["test_path"], f"{norm_keys[i]}_scaler.pkl"
+                        data_cfgs["test_path"], f"{norm_keys[i]}_scaler.pkl"
                     )
-                    if loader_type == "train" and data_params["stat_dict_file"] is None:
+                    if loader_type == "train" and data_cfgs["stat_dict_file"] is None:
                         data_norm = scaler.fit_transform(data_tmp)
                         # Save scaler in test_path for valid/test
                         with open(save_file, "wb") as outfile:
                             pkl.dump(scaler, outfile)
                     else:
-                        if data_params["stat_dict_file"] is not None:
-                            shutil.copy(data_params["stat_dict_file"], save_file)
+                        if data_cfgs["stat_dict_file"] is not None:
+                            shutil.copy(data_cfgs["stat_dict_file"], save_file)
                         assert os.path.isfile(save_file)
                         with open(save_file, "rb") as infile:
                             scaler = pkl.load(infile)
@@ -161,7 +161,7 @@ class DapengScaler(object):
         target_vars: np.array,
         relevant_vars: np.array,
         constant_vars: np.array,
-        data_params: dict,
+        data_cfgs: dict,
         loader_type: str,
         data_source: HydroDataset,
         other_vars: dict = None,
@@ -181,7 +181,7 @@ class DapengScaler(object):
             input dynamic variables
         constant_vars
             input static variables
-        data_params
+        data_cfgs
             data parameter config in data source
         loader_type
             train/valid/test
@@ -213,8 +213,8 @@ class DapengScaler(object):
         self.data_forcing = relevant_vars
         self.data_attr = constant_vars
         self.data_source = data_source
-        self.data_params = data_params
-        self.t_s_dict = wrap_t_s_dict(data_source, data_params, loader_type)
+        self.data_cfgs = data_cfgs
+        self.t_s_dict = wrap_t_s_dict(data_source, data_cfgs, loader_type)
         self.data_other = other_vars
         self.prcp_norm_cols = prcp_norm_cols
         self.gamma_norm_cols = gamma_norm_cols
@@ -222,17 +222,17 @@ class DapengScaler(object):
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
         self.pbm_norm = pbm_norm
         # save stat_dict of training period in test_path for valid/test
-        stat_file = os.path.join(data_params["test_path"], "dapengscaler_stat.json")
+        stat_file = os.path.join(data_cfgs["test_path"], "dapengscaler_stat.json")
         # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
-        if loader_type == "train" and data_params["stat_dict_file"] is None:
+        if loader_type == "train" and data_cfgs["stat_dict_file"] is None:
             self.stat_dict = self.cal_stat_all()
             with open(stat_file, "w") as fp:
                 json.dump(self.stat_dict, fp)
         else:
             # for valid/test, we need to load stat_dict from train
-            if data_params["stat_dict_file"] is not None:
+            if data_cfgs["stat_dict_file"] is not None:
                 # we used a assigned stat file, typically for PUB exps
-                shutil.copy(data_params["stat_dict_file"], stat_file)
+                shutil.copy(data_cfgs["stat_dict_file"], stat_file)
             assert os.path.isfile(stat_file)
             with open(stat_file, "r") as fp:
                 self.stat_dict = json.load(fp)
@@ -252,7 +252,7 @@ class DapengScaler(object):
             denormalized predictions
         """
         stat_dict = self.stat_dict
-        target_cols = self.data_params["target_cols"]
+        target_cols = self.data_cfgs["target_cols"]
         if self.pbm_norm:
             # for pbm's output, its unit is mm/day, so we don't need to recover its unit
             pred = target_values
@@ -264,8 +264,8 @@ class DapengScaler(object):
                 log_norm_cols=self.log_norm_cols,
                 to_norm=False,
             )
-            for i in range(len(self.data_params["target_cols"])):
-                var = self.data_params["target_cols"][i]
+            for i in range(len(self.data_cfgs["target_cols"])):
+                var = self.data_cfgs["target_cols"][i]
                 if var in self.prcp_norm_cols:
                     mean_prep = self.data_source.read_mean_prcp(
                         self.t_s_dict["sites_id"]
@@ -293,7 +293,7 @@ class DapengScaler(object):
             a dict with statistic values
         """
         # streamflow
-        target_cols = self.data_params["target_cols"]
+        target_cols = self.data_cfgs["target_cols"]
         stat_dict = {}
         for i in range(len(target_cols)):
             var = target_cols[i]
@@ -311,7 +311,7 @@ class DapengScaler(object):
                 stat_dict[var] = cal_stat(self.data_target.sel(variable=var).to_numpy())
 
         # forcing
-        forcing_lst = self.data_params["relevant_cols"]
+        forcing_lst = self.data_cfgs["relevant_cols"]
         x = self.data_forcing
         for k in range(len(forcing_lst)):
             var = forcing_lst[k]
@@ -322,7 +322,7 @@ class DapengScaler(object):
 
         # const attribute
         attr_data = self.data_attr
-        attr_lst = self.data_params["constant_cols"]
+        attr_lst = self.data_cfgs["constant_cols"]
         for k in range(len(attr_lst)):
             var = attr_lst[k]
             stat_dict[var] = cal_stat(attr_data.sel(variable=var).to_numpy())
@@ -350,7 +350,7 @@ class DapengScaler(object):
         out = xr.full_like(data, np.nan)
         # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
         out.attrs = copy.deepcopy(data.attrs)
-        target_cols = self.data_params["target_cols"]
+        target_cols = self.data_cfgs["target_cols"]
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
@@ -387,7 +387,7 @@ class DapengScaler(object):
             the dynamic inputs for modeling
         """
         stat_dict = self.stat_dict
-        var_lst = self.data_params["relevant_cols"]
+        var_lst = self.data_cfgs["relevant_cols"]
         data = self.data_forcing
         data = _trans_norm(
             data, var_lst, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=to_norm
@@ -411,7 +411,7 @@ class DapengScaler(object):
             the static inputs for modeling
         """
         stat_dict = self.stat_dict
-        var_lst = self.data_params["constant_cols"]
+        var_lst = self.data_cfgs["constant_cols"]
         data = self.data_attr
         data = _trans_norm(data, var_lst, stat_dict, to_norm=to_norm)
         return data

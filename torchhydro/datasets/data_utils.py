@@ -48,7 +48,7 @@ def unify_streamflow_unit(ds: xr.Dataset, area=None, inverse=False):
 
 
 def wrap_t_s_dict(
-    data_source: HydroDataset, data_params: dict, loader_type: str
+    data_source: HydroDataset, data_cfgs: dict, loader_type: str
 ) -> OrderedDict:
     """
     Basins and periods
@@ -57,8 +57,8 @@ def wrap_t_s_dict(
     ----------
     data_source
         source data object
-    data_params
-        Parameters for reading from data source
+    data_cfgs
+        configs for reading from data source
     loader_type
         train, valid or test
 
@@ -67,12 +67,12 @@ def wrap_t_s_dict(
     OrderedDict
         OrderedDict(sites_id=basins_id, t_final_range=t_range_list)
     """
-    basins_id = data_params["object_ids"]
+    basins_id = data_cfgs["object_ids"]
     if type(basins_id) is str and basins_id == "ALL":
         basins_id = data_source.read_object_ids().tolist()
     # assert all(x < y for x, y in zip(basins_id, basins_id[1:]))
-    if f"t_range_{loader_type}" in data_params:
-        t_range_list = data_params[f"t_range_{loader_type}"]
+    if f"t_range_{loader_type}" in data_cfgs:
+        t_range_list = data_cfgs[f"t_range_{loader_type}"]
     else:
         raise Exception(
             f"Error! The mode {loader_type} was not found in the data_source params dict. Please add it."

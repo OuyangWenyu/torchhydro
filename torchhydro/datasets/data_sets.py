@@ -66,20 +66,20 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
 class BaseDataset(Dataset):
     """Base data set class to load and preprocess data (batch-first) using PyTorch's Dataset"""
 
-    def __init__(self, data_source: HydroDataset, data_params: dict, loader_type: str):
+    def __init__(self, data_source: HydroDataset, data_cfgs: dict, loader_type: str):
         """
         Parameters
         ----------
         data_source
             object for reading source data
-        data_params
+        data_cfgs
             parameters for reading source data
         loader_type
             train, vaild or test
         """
         super(BaseDataset, self).__init__()
         self.data_source = data_source
-        self.data_params = data_params
+        self.data_cfgs = data_cfgs
         if loader_type in {"train", "valid", "test"}:
             self.loader_type = loader_type
         else:
@@ -136,25 +136,25 @@ class BaseDataset(Dataset):
     def _load_data(self):
         train_mode = self.loader_type == "train"
         self.t_s_dict = wrap_t_s_dict(
-            self.data_source, self.data_params, self.loader_type
+            self.data_source, self.data_cfgs, self.loader_type
         )
         # y
         data_flow_ds = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             self.t_s_dict["t_final_range"],
-            self.data_params["target_cols"],
+            self.data_cfgs["target_cols"],
         )
         # x
         data_forcing_ds = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             self.t_s_dict["t_final_range"],
             # 6 comes from here
-            self.data_params["relevant_cols"],
+            self.data_cfgs["relevant_cols"],
         )
         # c
         data_attr_ds = self.data_source.read_attr_xrdataset(
             self.t_s_dict["sites_id"],
-            self.data_params["constant_cols"],
+            self.data_cfgs["constant_cols"],
             all_number=True,
         )
         # trans to dataarray to better use xbatch
@@ -183,16 +183,16 @@ class BaseDataset(Dataset):
             data_flow,
             data_forcing,
             data_attr,
-            data_params=self.data_params,
+            data_cfgs=self.data_cfgs,
             loader_type=self.loader_type,
             data_source=self.data_source,
         )
 
         self.x, self.y, self.c = self.kill_nan(scaler_hub.x, scaler_hub.c, scaler_hub.y)
         self.train_mode = train_mode
-        self.rho = self.data_params["forecast_history"]
+        self.rho = self.data_cfgs["forecast_history"]
         self.target_scaler = scaler_hub.target_scaler
-        self.warmup_length = self.data_params["warmup_length"]
+        self.warmup_length = self.data_cfgs["warmup_length"]
         self._create_lookup_table()
 
     @property
@@ -217,10 +217,10 @@ class BaseDataset(Dataset):
         return result
 
     def kill_nan(self, x, c, y):
-        data_params = self.data_params
-        y_rm_nan = data_params["target_rm_nan"]
-        x_rm_nan = data_params["relevant_rm_nan"]
-        c_rm_nan = data_params["constant_rm_nan"]
+        data_cfgs = self.data_cfgs
+        y_rm_nan = data_cfgs["target_rm_nan"]
+        x_rm_nan = data_cfgs["relevant_rm_nan"]
+        c_rm_nan = data_cfgs["constant_rm_nan"]
         if x_rm_nan:
             # As input, we cannot have NaN values
             _fill_gaps_da(x, fill_nan="interpolate")
@@ -259,9 +259,9 @@ class BaseDataset(Dataset):
 class BasinSingleFlowDataset(BaseDataset):
     """one time length output for each grid in a batch"""
 
-    def __init__(self, data_source: HydroDataset, data_params: dict, loader_type: str):
+    def __init__(self, data_source: HydroDataset, data_cfgs: dict, loader_type: str):
         super(BasinSingleFlowDataset, self).__init__(
-            data_source, data_params, loader_type
+            data_source, data_cfgs, loader_type
         )
 
     def __getitem__(self, index):
@@ -276,28 +276,28 @@ class BasinSingleFlowDataset(BaseDataset):
 class DplDataset(BaseDataset):
     """pytorch dataset for Differential parameter learning"""
 
-    def __init__(self, data_source: HydroDataset, data_params: dict, loader_type: str):
+    def __init__(self, data_source: HydroDataset, data_cfgs: dict, loader_type: str):
         """
         Parameters
         ----------
         data_source
             object for reading source data
-        data_params
-            parameters for reading source data
+        data_cfgs
+            configs for reading source data
         loader_type
             train, vaild or test
         """
-        super(DplDataset, self).__init__(data_source, data_params, loader_type)
+        super(DplDataset, self).__init__(data_source, data_cfgs, loader_type)
         # we don't use y_un_norm as its name because in the main function we will use "y"
         # For physical hydrological models, we need warmup, hence the target values should exclude data in warmup period
-        self.warmup_length = data_params["warmup_length"]
-        self.target_as_input = data_params["target_as_input"]
-        self.constant_only = data_params["constant_only"]
+        self.warmup_length = data_cfgs["warmup_length"]
+        self.target_as_input = data_cfgs["target_as_input"]
+        self.constant_only = data_cfgs["constant_only"]
         if self.target_as_input and (not self.train_mode):
             # if the target is used as input and train_mode is False,
             # we need to get the target data in training period to generate pbm params
             self.train_dataset = DplDataset(
-                data_source, data_params, loader_type="train"
+                data_source, data_cfgs, loader_type="train"
             )
 
     def __getitem__(self, item):

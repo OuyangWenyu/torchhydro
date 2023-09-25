@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-24 16:01:12
+LastEditTime: 2023-09-25 19:09:33
 LastEditors: Wenyu Ouyang
 Description: Testing functions for hydroDL models
-FilePath: \torchhydro\torchhydro\trainers\evaluator.py
+FilePath: /torchhydro/torchhydro/trainers/evaluator.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import os
@@ -34,30 +34,29 @@ def evaluate_model(model: DeepHydro) -> Tuple[Dict, np.array, np.array]:
     tuple[dict, np.array, np.array]
         eval_log, denormalized predictions and observations
     """
-    data_params = model.params["data_params"]
+    data_cfgs = model.cfgs["data_cfgs"]
     # types of observations
-    target_col = model.params["data_params"]["target_cols"]
-    evaluation_metrics = model.params["evaluate_params"]["metrics"]
+    target_col = model.cfgs["data_cfgs"]["target_cols"]
+    evaluation_metrics = model.cfgs["evaluation_cfgs"]["metrics"]
     # fill_nan: "no" means ignoring the NaN value;
     #           "sum" means calculate the sum of the following values in the NaN locations.
     #           For example, observations are [1, nan, nan, 2], and predictions are [0.3, 0.3, 0.3, 1.5].
     #           Then, "no" means [1, 2] v.s. [0.3, 1.5] while "sum" means [1, 2] v.s. [0.3 + 0.3 + 0.3, 1.5].
     #           If it is a str, then all target vars use same fill_nan method;
     #           elif it is a list, each for a var
-    fill_nan = model.params["evaluate_params"]["fill_nan"]
+    fill_nan = model.cfgs["evaluation_cfgs"]["fill_nan"]
     # save result here
     eval_log = {}
 
     # test the trained model
-    test_epoch = model.params["evaluate_params"]["test_epoch"]
-    train_epoch = model.params["training_params"]["epochs"]
+    test_epoch = model.cfgs["evaluation_cfgs"]["test_epoch"]
+    train_epoch = model.cfgs["training_cfgs"]["epochs"]
     if test_epoch != train_epoch:
         # Generally we use same epoch for train and test, but sometimes not
         # TODO: better refactor this part, because sometimes we save multi models for multi hyperparameters
-        model_filepath = model.params["data_params"]["test_path"]
+        model_filepath = model.cfgs["data_cfgs"]["test_path"]
         model.model = model.load_model(
-            model.params["model_params"]["model_name"],
-            model.params["model_params"],
+            model.cfgs["model_cfgs"],
             weight_path=os.path.join(model_filepath, f"model_Ep{str(test_epoch)}.pth"),
         )
     preds_xr, obss_xr, test_data = infer_on_torch_model(model)
@@ -89,9 +88,9 @@ def evaluate_model(model: DeepHydro) -> Tuple[Dict, np.array, np.array]:
     is_shap = False
     if is_shap:
         deep_explain_model_summary_plot(
-            model, test_data, data_params["t_range_test"][0]
+            model, test_data, data_cfgs["t_range_test"][0]
         )
-        deep_explain_model_heatmap(model, test_data, data_params["t_range_test"][0])
+        deep_explain_model_heatmap(model, test_data, data_cfgs["t_range_test"][0])
 
     return eval_log, preds_xr, obss_xr
 
@@ -102,12 +101,12 @@ def infer_on_torch_model(
     """
     infer using trained model and unnormalized results
     """
-    data_params = model.params["data_params"]
-    training_params = model.params["training_params"]
-    device = get_the_device(model.params["training_params"]["device"])
+    data_cfgs = model.cfgs["data_cfgs"]
+    training_cfgs = model.cfgs["training_cfgs"]
+    device = get_the_device(model.cfgs["training_cfgs"]["device"])
     test_dataloader = DataLoader(
         model.testdataset,
-        batch_size=training_params["batch_size"],
+        batch_size=training_cfgs["batch_size"],
         shuffle=False,
         sampler=None,
         batch_sampler=None,
@@ -115,14 +114,14 @@ def infer_on_torch_model(
         timeout=0,
         worker_init_fn=None,
     )
-    seq_first = training_params["which_first_tensor"] == "sequence"
+    seq_first = training_cfgs["which_first_tensor"] == "sequence"
     model.model.eval()
     pred, obs = generate_predictions(
         model,
         test_dataloader,
         seq_first=seq_first,
         device=device,
-        data_params=data_params,
+        data_cfgs=data_cfgs,
     )
     pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
     return pred_xr, obs_xr, model.testdataset
@@ -133,7 +132,7 @@ def generate_predictions(
     test_dataloader,
     seq_first: bool,
     device: torch.device,
-    data_params: dict,
+    data_cfgs: dict,
     return_cell_state: bool = False,
 ) -> np.ndarray:
     """Perform Evaluation on the test (or valid) data.
@@ -148,8 +147,8 @@ def generate_predictions(
         _description_
     device : torch.device
         _description_
-    data_params : dict
-        _description_
+    data_cfgs : dict
+        configs for data setting
     return_cell_state : bool, optional
         if True, time-loop evaluation for cell states, by default False
         NOTE: ONLY for LSTM models
@@ -183,11 +182,11 @@ def generate_predictions(
         obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
     # TODO: not support return_cell_states yet
     if return_cell_state:
-        return _cellstates_from_generate_predictions_(seq_first, data_params, pred)
+        return _cellstates_from_generate_predictions_(seq_first, data_cfgs, pred)
     return pred, obs
 
 
-def _cellstates_from_generate_predictions_(seq_first, data_params, pred):
+def _cellstates_from_generate_predictions_(seq_first, data_cfgs, pred):
     cs_out = (
         cs_cat_lst.detach().cpu().numpy().swapaxes(0, 1)
         if seq_first
@@ -195,7 +194,7 @@ def _cellstates_from_generate_predictions_(seq_first, data_params, pred):
     )
     cs_out_lst = [cs_out]
     cell_state = reduce(lambda a, b: np.vstack((a, b)), cs_out_lst)
-    np.save(os.path.join(data_params["test_path"], "cell_states.npy"), cell_state)
+    np.save(os.path.join(data_cfgs["test_path"], "cell_states.npy"), cell_state)
     # model.zero_grad()
     torch.cuda.empty_cache()
     return pred, cell_state

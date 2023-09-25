@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-25 16:58:18
+LastEditTime: 2023-09-25 19:09:12
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
@@ -52,30 +52,30 @@ class DeepHydroInterface(ABC):
         cfgs
             configs for initializing DeepHydro
         """
-        self.params = cfgs
-        if "weight_path" in cfgs["model_params"]:
+        self.cfgs = cfgs
+        if "weight_path" in cfgs["model_cfgs"]:
             self.model = self.load_model(
-                cfgs["model_params"],
-                cfgs["model_params"]["weight_path"],
+                cfgs["model_cfgs"],
+                cfgs["model_cfgs"]["weight_path"],
             )
         else:
-            self.model = self.load_model(cfgs["model_params"])
-        self.traindataset = self.make_dataset(data_source, cfgs["data_params"], "train")
-        if cfgs["data_params"]["t_range_valid"] is not None:
+            self.model = self.load_model(cfgs["model_cfgs"])
+        self.traindataset = self.make_dataset(data_source, cfgs["data_cfgs"], "train")
+        if cfgs["data_cfgs"]["t_range_valid"] is not None:
             self.validdataset = self.make_dataset(
-                data_source, cfgs["data_params"], "valid"
+                data_source, cfgs["data_cfgs"], "valid"
             )
-        self.testdataset = self.make_dataset(data_source, cfgs["data_params"], "test")
+        self.testdataset = self.make_dataset(data_source, cfgs["data_cfgs"], "test")
 
     @abstractmethod
-    def load_model(self, model_params: Dict, weight_path=None) -> object:
+    def load_model(self, model_cfgs: Dict, weight_path=None) -> object:
         """
         Get a time series forecast model and it varies based on the underlying framework used
 
         Parameters
         ----------
-        model_params
-            model parameters
+        model_cfgs
+            model configs
         weight_path
             where we put model's weights
 
@@ -88,7 +88,7 @@ class DeepHydroInterface(ABC):
 
     @abstractmethod
     def make_dataset(
-        self, data_source: HydroDataset, params: Dict, loader_type: str
+        self, data_source: HydroDataset, data_cfgs: Dict, loader_type: str
     ) -> object:
         """
         Initializes a pytorch dataset based on the provided data_source.
@@ -97,8 +97,8 @@ class DeepHydroInterface(ABC):
         ----------
         data_source
             a class for a given data source
-        params
-            parameters for loading data source
+        data_cfgs
+            configs for loading data source
         loader_type
             train or valid or test
 
@@ -131,19 +131,19 @@ class DeepHydro(DeepHydroInterface):
         params_dict
             parameters set for the model
         """
-        self.device_num = cfgs["training_params"]["device"]
+        self.device_num = cfgs["training_cfgs"]["device"]
         self.device = get_the_device(self.device_num)
         super().__init__(data_source, cfgs)
         print(f"Torch is using {str(self.device)}")
 
-    def load_model(self, model_params: Dict, weight_path: str = None, strict=True):
+    def load_model(self, model_cfgs: Dict, weight_path: str = None, strict=True):
         """
         Load a time series forecast model in pytorch_model_dict in model_dict_function.py
 
         Parameters
         ----------
-        model_params
-            model parameters
+        model_cfgs
+            model configs
         weight_path
             where we put model's weights
         strict
@@ -154,20 +154,20 @@ class DeepHydro(DeepHydroInterface):
         object
             model in pytorch_model_dict in model_dict_function.py
         """
-        model_name = model_params["model_name"]
+        model_name = model_cfgs["model_name"]
         if model_name not in pytorch_model_dict:
             raise NotImplementedError(
                 f"Error the model {model_name} was not found in the model dict. Please add it."
             )
-        model = pytorch_model_dict[model_name](**model_params["model_param"])
+        model = pytorch_model_dict[model_name](**model_cfgs["model_param"])
         if weight_path is not None:
             # if the model has been trained
             strict = False
             checkpoint = torch.load(weight_path, map_location=self.device)
-            if "weight_path_add" in model_params:
-                if "excluded_layers" in model_params["weight_path_add"]:
+            if "weight_path_add" in model_cfgs:
+                if "excluded_layers" in model_cfgs["weight_path_add"]:
                     # delete some layers from source model if we don't need them
-                    excluded_layers = model_params["weight_path_add"]["excluded_layers"]
+                    excluded_layers = model_cfgs["weight_path_add"]["excluded_layers"]
                     for layer in excluded_layers:
                         del checkpoint[layer]
                     print("sucessfully deleted layers")
@@ -184,32 +184,32 @@ class DeepHydro(DeepHydroInterface):
             print("Weights sucessfully loaded")
         if torch.cuda.device_count() > 1 and len(self.device_num) > 1:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
-            which_first_tensor = self.params["training_params"]["which_first_tensor"]
+            which_first_tensor = self.cfgs["training_cfgs"]["which_first_tensor"]
             sequece_first = which_first_tensor == "sequence"
             parallel_dim = 1 if sequece_first else 0
             model = nn.DataParallel(model, device_ids=self.device_num, dim=parallel_dim)
         model.to(self.device)
         if (
             weight_path is not None
-            and "weight_path_add" in model_params
-            and "freeze_params" in model_params["weight_path_add"]
+            and "weight_path_add" in model_cfgs
+            and "freeze_params" in model_cfgs["weight_path_add"]
         ):
-            freeze_params = model_params["weight_path_add"]["freeze_params"]
+            freeze_params = model_cfgs["weight_path_add"]["freeze_params"]
             for param in freeze_params:
                 if "tl_tag" in model.__dict__:
                     exec(f"model.tl_part.{param}.requires_grad = False")
                 else:
                     exec(f"model.{param}.requires_grad = False")
-        if ("model_wrapper" in list(model_params.keys())) and (
-            model_params["model_wrapper"] is not None
+        if ("model_wrapper" in list(model_cfgs.keys())) and (
+            model_cfgs["model_wrapper"] is not None
         ):
-            wrapper_name = model_params["model_wrapper"]
-            wrapper_params = model_params["model_wrapper_param"]
+            wrapper_name = model_cfgs["model_wrapper"]
+            wrapper_params = model_cfgs["model_wrapper_param"]
             model = pytorch_model_wrapper_dict[wrapper_name](model, **wrapper_params)
         return model
 
     def make_dataset(
-        self, data_source: HydroDataset, data_params: Dict, loader_type: str
+        self, data_source: HydroDataset, data_cfgs: Dict, loader_type: str
     ):
         """
         Initializes a pytorch dataset based on the provided data_source.
@@ -218,8 +218,8 @@ class DeepHydro(DeepHydroInterface):
         ----------
         data_source: Hydrodataset
             data_source read data from data source
-        data_params
-            parameters for loading data
+        data_cfgs
+            configs for loading data
         loader_type
             train or valid or test
 
@@ -228,9 +228,9 @@ class DeepHydro(DeepHydroInterface):
         object
             an object initializing from class in datasets_dict in data_dict.py
         """
-        dataset_name = data_params["dataset"]
+        dataset_name = data_cfgs["dataset"]
         if dataset_name in list(datasets_dict.keys()):
-            dataset = datasets_dict[dataset_name](data_source, data_params, loader_type)
+            dataset = datasets_dict[dataset_name](data_source, data_cfgs, loader_type)
         else:
             raise NotImplementedError(
                 "Error the dataset "
@@ -242,23 +242,23 @@ class DeepHydro(DeepHydroInterface):
     def model_train(self) -> None:
         """train a hydrological DL model"""
         # A dictionary of the necessary parameters for training
-        training_params = self.params["training_params"]
+        training_cfgs = self.cfgs["training_cfgs"]
         # The file path to load model weights from; defaults to "model_save"
-        model_filepath = self.params["data_params"]["test_path"]
-        data_params = self.params["data_params"]
+        model_filepath = self.cfgs["data_cfgs"]["test_path"]
+        data_cfgs = self.cfgs["data_cfgs"]
         es = None
-        if "early_stopping" in self.params:
-            es = EarlyStopper(self.params["early_stopping"]["patience"])
-        criterion = self._get_loss_func(training_params)
-        opt = self._get_optimizer(training_params)
-        lr_scheduler = training_params["lr_scheduler"]
-        max_epochs = training_params["epochs"]
-        start_epoch = training_params["start_epoch"]
+        if "early_stopping" in self.cfgs:
+            es = EarlyStopper(self.cfgs["early_stopping"]["patience"])
+        criterion = self._get_loss_func(training_cfgs)
+        opt = self._get_optimizer(training_cfgs)
+        lr_scheduler = training_cfgs["lr_scheduler"]
+        max_epochs = training_cfgs["epochs"]
+        start_epoch = training_cfgs["start_epoch"]
         # use PyTorch's DataLoader to load the data into batches in each epoch
         data_loader, validation_data_loader = self._get_dataloader(
-            training_params, data_params
+            training_cfgs, data_cfgs
         )
-        logger = TrainLogger(model_filepath, self.params, opt)
+        logger = TrainLogger(model_filepath, self.cfgs, opt)
         for epoch in range(start_epoch, max_epochs + 1):
             with logger.log_epoch_train(epoch) as train_logs:
                 if lr_scheduler is not None and epoch in lr_scheduler.keys():
@@ -271,25 +271,25 @@ class DeepHydro(DeepHydroInterface):
                     criterion,
                     data_loader,
                     device=self.device,
-                    which_first_tensor=training_params["which_first_tensor"],
+                    which_first_tensor=training_cfgs["which_first_tensor"],
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
 
             valid_loss = None
             valid_metrics = None
-            if data_params["t_range_valid"] is not None:
+            if data_cfgs["t_range_valid"] is not None:
                 with logger.log_epoch_valid(epoch) as valid_logs:
                     valid_obss_np, valid_preds_np, valid_loss = compute_validation(
                         self.model,
                         criterion,
                         validation_data_loader,
                         device=self.device,
-                        which_first_tensor=training_params["which_first_tensor"],
+                        which_first_tensor=training_cfgs["which_first_tensor"],
                     )
-                    evaluation_metrics = self.params["evaluate_params"]["metrics"]
-                    fill_nan = self.params["evaluate_params"]["fill_nan"]
-                    target_col = self.params["data_params"]["target_cols"]
+                    evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
+                    fill_nan = self.cfgs["evaluation_cfgs"]["fill_nan"]
+                    target_col = self.cfgs["data_cfgs"]["target_cols"]
                     valid_metrics = evaluate_validation(
                         validation_data_loader,
                         valid_preds_np,
@@ -303,7 +303,7 @@ class DeepHydro(DeepHydroInterface):
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
             )
-            logger.save_model_and_params(self.model, epoch, self.params)
+            logger.save_model_and_params(self.model, epoch, self.cfgs)
             if es and not es.check_loss(self.model, valid_loss):
                 print("Stopping model now")
                 self.model.load_state_dict(torch.load("checkpoint.pth"))
@@ -311,16 +311,16 @@ class DeepHydro(DeepHydroInterface):
 
         logger.tb.close()
 
-    def _get_optimizer(self, training_params):
+    def _get_optimizer(self, training_cfgs):
         params_in_opt = self.model.parameters()
-        return pytorch_opt_dict[training_params["optimizer"]](
-            params_in_opt, **training_params["optim_params"]
+        return pytorch_opt_dict[training_cfgs["optimizer"]](
+            params_in_opt, **training_cfgs["optim_params"]
         )
 
-    def _get_loss_func(self, training_params):
+    def _get_loss_func(self, training_cfgs):
         criterion_init_params = {}
-        if "criterion_params" in training_params:
-            loss_param = training_params["criterion_params"]
+        if "criterion_params" in training_cfgs:
+            loss_param = training_cfgs["criterion_params"]
             if loss_param is not None:
                 for key in loss_param.keys():
                     if key == "loss_funcs":
@@ -329,26 +329,26 @@ class DeepHydro(DeepHydroInterface):
                         ]()
                     else:
                         criterion_init_params[key] = loss_param[key]
-        return pytorch_criterion_dict[training_params["criterion"]](
+        return pytorch_criterion_dict[training_cfgs["criterion"]](
             **criterion_init_params
         )
 
-    def _get_dataloader(self, training_params, data_params):
+    def _get_dataloader(self, training_cfgs, data_cfgs):
         worker_num = 0
         pin_memory = False
-        if "num_workers" in training_params:
-            worker_num = training_params["num_workers"]
+        if "num_workers" in training_cfgs:
+            worker_num = training_cfgs["num_workers"]
             print(f"using {str(worker_num)} workers")
-        if "pin_memory" in training_params:
-            pin_memory = training_params["pin_memory"]
+        if "pin_memory" in training_cfgs:
+            pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
         train_dataset = self.traindataset
         sampler = None
-        if data_params["sampler"] is not None:
+        if data_cfgs["sampler"] is not None:
             # now we only have one special sampler from Kuai Fang's Deep Learning papers
-            batch_size = data_params["batch_size"]
-            rho = data_params["forecast_history"]
-            warmup_length = data_params["warmup_length"]
+            batch_size = data_cfgs["batch_size"]
+            rho = data_cfgs["forecast_history"]
+            warmup_length = data_cfgs["warmup_length"]
             ngrid = train_dataset.y.basin.size
             nt = train_dataset.y.time.size
             sampler = KuaiSampler(
@@ -361,18 +361,18 @@ class DeepHydro(DeepHydroInterface):
             )
         data_loader = DataLoader(
             train_dataset,
-            batch_size=training_params["batch_size"],
+            batch_size=training_cfgs["batch_size"],
             shuffle=(sampler is None),
             sampler=sampler,
             num_workers=worker_num,
             pin_memory=pin_memory,
             timeout=0,
         )
-        if data_params["t_range_valid"] is not None:
+        if data_cfgs["t_range_valid"] is not None:
             valid_dataset = self.validdataset
             validation_data_loader = DataLoader(
                 valid_dataset,
-                batch_size=training_params["batch_size"],
+                batch_size=training_cfgs["batch_size"],
                 shuffle=False,
                 num_workers=worker_num,
                 pin_memory=pin_memory,
@@ -385,14 +385,12 @@ class DeepHydro(DeepHydroInterface):
 class FedLearnHydro(DeepHydro):
     """Federated Learning Hydrological DL model"""
 
-    def __init__(
-        self, data_source_model: HydroDataset, params_dict: Dict
-    ):
-        super().__init__(data_source_model, params_dict)
+    def __init__(self, data_source: HydroDataset, params_dict: Dict):
+        super().__init__(data_source, params_dict)
         # a user group which is a dict where the keys are the user index
         # and the values are the corresponding data for each of those users
         train_dataset = self.traindataset
-        fl_params = self.params["model_params"]["fl_params"]
+        fl_params = self.cfgs["model_cfgs"]["fl_params"]
         # sample training data amongst users
         if fl_params["fl_sample"] == "basin":
             # Sample a basin for a user
@@ -421,11 +419,11 @@ class FedLearnHydro(DeepHydro):
         train_loss, train_accuracy = [], []
         print_every = 2
 
-        training_params = self.params["training_params"]
-        model_params = self.params["model_params"]
-        max_epochs = training_params["epochs"]
-        start_epoch = training_params["start_epoch"]
-        fl_params = model_params["fl_params"]
+        training_cfgs = self.cfgs["training_cfgs"]
+        model_cfgs = self.cfgs["model_cfgs"]
+        max_epochs = training_cfgs["epochs"]
+        start_epoch = training_cfgs["start_epoch"]
+        fl_params = model_cfgs["fl_params"]
         # total rounds in a FL system is max_epochs
         for epoch in tqdm(range(start_epoch, max_epochs + 1)):
             local_weights, local_losses = [], []
@@ -441,9 +439,9 @@ class FedLearnHydro(DeepHydro):
                 # user_gourps[idx] means the idx of dataset for a user
                 self.user_groups[idx]
                 local_model = DeepHydro(
-                    model_params["model_name"],
+                    model_cfgs["model_name"],
                     self.data_source,
-                    self.params,
+                    self.cfgs,
                 )
                 w, loss = local_model.model_train(
                     model=copy.deepcopy(global_model), global_round=epoch
@@ -465,9 +463,9 @@ class FedLearnHydro(DeepHydro):
             global_model.eval()
             for c in range(self.num_users):
                 local_model = DeepHydro(
-                    model_params["model_name"],
+                    model_cfgs["model_name"],
                     self.data_source,
-                    self.params,
+                    self.cfgs,
                 )
                 acc, loss = local_model.inference(model=global_model)
                 list_acc.append(acc)

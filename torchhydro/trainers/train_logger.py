@@ -36,17 +36,17 @@ def save_model_params_log(params, params_log_path):
 
 class TrainLogger:
     def __init__(self, model_filepath, params, opt):
-        self.training_params = params["training_params"]
-        self.data_params = params["data_params"]
-        self.evaluate_params = params["evaluate_params"]
+        self.training_cfgs = params["training_cfgs"]
+        self.data_cfgs = params["data_cfgs"]
+        self.evaluation_cfgs = params["evaluation_cfgs"]
         self.opt = opt
         self.hyper_param_set = (
             "opt_"
-            + self.training_params["optimizer"]
+            + self.training_cfgs["optimizer"]
             + "_lr_"
             + str(opt.defaults["lr"])
             + "_bsize_"
-            + str(self.training_params["batch_size"])
+            + str(self.training_cfgs["batch_size"])
         )
         self.training_save_dir = os.path.join(model_filepath, self.hyper_param_set)
         self.tb = SummaryWriter(self.training_save_dir)
@@ -101,8 +101,8 @@ class TrainLogger:
         )
         print(val_log)
         self.tb.add_scalar("ValidLoss", valid_loss, epoch)
-        target_col = self.data_params["target_cols"]
-        evaluation_metrics = self.evaluate_params["metrics"]
+        target_col = self.data_cfgs["target_cols"]
+        evaluation_metrics = self.evaluation_cfgs["metrics"]
         for i in range(len(target_col)):
             for evaluation_metric in evaluation_metrics:
                 self.tb.add_scalar(
@@ -117,8 +117,8 @@ class TrainLogger:
                 )
 
     def save_model_and_params(self, model, epoch, params):
-        final_epoch = params["training_params"]["epochs"]
-        save_epoch = params["training_params"]["save_epoch"]
+        final_epoch = params["training_cfgs"]["epochs"]
+        save_epoch = params["training_cfgs"]["save_epoch"]
         if (save_epoch > 0 and epoch % save_epoch == 0) or epoch == final_epoch:
             # save for save_epoch
             model_file = os.path.join(
@@ -130,7 +130,7 @@ class TrainLogger:
 
     def _save_final_epoch(self, params, model):
         # In final epoch, we save the model and params in test_path
-        final_path = params["data_params"]["test_path"]
+        final_path = params["data_cfgs"]["test_path"]
         params["run"] = self.session_params
         time_stamp = datetime.now().strftime("%d_%B_%Y%I_%M%p")
         model_save_path = os.path.join(final_path, f"{time_stamp}_model.pth")

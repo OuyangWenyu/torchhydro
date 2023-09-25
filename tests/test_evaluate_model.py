@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-18 14:34:53
-LastEditTime: 2023-09-21 20:08:37
+LastEditTime: 2023-09-25 19:03:18
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
 FilePath: /torchhydro/tests/test_evaluate_model.py
@@ -75,16 +75,14 @@ def config_data():
 
 
 def test_evaluate_model(config_data):
-    random_seed = config_data["training_params"]["random_seed"]
+    random_seed = config_data["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
-    data_params = config_data["data_params"]
-    data_source_name = data_params["data_source_name"]
+    data_cfgs = config_data["data_cfgs"]
+    data_source_name = data_cfgs["data_source_name"]
     data_source = data_sources_dict[data_source_name](
-        data_params["data_path"], data_params["download"]
+        data_cfgs["data_path"], data_cfgs["download"]
     )
-    model = DeepHydro(
-        config_data["model_params"]["model_name"], data_source, config_data
-    )
+    model = DeepHydro(data_source, config_data)
     eval_log, preds_xr, obss_xr = evaluate_model(model)
     print(eval_log)
     plot_ts(

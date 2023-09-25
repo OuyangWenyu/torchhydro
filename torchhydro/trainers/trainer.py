@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-09-25 16:58:47
+LastEditTime: 2023-09-25 19:10:23
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: /torchhydro/torchhydro/trainers/trainer.py
@@ -57,22 +57,22 @@ def train_and_evaluate(params: Dict):
     -------
     None
     """
-    random_seed = params["training_params"]["random_seed"]
+    random_seed = params["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
     data_source = _get_datasource(params)
     model = _get_hydro_dl_model(params, data_source)
-    if params["training_params"]["train_mode"]:
+    if params["training_cfgs"]["train_mode"]:
         if (
-            "weight_path" in params["model_params"]
-            and params["model_params"]["continue_train"]
-        ) or ("weight_path" not in params["model_params"]):
+            "weight_path" in params["model_cfgs"]
+            and params["model_cfgs"]["continue_train"]
+        ) or ("weight_path" not in params["model_cfgs"]):
             model.model_train()
         test_acc = evaluate_model(model)
         print("summary test_accuracy", test_acc[0])
         # save the results
         save_result(
-            params["data_params"]["test_path"],
-            params["evaluate_params"]["test_epoch"],
+            params["data_cfgs"]["test_path"],
+            params["evaluation_cfgs"]["test_epoch"],
             test_acc[1],
             test_acc[2],
         )
@@ -82,34 +82,34 @@ def train_and_evaluate(params: Dict):
             and "_stat" not in file  # statistics json file
             and "_dict" not in file  # data cache json file
         )
-        for file in os.listdir(params["data_params"]["test_path"])
+        for file in os.listdir(params["data_cfgs"]["test_path"])
     )
     if not param_file_exist:
         # although we save params log during training, but sometimes we directly evaluate a model
         # so here we still save params log if param file does not exist
         # no param file was saved yet, here we save data and params setting
-        save_param_log_path = params["data_params"]["test_path"]
+        save_param_log_path = params["data_cfgs"]["test_path"]
         save_model_params_log(params, save_param_log_path)
 
 
 def _get_hydro_dl_model(params, data_source):
-    model_type = params["model_params"]["model_type"]
+    model_type = params["model_cfgs"]["model_type"]
     return model_type_dict[model_type](data_source, params)
 
 
 def _get_datasource(params):
-    data_params = params["data_params"]
-    data_source_name = data_params["data_source_name"]
+    data_cfgs = params["data_cfgs"]
+    data_source_name = data_cfgs["data_source_name"]
     if data_source_name in ["CAMELS", "CAMELS_SERIES"]:
         # there are many different regions for CAMELS datasets
         data_source = data_sources_dict[data_source_name](
-            data_params["data_path"],
-            data_params["download"],
-            data_params["data_region"],
+            data_cfgs["data_path"],
+            data_cfgs["download"],
+            data_cfgs["data_region"],
         )
     else:
         data_source = data_sources_dict[data_source_name](
-            data_params["data_path"], data_params["download"]
+            data_cfgs["data_path"], data_cfgs["download"]
         )
 
     return data_source

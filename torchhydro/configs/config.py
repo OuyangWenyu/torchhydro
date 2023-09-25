@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-25 15:18:31
+LastEditTime: 2023-09-25 19:15:43
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: /torchhydro/torchhydro/configs/config.py
@@ -45,7 +45,7 @@ def default_config_file():
     """
 
     return {
-        "model_params": {
+        "model_cfgs": {
             # model_type including normal deep learning, federated learning, multi-task learning, etc.
             "model_type": "Normal",
             # supported models can be seen in hydroDL/model_dict_function.py
@@ -82,7 +82,7 @@ def default_config_file():
                 "fl_frac": 0.1,
             },
         },
-        "data_params": {
+        "data_cfgs": {
             "data_source_name": "CAMELS",
             "data_path": "../../example/camels_us",
             "data_region": None,
@@ -194,7 +194,7 @@ def default_config_file():
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
         },
-        "training_params": {
+        "training_cfgs": {
             # if train_mode is False, don't train and evaluate
             "train_mode": True,
             "criterion": "RMSE",
@@ -223,7 +223,7 @@ def default_config_file():
             "which_first_tensor": "sequence",
         },
         # For evaluation
-        "evaluate_params": {
+        "evaluation_cfgs": {
             "metrics": ["NSE"],
             "fill_nan": "no",
             "test_epoch": 20,
@@ -638,7 +638,7 @@ def cmd(
     parser.add_argument(
         "--model_param",
         dest="model_param",
-        help="the model_param in model_params",
+        help="the model_param in model_cfgs",
         default=model_param,
         type=json.loads,
     )
@@ -751,85 +751,85 @@ def update_cfg(cfg_file, new_args):
         subset, subexp = new_args.sub.split("/")
         if not os.path.exists(os.path.join(result_dir, subset, subexp)):
             os.makedirs(os.path.join(result_dir, subset, subexp))
-        cfg_file["data_params"]["validation_path"] = os.path.join(
+        cfg_file["data_cfgs"]["validation_path"] = os.path.join(
             project_dir, "results", subset, subexp
         )
-        cfg_file["data_params"]["test_path"] = os.path.join(result_dir, subset, subexp)
+        cfg_file["data_cfgs"]["test_path"] = os.path.join(result_dir, subset, subexp)
         if new_args.cache_path is not None:
-            cfg_file["data_params"]["cache_path"] = new_args.cache_path
+            cfg_file["data_cfgs"]["cache_path"] = new_args.cache_path
         else:
-            cfg_file["data_params"]["cache_path"] = os.path.join(
+            cfg_file["data_cfgs"]["cache_path"] = os.path.join(
                 result_dir, subset, subexp
             )
     if new_args.source is not None:
-        cfg_file["data_params"]["data_source_name"] = new_args.source
+        cfg_file["data_cfgs"]["data_source_name"] = new_args.source
     if new_args.source_path is not None:
-        cfg_file["data_params"]["data_path"] = new_args.source_path
+        cfg_file["data_cfgs"]["data_path"] = new_args.source_path
         if type(new_args.source_path) == list and len(new_args.source_path) == 1:
-            cfg_file["data_params"]["data_path"] = new_args.source_path[0]
+            cfg_file["data_cfgs"]["data_path"] = new_args.source_path[0]
     if new_args.source_region is not None:
-        cfg_file["data_params"]["data_region"] = new_args.source_region
+        cfg_file["data_cfgs"]["data_region"] = new_args.source_region
         if len(new_args.source_region) == 1:
-            cfg_file["data_params"]["data_region"] = new_args.source_region[0]
+            cfg_file["data_cfgs"]["data_region"] = new_args.source_region[0]
     if new_args.download is not None:
         if new_args.download == 0:
-            cfg_file["data_params"]["download"] = False
+            cfg_file["data_cfgs"]["download"] = False
         else:
-            cfg_file["data_params"]["download"] = True
+            cfg_file["data_cfgs"]["download"] = True
     if new_args.scaler is not None:
-        cfg_file["data_params"]["scaler"] = new_args.scaler
+        cfg_file["data_cfgs"]["scaler"] = new_args.scaler
     if new_args.scaler_params is not None:
-        cfg_file["data_params"]["scaler_params"] = new_args.scaler_params
+        cfg_file["data_cfgs"]["scaler_params"] = new_args.scaler_params
     if new_args.dataset is not None:
-        cfg_file["data_params"]["dataset"] = new_args.dataset
+        cfg_file["data_cfgs"]["dataset"] = new_args.dataset
     if new_args.sampler is not None:
-        cfg_file["data_params"]["sampler"] = new_args.sampler
+        cfg_file["data_cfgs"]["sampler"] = new_args.sampler
     if new_args.fl_sample is not None:
         if new_args.fl_sample not in ["basin", "region"]:
             # basin means each client is a basin
             raise ValueError("fl_sample must be 'basin' or 'region'")
-        cfg_file["model_params"]["fl_params"]["fl_sample"] = new_args.fl_sample
+        cfg_file["model_cfgs"]["fl_params"]["fl_sample"] = new_args.fl_sample
     if new_args.fl_num_users is not None:
-        cfg_file["model_params"]["fl_params"]["fl_num_users"] = new_args.fl_num_users
+        cfg_file["model_cfgs"]["fl_params"]["fl_num_users"] = new_args.fl_num_users
     if new_args.fl_local_ep is not None:
-        cfg_file["model_params"]["fl_params"]["fl_local_ep"] = new_args.fl_local_ep
+        cfg_file["model_cfgs"]["fl_params"]["fl_local_ep"] = new_args.fl_local_ep
     if new_args.fl_local_bs is not None:
-        cfg_file["model_params"]["fl_params"]["fl_local_bs"] = new_args.fl_local_bs
+        cfg_file["model_cfgs"]["fl_params"]["fl_local_bs"] = new_args.fl_local_bs
     if new_args.fl_frac is not None:
-        cfg_file["model_params"]["fl_params"]["fl_frac"] = new_args.fl_frac
+        cfg_file["model_cfgs1"]["fl_params"]["fl_frac"] = new_args.fl_frac
     if new_args.ctx is not None:
-        cfg_file["training_params"]["device"] = new_args.ctx
+        cfg_file["training_cfgs"]["device"] = new_args.ctx
     if new_args.rs is not None:
-        cfg_file["training_params"]["random_seed"] = new_args.rs
+        cfg_file["training_cfgs"]["random_seed"] = new_args.rs
     if new_args.train_mode is not None:
         if new_args.train_mode > 0:
-            cfg_file["training_params"]["train_mode"] = True
+            cfg_file["training_cfgs"]["train_mode"] = True
         else:
-            cfg_file["training_params"]["train_mode"] = False
+            cfg_file["training_cfgs"]["train_mode"] = False
     if new_args.loss_func is not None:
-        cfg_file["training_params"]["criterion"] = new_args.loss_func
+        cfg_file["training_cfgs"]["criterion"] = new_args.loss_func
         if new_args.loss_param is not None:
-            cfg_file["training_params"]["criterion_params"] = new_args.loss_param
+            cfg_file["training_cfgs"]["criterion_params"] = new_args.loss_param
     if new_args.train_period is not None:
-        cfg_file["data_params"]["t_range_train"] = new_args.train_period
+        cfg_file["data_cfgs"]["t_range_train"] = new_args.train_period
     if new_args.valid_period is not None:
-        cfg_file["data_params"]["t_range_valid"] = new_args.valid_period
+        cfg_file["data_cfgs"]["t_range_valid"] = new_args.valid_period
     if new_args.test_period is not None:
-        cfg_file["data_params"]["t_range_test"] = new_args.test_period
+        cfg_file["data_cfgs"]["t_range_test"] = new_args.test_period
     if new_args.gage_id is not None or new_args.gage_id_file is not None:
         if new_args.gage_id_file is not None:
             gage_id_lst = (
                 pd.read_csv(new_args.gage_id_file, dtype={0: str}).iloc[:, 0].values
             )
-            cfg_file["data_params"]["object_ids"] = gage_id_lst.tolist()
+            cfg_file["data_cfgs"]["object_ids"] = gage_id_lst.tolist()
         else:
-            cfg_file["data_params"]["object_ids"] = new_args.gage_id
+            cfg_file["data_cfgs"]["object_ids"] = new_args.gage_id
     if new_args.opt is not None:
-        cfg_file["training_params"]["optimizer"] = new_args.opt
+        cfg_file["training_cfgs"]["optimizer"] = new_args.opt
         if new_args.opt_param is not None:
-            cfg_file["training_params"]["optim_params"] = new_args.opt_param
+            cfg_file["training_cfgs"]["optim_params"] = new_args.opt_param
         else:
-            cfg_file["training_params"]["optim_params"] = {}
+            cfg_file["training_cfgs"]["optim_params"] = {}
     if new_args.var_c is not None:
         # I don't find a method to receive empty list for argparse, so if we input "None" or "" or " ", we treat it as []
         if (
@@ -837,113 +837,113 @@ def update_cfg(cfg_file, new_args):
             or new_args.var_c == [""]
             or new_args.var_c == [" "]
         ):
-            cfg_file["data_params"]["constant_cols"] = []
+            cfg_file["data_cfgs"]["constant_cols"] = []
         else:
-            cfg_file["data_params"]["constant_cols"] = new_args.var_c
+            cfg_file["data_cfgs"]["constant_cols"] = new_args.var_c
     if new_args.c_rm_nan == 0:
-        cfg_file["data_params"]["constant_rm_nan"] = False
+        cfg_file["data_cfgs"]["constant_rm_nan"] = False
     else:
-        cfg_file["data_params"]["constant_rm_nan"] = True
+        cfg_file["data_cfgs"]["constant_rm_nan"] = True
     if new_args.var_t is not None:
-        cfg_file["data_params"]["relevant_cols"] = new_args.var_t
+        cfg_file["data_cfgs"]["relevant_cols"] = new_args.var_t
     if new_args.var_t_type is not None:
-        cfg_file["data_params"]["relevant_types"] = new_args.var_t_type
+        cfg_file["data_cfgs"]["relevant_types"] = new_args.var_t_type
     if new_args.t_rm_nan == 0:
-        cfg_file["data_params"]["relevant_rm_nan"] = False
+        cfg_file["data_cfgs"]["relevant_rm_nan"] = False
     else:
-        cfg_file["data_params"]["relevant_rm_nan"] = True
+        cfg_file["data_cfgs"]["relevant_rm_nan"] = True
     if new_args.var_o is not None:
-        cfg_file["data_params"]["other_cols"] = new_args.var_o
+        cfg_file["data_cfgs"]["other_cols"] = new_args.var_o
     if new_args.var_out is not None:
-        cfg_file["data_params"]["target_cols"] = new_args.var_out
+        cfg_file["data_cfgs"]["target_cols"] = new_args.var_out
     if new_args.out_rm_nan == 0:
-        cfg_file["data_params"]["target_rm_nan"] = False
+        cfg_file["data_cfgs"]["target_rm_nan"] = False
     else:
-        cfg_file["data_params"]["target_rm_nan"] = True
+        cfg_file["data_cfgs"]["target_rm_nan"] = True
     if new_args.target_as_input == 0:
-        cfg_file["data_params"]["target_as_input"] = False
+        cfg_file["data_cfgs"]["target_as_input"] = False
         if new_args.constant_only == 0:
-            cfg_file["data_params"]["constant_only"] = False
+            cfg_file["data_cfgs"]["constant_only"] = False
         else:
-            cfg_file["data_params"]["constant_only"] = True
+            cfg_file["data_cfgs"]["constant_only"] = True
     else:
-        cfg_file["data_params"]["target_as_input"] = True
+        cfg_file["data_cfgs"]["target_as_input"] = True
     if new_args.train_epoch is not None:
-        cfg_file["training_params"]["epochs"] = new_args.train_epoch
+        cfg_file["training_cfgs"]["epochs"] = new_args.train_epoch
     if new_args.save_epoch is not None:
-        cfg_file["training_params"]["save_epoch"] = new_args.save_epoch
+        cfg_file["training_cfgs"]["save_epoch"] = new_args.save_epoch
     if new_args.save_iter is not None:
-        cfg_file["training_params"]["save_iter"] = new_args.save_iter
+        cfg_file["training_cfgs"]["save_iter"] = new_args.save_iter
     if new_args.cache_read is not None:
         if new_args.cache_read > 0:
-            cfg_file["data_params"]["cache_read"] = True
+            cfg_file["data_cfgs"]["cache_read"] = True
         else:
-            cfg_file["data_params"]["cache_read"] = False
+            cfg_file["data_cfgs"]["cache_read"] = False
     if new_args.cache_write is not None:
         if new_args.cache_write > 0:
-            cfg_file["data_params"]["cache_write"] = True
-            if not cfg_file["data_params"]["cache_read"]:
+            cfg_file["data_cfgs"]["cache_write"] = True
+            if not cfg_file["data_cfgs"]["cache_read"]:
                 logging.warning(
                     "Since you have chosen cache_write, please read data from cache after it is saved"
                 )
         else:
-            cfg_file["data_params"]["cache_write"] = False
+            cfg_file["data_cfgs"]["cache_write"] = False
     if new_args.model_type is not None:
-        cfg_file["model_params"]["model_type"] = new_args.model_type
+        cfg_file["model_cfgs"]["model_type"] = new_args.model_type
     if new_args.model_name is not None:
-        cfg_file["model_params"]["model_name"] = new_args.model_name
+        cfg_file["model_cfgs"]["model_name"] = new_args.model_name
     if new_args.weight_path is not None:
-        cfg_file["model_params"]["weight_path"] = new_args.weight_path
+        cfg_file["model_cfgs"]["weight_path"] = new_args.weight_path
         if new_args.continue_train is None or new_args.continue_train == 0:
             continue_train = False
         else:
             continue_train = True
-        cfg_file["model_params"]["continue_train"] = continue_train
+        cfg_file["model_cfgs"]["continue_train"] = continue_train
     if new_args.weight_path_add is not None:
-        cfg_file["model_params"]["weight_path_add"] = new_args.weight_path_add
+        cfg_file["model_cfgs"]["weight_path_add"] = new_args.weight_path_add
     if new_args.n_output is not None:
-        cfg_file["training_params"]["multi_targets"] = new_args.n_output
-        if len(cfg_file["data_params"]["target_cols"]) != new_args.n_output:
+        cfg_file["training_cfgs"]["multi_targets"] = new_args.n_output
+        if len(cfg_file["data_cfgs"]["target_cols"]) != new_args.n_output:
             raise AttributeError(
-                "Please make sure size of vars in data_params/target_cols is same as n_output"
+                "Please make sure size of vars in data_cfgs/target_cols is same as n_output"
             )
     if new_args.model_param is None:
         if new_args.batch_size is not None:
             batch_size = new_args.batch_size
-            cfg_file["model_params"]["model_param"]["batch_size"] = batch_size
-            cfg_file["data_params"]["batch_size"] = batch_size
-            cfg_file["training_params"]["batch_size"] = batch_size
+            cfg_file["model_cfgs"]["model_param"]["batch_size"] = batch_size
+            cfg_file["data_cfgs"]["batch_size"] = batch_size
+            cfg_file["training_cfgs"]["batch_size"] = batch_size
         if new_args.rho is not None:
             rho = new_args.rho
-            cfg_file["model_params"]["model_param"]["seq_length"] = rho
-            cfg_file["data_params"]["forecast_history"] = rho
+            cfg_file["model_cfgs"]["model_param"]["seq_length"] = rho
+            cfg_file["data_cfgs"]["forecast_history"] = rho
         if new_args.n_output is not None:
-            cfg_file["model_params"]["model_param"][
+            cfg_file["model_cfgs"]["model_param"][
                 "output_seq_len"
             ] = new_args.n_output
     else:
-        cfg_file["model_params"]["model_param"] = new_args.model_param
+        cfg_file["model_cfgs"]["model_param"] = new_args.model_param
         if "batch_size" in new_args.model_param.keys():
-            cfg_file["data_params"]["batch_size"] = new_args.model_param["batch_size"]
-            cfg_file["training_params"]["batch_size"] = new_args.model_param[
+            cfg_file["data_cfgs"]["batch_size"] = new_args.model_param["batch_size"]
+            cfg_file["training_cfgs"]["batch_size"] = new_args.model_param[
                 "batch_size"
             ]
         elif new_args.batch_size is not None:
             batch_size = new_args.batch_size
-            cfg_file["data_params"]["batch_size"] = batch_size
-            cfg_file["training_params"]["batch_size"] = batch_size
+            cfg_file["data_cfgs"]["batch_size"] = batch_size
+            cfg_file["training_cfgs"]["batch_size"] = batch_size
         else:
             raise NotImplemented("Please set the batch_size!!!")
         if "seq_length" in new_args.model_param.keys():
-            cfg_file["data_params"]["forecast_history"] = new_args.model_param[
+            cfg_file["data_cfgs"]["forecast_history"] = new_args.model_param[
                 "seq_length"
             ]
         elif "forecast_history" in new_args.model_param.keys():
-            cfg_file["data_params"]["forecast_history"] = new_args.model_param[
+            cfg_file["data_cfgs"]["forecast_history"] = new_args.model_param[
                 "forecast_history"
             ]
         elif new_args.rho is not None:
-            cfg_file["data_params"]["forecast_history"] = new_args.rho
+            cfg_file["data_cfgs"]["forecast_history"] = new_args.rho
         else:
             raise NotImplemented(
                 "Please set the time_sequence length in a batch when training!!!"
@@ -954,39 +954,39 @@ def update_cfg(cfg_file, new_args):
         ):
             assert new_args.model_param["output_seq_len"] == new_args.n_output
     if new_args.metrics is not None:
-        cfg_file["evaluate_params"]["metrics"] = new_args.metrics
+        cfg_file["evaluation_cfgs"]["metrics"] = new_args.metrics
     if new_args.fill_nan is not None:
-        cfg_file["evaluate_params"]["fill_nan"] = new_args.fill_nan
+        cfg_file["evaluation_cfgs"]["fill_nan"] = new_args.fill_nan
     if new_args.te is not None:
-        cfg_file["evaluate_params"]["test_epoch"] = new_args.te
+        cfg_file["evaluation_cfgs"]["test_epoch"] = new_args.te
         if new_args.train_epoch is not None and new_args.te > new_args.train_epoch:
             raise RuntimeError("testing epoch cannot be larger than training epoch")
     if new_args.warmup_length > 0:
-        cfg_file["data_params"]["warmup_length"] = new_args.warmup_length
+        cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
         if "warmup_length" in new_args.model_param.keys() and (
-            not cfg_file["data_params"]["warmup_length"]
+            not cfg_file["data_cfgs"]["warmup_length"]
             == new_args.model_param["warmup_length"]
         ):
             raise RuntimeError(
-                "Please set same warmup_length in model_params and data_params"
+                "Please set same warmup_length in model_cfgs and data_cfgs"
             )
     if new_args.start_epoch > 1:
-        cfg_file["training_params"]["start_epoch"] = new_args.start_epoch
+        cfg_file["training_cfgs"]["start_epoch"] = new_args.start_epoch
     if new_args.stat_dict_file is not None:
-        cfg_file["data_params"]["stat_dict_file"] = new_args.stat_dict_file
+        cfg_file["data_cfgs"]["stat_dict_file"] = new_args.stat_dict_file
 
     if new_args.model_wrapper is not None:
-        cfg_file["model_params"]["model_wrapper"] = new_args.model_wrapper
+        cfg_file["model_cfgs"]["model_wrapper"] = new_args.model_wrapper
     if new_args.model_wrapper_param is not None:
-        cfg_file["model_params"]["model_wrapper_param"] = new_args.model_wrapper_param
+        cfg_file["model_cfgs"]["model_wrapper_param"] = new_args.model_wrapper_param
     if new_args.num_workers is not None and new_args.num_workers > 0:
-        cfg_file["training_params"]["num_workers"] = new_args.num_workers
+        cfg_file["training_cfgs"]["num_workers"] = new_args.num_workers
     if new_args.train_but_not_real is not None and new_args.train_but_not_real > 0:
-        cfg_file["training_params"]["train_but_not_real"] = True
+        cfg_file["training_cfgs"]["train_but_not_real"] = True
     if new_args.which_first_tensor is not None:
-        cfg_file["training_params"]["which_first_tensor"] = new_args.which_first_tensor
+        cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
     if new_args.lr_scheduler is not None:
-        cfg_file["training_params"]["lr_scheduler"] = new_args.lr_scheduler
+        cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 
