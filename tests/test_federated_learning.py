@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-24 14:28:48
-LastEditTime: 2023-09-24 21:49:00
+LastEditTime: 2023-09-25 15:12:55
 LastEditors: Wenyu Ouyang
 Description: A test for federated learning
-FilePath: \torchhydro\tests\test_federated_learning.py
+FilePath: /torchhydro/tests/test_federated_learning.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os

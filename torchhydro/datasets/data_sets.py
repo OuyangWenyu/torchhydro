@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-09-21 19:47:40
+LastEditTime: 2023-09-25 15:02:10
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: /torchhydro/torchhydro/datasets/data_sets.py
@@ -10,7 +10,6 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 import logging
 import sys
 from typing import Optional
-from torch.utils.data import RandomSampler
 import numpy as np
 import pint_xarray  # noqa: F401
 import torch
@@ -196,6 +195,16 @@ class BaseDataset(Dataset):
         self.warmup_length = self.data_params["warmup_length"]
         self._create_lookup_table()
 
+    @property
+    def basins(self):
+        """Return the basins of the dataset"""
+        return self.t_s_dict["sites_id"]
+
+    @property
+    def times(self):
+        """Return the time range of the dataset"""
+        return self.t_s_dict["t_final_range"]
+
     def _trans2da_and_setunits(self, ds):
         """Set units for dataarray transfromed from dataset"""
         result = ds.to_array(dim="variable")
@@ -229,8 +238,12 @@ class BaseDataset(Dataset):
         warmup_length = self.warmup_length
         dates = self.y["time"].to_numpy()
         time_length = len(dates)
+        loader_type = self.loader_type
         for basin in tqdm(
-            basins, file=sys.stdout, disable=False, desc="Creating lookup table"
+            basins,
+            file=sys.stdout,
+            disable=False,
+            desc="Creating " + loader_type + " lookup table",
         ):
             # some dataloader load data with warmup period, so leave some periods for it
             # [warmup_len] -> time_start -> [rho]
@@ -258,53 +271,6 @@ class BasinSingleFlowDataset(BaseDataset):
 
     def __len__(self):
         return self.num_samples
-
-
-class KuaiSampler(RandomSampler):
-    def __init__(
-        self,
-        data_source,
-        batch_size,
-        warmup_length,
-        rho,
-        ngrid,
-        nt,
-    ):
-        """a sampler from Kuai Fang's paper: https://doi.org/10.1002/2017GL075619
-           He used a random pick-up that we don't need to iterate all samples.
-           Then, we can train model more quickly
-
-        Parameters
-        ----------
-        data_source : torch.utils.data.Dataset
-            just a object of dataset class inherited from torch.utils.data.Dataset
-        batch_size : int
-            we need batch_size to calculate the number of samples in an epoch
-        warmup_length : int
-            warmup length, typically for physical hydrological models
-        rho : int
-            sequence length of a mini-batch
-        ngrid : int
-            number of basins
-        nt : int
-            number of all periods
-        """
-        while batch_size * rho >= ngrid * nt:
-            # try to use a smaller batch_size to make the model runnable
-            batch_size = int(batch_size / 10)
-        batch_size = max(batch_size, 1)
-        # 99% chance that all periods' data are used in an epoch
-        n_iter_ep = int(
-            np.ceil(
-                np.log(0.01)
-                / np.log(1 - batch_size * rho / ngrid / (nt - warmup_length))
-            )
-        )
-        assert n_iter_ep >= 1
-        # __len__ means the number of all samples, then, the number of loops in an epoch is __len__()/batch_size = n_iter_ep
-        # hence we return n_iter_ep * batch_size
-        num_samples = n_iter_ep * batch_size
-        super(KuaiSampler, self).__init__(data_source, num_samples=num_samples)
 
 
 class DplDataset(BaseDataset):

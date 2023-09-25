@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-24 21:50:43
+LastEditTime: 2023-09-25 15:18:31
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: \torchhydro\torchhydro\configs\config.py
+FilePath: /torchhydro/torchhydro/configs/config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import argparse
@@ -67,6 +67,20 @@ def default_config_file():
             "model_wrapper": None,
             # the wrapper class's parameters
             "model_wrapper_param": None,
+            # federated learning parameters
+            "fl_params": {
+                # sampling for federated learning
+                "fl_sample": "basin",
+                # number of users for federated learning
+                # TODO: we don't use this parameter now, but we may use it in the future
+                "fl_num_users": 10,
+                # the number of local epochs
+                "fl_local_ep": 5,
+                # local batch size
+                "fl_local_bs": 6,
+                # the fraction of clients
+                "fl_frac": 0.1,
+            },
         },
         "data_params": {
             "data_source_name": "CAMELS",
@@ -227,6 +241,11 @@ def cmd(
     scaler_params=None,
     dataset=None,
     sampler=None,
+    fl_sample=None,
+    fl_num_users=None,
+    fl_local_ep=None,
+    fl_local_bs=None,
+    fl_frac=None,
     ctx=None,
     rs=None,
     gage_id_file=None,
@@ -340,6 +359,41 @@ def cmd(
         help="None or KuaiSampler",
         default=sampler,
         type=str,
+    )
+    parser.add_argument(
+        "--fl_sample",
+        dest="fl_sample",
+        help="sampling method for federated learning",
+        default=fl_sample,
+        type=str,
+    )
+    parser.add_argument(
+        "--fl_num_users",
+        dest="fl_num_users",
+        help="number of users for federated learning",
+        default=fl_num_users,
+        type=int,
+    )
+    parser.add_argument(
+        "--fl_local_ep",
+        dest="fl_local_ep",
+        help="number of local epochs for federated learning",
+        default=fl_local_ep,
+        type=int,
+    )
+    parser.add_argument(
+        "--fl_local_bs",
+        dest="fl_local_bs",
+        help="local batch size for federated learning",
+        default=fl_local_bs,
+        type=float,
+    )
+    parser.add_argument(
+        "--fl_frac",
+        dest="fl_frac",
+        help="the fraction of clients for federated learning",
+        default=fl_frac,
+        type=float,
     )
     parser.add_argument(
         "--ctx",
@@ -730,6 +784,19 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_params"]["dataset"] = new_args.dataset
     if new_args.sampler is not None:
         cfg_file["data_params"]["sampler"] = new_args.sampler
+    if new_args.fl_sample is not None:
+        if new_args.fl_sample not in ["basin", "region"]:
+            # basin means each client is a basin
+            raise ValueError("fl_sample must be 'basin' or 'region'")
+        cfg_file["model_params"]["fl_params"]["fl_sample"] = new_args.fl_sample
+    if new_args.fl_num_users is not None:
+        cfg_file["model_params"]["fl_params"]["fl_num_users"] = new_args.fl_num_users
+    if new_args.fl_local_ep is not None:
+        cfg_file["model_params"]["fl_params"]["fl_local_ep"] = new_args.fl_local_ep
+    if new_args.fl_local_bs is not None:
+        cfg_file["model_params"]["fl_params"]["fl_local_bs"] = new_args.fl_local_bs
+    if new_args.fl_frac is not None:
+        cfg_file["model_params"]["fl_params"]["fl_frac"] = new_args.fl_frac
     if new_args.ctx is not None:
         cfg_file["training_params"]["device"] = new_args.ctx
     if new_args.rs is not None:

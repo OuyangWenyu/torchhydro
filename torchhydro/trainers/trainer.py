@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-09-24 21:20:59
+LastEditTime: 2023-09-25 16:58:47
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
-FilePath: \torchhydro\torchhydro\trainers\trainer.py
+FilePath: /torchhydro/torchhydro/trainers/trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import fnmatch
@@ -59,7 +59,8 @@ def train_and_evaluate(params: Dict):
     """
     random_seed = params["training_params"]["random_seed"]
     set_random_seed(random_seed)
-    model = _dl_model(params)
+    data_source = _get_datasource(params)
+    model = _get_hydro_dl_model(params, data_source)
     if params["training_params"]["train_mode"]:
         if (
             "weight_path" in params["model_params"]
@@ -91,8 +92,12 @@ def train_and_evaluate(params: Dict):
         save_model_params_log(params, save_param_log_path)
 
 
-def _dl_model(params):
-    """Get deep learning model"""
+def _get_hydro_dl_model(params, data_source):
+    model_type = params["model_params"]["model_type"]
+    return model_type_dict[model_type](data_source, params)
+
+
+def _get_datasource(params):
     data_params = params["data_params"]
     data_source_name = data_params["data_source_name"]
     if data_source_name in ["CAMELS", "CAMELS_SERIES"]:
@@ -106,9 +111,8 @@ def _dl_model(params):
         data_source = data_sources_dict[data_source_name](
             data_params["data_path"], data_params["download"]
         )
-    model_type = params["model_params"]["model_type"]
-    model_name = params["model_params"]["model_name"]
-    return model_type_dict[model_type](model_name, data_source, params)
+
+    return data_source
 
 
 def save_result(save_dir, epoch, pred, obs, pred_name="flow_pred", obs_name="flow_obs"):

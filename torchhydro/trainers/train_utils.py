@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:06:12
-LastEditTime: 2023-09-24 21:41:35
+LastEditTime: 2023-09-25 08:19:23
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
-FilePath: \torchhydro\torchhydro\trainers\train_utils.py
+FilePath: /torchhydro/torchhydro/trainers/train_utils.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 

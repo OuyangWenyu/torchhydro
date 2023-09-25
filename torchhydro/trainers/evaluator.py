@@ -106,7 +106,7 @@ def infer_on_torch_model(
     training_params = model.params["training_params"]
     device = get_the_device(model.params["training_params"]["device"])
     test_dataloader = DataLoader(
-        model.test_data,
+        model.testdataset,
         batch_size=training_params["batch_size"],
         shuffle=False,
         sampler=None,
@@ -125,7 +125,7 @@ def infer_on_torch_model(
         data_params=data_params,
     )
     pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
-    return pred_xr, obs_xr, model.test_data
+    return pred_xr, obs_xr, model.testdataset
 
 
 def generate_predictions(

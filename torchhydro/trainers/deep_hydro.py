@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-24 21:45:35
+LastEditTime: 2023-09-25 16:58:18
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
+FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -17,8 +17,7 @@ from torch import nn
 from hydrodataset import HydroDataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from torchhydro.datasets.data_sets import KuaiSampler
-
+from torchhydro.datasets.sampler import KuaiSampler, fl_sample_basin, fl_sample_region
 from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.models.model_dict_function import (
     pytorch_criterion_dict,
@@ -44,44 +43,37 @@ class DeepHydroInterface(ABC):
     This class assumes that data is already split into test train and validation at this point.
     """
 
-    def __init__(self, model_base: str, data_source: HydroDataset, params: Dict):
+    def __init__(self, data_source: HydroDataset, cfgs: Dict):
         """
         Parameters
         ----------
-        model_base
-            name of the model
         data_source
             the digital twin of a data_source in reality
-        params
-            parameters for initializing the model
+        cfgs
+            configs for initializing DeepHydro
         """
-        self.params = params
-        if "weight_path" in params["model_params"]:
+        self.params = cfgs
+        if "weight_path" in cfgs["model_params"]:
             self.model = self.load_model(
-                model_base,
-                params["model_params"],
-                params["model_params"]["weight_path"],
+                cfgs["model_params"],
+                cfgs["model_params"]["weight_path"],
             )
         else:
-            self.model = self.load_model(model_base, params["model_params"])
-        self.training = self.make_dataset(data_source, params["data_params"], "train")
-        if params["data_params"]["t_range_valid"] is not None:
-            self.validation = self.make_dataset(
-                data_source, params["data_params"], "valid"
+            self.model = self.load_model(cfgs["model_params"])
+        self.traindataset = self.make_dataset(data_source, cfgs["data_params"], "train")
+        if cfgs["data_params"]["t_range_valid"] is not None:
+            self.validdataset = self.make_dataset(
+                data_source, cfgs["data_params"], "valid"
             )
-        self.test_data = self.make_dataset(data_source, params["data_params"], "test")
+        self.testdataset = self.make_dataset(data_source, cfgs["data_params"], "test")
 
     @abstractmethod
-    def load_model(
-        self, model_base: str, model_params: Dict, weight_path=None
-    ) -> object:
+    def load_model(self, model_params: Dict, weight_path=None) -> object:
         """
         Get a time series forecast model and it varies based on the underlying framework used
 
         Parameters
         ----------
-        model_base
-            name of the model
         model_params
             model parameters
         weight_path
@@ -90,7 +82,7 @@ class DeepHydroInterface(ABC):
         Returns
         -------
         object
-            a time series forecast model
+            a Hydro DL model
         """
         raise NotImplementedError
 
@@ -130,34 +122,26 @@ class DeepHydro(DeepHydroInterface):
     The Base Trainer class for Hydrological Deep Learning models
     """
 
-    def __init__(
-        self, model_base: str, data_source_model: HydroDataset, params_dict: Dict
-    ):
+    def __init__(self, data_source: HydroDataset, cfgs: Dict):
         """
         Parameters
         ----------
-        model_base
-            name of model we gonna use; chosen from pytorch_model_dict in model_dict_function.py
-        data_source_model
+        data_source
             data source where we read data from
         params_dict
             parameters set for the model
         """
-        self.device_num = params_dict["training_params"]["device"]
+        self.device_num = cfgs["training_params"]["device"]
         self.device = get_the_device(self.device_num)
-        super().__init__(model_base, data_source_model, params_dict)
+        super().__init__(data_source, cfgs)
         print(f"Torch is using {str(self.device)}")
 
-    def load_model(
-        self, model_base: str, model_params: Dict, weight_path: str = None, strict=True
-    ):
+    def load_model(self, model_params: Dict, weight_path: str = None, strict=True):
         """
         Load a time series forecast model in pytorch_model_dict in model_dict_function.py
 
         Parameters
         ----------
-        model_base
-            name of the model
         model_params
             model parameters
         weight_path
@@ -170,11 +154,12 @@ class DeepHydro(DeepHydroInterface):
         object
             model in pytorch_model_dict in model_dict_function.py
         """
-        if model_base not in pytorch_model_dict:
+        model_name = model_params["model_name"]
+        if model_name not in pytorch_model_dict:
             raise NotImplementedError(
-                f"Error the model {model_base} was not found in the model dict. Please add it."
+                f"Error the model {model_name} was not found in the model dict. Please add it."
             )
-        model = pytorch_model_dict[model_base](**model_params["model_param"])
+        model = pytorch_model_dict[model_name](**model_params["model_param"])
         if weight_path is not None:
             # if the model has been trained
             strict = False
@@ -224,15 +209,15 @@ class DeepHydro(DeepHydroInterface):
         return model
 
     def make_dataset(
-        self, data_source_model: HydroDataset, data_params: Dict, loader_type: str
+        self, data_source: HydroDataset, data_params: Dict, loader_type: str
     ):
         """
         Initializes a pytorch dataset based on the provided data_source.
 
         Parameters
         ----------
-        data_source_model
-            the model for reading data from data source
+        data_source: Hydrodataset
+            data_source read data from data source
         data_params
             parameters for loading data
         loader_type
@@ -243,16 +228,16 @@ class DeepHydro(DeepHydroInterface):
         object
             an object initializing from class in datasets_dict in data_dict.py
         """
-        dataset = data_params["dataset"]
-        if dataset in list(datasets_dict.keys()):
-            loader = datasets_dict[dataset](data_source_model, data_params, loader_type)
+        dataset_name = data_params["dataset"]
+        if dataset_name in list(datasets_dict.keys()):
+            dataset = datasets_dict[dataset_name](data_source, data_params, loader_type)
         else:
             raise NotImplementedError(
                 "Error the dataset "
-                + str(dataset)
+                + str(dataset_name)
                 + " was not found in the dataset dict. Please add it."
             )
-        return loader
+        return dataset
 
     def model_train(self) -> None:
         """train a hydrological DL model"""
@@ -357,7 +342,7 @@ class DeepHydro(DeepHydroInterface):
         if "pin_memory" in training_params:
             pin_memory = training_params["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
-        train_dataset = self.training
+        train_dataset = self.traindataset
         sampler = None
         if data_params["sampler"] is not None:
             # now we only have one special sampler from Kuai Fang's Deep Learning papers
@@ -384,7 +369,7 @@ class DeepHydro(DeepHydroInterface):
             timeout=0,
         )
         if data_params["t_range_valid"] is not None:
-            valid_dataset = self.validation
+            valid_dataset = self.validdataset
             validation_data_loader = DataLoader(
                 valid_dataset,
                 batch_size=training_params["batch_size"],
@@ -401,51 +386,31 @@ class FedLearnHydro(DeepHydro):
     """Federated Learning Hydrological DL model"""
 
     def __init__(
-        self, model_base: str, data_source_model: HydroDataset, params_dict: Dict
+        self, data_source_model: HydroDataset, params_dict: Dict
     ):
-        super().__init__(model_base, data_source_model, params_dict)
-
-    def get_dataset():
-        """Returns train and test datasets and a user group which is a dict where
-        the keys are the user index and the values are the corresponding data for
-        each of those users.
-        """
-
-        data_dir = "../data/cifar/"
-        apply_transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-            ]
-        )
-
-        train_dataset = datasets.CIFAR10(
-            data_dir, train=True, download=True, transform=apply_transform
-        )
-
-        test_dataset = datasets.CIFAR10(
-            data_dir, train=False, download=True, transform=apply_transform
-        )
-
+        super().__init__(data_source_model, params_dict)
+        # a user group which is a dict where the keys are the user index
+        # and the values are the corresponding data for each of those users
+        train_dataset = self.traindataset
+        fl_params = self.params["model_params"]["fl_params"]
         # sample training data amongst users
-        if args.iid:
-            # Sample IID user data from Mnist
-            user_groups = cifar_iid(train_dataset, args.num_users)
+        if fl_params["fl_sample"] == "basin":
+            # Sample a basin for a user
+            user_groups = fl_sample_basin(train_dataset)
         else:
-            # Sample Non-IID user data from Mnist
-            if args.unequal:
-                # Chose uneuqal splits for every user
+            if fl_params["fl_sample"] != "region":
                 raise NotImplementedError()
             else:
-                # Chose euqal splits for every user
-                user_groups = cifar_noniid(train_dataset, args.num_users)
+                # Sample a region for a user
+                user_groups = fl_sample_region(train_dataset)
+        self.user_groups = user_groups
 
-        return train_dataset, test_dataset, user_groups
+    @property
+    def num_users(self):
+        """number of users in federated learning"""
+        return len(self.user_groups)
 
     def model_train(self) -> None:
-        # define paths
-        train_dataset, valid_dataset, user_groups = self.get_dataset()
-
         # BUILD MODEL
         global_model = self.model
 
@@ -454,27 +419,31 @@ class FedLearnHydro(DeepHydro):
 
         # Training
         train_loss, train_accuracy = [], []
-        val_acc_list, net_list = [], []
-        cv_loss, cv_acc = [], []
         print_every = 2
-        val_loss_pre, counter = 0, 0
 
-        for epoch in tqdm(range(self.params.epochs)):
+        training_params = self.params["training_params"]
+        model_params = self.params["model_params"]
+        max_epochs = training_params["epochs"]
+        start_epoch = training_params["start_epoch"]
+        fl_params = model_params["fl_params"]
+        # total rounds in a FL system is max_epochs
+        for epoch in tqdm(range(start_epoch, max_epochs + 1)):
             local_weights, local_losses = [], []
-            print(f"\n | Global Training Round : {epoch+1} |\n")
+            print(f"\n | Global Training Round : {epoch} |\n")
 
             global_model.train()
-            m = max(int(self.params.frac * self.params.num_users), 1)
-            idxs_users = np.random.choice(
-                range(self.params.num_users), m, replace=False
-            )
+            m = max(int(fl_params["fl_frac"] * self.num_users), 1)
+            # randomly select m users, they will be the clients in this round
+            idxs_users = np.random.choice(range(self.num_users), m, replace=False)
 
             for idx in idxs_users:
+                # each user will be used to train the model locally
+                # user_gourps[idx] means the idx of dataset for a user
+                self.user_groups[idx]
                 local_model = DeepHydro(
-                    args=args,
-                    dataset=train_dataset,
-                    idxs=user_groups[idx],
-                    logger=logger,
+                    model_params["model_name"],
+                    self.data_source,
+                    self.params,
                 )
                 w, loss = local_model.model_train(
                     model=copy.deepcopy(global_model), global_round=epoch
@@ -494,12 +463,11 @@ class FedLearnHydro(DeepHydro):
             # Calculate avg training accuracy over all users at every epoch
             list_acc, list_loss = [], []
             global_model.eval()
-            for c in range(args.num_users):
+            for c in range(self.num_users):
                 local_model = DeepHydro(
-                    args=args,
-                    dataset=train_dataset,
-                    idxs=user_groups[idx],
-                    logger=logger,
+                    model_params["model_name"],
+                    self.data_source,
+                    self.params,
                 )
                 acc, loss = local_model.inference(model=global_model)
                 list_acc.append(acc)
