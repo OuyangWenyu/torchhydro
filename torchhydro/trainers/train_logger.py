@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-24 21:01:34
+LastEditTime: 2023-10-03 16:48:21
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
-FilePath: \torchhydro\torchhydro\trainers\train_logger.py
+FilePath: /torchhydro/torchhydro/trainers/train_logger.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 from contextlib import contextmanager
@@ -52,6 +52,8 @@ class TrainLogger:
         self.tb = SummaryWriter(self.training_save_dir)
         self.session_params = []
         self.train_time = []
+        # log loss for each epoch
+        self.epoch_loss = []
 
     def save_session_param(
         self, epoch, total_loss, n_iter_ep, valid_loss=None, valid_metrics=None
@@ -89,6 +91,7 @@ class TrainLogger:
         self.tb.add_scalar("Loss", total_loss, epoch)
         self.plot_hist_img(model, epoch)
         self.train_time.append(log_str)
+        self.epoch_loss.append(total_loss)
 
     @contextmanager
     def log_epoch_valid(self, epoch):
@@ -119,6 +122,8 @@ class TrainLogger:
     def save_model_and_params(self, model, epoch, params):
         final_epoch = params["training_cfgs"]["epochs"]
         save_epoch = params["training_cfgs"]["save_epoch"]
+        if save_epoch is None or save_epoch == 0:
+            return
         if (save_epoch > 0 and epoch % save_epoch == 0) or epoch == final_epoch:
             # save for save_epoch
             model_file = os.path.join(

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-25 19:24:11
+LastEditTime: 2023-09-28 16:25:34
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: /torchhydro/torchhydro/configs/config.py
@@ -724,6 +724,24 @@ def cmd(
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
     return args
+
+
+def update_nested_dict(d, keys, value):
+    """update nested dict
+
+    Parameters
+    ----------
+    d
+        the dict to be updated
+    keys
+        the keys of the dict
+    value
+        the updated value of the dict
+    """
+    if len(keys) == 1:
+        d[keys[0]] = value
+    else:
+        update_nested_dict(d[keys[0]], keys[1:], value)
 
 
 def update_cfg(cfg_file, new_args):

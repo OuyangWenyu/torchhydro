@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-09-25 19:10:23
+LastEditTime: 2023-09-26 20:21:52
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: /torchhydro/torchhydro/trainers/trainer.py
@@ -44,35 +44,34 @@ def set_random_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
-def train_and_evaluate(params: Dict):
+def train_and_evaluate(cfgs: Dict):
     """
     Function to train and test a Model
 
     Parameters
     ----------
-    params
-        Dictionary containing all the parameters needed to run the model
+    cfgs
+        Dictionary containing all configs needed to run the model
 
     Returns
     -------
     None
     """
-    random_seed = params["training_cfgs"]["random_seed"]
+    random_seed = cfgs["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
-    data_source = _get_datasource(params)
-    model = _get_hydro_dl_model(params, data_source)
-    if params["training_cfgs"]["train_mode"]:
+    data_source = _get_datasource(cfgs)
+    deephydro = _get_deep_hydro(cfgs, data_source)
+    if cfgs["training_cfgs"]["train_mode"]:
         if (
-            "weight_path" in params["model_cfgs"]
-            and params["model_cfgs"]["continue_train"]
-        ) or ("weight_path" not in params["model_cfgs"]):
-            model.model_train()
-        test_acc = evaluate_model(model)
+            "weight_path" in cfgs["model_cfgs"] and cfgs["model_cfgs"]["continue_train"]
+        ) or ("weight_path" not in cfgs["model_cfgs"]):
+            deephydro.model_train()
+        test_acc = evaluate_model(deephydro)
         print("summary test_accuracy", test_acc[0])
         # save the results
         save_result(
-            params["data_cfgs"]["test_path"],
-            params["evaluation_cfgs"]["test_epoch"],
+            cfgs["data_cfgs"]["test_path"],
+            cfgs["evaluation_cfgs"]["test_epoch"],
             test_acc[1],
             test_acc[2],
         )
@@ -82,23 +81,23 @@ def train_and_evaluate(params: Dict):
             and "_stat" not in file  # statistics json file
             and "_dict" not in file  # data cache json file
         )
-        for file in os.listdir(params["data_cfgs"]["test_path"])
+        for file in os.listdir(cfgs["data_cfgs"]["test_path"])
     )
     if not param_file_exist:
         # although we save params log during training, but sometimes we directly evaluate a model
         # so here we still save params log if param file does not exist
         # no param file was saved yet, here we save data and params setting
-        save_param_log_path = params["data_cfgs"]["test_path"]
-        save_model_params_log(params, save_param_log_path)
+        save_param_log_path = cfgs["data_cfgs"]["test_path"]
+        save_model_params_log(cfgs, save_param_log_path)
 
 
-def _get_hydro_dl_model(params, data_source):
-    model_type = params["model_cfgs"]["model_type"]
-    return model_type_dict[model_type](data_source, params)
+def _get_deep_hydro(cfgs, data_source):
+    model_type = cfgs["model_cfgs"]["model_type"]
+    return model_type_dict[model_type](data_source, cfgs)
 
 
-def _get_datasource(params):
-    data_cfgs = params["data_cfgs"]
+def _get_datasource(cfgs):
+    data_cfgs = cfgs["data_cfgs"]
     data_source_name = data_cfgs["data_source_name"]
     if data_source_name in ["CAMELS", "CAMELS_SERIES"]:
         # there are many different regions for CAMELS datasets

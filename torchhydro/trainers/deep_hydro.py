@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-25 20:49:54
+LastEditTime: 2023-10-03 16:45:35
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
@@ -18,6 +18,7 @@ from torch import nn
 from hydrodataset import HydroDataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.sampler import KuaiSampler, fl_sample_basin, fl_sample_region
 from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.models.model_dict_function import (
@@ -112,8 +113,8 @@ class DeepHydro(DeepHydroInterface):
         ----------
         data_source
             data source where we read data from
-        params_dict
-            parameters set for the model
+        cfgs
+            configs for the model
         pre_model
             a pre-trained model, if it is not None,
             we will use its weights to initialize this model
@@ -233,9 +234,7 @@ class DeepHydro(DeepHydroInterface):
         data_cfgs = self.cfgs["data_cfgs"]
         dataset_name = data_cfgs["dataset"]
         if dataset_name in list(datasets_dict.keys()):
-            dataset = datasets_dict[dataset_name](
-                data_source, data_cfgs, is_tra_val_te
-            )
+            dataset = datasets_dict[dataset_name](data_source, data_cfgs, is_tra_val_te)
         else:
             raise NotImplementedError(
                 "Error the dataset "
@@ -315,6 +314,8 @@ class DeepHydro(DeepHydroInterface):
                 break
 
         logger.tb.close()
+        # return the trained model weights and bias and the epoch loss
+        return self.model.state_dict(), sum(logger.epoch_loss) / len(logger.epoch_loss)
 
     def _get_optimizer(self, training_cfgs):
         params_in_opt = self.model.parameters()
@@ -383,8 +384,9 @@ class DeepHydro(DeepHydroInterface):
                 pin_memory=pin_memory,
                 timeout=0,
             )
+            return data_loader, validation_data_loader
 
-        return data_loader, validation_data_loader
+        return data_loader, None
 
 
 class FedLearnHydro(DeepHydro):
@@ -505,7 +507,10 @@ class FedLearnHydro(DeepHydro):
         print("\n Total Run Time: {0:0.4f}".format(time.time() - start_time))
 
     def _get_a_user_cfgs(self, idx):
+        """To get a user's configs for local training"""
         user = self.user_groups[idx]
+
+        # update data_cfgs
         # Use defaultdict to collect dates for each basin
         basin_dates = defaultdict(list)
 
@@ -513,16 +518,68 @@ class FedLearnHydro(DeepHydro):
             basin_dates[basin].append(time)
 
         # Initialize a list to store distinct basins
-        unique_strings = []
+        basins = []
 
         # for each basin, we can find its date range
         date_ranges = {}
         for basin, times in basin_dates.items():
-            unique_strings.append(basin)
+            basins.append(basin)
             date_ranges[basin] = (np.min(times), np.max(times))
+        # get the longest date range
+        longest_date_range = max(date_ranges.values(), key=lambda x: x[1] - x[0])
+        # transform the date range of numpy data into string
+        longest_date_range = list(
+            np.datetime_as_string(dt, unit="D") for dt in longest_date_range
+        )
         user_cfgs = copy.deepcopy(self.cfgs)
         # update data_cfgs
-        self.update(self.user_groups[idx])
+        update_nested_dict(
+            user_cfgs, ["data_cfgs", "t_range_train"], longest_date_range
+        )
+        # for local training in FL, we don't need a validation set
+        update_nested_dict(user_cfgs, ["data_cfgs", "t_range_valid"], None)
+        # for local training in FL, we don't need a test set, but we should set one to avoid error
+        update_nested_dict(user_cfgs, ["data_cfgs", "t_range_test"], longest_date_range)
+        update_nested_dict(user_cfgs, ["data_cfgs", "object_ids"], basins)
+
+        # update training_cfgs
+        # we also need to update some training params for local training from FL settings
+        update_nested_dict(
+            user_cfgs,
+            ["training_cfgs", "epochs"],
+            user_cfgs["model_cfgs"]["fl_hyperparam"]["fl_local_ep"],
+        )
+        update_nested_dict(
+            user_cfgs,
+            ["evaluation_cfgs", "test_epoch"],
+            user_cfgs["model_cfgs"]["fl_hyperparam"]["fl_local_ep"],
+        )
+        # don't need to save model weights for local training
+        update_nested_dict(
+            user_cfgs,
+            ["training_cfgs", "save_epoch"],
+            None,
+        )
+        # there are two settings for batch size in configs, we need to update both of them
+        update_nested_dict(
+            user_cfgs,
+            ["training_cfgs", "batch_size"],
+            user_cfgs["model_cfgs"]["fl_hyperparam"]["fl_local_bs"],
+        )
+        update_nested_dict(
+            user_cfgs,
+            ["data_cfgs", "batch_size"],
+            user_cfgs["model_cfgs"]["fl_hyperparam"]["fl_local_bs"],
+        )
+
+        # update model_cfgs finally
+        # For local model, its model_type is Normal
+        update_nested_dict(user_cfgs, ["model_cfgs", "model_type"], "Normal")
+        update_nested_dict(
+            user_cfgs,
+            ["model_cfgs", "fl_hyperparam"],
+            None,
+        )
         return user_cfgs
 
 
