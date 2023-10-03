@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-18 14:34:53
-LastEditTime: 2023-09-25 19:03:18
+LastEditTime: 2023-10-03 19:44:48
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
-FilePath: /torchhydro/tests/test_evaluate_model.py
+FilePath: \torchhydro\tests\test_evaluate_model.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
@@ -14,7 +14,6 @@ from hydroutils.hydro_file import get_lastest_file_in_a_dir
 from hydroutils.hydro_plot import plot_ts
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.datasets.data_dict import data_sources_dict
-from torchhydro.trainers.evaluator import evaluate_model
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed
 
@@ -83,7 +82,7 @@ def test_evaluate_model(config_data):
         data_cfgs["data_path"], data_cfgs["download"]
     )
     model = DeepHydro(data_source, config_data)
-    eval_log, preds_xr, obss_xr = evaluate_model(model)
+    eval_log, preds_xr, obss_xr = model.model_evaluate()
     print(eval_log)
     plot_ts(
         [preds_xr["time"].values, obss_xr["time"].values],

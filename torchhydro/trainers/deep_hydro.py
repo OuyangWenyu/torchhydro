@@ -1,17 +1,20 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-03 16:45:35
+LastEditTime: 2023-10-03 22:56:45
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
+FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
 import copy
-from typing import Dict
+from functools import reduce
+import os
+from typing import Dict, Tuple
+from hydroutils.hydro_stat import stat_error
 import numpy as np
 import torch
 from torch import nn
@@ -31,11 +34,14 @@ from torchhydro.models.model_utils import get_the_device
 from torchhydro.trainers.train_utils import (
     EarlyStopper,
     average_weights,
+    denormalize4eval,
     evaluate_validation,
     compute_validation,
+    model_infer,
     torch_single_train,
 )
 from torchhydro.trainers.train_logger import TrainLogger
+from trainers.train_utils import cellstates_when_inference
 
 
 class DeepHydroInterface(ABC):
@@ -101,6 +107,13 @@ class DeepHydroInterface(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def model_evaluate(self):
+        """
+        Evaluate the model
+        """
+        raise NotImplementedError
+
 
 class DeepHydro(DeepHydroInterface):
     """
@@ -145,11 +158,8 @@ class DeepHydro(DeepHydroInterface):
         """
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
-        if weight_path is None:
-            # we prioritize the weight path in this function parameter
-            if "weight_path" in model_cfgs:
-                # then if weight path in cfgs is not None, we will use it
-                weight_path = model_cfgs["weight_path"]
+        if weight_path is None and "weight_path" in model_cfgs:
+            weight_path = model_cfgs["weight_path"]
         if model_name not in pytorch_model_dict:
             raise NotImplementedError(
                 f"Error the model {model_name} was not found in the model dict. Please add it."
@@ -189,8 +199,7 @@ class DeepHydro(DeepHydroInterface):
 
     def _load_pretrain_model(self):
         """load a pretrained model as the initial model"""
-        model = self.pre_model
-        return model
+        return self.pre_model
 
     def _load_model_from_pth(self, model_cfgs, weight_path, strict):
         model_name = model_cfgs["model_name"]
@@ -230,16 +239,14 @@ class DeepHydro(DeepHydroInterface):
         object
             an object initializing from class in datasets_dict in data_dict.py
         """
-        data_source = self.data_source
         data_cfgs = self.cfgs["data_cfgs"]
         dataset_name = data_cfgs["dataset"]
+        data_source = self.data_source
         if dataset_name in list(datasets_dict.keys()):
             dataset = datasets_dict[dataset_name](data_source, data_cfgs, is_tra_val_te)
         else:
             raise NotImplementedError(
-                "Error the dataset "
-                + str(dataset_name)
-                + " was not found in the dataset dict. Please add it."
+                f"Error the dataset {str(dataset_name)} was not found in the dataset dict. Please add it."
             )
         return dataset
 
@@ -316,6 +323,121 @@ class DeepHydro(DeepHydroInterface):
         logger.tb.close()
         # return the trained model weights and bias and the epoch loss
         return self.model.state_dict(), sum(logger.epoch_loss) / len(logger.epoch_loss)
+
+    def model_evaluate(self) -> Tuple[Dict, np.array, np.array]:
+        """
+        A function to evaluate a model, called at end of training.
+
+        Returns
+        -------
+        tuple[dict, np.array, np.array]
+            eval_log, denormalized predictions and observations
+        """
+        data_cfgs = self.cfgs["data_cfgs"]
+        # types of observations
+        target_col = self.cfgs["data_cfgs"]["target_cols"]
+        evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
+        # fill_nan: "no" means ignoring the NaN value;
+        #           "sum" means calculate the sum of the following values in the NaN locations.
+        #           For example, observations are [1, nan, nan, 2], and predictions are [0.3, 0.3, 0.3, 1.5].
+        #           Then, "no" means [1, 2] v.s. [0.3, 1.5] while "sum" means [1, 2] v.s. [0.3 + 0.3 + 0.3, 1.5].
+        #           If it is a str, then all target vars use same fill_nan method;
+        #           elif it is a list, each for a var
+        fill_nan = self.cfgs["evaluation_cfgs"]["fill_nan"]
+        # save result here
+        eval_log = {}
+
+        # test the trained model
+        test_epoch = self.cfgs["evaluation_cfgs"]["test_epoch"]
+        train_epoch = self.cfgs["training_cfgs"]["epochs"]
+        if test_epoch != train_epoch:
+            # Generally we use same epoch for train and test, but sometimes not
+            # TODO: better refactor this part, because sometimes we save multi models for multi hyperparameters
+            model_filepath = self.cfgs["data_cfgs"]["test_path"]
+            self.model = self.load_model(
+                self.cfgs["model_cfgs"],
+                weight_path=os.path.join(
+                    model_filepath, f"model_Ep{str(test_epoch)}.pth"
+                ),
+            )
+        preds_xr, obss_xr, test_data = self.inference()
+        #  Then evaluate the model metrics
+        if type(fill_nan) is list and len(fill_nan) != len(target_col):
+            raise ValueError("length of fill_nan must be equal to target_col's")
+        for i in range(len(target_col)):
+            obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
+            pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
+            if type(fill_nan) is str:
+                inds = stat_error(
+                    obs_xr.to_numpy(),
+                    pred_xr.to_numpy(),
+                    fill_nan,
+                )
+            else:
+                inds = stat_error(
+                    obs_xr.to_numpy(),
+                    pred_xr.to_numpy(),
+                    fill_nan[i],
+                )
+            for evaluation_metric in evaluation_metrics:
+                eval_log[f"{evaluation_metric} of {target_col[i]}"] = inds[
+                    evaluation_metric
+                ]
+
+        # Finally, try to explain model behaviour using shap
+        # TODO: SHAP has not been supported
+        is_shap = False
+        if is_shap:
+            deep_explain_model_summary_plot(
+                model, test_data, data_cfgs["t_range_test"][0]
+            )
+            deep_explain_model_heatmap(model, test_data, data_cfgs["t_range_test"][0])
+
+        return eval_log, preds_xr, obss_xr
+
+    def inference(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        """infer using trained model and unnormalized results"""
+        data_cfgs = self.cfgs["data_cfgs"]
+        training_cfgs = self.cfgs["training_cfgs"]
+        device = get_the_device(self.cfgs["training_cfgs"]["device"])
+        test_dataloader = DataLoader(
+            self.testdataset,
+            batch_size=training_cfgs["batch_size"],
+            shuffle=False,
+            sampler=None,
+            batch_sampler=None,
+            drop_last=False,
+            timeout=0,
+            worker_init_fn=None,
+        )
+        seq_first = training_cfgs["which_first_tensor"] == "sequence"
+        self.model.eval()
+        # here the batch is just an index of lookup table, so any batch size could be chosen
+        test_preds = []
+        obss = []
+        with torch.no_grad():
+            for xs, ys in test_dataloader:
+                # here the a batch doesn't mean a basin; it is only an index in lookup table
+                # for NtoN mode, only basin is index in lookup table, so the batch is same as basin
+                # for Nto1 mode, batch is only an index
+                ys, output = model_infer(seq_first, device, self.model, xs, ys)
+                test_preds.append(output.cpu().numpy())
+                obss.append(ys.cpu().numpy())
+            pred = reduce(lambda x, y: np.vstack((x, y)), test_preds)
+            obs = reduce(lambda x, y: np.vstack((x, y)), obss)
+        if pred.ndim == 2:
+            # TODO: check
+            # the ndim is 2 meaning we use an Nto1 mode
+            # as lookup table is (basin 1's all time length, basin 2's all time length, ...)
+            # params of reshape should be (basin size, time length)
+            pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
+            obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
+        # TODO: not support return_cell_states yet
+        return_cell_state = False
+        if return_cell_state:
+            return cellstates_when_inference(seq_first, data_cfgs, pred)
+        pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
+        return pred_xr, obs_xr, self.testdataset
 
     def _get_optimizer(self, training_cfgs):
         params_in_opt = self.model.parameters()
@@ -402,12 +524,11 @@ class FedLearnHydro(DeepHydro):
         if fl_hyperparam["fl_sample"] == "basin":
             # Sample a basin for a user
             user_groups = fl_sample_basin(train_dataset)
+        elif fl_hyperparam["fl_sample"] == "region":
+            # Sample a region for a user
+            user_groups = fl_sample_region(train_dataset)
         else:
-            if fl_hyperparam["fl_sample"] != "region":
-                raise NotImplementedError()
-            else:
-                # Sample a region for a user
-                user_groups = fl_sample_region(train_dataset)
+            raise NotImplementedError()
         self.user_groups = user_groups
 
     @property
@@ -466,13 +587,13 @@ class FedLearnHydro(DeepHydro):
             # Calculate avg training accuracy over all users at every epoch
             list_acc, list_loss = [], []
             global_model.eval()
-            for c in range(self.num_users):
+            for _ in range(self.num_users):
                 local_model = DeepHydro(
                     self.data_source,
-                    self.cfgs,
+                    user_cfgs,
                     pre_model=global_model,
                 )
-                acc, loss = local_model.inference()
+                acc, loss = local_model.model_evaluate()
                 list_acc.append(acc)
                 list_loss.append(loss)
             train_accuracy.append(sum(list_acc) / len(list_acc))
@@ -491,15 +612,7 @@ class FedLearnHydro(DeepHydro):
         print("|---- Test Accuracy: {:.2f}%".format(100 * test_acc))
 
         # Saving the objects train_loss and train_accuracy:
-        file_name = "../save/objects/{}_{}_{}_C[{}]_iid[{}]_E[{}]_B[{}].pkl".format(
-            args.dataset,
-            args.model,
-            args.epochs,
-            args.frac,
-            args.iid,
-            args.local_ep,
-            args.local_bs,
-        )
+        file_name = f"../save/objects/{args.dataset}_{args.model}_{args.epochs}_C[{args.frac}]_iid[{args.iid}]_E[{args.local_ep}]_B[{args.local_bs}].pkl"
 
         with open(file_name, "wb") as f:
             pickle.dump([train_loss, train_accuracy], f)
@@ -528,9 +641,9 @@ class FedLearnHydro(DeepHydro):
         # get the longest date range
         longest_date_range = max(date_ranges.values(), key=lambda x: x[1] - x[0])
         # transform the date range of numpy data into string
-        longest_date_range = list(
+        longest_date_range = [
             np.datetime_as_string(dt, unit="D") for dt in longest_date_range
-        )
+        ]
         user_cfgs = copy.deepcopy(self.cfgs)
         # update data_cfgs
         update_nested_dict(

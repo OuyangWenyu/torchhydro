@@ -1,16 +1,19 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:06:12
-LastEditTime: 2023-09-25 08:19:23
+LastEditTime: 2023-10-03 18:04:22
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
-FilePath: /torchhydro/torchhydro/trainers/train_utils.py
+FilePath: \torchhydro\torchhydro\trainers\train_utils.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
 
 import copy
+import os
+from functools import reduce
 from hydroutils.hydro_stat import stat_error
+import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -366,3 +369,18 @@ def average_weights(w):
             w_avg[key] += w[i][key]
         w_avg[key] = torch.div(w_avg[key], len(w))
     return w_avg
+
+
+def cellstates_when_inference(seq_first, data_cfgs, pred):
+    """get cell states when inference"""
+    cs_out = (
+        cs_cat_lst.detach().cpu().numpy().swapaxes(0, 1)
+        if seq_first
+        else cs_cat_lst.detach().cpu().numpy()
+    )
+    cs_out_lst = [cs_out]
+    cell_state = reduce(lambda a, b: np.vstack((a, b)), cs_out_lst)
+    np.save(os.path.join(data_cfgs["test_path"], "cell_states.npy"), cell_state)
+    # model.zero_grad()
+    torch.cuda.empty_cache()
+    return pred, cell_state

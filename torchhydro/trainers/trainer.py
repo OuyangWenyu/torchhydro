@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-09-26 20:21:52
+LastEditTime: 2023-10-03 22:41:32
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
-FilePath: /torchhydro/torchhydro/trainers/trainer.py
+FilePath: \torchhydro\torchhydro\trainers\trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import fnmatch
@@ -18,7 +18,6 @@ import torch
 from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import unserialize_numpy
 from torchhydro.datasets.data_dict import data_sources_dict
-from torchhydro.trainers.evaluator import evaluate_model
 from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.trainers.deep_hydro import model_type_dict
 
@@ -66,7 +65,7 @@ def train_and_evaluate(cfgs: Dict):
             "weight_path" in cfgs["model_cfgs"] and cfgs["model_cfgs"]["continue_train"]
         ) or ("weight_path" not in cfgs["model_cfgs"]):
             deephydro.model_train()
-        test_acc = evaluate_model(deephydro)
+        test_acc = deephydro.model_evaluate()
         print("summary test_accuracy", test_acc[0])
         # save the results
         save_result(
@@ -99,19 +98,17 @@ def _get_deep_hydro(cfgs, data_source):
 def _get_datasource(cfgs):
     data_cfgs = cfgs["data_cfgs"]
     data_source_name = data_cfgs["data_source_name"]
-    if data_source_name in ["CAMELS", "CAMELS_SERIES"]:
-        # there are many different regions for CAMELS datasets
-        data_source = data_sources_dict[data_source_name](
+    return (
+        data_sources_dict[data_source_name](
             data_cfgs["data_path"],
             data_cfgs["download"],
             data_cfgs["data_region"],
         )
-    else:
-        data_source = data_sources_dict[data_source_name](
+        if data_source_name in ["CAMELS", "CAMELS_SERIES"]
+        else data_sources_dict[data_source_name](
             data_cfgs["data_path"], data_cfgs["download"]
         )
-
-    return data_source
+    )
 
 
 def save_result(save_dir, epoch, pred, obs, pred_name="flow_pred", obs_name="flow_obs"):
