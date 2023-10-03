@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-03 22:56:45
+LastEditTime: 2023-10-03 23:44:43
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -585,39 +585,27 @@ class FedLearnHydro(DeepHydro):
             train_loss.append(loss_avg)
 
             # Calculate avg training accuracy over all users at every epoch
-            list_acc, list_loss = [], []
+            list_acc = []
             global_model.eval()
-            for _ in range(self.num_users):
+            for c in range(self.num_users):
+                one_user_cfg = self._get_a_user_cfgs(c)
                 local_model = DeepHydro(
                     self.data_source,
-                    user_cfgs,
+                    one_user_cfg,
                     pre_model=global_model,
                 )
-                acc, loss = local_model.model_evaluate()
+                acc, _, _ = local_model.model_evaluate()
                 list_acc.append(acc)
-                list_loss.append(loss)
-            train_accuracy.append(sum(list_acc) / len(list_acc))
+            values = [list(d.values())[0][0] for d in list_acc]
+            # TODO: check nan values
+            filtered_values = [v for v in values if not np.isnan(v)]
+            train_accuracy.append(sum(filtered_values) / len(filtered_values))
 
             # print global training loss after every 'i' rounds
             if (epoch + 1) % print_every == 0:
                 print(f" \nAvg Training Stats after {epoch+1} global rounds:")
                 print(f"Training Loss : {np.mean(np.array(train_loss))}")
                 print("Train Accuracy: {:.2f}% \n".format(100 * train_accuracy[-1]))
-
-        # Test inference after completion of training
-        test_acc, test_loss = test_inference(args, global_model, valid_dataset)
-
-        print(f" \n Results after {args.epochs} global rounds of training:")
-        print("|---- Avg Train Accuracy: {:.2f}%".format(100 * train_accuracy[-1]))
-        print("|---- Test Accuracy: {:.2f}%".format(100 * test_acc))
-
-        # Saving the objects train_loss and train_accuracy:
-        file_name = f"../save/objects/{args.dataset}_{args.model}_{args.epochs}_C[{args.frac}]_iid[{args.iid}]_E[{args.local_ep}]_B[{args.local_bs}].pkl"
-
-        with open(file_name, "wb") as f:
-            pickle.dump([train_loss, train_accuracy], f)
-
-        print("\n Total Run Time: {0:0.4f}".format(time.time() - start_time))
 
     def _get_a_user_cfgs(self, idx):
         """To get a user's configs for local training"""
