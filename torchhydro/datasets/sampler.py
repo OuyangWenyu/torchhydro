@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-25 08:21:27
-LastEditTime: 2023-09-25 15:19:25
+LastEditTime: 2023-10-05 15:50:27
 LastEditors: Wenyu Ouyang
 Description: Some sampling class or functions
-FilePath: /torchhydro/torchhydro/datasets/sampler.py
+FilePath: \torchhydro\torchhydro\datasets\sampler.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 from collections import defaultdict
@@ -110,7 +110,7 @@ def fl_sample_region(dataset: BaseDataset):
     """
     num_users = 10
     num_shards, num_imgs = 200, 250
-    idx_shard = [i for i in range(num_shards)]
+    idx_shard = list(range(num_shards))
     dict_users = {i: np.array([]) for i in range(num_users)}
     idxs = np.arange(num_shards * num_imgs)
     # labels = dataset.train_labels.numpy()

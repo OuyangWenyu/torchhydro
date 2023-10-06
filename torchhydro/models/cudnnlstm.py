@@ -1,10 +1,10 @@
 """
 Author: MHPI group, Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-07-11 20:44:55
+LastEditTime: 2023-10-06 19:45:19
 LastEditors: Wenyu Ouyang
 Description: LSTM with dropout implemented by Kuai Fang and more LSTMs using it
-FilePath: \HydroTL\hydrotl\models\cudnnlstm.py
+FilePath: \torchhydro\torchhydro\models\cudnnlstm.py
 Copyright (c) 2021-2022 MHPI group, Wenyu Ouyang. All rights reserved.
 """
 
@@ -20,7 +20,7 @@ from torchhydro.models.ann import SimpleAnn
 from torchhydro.models.dropout import DropMask, create_mask
 
 
-class LstmCellTied(torch.nn.Module):
+class LstmCellTied(nn.Module):
     """
     LSTM with dropout implemented by Kuai Fang: https://github.com/mhpi/hydroDL/blob/release/hydroDL/model/rnn.py
 
@@ -56,11 +56,8 @@ class LstmCellTied(torch.nn.Module):
         self.mode = mode
         if mode == "train":
             self.train(mode=True)
-        elif mode == "test":
+        elif mode in ["test", "drMC"]:
             self.train(mode=False)
-        elif mode == "drMC":
-            self.train(mode=False)
-
         if gpu >= 0:
             self = self.cuda()
             self.is_cuda = True
@@ -81,11 +78,7 @@ class LstmCellTied(torch.nn.Module):
         self.mask_w_hh = create_mask(self.w_hh, self.dr)
 
     def forward(self, x, hidden, *, do_reset_mask=True, do_drop_mc=False):
-        if self.dr > 0 and (do_drop_mc is True or self.training is True):
-            do_drop = True
-        else:
-            do_drop = False
-
+        do_drop = self.dr > 0 and (do_drop_mc is True or self.training is True)
         batch_size = x.size(0)
         h0, c0 = hidden
         if h0 is None:
@@ -96,13 +89,13 @@ class LstmCellTied(torch.nn.Module):
         if self.dr > 0 and self.training is True and do_reset_mask is True:
             self.reset_mask(x, h0, c0)
 
-        if do_drop is True and "drH" in self.drMethod:
+        if do_drop and "drH" in self.drMethod:
             h0 = DropMask.apply(h0, self.mask_h, True)
 
-        if do_drop is True and "drX" in self.drMethod:
+        if do_drop and "drX" in self.drMethod:
             x = DropMask.apply(x, self.mask_x, True)
 
-        if do_drop is True and "drW" in self.drMethod:
+        if do_drop and "drW" in self.drMethod:
             w_ih = DropMask.apply(self.w_ih, self.mask_w_ih, True)
             w_hh = DropMask.apply(self.w_hh, self.mask_w_hh, True)
         else:
@@ -127,7 +120,7 @@ class LstmCellTied(torch.nn.Module):
         return h1, c1
 
 
-class CpuLstmModel(torch.nn.Module):
+class CpuLstmModel(nn.Module):
     """
     Cpu version of CudnnLstmModel , ,
     """
@@ -171,7 +164,7 @@ class CpuLstmModel(torch.nn.Module):
         return out
 
 
-class CudnnLstm(torch.nn.Module):
+class CudnnLstm(nn.Module):
     """
     LSTM with dropout implemented by Kuai Fang: https://github.com/mhpi/hydroDL/blob/release/hydroDL/model/rnn.py
 
@@ -205,11 +198,10 @@ class CudnnLstm(torch.nn.Module):
         self.reset_parameters()
 
     def _apply(self, fn):
-        ret = super(CudnnLstm, self)._apply(fn)
-        return ret
+        return super()._apply(fn)
 
     def __setstate__(self, d):  # this func will be called when loading the model
-        super(CudnnLstm, self).__setstate__(d)
+        super().__setstate__(d)
         self.__dict__.setdefault("_data_ptrs", [])
         if "all_weights" in d:
             self._all_weights = d["all_weights"]
@@ -242,10 +234,10 @@ class CudnnLstm(torch.nn.Module):
         if cx is None:
             cx = input.new_zeros(1, batch_size, self.hidden_size, requires_grad=False)
 
-        # cuDNN backend - disabled flat weight
-        freeze_mask = False
         # handle = torch.backends.cudnn.get_handle()
         if do_drop is True:
+            # cuDNN backend - disabled flat weight
+            freeze_mask = False
             if not freeze_mask:
                 self.reset_mask()
             weight = [
@@ -303,7 +295,7 @@ class CudnnLstm(torch.nn.Module):
         ]
 
 
-class CudnnLstmModel(torch.nn.Module):
+class CudnnLstmModel(nn.Module):
     def __init__(self, n_input_features, n_output_features, n_hidden_states, dr=0.5):
         """
         An LSTM model writen by Kuai Fang from this paper: https://doi.org/10.1002/2017GL075619
@@ -342,98 +334,30 @@ class CudnnLstmModel(torch.nn.Module):
         return (out, (hn, cn)) if return_h_c else out
 
 
-class KuaiLstm(torch.nn.Module):
-    """
-    An LSTM model writen by Kuai Fang from this paper: https://doi.org/10.1002/2017GL075619
-    """
-
-    def __init__(
-        self, n_input_features, n_output_features, n_hidden_states, dr=0.5, gpu=0
-    ):
-        """
-        CPU or GPU version of Kuai's LSTM
-
-        Parameters
-        ----------
-        n_input_features
-            the number of input features
-        n_output_features
-            the number of output features
-        n_hidden_states
-            the number of hidden features
-        dr
-            dropout rate and its default is 0.5
-        gpu
-            if gpu<0 or torch.cuda is not available, we will use CPU version
-        """
-        super(KuaiLstm, self).__init__()
-        if gpu < 0 or (not torch.cuda.is_available()):
-            self.kuai_lstm = CpuLstmModel(
-                n_input_features=n_input_features,
-                n_output_features=n_output_features,
-                n_hidden_states=n_hidden_states,
-                dr=dr,
-            )
-        else:
-            self.kuai_lstm = CudnnLstmModel(
-                n_input_features=n_input_features,
-                n_output_features=n_output_features,
-                n_hidden_states=n_hidden_states,
-                dr=dr,
-            )
-
-    def forward(self, x):
-        return self.kuai_lstm(x)
-
-
-class LinearCudnnLstmModel(torch.nn.Module):
-    """
-    This model is nonlinear layer + CudnnLSTM/CudnnLstm-MultiOutput-Model. It is used for transfer learning.
+class LinearCudnnLstmModel(CudnnLstmModel):
+    """This model is nonlinear layer + CudnnLSTM/CudnnLstm-MultiOutput-Model.
+    kai_tl: model from this paper by Ma et al. -- https://doi.org/10.1029/2020WR028600
     """
 
-    def __init__(self, linear_size, model_name="kai_tl", tl_tag=True, **kwargs):
+    def __init__(self, linear_size, **kwargs):
         """
 
         Parameters
         ----------
         linear_size
             the number of input features for the first input linear layer
-        model_name
-            we provide two types of transfer learning model：
-            1. kai_tl: model from this paper by Ma et al. -- https://doi.org/10.1029/2020WR028600
-            2. multi_output_tl: transfer learning model for multi-output-cudnnlstm
-        tl_tag
-            when the source model's layers are totally same as target model's, it is set True;
-            or it will be False, by default True
-        output_size
-            the number of output features
-        hidden_size
-            the number of hidden features
-        dr
-            dropout rate and its default is 0.5
         """
         super(LinearCudnnLstmModel, self).__init__()
         self.former_linear = torch.nn.Linear(linear_size, kwargs["n_input_features"])
-        # the name must be "tl_part"
-        if model_name == "kai_tl":
-            self.tl_part = CudnnLstmModel(**kwargs)
-        elif model_name == "multi_output_tl":
-            self.tl_part = CudnnLstmModelMultiOutput(**kwargs)
-        else:
-            raise NotImplementedError(
-                "We don't have such a transfer learning model; please choose one from 'kai_tl' or 'multi_output_tl'"
-            )
-        # tl_tag means this is a transfer learning (tl) model
-        # generally this is a tl model, but sometimes we directly load weight of a tl model to it,
-        # and now it is just a normal model rather than a tl model
-        self.tl_tag = tl_tag
 
     def forward(self, x, do_drop_mc=False, dropout_false=False):
         x0 = F.relu(self.former_linear(x))
-        return self.tl_part(x0, do_drop_mc=do_drop_mc, dropout_false=dropout_false)
+        return super(LinearCudnnLstmModel, self).forward(
+            x0, do_drop_mc=do_drop_mc, dropout_false=dropout_false
+        )
 
 
-class CNN1dLCmodel(torch.nn.Module):
+class CNN1dLCmodel(nn.Module):
     # Directly add the CNN extracted features into LSTM inputSize
     def __init__(
         self,
@@ -450,7 +374,8 @@ class CNN1dLCmodel(torch.nn.Module):
         cat_first=True,
     ):
         """cat_first means: we will concatenate the CNN output with the x, then input them to the CudnnLstm model;
-        if not cat_first, it is relu_first, meaning we will relu the CNN output firstly, then concatenate it with x"""
+        if not cat_first, it is relu_first, meaning we will relu the CNN output firstly, then concatenate it with x
+        """
         # two convolutional layer
         super(CNN1dLCmodel, self).__init__()
         self.nx = nx
@@ -516,7 +441,7 @@ class CNN1dLCmodel(torch.nn.Module):
         return self.linearOut(out_lstm)
 
 
-class CudnnLstmModelLstmKernel(torch.nn.Module):
+class CudnnLstmModelLstmKernel(nn.Module):
     """use a trained/un-trained CudnnLstm as a kernel generator before another CudnnLstm."""
 
     def __init__(
@@ -570,7 +495,7 @@ class CudnnLstmModelLstmKernel(torch.nn.Module):
         return gen - out if self.delta_s else (out, gen)
 
 
-class CudnnLstmModelMultiOutput(torch.nn.Module):
+class CudnnLstmModelMultiOutput(nn.Module):
     def __init__(
         self,
         n_input_features,

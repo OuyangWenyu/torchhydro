@@ -1,4 +1,13 @@
 """
+Author: Wenyu Ouyang
+Date: 2023-09-19 09:36:25
+LastEditTime: 2023-10-06 19:31:02
+LastEditors: Wenyu Ouyang
+Description: 
+FilePath: \torchhydro\torchhydro\models\dpl4xaj.py
+Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
+"""
+"""
 The method comes from this paper: https://doi.org/10.1038/s41467-021-26107-z
 It use Deep Learning (DL) methods to Learn the Parameters of physics-based models (PBM),
 which is called "differentiable parameter learning" (dPL).

@@ -1,3 +1,12 @@
+"""
+Author: Wenyu Ouyang
+Date: 2023-07-11 17:39:09
+LastEditTime: 2023-10-06 18:12:54
+LastEditors: Wenyu Ouyang
+Description: Functions for dropout. Code is from Kuai Fang's repo: hydroDL
+FilePath: \torchhydro\torchhydro\models\dropout.py
+Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
+"""
 import torch.nn
 
 
@@ -15,9 +24,7 @@ def create_mask(x, dr):
     -------
 
     """
-    mask = x.new().resize_as_(x).bernoulli_(1 - dr).div_(1 - dr).detach_()
-    # print('droprate='+str(dr))
-    return mask
+    return x.new().resize_as_(x).bernoulli_(1 - dr).div_(1 - dr).detach_()
 
 
 class DropMask(torch.autograd.function.InplaceFunction):
@@ -29,13 +36,12 @@ class DropMask(torch.autograd.function.InplaceFunction):
 
         if not ctx.master_train:
             return input
+        if ctx.inplace:
+            ctx.mark_dirty(input)
+            output = input
         else:
-            if ctx.inplace:
-                ctx.mark_dirty(input)
-                output = input
-            else:
-                output = input.clone()
-            output.mul_(ctx.mask)
+            output = input.clone()
+        output.mul_(ctx.mask)
 
         return output
 

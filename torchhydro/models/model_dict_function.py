@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-24 21:21:30
+LastEditTime: 2023-10-06 19:55:59
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \torchhydro\torchhydro\models\model_dict_function.py
@@ -13,7 +13,7 @@ from torchhydro.models.cudnnlstm import (
     CNN1dLCmodel,
     CudnnLstmModelLstmKernel,
     CudnnLstmModelMultiOutput,
-    KuaiLstm, CpuLstmModel,
+    CpuLstmModel,
 )
 from torch.optim import Adam, SGD, Adadelta
 from torchhydro.models.crits import (
@@ -31,13 +31,12 @@ Utility dictionaries to map a string to a class.
 """
 pytorch_model_dict = {
     "KuaiLSTM": CudnnLstmModel,
-    "KuaiLstm": KuaiLstm,
-    "KaiTlLSTM": LinearCudnnLstmModel,
+    "CpuLSTM": CpuLstmModel,
+    "KaiLSTM": LinearCudnnLstmModel,
     "DapengCNNLSTM": CNN1dLCmodel,
     "LSTMKernel": CudnnLstmModelLstmKernel,
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
     "DplLstmXaj": DplLstmXaj,
-    "CpuLSTM": CpuLstmModel
 }
 
 pytorch_model_wrapper_dict = {}

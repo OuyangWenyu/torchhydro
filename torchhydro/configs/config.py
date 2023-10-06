@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-09-28 16:25:34
+LastEditTime: 2023-10-06 17:12:00
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: /torchhydro/torchhydro/configs/config.py
+FilePath: \torchhydro\torchhydro\configs\config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import argparse
@@ -46,7 +46,7 @@ def default_config_file():
 
     return {
         "model_cfgs": {
-            # model_type including normal deep learning, federated learning, multi-task learning, etc.
+            # model_type including normal deep learning (Normal), federated learning (FedLearn), transfer learing (TransLearn), multi-task learning, etc.
             "model_type": "Normal",
             # supported models can be seen in hydroDL/model_dict_function.py
             "model_name": "LSTM",
@@ -63,6 +63,8 @@ def default_config_file():
                 "bias": True,
                 "batch_size": 100,
             },
+            "weight_path": None,
+            "continue_train": True,
             # the name of the model's wrapper class
             "model_wrapper": None,
             # the wrapper class's parameters
@@ -81,15 +83,16 @@ def default_config_file():
                 # the fraction of clients
                 "fl_frac": 0.1,
             },
+            "tl_hyperparam": {
+                # part of transfer learning in a model: a list of layers' names, such as ["lstm"]
+                "tl_part": None,
+            },
         },
         "data_cfgs": {
             "data_source_name": "CAMELS",
             "data_path": "../../example/camels_us",
             "data_region": None,
             "download": True,
-            "cache_read": True,
-            "cache_write": False,
-            "cache_path": None,
             "validation_path": None,
             "test_path": None,
             "batch_size": 100,
@@ -255,9 +258,6 @@ def cmd(
     test_period=None,
     opt=None,
     lr_scheduler=None,
-    cache_read=None,
-    cache_write=None,
-    cache_path=None,
     opt_param=None,
     batch_size=None,
     rho=None,
@@ -615,27 +615,6 @@ def cmd(
         type=int,
     )
     parser.add_argument(
-        "--cache_read",
-        dest="cache_read",
-        help="read binary file",
-        default=cache_read,
-        type=int,
-    )
-    parser.add_argument(
-        "--cache_write",
-        dest="cache_write",
-        help="write binary file",
-        default=cache_write,
-        type=int,
-    )
-    parser.add_argument(
-        "--cache_path",
-        dest="cache_path",
-        help="specify the directory of data cache files",
-        default=cache_path,
-        type=str,
-    )
-    parser.add_argument(
         "--model_hyperparam",
         dest="model_hyperparam",
         help="the model_hyperparam in model_cfgs",
@@ -773,12 +752,6 @@ def update_cfg(cfg_file, new_args):
             project_dir, "results", subset, subexp
         )
         cfg_file["data_cfgs"]["test_path"] = os.path.join(result_dir, subset, subexp)
-        if new_args.cache_path is not None:
-            cfg_file["data_cfgs"]["cache_path"] = new_args.cache_path
-        else:
-            cfg_file["data_cfgs"]["cache_path"] = os.path.join(
-                result_dir, subset, subexp
-            )
     if new_args.source is not None:
         cfg_file["data_cfgs"]["data_source_name"] = new_args.source
     if new_args.source_path is not None:
@@ -892,20 +865,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["save_epoch"] = new_args.save_epoch
     if new_args.save_iter is not None:
         cfg_file["training_cfgs"]["save_iter"] = new_args.save_iter
-    if new_args.cache_read is not None:
-        if new_args.cache_read > 0:
-            cfg_file["data_cfgs"]["cache_read"] = True
-        else:
-            cfg_file["data_cfgs"]["cache_read"] = False
-    if new_args.cache_write is not None:
-        if new_args.cache_write > 0:
-            cfg_file["data_cfgs"]["cache_write"] = True
-            if not cfg_file["data_cfgs"]["cache_read"]:
-                logging.warning(
-                    "Since you have chosen cache_write, please read data from cache after it is saved"
-                )
-        else:
-            cfg_file["data_cfgs"]["cache_write"] = False
     if new_args.model_type is not None:
         cfg_file["model_cfgs"]["model_type"] = new_args.model_type
     if new_args.model_name is not None:

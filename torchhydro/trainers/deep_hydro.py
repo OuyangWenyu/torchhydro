@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-03 23:44:43
+LastEditTime: 2023-10-06 17:43:04
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -62,11 +62,6 @@ class DeepHydroInterface(ABC):
         """
         self._data_source = data_source
         self._cfgs = cfgs
-        self.model = self.load_model()
-        self.traindataset = self.make_dataset("train")
-        if cfgs["data_cfgs"]["t_range_valid"] is not None:
-            self.validdataset = self.make_dataset("valid")
-        self.testdataset = self.make_dataset("test")
 
     @property
     def data_source(self):
@@ -77,6 +72,15 @@ class DeepHydroInterface(ABC):
     def cfgs(self):
         """all configs"""
         return self._cfgs
+
+    @property
+    def weight_path(self):
+        """weight path"""
+        return self._cfgs["model_cfgs"]["weight_path"]
+
+    @weight_path.setter
+    def weight_path(self, weight_path):
+        self._cfgs["model_cfgs"]["weight_path"] = weight_path
 
     @abstractmethod
     def load_model(self) -> object:
@@ -120,7 +124,12 @@ class DeepHydro(DeepHydroInterface):
     The Base Trainer class for Hydrological Deep Learning models
     """
 
-    def __init__(self, data_source: HydroDataset, cfgs: Dict, pre_model=None):
+    def __init__(
+        self,
+        data_source: HydroDataset,
+        cfgs: Dict,
+        pre_model=None,
+    ):
         """
         Parameters
         ----------
@@ -137,20 +146,17 @@ class DeepHydro(DeepHydroInterface):
         self.device = get_the_device(self.device_num)
         self.pre_model = pre_model
         super().__init__(data_source, cfgs)
+        self.model = self.load_model()
+        self.traindataset = self.make_dataset("train")
+        if cfgs["data_cfgs"]["t_range_valid"] is not None:
+            self.validdataset = self.make_dataset("valid")
+        self.testdataset = self.make_dataset("test")
         print(f"Torch is using {str(self.device)}")
 
-    def load_model(self, weight_path: str = None, strict=False):
+    def load_model(self):
         """
         Load a time series forecast model in pytorch_model_dict in model_dict_function.py
 
-        Parameters
-        ----------
-        weight_path
-            where we put model's weights
-        strict: bool, optional
-            whether to strictly enforce that the keys in 'state_dict`
-            match the keys returned by this module's 'torch.nn.Module.state_dict` function;
-            by default False
         Returns
         -------
         object
@@ -158,17 +164,15 @@ class DeepHydro(DeepHydroInterface):
         """
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
-        if weight_path is None and "weight_path" in model_cfgs:
-            weight_path = model_cfgs["weight_path"]
         if model_name not in pytorch_model_dict:
             raise NotImplementedError(
                 f"Error the model {model_name} was not found in the model dict. Please add it."
             )
         if self.pre_model is not None:
             model = self._load_pretrain_model()
-        elif weight_path is not None:
+        elif self.weight_path is not None:
             # load model from pth file (saved weights and biases)
-            model = self._load_model_from_pth(model_cfgs, weight_path, strict)
+            model = self._load_model_from_pth()
         else:
             model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
         if torch.cuda.device_count() > 1 and len(self.device_num) > 1:
@@ -178,50 +182,19 @@ class DeepHydro(DeepHydroInterface):
             parallel_dim = 1 if sequece_first else 0
             model = nn.DataParallel(model, device_ids=self.device_num, dim=parallel_dim)
         model.to(self.device)
-        if (
-            weight_path is not None
-            and "weight_path_add" in model_cfgs
-            and "freeze_params" in model_cfgs["weight_path_add"]
-        ):
-            freeze_params = model_cfgs["weight_path_add"]["freeze_params"]
-            for param in freeze_params:
-                if "tl_tag" in model.__dict__:
-                    exec(f"model.tl_part.{param}.requires_grad = False")
-                else:
-                    exec(f"model.{param}.requires_grad = False")
-        if ("model_wrapper" in list(model_cfgs.keys())) and (
-            model_cfgs["model_wrapper"] is not None
-        ):
-            wrapper_name = model_cfgs["model_wrapper"]
-            wrapper_params = model_cfgs["model_wrapper_param"]
-            model = pytorch_model_wrapper_dict[wrapper_name](model, **wrapper_params)
         return model
 
     def _load_pretrain_model(self):
         """load a pretrained model as the initial model"""
         return self.pre_model
 
-    def _load_model_from_pth(self, model_cfgs, weight_path, strict):
+    def _load_model_from_pth(self):
+        weight_path = self.weight_path
+        model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
         model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
         checkpoint = torch.load(weight_path, map_location=self.device)
-        if "weight_path_add" in model_cfgs:
-            if "excluded_layers" in model_cfgs["weight_path_add"]:
-                # delete some layers from source model if we don't need them
-                excluded_layers = model_cfgs["weight_path_add"]["excluded_layers"]
-                for layer in excluded_layers:
-                    del checkpoint[layer]
-                print("sucessfully deleted layers")
-            else:
-                print("directly loading identically-named layers of source model")
-        if "tl_tag" in model.__dict__ and model.tl_tag:
-            # it means target model's structure is different with source model's
-            # when model.tl_tag is true.
-            # our transfer learning model now only support one whole part -- tl_part
-            model.tl_part.load_state_dict(checkpoint, strict=strict)
-        else:
-            # directly load model's weights
-            model.load_state_dict(checkpoint, strict=strict)
+        model.load_state_dict(checkpoint)
         print("Weights sucessfully loaded")
         return model
 
@@ -684,7 +657,55 @@ class FedLearnHydro(DeepHydro):
         return user_cfgs
 
 
+class TransLearnHydro(DeepHydro):
+    def __init__(self, data_source: HydroDataset, cfgs: Dict, pre_model=None):
+        super().__init__(data_source, cfgs, pre_model)
+
+    def load_model(self):
+        """Load model for transfer learning"""
+        model_cfgs = self.cfgs["model_cfgs"]
+        if self.weight_path is None and self.pre_model is None:
+            raise NotImplementedError(
+                "For transfer learning, we need a pre-trained model"
+            )
+        model = super().load_model()
+        if (
+            "weight_path_add" in model_cfgs
+            and "freeze_params" in model_cfgs["weight_path_add"]
+        ):
+            freeze_params = model_cfgs["weight_path_add"]["freeze_params"]
+            for param in freeze_params:
+                exec(f"model.{param}.requires_grad = False")
+        if ("model_wrapper" in list(model_cfgs.keys())) and (
+            model_cfgs["model_wrapper"] is not None
+        ):
+            wrapper_name = model_cfgs["model_wrapper"]
+            wrapper_params = model_cfgs["model_wrapper_param"]
+            model = pytorch_model_wrapper_dict[wrapper_name](model, **wrapper_params)
+        return model
+
+    def _load_model_from_pth(self):
+        weight_path = self.weight_path
+        model_cfgs = self.cfgs["model_cfgs"]
+        model_name = model_cfgs["model_name"]
+        model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
+        checkpoint = torch.load(weight_path, map_location=self.device)
+        if "weight_path_add" in model_cfgs:
+            if "excluded_layers" in model_cfgs["weight_path_add"]:
+                # delete some layers from source model if we don't need them
+                excluded_layers = model_cfgs["weight_path_add"]["excluded_layers"]
+                for layer in excluded_layers:
+                    del checkpoint[layer]
+                print("sucessfully deleted layers")
+            else:
+                print("directly loading identically-named layers of source model")
+        model.load_state_dict(checkpoint, strict=False)
+        print("Weights sucessfully loaded")
+        return model
+
+
 model_type_dict = {
     "Normal": DeepHydro,
     "FedLearn": FedLearnHydro,
+    "TransLearn": TransLearnHydro,
 }

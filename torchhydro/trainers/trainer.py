@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-10-03 22:41:32
+LastEditTime: 2023-10-06 17:15:12
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
@@ -62,8 +62,9 @@ def train_and_evaluate(cfgs: Dict):
     deephydro = _get_deep_hydro(cfgs, data_source)
     if cfgs["training_cfgs"]["train_mode"]:
         if (
-            "weight_path" in cfgs["model_cfgs"] and cfgs["model_cfgs"]["continue_train"]
-        ) or ("weight_path" not in cfgs["model_cfgs"]):
+            deephydro.weight_path is not None
+            and deephydro.cfgs["model_cfgs"]["continue_train"]
+        ) or (deephydro.weight_path is None):
             deephydro.model_train()
         test_acc = deephydro.model_evaluate()
         print("summary test_accuracy", test_acc[0])
