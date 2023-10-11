@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-09-25 20:24:51
+LastEditTime: 2023-10-11 11:22:21
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /torchhydro/torchhydro/datasets/data_sets.py
+FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import logging
@@ -18,7 +18,11 @@ from hydrodataset import HydroDataset
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from torchhydro.datasets.data_scalers import ScalerHub
-from torchhydro.datasets.data_utils import wrap_t_s_dict, unify_streamflow_unit
+from torchhydro.datasets.data_utils import (
+    warn_if_nan,
+    wrap_t_s_dict,
+    unify_streamflow_unit,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -48,6 +52,9 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
             mean_val = var_data.mean(
                 dim="basin"
             )  # calculate the mean across all basins
+            if warn_if_nan(mean_val):
+                # when all value are NaN, mean_val will be NaN, we set mean_val to -1
+                mean_val = -1
             filled_data = var_data.fillna(
                 mean_val
             )  # fill NaN values with the calculated mean
@@ -226,10 +233,13 @@ class BaseDataset(Dataset):
         if x_rm_nan:
             # As input, we cannot have NaN values
             _fill_gaps_da(x, fill_nan="interpolate")
+            warn_if_nan(x)
         if y_rm_nan:
             _fill_gaps_da(y, fill_nan="interpolate")
+            warn_if_nan(y)
         if c_rm_nan:
             _fill_gaps_da(c, fill_nan="mean")
+            warn_if_nan(c)
         return x, y, c
 
     def _create_lookup_table(self):
@@ -245,7 +255,7 @@ class BaseDataset(Dataset):
             basins,
             file=sys.stdout,
             disable=False,
-            desc="Creating " + is_tra_val_te + " lookup table",
+            desc=f"Creating {is_tra_val_te} lookup table",
         ):
             # some dataloader load data with warmup period, so leave some periods for it
             # [warmup_len] -> time_start -> [rho]

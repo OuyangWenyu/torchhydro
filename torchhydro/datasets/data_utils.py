@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:37:58
-LastEditTime: 2023-09-21 15:49:55
+LastEditTime: 2023-10-11 10:52:09
 LastEditors: Wenyu Ouyang
 Description: Some basic funtions for dealing with data
-FilePath: /torchhydro/torchhydro/datasets/data_utils.py
+FilePath: \torchhydro\torchhydro\datasets\data_utils.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 from typing import Union
@@ -13,6 +13,37 @@ from collections import OrderedDict
 import numpy as np
 import xarray as xr
 import pint_xarray  # noqa: F401
+import warnings
+
+
+def warn_if_nan(dataarray, max_display=5):
+    """
+    Issue a warning if the dataarray contains any NaN values and display their locations.
+
+    Parameters
+    -----------
+    dataarray: xr.DataArray
+        Input dataarray to check for NaN values.
+    max_display: int
+        Maximum number of NaN locations to display in the warning.
+    """
+    nan_indices = np.argwhere(np.isnan(dataarray.values))
+    total_nans = len(nan_indices)
+
+    if total_nans <= 0:
+        return False
+    message = f"The dataarray contains {total_nans} NaN values!"
+
+    # Displaying only the first few NaN locations if there are too many
+    display_indices = nan_indices[:max_display].tolist()
+    message += (
+        f" Here are the indices of the first {max_display} NaNs: {display_indices}..."
+        if total_nans > max_display
+        else f" Here are the indices of the NaNs: {display_indices}"
+    )
+    warnings.warn(message)
+
+    return True
 
 
 def unify_streamflow_unit(ds: xr.Dataset, area=None, inverse=False):

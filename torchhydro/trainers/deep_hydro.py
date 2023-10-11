@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-06 17:43:04
+LastEditTime: 2023-10-11 11:35:13
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -570,7 +570,6 @@ class FedLearnHydro(DeepHydro):
                 acc, _, _ = local_model.model_evaluate()
                 list_acc.append(acc)
             values = [list(d.values())[0][0] for d in list_acc]
-            # TODO: check nan values
             filtered_values = [v for v in values if not np.isnan(v)]
             train_accuracy.append(sum(filtered_values) / len(filtered_values))
 

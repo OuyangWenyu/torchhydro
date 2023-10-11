@@ -1,7 +1,7 @@
 """
 Author: MHPI group, Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-06 19:45:19
+LastEditTime: 2023-10-10 20:28:18
 LastEditors: Wenyu Ouyang
 Description: LSTM with dropout implemented by Kuai Fang and more LSTMs using it
 FilePath: \torchhydro\torchhydro\models\cudnnlstm.py
@@ -347,7 +347,7 @@ class LinearCudnnLstmModel(CudnnLstmModel):
         linear_size
             the number of input features for the first input linear layer
         """
-        super(LinearCudnnLstmModel, self).__init__()
+        super(LinearCudnnLstmModel, self).__init__(**kwargs)
         self.former_linear = torch.nn.Linear(linear_size, kwargs["n_input_features"])
 
     def forward(self, x, do_drop_mc=False, dropout_false=False):
