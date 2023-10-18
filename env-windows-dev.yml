@@ -9,6 +9,7 @@ dependencies:
   - numpy=1.23
   - xarray
   - netcdf4
+  - dask
   - geopandas
   - matplotlib
   - scikit-learn

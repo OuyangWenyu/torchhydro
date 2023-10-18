@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-10-05 16:16:48
-LastEditTime: 2023-10-06 17:41:21
+LastEditTime: 2023-10-15 15:51:51
 LastEditors: Wenyu Ouyang
 Description: A test function for transfer learning
 FilePath: \torchhydro\tests\test_transfer_learning.py
@@ -70,7 +70,7 @@ def test_transfer_gages_lstm_model(
         "exp1",
     )
     weight_path = get_lastest_file_in_a_dir(weight_dir)
-    project_name = "test_camels/exp004"
+    project_name = "test_camels/exp4"
     args = cmd(
         sub=project_name,
         source="CAMELS",

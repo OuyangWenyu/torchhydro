@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-10-06 17:15:12
+LastEditTime: 2023-10-18 16:00:32
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
@@ -105,7 +105,7 @@ def _get_datasource(cfgs):
             data_cfgs["download"],
             data_cfgs["data_region"],
         )
-        if data_source_name in ["CAMELS", "CAMELS_SERIES"]
+        if data_source_name in ["CAMELS", "Caravan"]
         else data_sources_dict[data_source_name](
             data_cfgs["data_path"], data_cfgs["download"]
         )
