@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-11 11:35:13
+LastEditTime: 2023-10-19 22:08:50
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
+FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -21,6 +21,10 @@ from torch import nn
 from hydrodataset import HydroDataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from torchhydro.explainers.shap import (
+    deep_explain_model_heatmap,
+    deep_explain_model_summary_plot,
+)
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.sampler import KuaiSampler, fl_sample_basin, fl_sample_region
 from torchhydro.datasets.data_dict import datasets_dict
@@ -39,9 +43,9 @@ from torchhydro.trainers.train_utils import (
     compute_validation,
     model_infer,
     torch_single_train,
+    cellstates_when_inference,
 )
 from torchhydro.trainers.train_logger import TrainLogger
-from trainers.train_utils import cellstates_when_inference
 
 
 class DeepHydroInterface(ABC):
@@ -358,13 +362,12 @@ class DeepHydro(DeepHydroInterface):
                 ]
 
         # Finally, try to explain model behaviour using shap
-        # TODO: SHAP has not been supported
         is_shap = False
         if is_shap:
             deep_explain_model_summary_plot(
-                model, test_data, data_cfgs["t_range_test"][0]
+                self, test_data, data_cfgs["t_range_test"][0]
             )
-            deep_explain_model_heatmap(model, test_data, data_cfgs["t_range_test"][0])
+            deep_explain_model_heatmap(self, test_data, data_cfgs["t_range_test"][0])
 
         return eval_log, preds_xr, obss_xr
 

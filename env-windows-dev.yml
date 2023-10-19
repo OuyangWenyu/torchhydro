@@ -17,6 +17,7 @@ dependencies:
   - pytorch-scatter
   - tensorboard
   - torchvision
+  - shap
   - tqdm
   - pytest
   - black
