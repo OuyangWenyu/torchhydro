@@ -11,7 +11,7 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 
 __author__ = """Wenyu Ouyang"""
 __email__ = "wenyuouyang@outlook.com"
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 
 from .configs import *
 from .datasets import *
