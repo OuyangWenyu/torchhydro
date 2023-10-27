@@ -275,6 +275,7 @@ class DeepHydro(DeepHydroInterface):
                     fill_nan = self.cfgs["evaluation_cfgs"]["fill_nan"]
                     target_col = self.cfgs["data_cfgs"]["target_cols"]
                     valid_metrics = evaluate_validation(
+                        self,
                         validation_data_loader,
                         valid_preds_np,
                         valid_obss_np,
@@ -334,12 +335,18 @@ class DeepHydro(DeepHydroInterface):
                 ),
             )
         preds_xr, obss_xr, test_data = self.inference()
+        if self.cfgs["data_cfgs"]["scaler"] == "GPM_GFS_Scaler":
+            preds_xr.attrs["units"] = "m"
+            obss_xr.attrs["units"] = "m"
         #  Then evaluate the model metrics
         if type(fill_nan) is list and len(fill_nan) != len(target_col):
             raise ValueError("length of fill_nan must be equal to target_col's")
         for i in range(len(target_col)):
             obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
             pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
+            if self.cfgs["data_cfgs"]["scaler"] == "GPM_GFS_Scaler":
+                obs_xr = obs_xr.T
+                pred_xr = pred_xr.T
             if type(fill_nan) is str:
                 inds = stat_error(
                     obs_xr.to_numpy(),

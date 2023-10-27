@@ -15,6 +15,7 @@ import pint_xarray  # noqa: F401
 import torch
 import xarray as xr
 from hydrodataset import HydroDataset
+from datasets.data_source_gpm_gfs import GPM_GFS
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from torchhydro.datasets.data_scalers import ScalerHub
@@ -414,3 +415,169 @@ class DplDataset(BaseDataset):
 
     def __len__(self):
         return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])
+
+
+class GPM_GFS_Dataset(Dataset):
+    def __init__(self, data_source: GPM_GFS, data_cfgs: dict, is_tra_val_te: str):
+        super(GPM_GFS_Dataset, self).__init__()
+        self.data_source = data_source
+        self.data_cfgs = data_cfgs
+        if is_tra_val_te in {"train", "valid", "test"}:
+            self.is_tra_val_te = is_tra_val_te
+        else:
+            raise ValueError(
+                "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
+            )
+        # load and preprocess data
+        self._load_data()
+
+    def _load_data(self):
+        train_mode = self.is_tra_val_te == "train"
+        self.t_s_dict = wrap_t_s_dict(
+            self.data_source, self.data_cfgs, self.is_tra_val_te
+        )
+        data_waterlevel_ds = self.data_source.read_waterlevel_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.t_s_dict["t_final_range"],
+            self.data_cfgs["target_cols"],
+        )
+        # x
+        data_forcing_ds = self.data_source.read_gpm_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.t_s_dict["t_final_range"],
+            # 1 comes from here
+            self.data_cfgs["relevant_cols"],
+        )
+
+        if data_forcing_ds is not None:
+            data_forcing = self._trans2da_and_setunits(data_forcing_ds)
+        else:
+            data_forcing = None
+
+        if data_waterlevel_ds is not None:
+            data_waterlevel = self._trans2da_and_setunits(data_waterlevel_ds)
+        else:
+            data_waterlevel = None
+
+        self.x_origin = data_forcing
+        self.y_origin = data_waterlevel
+
+        scaler_hub = ScalerHub(
+            data_waterlevel,
+            data_forcing,
+            data_attr=None,
+            data_cfgs=self.data_cfgs,
+            is_tra_val_te=self.is_tra_val_te,
+            data_source=self.data_source,
+        )
+
+        self.x, self.y = self.kill_nan(scaler_hub.x, scaler_hub.y)
+        # self.x, self.y = self.kill_nan(self.x_origin, self.y_origin)
+        self.target_scaler = scaler_hub.target_scaler
+        self.train_mode = train_mode
+        self.rho = self.data_cfgs["forecast_history"]
+        self.forecast_length = self.data_cfgs["forecast_length"]
+        self.warmup_length = self.data_cfgs["warmup_length"]
+        self._create_lookup_table()
+
+    def kill_nan(self, x, y):
+        data_cfgs = self.data_cfgs
+        y_rm_nan = data_cfgs["target_rm_nan"]
+        x_rm_nan = data_cfgs["relevant_rm_nan"]
+        if x_rm_nan:
+            # As input, we cannot have NaN values
+            _fill_gaps_da(x, fill_nan="interpolate")
+            warn_if_nan(x)
+        if y_rm_nan:
+            _fill_gaps_da(y, fill_nan="interpolate")
+            warn_if_nan(y)
+
+        return x, y
+
+    def _trans2da_and_setunits(self, ds):
+        """Set units for dataarray transfromed from dataset"""
+        result = ds.to_array(dim="variable")
+        units_dict = {
+            var: ds[var].attrs["units"]
+            for var in ds.variables
+            if "units" in ds[var].attrs
+        }
+        result.attrs["units"] = units_dict
+        return result
+
+    def __len__(self):
+        return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])
+
+    def __getitem__(self, item: int):
+        # if not self.train_mode:
+        # basin = self.t_s_dict["sites_id"][item]
+        # basin, time = self.lookup_table[item]
+        # x = self.x.sel(basin=basin).to_numpy().T
+        # xx = self.x.to_numpy()
+        # x = xx.reshape(xx.shape[0], xx.shape[1], 1, xx.shape[2], xx.shape[3])
+        # y = self.y.sel(basin=basin).to_numpy().T
+
+        # return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+
+        basin, time = self.lookup_table[item]
+        seq_length = self.rho
+        output_seq_len = self.forecast_length
+        warmup_length = self.warmup_length
+        xx = self.x.sel(
+            # basin=basin,
+            time=slice(
+                time - np.timedelta64(warmup_length, "h"),
+                time + np.timedelta64(seq_length - 1, "h"),
+            ),
+        ).to_numpy()
+        x = xx.reshape(xx.shape[0], xx.shape[1], 1, xx.shape[2], xx.shape[3])
+        # print(x)
+        # print(x.shape)
+        y = (
+            self.y.sel(
+                basin=basin,
+                time=slice(
+                    time + np.timedelta64(seq_length, "h"),
+                    time + np.timedelta64(seq_length + output_seq_len - 1, "h"),
+                ),
+            )
+            .to_numpy()
+            .T
+        )
+        # print(y.shape)
+        # print(y)
+        return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+
+    def basins(self):
+        """Return the basins of the dataset"""
+        return self.t_s_dict["sites_id"]
+
+    def times(self):
+        """Return the time range of the dataset"""
+        return self.t_s_dict["t_final_range"]
+
+    def _create_lookup_table(self):
+        lookup = []
+        # list to collect basins ids of basins without a single training sample
+        basins = self.t_s_dict["sites_id"]
+        rho = self.rho
+        output_seq_len = self.forecast_length
+        warmup_length = self.warmup_length
+        dates = self.y["time"].to_numpy()
+        time_length = len(dates)
+        is_tra_val_te = self.is_tra_val_te
+        for basin in tqdm(
+            basins,
+            file=sys.stdout,
+            disable=False,
+            desc=f"Creating {is_tra_val_te} lookup table",
+        ):
+            # some dataloader load data with warmup period, so leave some periods for it
+            # [warmup_len] -> time_start -> [rho]
+            lookup.extend(
+                (basin, dates[f])
+                for f in range(warmup_length, time_length)
+                if f < time_length - rho - output_seq_len + 1
+            )
+        self.lookup_table = dict(enumerate(lookup))
+        self.num_samples = len(self.lookup_table)

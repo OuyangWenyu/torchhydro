@@ -15,6 +15,7 @@ from torchhydro.models.cudnnlstm import (
     CudnnLstmModelMultiOutput,
     CpuLstmModel,
 )
+
 from torch.optim import Adam, SGD, Adadelta
 from torchhydro.models.crits import (
     RMSELoss,
@@ -25,6 +26,7 @@ from torchhydro.models.crits import (
     MultiOutWaterBalanceLoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj
+from torchhydro.models.spplstm import SPP_LSTM_Model
 
 """
 Utility dictionaries to map a string to a class.
@@ -37,6 +39,7 @@ pytorch_model_dict = {
     "LSTMKernel": CudnnLstmModelLstmKernel,
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
     "DplLstmXaj": DplLstmXaj,
+    "SPPLSTM": SPP_LSTM_Model,
 }
 
 pytorch_model_wrapper_dict = {}

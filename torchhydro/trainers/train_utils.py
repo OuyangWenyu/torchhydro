@@ -81,24 +81,54 @@ def denormalize4eval(validation_data_loader, output, labels):
         units = {**units, **target_data.attrs["units"]}
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
-    selected_time_points = target_data.coords["time"][warmup_length:]
-    selected_data = target_data.sel(time=selected_time_points)
-    preds_xr = target_scaler.inverse_transform(
-        xr.DataArray(
-            output.transpose(2, 0, 1),
-            dims=selected_data.dims,
-            coords=selected_data.coords,
-            attrs={"units": units},
+    if target_scaler.data_cfgs["scaler"] == "GPM_GFS_Scaler":
+        # item=validation_data_loader.dataset.lookup_table.
+        forecast_length = validation_data_loader.dataset.forecast_length
+        forecast_history = validation_data_loader.dataset.rho
+        selected_time_points = target_data.coords["time"][
+            warmup_length
+            + forecast_history : warmup_length
+            + forecast_history
+            + forecast_length
+        ]
+        selected_data = target_data.sel(time=selected_time_points)
+        preds_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                # output.transpose(2, 0, 1),
+                output,
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
         )
-    )
-    obss_xr = target_scaler.inverse_transform(
-        xr.DataArray(
-            labels.transpose(2, 0, 1),
-            dims=selected_data.dims,
-            coords=selected_data.coords,
-            attrs={"units": units},
+        obss_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                # labels.transpose(2, 0, 1),
+                labels,
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
         )
-    )
+    else:
+        selected_time_points = target_data.coords["time"][warmup_length:]
+        selected_data = target_data.sel(time=selected_time_points)
+        preds_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                output.transpose(2, 0, 1),
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
+        )
+        obss_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                labels.transpose(2, 0, 1),
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
+        )
 
     return preds_xr, obss_xr
 
@@ -161,7 +191,13 @@ class EarlyStopper(object):
 
 
 def evaluate_validation(
-    validation_data_loader, output, labels, evaluation_metrics, fill_nan, target_col
+    self,
+    validation_data_loader,
+    output,
+    labels,
+    evaluation_metrics,
+    fill_nan,
+    target_col,
 ):
     """
     calculate metrics for validation
@@ -189,9 +225,15 @@ def evaluate_validation(
     eval_log = {}
     # renormalization to get real metrics
     preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels)
+    if self.cfgs["data_cfgs"]["scaler"] == "GPM_GFS_Scaler":
+        preds_xr.attrs["units"] = "m"
+        obss_xr.attrs["units"] = "m"
     for i in range(len(target_col)):
         obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
         pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
+        if self.cfgs["data_cfgs"]["scaler"] == "GPM_GFS_Scaler":
+            obs_xr = obs_xr.T
+            pred_xr = pred_xr.T
         if type(fill_nan) is str:
             inds = stat_error(
                 obs_xr.to_numpy(),
