@@ -17,3 +17,4 @@ from .configs import *
 from .datasets import *
 from .models import *
 from .trainers import *
+from .explainers import *
