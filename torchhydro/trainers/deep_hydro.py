@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-28 11:08:37
+LastEditTime: 2023-10-28 13:22:06
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -361,7 +361,7 @@ class DeepHydro(DeepHydroInterface):
                 ]
 
         # Finally, try to explain model behaviour using shap
-        is_shap = True
+        is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
         if is_shap:
             deep_explain_model_summary_plot(self.model, test_data)
             deep_explain_model_heatmap(self.model, test_data)

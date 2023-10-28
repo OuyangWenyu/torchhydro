@@ -230,6 +230,7 @@ def default_config_file():
             "metrics": ["NSE"],
             "fill_nan": "no",
             "test_epoch": 20,
+            "explainer": None,
         },
     }
 
