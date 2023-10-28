@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-19 22:08:50
+LastEditTime: 2023-10-28 11:08:37
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
+FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -310,7 +310,6 @@ class DeepHydro(DeepHydroInterface):
         tuple[dict, np.array, np.array]
             eval_log, denormalized predictions and observations
         """
-        data_cfgs = self.cfgs["data_cfgs"]
         # types of observations
         target_col = self.cfgs["data_cfgs"]["target_cols"]
         evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
@@ -362,12 +361,10 @@ class DeepHydro(DeepHydroInterface):
                 ]
 
         # Finally, try to explain model behaviour using shap
-        is_shap = False
+        is_shap = True
         if is_shap:
-            deep_explain_model_summary_plot(
-                self, test_data, data_cfgs["t_range_test"][0]
-            )
-            deep_explain_model_heatmap(self, test_data, data_cfgs["t_range_test"][0])
+            deep_explain_model_summary_plot(self.model, test_data)
+            deep_explain_model_heatmap(self.model, test_data)
 
         return eval_log, preds_xr, obss_xr
 
