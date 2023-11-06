@@ -54,6 +54,7 @@ def default_config_file():
             "model_hyperparam": {
                 # the rho in LSTM
                 "seq_length": 30,
+                "forecast_length": 30,
                 # the size of input (feature number)
                 "input_size": 24,
                 # the length of output time-sequence (feature number)
@@ -932,9 +933,10 @@ def update_cfg(cfg_file, new_args):
             and new_args.n_output is not None
         ):
             assert new_args.model_hyperparam["output_seq_len"] == new_args.n_output
-        if "n_output" in new_args.model_hyperparam.keys():
+        if "forecast_length" in new_args.model_hyperparam.keys():
             cfg_file["data_cfgs"]["forecast_length"] = new_args.model_hyperparam[
-                "n_output"]
+                "forecast_length"
+            ]
     if new_args.metrics is not None:
         cfg_file["evaluation_cfgs"]["metrics"] = new_args.metrics
     if new_args.fill_nan is not None:

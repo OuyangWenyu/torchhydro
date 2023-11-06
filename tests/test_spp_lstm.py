@@ -19,33 +19,36 @@ def config():
         model_name="SPPLSTM",
         model_hyperparam={
             "seq_length": 8,
-            "n_output": 3,
+            "forecast_length": 3,
+            "n_output": 1,
             "n_hidden_states": 80,
         },
         gage_id=[
             "05584500",
-            # "01544500",
+            "01544500",
+            "01423000",
         ],
-        batch_size=16,
-        var_t=["precipitationCal"],
+        # batch_size有一些限制，不能超过一个流域用于训练的item个数，比如1个流域只有6个item,batch_size需小于6
+        batch_size=4,
+        var_t=["tp"],  # precipitationCal
         var_out=["waterlevel"],
         dataset="GPM_GFS_Dataset",
-        sampler="KuaiSampler",
+        sampler="WuSampler",
         scaler="GPM_GFS_Scaler",
-        train_epoch=80,
+        train_epoch=1,
         save_epoch=1,
-        te=80,
-        train_period=["2017-01-03", "2017-01-03"],
-        test_period=["2017-01-03", "2017-01-03"],
-        valid_period=["2017-01-03", "2017-01-03"],
+        te=1,
+        train_period=["2017-01-10", "2017-01-10"],
+        test_period=["2017-01-12", "2017-01-12"],
+        # valid_period=["2017-01-13", "2017-01-13"],
         loss_func="RMSESum",
         opt="Adam",
-        # lr_scheduler={1: 1e-2, 2: -5e-3, 3: 1e-3},
         lr_scheduler={1: 5e-4, 2: 1e-4, 3: 1e-5},
         which_first_tensor="sequence",
     )
     update_cfg(config_data, args)
     return config_data
+
 
 def test_spp_lstm(config):
     train_and_evaluate(config)

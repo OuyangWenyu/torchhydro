@@ -88,14 +88,13 @@ def denormalize4eval(validation_data_loader, output, labels):
         selected_time_points = target_data.coords["time"][
             warmup_length
             + forecast_history : warmup_length
-            + forecast_history
-            + forecast_length
+            + forecast_history+forecast_length
+            # 0 : output.shape[0]
         ]
         selected_data = target_data.sel(time=selected_time_points)
         preds_xr = target_scaler.inverse_transform(
             xr.DataArray(
-                # output.transpose(2, 0, 1),
-                output,
+                output.reshape(output.shape[0], output.shape[1], 1).transpose(2, 0, 1),
                 dims=selected_data.dims,
                 coords=selected_data.coords,
                 attrs={"units": units},
@@ -103,8 +102,7 @@ def denormalize4eval(validation_data_loader, output, labels):
         )
         obss_xr = target_scaler.inverse_transform(
             xr.DataArray(
-                # labels.transpose(2, 0, 1),
-                labels,
+                labels.transpose(2, 0, 1),
                 dims=selected_data.dims,
                 coords=selected_data.coords,
                 attrs={"units": units},

@@ -1,6 +1,7 @@
 import os
 import hydrodataset as hds
-from hydrodataset import HydroDataset, CACHE_DIR, hydro_utils
+from hydrodataset import HydroDataset, CACHE_DIR
+from hydrodataset.camels import map_string_vars
 import numpy as np
 from netCDF4 import Dataset as ncdataset
 import collections
@@ -230,22 +231,22 @@ class GPM_GFS(HydroDataset):
         if var_lst is None:
             return None
 
-        # gpm_dict = {}
-        # for basin in gage_id_lst:
-        #     gpm = xr.open_dataset(
-        #         os.path.join(
-        #             hds.ROOT_DIR, "gpm_gfs_data", "gpm_whole", str(basin) + ".nc"
-        #         )
-        #     )
-        #     gpm_dict[basin] = gpm
-        # print(gpm_dict)
-
-        gpm = xr.open_dataset(
-            os.path.join(
-                hds.ROOT_DIR, "gpm_gfs_data", "gpm_whole", str(gage_id_lst[0]) + ".nc"
+        gpm_dict = {}
+        for basin in gage_id_lst:
+            gpm = xr.open_dataset(
+                os.path.join(hds.ROOT_DIR, "gpm_gfs_data_24h", str(basin) + ".nc")
             )
-        )
-        return gpm[var_lst].sel(time=slice(t_range[0], t_range[1]))
+            gpm = gpm[var_lst].sel(time=slice(t_range[0], t_range[1]))
+            gpm_dict[basin] = gpm
+
+        return gpm_dict
+
+        # gpm = xr.open_dataset(
+        #     os.path.join(
+        #         hds.ROOT_DIR, "gpm_gfs_data", "gpm_whole", str(gage_id_lst[0]) + ".nc"
+        #     )
+        # )
+        # return gpm[var_lst].sel(time=slice(t_range[0], t_range[1]))
 
     def read_gpm(self):
         gpm_data = []
@@ -283,7 +284,7 @@ class GPM_GFS(HydroDataset):
             return None
         attr = xr.open_dataset(CACHE_DIR.joinpath("camelsus_attributes.nc"))
         if "all_number" in list(kwargs.keys()) and kwargs["all_number"]:
-            attr_num = hydro_utils.map_string_vars(attr)
+            attr_num = map_string_vars(attr)
             return attr_num[var_lst].sel(basin=gage_id_lst)
         return attr[var_lst].sel(basin=gage_id_lst)
 

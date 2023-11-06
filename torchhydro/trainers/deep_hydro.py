@@ -22,7 +22,12 @@ from hydrodataset import HydroDataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torchhydro.configs.config import update_nested_dict
-from torchhydro.datasets.sampler import KuaiSampler, fl_sample_basin, fl_sample_region
+from torchhydro.datasets.sampler import (
+    KuaiSampler,
+    fl_sample_basin,
+    fl_sample_region,
+    WuSampler,
+)
 from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.models.model_dict_function import (
     pytorch_criterion_dict,
@@ -380,6 +385,33 @@ class DeepHydro(DeepHydroInterface):
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
+        
+        #GPM_GFS的eval需要一个合适的sampler，不能是None
+
+        # if data_cfgs["sampler"]=="WuSampler":
+        #     warmup_length = data_cfgs["warmup_length"]
+        #     ngrid = self.testdataset.y.basin.size
+        #     nt = self.testdataset.y.time.size
+        #     rho = data_cfgs["forecast_history"]
+        #     sampler=WuSampler(
+        #         self.testdataset,
+        #         batch_size=training_cfgs["batch_size"],
+        #         warmup_length=warmup_length,
+        #         rho=rho,
+        #         ngrid=ngrid,
+        #         nt=nt,
+        #     )
+        #     test_dataloader = DataLoader(
+        #         self.testdataset,
+        #         batch_size=training_cfgs["batch_size"],
+        #         shuffle=False,
+        #         sampler=sampler,
+        #         batch_sampler=None,
+        #         drop_last=False,
+        #         timeout=0,
+        #         worker_init_fn=None,
+        # )
+        # else:
         test_dataloader = DataLoader(
             self.testdataset,
             batch_size=training_cfgs["batch_size"],
@@ -459,14 +491,24 @@ class DeepHydro(DeepHydroInterface):
             warmup_length = data_cfgs["warmup_length"]
             ngrid = train_dataset.y.basin.size
             nt = train_dataset.y.time.size
-            sampler = KuaiSampler(
-                train_dataset,
-                batch_size=batch_size,
-                warmup_length=warmup_length,
-                rho=rho,
-                ngrid=ngrid,
-                nt=nt,
-            )
+            if data_cfgs["sampler"] == "KuaiSampler":
+                sampler = KuaiSampler(
+                    train_dataset,
+                    batch_size=batch_size,
+                    warmup_length=warmup_length,
+                    rho=rho,
+                    ngrid=ngrid,
+                    nt=nt,
+                )
+            else:
+                sampler = WuSampler(
+                    train_dataset,
+                    batch_size=batch_size,
+                    warmup_length=warmup_length,
+                    rho=rho,
+                    ngrid=ngrid,
+                    nt=nt,
+                )
         data_loader = DataLoader(
             train_dataset,
             batch_size=training_cfgs["batch_size"],

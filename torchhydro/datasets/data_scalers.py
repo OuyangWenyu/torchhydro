@@ -18,6 +18,7 @@ from hydroutils.hydro_stat import (
     cal_stat_prcp_norm,
     cal_stat_gamma,
     cal_stat,
+    cal_4_stat_inds,
 )
 
 from torchhydro.datasets.data_utils import (
@@ -599,3 +600,211 @@ class GPM_GFS_Scaler(object):
             # area = self.data_source.read_area(self.t_w_dict["sites_id"])
             # return unify_streamflow_unit(pred_ds, area=area, inverse=True)
             return pred_ds
+
+
+class GPM_GFS_Scaler_2(object):
+    def __init__(
+        self,
+        target_vars: np.array,
+        relevant_vars: dict,
+        data_cfgs: dict,
+        is_tra_val_te: str,
+        data_source: HydroDataset,
+        prcp_norm_cols=None,
+        gamma_norm_cols=None,
+        pbm_norm=False,
+    ):
+        prcp_norm_cols = [
+            "waterlevel",
+        ]
+
+        gamma_norm_cols = [
+            "tp",
+        ]
+
+        self.data_target = target_vars
+        self.data_forcing = relevant_vars
+        self.data_source = data_source
+        self.data_cfgs = data_cfgs
+        self.t_w_dict = wrap_t_s_dict(data_source, data_cfgs, is_tra_val_te)
+        self.prcp_norm_cols = prcp_norm_cols
+        self.gamma_norm_cols = gamma_norm_cols
+        self.pbm_norm = pbm_norm
+        # both prcp_norm_cols and gamma_norm_cols use log(\sqrt(x)+.1) method to normalize
+        self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
+        stat_file = os.path.join(data_cfgs["test_path"], "GPM_GFS_Scaler_2_stat.json")
+
+        if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
+            self.stat_dict = self.cal_stat_all()
+            with open(stat_file, "w") as fp:
+                json.dump(self.stat_dict, fp)
+        else:
+            if data_cfgs["stat_dict_file"] is not None:
+                shutil.copy(data_cfgs["stat_dict_file"], stat_file)
+            assert os.path.isfile(stat_file)
+            with open(stat_file, "r") as fp:
+                self.stat_dict = json.load(fp)
+
+    def cal_stat_all(self):
+        # waterlevel
+        target_cols = self.data_cfgs["target_cols"]
+        stat_dict = {}
+        for i in range(len(target_cols)):
+            var = target_cols[i]
+            if var in self.prcp_norm_cols:
+                mean_prep = self.data_source.read_mean_prcp(self.t_w_dict["sites_id"])
+                stat_dict[var] = self.GPM_GFS_cal_stat_prcp_norm(
+                    self.data_target.sel(variable=var).to_numpy(),
+                    mean_prep.to_array().to_numpy(),
+                )
+            elif var in self.gamma_norm_cols:
+                stat_dict[var] = cal_stat_gamma(
+                    self.data_target.sel(variable=var).to_numpy()
+                )
+            else:
+                stat_dict[var] = cal_stat(self.data_target.sel(variable=var).to_numpy())
+
+        forcing_lst = self.data_cfgs["relevant_cols"]
+        x = self.data_forcing
+        for k in range(len(forcing_lst)):
+            var = forcing_lst[k]
+            if var in self.gamma_norm_cols:
+                stat_dict[var] = self.GPM_GFS_cal_stat_gamma(x, var)
+            else:  # 未使用
+                stat_dict[var] = cal_stat(x.sel(variable=var).to_numpy())
+
+        return stat_dict
+
+    def get_data_obs(self, to_norm: bool = True) -> np.array:
+        stat_dict = self.stat_dict
+        data = self.data_target
+        out = xr.full_like(data, np.nan)
+        out.attrs = copy.deepcopy(data.attrs)
+        target_cols = self.data_cfgs["target_cols"]
+        for i in range(len(target_cols)):
+            var = target_cols[i]
+            if var in self.prcp_norm_cols:
+                mean_prep = self.data_source.read_mean_prcp(self.t_w_dict["sites_id"])
+                out.loc[dict(variable=var)] = self.GPM_GFS_prcp_norm(
+                    data.sel(variable=var).to_numpy(),
+                    mean_prep.to_array().to_numpy(),
+                    to_norm=True,
+                )
+                out.attrs["units"][var] = "dimensionless"
+        out = _trans_norm(
+            out,
+            target_cols,
+            stat_dict,
+            log_norm_cols=self.log_norm_cols,
+            to_norm=to_norm,
+        )
+        return out
+
+    def get_data_ts(self, to_norm=True) -> dict:
+        stat_dict = self.stat_dict
+        var_list = self.data_cfgs["relevant_cols"]
+        data = self.data_forcing
+        for id, basin in data.items():
+            basin = _trans_norm(
+                basin,
+                var_list,
+                stat_dict,
+                log_norm_cols=self.log_norm_cols,
+                to_norm=to_norm,
+            )
+            data[id] = basin
+        return data
+
+    def load_data(self):
+        x = self.get_data_ts()
+        y = self.get_data_obs()
+        return x, y
+
+    def inverse_transform(self, target_values):
+        star_dict = self.stat_dict
+        target_cols = self.data_cfgs["target_cols"]
+        if self.pbm_norm:
+            pred = target_values
+        else:
+            pred = _trans_norm(
+                target_values,
+                target_cols,
+                star_dict,
+                log_norm_cols=self.log_norm_cols,
+                to_norm=False,
+            )
+            for i in range(len(self.data_cfgs["target_cols"])):
+                var = self.data_cfgs["target_cols"][i]
+                if var in self.prcp_norm_cols:
+                    mean_prep = self.data_source.read_mean_prcp(
+                        self.t_w_dict["sites_id"]
+                    )
+                    pred.loc[dict(variable=var)] = _prcp_norm(
+                        pred.sel(variable=var).to_numpy(),
+                        mean_prep.to_array().to_numpy().T,
+                        to_norm=False,
+                    )
+            # add attrs for units
+            pred.attrs.update(self.data_target.attrs)
+            # trans to xarray dataset
+            pred_ds = pred.to_dataset(dim="variable")
+            pred_ds = pred_ds.pint.quantify(pred_ds.attrs["units"])
+            # area = self.data_source.read_area(self.t_w_dict["sites_id"])
+            # return unify_streamflow_unit(pred_ds, area=area, inverse=True)
+            return pred_ds
+
+    def GPM_GFS_cal_stat_prcp_norm(self, x, meanprep):
+        tempprep = np.tile(meanprep, (x.shape[0], 1))
+        flowua = x / tempprep
+        return cal_stat_gamma(flowua)
+
+    def GPM_GFS_cal_stat_gamma(self, x, var):
+        combined = np.array([])
+        for basin in x.values():
+            a = basin.sel(variable=var).to_numpy()
+            a = a.flatten()
+            a = a[~np.isnan(a)]
+            combined = np.hstack((combined, a))
+        b = np.log10(np.sqrt(combined) + 0.1)
+        b = b[~np.isnan(b)]
+        return cal_4_stat_inds(b)
+
+    def GPM_GFS_prcp_norm(
+        self, x: np.array, mean_prep: np.array, to_norm: bool
+    ) -> np.array:
+        tempprep = np.tile(mean_prep, (x.shape[0], 1))
+        return x / tempprep if to_norm else x * tempprep
+
+
+class Muti_Basin_GPM_GFS_SCALER(object):
+    def __init__(
+        self,
+        target_vars: np.array,
+        relevant_vars: dict,
+        data_cfgs: dict = None,
+        is_tra_val_te: str = None,
+        **kwargs,
+    ):
+        self.data_cfgs = data_cfgs
+        scaler_type = data_cfgs["scaler"]
+        assert "data_source" in list(kwargs.keys())
+        if scaler_type == "GPM_GFS_Scaler":
+            assert "data_source" in list(kwargs.keys())
+            gamma_norm_cols = data_cfgs["scaler_params"]["gamma_norm_cols"]
+            prcp_norm_cols = data_cfgs["scaler_params"]["prcp_norm_cols"]
+            pbm_norm = data_cfgs["scaler_params"]["pbm_norm"]
+            scaler = GPM_GFS_Scaler_2(
+                target_vars=target_vars,
+                relevant_vars=relevant_vars,
+                data_cfgs=data_cfgs,
+                is_tra_val_te=is_tra_val_te,
+                data_source=kwargs["data_source"],
+                prcp_norm_cols=prcp_norm_cols,
+                gamma_norm_cols=gamma_norm_cols,
+                pbm_norm=pbm_norm,
+            )
+            x, y = scaler.load_data()
+            self.target_scaler = scaler
+        print("Finish Normalization\n")
+        self.x = x
+        self.y = y

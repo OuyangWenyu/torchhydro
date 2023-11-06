@@ -18,7 +18,7 @@ from hydrodataset import HydroDataset
 from datasets.data_source_gpm_gfs import GPM_GFS
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from torchhydro.datasets.data_scalers import ScalerHub
+from torchhydro.datasets.data_scalers import ScalerHub, Muti_Basin_GPM_GFS_SCALER
 from torchhydro.datasets.data_utils import (
     warn_if_nan,
     wrap_t_s_dict,
@@ -448,9 +448,13 @@ class GPM_GFS_Dataset(Dataset):
             # 1 comes from here
             self.data_cfgs["relevant_cols"],
         )
-
+        
+        data_forcing = {}
         if data_forcing_ds is not None:
-            data_forcing = self._trans2da_and_setunits(data_forcing_ds)
+            for basin, data in data_forcing_ds.items():
+                result = data.to_array(dim="variable")
+               
+                data_forcing[basin] = result
         else:
             data_forcing = None
 
@@ -461,8 +465,7 @@ class GPM_GFS_Dataset(Dataset):
 
         self.x_origin = data_forcing
         self.y_origin = data_waterlevel
-
-        scaler_hub = ScalerHub(
+        scaler_hub = Muti_Basin_GPM_GFS_SCALER(
             data_waterlevel,
             data_forcing,
             data_attr=None,
@@ -472,7 +475,6 @@ class GPM_GFS_Dataset(Dataset):
         )
 
         self.x, self.y = self.kill_nan(scaler_hub.x, scaler_hub.y)
-        # self.x, self.y = self.kill_nan(self.x_origin, self.y_origin)
         self.target_scaler = scaler_hub.target_scaler
         self.train_mode = train_mode
         self.rho = self.data_cfgs["forecast_history"]
@@ -486,8 +488,9 @@ class GPM_GFS_Dataset(Dataset):
         x_rm_nan = data_cfgs["relevant_rm_nan"]
         if x_rm_nan:
             # As input, we cannot have NaN values
-            _fill_gaps_da(x, fill_nan="interpolate")
-            warn_if_nan(x)
+            for xx in x.values():
+                _fill_gaps_da(xx, fill_nan="interpolate")
+                warn_if_nan(xx)
         if y_rm_nan:
             _fill_gaps_da(y, fill_nan="interpolate")
             warn_if_nan(y)
@@ -506,46 +509,37 @@ class GPM_GFS_Dataset(Dataset):
         return result
 
     def __len__(self):
-        return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])
+        return self.num_samples #if self.train_mode else len(self.t_s_dict["sites_id"])
 
     def __getitem__(self, item: int):
-        # if not self.train_mode:
-        # basin = self.t_s_dict["sites_id"][item]
-        # basin, time = self.lookup_table[item]
-        # x = self.x.sel(basin=basin).to_numpy().T
-        # xx = self.x.to_numpy()
-        # x = xx.reshape(xx.shape[0], xx.shape[1], 1, xx.shape[2], xx.shape[3])
-        # y = self.y.sel(basin=basin).to_numpy().T
-
-        # return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-
+        # here time is time_now in gpm_gfs_data
         basin, time = self.lookup_table[item]
         seq_length = self.rho
         output_seq_len = self.forecast_length
         warmup_length = self.warmup_length
-        xx = self.x.sel(
-            # basin=basin,
-            time=slice(
-                time - np.timedelta64(warmup_length, "h"),
-                time + np.timedelta64(seq_length - 1, "h"),
-            ),
-        ).to_numpy()
+        xx = (
+            self.x[basin]
+            .sel(time_now=time)
+            .sel(
+                time=slice(
+                    time - np.timedelta64(warmup_length + seq_length, "h"),
+                    time + np.timedelta64(output_seq_len - 1, "h"),
+                ),
+            )
+            .to_numpy()
+        )
         x = xx.reshape(xx.shape[0], xx.shape[1], 1, xx.shape[2], xx.shape[3])
-        # print(x)
-        # print(x.shape)
         y = (
             self.y.sel(
                 basin=basin,
                 time=slice(
-                    time + np.timedelta64(seq_length, "h"),
-                    time + np.timedelta64(seq_length + output_seq_len - 1, "h"),
+                    time + np.timedelta64(0, "h"),
+                    time + np.timedelta64(output_seq_len - 1, "h"),
                 ),
             )
             .to_numpy()
             .T
         )
-        # print(y.shape)
-        # print(y)
         return torch.from_numpy(x).float(), torch.from_numpy(y).float()
 
     def basins(self):
@@ -577,7 +571,7 @@ class GPM_GFS_Dataset(Dataset):
             lookup.extend(
                 (basin, dates[f])
                 for f in range(warmup_length, time_length)
-                if f < time_length - rho - output_seq_len + 1
+                if rho <= f < time_length - rho - output_seq_len + 1
             )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)

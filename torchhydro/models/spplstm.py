@@ -56,7 +56,7 @@ class SppLayer(nn.Module):
 
 
 class SPP_LSTM_Model(nn.Module):
-    def __init__(self, seq_length, n_output, n_hidden_states):
+    def __init__(self, seq_length, forecast_length, n_output, n_hidden_states):
         super(SPP_LSTM_Model, self).__init__()
 
         self.conv1 = TimeDistributed(
@@ -115,13 +115,15 @@ class SPP_LSTM_Model(nn.Module):
         self.dropout = nn.Dropout(p=0.1)
 
         self.lstm = nn.LSTM(
-            input_size=21 * 32 * seq_length, hidden_size=n_hidden_states
+            input_size=21 * 32, hidden_size=n_hidden_states, batch_first=True
         )
 
         self.dense = nn.Linear(in_features=n_hidden_states, out_features=n_output)
 
+        self.forecast_length = forecast_length
+
     def forward(self, x):
-        # print(x.shape)
+        #  print(x.shape)
         x = torch.squeeze(x, dim=1)
         # print(x.shape)
         x = self.conv1(x)
@@ -137,10 +139,12 @@ class SPP_LSTM_Model(nn.Module):
         x = torch.relu(x)
         x = self.maxpool2(x)
         x = self.dropout(x)
-        x = x.view(len(x), 1, -1)
+        # print(x.shape)
+        x = x.view(len(x), len(x[1]), -1)
         # print(x.shape)
         x, _ = self.lstm(x)
-        x = x[:, -1, :]
+        # print(x.shape)
         x = self.dense(x)
+        x = x[:, -self.forecast_length :, :]
         # print(x.shape)
         return x.unsqueeze(2).transpose(0, 1)
