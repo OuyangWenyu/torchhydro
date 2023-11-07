@@ -340,9 +340,6 @@ class DeepHydro(DeepHydroInterface):
                 ),
             )
         preds_xr, obss_xr, test_data = self.inference()
-        if self.cfgs["data_cfgs"]["scaler"] == "GPM_GFS_Scaler":
-            preds_xr.attrs["units"] = "m"
-            obss_xr.attrs["units"] = "m"
         #  Then evaluate the model metrics
         if type(fill_nan) is list and len(fill_nan) != len(target_col):
             raise ValueError("length of fill_nan must be equal to target_col's")
@@ -385,43 +382,31 @@ class DeepHydro(DeepHydroInterface):
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
-        
-        #GPM_GFS的eval需要一个合适的sampler，不能是None
 
-        # if data_cfgs["sampler"]=="WuSampler":
-        #     warmup_length = data_cfgs["warmup_length"]
-        #     ngrid = self.testdataset.y.basin.size
-        #     nt = self.testdataset.y.time.size
-        #     rho = data_cfgs["forecast_history"]
-        #     sampler=WuSampler(
-        #         self.testdataset,
-        #         batch_size=training_cfgs["batch_size"],
-        #         warmup_length=warmup_length,
-        #         rho=rho,
-        #         ngrid=ngrid,
-        #         nt=nt,
-        #     )
-        #     test_dataloader = DataLoader(
-        #         self.testdataset,
-        #         batch_size=training_cfgs["batch_size"],
-        #         shuffle=False,
-        #         sampler=sampler,
-        #         batch_sampler=None,
-        #         drop_last=False,
-        #         timeout=0,
-        #         worker_init_fn=None,
-        # )
-        # else:
-        test_dataloader = DataLoader(
-            self.testdataset,
-            batch_size=training_cfgs["batch_size"],
-            shuffle=False,
-            sampler=None,
-            batch_sampler=None,
-            drop_last=False,
-            timeout=0,
-            worker_init_fn=None,
-        )
+        if data_cfgs["sampler"] == "WuSampler":
+            ngrid = self.testdataset.y.basin.size
+            test_num_samples = self.testdataset.num_samples
+            test_dataloader = DataLoader(
+                self.testdataset,
+                batch_size=int(test_num_samples / ngrid),
+                shuffle=False,
+                sampler=None,
+                batch_sampler=None,
+                drop_last=False,
+                timeout=0,
+                worker_init_fn=None,
+            )
+        else:
+            test_dataloader = DataLoader(
+                self.testdataset,
+                batch_size=training_cfgs["batch_size"],
+                shuffle=False,
+                sampler=None,
+                batch_sampler=None,
+                drop_last=False,
+                timeout=0,
+                worker_init_fn=None,
+            )
         seq_first = training_cfgs["which_first_tensor"] == "sequence"
         self.model.eval()
         # here the batch is just an index of lookup table, so any batch size could be chosen
@@ -491,8 +476,8 @@ class DeepHydro(DeepHydroInterface):
             warmup_length = data_cfgs["warmup_length"]
             ngrid = train_dataset.y.basin.size
             nt = train_dataset.y.time.size
-            if data_cfgs["sampler"] == "KuaiSampler":
-                sampler = KuaiSampler(
+            if data_cfgs["sampler"] == "WuSampler":
+                sampler = WuSampler(
                     train_dataset,
                     batch_size=batch_size,
                     warmup_length=warmup_length,
@@ -501,7 +486,7 @@ class DeepHydro(DeepHydroInterface):
                     nt=nt,
                 )
             else:
-                sampler = WuSampler(
+                sampler = KuaiSampler(
                     train_dataset,
                     batch_size=batch_size,
                     warmup_length=warmup_length,
@@ -520,14 +505,26 @@ class DeepHydro(DeepHydroInterface):
         )
         if data_cfgs["t_range_valid"] is not None:
             valid_dataset = self.validdataset
-            validation_data_loader = DataLoader(
-                valid_dataset,
-                batch_size=training_cfgs["batch_size"],
-                shuffle=False,
-                num_workers=worker_num,
-                pin_memory=pin_memory,
-                timeout=0,
-            )
+
+            if data_cfgs["sampler"] == "WuSampler":
+                eval_num_samples = valid_dataset.num_samples
+                validation_data_loader = DataLoader(
+                    valid_dataset,
+                    batch_size=int(eval_num_samples / ngrid),
+                    shuffle=False,
+                    num_workers=worker_num,
+                    pin_memory=pin_memory,
+                    timeout=0,
+                )
+            else:
+                validation_data_loader = DataLoader(
+                    valid_dataset,
+                    batch_size=training_cfgs["batch_size"],
+                    shuffle=False,
+                    num_workers=worker_num,
+                    pin_memory=pin_memory,
+                    timeout=0,
+                )
             return data_loader, validation_data_loader
 
         return data_loader, None

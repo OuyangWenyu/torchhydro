@@ -19,7 +19,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import xarray as xr
-
+import pandas as pd
 from torchhydro.models.crits import GaussianLoss
 
 
@@ -82,22 +82,24 @@ def denormalize4eval(validation_data_loader, output, labels):
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
     if target_scaler.data_cfgs["scaler"] == "GPM_GFS_Scaler":
-        # item=validation_data_loader.dataset.lookup_table.
-        forecast_length = validation_data_loader.dataset.forecast_length
-        forecast_history = validation_data_loader.dataset.rho
         selected_time_points = target_data.coords["time"][
-            warmup_length
-            + forecast_history : warmup_length
-            + forecast_history+forecast_length
-            # 0 : output.shape[0]
+            warmup_length : warmup_length + validation_data_loader.batch_size
         ]
         selected_data = target_data.sel(time=selected_time_points)
+        output = output.reshape(output.shape[0], output.shape[1], 1)[:, 0, :].reshape(
+            validation_data_loader.batch_size, -1
+        )
+        output = output.reshape(output.shape[0], output.shape[1], 1)
+        labels = labels[:, 0, :].reshape(
+            validation_data_loader.batch_size, -1
+        )
+        labels = labels.reshape(labels.shape[0], labels.shape[1], 1)
+
         preds_xr = target_scaler.inverse_transform(
             xr.DataArray(
-                output.reshape(output.shape[0], output.shape[1], 1).transpose(2, 0, 1),
+                output.transpose(2, 0, 1),
                 dims=selected_data.dims,
                 coords=selected_data.coords,
-                attrs={"units": units},
             )
         )
         obss_xr = target_scaler.inverse_transform(
@@ -105,9 +107,10 @@ def denormalize4eval(validation_data_loader, output, labels):
                 labels.transpose(2, 0, 1),
                 dims=selected_data.dims,
                 coords=selected_data.coords,
-                attrs={"units": units},
             )
         )
+        preds_xr.attrs["units"] = "m"
+        obss_xr.attrs["units"] = "m"
     else:
         selected_time_points = target_data.coords["time"][warmup_length:]
         selected_data = target_data.sel(time=selected_time_points)
@@ -223,9 +226,6 @@ def evaluate_validation(
     eval_log = {}
     # renormalization to get real metrics
     preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels)
-    if self.cfgs["data_cfgs"]["scaler"] == "GPM_GFS_Scaler":
-        preds_xr.attrs["units"] = "m"
-        obss_xr.attrs["units"] = "m"
     for i in range(len(target_col)):
         obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
         pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]

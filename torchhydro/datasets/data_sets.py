@@ -509,7 +509,7 @@ class GPM_GFS_Dataset(Dataset):
         return result
 
     def __len__(self):
-        return self.num_samples #if self.train_mode else len(self.t_s_dict["sites_id"])
+        return self.num_samples 
 
     def __getitem__(self, item: int):
         # here time is time_now in gpm_gfs_data
@@ -571,7 +571,7 @@ class GPM_GFS_Dataset(Dataset):
             lookup.extend(
                 (basin, dates[f])
                 for f in range(warmup_length, time_length)
-                if rho <= f < time_length - rho - output_seq_len + 1
+                if rho <= f < time_length - output_seq_len + 1
             )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)

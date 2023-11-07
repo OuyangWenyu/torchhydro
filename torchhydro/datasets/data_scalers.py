@@ -739,9 +739,9 @@ class GPM_GFS_Scaler_2(object):
                     mean_prep = self.data_source.read_mean_prcp(
                         self.t_w_dict["sites_id"]
                     )
-                    pred.loc[dict(variable=var)] = _prcp_norm(
+                    pred.loc[dict(variable=var)] = self.GPM_GFS_prcp_norm(
                         pred.sel(variable=var).to_numpy(),
-                        mean_prep.to_array().to_numpy().T,
+                        mean_prep.to_array().to_numpy(),
                         to_norm=False,
                     )
             # add attrs for units

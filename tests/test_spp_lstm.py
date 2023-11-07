@@ -3,6 +3,9 @@ import pytest
 import hydrodataset as hds
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
+import warnings
+
+warnings.filterwarnings("ignore")
 
 
 @pytest.fixture()
@@ -18,8 +21,8 @@ def config():
         ctx=[-1],
         model_name="SPPLSTM",
         model_hyperparam={
-            "seq_length": 8,
-            "forecast_length": 3,
+            "seq_length": 168,
+            "forecast_length": 24,
             "n_output": 1,
             "n_hidden_states": 80,
         },
@@ -29,18 +32,18 @@ def config():
             "01423000",
         ],
         # batch_size有一些限制，不能超过一个流域用于训练的item个数，比如1个流域只有6个item,batch_size需小于6
-        batch_size=4,
-        var_t=["tp"],  # precipitationCal
+        batch_size=64,
+        var_t=["tp"],
         var_out=["waterlevel"],
         dataset="GPM_GFS_Dataset",
         sampler="WuSampler",
         scaler="GPM_GFS_Scaler",
-        train_epoch=1,
+        train_epoch=100,
         save_epoch=1,
-        te=1,
-        train_period=["2017-01-10", "2017-01-10"],
-        test_period=["2017-01-12", "2017-01-12"],
-        # valid_period=["2017-01-13", "2017-01-13"],
+        te=100,
+        train_period=["2017-01-10", "2017-03-21"],
+        test_period=["2017-03-21", "2017-04-10"],
+        valid_period=["2017-04-11", "2017-04-30"],
         loss_func="RMSESum",
         opt="Adam",
         lr_scheduler={1: 5e-4, 2: 1e-4, 3: 1e-5},

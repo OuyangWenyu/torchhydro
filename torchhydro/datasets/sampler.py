@@ -115,7 +115,7 @@ class GPM_GFS_Sampler(Sampler[int]):
         else:
             generator = self.generator
 
-        if self.replacement: # 暂不可用
+        if self.replacement:  # 暂不可用
             for _ in range(self.num_samples // 32):
                 yield from torch.randint(
                     high=n, size=(32,), dtype=torch.int64, generator=generator
