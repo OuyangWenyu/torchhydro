@@ -18,7 +18,7 @@ def config():
         source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
         source_region="US",
         download=0,
-        ctx=[-1],
+        ctx=[0],
         model_name="SPPLSTM",
         model_hyperparam={
             "seq_length": 168,
@@ -32,7 +32,7 @@ def config():
             "01423000",
         ],
         # batch_size有一些限制，不能超过一个流域用于训练的item个数，比如1个流域只有6个item,batch_size需小于6
-        batch_size=64,
+        batch_size=128,
         var_t=["tp"],
         var_out=["waterlevel"],
         dataset="GPM_GFS_Dataset",

@@ -188,8 +188,9 @@ threadpoolctl==3.2.0
 timezonefinder==6.2.0
 tomli==2.0.1
 toolz==0.12.0
-torch==1.12.1
-torchvision==0.13.1
+torch==1.12.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
+torchvision==0.13.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
+torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113
 tornado==6.3.3
 tox==4.11.3
 tqdm==4.64.1
