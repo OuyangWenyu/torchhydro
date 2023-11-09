@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-11 11:35:13
+LastEditTime: 2023-10-28 13:22:06
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -21,6 +21,11 @@ from torch import nn
 from hydrodataset import HydroDataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from torchhydro.explainers.shap import (
+    deep_explain_model_heatmap,
+    deep_explain_model_summary_plot,
+    shap_summary_plot,
+)
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.sampler import (
     KuaiSampler,
@@ -44,9 +49,9 @@ from torchhydro.trainers.train_utils import (
     compute_validation,
     model_infer,
     torch_single_train,
+    cellstates_when_inference,
 )
 from torchhydro.trainers.train_logger import TrainLogger
-from trainers.train_utils import cellstates_when_inference
 
 
 class DeepHydroInterface(ABC):
@@ -312,7 +317,6 @@ class DeepHydro(DeepHydroInterface):
         tuple[dict, np.array, np.array]
             eval_log, denormalized predictions and observations
         """
-        data_cfgs = self.cfgs["data_cfgs"]
         # types of observations
         target_col = self.cfgs["data_cfgs"]["target_cols"]
         evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
@@ -367,13 +371,11 @@ class DeepHydro(DeepHydroInterface):
                 ]
 
         # Finally, try to explain model behaviour using shap
-        # TODO: SHAP has not been supported
-        is_shap = False
+        is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
         if is_shap:
-            deep_explain_model_summary_plot(
-                model, test_data, data_cfgs["t_range_test"][0]
-            )
-            deep_explain_model_heatmap(model, test_data, data_cfgs["t_range_test"][0])
+            shap_summary_plot(self.model, self.traindataset, test_data)
+            # deep_explain_model_summary_plot(self.model, test_data)
+            # deep_explain_model_heatmap(self.model, test_data)
 
         return eval_log, preds_xr, obss_xr
 

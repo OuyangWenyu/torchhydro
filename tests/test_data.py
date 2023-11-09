@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2023-09-25 08:22:43
+LastEditTime: 2023-10-19 08:37:56
 LastEditors: Wenyu Ouyang
 Description: Test some functions for dataset
 FilePath: /torchhydro/tests/test_data.py
@@ -9,6 +9,7 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import pytest
 import hydrodataset as hds
+from hydrodataset.caravan import Caravan
 from torch.utils.data import Dataset
 
 from datasets.sampler import KuaiSampler
@@ -66,3 +67,11 @@ def test_cache_file():
     """
     camels_us = hds.Camels()
     camels_us.cache_xrdataset()
+
+
+def test_cache_caravan():
+    """
+    Test whether the cache file is generated correctly
+    """
+    caravan = Caravan(hds.ROOT_DIR.joinpath("caravan"))
+    caravan.cache_xrdataset()

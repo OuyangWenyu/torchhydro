@@ -140,11 +140,12 @@ class SPP_LSTM_Model(nn.Module):
         x = self.maxpool2(x)
         x = self.dropout(x)
         # print(x.shape)
-        x = x.view(len(x), len(x[1]), -1)
+        x = x.view(x.shape[0], x.shape[1], -1)
         # print(x.shape)
         x, _ = self.lstm(x)
         # print(x.shape)
         x = self.dense(x)
         x = x[:, -self.forecast_length :, :]
         # print(x.shape)
-        return x.unsqueeze(2).transpose(0, 1)
+        return x
+        # return x.unsqueeze(2).transpose(0, 1)

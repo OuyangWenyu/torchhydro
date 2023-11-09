@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-10-11 11:22:21
+LastEditTime: 2023-10-18 19:09:57
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -168,13 +168,11 @@ class BaseDataset(Dataset):
             all_number=True,
         )
         # trans to dataarray to better use xbatch
-        if data_flow_ds is not None:
+        if self.data_source.streamflow_unit != "mm/d":
             data_flow_ds = unify_streamflow_unit(
                 data_flow_ds, self.data_source.read_area(self.t_s_dict["sites_id"])
             )
-            data_flow = self._trans2da_and_setunits(data_flow_ds)
-        else:
-            data_flow = None
+        data_flow = self._trans2da_and_setunits(data_flow_ds)
         if data_forcing_ds is not None:
             data_forcing = self._trans2da_and_setunits(data_forcing_ds)
         else:

@@ -9,6 +9,7 @@ dependencies:
   - numpy
   - xarray
   - netcdf4
+  - dask
   - geopandas
   - scikit-learn
   - pytorch=1.12.1
@@ -16,6 +17,7 @@ dependencies:
   - pytorch-scatter
   - tensorboard
   - torchvision
+  - shap
   - tqdm
   - pytest
   - black

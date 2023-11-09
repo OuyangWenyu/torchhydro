@@ -1,10 +1,10 @@
 """
 Author: MHPI group, Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-10 20:28:18
+LastEditTime: 2023-10-11 11:38:48
 LastEditors: Wenyu Ouyang
 Description: LSTM with dropout implemented by Kuai Fang and more LSTMs using it
-FilePath: \torchhydro\torchhydro\models\cudnnlstm.py
+FilePath: /torchhydro/torchhydro/models/cudnnlstm.py
 Copyright (c) 2021-2022 MHPI group, Wenyu Ouyang. All rights reserved.
 """
 
@@ -121,9 +121,7 @@ class LstmCellTied(nn.Module):
 
 
 class CpuLstmModel(nn.Module):
-    """
-    Cpu version of CudnnLstmModel , ,
-    """
+    """Cpu version of CudnnLstmModel"""
 
     def __init__(self, *, n_input_features, n_output_features, n_hidden_states, dr=0.5):
         super(CpuLstmModel, self).__init__()

@@ -63,6 +63,8 @@ def model_infer(seq_first, device, model, xs, ys):
         else ys.to(device)
     )
     output = model(*xs)
+    if output.shape[1] == ys.shape[0]:
+        output=output.transpose(0, 1)
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
@@ -90,9 +92,7 @@ def denormalize4eval(validation_data_loader, output, labels):
             validation_data_loader.batch_size, -1
         )
         output = output.reshape(output.shape[0], output.shape[1], 1)
-        labels = labels[:, 0, :].reshape(
-            validation_data_loader.batch_size, -1
-        )
+        labels = labels[:, 0, :].reshape(validation_data_loader.batch_size, -1)
         labels = labels.reshape(labels.shape[0], labels.shape[1], 1)
 
         preds_xr = target_scaler.inverse_transform(

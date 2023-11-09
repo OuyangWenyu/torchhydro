@@ -231,6 +231,7 @@ def default_config_file():
             "metrics": ["NSE"],
             "fill_nan": "no",
             "test_epoch": 20,
+            "explainer": None,
         },
     }
 
@@ -289,6 +290,7 @@ def cmd(
     loss_param=None,
     metrics=None,
     fill_nan=None,
+    explainer=None,
     warmup_length=0,
     start_epoch=1,
     stat_dict_file=None,
@@ -637,6 +639,13 @@ def cmd(
         nargs="+",
     )
     parser.add_argument(
+        "--explainer",
+        dest="explainer",
+        help="explainer what when evaluating",
+        default=explainer,
+        nargs="+",
+    )
+    parser.add_argument(
         "--warmup_length",
         dest="warmup_length",
         help="Physical hydro models need warmup",
@@ -941,6 +950,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["evaluation_cfgs"]["metrics"] = new_args.metrics
     if new_args.fill_nan is not None:
         cfg_file["evaluation_cfgs"]["fill_nan"] = new_args.fill_nan
+    if new_args.explainer is not None:
+        cfg_file["evaluation_cfgs"]["explainer"] = new_args.explainer
     if new_args.te is not None:
         cfg_file["evaluation_cfgs"]["test_epoch"] = new_args.te
         if new_args.train_epoch is not None and new_args.te > new_args.train_epoch:

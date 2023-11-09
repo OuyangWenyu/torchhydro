@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-10-05 16:16:48
-LastEditTime: 2023-10-15 15:51:51
+LastEditTime: 2023-10-20 19:59:38
 LastEditors: Wenyu Ouyang
-Description: A test function for transfer learning
-FilePath: \torchhydro\tests\test_transfer_learning.py
+Description: Transfer learning for local basins with hydro_opendata
+FilePath: \torchhydro\tests\test_tl_opendata.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
@@ -70,12 +70,12 @@ def test_transfer_gages_lstm_model(
         "exp1",
     )
     weight_path = get_lastest_file_in_a_dir(weight_dir)
-    project_name = "test_camels/exp4"
+    project_name = "test_caravan/exp6"
     args = cmd(
         sub=project_name,
-        source="CAMELS",
-        source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_us"),
-        source_region="US",
+        source="Caravan",
+        source_path=os.path.join(hds.ROOT_DIR, "caravan"),
+        source_region="Global",
         download=0,
         ctx=[0],
         model_type="TransLearn",

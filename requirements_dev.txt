@@ -2,6 +2,7 @@
 numpy~=1.23.4
 xarray~=2023.7.0
 netCDF4
+dask[complete]
 geopandas
 scikit-learn~=1.1.3
 tqdm~=4.64.1
@@ -15,6 +16,7 @@ torch~=1.12.1
 hydroerr~=1.24
 setuptools~=65.5.0
 torchvision~=0.13.1
+shap
 matplotlib~=3.5.3
 seaborn~=0.12.1
 
