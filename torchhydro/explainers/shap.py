@@ -207,8 +207,8 @@ def shap_summary_plot(dl_model, train_dataset, test_dataset) -> None:
         t = test_dataset.__getitem__(i)[0]
         test_list.append(t)
     test = torch.cat(test_list).cuda()
-    
-    dl_model = dl_model
+
+    dl_model = dl_model.cuda()
     torch.backends.cudnn.enabled = False
     e = shap.DeepExplainer(dl_model, history)
     shap_values = e.shap_values(test)[0]

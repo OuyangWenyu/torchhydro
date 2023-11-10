@@ -55,6 +55,7 @@ def config():
         explainer="shap",
         lr_scheduler={1: 5e-4, 2: 1e-4, 3: 1e-5},
         which_first_tensor="sequence",
+        is_tensorboard=True,
     )
     update_cfg(config_data, args)
     return config_data

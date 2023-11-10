@@ -234,7 +234,7 @@ class GPM_GFS(HydroDataset):
         gpm_dict = {}
         for basin in gage_id_lst:
             gpm = xr.open_dataset(
-                os.path.join(hds.ROOT_DIR, "gpm_gfs_data_24h", str(basin) + ".nc")
+                os.path.join(hds.ROOT_DIR, "gpm_gfs_data_24h_re", str(basin) + ".nc")
             )
             gpm = gpm[var_lst].sel(time=slice(t_range[0], t_range[1]))
             gpm_dict[basin] = gpm
