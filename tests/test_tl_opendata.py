@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-10-05 16:16:48
-LastEditTime: 2023-10-20 19:59:38
+LastEditTime: 2023-11-19 22:01:36
 LastEditors: Wenyu Ouyang
 Description: Transfer learning for local basins with hydro_opendata
 FilePath: \torchhydro\tests\test_tl_opendata.py
@@ -18,12 +18,12 @@ from torchhydro.trainers.trainer import train_and_evaluate
 @pytest.fixture()
 def var_c_target():
     return [
-        "elev_mean",
-        "slope_mean",
-        "area_gages2",
-        "frac_forest",
-        "lai_max",
-        "lai_diff",
+        "p_mean",
+        "pet_mean",
+        "Area",
+        "geol_class_1st",
+        "elev",
+        "SNDPPT",
     ]
 
 
@@ -52,7 +52,8 @@ def var_c_source():
 
 @pytest.fixture()
 def var_t_target():
-    return ["dayl", "prcp", "srad"]
+    # mainly from ERA5LAND
+    return ["total_precipitation", "potential_evaporation", "temperature_2m"]
 
 
 @pytest.fixture()
@@ -70,12 +71,14 @@ def test_transfer_gages_lstm_model(
         "exp1",
     )
     weight_path = get_lastest_file_in_a_dir(weight_dir)
-    project_name = "test_caravan/exp6"
+    project_name = "test_camels/exptl4cc"
     args = cmd(
         sub=project_name,
-        source="Caravan",
-        source_path=os.path.join(hds.ROOT_DIR, "caravan"),
-        source_region="Global",
+        source="SelfMadeCAMELS",
+        # cc means China continent
+        source_path=os.path.join(
+            hds.ROOT_DIR, "waterism", "datasets-interim", "camels_cc"
+        ),
         download=0,
         ctx=[0],
         model_type="TransLearn",
@@ -91,8 +94,8 @@ def test_transfer_gages_lstm_model(
         batch_size=5,
         rho=20,
         rs=1234,
-        train_period=["2010-10-01", "2011-10-01"],
-        test_period=["2011-10-01", "2012-10-01"],
+        train_period=["2014-10-01", "2019-10-01"],
+        test_period=["2019-10-01", "2021-10-01"],
         scaler="DapengScaler",
         sampler="KuaiSampler",
         dataset="StreamflowDataset",
@@ -108,9 +111,8 @@ def test_transfer_gages_lstm_model(
         var_c=var_c_target,
         var_out=["streamflow"],
         gage_id=[
-            "01055000",
-            "01057000",
-            "01170100",
+            "61561",
+            "62618",
         ],
     )
     cfg = default_config_file()
