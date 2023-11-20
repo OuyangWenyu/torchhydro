@@ -118,6 +118,10 @@ class SelfMadeCamels(HydroDataset):
             self.download_data_source()
         self.camels_sites = self.read_site_info()
 
+    @property
+    def streamflow_unit(self):
+        return "m^3/s"
+
     def get_name(self):
         return "SelfMadeCamels"
 
@@ -345,8 +349,8 @@ class SelfMadeCamels(HydroDataset):
 
             data_array = xr.DataArray(
                 data=merged_data[column].values,
-                dims=["gage_id"],
-                coords={"gage_id": merged_data["gage_id"]},
+                dims=["basin"],
+                coords={"basin": merged_data["gage_id"].astype(str)},
                 attrs=attrs,
             )
             ds[column] = data_array
@@ -364,7 +368,6 @@ class SelfMadeCamels(HydroDataset):
         variables = self.get_target_cols()
         basins = self.camels_sites["gage_id"].values
         t_range = ["2014-01-01", "2022-01-01"]
-        streamflow_unit = "m^3/s"
         times = [
             hydro_time.t2str(tmp) for tmp in hydro_time.t_range_days(t_range).tolist()
         ]
@@ -374,21 +377,19 @@ class SelfMadeCamels(HydroDataset):
             target_cols=variables,
         )
 
-        # 创建xarray数据集
-        ds = xr.Dataset(
+        return xr.Dataset(
             {
                 "streamflow": (
                     ["basin", "time"],
                     data.reshape([len(basins), len(times)])[:, :],
-                    {"units": streamflow_unit},
+                    {"units": self.streamflow_unit},
                 )
             },
             coords={
                 "basin": basins,
-                "time": times,
+                "time": pd.to_datetime(times),
             },
         )
-        return ds
 
     def cache_forcing_xrdataset(self):
         """Save all daymet basin-forcing data in a netcdf file in the cache directory."""
@@ -468,9 +469,9 @@ class SelfMadeCamels(HydroDataset):
             },
             coords={
                 "basin": basins,
-                "time": times,
+                "time": pd.to_datetime(times),
             },
-            attrs={"forcing_type": "daymet"},
+            attrs={"forcing_type": "era5land"},
         )
 
     def cache_xrdataset(self):
@@ -519,4 +520,4 @@ class SelfMadeCamels(HydroDataset):
 
     def read_mean_prcp(self, gage_id_lst=None):
         """read mean precipitation of each basin/unit"""
-        return self.read_constant_cols(gage_id_lst, ["p_mean"])
+        return self.read_attr_xrdataset(gage_id_lst, ["p_mean"])

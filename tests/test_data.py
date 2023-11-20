@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2023-10-19 08:37:56
+LastEditTime: 2023-11-20 19:15:50
 LastEditors: Wenyu Ouyang
 Description: Test some functions for dataset
 FilePath: /torchhydro/tests/test_data.py
@@ -12,7 +12,7 @@ import hydrodataset as hds
 from hydrodataset.caravan import Caravan
 from torch.utils.data import Dataset
 
-from datasets.sampler import KuaiSampler
+from torchhydro.datasets.sampler import KuaiSampler
 
 
 class SimpleDataset(Dataset):
