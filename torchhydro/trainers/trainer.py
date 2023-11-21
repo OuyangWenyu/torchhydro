@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-10-18 16:00:32
+LastEditTime: 2023-11-21 21:57:17
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
-FilePath: \torchhydro\torchhydro\trainers\trainer.py
+FilePath: /torchhydro/torchhydro/trainers/trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import fnmatch
@@ -243,6 +243,160 @@ def stat_result(
             var_name, unit, pred, obs, fill_nan, basin_area=basin_area
         )
         return (inds_df_, pred_, obs_) if return_value else inds_df_
+
+
+def ensemble_train_and_evaluate(cfgs: Dict):
+    """
+    Function to train and test for ensemble models
+
+    Parameters
+    ----------
+    cfgs
+        Dictionary containing all configs needed to run the model
+
+    Returns
+    -------
+    None
+    """
+    basin_ids = ["61561", "62618"]
+    # lstm, tl-lstm
+    exp61561 = ["gages/exp615610", "gages/exp615611"]
+    exp62618 = ["gages/exp626180", "gages/exp626181"]
+    all_exps = [exp61561, exp62618]
+    train_periods = [
+        [["2018-10-01", "2021-10-01"], ["2015-10-01", "2018-10-01"]],
+        [["2018-10-01", "2021-10-01"], ["2015-10-01", "2018-10-01"]],
+        [["1986-10-01", "1989-10-01"], ["1983-10-01", "1986-10-01"]],
+    ]
+    valid_periods = [
+        [["2015-10-01", "2018-10-01"], ["2018-10-01", "2021-10-01"]],
+        [["2015-10-01", "2018-10-01"], ["2018-10-01", "2021-10-01"]],
+        [["1983-10-01", "1986-10-01"], ["1986-10-01", "1989-10-01"]],
+    ]
+    kfold = 2
+    # for basins and models
+    best_batchsize = [[50, 200], [100, 20], [50, 100]]
+    best_bs_dir = []
+    for bs in best_batchsize:
+        bs_dir = [f"opt_Adadelta_lr_1.0_bsize_{str(b)}/training_params" for b in bs]
+        best_bs_dir.append(bs_dir)
+    lstm_train = False
+    lstm_valid = False
+    if lstm_train:
+        camesl523_exp = "exp311"
+        for i, j in itertools.product(range(len(basin_ids)), range(kfold)):
+            train_and_evaluate(
+                # "00": first zero means the first exp for lstm, second zero means the first fold
+                "exp" + basin_ids[i] + "00" + str(j),
+                random_seed=1234,
+                opt="Adadelta",
+                batch_size=best_batchsize[i],
+                epoch=100,
+                save_epoch=1,
+                gage_id=[basin_ids[i]],
+                data_loader="StreamflowDataset",
+                num_workers=4,
+                train_period=train_periods[i][j],
+                valid_period=valid_periods[i][j],
+                test_period=valid_periods[i][j],
+                # only one basin, we don't need attribute
+                var_c=[],
+            )
+
+    # for basins and models
+    best_bs_dir = []
+    for bs in best_batchsize:
+        bs_dir = [f"opt_Adadelta_lr_1.0_bsize_{str(b)}/training_params" for b in bs]
+        best_bs_dir.append(bs_dir)
+    lstm_train = False
+    lstm_valid = False
+    if lstm_train:
+        camesl523_exp = "exp311"
+        for i, j in itertools.product(range(len(basin_ids)), range(kfold)):
+            camels_cc_lstm_model(
+                # "00": first zero means the first exp for lstm, second zero means the first fold
+                "exp" + basin_ids[i] + "00" + str(j),
+                random_seed=1234,
+                opt="Adadelta",
+                batch_size=best_batchsize[i],
+                epoch=100,
+                save_epoch=1,
+                gage_id=[basin_ids[i]],
+                data_loader="StreamflowDataset",
+                num_workers=4,
+                train_period=train_periods[i][j],
+                valid_period=valid_periods[i][j],
+                test_period=valid_periods[i][j],
+                # only one basin, we don't need attribute
+                var_c=[],
+            )
+            transfer_gages_lstm_model_to_camelscc(
+                camesl523_exp,
+                "exp" + basin_ids[i] + "10" + str(j),
+                random_seed=1234,
+                freeze_params=None,
+                opt="Adadelta",
+                batch_size=best_batchsize[i],
+                epoch=100,
+                save_epoch=1,
+                gage_id=[basin_ids[i]],
+                data_loader="StreamflowDataset",
+                device=[1],
+                train_period=train_periods[i][j],
+                valid_period=valid_periods[i][j],
+                test_period=valid_periods[i][j],
+                var_c_target=[],
+                num_workers=0,
+            )
+    if lstm_valid:
+        best_epoch = [[58, 56], [86, 26], [85, 69]]
+        for i, j in itertools.product(range(len(basin_ids)), range(kfold)):
+            # the first evaluate_a_model is for training, the second is for validation
+            evaluate_a_model(
+                "exp" + basin_ids[i] + "00" + str(j),
+                example="gages",
+                epoch=best_epoch[i][0],
+                train_period=valid_periods[i][j],
+                test_period=train_periods[i][j],
+                save_result_name=f"fold{str(j)}train",
+                sub_exp=best_bs_dir[i][0],
+                device=[0],
+            )
+
+            evaluate_a_model(
+                "exp" + basin_ids[i] + "00" + str(j),
+                example="gages",
+                epoch=best_epoch[i][0],
+                train_period=train_periods[i][j],
+                test_period=valid_periods[i][j],
+                save_result_name=f"fold{str(j)}valid",
+                sub_exp=best_bs_dir[i][0],
+                device=[0],
+            )
+            # transfer learning model
+            evaluate_a_model(
+                "exp" + basin_ids[i] + "10" + str(j),
+                example="gages",
+                epoch=best_epoch[i][1],
+                train_period=valid_periods[i][j],
+                test_period=train_periods[i][j],
+                save_result_name=f"fold{str(j)}train",
+                is_tl=True,
+                sub_exp=best_bs_dir[i][1],
+                device=[0],
+            )
+
+            evaluate_a_model(
+                "exp" + basin_ids[i] + "10" + str(j),
+                example="gages",
+                epoch=best_epoch[i][1],
+                train_period=train_periods[i][j],
+                test_period=valid_periods[i][j],
+                save_result_name=f"fold{str(j)}valid",
+                is_tl=True,
+                sub_exp=best_bs_dir[i][1],
+                device=[0],
+            )
 
 
 def load_ensemble_result(

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-06 17:12:00
+LastEditTime: 2023-11-21 21:33:44
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: \torchhydro\torchhydro\configs\config.py
+FilePath: /torchhydro/torchhydro/configs/config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import argparse
@@ -232,6 +232,17 @@ def default_config_file():
             "test_epoch": 20,
             "explainer": None,
         },
+        # for ensemble
+        "ensemble_cfgs": {
+            "ensemble": False,
+            "model_names": None,
+            "exps": None,
+            "kfold": None,
+            "t_range_train": None,
+            "t_range_valid": None,
+            "t_range_test": None,
+            "other_cfg": None,
+        },
     }
 
 
@@ -297,6 +308,7 @@ def cmd(
     num_workers=None,
     train_but_not_real=None,
     which_first_tensor=None,
+    ensemble_cfgs=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -700,6 +712,13 @@ def cmd(
         default=lr_scheduler,
         type=json.loads,
     )
+    parser.add_argument(
+        "--ensemble_cfgs",
+        dest="ensemble_cfgs",
+        help="ensemble config",
+        default=ensemble_cfgs,
+        type=json.loads,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -967,6 +986,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
+    if new_args.ensemble_cfgs is not None:
+        cfg_file["ensemble_cfgs"] = new_args.ensemble_cfgs
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 
