@@ -1,12 +1,14 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-11-21 21:57:17
+LastEditTime: 2023-11-24 21:38:31
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: /torchhydro/torchhydro/trainers/trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+import copy
+from datetime import datetime
 import fnmatch
 import os
 import random
@@ -14,6 +16,7 @@ import random
 import numpy as np
 from typing import Dict, Tuple, Union
 import pandas as pd
+from sklearn.model_selection import KFold
 import torch
 from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import unserialize_numpy
@@ -245,6 +248,116 @@ def stat_result(
         return (inds_df_, pred_, obs_) if return_value else inds_df_
 
 
+def _update_cfg_with_1ensembleitem(cfg, key, value):
+    """update a dict with key and value
+
+    Parameters
+    ----------
+    my_dict : _type_
+        _description_
+    key : _type_
+        _description_
+    value : _type_
+        _description_
+    """
+    new_cfg = copy.deepcopy(cfg)
+    if key == "kfold":
+        new_cfg["data_cfgs"]["train_period"] = value[0]
+        new_cfg["data_cfgs"]["valid_period"] = None
+        new_cfg["data_cfgs"]["test_period"] = value[1]
+    elif key == "batch_sizes":
+        new_cfg["training_cfgs"]["batch_size"] = value
+    elif key == "seeds":
+        new_cfg["training_cfgs"]["random_seed"] = value
+    else:
+        raise ValueError(f"key {key} is not supported")
+    return new_cfg
+
+
+def _create_kfold_periods(train_period, valid_period, test_period, kfold):
+    """
+    Create k folds from the complete time period defined by the earliest start date and latest end date
+    among train, valid, and test periods, ignoring any period that is None or has NaN values.
+
+    Parameters:
+    - train_period: List with 2 elements [start_date, end_date] for training period.
+    - valid_period: List with 2 elements [start_date, end_date] for validation period.
+    - test_period: List with 2 elements [start_date, end_date] for testing period.
+    - kfold: Number of folds to split the data into.
+
+    Returns:
+    - A list of k elements, each element is a tuple containing two lists: train period and test period.
+    """
+
+    # Collect periods, ignoring None or NaN
+    periods = [train_period, valid_period, test_period]
+    periods = [p for p in periods if p and not pd.isna(p[0]) and not pd.isna(p[1])]
+
+    # Convert string dates to datetime objects and find the earliest start and latest end dates
+    dates = [
+        datetime.strptime(date, "%Y-%m-%d") for period in periods for date in period
+    ]
+    start_date = min(dates)
+    end_date = max(dates)
+
+    # Create a continuous period
+    full_period = pd.date_range(start=start_date, end=end_date)
+    periods = np.array(range(len(full_period)))
+
+    # Apply KFold
+    kf = KFold(n_splits=kfold)
+    folds = []
+    for train_index, test_index in kf.split(periods):
+        train_start = full_period[train_index[0]].strftime("%Y-%m-%d")
+        train_end = full_period[train_index[-1]].strftime("%Y-%m-%d")
+        test_start = full_period[test_index[0]].strftime("%Y-%m-%d")
+        test_end = full_period[test_index[-1]].strftime("%Y-%m-%d")
+        folds.append(([train_start, train_end], [test_start, test_end]))
+
+    return folds
+
+
+def _nested_loop_train_and_evaluate(keys, index, my_dict, update_dict):
+    """a recursive function to update the update_dict
+
+    Parameters
+    ----------
+    keys : _type_
+        _description_
+    index : _type_
+        _description_
+    my_dict : _type_
+        _description_
+    update_dict : _type_
+        _description_
+    """
+    if index == len(keys):
+        return
+    current_key = keys[index]
+    if index == 0 and current_key == "kfold":
+        _trans_kfold_to_periods(update_dict, my_dict, current_key)
+    for value in my_dict[current_key]:
+        # update the update_dict
+        cfg = _update_cfg_with_1ensembleitem(update_dict, current_key, value)
+        # for final key, perform train and evaluate
+        if index == len(keys) - 1:
+            train_and_evaluate(cfg)
+        # recursive
+        _nested_loop_train_and_evaluate(keys, index + 1, my_dict, update_dict)
+
+
+def _trans_kfold_to_periods(update_dict, my_dict, current_key):
+    # set train and test period
+    train_period = update_dict["data_cfgs"]["train_period"]
+    valid_period = update_dict["data_cfgs"]["valid_period"]
+    test_period = update_dict["data_cfgs"]["test_period"]
+    kfold = my_dict[current_key]
+    kfold_periods = _create_kfold_periods(
+        train_period, valid_period, test_period, kfold
+    )
+    my_dict[current_key] = kfold_periods
+
+
 def ensemble_train_and_evaluate(cfgs: Dict):
     """
     Function to train and test for ensemble models
@@ -259,67 +372,17 @@ def ensemble_train_and_evaluate(cfgs: Dict):
     None
     """
     # for basins and models
-    camesl523_exp = "exp311"
-    for i, j in itertools.product(range(len(basin_ids)), range(kfold)):
-        camels_cc_lstm_model(
-            # "00": first zero means the first exp for lstm, second zero means the first fold
-            "exp" + basin_ids[i] + "00" + str(j),
-            random_seed=1234,
-            opt="Adadelta",
-            batch_size=best_batchsize[i],
-            epoch=100,
-            save_epoch=1,
-            gage_id=[basin_ids[i]],
-            data_loader="StreamflowDataset",
-            num_workers=4,
-            train_period=train_periods[i][j],
-            valid_period=valid_periods[i][j],
-            test_period=valid_periods[i][j],
-            # only one basin, we don't need attribute
-            var_c=[],
+    ensemble = cfgs["training_cfgs"]["ensemble"]
+    if not ensemble:
+        raise ValueError(
+            "ensemble should be True, otherwise should use train_and_evaluate rather than ensemble_train_and_evaluate"
         )
-        transfer_gages_lstm_model_to_camelscc(
-            camesl523_exp,
-            "exp" + basin_ids[i] + "10" + str(j),
-            random_seed=1234,
-            freeze_params=None,
-            opt="Adadelta",
-            batch_size=best_batchsize[i],
-            epoch=100,
-            save_epoch=1,
-            gage_id=[basin_ids[i]],
-            data_loader="StreamflowDataset",
-            device=[1],
-            train_period=train_periods[i][j],
-            valid_period=valid_periods[i][j],
-            test_period=valid_periods[i][j],
-            var_c_target=[],
-            num_workers=0,
-        )
-    best_epoch = [[58, 56], [86, 26], [85, 69]]
-    for i, j in itertools.product(range(len(basin_ids)), range(kfold)):
-        # the first evaluate_a_model is for training, the second is for validation
-        evaluate_a_model(
-            "exp" + basin_ids[i] + "00" + str(j),
-            example="gages",
-            epoch=best_epoch[i][0],
-            train_period=valid_periods[i][j],
-            test_period=train_periods[i][j],
-            save_result_name=f"fold{str(j)}train",
-            sub_exp=best_bs_dir[i][0],
-            device=[0],
-        )
-
-        evaluate_a_model(
-            "exp" + basin_ids[i] + "00" + str(j),
-            example="gages",
-            epoch=best_epoch[i][0],
-            train_period=train_periods[i][j],
-            test_period=valid_periods[i][j],
-            save_result_name=f"fold{str(j)}valid",
-            sub_exp=best_bs_dir[i][0],
-            device=[0],
-        )
+    ensemble_items = cfgs["training_cfgs"]["ensemble_cfgs"]
+    number_of_items = len(ensemble_items)
+    if number_of_items == 0:
+        raise ValueError("ensemble_items should not be empty")
+    keys_list = list(ensemble_items.keys())
+    _nested_loop_train_and_evaluate(keys_list, 0, ensemble_items, cfgs)
 
 
 def load_ensemble_result(
