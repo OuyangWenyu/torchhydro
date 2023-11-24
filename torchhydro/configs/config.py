@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-11-21 21:33:44
+LastEditTime: 2023-11-24 09:55:10
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: /torchhydro/torchhydro/configs/config.py
+FilePath: \torchhydro\torchhydro\configs\config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import argparse
@@ -235,13 +235,10 @@ def default_config_file():
         # for ensemble
         "ensemble_cfgs": {
             "ensemble": False,
-            "model_names": None,
-            "exps": None,
+            # kfold means a time cross validation,
+            # concatenate train ,valid, and test data together,
+            # then split them into k folds
             "kfold": None,
-            "t_range_train": None,
-            "t_range_valid": None,
-            "t_range_test": None,
-            "other_cfg": None,
         },
     }
 

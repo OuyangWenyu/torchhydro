@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-11-21 07:20:41
-LastEditTime: 2023-11-21 21:57:59
+LastEditTime: 2023-11-24 09:44:14
 LastEditors: Wenyu Ouyang
 Description: Test weight analysis
-FilePath: /torchhydro/tests/test_weight_analysis.py
+FilePath: \torchhydro\tests\test_weight_analysis.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import itertools
@@ -20,7 +20,7 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.explainers.weight_anlysis import (
     plot_param_hist_model_fold,
 )
-from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
+from torchhydro.trainers.trainer import ensemble_train_and_evaluate
 
 
 @pytest.fixture()
@@ -88,72 +88,60 @@ def gage_id():
     ]
 
 
-def camels_cc_lstm_model(
-    target_exp,
-    target_dir="gages",
-    opt="Adadelta",
-    opt_param=None,
-    random_seed=1234,
-    batch_size=10,
-    epoch=100,
-    save_epoch=10,
-    data_loader="StreamflowDataModel",
-    var_c=var_c_target,
-    var_t=var_t_target,
-    train_period=["2014-10-01", "2019-10-01"],
-    test_period=["2020-10-01", "2021-10-01"],
-    valid_period=["2019-10-01", "2020-10-01"],
-    gage_id=gage_id,
-    save_iter=0,
-    num_workers=4,
-):
+def test_run_lstm_cross_val(var_c_target, var_t_target):
     config = default_config_file()
-    project_name = target_dir + "/" + target_exp
+    project_name = "camels/expcccv"
+    all_exps = ["exp61561", "exp62618"]
+    kfold = 2
+    train_period = ["2018-10-01", "2021-10-01"]
+    valid_period = ["2015-10-01", "2018-10-01"]
     args = cmd(
         sub=project_name,
         source="CAMELS",
-        source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_cc"),
-        source_region="CC",
-        cache_write=1,
-        cache_read=1,
+        source_path=os.path.join(
+            hds.ROOT_DIR, "waterism", "datasets-interim", "camels_cc"
+        ),
         download=0,
         ctx=[0],
         model_name="KuaiLSTM",
-        model_param={
-            "n_input_features": len(var_c) + len(var_t),
+        model_hyperparam={
+            "n_input_features": len(var_c_target) + len(var_t_target),
             "n_output_features": 1,
             "n_hidden_states": 256,
         },
-        opt=opt,
-        opt_param=opt_param,
+        opt="Adadelta",
+        # opt_param=opt_param,
         loss_func="RMSESum",
-        batch_size=batch_size,
-        rho=365,
-        rs=random_seed,
         train_period=train_period,
-        test_period=test_period,
-        valid_period=valid_period,
+        test_period=valid_period,
+        batch_size=20,
+        rho=365,
         scaler="DapengScaler",
-        data_loader=data_loader,
+        dataset="StreamflowDataset",
         continue_train=True,
         warmup_length=0,
-        train_epoch=epoch,
-        te=epoch,
-        save_epoch=save_epoch,
-        var_t=var_t,
+        train_epoch=100,
+        var_t=var_t_target,
         var_t_type="era5land",
-        var_c=var_c,
+        var_c=var_c_target,
         var_out="streamflow",
         gage_id=gage_id,
-        save_iter=save_iter,
-        num_workers=num_workers,
+        ensemble_cfgs={
+            "ensemble": True,
+            "model_names": ["lstm", "tl-lstm"],
+            "exps": all_exps,
+            "kfold": kfold,
+            "batch_sizes": [20, 50, 100, 200, 300],
+        },
     )
     update_cfg(config, args)
-    train_and_evaluate(config)
+    ensemble_train_and_evaluate(config)
     print("All processes are finished!")
 
 
-def transfer_camelsus2cc_model(var_c_source, var_c_target, var_t_source, var_t_target):
+def test_run_cross_val_tlcamelsus2cc(
+    var_c_source, var_c_target, var_t_source, var_t_target
+):
     weight_dir = os.path.join(
         os.getcwd(),
         "results",
@@ -161,7 +149,7 @@ def transfer_camelsus2cc_model(var_c_source, var_c_target, var_t_source, var_t_t
         "exp1",
     )
     weight_path = get_lastest_file_in_a_dir(weight_dir)
-    project_name = "test_camels/exptl4cc"
+    project_name = "test_camels/exptl4cccv"
     args = cmd(
         sub=project_name,
         source="SelfMadeCAMELS",
@@ -204,81 +192,21 @@ def transfer_camelsus2cc_model(var_c_source, var_c_target, var_t_source, var_t_t
             "61561",
             "62618",
         ],
-    )
-    cfg = default_config_file()
-    update_cfg(cfg, args)
-    train_and_evaluate(cfg)
-    print("All processes are finished!")
-
-
-def test_run_cross_validation():
-    config = default_config_file()
-    project_name = target_dir + "/" + target_exp
-    exp61561 = ["gages/exp615610", "gages/exp615611"]
-    exp62618 = ["gages/exp626180", "gages/exp626181"]
-    all_exps = [exp61561, exp62618]
-    train_periods = [
-        [["2018-10-01", "2021-10-01"], ["2015-10-01", "2018-10-01"]],
-        [["2018-10-01", "2021-10-01"], ["2015-10-01", "2018-10-01"]],
-        [["1986-10-01", "1989-10-01"], ["1983-10-01", "1986-10-01"]],
-    ]
-    valid_periods = [
-        [["2015-10-01", "2018-10-01"], ["2018-10-01", "2021-10-01"]],
-        [["2015-10-01", "2018-10-01"], ["2018-10-01", "2021-10-01"]],
-        [["1983-10-01", "1986-10-01"], ["1986-10-01", "1989-10-01"]],
-    ]
-    best_batchsize = [[50, 200], [100, 20], [50, 100]]
-    args = cmd(
-        sub=project_name,
-        source="CAMELS",
-        source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_cc"),
-        source_region="CC",
-        cache_write=1,
-        cache_read=1,
-        download=0,
-        ctx=[0],
-        model_name="KuaiLSTM",
-        model_param={
-            "n_input_features": len(var_c) + len(var_t),
-            "n_output_features": 1,
-            "n_hidden_states": 256,
-        },
-        opt=opt,
-        opt_param=opt_param,
-        loss_func="RMSESum",
-        batch_size=batch_size,
-        rho=365,
-        rs=random_seed,
-        train_period=train_period,
-        test_period=test_period,
-        valid_period=valid_period,
-        scaler="DapengScaler",
-        data_loader=data_loader,
-        continue_train=True,
-        warmup_length=0,
-        train_epoch=epoch,
-        te=epoch,
-        save_epoch=save_epoch,
-        var_t=var_t,
-        var_t_type="era5land",
-        var_c=var_c,
-        var_out="streamflow",
-        gage_id=gage_id,
-        save_iter=save_iter,
-        num_workers=num_workers,
         ensemble_cfgs={
             "ensemble": True,
             "model_names": ["lstm", "tl-lstm"],
             "exps": all_exps,
             "kfold": 2,
+            "batch_sizes": [20, 50, 100, 200, 300],
             "t_range_train": train_periods,
             "t_range_valid": None,
             "t_range_test": valid_periods,
             "other_cfg": best_batchsize,
         },
     )
-    update_cfg(config, args)
-    ensemble_train_and_evaluate(config)
+    cfg = default_config_file()
+    update_cfg(cfg, args)
+    ensemble_train_and_evaluate(cfg)
     print("All processes are finished!")
 
 
