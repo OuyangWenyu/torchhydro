@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-11-24 21:38:31
+LastEditTime: 2023-11-25 09:20:05
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: /torchhydro/torchhydro/trainers/trainer.py
@@ -262,9 +262,9 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
     """
     new_cfg = copy.deepcopy(cfg)
     if key == "kfold":
-        new_cfg["data_cfgs"]["train_period"] = value[0]
-        new_cfg["data_cfgs"]["valid_period"] = None
-        new_cfg["data_cfgs"]["test_period"] = value[1]
+        new_cfg["data_cfgs"]["t_range_train"] = value[0]
+        new_cfg["data_cfgs"]["t_range_valid"] = None
+        new_cfg["data_cfgs"]["t_range_test"] = value[1]
     elif key == "batch_sizes":
         new_cfg["training_cfgs"]["batch_size"] = value
     elif key == "seeds":
@@ -334,23 +334,22 @@ def _nested_loop_train_and_evaluate(keys, index, my_dict, update_dict):
     if index == len(keys):
         return
     current_key = keys[index]
-    if index == 0 and current_key == "kfold":
-        _trans_kfold_to_periods(update_dict, my_dict, current_key)
     for value in my_dict[current_key]:
         # update the update_dict
         cfg = _update_cfg_with_1ensembleitem(update_dict, current_key, value)
         # for final key, perform train and evaluate
         if index == len(keys) - 1:
-            train_and_evaluate(cfg)
+            print(f"train_and_evaluate(cfg) for {current_key}, {value}")
+            # train_and_evaluate(cfg)
         # recursive
-        _nested_loop_train_and_evaluate(keys, index + 1, my_dict, update_dict)
+        _nested_loop_train_and_evaluate(keys, index + 1, my_dict, cfg)
 
 
-def _trans_kfold_to_periods(update_dict, my_dict, current_key):
+def _trans_kfold_to_periods(update_dict, my_dict, current_key="kfold"):
     # set train and test period
-    train_period = update_dict["data_cfgs"]["train_period"]
-    valid_period = update_dict["data_cfgs"]["valid_period"]
-    test_period = update_dict["data_cfgs"]["test_period"]
+    train_period = update_dict["data_cfgs"]["t_range_train"]
+    valid_period = update_dict["data_cfgs"]["t_range_valid"]
+    test_period = update_dict["data_cfgs"]["t_range_test"]
     kfold = my_dict[current_key]
     kfold_periods = _create_kfold_periods(
         train_period, valid_period, test_period, kfold
@@ -377,11 +376,13 @@ def ensemble_train_and_evaluate(cfgs: Dict):
         raise ValueError(
             "ensemble should be True, otherwise should use train_and_evaluate rather than ensemble_train_and_evaluate"
         )
-    ensemble_items = cfgs["training_cfgs"]["ensemble_cfgs"]
+    ensemble_items = cfgs["training_cfgs"]["ensemble_items"]
     number_of_items = len(ensemble_items)
     if number_of_items == 0:
         raise ValueError("ensemble_items should not be empty")
     keys_list = list(ensemble_items.keys())
+    if "kfold" in keys_list:
+        _trans_kfold_to_periods(cfgs, ensemble_items, "kfold")
     _nested_loop_train_and_evaluate(keys_list, 0, ensemble_items, cfgs)
 
 
