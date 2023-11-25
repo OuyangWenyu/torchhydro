@@ -8,7 +8,6 @@ from matplotlib import cm, colors, pyplot as plt
 from scipy.spatial.distance import cosine
 
 from hydroutils import hydro_plot as hplt
-from tqdm import tqdm
 
 
 def read_layer_name_from_tb_hist(hist_cols):
@@ -63,15 +62,9 @@ def plot_layer_hist_for_basin_model_fold(
     cmap_str : str, optional
         chose from here: https://matplotlib.org/stable/tutorials/colors/colormaps.html#sequential, by default "Oranges"
     """
+    project_dir = os.getcwd()
     result_dir = os.path.join(
-        definitions.ROOT_DIR,
-        "hydroSPB",
-        "app",
-        "transfer_learning",
-        "results",
-        "tensorboard",
-        "histograms",
-        f"bsize{bsize}",
+        project_dir, "results", "tensorboard", "histograms", f"bsize{bsize}"
     )
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
@@ -194,10 +187,10 @@ def read_tb_log(
     FileNotFoundError
         _description_
     """
+    project_dir = os.getcwd()
+    result_dir = os.path.join(project_dir, "results")
     log_dir = os.path.join(
-        definitions.ROOT_DIR,
-        "hydroSPB",
-        "example",
+        result_dir,
         exp_example,
         a_exp,
         f"opt_Adadelta_lr_1.0_bsize_{str(best_batchsize)}",
@@ -205,9 +198,7 @@ def read_tb_log(
     if not os.path.exists(log_dir):
         raise FileNotFoundError(f"Log dir {log_dir} not found!")
     result_dir = os.path.join(
-        definitions.ROOT_DIR,
-        "hydroSPB",
-        "app",
+        result_dir,
         where_save,
         "results",
         "tensorboard",
@@ -236,50 +227,52 @@ def read_tb_log(
 
 
 # plot param hist for each basin
-def plot_param_hist_model_fold(
-    model_names,
-    exp,
-    best_epoch,
+def plot_param_hist_model(
+    model_name,
+    a_exp,
     batchsize,
     chosen_layer_for_hist,
-    basin_id,
-    fold,
 ):
+    """plot paramter histogram for each basin
+
+    Parameters
+    ----------
+    model_name: str
+        name of a DL model
+    a_exp : str
+        the experiment name
+    batchsize : int
+        batch size
+    chosen_layer_for_hist : _type_
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
     chosen_layer_values = {layer: {} for layer in chosen_layer_for_hist}
     chosen_layer_values_consine = {layer: {} for layer in chosen_layer_for_hist}
-    for j, model_name in tqdm(
-        enumerate(model_names), desc=f"Basin {basin_id} fold {str(fold)}"
-    ):
-        a_exp = exp[j] + str(fold)
-        df_scalar, df_histgram = read_tb_log(a_exp, batchsize)
-        hist_cols = df_histgram.columns.values
-        model_layers = read_layer_name_from_tb_hist(hist_cols)
-        chosen_layers = chosen_layer_in_layers(model_layers, chosen_layer_for_hist)
-        k = 0
-        for layer in chosen_layer_for_hist:
-            if layer not in chosen_layers[k]:
-                continue
-            df_epochs_hist = epochs_hist_for_chosen_layer(
-                10, chosen_layers[k], df_histgram
-            )
-            chosen_layer_values[layer][model_name] = df_epochs_hist
-            chosen_layer_values_consine[layer][model_name] = 1 - cosine(
-                df_epochs_hist[0], df_epochs_hist[90]
-            )
-            k = k + 1
+    df_scalar, df_histgram = read_tb_log(a_exp, batchsize)
+    hist_cols = df_histgram.columns.values
+    model_layers = read_layer_name_from_tb_hist(hist_cols)
+    chosen_layers = chosen_layer_in_layers(model_layers, chosen_layer_for_hist)
+    k = 0
+    for layer in chosen_layer_for_hist:
+        if layer not in chosen_layers[k]:
+            continue
+        df_epochs_hist = epochs_hist_for_chosen_layer(10, chosen_layers[k], df_histgram)
+        chosen_layer_values[layer][model_name] = df_epochs_hist
+        chosen_layer_values_consine[layer][model_name] = 1 - cosine(
+            df_epochs_hist[0], df_epochs_hist[90]
+        )
+        k = k + 1
     plot_layer_hist_for_basin_model_fold(
-        model_names[0],
+        model_name,
         chosen_layer_values,
         chosen_layer_for_hist,
         batchsize,
         cmap_str="Reds",
-    )
-    plot_layer_hist_for_basin_model_fold(
-        model_names[1],
-        chosen_layer_values,
-        chosen_layer_for_hist,
-        batchsize,
-        cmap_str="Blues",
     )
     return chosen_layer_values, chosen_layer_values_consine
 
