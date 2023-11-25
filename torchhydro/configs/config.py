@@ -776,8 +776,6 @@ def update_cfg(cfg_file, new_args):
         os.makedirs(result_dir)
     if new_args.sub is not None:
         subset, subexp = new_args.sub.split("/")
-        if not os.path.exists(os.path.join(result_dir, subset, subexp)):
-            os.makedirs(os.path.join(result_dir, subset, subexp))
         cfg_file["data_cfgs"]["validation_path"] = os.path.join(
             project_dir, "results", subset, subexp
         )

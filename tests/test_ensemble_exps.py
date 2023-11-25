@@ -1,6 +1,7 @@
 import pytest
 import os
 import hydrodataset as hds
+from hydroutils import hydro_file
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import ensemble_train_and_evaluate
 
@@ -58,15 +59,15 @@ def gage_id():
     ]
 
 
-def test_run_lstm_cross_val(var_c_target, var_t_target):
+def test_run_lstm_cross_val(var_c_target, var_t_target, gage_id):
     config = default_config_file()
-    project_name = "camels/expcccv61561"
+    project_name = "test_camels/expcccv61561"
     kfold = 2
     train_period = ["2018-10-01", "2021-10-01"]
     valid_period = ["2015-10-01", "2018-10-01"]
     args = cmd(
         sub=project_name,
-        source="CAMELS",
+        source="SelfMadeCAMELS",
         source_path=os.path.join(
             hds.ROOT_DIR, "waterism", "datasets-interim", "camels_cc"
         ),
@@ -89,16 +90,17 @@ def test_run_lstm_cross_val(var_c_target, var_t_target):
         dataset="StreamflowDataset",
         continue_train=True,
         warmup_length=0,
-        train_epoch=100,
+        train_epoch=10,
+        te=10,
         var_t=var_t_target,
         var_t_type="era5land",
         var_c=var_c_target,
-        var_out="streamflow",
+        var_out=["streamflow"],
         gage_id=gage_id,
         ensemble=True,
         ensemble_items={
             "kfold": kfold,
-            "batch_sizes": [20, 50, 100, 200, 300],
+            "batch_sizes": [20, 50],
         },
     )
     update_cfg(config, args)
@@ -107,7 +109,7 @@ def test_run_lstm_cross_val(var_c_target, var_t_target):
 
 
 def test_run_cross_val_tlcamelsus2cc(
-    var_c_source, var_c_target, var_t_source, var_t_target
+    var_c_source, var_c_target, var_t_source, var_t_target, gage_id
 ):
     weight_dir = os.path.join(
         os.getcwd(),
@@ -115,8 +117,10 @@ def test_run_cross_val_tlcamelsus2cc(
         "test_camels",
         "exp1",
     )
-    weight_path = get_lastest_file_in_a_dir(weight_dir)
-    project_name = "test_camels/exptl4cccv"
+    weight_path = hydro_file.get_lastest_file_in_a_dir(weight_dir)
+    project_name = "test_camels/exptl4cccv61561"
+    train_period = ["2018-10-01", "2021-10-01"]
+    valid_period = ["2015-10-01", "2018-10-01"]
     args = cmd(
         sub=project_name,
         source="SelfMadeCAMELS",
@@ -139,34 +143,26 @@ def test_run_cross_val_tlcamelsus2cc(
         batch_size=5,
         rho=20,
         rs=1234,
-        train_period=["2014-10-01", "2019-10-01"],
-        test_period=["2019-10-01", "2021-10-01"],
+        train_period=train_period,
+        test_period=valid_period,
         scaler="DapengScaler",
-        sampler="KuaiSampler",
+        # sampler="KuaiSampler",
         dataset="StreamflowDataset",
         weight_path=weight_path,
         weight_path_add={
             "freeze_params": ["lstm.b_hh", "lstm.b_ih", "lstm.w_hh", "lstm.w_ih"]
         },
         continue_train=True,
-        train_epoch=20,
-        te=20,
-        save_epoch=10,
+        train_epoch=10,
+        te=10,
         var_t=var_t_target,
         var_c=var_c_target,
         var_out=["streamflow"],
-        gage_id=[
-            "61561",
-            "62618",
-        ],
+        gage_id=gage_id,
         ensemble=True,
         ensemble_items={
             "kfold": 2,
-            "batch_sizes": [20, 50, 100, 200, 300],
-            "t_range_train": train_periods,
-            "t_range_valid": None,
-            "t_range_test": valid_periods,
-            "other_cfg": best_batchsize,
+            "batch_sizes": [20, 50],
         },
     )
     cfg = default_config_file()

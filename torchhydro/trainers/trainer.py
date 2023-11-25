@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-11-25 11:08:09
+LastEditTime: 2023-11-25 18:20:24
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
-FilePath: /torchhydro/torchhydro/trainers/trainer.py
+FilePath: \torchhydro\torchhydro\trainers\trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import copy
@@ -62,6 +62,9 @@ def train_and_evaluate(cfgs: Dict):
     """
     random_seed = cfgs["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
+    result_dir = cfgs["data_cfgs"]["test_path"]
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
     data_source = _get_datasource(cfgs)
     deephydro = _get_deep_hydro(cfgs, data_source)
     if cfgs["training_cfgs"]["train_mode"]:
@@ -268,6 +271,7 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
         new_cfg["data_cfgs"]["t_range_test"] = value[1]
     elif key == "batch_sizes":
         new_cfg["training_cfgs"]["batch_size"] = value
+        new_cfg["data_cfgs"]["batch_size"] = value
     elif key == "seeds":
         new_cfg["training_cfgs"]["random_seed"] = value
     elif key == "expdir":
@@ -331,17 +335,19 @@ def _nested_loop_train_and_evaluate(keys, index, my_dict, update_dict, perform_c
 
     Parameters
     ----------
-    keys : _type_
-        _description_
-    index : _type_
-        _description_
-    my_dict : _type_
-        _description_
-    update_dict : _type_
-        _description_
+    keys : list
+        a list of keys
+    index : int
+        the loop index
+    my_dict : dict
+        the dict we want to loop
+    update_dict : dict
+        the dict we want to update
+    perform_count : int, optional
+        a counter for naming different experiments, by default 0
     """
     if index == len(keys):
-        return
+        return perform_count
     current_key = keys[index]
     for value in my_dict[current_key]:
         # update the update_dict
@@ -349,11 +355,14 @@ def _nested_loop_train_and_evaluate(keys, index, my_dict, update_dict, perform_c
         # for final key, perform train and evaluate
         if index == len(keys) - 1:
             cfg = _update_cfg_with_1ensembleitem(cfg, "expdir", perform_count)
-            print(f"train_and_evaluate(cfg) for {current_key}, {value}")
-            # train_and_evaluate(cfg)
+            train_and_evaluate(cfg)
+            # print(perform_count)
             perform_count += 1
         # recursive
-        _nested_loop_train_and_evaluate(keys, index + 1, my_dict, cfg)
+        perform_count = _nested_loop_train_and_evaluate(
+            keys, index + 1, my_dict, cfg, perform_count
+        )
+    return perform_count
 
 
 def _trans_kfold_to_periods(update_dict, my_dict, current_key="kfold"):
