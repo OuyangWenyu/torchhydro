@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-11-25 09:20:05
+LastEditTime: 2023-11-25 11:08:09
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: /torchhydro/torchhydro/trainers/trainer.py
@@ -11,6 +11,7 @@ import copy
 from datetime import datetime
 import fnmatch
 import os
+from pathlib import Path
 import random
 
 import numpy as np
@@ -269,6 +270,14 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
         new_cfg["training_cfgs"]["batch_size"] = value
     elif key == "seeds":
         new_cfg["training_cfgs"]["random_seed"] = value
+    elif key == "expdir":
+        project_dir = new_cfg["data_cfgs"]["test_path"]
+        project_path = Path(project_dir)
+        subset = project_path.parent.name
+        subexp = f"{project_path.name}_{value}"
+        new_cfg["data_cfgs"]["test_path"] = os.path.join(
+            project_path.parent.parent, subset, subexp
+        )
     else:
         raise ValueError(f"key {key} is not supported")
     return new_cfg
@@ -317,8 +326,8 @@ def _create_kfold_periods(train_period, valid_period, test_period, kfold):
     return folds
 
 
-def _nested_loop_train_and_evaluate(keys, index, my_dict, update_dict):
-    """a recursive function to update the update_dict
+def _nested_loop_train_and_evaluate(keys, index, my_dict, update_dict, perform_count=0):
+    """a recursive function to update the update_dict and perform train_and_evaluate
 
     Parameters
     ----------
@@ -339,8 +348,10 @@ def _nested_loop_train_and_evaluate(keys, index, my_dict, update_dict):
         cfg = _update_cfg_with_1ensembleitem(update_dict, current_key, value)
         # for final key, perform train and evaluate
         if index == len(keys) - 1:
+            cfg = _update_cfg_with_1ensembleitem(cfg, "expdir", perform_count)
             print(f"train_and_evaluate(cfg) for {current_key}, {value}")
             # train_and_evaluate(cfg)
+            perform_count += 1
         # recursive
         _nested_loop_train_and_evaluate(keys, index + 1, my_dict, cfg)
 

@@ -159,10 +159,8 @@ def test_run_cross_val_tlcamelsus2cc(
             "61561",
             "62618",
         ],
-        ensemble_cfgs={
-            "ensemble": True,
-            "model_names": ["lstm", "tl-lstm"],
-            "exps": all_exps,
+        ensemble=True,
+        ensemble_items={
             "kfold": 2,
             "batch_sizes": [20, 50, 100, 200, 300],
             "t_range_train": train_periods,
