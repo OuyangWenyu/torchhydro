@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-11-21 07:20:41
-LastEditTime: 2023-11-25 22:30:25
+LastEditTime: 2023-11-27 14:40:04
 LastEditors: Wenyu Ouyang
 Description: Test weight analysis
 FilePath: \torchhydro\tests\test_weight_analysis.py
@@ -19,9 +19,16 @@ from torchhydro.explainers.weight_anlysis import (
 
 
 @pytest.fixture()
-def hist_stat_dir():
+def result_dir():
+    project_dir = os.getcwd()
+    return os.path.join(project_dir, "results")
+
+
+@pytest.fixture()
+def hist_stat_dir(result_dir):
     hist_stat_dir = os.path.join(
-        "results",
+        result_dir,
+        "test_camels",
         "hist_statistic",
     )
     if not os.path.exists(hist_stat_dir):
@@ -29,7 +36,7 @@ def hist_stat_dir():
     return hist_stat_dir
 
 
-def test_weight_analysis(hist_stat_dir):
+def test_weight_analysis(result_dir, hist_stat_dir):
     basin_id = "61561"
     # NOTICE: THE ORDER CANNOT BE MODIFIED WITHOUT DEBUGGING THE CODE IN plot_param_hist_model_fold
     chosen_layer_for_hist = [
@@ -47,10 +54,10 @@ def test_weight_analysis(hist_stat_dir):
     # too many figures lead to "Fail to allocate bitmap"
     matplotlib.use("Agg")
     show_hist_b = 20
-    exp61561 = "test_camels/expcccv61561_0"
+    exp61561_dir = os.path.join(result_dir, "test_camels", "expcccv61561_0")
     _, chosen_layers_consine = plot_param_hist_model(
         "lstm",
-        exp61561,
+        exp61561_dir,
         show_hist_b,
         chosen_layer_for_hist,
     )

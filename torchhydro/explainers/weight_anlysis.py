@@ -161,21 +161,20 @@ def copy_latest_tblog_file(log_dir, result_dir):
         shutil.copy(copy_file, result_dir)
 
 
-def read_tb_log(
-    a_exp, best_batchsize, exp_example="gages", where_save="transfer_learning"
-):
+def read_tb_log(the_exp_dir, shown_batchsize, where_save=None):
     """Copy a recent log file to the current directory and read the log file.
 
     Parameters
     ----------
-    a_exp : _type_
-        _description_
-    best_batchsize : _type_
-        _description_
-    exp_example : str, optional
-        _description_, by default "gages"
+    the_exp_dir : str
+        saving directory for one experiment
+    shown_batchsize : int
+        batch size for the experiment
     where_save : str, optional
-        A directory in "app" directory, by default "transfer_learning"
+        A directory for saving plots, by default None,
+        which means same directory as the_exp_dir.
+        The reason we use a new dir different from the_exp_dir is that
+        ... (I forgot why... haha)
 
     Returns
     -------
@@ -187,37 +186,36 @@ def read_tb_log(
     FileNotFoundError
         _description_
     """
-    project_dir = os.getcwd()
-    result_dir = os.path.join(project_dir, "results")
     log_dir = os.path.join(
-        result_dir,
-        exp_example,
-        a_exp,
-        f"opt_Adadelta_lr_1.0_bsize_{str(best_batchsize)}",
+        the_exp_dir,
+        f"opt_Adadelta_lr_1.0_bsize_{str(shown_batchsize)}",
     )
     if not os.path.exists(log_dir):
         raise FileNotFoundError(f"Log dir {log_dir} not found!")
-    result_dir = os.path.join(
-        result_dir,
-        where_save,
-        "results",
-        "tensorboard",
-        a_exp,
-        f"opt_Adadelta_lr_1.0_bsize_{str(best_batchsize)}",
-    )
-    copy_latest_tblog_file(log_dir, result_dir)
-    scalar_file = os.path.join(result_dir, "scalars.csv")
+    if where_save is None:
+        where_save = the_exp_dir
+        plot_save_dir = os.path.join(
+            where_save,
+            f"opt_Adadelta_lr_1.0_bsize_{str(shown_batchsize)}",
+        )
+    else:
+        plot_save_dir = os.path.join(
+            where_save,
+            f"opt_Adadelta_lr_1.0_bsize_{str(shown_batchsize)}",
+        )
+        copy_latest_tblog_file(log_dir, plot_save_dir)
+    scalar_file = os.path.join(plot_save_dir, "scalars.csv")
     if not os.path.exists(scalar_file):
-        reader = SummaryReader(result_dir)
+        reader = SummaryReader(plot_save_dir)
         df_scalar = reader.scalars
         df_scalar.to_csv(scalar_file, index=False)
     else:
         df_scalar = pd.read_csv(scalar_file)
 
     # reader = SummaryReader(result_dir)
-    histgram_file = os.path.join(result_dir, "histograms.pkl")
+    histgram_file = os.path.join(plot_save_dir, "histograms.pkl")
     if not os.path.exists(histgram_file):
-        reader = SummaryReader(result_dir, pivot=True)
+        reader = SummaryReader(plot_save_dir, pivot=True)
         df_histgram = reader.histograms
         # https://www.statology.org/pandas-save-dataframe/
         df_histgram.to_pickle(histgram_file)
@@ -229,7 +227,7 @@ def read_tb_log(
 # plot param hist for each basin
 def plot_param_hist_model(
     model_name,
-    a_exp,
+    the_exp_dir,
     batchsize,
     chosen_layer_for_hist,
 ):
@@ -239,8 +237,8 @@ def plot_param_hist_model(
     ----------
     model_name: str
         name of a DL model
-    a_exp : str
-        the experiment name
+    the_exp_dir : str
+        saving directory for one experiment
     batchsize : int
         batch size
     chosen_layer_for_hist : _type_
@@ -253,7 +251,7 @@ def plot_param_hist_model(
     """
     chosen_layer_values = {layer: {} for layer in chosen_layer_for_hist}
     chosen_layer_values_consine = {layer: {} for layer in chosen_layer_for_hist}
-    df_scalar, df_histgram = read_tb_log(a_exp, batchsize)
+    df_scalar, df_histgram = read_tb_log(the_exp_dir, batchsize)
     hist_cols = df_histgram.columns.values
     model_layers = read_layer_name_from_tb_hist(hist_cols)
     chosen_layers = chosen_layer_in_layers(model_layers, chosen_layer_for_hist)
