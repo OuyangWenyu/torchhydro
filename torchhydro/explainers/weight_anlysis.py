@@ -45,7 +45,11 @@ def epochs_hist_for_chosen_layer(epoch_interval, layer_name, df_hist):
 
 
 def plot_layer_hist_for_basin_model_fold(
-    model_name, chosen_layer_values, layers, bsize, cmap_str="Oranges"
+    model_name,
+    chosen_layer_values,
+    layers,
+    save_fig_dir,
+    cmap_str="Oranges",
 ):
     """_summary_
 
@@ -62,12 +66,8 @@ def plot_layer_hist_for_basin_model_fold(
     cmap_str : str, optional
         chose from here: https://matplotlib.org/stable/tutorials/colors/colormaps.html#sequential, by default "Oranges"
     """
-    project_dir = os.getcwd()
-    result_dir = os.path.join(
-        project_dir, "results", "tensorboard", "histograms", f"bsize{bsize}"
-    )
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
+    if not os.path.exists(save_fig_dir):
+        os.makedirs(save_fig_dir)
     for layer in layers:
         two_model_layers = chosen_layer_values[layer]
         try:
@@ -105,8 +105,8 @@ def plot_layer_hist_for_basin_model_fold(
             lstm_y_lst,
             dash_lines=lstm_dash_lines,
             fig_size=(8, 4),
-            xlabel="权值",
-            ylabel="频数",
+            xlabel="weight_bias_value",
+            ylabel="hist_num",
             # c_lst=color_str,
             c_lst=rgb_lst,
             linewidth=lw_lst,
@@ -115,8 +115,8 @@ def plot_layer_hist_for_basin_model_fold(
         )
         plt.savefig(
             os.path.join(
-                result_dir,
-                f"{basin_id}_fold{fold}_{model_name}_{layer}_hist.png",
+                save_fig_dir,
+                f"{model_name}_{layer}_hist.png",
             ),
             dpi=600,
             bbox_inches="tight",
@@ -230,6 +230,10 @@ def plot_param_hist_model(
     the_exp_dir,
     batchsize,
     chosen_layer_for_hist,
+    start_epoch=0,
+    end_epoch=100,
+    epoch_interval=10,
+    save_fig_dir=None,
 ):
     """plot paramter histogram for each basin
 
@@ -251,7 +255,7 @@ def plot_param_hist_model(
     """
     chosen_layer_values = {layer: {} for layer in chosen_layer_for_hist}
     chosen_layer_values_consine = {layer: {} for layer in chosen_layer_for_hist}
-    df_scalar, df_histgram = read_tb_log(the_exp_dir, batchsize)
+    _, df_histgram = read_tb_log(the_exp_dir, batchsize)
     hist_cols = df_histgram.columns.values
     model_layers = read_layer_name_from_tb_hist(hist_cols)
     chosen_layers = chosen_layer_in_layers(model_layers, chosen_layer_for_hist)
@@ -259,17 +263,22 @@ def plot_param_hist_model(
     for layer in chosen_layer_for_hist:
         if layer not in chosen_layers[k]:
             continue
-        df_epochs_hist = epochs_hist_for_chosen_layer(10, chosen_layers[k], df_histgram)
+        df_epochs_hist = epochs_hist_for_chosen_layer(
+            epoch_interval, chosen_layers[k], df_histgram
+        )
         chosen_layer_values[layer][model_name] = df_epochs_hist
+        end_epoch_idx = int((end_epoch / epoch_interval - 1) * epoch_interval)
         chosen_layer_values_consine[layer][model_name] = 1 - cosine(
-            df_epochs_hist[0], df_epochs_hist[90]
+            df_epochs_hist[start_epoch], df_epochs_hist[end_epoch_idx]
         )
         k = k + 1
+    if save_fig_dir is None:
+        save_fig_dir = the_exp_dir
     plot_layer_hist_for_basin_model_fold(
         model_name,
         chosen_layer_values,
         chosen_layer_for_hist,
-        batchsize,
+        save_fig_dir=save_fig_dir,
         cmap_str="Reds",
     )
     return chosen_layer_values, chosen_layer_values_consine

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-11-21 07:20:41
-LastEditTime: 2023-11-27 14:40:04
+LastEditTime: 2023-11-27 20:45:36
 LastEditors: Wenyu Ouyang
 Description: Test weight analysis
 FilePath: \torchhydro\tests\test_weight_analysis.py
@@ -24,19 +24,7 @@ def result_dir():
     return os.path.join(project_dir, "results")
 
 
-@pytest.fixture()
-def hist_stat_dir(result_dir):
-    hist_stat_dir = os.path.join(
-        result_dir,
-        "test_camels",
-        "hist_statistic",
-    )
-    if not os.path.exists(hist_stat_dir):
-        os.makedirs(hist_stat_dir)
-    return hist_stat_dir
-
-
-def test_weight_analysis(result_dir, hist_stat_dir):
+def test_weight_analysis(result_dir):
     basin_id = "61561"
     # NOTICE: THE ORDER CANNOT BE MODIFIED WITHOUT DEBUGGING THE CODE IN plot_param_hist_model_fold
     chosen_layer_for_hist = [
@@ -52,18 +40,21 @@ def test_weight_analysis(result_dir, hist_stat_dir):
         "lstm.w_ih",
     ]
     # too many figures lead to "Fail to allocate bitmap"
-    matplotlib.use("Agg")
     show_hist_b = 20
+    fold = 0
     exp61561_dir = os.path.join(result_dir, "test_camels", "expcccv61561_0")
     _, chosen_layers_consine = plot_param_hist_model(
         "lstm",
         exp61561_dir,
         show_hist_b,
         chosen_layer_for_hist,
+        start_epoch=0,
+        end_epoch=10,
+        epoch_interval=1,
     )
     pd.DataFrame(chosen_layers_consine).to_csv(
         os.path.join(
-            hist_stat_dir,
+            exp61561_dir,
             f"{basin_id}_bs{show_hist_b}_fold{fold}_chosen_layer_consine.csv",
         )
     )
@@ -86,11 +77,11 @@ def test_weight_analysis(result_dir, hist_stat_dir):
     model_num = 2
     cosine_sim = pd.read_csv(
         os.path.join(
-            hist_stat_dir,
+            save_fig_dir,
             f"{basin_id}_bs{show_hist_b}_fold{fold}_chosen_layer_consine.csv",
         ),
         index_col=0,
     )
     pd.DataFrame(basin_mat).round(3).to_csv(
-        os.path.join(hist_stat_dir, f"{basin_id}_basin_mat.csv")
+        os.path.join(save_fig_dir, f"{basin_id}_basin_mat.csv")
     )
