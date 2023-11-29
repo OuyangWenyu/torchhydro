@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-03 16:48:21
+LastEditTime: 2023-11-27 15:17:16
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
-FilePath: /torchhydro/torchhydro/trainers/train_logger.py
+FilePath: \torchhydro\torchhydro\trainers\train_logger.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 from contextlib import contextmanager
@@ -145,17 +145,17 @@ class TrainLogger:
         save_model_params_log(params, self.training_save_dir)
 
     def plot_hist_img(self, model, global_step):
-        # TODO: a bug for add_histogram and add_image, maybe version problem, need to fix
-        pass
-        # for tag, parm in model.named_parameters():
-        #     self.tb.add_histogram(tag + "_hist", parm.detach().cpu().numpy(), global_step)
-        #     if len(parm.shape) == 2:
-        #         img_format = "HW"
-        #         if parm.shape[0] > parm.shape[1]:
-        #             img_format = "WH"
-        #             self.tb.add_image(
-        #               tag + "_img",
-        #               parm.detach().cpu().numpy(),
-        #               global_step,
-        #               dataformats=img_format,
-        #             )
+        for tag, parm in model.named_parameters():
+            self.tb.add_histogram(
+                f"{tag}_hist", parm.detach().cpu().numpy(), global_step
+            )
+            if len(parm.shape) == 2:
+                img_format = "HW"
+                if parm.shape[0] > parm.shape[1]:
+                    img_format = "WH"
+                    self.tb.add_image(
+                        f"{tag}_img",
+                        parm.detach().cpu().numpy(),
+                        global_step,
+                        dataformats=img_format,
+                    )

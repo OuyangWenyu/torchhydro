@@ -16,6 +16,9 @@ dependencies:
   - pytorch=1.12
   - pytorch-scatter
   - tensorboard
+  # have to specify pillow version because of an issue for pytorch<1.13
+  # https://github.com/Project-MONAI/MONAI/issues/6683
+  - pillow=9.5.0
   - torchvision
   - shap
   - tqdm

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2023-11-20 19:15:50
+LastEditTime: 2023-11-27 17:44:42
 LastEditors: Wenyu Ouyang
 Description: Test some functions for dataset
-FilePath: /torchhydro/tests/test_data.py
+FilePath: \torchhydro\tests\test_data.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import pytest
@@ -65,7 +65,10 @@ def test_cache_file():
     """
     Test whether the cache file is generated correctly
     """
-    camels_us = hds.Camels()
+    camels_dir = hds.ROOT_DIR.joinpath(
+        "waterism", "datasets-origin", "camels", "camels_us"
+    )
+    camels_us = hds.Camels(camels_dir)
     camels_us.cache_xrdataset()
 
 
