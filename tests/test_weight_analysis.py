@@ -58,30 +58,3 @@ def test_weight_analysis(result_dir):
             f"{basin_id}_bs{show_hist_b}_fold{fold}_chosen_layer_consine.csv",
         )
     )
-
-    # integrate to one file for each basin
-    row_names = [
-        "linearIn.weight",
-        "linearIn.bias",
-        "lstm.w_ih",
-        "lstm.b_ih",
-        "lstm.w_hh",
-        "lstm.b_hh",
-        "linearOut.weight",
-        "linearOut.bias",
-        "former_linear.weight",
-        "former_linear.bias",
-    ]
-    # NOTICE: ONLY SUPPORT two fold, two models
-    fold_num = 2
-    model_num = 2
-    cosine_sim = pd.read_csv(
-        os.path.join(
-            save_fig_dir,
-            f"{basin_id}_bs{show_hist_b}_fold{fold}_chosen_layer_consine.csv",
-        ),
-        index_col=0,
-    )
-    pd.DataFrame(basin_mat).round(3).to_csv(
-        os.path.join(save_fig_dir, f"{basin_id}_basin_mat.csv")
-    )
