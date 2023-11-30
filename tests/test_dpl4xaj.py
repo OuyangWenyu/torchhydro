@@ -3,8 +3,8 @@ import pytest
 
 import torch
 
-from models.dpl4xaj import DplLstmXaj
-from models.kernel_conv import uh_conv, uh_gamma
+from torchhydro.models.dpl4xaj import DplLstmXaj
+from torchhydro.models.kernel_conv import uh_conv, uh_gamma
 
 
 @pytest.fixture()

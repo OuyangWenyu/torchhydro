@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-18 14:34:53
-LastEditTime: 2023-10-03 19:44:48
+LastEditTime: 2023-11-29 17:55:05
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
 FilePath: \torchhydro\tests\test_evaluate_model.py
@@ -20,7 +20,7 @@ from torchhydro.trainers.trainer import set_random_seed
 
 @pytest.fixture()
 def config_data():
-    project_name = "test_camels/exp2"
+    project_name = "test_camels/exp1"
     weight_dir = os.path.join(
         os.getcwd(),
         "results",
@@ -67,6 +67,7 @@ def config_data():
         opt="Adadelta",
         which_first_tensor="sequence",
         weight_path=weight_path,
+        continue_train=False,
     )
     config_data = default_config_file()
     update_cfg(config_data, args)

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2023-09-24 20:31:57
+LastEditTime: 2023-11-29 17:27:01
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: \torchhydro\tests\test_train_camels_lstm.py
@@ -17,11 +17,14 @@ from torchhydro.trainers.trainer import train_and_evaluate
 @pytest.fixture()
 def config():
     project_name = "test_camels/exp1"
+    source_path = os.path.join(
+        hds.ROOT_DIR, "camels", "camels_us"
+    )
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source="CAMELS",
-        source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_us"),
+        source_path=source_path,
         source_region="US",
         download=0,
         ctx=[-1],

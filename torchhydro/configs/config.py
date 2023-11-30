@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-06 17:12:00
+LastEditTime: 2023-11-24 18:19:55
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: \torchhydro\torchhydro\configs\config.py
+FilePath: /torchhydro/torchhydro/configs/config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import argparse
@@ -226,6 +226,19 @@ def default_config_file():
             "train_but_not_real": False,
             "which_first_tensor": "sequence",
             "is_tensorboard": False,
+            # for ensemble exp:
+            # basically we set kfold/seeds/hyper_params for trianing such as batch_sizes
+            "ensemble": False,
+            "ensemble_items": {
+                # kfold means a time cross validation,
+                # concatenate train ,valid, and test data together,
+                # then split them into k folds
+                "kfold": None,
+                "batch_sizes": None,
+                # if seeds is not None,
+                # we will use different seeds for different sub-exps
+                "seeds": None,
+            },
         },
         # For evaluation
         "evaluation_cfgs": {
@@ -301,6 +314,8 @@ def cmd(
     train_but_not_real=None,
     which_first_tensor=None,
     is_tensorboard=False,
+    ensemble=0,
+    ensemble_items=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -718,6 +733,20 @@ def cmd(
         default=lr_scheduler,
         type=json.loads,
     )
+    parser.add_argument(
+        "--ensemble",
+        dest="ensemble",
+        help="ensemble config",
+        default=ensemble,
+        type=int,
+    )
+    parser.add_argument(
+        "--ensemble_items",
+        dest="ensemble_items",
+        help="ensemble config",
+        default=ensemble_items,
+        type=json.loads,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -765,8 +794,6 @@ def update_cfg(cfg_file, new_args):
         os.makedirs(result_dir)
     if new_args.sub is not None:
         subset, subexp = new_args.sub.split("/")
-        if not os.path.exists(os.path.join(result_dir, subset, subexp)):
-            os.makedirs(os.path.join(result_dir, subset, subexp))
         cfg_file["data_cfgs"]["validation_path"] = os.path.join(
             project_dir, "results", subset, subexp
         )
@@ -993,6 +1020,12 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["is_tensorboard"] = new_args.is_tensorboard
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
+    if new_args.ensemble == 0:
+        cfg_file["training_cfgs"]["ensemble"] = False
+    else:
+        cfg_file["training_cfgs"]["ensemble"] = True
+    if new_args.ensemble_items is not None:
+        cfg_file["training_cfgs"]["ensemble_items"] = new_args.ensemble_items
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 
