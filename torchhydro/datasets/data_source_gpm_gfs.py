@@ -206,13 +206,13 @@ class GPM_GFS(HydroDataset):
             return None
 
         folder = os.path.exists(
-            os.path.join(hds.ROOT_DIR, "gpm_gfs_data", "water_level_total.nc")
+            os.path.join("/ftproot", "gpm_gfs_data", "water_level_total.nc")
         )
         if not folder:
             self.waterlevel_xrdataset()
 
         waterlevel = xr.open_dataset(
-            os.path.join(hds.ROOT_DIR, "gpm_gfs_data", "water_level_total.nc")
+            os.path.join("/ftproot", "gpm_gfs_data", "water_level_total.nc")
         )
         all_vars = waterlevel.data_vars
         if any(var not in waterlevel.variables for var in var_list):
@@ -234,55 +234,18 @@ class GPM_GFS(HydroDataset):
         gpm_dict = {}
         for basin in gage_id_lst:
             gpm = xr.open_dataset(
-                os.path.join(hds.ROOT_DIR, "gpm_gfs_data_24h_re", str(basin) + ".nc")
+                os.path.join("/ftproot", "gpm_gfs_data_24h_re", str(basin) + ".nc")
             )
             gpm = gpm[var_lst].sel(time=slice(t_range[0], t_range[1]))
             gpm_dict[basin] = gpm
 
         return gpm_dict
 
-        # gpm = xr.open_dataset(
-        #     os.path.join(
-        #         hds.ROOT_DIR, "gpm_gfs_data", "gpm_whole", str(gage_id_lst[0]) + ".nc"
-        #     )
-        # )
-        # return gpm[var_lst].sel(time=slice(t_range[0], t_range[1]))
-
-    def read_gpm(self):
-        gpm_data = []
-        data_path_all = os.path.join(hds.ROOT_DIR, "gpm_gfs_data", "gpm")
-        data_path_basin_list = os.listdir(data_path_all)
-        for i in range(len(data_path_basin_list)):
-            data_path_basin = os.path.join(data_path_all, data_path_basin_list[i])
-            data_path_time_list = os.listdir(data_path_basin)
-            for j in range(len(data_path_time_list)):
-                dict = {
-                    "ID": "",
-                    "data": "",
-                    "length": "",
-                    "width": "",
-                    "precip": "",
-                }
-                data_path = os.path.join(data_path_basin, data_path_time_list[j])
-                dst = ncdataset(data_path)
-                precip = dst.variables["precipitationCal"][:]
-                dict.update(
-                    {
-                        "ID": data_path_basin_list[i],
-                        "data": data_path_time_list[j],
-                        "length": len(precip[0]),
-                        "width": len(precip[0][0]),
-                        "precip": precip[0],
-                    }
-                )
-                gpm_data.append(dict)
-
-        return gpm_data
 
     def read_attr_xrdataset(self, gage_id_lst=None, var_lst=None, **kwargs):
         if var_lst is None or len(var_lst) == 0:
             return None
-        attr = xr.open_dataset(CACHE_DIR.joinpath("camelsus_attributes.nc"))
+        attr = xr.open_dataset(os.path.join("/ftproot","camelsus_attributes.nc"))
         if "all_number" in list(kwargs.keys()) and kwargs["all_number"]:
             attr_num = map_string_vars(attr)
             return attr_num[var_lst].sel(basin=gage_id_lst)
