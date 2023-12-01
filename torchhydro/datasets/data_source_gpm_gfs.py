@@ -221,6 +221,28 @@ class GPM_GFS(HydroDataset):
             time=slice(t_range[0], t_range[1]), basin=gage_id_lst
         )
 
+    def read_streamflow_xrdataset(
+        self, gage_id_lst=None, t_range: list = None, var_list=None, **kwargs
+    ):
+        if var_list is None or len(var_list) == 0:
+            return None
+
+        # folder = os.path.exists(
+        #     os.path.join("/ftproot", "gpm_gfs_data", "streamflow_total.nc")
+        # )
+        # if not folder:
+        #     self.waterlevel_xrdataset()
+
+        streamflow = xr.open_dataset(
+            os.path.join("/ftproot", "gpm_gfs_data", "streamflow_total.nc")
+        )
+        all_vars = streamflow.data_vars
+        if any(var not in streamflow.variables for var in var_list):
+            raise ValueError(f"var_lst must all be in {all_vars}")
+        return streamflow[["streamflow"]].sel(
+            time=slice(t_range[0], t_range[1]), basin=gage_id_lst
+        )
+
     def read_gpm_xrdataset(
         self,
         gage_id_lst: list = None,

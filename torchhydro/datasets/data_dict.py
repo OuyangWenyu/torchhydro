@@ -8,7 +8,7 @@ FilePath: /torchhydro/torchhydro/datasets/data_dict.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 from hydrodataset import Camels
-from datasets.data_source_gpm_gfs import GPM_GFS
+from torchhydro.datasets.data_source_gpm_gfs import GPM_GFS
 from hydrodataset.caravan import Caravan
 from torchhydro.datasets.data_sources import SelfMadeCamels
 

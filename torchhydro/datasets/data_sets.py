@@ -15,7 +15,7 @@ import pint_xarray  # noqa: F401
 import torch
 import xarray as xr
 from hydrodataset import HydroDataset
-from datasets.data_source_gpm_gfs import GPM_GFS
+from torchhydro.datasets.data_source_gpm_gfs import GPM_GFS
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from torchhydro.datasets.data_scalers import ScalerHub, Muti_Basin_GPM_GFS_SCALER
@@ -434,11 +434,33 @@ class GPM_GFS_Dataset(Dataset):
         self.t_s_dict = wrap_t_s_dict(
             self.data_source, self.data_cfgs, self.is_tra_val_te
         )
-        data_waterlevel_ds = self.data_source.read_waterlevel_xrdataset(
-            self.t_s_dict["sites_id"],
-            self.t_s_dict["t_final_range"],
-            self.data_cfgs["target_cols"],
-        )
+        if self.data_cfgs["target_cols"] == ["waterlevel"]:
+            data_waterlevel_ds = self.data_source.read_waterlevel_xrdataset(
+                self.t_s_dict["sites_id"],
+                self.t_s_dict["t_final_range"],
+                self.data_cfgs["target_cols"],
+            )
+
+            if data_waterlevel_ds is not None:
+                data_waterlevel = self._trans2da_and_setunits(data_waterlevel_ds)
+            else:
+                data_waterlevel = None
+
+            self.y_origin = data_waterlevel
+
+        elif self.data_cfgs["target_cols"] == ["streamflow"]:
+            data_streamflow_ds = self.data_source.read_streamflow_xrdataset(
+                self.t_s_dict["sites_id"],
+                self.t_s_dict["t_final_range"],
+                self.data_cfgs["target_cols"],
+            )
+
+            if data_streamflow_ds is not None:
+                data_streamflow = self._trans2da_and_setunits(data_streamflow_ds)
+            else:
+                data_streamflow = None
+
+            self.y_origin = data_streamflow
         # x
         data_forcing_ds = self.data_source.read_gpm_xrdataset(
             self.t_s_dict["sites_id"],
@@ -446,25 +468,20 @@ class GPM_GFS_Dataset(Dataset):
             # 1 comes from here
             self.data_cfgs["relevant_cols"],
         )
-        
+
         data_forcing = {}
         if data_forcing_ds is not None:
             for basin, data in data_forcing_ds.items():
                 result = data.to_array(dim="variable")
-               
+
                 data_forcing[basin] = result
         else:
             data_forcing = None
 
-        if data_waterlevel_ds is not None:
-            data_waterlevel = self._trans2da_and_setunits(data_waterlevel_ds)
-        else:
-            data_waterlevel = None
-
         self.x_origin = data_forcing
-        self.y_origin = data_waterlevel
+
         scaler_hub = Muti_Basin_GPM_GFS_SCALER(
-            data_waterlevel,
+            self.y_origin,
             data_forcing,
             data_attr=None,
             data_cfgs=self.data_cfgs,
@@ -507,7 +524,7 @@ class GPM_GFS_Dataset(Dataset):
         return result
 
     def __len__(self):
-        return self.num_samples 
+        return self.num_samples
 
     def __getitem__(self, item: int):
         # here time is time_now in gpm_gfs_data
