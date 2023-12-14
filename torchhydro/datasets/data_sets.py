@@ -448,7 +448,7 @@ class GPM_GFS_Dataset(Dataset):
 
             self.y_origin = data_waterlevel
 
-        elif self.data_cfgs["target_cols"] == ["streamflow"]:
+        elif self.data_cfgs["target_cols"] ==["streamflow"]:
             data_streamflow_ds = self.data_source.read_streamflow_xrdataset(
                 self.t_s_dict["sites_id"],
                 self.t_s_dict["t_final_range"],
@@ -590,3 +590,5 @@ class GPM_GFS_Dataset(Dataset):
             )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
+
+

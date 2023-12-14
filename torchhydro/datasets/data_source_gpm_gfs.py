@@ -234,7 +234,8 @@ class GPM_GFS(HydroDataset):
         #     self.waterlevel_xrdataset()
 
         streamflow = xr.open_dataset(
-            os.path.join("/ftproot", "gpm_gfs_data", "streamflow_total.nc")
+            # os.path.join("/ftproot", "biliuhe", "streamflow_total.nc")
+            os.path.join("/home/wuxinzhuo",  "streamflow.nc")
         )
         all_vars = streamflow.data_vars
         if any(var not in streamflow.variables for var in var_list):
@@ -256,18 +257,21 @@ class GPM_GFS(HydroDataset):
         gpm_dict = {}
         for basin in gage_id_lst:
             gpm = xr.open_dataset(
-                os.path.join("/ftproot", "gpm_gfs_data_24h_re", str(basin) + ".nc")
+                # os.path.join("/ftproot", "gpm_gfs_data_24h_re", str(basin) + ".nc")
+                # os.path.join("/ftproot", "biliuhe", "2020_7_9.nc")
+                os.path.join("/home/wuxinzhuo", "biliuhe", "21401550_16_18.nc")
             )
             gpm = gpm[var_lst].sel(time=slice(t_range[0], t_range[1]))
             gpm_dict[basin] = gpm
 
         return gpm_dict
 
-
     def read_attr_xrdataset(self, gage_id_lst=None, var_lst=None, **kwargs):
         if var_lst is None or len(var_lst) == 0:
             return None
-        attr = xr.open_dataset(os.path.join("/ftproot","camelsus_attributes.nc"))
+        attr = xr.open_dataset(
+            os.path.join("/home", "wuxinzhuo", "camelsus_attributes.nc")
+        )
         if "all_number" in list(kwargs.keys()) and kwargs["all_number"]:
             attr_num = map_string_vars(attr)
             return attr_num[var_lst].sel(basin=gage_id_lst)

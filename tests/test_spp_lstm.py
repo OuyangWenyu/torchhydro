@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore")
 
 @pytest.fixture()
 def config():
-    project_name = "test_spp_lstm/ex1"
+    project_name = "test_spp_lstm/ex6"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -18,7 +18,7 @@ def config():
         source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
         source_region="US",
         download=0,
-        ctx=[0],
+        ctx=[1],
         model_name="SPPLSTM",
         model_hyperparam={
             "seq_length": 168,
@@ -27,26 +27,30 @@ def config():
             "n_hidden_states": 80,
         },
         gage_id=[
-            "05584500",
-            "01544500",
-            "01423000",
+            '21401550'
+            # "05584500",
+            # "01544500",
+            # "01423000",
         ],
-        batch_size=64,
+        batch_size=256,
         var_t=["tp"],
-        var_out=["waterlevel"],
+        var_out=["streamflow"],
         dataset="GPM_GFS_Dataset",
         sampler="WuSampler",
         scaler="GPM_GFS_Scaler",
-        train_epoch=2,
+        train_epoch=50,
         save_epoch=1,
-        te=2,
-        train_period=["2017-01-10", "2017-03-21"],
-        test_period=["2017-03-21", "2017-04-10"],
-        valid_period=["2017-04-11", "2017-04-28"],
+        te=50,
+        # train_period=["2020-07-10", "2020-08-31"],
+        # test_period=["2020-09-01", "2020-09-15"],
+        # valid_period=["2020-09-16", "2020-09-29"],
+        train_period=["2016-07-20", "2017-07-20"],
+        test_period=["2016-07-20", "2017-07-20"],
+        valid_period=["2016-07-20", "2017-07-20"],
         loss_func="RMSESum",
         opt="Adam",
         # explainer="shap",
-        lr_scheduler={1: 5e-4, 2: 1e-4, 3: 1e-5},
+        lr_scheduler={1: 1e-4, 2: 5e-5, 3: 1e-5},
         which_first_tensor="sequence",
         is_tensorboard=False,
     )
@@ -56,3 +60,5 @@ def config():
 
 def test_spp_lstm(config):
     train_and_evaluate(config)
+
+# test_spp_lstm(config)
