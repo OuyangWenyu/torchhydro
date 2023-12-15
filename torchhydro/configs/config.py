@@ -54,6 +54,7 @@ def default_config_file():
             "model_hyperparam": {
                 # the rho in LSTM
                 "seq_length": 30,
+                "forecast_length": 30,
                 # the size of input (feature number)
                 "input_size": 24,
                 # the length of output time-sequence (feature number)
@@ -224,6 +225,7 @@ def default_config_file():
             # for example, we want to save each epoch's log again, and in this time, we will set train_but_not_real to True
             "train_but_not_real": False,
             "which_first_tensor": "sequence",
+            "is_tensorboard": False,
             # for ensemble exp:
             # basically we set kfold/seeds/hyper_params for trianing such as batch_sizes
             "ensemble": False,
@@ -302,6 +304,7 @@ def cmd(
     loss_param=None,
     metrics=None,
     fill_nan=None,
+    explainer=None,
     warmup_length=0,
     start_epoch=1,
     stat_dict_file=None,
@@ -310,6 +313,7 @@ def cmd(
     num_workers=None,
     train_but_not_real=None,
     which_first_tensor=None,
+    is_tensorboard=False,
     ensemble=0,
     ensemble_items=None,
 ):
@@ -652,6 +656,13 @@ def cmd(
         nargs="+",
     )
     parser.add_argument(
+        "--explainer",
+        dest="explainer",
+        help="explainer what when evaluating",
+        default=explainer,
+        nargs="+",
+    )
+    parser.add_argument(
         "--warmup_length",
         dest="warmup_length",
         help="Physical hydro models need warmup",
@@ -707,6 +718,13 @@ def cmd(
         help="sequence_first or batch_first",
         default=which_first_tensor,
         type=str,
+    )
+    parser.add_argument(
+        "--is_tensorboard",
+        dest="is_tensorboard",
+        help="is_tensorboard",
+        default=is_tensorboard,
+        type=bool,
     )
     parser.add_argument(
         "--lr_scheduler",
@@ -960,10 +978,16 @@ def update_cfg(cfg_file, new_args):
             and new_args.n_output is not None
         ):
             assert new_args.model_hyperparam["output_seq_len"] == new_args.n_output
+        if "forecast_length" in new_args.model_hyperparam.keys():
+            cfg_file["data_cfgs"]["forecast_length"] = new_args.model_hyperparam[
+                "forecast_length"
+            ]
     if new_args.metrics is not None:
         cfg_file["evaluation_cfgs"]["metrics"] = new_args.metrics
     if new_args.fill_nan is not None:
         cfg_file["evaluation_cfgs"]["fill_nan"] = new_args.fill_nan
+    if new_args.explainer is not None:
+        cfg_file["evaluation_cfgs"]["explainer"] = new_args.explainer
     if new_args.te is not None:
         cfg_file["evaluation_cfgs"]["test_epoch"] = new_args.te
         if new_args.train_epoch is not None and new_args.te > new_args.train_epoch:
@@ -992,6 +1016,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["train_but_not_real"] = True
     if new_args.which_first_tensor is not None:
         cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
+    if new_args.is_tensorboard is not None:
+        cfg_file["training_cfgs"]["is_tensorboard"] = new_args.is_tensorboard
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
     if new_args.ensemble == 0:

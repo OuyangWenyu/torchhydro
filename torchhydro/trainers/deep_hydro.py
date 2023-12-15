@@ -24,9 +24,15 @@ from tqdm import tqdm
 from torchhydro.explainers.shap import (
     deep_explain_model_heatmap,
     deep_explain_model_summary_plot,
+    shap_summary_plot,
 )
 from torchhydro.configs.config import update_nested_dict
-from torchhydro.datasets.sampler import KuaiSampler, fl_sample_basin, fl_sample_region
+from torchhydro.datasets.sampler import (
+    KuaiSampler,
+    fl_sample_basin,
+    fl_sample_region,
+    WuSampler,
+)
 from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.models.model_dict_function import (
     pytorch_criterion_dict,
@@ -46,6 +52,7 @@ from torchhydro.trainers.train_utils import (
     cellstates_when_inference,
 )
 from torchhydro.trainers.train_logger import TrainLogger
+from torch.utils.tensorboard import SummaryWriter
 
 
 class DeepHydroInterface(ABC):
@@ -247,6 +254,13 @@ class DeepHydro(DeepHydroInterface):
             training_cfgs, data_cfgs
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
+
+        is_tensorboard = self.cfgs["training_cfgs"]["is_tensorboard"] == True
+        if is_tensorboard:
+            writer = SummaryWriter(
+                log_dir=os.path.join(data_cfgs["test_path"], "tensorboard_event_file"),
+                flush_secs=30,
+            )
         for epoch in range(start_epoch, max_epochs + 1):
             with logger.log_epoch_train(epoch) as train_logs:
                 if lr_scheduler is not None and epoch in lr_scheduler.keys():
@@ -264,6 +278,9 @@ class DeepHydro(DeepHydroInterface):
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
 
+                if is_tensorboard:
+                    writer.add_scalar("train_loss", total_loss, epoch)
+
             valid_loss = None
             valid_metrics = None
             if data_cfgs["t_range_valid"] is not None:
@@ -279,6 +296,7 @@ class DeepHydro(DeepHydroInterface):
                     fill_nan = self.cfgs["evaluation_cfgs"]["fill_nan"]
                     target_col = self.cfgs["data_cfgs"]["target_cols"]
                     valid_metrics = evaluate_validation(
+                        self,
                         validation_data_loader,
                         valid_preds_np,
                         valid_obss_np,
@@ -343,6 +361,9 @@ class DeepHydro(DeepHydroInterface):
         for i in range(len(target_col)):
             obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
             pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
+            if self.cfgs["data_cfgs"]["scaler"] == "GPM_GFS_Scaler":
+                obs_xr = obs_xr.T
+                pred_xr = pred_xr.T
             if type(fill_nan) is str:
                 inds = stat_error(
                     obs_xr.to_numpy(),
@@ -363,8 +384,9 @@ class DeepHydro(DeepHydroInterface):
         # Finally, try to explain model behaviour using shap
         is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
         if is_shap:
-            deep_explain_model_summary_plot(self.model, test_data)
-            deep_explain_model_heatmap(self.model, test_data)
+            shap_summary_plot(self.model, self.traindataset, test_data)
+            # deep_explain_model_summary_plot(self.model, test_data)
+            # deep_explain_model_heatmap(self.model, test_data)
 
         return eval_log, preds_xr, obss_xr
 
@@ -373,16 +395,31 @@ class DeepHydro(DeepHydroInterface):
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
-        test_dataloader = DataLoader(
-            self.testdataset,
-            batch_size=training_cfgs["batch_size"],
-            shuffle=False,
-            sampler=None,
-            batch_sampler=None,
-            drop_last=False,
-            timeout=0,
-            worker_init_fn=None,
-        )
+
+        if data_cfgs["sampler"] == "WuSampler":
+            ngrid = self.testdataset.y.basin.size
+            test_num_samples = self.testdataset.num_samples
+            test_dataloader = DataLoader(
+                self.testdataset,
+                batch_size=int(test_num_samples / ngrid),
+                shuffle=False,
+                sampler=None,
+                batch_sampler=None,
+                drop_last=False,
+                timeout=0,
+                worker_init_fn=None,
+            )
+        else:
+            test_dataloader = DataLoader(
+                self.testdataset,
+                batch_size=training_cfgs["batch_size"],
+                shuffle=False,
+                sampler=None,
+                batch_sampler=None,
+                drop_last=False,
+                timeout=0,
+                worker_init_fn=None,
+            )
         seq_first = training_cfgs["which_first_tensor"] == "sequence"
         self.model.eval()
         # here the batch is just an index of lookup table, so any batch size could be chosen
@@ -452,14 +489,24 @@ class DeepHydro(DeepHydroInterface):
             warmup_length = data_cfgs["warmup_length"]
             ngrid = train_dataset.y.basin.size
             nt = train_dataset.y.time.size
-            sampler = KuaiSampler(
-                train_dataset,
-                batch_size=batch_size,
-                warmup_length=warmup_length,
-                rho=rho,
-                ngrid=ngrid,
-                nt=nt,
-            )
+            if data_cfgs["sampler"] == "WuSampler":
+                sampler = WuSampler(
+                    train_dataset,
+                    batch_size=batch_size,
+                    warmup_length=warmup_length,
+                    rho=rho,
+                    ngrid=ngrid,
+                    nt=nt,
+                )
+            else:
+                sampler = KuaiSampler(
+                    train_dataset,
+                    batch_size=batch_size,
+                    warmup_length=warmup_length,
+                    rho=rho,
+                    ngrid=ngrid,
+                    nt=nt,
+                )
         data_loader = DataLoader(
             train_dataset,
             batch_size=training_cfgs["batch_size"],
@@ -471,14 +518,26 @@ class DeepHydro(DeepHydroInterface):
         )
         if data_cfgs["t_range_valid"] is not None:
             valid_dataset = self.validdataset
-            validation_data_loader = DataLoader(
-                valid_dataset,
-                batch_size=training_cfgs["batch_size"],
-                shuffle=False,
-                num_workers=worker_num,
-                pin_memory=pin_memory,
-                timeout=0,
-            )
+
+            if data_cfgs["sampler"] == "WuSampler":
+                eval_num_samples = valid_dataset.num_samples
+                validation_data_loader = DataLoader(
+                    valid_dataset,
+                    batch_size=int(eval_num_samples / ngrid),
+                    shuffle=False,
+                    num_workers=worker_num,
+                    pin_memory=pin_memory,
+                    timeout=0,
+                )
+            else:
+                validation_data_loader = DataLoader(
+                    valid_dataset,
+                    batch_size=training_cfgs["batch_size"],
+                    shuffle=False,
+                    num_workers=worker_num,
+                    pin_memory=pin_memory,
+                    timeout=0,
+                )
             return data_loader, validation_data_loader
 
         return data_loader, None
