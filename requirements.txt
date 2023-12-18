@@ -18,5 +18,7 @@ seaborn
 
 kaggle~=1.5.16
 
+pytest
+
 hydroutils
 hydrodataset
