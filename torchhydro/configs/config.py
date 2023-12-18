@@ -225,7 +225,6 @@ def default_config_file():
             # for example, we want to save each epoch's log again, and in this time, we will set train_but_not_real to True
             "train_but_not_real": False,
             "which_first_tensor": "sequence",
-            "is_tensorboard": False,
             # for ensemble exp:
             # basically we set kfold/seeds/hyper_params for trianing such as batch_sizes
             "ensemble": False,
@@ -313,7 +312,6 @@ def cmd(
     num_workers=None,
     train_but_not_real=None,
     which_first_tensor=None,
-    is_tensorboard=False,
     ensemble=0,
     ensemble_items=None,
 ):
@@ -720,13 +718,6 @@ def cmd(
         type=str,
     )
     parser.add_argument(
-        "--is_tensorboard",
-        dest="is_tensorboard",
-        help="is_tensorboard",
-        default=is_tensorboard,
-        type=bool,
-    )
-    parser.add_argument(
         "--lr_scheduler",
         dest="lr_scheduler",
         help="The learning rate scheduler",
@@ -1016,8 +1007,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["train_but_not_real"] = True
     if new_args.which_first_tensor is not None:
         cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
-    if new_args.is_tensorboard is not None:
-        cfg_file["training_cfgs"]["is_tensorboard"] = new_args.is_tensorboard
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
     if new_args.ensemble == 0:

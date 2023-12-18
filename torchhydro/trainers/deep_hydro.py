@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-28 13:22:06
+LastEditTime: 2023-12-17 16:09:24
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -255,12 +255,6 @@ class DeepHydro(DeepHydroInterface):
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
 
-        is_tensorboard = self.cfgs["training_cfgs"]["is_tensorboard"] == True
-        if is_tensorboard:
-            writer = SummaryWriter(
-                log_dir=os.path.join(data_cfgs["test_path"], "tensorboard_event_file"),
-                flush_secs=30,
-            )
         for epoch in range(start_epoch, max_epochs + 1):
             with logger.log_epoch_train(epoch) as train_logs:
                 if lr_scheduler is not None and epoch in lr_scheduler.keys():
@@ -277,9 +271,6 @@ class DeepHydro(DeepHydroInterface):
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
-
-                if is_tensorboard:
-                    writer.add_scalar("train_loss", total_loss, epoch)
 
             valid_loss = None
             valid_metrics = None
