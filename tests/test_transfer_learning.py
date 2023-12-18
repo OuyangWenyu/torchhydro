@@ -9,8 +9,9 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
 import pytest
-import hydrodataset as hds
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
+
+from torchhydro import DATASOURCE_SETTINGS
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -74,7 +75,9 @@ def test_transfer_gages_lstm_model(
     args = cmd(
         sub=project_name,
         source="CAMELS",
-        source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_us"),
+        source_path=os.path.join(
+            DATASOURCE_SETTINGS["datasets-origin"], "camels", "camels_us"
+        ),
         source_region="US",
         download=0,
         ctx=[0],

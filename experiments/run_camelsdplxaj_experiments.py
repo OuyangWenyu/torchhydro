@@ -1,17 +1,17 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-20 20:05:10
-LastEditTime: 2023-09-25 19:20:51
+LastEditTime: 2023-12-18 09:26:14
 LastEditors: Wenyu Ouyang
-Description: 
-FilePath: /torchhydro/experiments/run_camelsdplxaj_experiments.py
+Description: A case for dPL-XAJ model
+FilePath: \torchhydro\experiments\run_camelsdplxaj_experiments.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
 from configs.config import cmd, default_config_file, update_cfg
-import hydrodataset as hds
 
-from trainers.trainer import train_and_evaluate
+from torchhydro import DATASOURCE_SETTINGS
+from torchhydro.trainers.trainer import train_and_evaluate
 
 
 def run_dplxaj(train_period=None, valid_period=None, test_period=None):
@@ -37,7 +37,9 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         sub="test_camels/expdplxaj",
         source="CAMELS",
         source_region="US",
-        source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_us"),
+        source_path=os.path.join(
+            DATASOURCE_SETTINGS["datasets-origin"], "camels", "camels_us"
+        ),
         download=0,
         ctx=[0],
         model_name="DplLstmXaj",

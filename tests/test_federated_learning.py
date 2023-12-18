@@ -1,15 +1,16 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-24 14:28:48
-LastEditTime: 2023-09-25 15:12:55
+LastEditTime: 2023-12-18 09:11:55
 LastEditors: Wenyu Ouyang
 Description: A test for federated learning
-FilePath: /torchhydro/tests/test_federated_learning.py
+FilePath: \torchhydro\tests\test_federated_learning.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
 import pytest
-import hydrodataset as hds
+
+from torchhydro import DATASOURCE_SETTINGS
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -21,7 +22,9 @@ def config():
     args = cmd(
         sub=project_name,
         source="CAMELS",
-        source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_us"),
+        source_path=os.path.join(
+            DATASOURCE_SETTINGS["datasets-origin"], "camels", "camels_us"
+        ),
         source_region="US",
         download=0,
         ctx=[-1],

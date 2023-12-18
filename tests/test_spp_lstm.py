@@ -1,9 +1,19 @@
+"""
+Author: Xinzhuo Wu
+Date: 2023-12-17 14:49:04
+LastEditTime: 2023-12-18 09:13:26
+LastEditors: Wenyu Ouyang
+Description: Test funcs for spp_lstm
+FilePath: \torchhydro\tests\test_spp_lstm.py
+Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
+"""
 import os
 import pytest
-import hydrodataset as hds
+import warnings
+
+from torchhydro import DATASOURCE_SETTINGS
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-import warnings
 
 warnings.filterwarnings("ignore")
 
@@ -15,7 +25,7 @@ def config():
     args = cmd(
         sub=project_name,
         source="GPM_GFS",
-        source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
+        source_path=os.path.join(DATASOURCE_SETTINGS["root"], "gpm_gfs_data"),
         source_region="US",
         download=0,
         ctx=[0],

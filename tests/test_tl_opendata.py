@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-10-05 16:16:48
-LastEditTime: 2023-11-19 22:01:36
+LastEditTime: 2023-12-18 09:14:19
 LastEditors: Wenyu Ouyang
 Description: Transfer learning for local basins with hydro_opendata
 FilePath: \torchhydro\tests\test_tl_opendata.py
@@ -9,8 +9,9 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
 import pytest
-import hydrodataset as hds
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
+
+from torchhydro import DATASOURCE_SETTINGS
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -77,7 +78,7 @@ def test_transfer_gages_lstm_model(
         source="SelfMadeCAMELS",
         # cc means China continent
         source_path=os.path.join(
-            hds.ROOT_DIR, "waterism", "datasets-interim", "camels_cc"
+            DATASOURCE_SETTINGS["datasets-interim"], "camels_cc"
         ),
         download=0,
         ctx=[0],

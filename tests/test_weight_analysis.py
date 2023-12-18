@@ -1,14 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-11-21 07:20:41
-LastEditTime: 2023-11-27 20:45:36
+LastEditTime: 2023-12-18 09:16:10
 LastEditors: Wenyu Ouyang
 Description: Test weight analysis
 FilePath: \torchhydro\tests\test_weight_analysis.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
-import matplotlib
 import pandas as pd
 import pytest
 
