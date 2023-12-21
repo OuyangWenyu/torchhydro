@@ -9,11 +9,11 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import xarray as xr
-from datetime import datetime
 
-import hydrodataset as hds
 from hydrodataset import HydroDataset
 from hydroutils import hydro_time
+
+from torchhydro import DATASOURCE_SETTINGS
 
 
 class HydroData(ABC):
@@ -26,7 +26,7 @@ class HydroData(ABC):
     """
 
     def __init__(self, data_path):
-        self.data_source_dir = Path(hds.ROOT_DIR, data_path)
+        self.data_source_dir = Path(DATASOURCE_SETTINGS["root"], data_path)
         if not self.data_source_dir.is_dir():
             self.data_source_dir.mkdir(parents=True)
 
@@ -107,7 +107,18 @@ class SelfMadeCamels(HydroDataset):
     If any data is not ready, we will raise an error and preprocess in other scripts again.
     """
 
-    def __init__(self, data_path, download=False):
+    def __init__(self, data_path, download=False, version="latest"):
+        """Initialize a self-made CAMELS dataset.
+
+        Parameters
+        ----------
+        data_path : _type_
+            _description_
+        download : bool, optional
+            _description_, by default False
+        version : str, optional
+            We have multiple versions of self-made CAMELS dataset, by default "latest"
+        """
         super().__init__(data_path)
         # the naming convention for basin ids are needed
         # we use GRDC station's ids as our default coding convention
@@ -117,6 +128,14 @@ class SelfMadeCamels(HydroDataset):
         if download:
             self.download_data_source()
         self.camels_sites = self.read_site_info()
+        # for camels_cc (version 1), {"time": "DATE", "streamflow": "Q"}
+        # Here the dict is for camels_cc_v2
+        if version in ["latest", "v2"]:
+            self.VAR_DICT = {"time": "time", "streamflow": "streamflow"}
+        elif version == "v1":
+            self.VAR_DICT = {"time": "DATE", "streamflow": "Q"}
+        else:
+            raise ValueError("version must be latest, v2, or v1")
 
     @property
     def streamflow_unit(self):
@@ -182,7 +201,11 @@ class SelfMadeCamels(HydroDataset):
         t_range_list = hydro_time.t_range_days(t_range_list)
         nt = t_range_list.shape[0]
         y = np.full([len(object_ids), nt, nf], np.nan)
-        for j in tqdm(range(len(target_cols)), desc="Read Q/SSM/ET data of CAMELS-CC"):
+        streamflow_name = self.VAR_DICT["streamflow"]
+        time_name = self.VAR_DICT["time"]
+        for j in tqdm(
+            range(len(target_cols)), desc="Read streamflow data of CAMELS-CC"
+        ):
             for k in tqdm(range(len(object_ids))):
                 # only one streamflow type: Q
                 flow_file = os.path.join(
@@ -190,11 +213,13 @@ class SelfMadeCamels(HydroDataset):
                     object_ids[k] + ".csv",
                 )
                 flow_data = pd.read_csv(flow_file, sep=",")
-                date = pd.to_datetime(flow_data["DATE"]).values.astype("datetime64[D]")
+                date = pd.to_datetime(flow_data[time_name]).values.astype(
+                    "datetime64[D]"
+                )
                 [c, ind1, ind2] = np.intersect1d(
                     date, t_range_list, return_indices=True
                 )
-                y[k, ind2, j] = flow_data["Q"].values[ind1]
+                y[k, ind2, j] = flow_data[streamflow_name].values[ind1]
         return y
 
     def read_relevant_cols(
@@ -274,7 +299,7 @@ class SelfMadeCamels(HydroDataset):
         attr_files = Path(self.data_source_description["CAMELS_ATTR_DIR"]).glob("*.csv")
         dataframes = {}
         for file_path in attr_files:
-            df = pd.read_csv(file_path)
+            df = pd.read_csv(file_path, index_col="gage_id")
             dataframes[file_path.stem] = df  # use stem as key
 
         # merged all data
@@ -350,7 +375,8 @@ class SelfMadeCamels(HydroDataset):
             data_array = xr.DataArray(
                 data=merged_data[column].values,
                 dims=["basin"],
-                coords={"basin": merged_data["gage_id"].astype(str)},
+                # we have set gage_id as index so that it won't be saved as numeric values
+                coords={"basin": merged_data.index.values.astype(str)},
                 attrs=attrs,
             )
             ds[column] = data_array
@@ -404,7 +430,7 @@ class SelfMadeCamels(HydroDataset):
             t_range_list=t_range,
             relevant_cols=variables,
         )
-        era5_land_hourly_units = {
+        era5_land_units = {
             "dewpoint_temperature_2m": "K",
             "temperature_2m": "K",
             "skin_temperature": "K",
@@ -443,17 +469,18 @@ class SelfMadeCamels(HydroDataset):
             "surface_sensible_heat_flux": "J/m^2",
             "surface_solar_radiation_downwards": "J/m^2",
             "surface_thermal_radiation_downwards": "J/m^2",
-            "evaporation_from_bare_soil": "m",
-            "evaporation_from_open_water_surfaces_excluding_oceans": "m",
-            "evaporation_from_the_top_of_canopy": "m",
-            "evaporation_from_vegetation_transpiration": "m",
-            "potential_evaporation": "m",
+            # for evaporation and precipitation, we have trans m to mm when reading data
+            "evaporation_from_bare_soil": "mm",
+            "evaporation_from_open_water_surfaces_excluding_oceans": "mm",
+            "evaporation_from_the_top_of_canopy": "mm",
+            "evaporation_from_vegetation_transpiration": "mm",
+            "potential_evaporation": "mm",
             "runoff": "m",
-            "snow_evaporation": "m",
+            "snow_evaporation": "mm",
             "sub_surface_runoff": "m",
             "surface_runoff": "m",
-            "total_evaporation": "m",
-            "total_precipitation": "m",
+            "total_evaporation": "mm",
+            "total_precipitation": "mm",
         }
 
         return xr.Dataset(
@@ -462,7 +489,7 @@ class SelfMadeCamels(HydroDataset):
                     variables[i]: (
                         ["basin", "time"],
                         data[:, :, i],
-                        {"units": era5_land_hourly_units[variables[i]]},
+                        {"units": era5_land_units[variables[i]]},
                     )
                     for i in range(len(variables))
                 }
@@ -477,11 +504,15 @@ class SelfMadeCamels(HydroDataset):
     def cache_xrdataset(self):
         """Save all data in a netcdf file in the cache directory"""
         ds_attr = self.cache_attributes_xrdataset()
-        ds_attr.to_netcdf(hds.CACHE_DIR.joinpath("camelscc_attributes.nc"))
+        ds_attr.to_netcdf(
+            os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_attributes.nc")
+        )
         ds_streamflow = self.cache_streamflow_xrdataset()
         ds_forcing = self.cache_forcing_xrdataset()
         ds = xr.merge([ds_streamflow, ds_forcing])
-        ds.to_netcdf(hds.CACHE_DIR.joinpath("camelscc_timeseries.nc"))
+        ds.to_netcdf(
+            os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_timeseries.nc")
+        )
 
     def read_ts_xrdataset(
         self,
@@ -494,10 +525,14 @@ class SelfMadeCamels(HydroDataset):
         if var_lst is None:
             return None
         try:
-            ts = xr.open_dataset(hds.CACHE_DIR.joinpath("camelscc_timeseries.nc"))
+            ts = xr.open_dataset(
+                os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_timeseries.nc")
+            )
         except FileNotFoundError:
             self.cache_xrdataset()
-            ts = xr.open_dataset(hds.CACHE_DIR.joinpath("camelscc_timeseries.nc"))
+            ts = xr.open_dataset(
+                os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_timeseries.nc")
+            )
         all_vars = ts.data_vars
         if any(var not in ts.variables for var in var_lst):
             raise ValueError(f"var_lst must all be in {all_vars}")
@@ -508,10 +543,14 @@ class SelfMadeCamels(HydroDataset):
         if var_lst is None or len(var_lst) == 0:
             return None
         try:
-            attr = xr.open_dataset(hds.CACHE_DIR.joinpath("camelscc_attributes.nc"))
+            attr = xr.open_dataset(
+                os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_attributes.nc")
+            )
         except FileNotFoundError:
             self.cache_xrdataset()
-            attr = xr.open_dataset(hds.CACHE_DIR.joinpath("camelscc_attributes.nc"))
+            attr = xr.open_dataset(
+                os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_attributes.nc")
+            )
         return attr[var_lst].sel(basin=gage_id_lst)
 
     def read_area(self, gage_id_lst=None):

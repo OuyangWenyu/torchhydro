@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-10-05 16:16:48
-LastEditTime: 2023-12-18 09:14:19
+LastEditTime: 2023-12-21 20:35:57
 LastEditors: Wenyu Ouyang
 Description: Transfer learning for local basins with hydro_opendata
-FilePath: \torchhydro\tests\test_tl_opendata.py
+FilePath: \torchhydro\tests\test_tl_selfmadedata.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
@@ -24,7 +24,7 @@ def var_c_target():
         "Area",
         "geol_class_1st",
         "elev",
-        "SNDPPT",
+        # "SNDPPT",
     ]
 
 
@@ -78,7 +78,7 @@ def test_transfer_gages_lstm_model(
         source="SelfMadeCAMELS",
         # cc means China continent
         source_path=os.path.join(
-            DATASOURCE_SETTINGS["datasets-interim"], "camels_cc"
+            DATASOURCE_SETTINGS["datasets-interim"], "camels_cc_v2"
         ),
         download=0,
         ctx=[0],
@@ -112,8 +112,8 @@ def test_transfer_gages_lstm_model(
         var_c=var_c_target,
         var_out=["streamflow"],
         gage_id=[
-            "61561",
-            "62618",
+            "86_changdian61561",
+            "86_changdian62618",
         ],
     )
     cfg = default_config_file()
