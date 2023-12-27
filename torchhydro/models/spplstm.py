@@ -149,3 +149,42 @@ class SPP_LSTM_Model(nn.Module):
         # print(x.shape)
         return x
         # return x.unsqueeze(2).transpose(0, 1)
+
+
+class SPP_LSTM_Model_2(nn.Module):
+    def __init__(self, seq_length, forecast_length, n_output, n_hidden_states):
+        super(SPP_LSTM_Model_2, self).__init__()
+        self.conv1 = nn.Conv2d(
+            in_channels=1,
+            out_channels=32,
+            kernel_size=(3, 3),
+            padding="same",
+        )
+
+        self.leaky_relu = nn.LeakyReLU(0.01)
+
+        self.lstm = nn.LSTM(
+            input_size=32 * 5, hidden_size=n_hidden_states, batch_first=True
+        )
+
+        self.dropout = nn.Dropout(0.1)
+
+        self.fc = nn.Linear(n_hidden_states, n_output)
+
+        self.spp = SppLayer([2, 1])
+
+        self.length = seq_length + forecast_length
+        self.forecast_length = forecast_length
+
+    def forward(self, x):
+        x = torch.squeeze(x, dim=1)
+        x = x.view(-1, x.shape[2], x.shape[3], x.shape[4])
+        x = self.conv1(x)
+        x = self.leaky_relu(x)
+        x = self.spp(x)
+        x = x.view(x.shape[0], -1)
+        x = x.view(int(x.shape[0] / (self.length)), self.length, -1)
+        x, _ = self.lstm(x)
+        x = self.dropout(x)
+        x = self.fc(x)
+        return x[:, -self.forecast_length :, :]

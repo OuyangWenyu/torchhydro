@@ -617,7 +617,6 @@ class GPM_GFS_Scaler_2(object):
         prcp_norm_cols = [
             "waterlevel",
             "streamflow",
-            "precipitationCal",
         ]
 
         gamma_norm_cols = [

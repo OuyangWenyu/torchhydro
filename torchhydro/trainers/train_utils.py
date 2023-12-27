@@ -84,66 +84,66 @@ def denormalize4eval(validation_data_loader, output, labels):
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
     if target_scaler.data_cfgs["scaler"] == "GPM_GFS_Scaler":
-        for i in range(output.shape[1]):
-            if (
-                warmup_length + validation_data_loader.dataset.forecast_length - 1 - i
-                != 0
-            ):
-                selected_time_points = target_data.coords["time"][
-                    -(
-                        warmup_length
-                        + validation_data_loader.batch_size
-                        + validation_data_loader.dataset.forecast_length
-                        - 1
-                        - i
-                    ) : -(
-                        warmup_length
-                        + validation_data_loader.dataset.forecast_length
-                        - 1
-                        - i
-                    )
-                ]
-            else:
-                selected_time_points = target_data.coords["time"][
-                    -(
-                        warmup_length
-                        + validation_data_loader.batch_size
-                        + validation_data_loader.dataset.forecast_length
-                        - 1
-                        - i
-                    ) :
-                ]
-            selected_data = target_data.sel(time=selected_time_points)
-            output1 = output.reshape(output.shape[0], output.shape[1], 1)[
-                :, i, :
-            ].reshape(validation_data_loader.batch_size, -1)
-            output1 = output1.reshape(output1.shape[0], output1.shape[1], 1)
-            labels1 = labels[:, i, :].reshape(validation_data_loader.batch_size, -1)
-            labels1 = labels1.reshape(labels1.shape[0], labels1.shape[1], 1)
+        # for i in range(output.shape[1]):
+        #     if (
+        #         warmup_length + validation_data_loader.dataset.forecast_length - 1 - i
+        #         != 0
+        #     ):
+        #         selected_time_points = target_data.coords["time"][
+        #             -(
+        #                 warmup_length
+        #                 + validation_data_loader.batch_size
+        #                 + validation_data_loader.dataset.forecast_length
+        #                 - 1
+        #                 - i
+        #             ) : -(
+        #                 warmup_length
+        #                 + validation_data_loader.dataset.forecast_length
+        #                 - 1
+        #                 - i
+        #             )
+        #         ]
+        #     else:
+        #         selected_time_points = target_data.coords["time"][
+        #             -(
+        #                 warmup_length
+        #                 + validation_data_loader.batch_size
+        #                 + validation_data_loader.dataset.forecast_length
+        #                 - 1
+        #                 - i
+        #             ) :
+        #         ]
+        #     selected_data = target_data.sel(time=selected_time_points)
+        #     output1 = output.reshape(output.shape[0], output.shape[1], 1)[
+        #         :, i, :
+        #     ].reshape(validation_data_loader.batch_size, -1)
+        #     output1 = output1.reshape(output1.shape[0], output1.shape[1], 1)
+        #     labels1 = labels[:, i, :].reshape(validation_data_loader.batch_size, -1)
+        #     labels1 = labels1.reshape(labels1.shape[0], labels1.shape[1], 1)
 
-            preds_xr = target_scaler.inverse_transform(
-                xr.DataArray(
-                    output1.transpose(2, 0, 1),
-                    dims=selected_data.dims,
-                    coords=selected_data.coords,
-                )
-            )
-            obss_xr = target_scaler.inverse_transform(
-                xr.DataArray(
-                    labels1.transpose(2, 0, 1),
-                    dims=selected_data.dims,
-                    coords=selected_data.coords,
-                )
-            )
-            preds_xr.attrs["units"] = "m"
-            obss_xr.attrs["units"] = "m"
+        #     preds_xr = target_scaler.inverse_transform(
+        #         xr.DataArray(
+        #             output1.transpose(2, 0, 1),
+        #             dims=selected_data.dims,
+        #             coords=selected_data.coords,
+        #         )
+        #     )
+        #     obss_xr = target_scaler.inverse_transform(
+        #         xr.DataArray(
+        #             labels1.transpose(2, 0, 1),
+        #         dims=selected_data.dims,
+        #         coords=selected_data.coords,
+        #     )
+        # )
+        # preds_xr.attrs["units"] = "m"
+        # obss_xr.attrs["units"] = "m"
 
-            preds_xr.to_netcdf(
-                os.path.join(
-                    validation_data_loader.dataset.data_cfgs["test_path"],
-                    f"prediction_{str(i+1)}_hour.nc",
-                )
-            )
+        # preds_xr.to_netcdf(
+        #     os.path.join(
+        #         validation_data_loader.dataset.data_cfgs["test_path"],
+        #         f"prediction_{str(i+1)}_hour.nc",
+        #     )
+        # )
 
         selected_time_points = target_data.coords["time"][
             -(
@@ -153,7 +153,6 @@ def denormalize4eval(validation_data_loader, output, labels):
                 - 1
             ) : -(+validation_data_loader.dataset.forecast_length - 1)
         ]
-
         selected_data = target_data.sel(time=selected_time_points)
         output = output.reshape(output.shape[0], output.shape[1], 1)[:, 0, :].reshape(
             validation_data_loader.batch_size, -1
@@ -161,7 +160,6 @@ def denormalize4eval(validation_data_loader, output, labels):
         output = output.reshape(output.shape[0], output.shape[1], 1)
         labels = labels[:, 0, :].reshape(validation_data_loader.batch_size, -1)
         labels = labels.reshape(labels.shape[0], labels.shape[1], 1)
-
         preds_xr = target_scaler.inverse_transform(
             xr.DataArray(
                 output.transpose(2, 0, 1),
@@ -176,6 +174,42 @@ def denormalize4eval(validation_data_loader, output, labels):
                 coords=selected_data.coords,
             )
         )
+
+        # if (
+        #     (
+        #         validation_data_loader.dataset.forecast_length
+        #         + validation_data_loader.dataset.rho
+        #     )
+        #     % 2
+        # ) == 0:
+        #     selected_time_points = target_data.coords["time"][
+        #         validation_data_loader.dataset.rho :
+        #     ]
+
+        # else:
+        #     selected_time_points = target_data.coords["time"][
+        #         validation_data_loader.dataset.rho : -1
+        #     ]
+        # selected_data = target_data.sel(time=selected_time_points)
+        # output = output[:: validation_data_loader.dataset.forecast_length]
+        # labels = labels[:: validation_data_loader.dataset.forecast_length]
+
+        # output = np.concatenate(output, axis=0).reshape(len(target_data.basin), -1, 1)
+        # labels = np.concatenate(labels, axis=0).reshape(len(target_data.basin), -1, 1)
+        # preds_xr = target_scaler.inverse_transform(
+        #     xr.DataArray(
+        #         output,
+        #         dims=selected_data.dims,
+        #         coords=selected_data.coords,
+        #     )
+        # )
+        # obss_xr = target_scaler.inverse_transform(
+        #     xr.DataArray(
+        #         labels,
+        #         dims=selected_data.dims,
+        #         coords=selected_data.coords,
+        #     )
+        # )
         preds_xr.attrs["units"] = "m"
         obss_xr.attrs["units"] = "m"
     else:

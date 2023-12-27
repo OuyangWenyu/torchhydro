@@ -26,7 +26,7 @@ from torchhydro.models.crits import (
     MultiOutWaterBalanceLoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj
-from torchhydro.models.spplstm import SPP_LSTM_Model
+from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
 
 """
 Utility dictionaries to map a string to a class.
@@ -40,6 +40,7 @@ pytorch_model_dict = {
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
     "DplLstmXaj": DplLstmXaj,
     "SPPLSTM": SPP_LSTM_Model,
+    "SPPLSTM2": SPP_LSTM_Model_2,
 }
 
 pytorch_model_wrapper_dict = {}

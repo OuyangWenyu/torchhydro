@@ -7,6 +7,7 @@ Description: A pytorch dataset class; references to https://github.com/neuralhyd
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+import time
 import logging
 import sys
 from typing import Optional
@@ -448,12 +449,16 @@ class GPM_GFS_Dataset(Dataset):
 
             self.y_origin = data_waterlevel
 
-        elif self.data_cfgs["target_cols"] ==["streamflow"]:
+        elif self.data_cfgs["target_cols"] == ["streamflow"]:
+            # y_start=time.perf_counter()
+
             data_streamflow_ds = self.data_source.read_streamflow_xrdataset(
                 self.t_s_dict["sites_id"],
                 self.t_s_dict["t_final_range"],
                 self.data_cfgs["target_cols"],
             )
+            # t1=(time.perf_counter()-y_start)*1000
+            # print(t1)
 
             if data_streamflow_ds is not None:
                 data_streamflow = self._trans2da_and_setunits(data_streamflow_ds)
@@ -462,18 +467,22 @@ class GPM_GFS_Dataset(Dataset):
 
             self.y_origin = data_streamflow
         # x
+
+        # x_start=time.perf_counter()
+
         data_forcing_ds = self.data_source.read_gpm_xrdataset(
             self.t_s_dict["sites_id"],
             self.t_s_dict["t_final_range"],
             # 1 comes from here
             self.data_cfgs["relevant_cols"],
         )
+        # t2=(time.perf_counter()-x_start)*1000
+        # print(t2)
 
         data_forcing = {}
         if data_forcing_ds is not None:
             for basin, data in data_forcing_ds.items():
                 result = data.to_array(dim="variable")
-
                 data_forcing[basin] = result
         else:
             data_forcing = None
@@ -489,13 +498,23 @@ class GPM_GFS_Dataset(Dataset):
             data_source=self.data_source,
         )
 
+        # start=time.perf_counter()
+
         self.x, self.y = self.kill_nan(scaler_hub.x, scaler_hub.y)
+        # t3=(time.perf_counter()-start)*1000
+        # print(t3)
+
         self.target_scaler = scaler_hub.target_scaler
         self.train_mode = train_mode
         self.rho = self.data_cfgs["forecast_history"]
         self.forecast_length = self.data_cfgs["forecast_length"]
         self.warmup_length = self.data_cfgs["warmup_length"]
+
+        # start=time.perf_counter()
+
         self._create_lookup_table()
+        # t4=(time.perf_counter()-start)*1000
+        # print(t4)
 
     def kill_nan(self, x, y):
         data_cfgs = self.data_cfgs
@@ -504,7 +523,11 @@ class GPM_GFS_Dataset(Dataset):
         if x_rm_nan:
             # As input, we cannot have NaN values
             for xx in x.values():
-                _fill_gaps_da(xx, fill_nan="interpolate")
+                # _fill_gaps_da(xx, fill_nan="interpolate")
+                for i in range(xx.shape[0]):
+                    xx[i] = xx[i].interpolate_na(
+                        dim="time_now", fill_value="extrapolate"
+                    )
                 warn_if_nan(xx)
         if y_rm_nan:
             _fill_gaps_da(y, fill_nan="interpolate")
@@ -532,17 +555,24 @@ class GPM_GFS_Dataset(Dataset):
         seq_length = self.rho
         output_seq_len = self.forecast_length
         warmup_length = self.warmup_length
+        # xx = (
+        #     self.x[basin]
+        #     .sel(time_now=time)
+        #     .sel(
+        #         time=slice(
+        #             time - np.timedelta64(warmup_length + seq_length, "h"),
+        #             time + np.timedelta64(output_seq_len - 1, "h"),
+        #         ),
+        #     )
+        #     .to_numpy()
+        # )
         xx = (
             self.x[basin]
             .sel(time_now=time)
-            .sel(
-                time=slice(
-                    time - np.timedelta64(warmup_length + seq_length, "h"),
-                    time + np.timedelta64(output_seq_len - 1, "h"),
-                ),
-            )
-            .to_numpy()
+            .sel(step=slice(0, seq_length + output_seq_len - 1))
+            .values
         )
+
         x = xx.reshape(xx.shape[0], xx.shape[1], 1, xx.shape[2], xx.shape[3])
         y = (
             self.y.sel(
@@ -586,9 +616,8 @@ class GPM_GFS_Dataset(Dataset):
             lookup.extend(
                 (basin, dates[f])
                 for f in range(warmup_length, time_length)
-                if rho <= f < time_length - output_seq_len + 1
+                # if rho <= f < time_length - output_seq_len + 1
+                if f < time_length - output_seq_len + 1
             )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
-
-

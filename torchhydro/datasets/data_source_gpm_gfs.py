@@ -235,7 +235,7 @@ class GPM_GFS(HydroDataset):
 
         streamflow = xr.open_dataset(
             # os.path.join("/ftproot", "biliuhe", "streamflow_total.nc")
-            os.path.join("/home/wuxinzhuo",  "streamflow.nc")
+            os.path.join("/home/wuxinzhuo", "streamflow.nc")
         )
         all_vars = streamflow.data_vars
         if any(var not in streamflow.variables for var in var_list):
@@ -259,9 +259,9 @@ class GPM_GFS(HydroDataset):
             gpm = xr.open_dataset(
                 # os.path.join("/ftproot", "gpm_gfs_data_24h_re", str(basin) + ".nc")
                 # os.path.join("/ftproot", "biliuhe", "2020_7_9.nc")
-                os.path.join("/home/wuxinzhuo", "biliuhe", "21401550_16_18.nc")
+                os.path.join("/ftproot", "biliuhe", "gpm_gfs_full_re.nc")
             )
-            gpm = gpm[var_lst].sel(time=slice(t_range[0], t_range[1]))
+            gpm = gpm[var_lst].sel(time_now=slice(t_range[0], t_range[1]))
             gpm_dict[basin] = gpm
 
         return gpm_dict
