@@ -53,6 +53,7 @@ from torchhydro.trainers.train_utils import (
 )
 from torchhydro.trainers.train_logger import TrainLogger
 from torch.utils.tensorboard import SummaryWriter
+from torch.optim.lr_scheduler import *
 
 
 class DeepHydroInterface(ABC):
@@ -242,8 +243,8 @@ class DeepHydro(DeepHydroInterface):
         model_filepath = self.cfgs["data_cfgs"]["test_path"]
         data_cfgs = self.cfgs["data_cfgs"]
         es = None
-        if "early_stopping" in self.cfgs:
-            es = EarlyStopper(self.cfgs["early_stopping"]["patience"])
+        if training_cfgs["early_stopping"] == True:
+            es = EarlyStopper(training_cfgs["patience"])
         criterion = self._get_loss_func(training_cfgs)
         opt = self._get_optimizer(training_cfgs)
         lr_scheduler = training_cfgs["lr_scheduler"]
@@ -255,18 +256,14 @@ class DeepHydro(DeepHydroInterface):
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
 
-        # is_tensorboard = self.cfgs["training_cfgs"]["is_tensorboard"] == True
-        # if is_tensorboard:
-        #     writer = SummaryWriter(
-        #         log_dir=os.path.join(data_cfgs["test_path"], "tensorboard_event_file"),
-        #         flush_secs=30,
-        #     )
+        scheduler = ReduceLROnPlateau(
+            opt, mode="min", factor=0.1, patience=int(es.patience / 5)
+        )
+
         for epoch in range(start_epoch, max_epochs + 1):
+            if lr_scheduler is not None and epoch in lr_scheduler.keys():
+                opt.defaults["lr"] = lr_scheduler[epoch]
             with logger.log_epoch_train(epoch) as train_logs:
-                if lr_scheduler is not None and epoch in lr_scheduler.keys():
-                    # now we only support manual setting lr scheduler
-                    for param_group in opt.param_groups:
-                        param_group["lr"] = lr_scheduler[epoch]
                 total_loss, n_iter_ep = torch_single_train(
                     self.model,
                     opt,
@@ -277,9 +274,6 @@ class DeepHydro(DeepHydroInterface):
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
-
-                # if is_tensorboard:
-                #     writer.add_scalar("train_loss", total_loss, epoch)
 
             valid_loss = None
             valid_metrics = None
@@ -306,13 +300,20 @@ class DeepHydro(DeepHydroInterface):
                     )
                     valid_logs["valid_loss"] = valid_loss
                     valid_logs["valid_metrics"] = valid_metrics
+
+            scheduler.step(valid_loss.item())
+
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
             )
-            logger.save_model_and_params(self.model, epoch, self.cfgs)
-            if es and not es.check_loss(self.model, valid_loss):
+            # logger.save_model_and_params(self.model, epoch, self.cfgs)
+            if es and not es.check_loss(
+                self.model, valid_loss, logger.training_save_dir
+            ):
                 print("Stopping model now")
-                self.model.load_state_dict(torch.load("checkpoint.pth"))
+                self.model.load_state_dict(
+                    torch.load(os.path.join(logger.training_save_dir, "best_model.pth"))
+                )
                 break
 
         logger.tb.close()

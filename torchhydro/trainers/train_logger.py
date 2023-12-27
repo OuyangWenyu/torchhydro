@@ -83,8 +83,9 @@ class TrainLogger:
         yield logs
         total_loss = logs["train_loss"]
         elapsed_time = time.time() - start_time
-        log_str = "Epoch {} Loss {:.3f} time {:.2f}".format(
-            epoch, total_loss, elapsed_time
+        lr = self.opt.defaults["lr"]
+        log_str = "Epoch {} Loss {:.4f} time {:.2f} lr {}".format(
+            epoch, total_loss, elapsed_time, lr
         )
         print(log_str)
         model = logs["model"]

@@ -225,7 +225,6 @@ def default_config_file():
             # for example, we want to save each epoch's log again, and in this time, we will set train_but_not_real to True
             "train_but_not_real": False,
             "which_first_tensor": "sequence",
-            "is_tensorboard": False,
             # for ensemble exp:
             # basically we set kfold/seeds/hyper_params for trianing such as batch_sizes
             "ensemble": False,
@@ -238,6 +237,8 @@ def default_config_file():
                 # if seeds is not None,
                 # we will use different seeds for different sub-exps
                 "seeds": None,
+                "patience": None,
+                "early_stopping": None,
             },
         },
         # For evaluation
@@ -246,6 +247,7 @@ def default_config_file():
             "fill_nan": "no",
             "test_epoch": 20,
             "explainer": None,
+            "rolling": None,
         },
     }
 
@@ -305,6 +307,7 @@ def cmd(
     metrics=None,
     fill_nan=None,
     explainer=None,
+    rolling=None,
     warmup_length=0,
     start_epoch=1,
     stat_dict_file=None,
@@ -313,9 +316,10 @@ def cmd(
     num_workers=None,
     train_but_not_real=None,
     which_first_tensor=None,
-    is_tensorboard=False,
     ensemble=0,
     ensemble_items=None,
+    early_stopping=None,
+    patience=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -663,6 +667,13 @@ def cmd(
         nargs="+",
     )
     parser.add_argument(
+        "--rolling",
+        dest="rolling",
+        help="rolling",
+        default=rolling,
+        type=bool,
+    )
+    parser.add_argument(
         "--warmup_length",
         dest="warmup_length",
         help="Physical hydro models need warmup",
@@ -720,13 +731,6 @@ def cmd(
         type=str,
     )
     parser.add_argument(
-        "--is_tensorboard",
-        dest="is_tensorboard",
-        help="is_tensorboard",
-        default=is_tensorboard,
-        type=bool,
-    )
-    parser.add_argument(
         "--lr_scheduler",
         dest="lr_scheduler",
         help="The learning rate scheduler",
@@ -746,6 +750,20 @@ def cmd(
         help="ensemble config",
         default=ensemble_items,
         type=json.loads,
+    )
+    parser.add_argument(
+        "--early_stopping",
+        dest="early_stopping",
+        help="early_stopping config",
+        default=early_stopping,
+        type=bool,
+    )
+    parser.add_argument(
+        "--patience",
+        dest="patience",
+        help="patience config",
+        default=patience,
+        type=int,
     )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
@@ -893,6 +911,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["other_cols"] = new_args.var_o
     if new_args.var_out is not None:
         cfg_file["data_cfgs"]["target_cols"] = new_args.var_out
+    if new_args.rolling is not None:
+        cfg_file["data_cfgs"]["rolling"] = new_args.rolling
     if new_args.out_rm_nan == 0:
         cfg_file["data_cfgs"]["target_rm_nan"] = False
     else:
@@ -1016,8 +1036,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["train_but_not_real"] = True
     if new_args.which_first_tensor is not None:
         cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
-    if new_args.is_tensorboard is not None:
-        cfg_file["training_cfgs"]["is_tensorboard"] = new_args.is_tensorboard
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
     if new_args.ensemble == 0:
@@ -1026,6 +1044,10 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["ensemble"] = True
     if new_args.ensemble_items is not None:
         cfg_file["training_cfgs"]["ensemble_items"] = new_args.ensemble_items
+    if new_args.patience is not None:
+        cfg_file["training_cfgs"]["patience"] = new_args.patience
+    if new_args.early_stopping is not None:
+        cfg_file["training_cfgs"]["early_stopping"] = new_args.early_stopping
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 

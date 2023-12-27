@@ -84,132 +84,59 @@ def denormalize4eval(validation_data_loader, output, labels):
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
     if target_scaler.data_cfgs["scaler"] == "GPM_GFS_Scaler":
-        # for i in range(output.shape[1]):
-        #     if (
-        #         warmup_length + validation_data_loader.dataset.forecast_length - 1 - i
-        #         != 0
-        #     ):
-        #         selected_time_points = target_data.coords["time"][
-        #             -(
-        #                 warmup_length
-        #                 + validation_data_loader.batch_size
-        #                 + validation_data_loader.dataset.forecast_length
-        #                 - 1
-        #                 - i
-        #             ) : -(
-        #                 warmup_length
-        #                 + validation_data_loader.dataset.forecast_length
-        #                 - 1
-        #                 - i
-        #             )
-        #         ]
-        #     else:
-        #         selected_time_points = target_data.coords["time"][
-        #             -(
-        #                 warmup_length
-        #                 + validation_data_loader.batch_size
-        #                 + validation_data_loader.dataset.forecast_length
-        #                 - 1
-        #                 - i
-        #             ) :
-        #         ]
-        #     selected_data = target_data.sel(time=selected_time_points)
-        #     output1 = output.reshape(output.shape[0], output.shape[1], 1)[
-        #         :, i, :
-        #     ].reshape(validation_data_loader.batch_size, -1)
-        #     output1 = output1.reshape(output1.shape[0], output1.shape[1], 1)
-        #     labels1 = labels[:, i, :].reshape(validation_data_loader.batch_size, -1)
-        #     labels1 = labels1.reshape(labels1.shape[0], labels1.shape[1], 1)
+        batch_size = validation_data_loader.batch_size
+        forecast_length = validation_data_loader.dataset.forecast_length
+        basin_num = len(target_data.basin)
 
-        #     preds_xr = target_scaler.inverse_transform(
-        #         xr.DataArray(
-        #             output1.transpose(2, 0, 1),
-        #             dims=selected_data.dims,
-        #             coords=selected_data.coords,
-        #         )
-        #     )
-        #     obss_xr = target_scaler.inverse_transform(
-        #         xr.DataArray(
-        #             labels1.transpose(2, 0, 1),
-        #         dims=selected_data.dims,
-        #         coords=selected_data.coords,
-        #     )
-        # )
-        # preds_xr.attrs["units"] = "m"
-        # obss_xr.attrs["units"] = "m"
-
-        # preds_xr.to_netcdf(
-        #     os.path.join(
-        #         validation_data_loader.dataset.data_cfgs["test_path"],
-        #         f"prediction_{str(i+1)}_hour.nc",
-        #     )
-        # )
-
-        selected_time_points = target_data.coords["time"][
-            -(
-                warmup_length
-                + validation_data_loader.batch_size
-                + validation_data_loader.dataset.forecast_length
-                - 1
-            ) : -(+validation_data_loader.dataset.forecast_length - 1)
-        ]
-        selected_data = target_data.sel(time=selected_time_points)
-        output = output.reshape(output.shape[0], output.shape[1], 1)[:, 0, :].reshape(
-            validation_data_loader.batch_size, -1
-        )
-        output = output.reshape(output.shape[0], output.shape[1], 1)
-        labels = labels[:, 0, :].reshape(validation_data_loader.batch_size, -1)
-        labels = labels.reshape(labels.shape[0], labels.shape[1], 1)
-        preds_xr = target_scaler.inverse_transform(
-            xr.DataArray(
-                output.transpose(2, 0, 1),
-                dims=selected_data.dims,
-                coords=selected_data.coords,
+        if target_scaler.data_cfgs["rolling"] == False:
+            selected_time_points = target_data.coords["time"][: -(forecast_length - 1)]
+            selected_data = target_data.sel(time=selected_time_points)
+            output = output[:, 0, :].reshape(batch_size, -1)
+            output = output.reshape(output.shape[0], output.shape[1], 1)
+            labels = labels[:, 0, :].reshape(batch_size, -1)
+            labels = labels.reshape(labels.shape[0], labels.shape[1], 1)
+            preds_xr = target_scaler.inverse_transform(
+                xr.DataArray(
+                    output.transpose(2, 0, 1),
+                    dims=selected_data.dims,
+                    coords=selected_data.coords,
+                )
             )
-        )
-        obss_xr = target_scaler.inverse_transform(
-            xr.DataArray(
-                labels.transpose(2, 0, 1),
-                dims=selected_data.dims,
-                coords=selected_data.coords,
+            obss_xr = target_scaler.inverse_transform(
+                xr.DataArray(
+                    labels.transpose(2, 0, 1),
+                    dims=selected_data.dims,
+                    coords=selected_data.coords,
+                )
             )
-        )
+        else:
+            rho = validation_data_loader.dataset.rho
+            if ((forecast_length + rho) % 2) == 0:
+                selected_time_points = target_data.coords["time"][:-(forecast_length)]
 
-        # if (
-        #     (
-        #         validation_data_loader.dataset.forecast_length
-        #         + validation_data_loader.dataset.rho
-        #     )
-        #     % 2
-        # ) == 0:
-        #     selected_time_points = target_data.coords["time"][
-        #         validation_data_loader.dataset.rho :
-        #     ]
+            else:
+                selected_time_points = target_data.coords["time"][:-(forecast_length)]
 
-        # else:
-        #     selected_time_points = target_data.coords["time"][
-        #         validation_data_loader.dataset.rho : -1
-        #     ]
-        # selected_data = target_data.sel(time=selected_time_points)
-        # output = output[:: validation_data_loader.dataset.forecast_length]
-        # labels = labels[:: validation_data_loader.dataset.forecast_length]
+            selected_data = target_data.sel(time=selected_time_points)
+            output = output[::forecast_length]
+            labels = labels[::forecast_length]
 
-        # output = np.concatenate(output, axis=0).reshape(len(target_data.basin), -1, 1)
-        # labels = np.concatenate(labels, axis=0).reshape(len(target_data.basin), -1, 1)
-        # preds_xr = target_scaler.inverse_transform(
-        #     xr.DataArray(
-        #         output,
-        #         dims=selected_data.dims,
-        #         coords=selected_data.coords,
-        #     )
-        # )
-        # obss_xr = target_scaler.inverse_transform(
-        #     xr.DataArray(
-        #         labels,
-        #         dims=selected_data.dims,
-        #         coords=selected_data.coords,
-        #     )
-        # )
+            output = np.concatenate(output, axis=0).reshape(basin_num, -1, 1)
+            labels = np.concatenate(labels, axis=0).reshape(basin_num, -1, 1)
+            preds_xr = target_scaler.inverse_transform(
+                xr.DataArray(
+                    output,
+                    dims=selected_data.dims,
+                    coords=selected_data.coords,
+                )
+            )
+            obss_xr = target_scaler.inverse_transform(
+                xr.DataArray(
+                    labels,
+                    dims=selected_data.dims,
+                    coords=selected_data.coords,
+                )
+            )
         preds_xr.attrs["units"] = "m"
         obss_xr.attrs["units"] = "m"
     else:
@@ -269,10 +196,10 @@ class EarlyStopper(object):
         self.counter = 0
         self.best_score = None
 
-    def check_loss(self, model, validation_loss) -> bool:
+    def check_loss(self, model, validation_loss, save_dir) -> bool:
         score = validation_loss
         if self.best_score is None:
-            self.save_model_checkpoint(model)
+            self.save_model_checkpoint(model, save_dir)
             self.best_score = score
 
         elif score + self.min_delta >= self.best_score:
@@ -283,13 +210,13 @@ class EarlyStopper(object):
             if self.counter >= self.patience:
                 return False
         else:
-            self.save_model_checkpoint(model)
+            self.save_model_checkpoint(model, save_dir)
             self.best_score = score
             self.counter = 0
         return True
 
-    def save_model_checkpoint(self, model):
-        torch.save(model.state_dict(), "checkpoint.pth")
+    def save_model_checkpoint(self, model, save_dir):
+        torch.save(model.state_dict(), os.path.join(save_dir, "best_model.pth"))
 
 
 def evaluate_validation(
