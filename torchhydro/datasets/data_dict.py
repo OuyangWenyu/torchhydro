@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-11-20 19:14:52
-LastEditors: Wenyu Ouyang
+LastEditTime: 2023-12-29 11:05:57
+LastEditors: Xinzhuo Wu
 Description: A dict used for data source and data loader
 FilePath: /torchhydro/torchhydro/datasets/data_dict.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.

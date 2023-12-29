@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-10-18 19:09:57
-LastEditors: Wenyu Ouyang
+LastEditTime: 2023-12-29 11:05:57
+LastEditors: Xinzhuo Wu
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.

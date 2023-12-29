@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-11-25 18:20:24
-LastEditors: Wenyu Ouyang
+LastEditTime: 2023-12-29 11:05:57
+LastEditors: Xinzhuo Wu
 Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.

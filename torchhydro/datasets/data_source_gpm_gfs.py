@@ -1,3 +1,12 @@
+"""
+Author: Xinzhuo Wu
+Date: 2023-09-30 1:20:18
+LastEditTime: 2023-12-29 11:05:57
+LastEditors: Xinzhuo Wu
+Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
+FilePath: \torchhydro\torchhydro\datasets\data_sets.py
+Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
+"""
 import os
 import hydrodataset as hds
 from hydrodataset import HydroDataset, CACHE_DIR

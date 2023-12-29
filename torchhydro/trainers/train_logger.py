@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-11-27 15:17:16
-LastEditors: Wenyu Ouyang
+LastEditTime: 2023-12-29 11:05:57
+LastEditors: Xinzhuo Wu
 Description: Training function for DL models
 FilePath: \torchhydro\torchhydro\trainers\train_logger.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
