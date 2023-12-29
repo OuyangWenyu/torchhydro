@@ -63,6 +63,7 @@ def default_config_file():
                 "num_layers": 1,
                 "bias": True,
                 "batch_size": 100,
+                "dropout": 0.2,
             },
             "weight_path": None,
             "continue_train": True,
@@ -197,6 +198,7 @@ def default_config_file():
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
+            "rolling": False,
         },
         "training_cfgs": {
             # if train_mode is False, don't train and evaluate
@@ -208,6 +210,12 @@ def default_config_file():
                 "lr": 0.001,
             },
             "lr_scheduler": None,
+            "lr_factor": 0.1,
+            "lr_patience": 1,
+            "lr_val_loss": True,
+            "weight_decay": None,
+            "early_stopping": False,
+            "patience": 1,
             "epochs": 20,
             # save_epoch ==0 means only save once in the final epoch
             "save_epoch": 0,
@@ -237,6 +245,8 @@ def default_config_file():
                 # if seeds is not None,
                 # we will use different seeds for different sub-exps
                 "seeds": None,
+                "patience": None,
+                "early_stopping": None,
             },
         },
         # For evaluation
@@ -245,6 +255,7 @@ def default_config_file():
             "fill_nan": "no",
             "test_epoch": 20,
             "explainer": None,
+            "rolling": None,
         },
     }
 
@@ -273,6 +284,10 @@ def cmd(
     test_period=None,
     opt=None,
     lr_scheduler=None,
+    lr_factor=None,
+    lr_patience=None,
+    weight_decay=None,
+    lr_val_loss=None,
     opt_param=None,
     batch_size=None,
     rho=None,
@@ -292,6 +307,7 @@ def cmd(
     n_output=None,
     loss_func=None,
     model_hyperparam=None,
+    dropout=None,
     weight_path_add=None,
     var_t_type=None,
     var_o=None,
@@ -304,6 +320,7 @@ def cmd(
     metrics=None,
     fill_nan=None,
     explainer=None,
+    rolling=None,
     warmup_length=0,
     start_epoch=1,
     stat_dict_file=None,
@@ -314,6 +331,8 @@ def cmd(
     which_first_tensor=None,
     ensemble=0,
     ensemble_items=None,
+    early_stopping=None,
+    patience=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -494,6 +513,13 @@ def cmd(
         type=int,
     )
     parser.add_argument(
+        "--dropout",
+        dest="dropout",
+        help="dropout",
+        default=dropout,
+        type=float,
+    )
+    parser.add_argument(
         "--rho",
         dest="rho",
         help="length of time sequence when training",
@@ -661,6 +687,13 @@ def cmd(
         nargs="+",
     )
     parser.add_argument(
+        "--rolling",
+        dest="rolling",
+        help="rolling",
+        default=rolling,
+        type=bool,
+    )
+    parser.add_argument(
         "--warmup_length",
         dest="warmup_length",
         help="Physical hydro models need warmup",
@@ -725,6 +758,34 @@ def cmd(
         type=json.loads,
     )
     parser.add_argument(
+        "--lr_patience",
+        dest="lr_patience",
+        help="lr_patience",
+        default=lr_patience,
+        type=int,
+    )
+    parser.add_argument(
+        "--lr_factor",
+        dest="lr_factor",
+        help="lr_factor",
+        default=lr_factor,
+        type=float,
+    )
+    parser.add_argument(
+        "--lr_val_loss",
+        dest="lr_val_loss",
+        help="lr_val_loss",
+        default=lr_val_loss,
+        type=bool,
+    )
+    parser.add_argument(
+        "--weight_decay",
+        dest="weight_decay",
+        help="weight_decay",
+        default=weight_decay,
+        type=float,
+    )
+    parser.add_argument(
         "--ensemble",
         dest="ensemble",
         help="ensemble config",
@@ -737,6 +798,20 @@ def cmd(
         help="ensemble config",
         default=ensemble_items,
         type=json.loads,
+    )
+    parser.add_argument(
+        "--early_stopping",
+        dest="early_stopping",
+        help="early_stopping config",
+        default=early_stopping,
+        type=bool,
+    )
+    parser.add_argument(
+        "--patience",
+        dest="patience",
+        help="patience config",
+        default=patience,
+        type=int,
     )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
@@ -884,6 +959,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["other_cols"] = new_args.var_o
     if new_args.var_out is not None:
         cfg_file["data_cfgs"]["target_cols"] = new_args.var_out
+    if new_args.rolling is not None:
+        cfg_file["data_cfgs"]["rolling"] = new_args.rolling
     if new_args.out_rm_nan == 0:
         cfg_file["data_cfgs"]["target_rm_nan"] = False
     else:
@@ -935,6 +1012,8 @@ def update_cfg(cfg_file, new_args):
             cfg_file["model_cfgs"]["model_hyperparam"][
                 "output_seq_len"
             ] = new_args.n_output
+        if new_args.dropout is not None:
+            cfg_file["model_cfgs"]["model_hyperparam"]["dropout"] = new_args.dropout
     else:
         cfg_file["model_cfgs"]["model_hyperparam"] = new_args.model_hyperparam
         if "batch_size" in new_args.model_hyperparam.keys():
@@ -1009,12 +1088,24 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
+    if new_args.lr_patience is not None:
+        cfg_file["training_cfgs"]["lr_patience"] = new_args.lr_patience
+    if new_args.lr_factor is not None:
+        cfg_file["training_cfgs"]["lr_factor"] = new_args.lr_factor
+    if new_args.lr_val_loss is not None:
+        cfg_file["training_cfgs"]["lr_val_loss"] = new_args.lr_val_loss
+    if new_args.weight_decay is not None:
+        cfg_file["training_cfgs"]["weight_decay"] = new_args.weight_decay
     if new_args.ensemble == 0:
         cfg_file["training_cfgs"]["ensemble"] = False
     else:
         cfg_file["training_cfgs"]["ensemble"] = True
     if new_args.ensemble_items is not None:
         cfg_file["training_cfgs"]["ensemble_items"] = new_args.ensemble_items
+    if new_args.patience is not None:
+        cfg_file["training_cfgs"]["patience"] = new_args.patience
+    if new_args.early_stopping is not None:
+        cfg_file["training_cfgs"]["early_stopping"] = new_args.early_stopping
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 

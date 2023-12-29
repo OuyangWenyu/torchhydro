@@ -100,7 +100,7 @@ class GPM_GFS_Sampler(Sampler[int]):
     def __iter__(self) -> Iterator[int]:
         n = self.data_source.data_cfgs["batch_size"]
         basin_number = len(self.data_source.data_cfgs["object_ids"])
-        basin_range = len(self.data_source) / basin_number
+        basin_range = int(len(self.data_source) / basin_number)
         if n > basin_range:
             raise ValueError(
                 "batch_size should equal or less than basin_range={} ".format(
@@ -127,12 +127,23 @@ class GPM_GFS_Sampler(Sampler[int]):
                 generator=generator,
             ).tolist()
         else:
-            for _ in range(self.num_samples // n):
-                select_basin = torch.randperm(
-                    basin_number, generator=generator
-                ).tolist()[0]
-                x = torch.randperm(int(basin_range), generator=generator)
-                yield from (x[:n] + int(basin_range) * (select_basin)).tolist()
+            basin_list = torch.randperm(basin_number, generator=generator).tolist()
+
+            for basin_id in basin_list:
+                basin_start = basin_id * basin_range
+
+                x = torch.randperm(basin_range, generator=generator)
+                x += basin_start
+
+                for i in range(0, len(x), n):
+                    yield from (x[i : i + n]).tolist()
+
+            # for _ in range(self.num_samples // n):
+            # select_basin = torch.randperm(
+            #     basin_number, generator=generator
+            # ).tolist()[0]
+            # x = torch.randperm(int(basin_range), generator=generator)
+            # yield from (x[:n] + int(basin_range) * (select_basin)).tolist()
 
     def __len__(self) -> int:
         return self.num_samples

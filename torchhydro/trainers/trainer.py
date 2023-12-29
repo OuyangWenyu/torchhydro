@@ -17,7 +17,7 @@ import random
 import numpy as np
 from typing import Dict, Tuple, Union
 import pandas as pd
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold,TimeSeriesSplit
 import torch
 from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import unserialize_numpy
@@ -318,7 +318,8 @@ def _create_kfold_periods(train_period, valid_period, test_period, kfold):
     periods = np.array(range(len(full_period)))
 
     # Apply KFold
-    kf = KFold(n_splits=kfold)
+    # kf = KFold(n_splits=kfold)
+    kf=TimeSeriesSplit(n_splits=kfold)
     folds = []
     for train_index, test_index in kf.split(periods):
         train_start = full_period[train_index[0]].strftime("%Y-%m-%d")

@@ -106,110 +106,11 @@ class GPM_GFS(HydroDataset):
         else:
             raise NotImplementedError(GPM_GFS_NO_DATASET_ERROR_LOG)
 
-    def waterlevel_xrdataset(
-        self,
-    ):
-        """
-        convert txt file of water level to a total netcdf file with corresponding time
-        """
-        # open the waterlevel and gpm files respectively
-        waterlevel_path = os.path.join(hds.ROOT_DIR, "gpm_gfs_data", "water_level")
-        gpm_path = os.path.join(hds.ROOT_DIR, "gpm_gfs_data", "gpm")
-        waterlevel_path_list = os.listdir(waterlevel_path)
-        gpm_path_list = os.listdir(gpm_path)
-
-        basin_id_list = []
-        waterlevel_array_list = []
-        time_fin = []
-
-        for basin_id in gpm_path_list:
-            basin_id_list.append(basin_id)
-            waterlevel_file = os.path.join(waterlevel_path, str(basin_id) + ".txt")
-            df = pd.read_csv(
-                waterlevel_file,
-                sep="\s+",
-                header=None,
-                engine="python",
-                usecols=[0, 1, 2],
-            )
-            df.columns = ["date", "time", "water_level"]
-            df["datetime"] = df.apply(
-                lambda row: " ".join(
-                    row[:2],
-                ),
-                axis=1,
-            )
-            df = df.drop(columns=[df.columns[0], df.columns[1]])
-            df = df[df.columns[::-1]]
-            df["datetime"] = df["datetime"].str.slice(0, 19)
-
-            id = waterlevel_path_list.index(basin_id)
-            gpm_file = os.path.join(gpm_path, str(waterlevel_path_list[id][:-4]))
-            gpm_file_list = os.listdir(gpm_file)
-            time_list = []
-            for time in gpm_file_list:
-                datetime = time[0:19]
-                time_list.append(datetime)
-            time_df = pd.DataFrame(time_list, columns=["datetime"])
-
-            df_fin = pd.merge(df, time_df, how="right", on="datetime")
-            df_fin["datetime"] = pd.to_datetime(df_fin["datetime"])
-            df_fin = df_fin.sort_values("datetime")
-
-            waterlevel_array_list.append(df_fin[["water_level"]].values)
-            time_fin.append(df_fin["datetime"].values)
-
-        waterlevel_merged_array = np.concatenate(waterlevel_array_list, axis=1)
-        ds = xr.Dataset(
-            {
-                "waterlevel": (["time", "basin"], waterlevel_merged_array),
-            },
-            coords={"time": time_fin[0], "basin": basin_id_list},
-        )
-
-        ds.to_netcdf(os.path.join(hds.ROOT_DIR, "gpm_gfs_data", "water_level_total.nc"))
-
-    def gpm_xrdataset(self):
-        gpm_path = os.path.join(hds.ROOT_DIR, "gpm_gfs_data", "gpm")
-        gpm_path_list = os.listdir(gpm_path)
-
-        gpm_whole_path = os.path.join(hds.ROOT_DIR, "gpm_gfs_data", "gpm_whole")
-        gpm_whole_path_list = os.listdir(gpm_whole_path)
-        gpm_whole_path_list_tmp = []
-        for path in gpm_whole_path_list:
-            gpm_whole_path_list_tmp.append(path[:-3])
-        gpm_path_list = list(set(gpm_path_list) - set(gpm_whole_path_list_tmp))
-
-        if len(gpm_whole_path_list_tmp) != 0:
-            for basin in gpm_path_list:
-                total_data = []
-                gpm_list = os.listdir(os.path.join(gpm_path, str(basin)))
-
-                for gpm in gpm_list:
-                    single_data_path = os.path.join(gpm_path, str(basin), gpm)
-                    single_data = xr.open_dataset(single_data_path)
-                    total_data.append(single_data)
-
-                da = xr.concat(total_data, dim="time")
-
-                da_sorted = da.sortby("time")
-
-                da_sorted.to_netcdf(
-                    os.path.join(hds.ROOT_DIR, "gpm_gfs_data", "gpm_whole", str(basin))
-                    + "nc"
-                )
-
     def read_waterlevel_xrdataset(
         self, gage_id_lst=None, t_range: list = None, var_list=None, **kwargs
     ):
         if var_list is None or len(var_list) == 0:
             return None
-
-        folder = os.path.exists(
-            os.path.join("/ftproot", "gpm_gfs_data", "water_level_total.nc")
-        )
-        if not folder:
-            self.waterlevel_xrdataset()
 
         waterlevel = xr.open_dataset(
             os.path.join("/ftproot", "gpm_gfs_data", "water_level_total.nc")
@@ -227,21 +128,22 @@ class GPM_GFS(HydroDataset):
         if var_list is None or len(var_list) == 0:
             return None
 
-        # folder = os.path.exists(
-        #     os.path.join("/ftproot", "gpm_gfs_data", "streamflow_total.nc")
-        # )
-        # if not folder:
-        #     self.waterlevel_xrdataset()
-
         streamflow = xr.open_dataset(
-            os.path.join("/ftproot", "gpm_gfs_data", "streamflow_total.nc")
+            os.path.join("/ftproot", "biliuhe", "streamflow_UTC0.nc")
         )
         all_vars = streamflow.data_vars
         if any(var not in streamflow.variables for var in var_list):
             raise ValueError(f"var_lst must all be in {all_vars}")
-        return streamflow[["streamflow"]].sel(
-            time=slice(t_range[0], t_range[1]), basin=gage_id_lst
-        )
+
+        subset_list = []
+
+        for period in t_range:
+            start_date = period["start"]
+            end_date = period["end"]
+            subset = streamflow.sel(time=slice(start_date, end_date))
+            subset_list.append(subset)
+
+        return xr.concat(subset_list, dim="time")
 
     def read_gpm_xrdataset(
         self,
@@ -256,18 +158,27 @@ class GPM_GFS(HydroDataset):
         gpm_dict = {}
         for basin in gage_id_lst:
             gpm = xr.open_dataset(
-                os.path.join("/ftproot", "gpm_gfs_data_24h_re", str(basin) + ".nc")
+                os.path.join("/ftproot", "biliuhe", "gpm_gfs_full_re2.nc")
             )
-            gpm = gpm[var_lst].sel(time=slice(t_range[0], t_range[1]))
-            gpm_dict[basin] = gpm
+            subset_list = []
+
+            for period in t_range:
+                start_date = period["start"]
+                end_date = period["end"]
+                subset = gpm.sel(time_now=slice(start_date, end_date))
+                subset_list.append(subset)
+
+            merged_dataset_tp = xr.concat(subset_list, dim="time_now")
+            gpm_dict[basin] = merged_dataset_tp
 
         return gpm_dict
-
 
     def read_attr_xrdataset(self, gage_id_lst=None, var_lst=None, **kwargs):
         if var_lst is None or len(var_lst) == 0:
             return None
-        attr = xr.open_dataset(os.path.join("/ftproot","camelsus_attributes.nc"))
+        attr = xr.open_dataset(
+            os.path.join("/home", "wuxinzhuo", "camelsus_attributes.nc")
+        )
         if "all_number" in list(kwargs.keys()) and kwargs["all_number"]:
             attr_num = map_string_vars(attr)
             return attr_num[var_lst].sel(basin=gage_id_lst)
@@ -281,7 +192,6 @@ class GPM_GFS(HydroDataset):
                 gage_id_lst, ["p_mean"], is_return_dict=False
             )
         elif self.region == "CL":
-            # there are different p_mean values for different forcings, here we chose p_mean_cr2met now
             return self.read_constant_cols(
                 gage_id_lst, ["p_mean_cr2met"], is_return_dict=False
             )
