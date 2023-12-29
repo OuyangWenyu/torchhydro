@@ -243,7 +243,7 @@ class DeepHydro(DeepHydroInterface):
         model_filepath = self.cfgs["data_cfgs"]["test_path"]
         data_cfgs = self.cfgs["data_cfgs"]
         es = None
-        if training_cfgs["early_stopping"] == True:
+        if training_cfgs["early_stopping"] == True :
             es = EarlyStopper(training_cfgs["patience"])
         criterion = self._get_loss_func(training_cfgs)
         opt = self._get_optimizer(training_cfgs)
@@ -257,12 +257,18 @@ class DeepHydro(DeepHydroInterface):
         logger = TrainLogger(model_filepath, self.cfgs, opt)
 
         scheduler = ReduceLROnPlateau(
-            opt, mode="min", factor=0.1, patience=int(es.patience / 5)
+            opt,
+            mode="min" if training_cfgs["lr_val_loss"] else "max",
+            factor=training_cfgs["lr_factor"],
+            patience=training_cfgs["lr_patience"],
         )
-
+        if training_cfgs['weight_decay'] is not None:
+            for param_group in opt.param_groups:
+                param_group['weight_decay'] = training_cfgs['weight_decay']
         for epoch in range(start_epoch, max_epochs + 1):
             if lr_scheduler is not None and epoch in lr_scheduler.keys():
-                opt.defaults["lr"] = lr_scheduler[epoch]
+                for param_group in opt.param_groups:
+                    param_group["lr"] = lr_scheduler[epoch]
             with logger.log_epoch_train(epoch) as train_logs:
                 total_loss, n_iter_ep = torch_single_train(
                     self.model,
@@ -301,22 +307,30 @@ class DeepHydro(DeepHydroInterface):
                     valid_logs["valid_loss"] = valid_loss
                     valid_logs["valid_metrics"] = valid_metrics
 
-            scheduler.step(valid_loss.item())
+            lr_val_loss=training_cfgs["lr_val_loss"]
+            if lr_val_loss:
+                scheduler.step(valid_loss.item())
+            else:
+                scheduler.step(list(valid_metrics.items())[0][1][0])
 
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
             )
-            # logger.save_model_and_params(self.model, epoch, self.cfgs)
+            if self.cfgs["data_cfgs"]["dataset"] != "GPM_GFS_Dataset":
+                logger.save_model_and_params(self.model, epoch, self.cfgs)
             if es and not es.check_loss(
-                self.model, valid_loss, logger.training_save_dir
+                self.model,
+                valid_loss
+                if lr_val_loss
+                else list(valid_metrics.items())[0][1][0],
+                self.cfgs["data_cfgs"]["test_path"],
+                lr_val_loss
             ):
                 print("Stopping model now")
-                self.model.load_state_dict(
-                    torch.load(os.path.join(logger.training_save_dir, "best_model.pth"))
-                )
                 break
 
         logger.tb.close()
+
         # return the trained model weights and bias and the epoch loss
         return self.model.state_dict(), sum(logger.epoch_loss) / len(logger.epoch_loss)
 
@@ -345,16 +359,21 @@ class DeepHydro(DeepHydroInterface):
         # test the trained model
         test_epoch = self.cfgs["evaluation_cfgs"]["test_epoch"]
         train_epoch = self.cfgs["training_cfgs"]["epochs"]
+
         if test_epoch != train_epoch:
             # Generally we use same epoch for train and test, but sometimes not
             # TODO: better refactor this part, because sometimes we save multi models for multi hyperparameters
             model_filepath = self.cfgs["data_cfgs"]["test_path"]
-            self.model = self.load_model(
-                self.cfgs["model_cfgs"],
-                weight_path=os.path.join(
-                    model_filepath, f"model_Ep{str(test_epoch)}.pth"
-                ),
+            self.weight_path = os.path.join(
+                model_filepath, f"model_Ep{str(test_epoch)}.pth"
             )
+            self.model = self.load_model()
+
+        if self.cfgs["data_cfgs"]["dataset"] == "GPM_GFS_Dataset":
+            model_filepath = self.cfgs["data_cfgs"]["test_path"]
+            self.weight_path = os.path.join(model_filepath, "best_model.pth")
+            self.model = self.load_model()
+
         preds_xr, obss_xr, test_data = self.inference()
         #  Then evaluate the model metrics
         if type(fill_nan) is list and len(fill_nan) != len(target_col):
@@ -404,11 +423,8 @@ class DeepHydro(DeepHydroInterface):
                 self.testdataset,
                 batch_size=int(test_num_samples / ngrid),
                 shuffle=False,
-                sampler=None,
-                batch_sampler=None,
                 drop_last=False,
                 timeout=0,
-                worker_init_fn=None,
             )
         else:
             test_dataloader = DataLoader(

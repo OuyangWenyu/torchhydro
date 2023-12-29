@@ -549,7 +549,7 @@ class GPM_GFS_Dataset(Dataset):
             self.y.sel(
                 basin=basin,
                 time=slice(
-                    time + np.timedelta64(0, "h"),
+                    time,
                     time + np.timedelta64(output_seq_len - 1, "h"),
                 ),
             )
@@ -568,12 +568,13 @@ class GPM_GFS_Dataset(Dataset):
 
     def _create_lookup_table(self):
         lookup = []
-        # list to collect basins ids of basins without a single training sample
         basins = self.t_s_dict["sites_id"]
         output_seq_len = self.forecast_length
         warmup_length = self.warmup_length
         dates = self.y["time"].to_numpy()
-        time_length = len(dates)
+        time_total_length = len(dates)
+        time_num = len(self.t_s_dict["t_final_range"])
+        time_single_length = int(time_total_length / time_num)
         is_tra_val_te = self.is_tra_val_te
         for basin in tqdm(
             basins,
@@ -581,12 +582,11 @@ class GPM_GFS_Dataset(Dataset):
             disable=False,
             desc=f"Creating {is_tra_val_te} lookup table",
         ):
-            # some dataloader load data with warmup period, so leave some periods for it
-            # [warmup_len] -> time_start -> [rho]
-            lookup.extend(
-                (basin, dates[f])
-                for f in range(warmup_length, time_length)
-                if f < time_length - output_seq_len + 1
-            )
+            for num in range(time_num):
+                lookup.extend(
+                    (basin, dates[f + num * time_single_length])
+                    for f in range(warmup_length, time_total_length)
+                    if f < time_single_length - output_seq_len + 1
+                )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)

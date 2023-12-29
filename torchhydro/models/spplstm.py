@@ -56,7 +56,7 @@ class SppLayer(nn.Module):
 
 
 class SPP_LSTM_Model(nn.Module):
-    def __init__(self, seq_length, forecast_length, n_output, n_hidden_states):
+    def __init__(self, seq_length, forecast_length, n_output, n_hidden_states, dropout):
         super(SPP_LSTM_Model, self).__init__()
 
         self.conv1 = TimeDistributed(
@@ -112,7 +112,7 @@ class SPP_LSTM_Model(nn.Module):
 
         self.maxpool2 = TimeDistributed(SppLayer([4, 2, 1]))
 
-        self.dropout = nn.Dropout(p=0.1)
+        self.dropout = nn.Dropout(dropout)
 
         self.lstm = nn.LSTM(
             input_size=21 * 32, hidden_size=n_hidden_states, batch_first=True
@@ -152,7 +152,7 @@ class SPP_LSTM_Model(nn.Module):
 
 
 class SPP_LSTM_Model_2(nn.Module):
-    def __init__(self, seq_length, forecast_length, n_output, n_hidden_states):
+    def __init__(self, seq_length, forecast_length, n_output, n_hidden_states, dropout):
         super(SPP_LSTM_Model_2, self).__init__()
         self.conv1 = nn.Conv2d(
             in_channels=1,
@@ -167,7 +167,7 @@ class SPP_LSTM_Model_2(nn.Module):
             input_size=32 * 5, hidden_size=n_hidden_states, batch_first=True
         )
 
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(dropout)
 
         self.fc = nn.Linear(n_hidden_states, n_output)
 

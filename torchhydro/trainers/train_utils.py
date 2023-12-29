@@ -196,21 +196,26 @@ class EarlyStopper(object):
         self.counter = 0
         self.best_score = None
 
-    def check_loss(self, model, validation_loss, save_dir) -> bool:
+    def check_loss(self, model, validation_loss, save_dir, lr_val_loss) -> bool:
         score = validation_loss
         if self.best_score is None:
             self.save_model_checkpoint(model, save_dir)
             self.best_score = score
 
-        elif score + self.min_delta >= self.best_score:
-            if not self.cumulative_delta and score > self.best_score:
-                self.best_score = score
+        elif (
+            (score + self.min_delta >= self.best_score)
+            if lr_val_loss
+            else (score + self.min_delta <= self.best_score)
+        ):
+            # if not self.cumulative_delta and score > self.best_score:
+            #     self.best_score = score
             self.counter += 1
-            print(self.counter)
+            print("Epochs without Model Update:", self.counter)
             if self.counter >= self.patience:
                 return False
         else:
             self.save_model_checkpoint(model, save_dir)
+            print("Model Update")
             self.best_score = score
             self.counter = 0
         return True
