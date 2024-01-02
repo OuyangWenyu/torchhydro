@@ -432,6 +432,10 @@ class GPM_GFS_Dataset(Dataset):
 
     def _load_data(self):
         train_mode = self.is_tra_val_te == "train"
+        self.train_mode = train_mode
+        self.rho = self.data_cfgs["forecast_history"]
+        self.forecast_length = self.data_cfgs["forecast_length"]
+        self.warmup_length = self.data_cfgs["warmup_length"]
         self.t_s_dict = wrap_t_s_dict(
             self.data_source, self.data_cfgs, self.is_tra_val_te
         )
@@ -440,6 +444,7 @@ class GPM_GFS_Dataset(Dataset):
                 self.t_s_dict["sites_id"],
                 self.t_s_dict["t_final_range"],
                 self.data_cfgs["target_cols"],
+                self.forecast_length,
             )
 
             if data_waterlevel_ds is not None:
@@ -454,6 +459,7 @@ class GPM_GFS_Dataset(Dataset):
                 self.t_s_dict["sites_id"],
                 self.t_s_dict["t_final_range"],
                 self.data_cfgs["target_cols"],
+                self.forecast_length,
             )
 
             if data_streamflow_ds is not None:
@@ -492,10 +498,6 @@ class GPM_GFS_Dataset(Dataset):
         self.x, self.y = self.kill_nan(scaler_hub.x, scaler_hub.y)
 
         self.target_scaler = scaler_hub.target_scaler
-        self.train_mode = train_mode
-        self.rho = self.data_cfgs["forecast_history"]
-        self.forecast_length = self.data_cfgs["forecast_length"]
-        self.warmup_length = self.data_cfgs["warmup_length"]
 
         self._create_lookup_table()
 
@@ -546,16 +548,15 @@ class GPM_GFS_Dataset(Dataset):
 
         x = xx.reshape(xx.shape[0], xx.shape[1], 1, xx.shape[2], xx.shape[3])
         y = (
-            self.y.sel(
-                basin=basin,
+            self.y.sel(basin=basin)
+            .sel(
                 time=slice(
                     time,
                     time + np.timedelta64(output_seq_len - 1, "h"),
-                ),
+                )
             )
-            .to_numpy()
-            .T
-        )
+            .values
+        ).T
         return torch.from_numpy(x).float(), torch.from_numpy(y).float()
 
     def basins(self):
@@ -569,9 +570,7 @@ class GPM_GFS_Dataset(Dataset):
     def _create_lookup_table(self):
         lookup = []
         basins = self.t_s_dict["sites_id"]
-        output_seq_len = self.forecast_length
-        warmup_length = self.warmup_length
-        dates = self.y["time"].to_numpy()
+        dates = self.x[basins[0]]["time_now"].to_numpy()  # 取其中一个流域的时间作为标尺
         time_total_length = len(dates)
         time_num = len(self.t_s_dict["t_final_range"])
         time_single_length = int(time_total_length / time_num)
@@ -585,8 +584,8 @@ class GPM_GFS_Dataset(Dataset):
             for num in range(time_num):
                 lookup.extend(
                     (basin, dates[f + num * time_single_length])
-                    for f in range(warmup_length, time_total_length)
-                    if f < time_single_length - output_seq_len + 1
+                    for f in range(0, time_total_length)
+                    if f < time_single_length
                 )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)

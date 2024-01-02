@@ -84,12 +84,13 @@ def denormalize4eval(validation_data_loader, output, labels):
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
     if target_scaler.data_cfgs["scaler"] == "GPM_GFS_Scaler":
+        fisrt_baisn = target_scaler.data_cfgs["object_ids"][0]
+        source_data = target_scaler.data_forcing[fisrt_baisn]
         batch_size = validation_data_loader.batch_size
         forecast_length = validation_data_loader.dataset.forecast_length
         basin_num = len(target_data.basin)
-
         if target_scaler.data_cfgs["rolling"] == False:
-            selected_time_points = target_data.coords["time"][: -(forecast_length - 1)]
+            selected_time_points = source_data.coords["time_now"]
             selected_data = target_data.sel(time=selected_time_points)
             output = output[:, 0, :].reshape(batch_size, -1)
             output = output.reshape(output.shape[0], output.shape[1], 1)
@@ -110,13 +111,7 @@ def denormalize4eval(validation_data_loader, output, labels):
                 )
             )
         else:
-            rho = validation_data_loader.dataset.rho
-            if ((forecast_length + rho) % 2) == 0:
-                selected_time_points = target_data.coords["time"][:-(forecast_length)]
-
-            else:
-                selected_time_points = target_data.coords["time"][:-(forecast_length)]
-
+            selected_time_points = source_data.coords["time_now"]
             selected_data = target_data.sel(time=selected_time_points)
             output = output[::forecast_length]
             labels = labels[::forecast_length]

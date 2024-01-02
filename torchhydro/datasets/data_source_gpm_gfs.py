@@ -16,6 +16,7 @@ from netCDF4 import Dataset as ncdataset
 import collections
 import pandas as pd
 import xarray as xr
+from datetime import datetime, timedelta
 
 GPM_GFS_NO_DATASET_ERROR_LOG = (
     "We cannot read this dataset now. Please check if you choose correctly:\n"
@@ -116,7 +117,12 @@ class GPM_GFS(HydroDataset):
             raise NotImplementedError(GPM_GFS_NO_DATASET_ERROR_LOG)
 
     def read_waterlevel_xrdataset(
-        self, gage_id_lst=None, t_range: list = None, var_list=None, **kwargs
+        self,
+        gage_id_lst=None,
+        t_range: list = None,
+        var_list=None,
+        forecast_length: int = None,
+        **kwargs,
     ):
         if var_list is None or len(var_list) == 0:
             return None
@@ -127,12 +133,28 @@ class GPM_GFS(HydroDataset):
         all_vars = waterlevel.data_vars
         if any(var not in waterlevel.variables for var in var_list):
             raise ValueError(f"var_lst must all be in {all_vars}")
-        return waterlevel[["waterlevel"]].sel(
-            time=slice(t_range[0], t_range[1]), basin=gage_id_lst
-        )
+
+        subset_list = []
+
+        for period in t_range:
+            start_date = period["start"]
+
+            end_date = datetime.strptime(period["end"], "%Y-%m-%d")
+            new_end_date = end_date + timedelta(hours=forecast_length)
+            end_date_str = new_end_date.strftime("%Y-%m-%d")
+
+            subset = waterlevel.sel(time=slice(start_date, end_date_str))
+            subset_list.append(subset)
+
+        return xr.concat(subset_list, dim="time")
 
     def read_streamflow_xrdataset(
-        self, gage_id_lst=None, t_range: list = None, var_list=None, **kwargs
+        self,
+        gage_id_lst=None,
+        t_range: list = None,
+        var_list=None,
+        forecast_length: int = None,
+        **kwargs,
     ):
         if var_list is None or len(var_list) == 0:
             return None
@@ -148,8 +170,12 @@ class GPM_GFS(HydroDataset):
 
         for period in t_range:
             start_date = period["start"]
-            end_date = period["end"]
-            subset = streamflow.sel(time=slice(start_date, end_date))
+
+            end_date = datetime.strptime(period["end"], "%Y-%m-%d")
+            new_end_date = end_date + timedelta(hours=forecast_length)
+            end_date_str = new_end_date.strftime("%Y-%m-%d")
+
+            subset = streamflow.sel(time=slice(start_date, end_date_str))
             subset_list.append(subset)
 
         return xr.concat(subset_list, dim="time")
@@ -174,6 +200,7 @@ class GPM_GFS(HydroDataset):
             for period in t_range:
                 start_date = period["start"]
                 end_date = period["end"]
+
                 subset = gpm.sel(time_now=slice(start_date, end_date))
                 subset_list.append(subset)
 

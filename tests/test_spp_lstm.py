@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore")
 
 @pytest.fixture()
 def config():
-    project_name = "test_spp_lstm/ex11_2021"
+    project_name = "test_spp_lstm/ex12"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -43,40 +43,42 @@ def config():
         dataset="GPM_GFS_Dataset",
         sampler="WuSampler",
         scaler="GPM_GFS_Scaler",
-        train_epoch=10,
+        train_epoch=50,
         save_epoch=1,
-        te=10,
+        te=50,
         train_period=[
             {"start": "2017-07-01", "end": "2017-09-30"},
             {"start": "2018-07-01", "end": "2018-09-30"},
-            {"start": "2019-07-01", "end": "2019-09-30"},
             {"start": "2020-07-01", "end": "2020-09-30"},
-        ],
-        test_period=[{"start": "2021-07-01", "end": "2021-09-30"}],
-        valid_period=[
             {"start": "2021-07-01", "end": "2021-09-30"},
+        ],
+        test_period=[
+            {"start": "2019-07-01", "end": "2019-09-30"},
+        ],
+        valid_period=[
+            {"start": "2019-07-01", "end": "2019-09-30"},
         ],
         loss_func="RMSESum",
         opt="Adam",
-        lr_scheduler={1: 1e-2, 3: 1e-3},
+        lr_scheduler={1: 1e-3},
         lr_factor=0.5,
-        lr_patience=2,
+        lr_patience=3,
         weight_decay=1e-5,  # L2正则化衰减权重
-        lr_val_loss=False,  # False则用NSE作为指标，而不是val loss,来更新lr、model、早退
+        lr_val_loss=True,  # False则用NSE作为指标，而不是val loss,来更新lr、model、早退
         which_first_tensor="sequence",
         early_stopping=True,
-        patience=5,
+        patience=10,
         rolling=False,  # evaluate 不采用滚动预测
-        # ensemble=True,
-        # ensemble_items={
-        #     "kfold": 5,
-        #     "batch_sizes": [512],
-        # },
+        ensemble=True,
+        ensemble_items={
+            "kfold": 5,
+            "batch_sizes": [256],
+        },
     )
     update_cfg(config_data, args)
     return config_data
 
 
 def test_spp_lstm(config):
-    train_and_evaluate(config)
-    # ensemble_train_and_evaluate(config)
+    # train_and_evaluate(config)
+    ensemble_train_and_evaluate(config)

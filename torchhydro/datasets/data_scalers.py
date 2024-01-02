@@ -641,6 +641,8 @@ class GPM_GFS_Scaler_2(object):
                 json.dump(self.stat_dict, fp)
         else:
             if data_cfgs["stat_dict_file"] is not None:
+                if not os.path.exists(data_cfgs["test_path"]):
+                    os.makedirs(data_cfgs["test_path"])
                 shutil.copy(data_cfgs["stat_dict_file"], stat_file)
             assert os.path.isfile(stat_file)
             with open(stat_file, "r") as fp:
