@@ -3,19 +3,20 @@ Author: Xinzhuo Wu
 Date: 2023-09-30 1:20:18
 LastEditTime: 2023-12-29 11:05:57
 LastEditors: Xinzhuo Wu
-Description: data source 
+Description: data source
 FilePath: \torchhydro\torchhydro\datasets\data_source_gpm_gfs.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import os
-import hydrodataset as hds
-from hydrodataset import HydroDataset, CACHE_DIR
-from hydrodataset.camels import map_string_vars
+from typing import Dict
+
 import numpy as np
 from netCDF4 import Dataset as ncdataset
 import collections
 import pandas as pd
 import xarray as xr
+from hydrodataset import HydroDataset
+from hydrodataset.camels import map_string_vars
 
 GPM_GFS_NO_DATASET_ERROR_LOG = (
     "We cannot read this dataset now. Please check if you choose correctly:\n"
@@ -25,6 +26,7 @@ GPM_GFS_NO_DATASET_ERROR_LOG = (
 class GPM_GFS(HydroDataset):
     def __init__(
         self,
+        cfgs: Dict,
         data_path=os.path.join("gpm_gfs_data"),
         download=False,
         region: str = "US",
@@ -37,6 +39,7 @@ class GPM_GFS(HydroDataset):
                 "We don't provide methods for downloading data at present\n"
             )
         self.sites = self.read_site_info()
+        self.cfgs = cfgs
 
     def get_name(self):
         return "GPM_GFS_" + self.region
@@ -122,7 +125,8 @@ class GPM_GFS(HydroDataset):
             return None
 
         waterlevel = xr.open_dataset(
-            os.path.join("/ftproot", "gpm_gfs_data", "water_level_total.nc")
+            # os.path.join("/ftproot", "gpm_gfs_data", "water_level_total.nc")
+            self.cfgs['data_cfgs']['water_level_data_path']
         )
         all_vars = waterlevel.data_vars
         if any(var not in waterlevel.variables for var in var_list):
@@ -138,7 +142,8 @@ class GPM_GFS(HydroDataset):
             return None
 
         streamflow = xr.open_dataset(
-            os.path.join("/ftproot", "biliuhe", "streamflow_UTC0.nc")
+            # os.path.join("/ftproot", "biliuhe", "streamflow_UTC0.nc")
+            self.cfgs['data_cfgs']['streamflow_data_path']
         )
         all_vars = streamflow.data_vars
         if any(var not in streamflow.variables for var in var_list):
@@ -167,7 +172,8 @@ class GPM_GFS(HydroDataset):
         gpm_dict = {}
         for basin in gage_id_lst:
             gpm = xr.open_dataset(
-                os.path.join("/ftproot", "biliuhe", "gpm_gfs_full_re2.nc")
+                # os.path.join("/ftproot", "biliuhe", "gpm_gfs_full_re2.nc")
+                self.cfgs['data_cfgs']['rainfall_data_path']
             )
             subset_list = []
 
@@ -186,7 +192,8 @@ class GPM_GFS(HydroDataset):
         if var_lst is None or len(var_lst) == 0:
             return None
         attr = xr.open_dataset(
-            os.path.join("/home", "wuxinzhuo", "camelsus_attributes.nc")
+            # os.path.join("/home", "wuxinzhuo", "camelsus_attributes.nc")
+            self.cfgs['data_cfgs']['attributes_path']
         )
         if "all_number" in list(kwargs.keys()) and kwargs["all_number"]:
             attr_num = map_string_vars(attr)
