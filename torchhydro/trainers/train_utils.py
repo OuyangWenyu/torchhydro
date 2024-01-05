@@ -84,8 +84,8 @@ def denormalize4eval(validation_data_loader, output, labels):
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
     if target_scaler.data_cfgs["scaler"] == "GPM_GFS_Scaler":
-        fisrt_baisn = target_scaler.data_cfgs["object_ids"][0]
-        source_data = target_scaler.data_forcing[fisrt_baisn]
+        first_basin = target_scaler.data_cfgs["object_ids"][0]
+        source_data = target_scaler.data_forcing[first_basin]
         batch_size = validation_data_loader.batch_size
         forecast_length = validation_data_loader.dataset.forecast_length
         basin_num = len(target_data.basin)
