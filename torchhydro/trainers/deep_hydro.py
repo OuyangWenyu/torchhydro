@@ -158,11 +158,17 @@ class DeepHydro(DeepHydroInterface):
         self.device = get_the_device(self.device_num)
         self.pre_model = pre_model
         super().__init__(data_source, cfgs)
-        self.model = self.load_model()
-        self.traindataset = self.make_dataset("train")
-        if cfgs["data_cfgs"]["t_range_valid"] is not None:
-            self.validdataset = self.make_dataset("valid")
-        self.testdataset = self.make_dataset("test")
+        if (
+            cfgs["data_cfgs"]["dataset"] == "GPM_GFS_Dataset"
+            and cfgs["model_cfgs"]["continue_train"] == False
+        ):
+            self.testdataset = self.make_dataset("test")
+        else:
+            self.model = self.load_model()
+            self.traindataset = self.make_dataset("train")
+            if cfgs["data_cfgs"]["t_range_valid"] is not None:
+                self.validdataset = self.make_dataset("valid")
+            self.testdataset = self.make_dataset("test")
         print(f"Torch is using {str(self.device)}")
 
     def load_model(self):
@@ -243,7 +249,7 @@ class DeepHydro(DeepHydroInterface):
         model_filepath = self.cfgs["data_cfgs"]["test_path"]
         data_cfgs = self.cfgs["data_cfgs"]
         es = None
-        if training_cfgs["early_stopping"] == True :
+        if training_cfgs["early_stopping"] == True:
             es = EarlyStopper(training_cfgs["patience"])
         criterion = self._get_loss_func(training_cfgs)
         opt = self._get_optimizer(training_cfgs)
@@ -262,9 +268,9 @@ class DeepHydro(DeepHydroInterface):
             factor=training_cfgs["lr_factor"],
             patience=training_cfgs["lr_patience"],
         )
-        if training_cfgs['weight_decay'] is not None:
+        if training_cfgs["weight_decay"] is not None:
             for param_group in opt.param_groups:
-                param_group['weight_decay'] = training_cfgs['weight_decay']
+                param_group["weight_decay"] = training_cfgs["weight_decay"]
         for epoch in range(start_epoch, max_epochs + 1):
             if lr_scheduler is not None and epoch in lr_scheduler.keys():
                 for param_group in opt.param_groups:
@@ -307,7 +313,7 @@ class DeepHydro(DeepHydroInterface):
                     valid_logs["valid_loss"] = valid_loss
                     valid_logs["valid_metrics"] = valid_metrics
 
-            lr_val_loss=training_cfgs["lr_val_loss"]
+            lr_val_loss = training_cfgs["lr_val_loss"]
             if lr_val_loss:
                 scheduler.step(valid_loss.item())
             else:
@@ -316,15 +322,12 @@ class DeepHydro(DeepHydroInterface):
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
             )
-            if self.cfgs["data_cfgs"]["dataset"] != "GPM_GFS_Dataset":
-                logger.save_model_and_params(self.model, epoch, self.cfgs)
+            logger.save_model_and_params(self.model, epoch, self.cfgs)
             if es and not es.check_loss(
                 self.model,
-                valid_loss
-                if lr_val_loss
-                else list(valid_metrics.items())[0][1][0],
+                valid_loss if lr_val_loss else list(valid_metrics.items())[0][1][0],
                 self.cfgs["data_cfgs"]["test_path"],
-                lr_val_loss
+                lr_val_loss,
             ):
                 print("Stopping model now")
                 break
@@ -370,8 +373,11 @@ class DeepHydro(DeepHydroInterface):
             self.model = self.load_model()
 
         if self.cfgs["data_cfgs"]["dataset"] == "GPM_GFS_Dataset":
-            model_filepath = self.cfgs["data_cfgs"]["test_path"]
-            self.weight_path = os.path.join(model_filepath, "best_model.pth")
+            if self.cfgs["model_cfgs"]["continue_train"]:
+                model_filepath = self.cfgs["data_cfgs"]["test_path"]
+                self.weight_path = os.path.join(model_filepath, "best_model.pth")
+            else:
+                self.weight_path = self.cfgs["model_cfgs"]["weight_path"]
             self.model = self.load_model()
 
         preds_xr, obss_xr, test_data = self.inference()
