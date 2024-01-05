@@ -438,7 +438,7 @@ def average_weights(w):
         w_avg[key] = torch.div(w_avg[key], len(w))
     return w_avg
 
-
+'''
 def cellstates_when_inference(seq_first, data_cfgs, pred):
     """get cell states when inference"""
     cs_out = (
@@ -452,3 +452,4 @@ def cellstates_when_inference(seq_first, data_cfgs, pred):
     # model.zero_grad()
     torch.cuda.empty_cache()
     return pred, cell_state
+'''
