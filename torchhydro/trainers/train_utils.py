@@ -92,20 +92,18 @@ def denormalize4eval(validation_data_loader, output, labels):
         if target_scaler.data_cfgs["rolling"] == False:
             selected_time_points = source_data.coords["time_now"]
             selected_data = target_data.sel(time=selected_time_points)
-            output = output[:, 0, :].reshape(batch_size, -1)
-            output = output.reshape(output.shape[0], output.shape[1], 1)
-            labels = labels[:, 0, :].reshape(batch_size, -1)
-            labels = labels.reshape(labels.shape[0], labels.shape[1], 1)
+            output = output[:, 0, :].reshape(basin_num, batch_size, 1)
+            labels = labels[:, 0, :].reshape(basin_num, batch_size, 1)
             preds_xr = target_scaler.inverse_transform(
                 xr.DataArray(
-                    output.transpose(2, 0, 1),
+                    output.transpose(2, 1, 0),
                     dims=selected_data.dims,
                     coords=selected_data.coords,
                 )
             )
             obss_xr = target_scaler.inverse_transform(
                 xr.DataArray(
-                    labels.transpose(2, 0, 1),
+                    labels.transpose(2, 1, 0),
                     dims=selected_data.dims,
                     coords=selected_data.coords,
                 )
@@ -438,7 +436,7 @@ def average_weights(w):
         w_avg[key] = torch.div(w_avg[key], len(w))
     return w_avg
 
-'''
+
 def cellstates_when_inference(seq_first, data_cfgs, pred):
     """get cell states when inference"""
     cs_out = (
@@ -452,4 +450,3 @@ def cellstates_when_inference(seq_first, data_cfgs, pred):
     # model.zero_grad()
     torch.cuda.empty_cache()
     return pred, cell_state
-'''

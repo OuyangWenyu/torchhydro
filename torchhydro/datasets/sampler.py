@@ -136,7 +136,10 @@ class GPM_GFS_Sampler(Sampler[int]):
                 x += basin_start
 
                 for i in range(0, len(x), n):
-                    yield from (x[i : i + n]).tolist()
+                    if len(x) - i >= n:
+                        yield from (x[i : i + n]).tolist()
+                    else:
+                        break
 
     def __len__(self) -> int:
         return self.num_samples

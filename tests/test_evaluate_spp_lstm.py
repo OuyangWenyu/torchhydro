@@ -21,8 +21,8 @@ warnings.filterwarnings("ignore")
 
 @pytest.fixture()
 def config_data():
-    project_name = "test_evalute_spp_lstm/ex3"
-    train_path = os.path.join(os.getcwd(), "results", "test_spp_lstm", "ex11_2020")
+    project_name = "test_evalute_spp_lstm/ex1"
+    train_path = os.path.join(os.getcwd(), "results", "test_spp_lstm", "ex2_0")
     args = cmd(
         sub=project_name,
         source="GPM_GFS",
@@ -35,10 +35,10 @@ def config_data():
             "seq_length": 168,
             "forecast_length": 24,
             "n_output": 1,
-            "n_hidden_states": 80,
+            "n_hidden_states": 60,
             "dropout": 0.25,
         },
-        gage_id=["21401550"],
+        gage_id=["86_21401550"],
         batch_size=256,
         var_t=["tp"],
         var_out=["streamflow"],
@@ -46,8 +46,7 @@ def config_data():
         sampler="WuSampler",
         scaler="GPM_GFS_Scaler",
         test_period=[
-            {"start": "2019-07-01", "end": "2019-09-30"},
-            {"start": "2020-07-01", "end": "2020-09-30"},
+            {"start": "2017-07-01", "end": "2017-09-29"},
         ],  # 该范围为降水的时间范围，流量会整体往后推24h
         rolling=False,
         weight_path=os.path.join(train_path, "best_model.pth"),

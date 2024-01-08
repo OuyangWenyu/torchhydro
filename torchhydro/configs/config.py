@@ -92,7 +92,8 @@ def default_config_file():
         },
         "data_cfgs": {
             "data_source_name": "CAMELS",
-            'attributes_path': None,
+            "data_path": "../../example/camels_us",
+            "attributes_path": None,
             "rainfall_data_path": None,
             "streamflow_data_path": None,
             "water_level_data_path": None,
@@ -107,9 +108,9 @@ def default_config_file():
             # modeled objects
             "object_ids": "ALL",
             # modeling time range
-            "time_range_train": ["1992-01-01 00:00:00", "1993-01-01 00:00:00"],
-            "time_range_valid": None,
-            "time_range_test": ["1993-01-01 00:00:00", "1994-01-01 00:00:00"],
+            "t_range_train": ["1992-01-01", "1993-01-01"],
+            "t_range_valid": None,
+            "t_range_test": ["1993-01-01", "1994-01-01"],
             # For physics-based models, we need warmup; default is 0 as DL models generally don't need it
             "warmup_length": 0,
             # the output
@@ -266,6 +267,7 @@ def default_config_file():
 def cmd(
     sub=None,
     source="CAMELS",
+    source_path=None,
     attributes_path=None,
     rainfall_source_path=None,
     streamflow_source_path=None,
@@ -355,39 +357,46 @@ def cmd(
         type=str,
     )
     parser.add_argument(
+        "--source_path",
+        dest="source_path",
+        help="directory of data source",
+        default=source_path,
+        nargs="+",
+    )
+    parser.add_argument(
         "--attributes_path",
         dest="attributes_path",
         help="directory of attributes",
         default=attributes_path,
-        nargs="*",
+        nargs="+",
     )
     parser.add_argument(
         "--rainfall_source_path",
         dest="rainfall_source_path",
         help="directory of rainfall's data source",
         default=rainfall_source_path,
-        nargs="*",
+        nargs="+",
     )
     parser.add_argument(
         "--streamflow_source_path",
         dest="streamflow_source_path",
         help="directory of streamflow's data source",
         default=streamflow_source_path,
-        nargs="*",
+        nargs="+",
     )
     parser.add_argument(
         "--water_level_source_path",
         dest="water_level_source_path",
         help="directory of water level's data source",
         default=water_level_source_path,
-        nargs="*",
+        nargs="+",
     )
     parser.add_argument(
         "--source_region",
         dest="source_region",
         help="region(s) of data source such as US, or ['US','CE']",
         default=source_region,
-        nargs="*",
+        nargs="+",
     )
     parser.add_argument(
         "--download",
@@ -523,7 +532,7 @@ def cmd(
         dest="valid_period",
         help="The validating period",
         default=valid_period,
-        nargs="*",
+        nargs="+",
     )
     parser.add_argument(
         "--test_period",
@@ -644,7 +653,7 @@ def cmd(
         dest="var_t_type",
         help="types of forcing data_source",
         default=var_t_type,
-        nargs="*",
+        nargs="+",
     )
     parser.add_argument(
         "--var_o",
@@ -674,7 +683,7 @@ def cmd(
         "--constant_only",
         dest="constant_only",
         help="if true, we will only use attribute data as input for deep learning models; "
-             "now it is only for dpl models and it is only used when target_as_input is False",
+        "now it is only for dpl models and it is only used when target_as_input is False",
         default=constant_only,
         type=int,
     )
@@ -731,7 +740,7 @@ def cmd(
         "--start_epoch",
         dest="start_epoch",
         help="The index of epoch when starting training, default is 1. "
-             "When retraining after an interrupt, it will be larger than 1",
+        "When retraining after an interrupt, it will be larger than 1",
         default=start_epoch,
         type=int,
     )
@@ -893,22 +902,46 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["test_path"] = os.path.join(result_dir, subset, subexp)
     if new_args.source is not None:
         cfg_file["data_cfgs"]["data_source_name"] = new_args.source
+    if new_args.source_path is not None:
+        cfg_file["data_cfgs"]["data_path"] = new_args.source_path
+        if type(new_args.source_path) == list and len(new_args.source_path) == 1:
+            cfg_file["data_cfgs"]["data_path"] = new_args.source_path[0]
     if new_args.attributes_path is not None:
         cfg_file["data_cfgs"]["attributes_path"] = new_args.attributes_path
-        if isinstance(new_args.attributes_path, list) and len(new_args.attributes_path) == 1:
+        if (
+            isinstance(new_args.attributes_path, list)
+            and len(new_args.attributes_path) == 1
+        ):
             cfg_file["data_cfgs"]["attributes_path"] = new_args.attributes_path[0]
     if new_args.rainfall_source_path is not None:
         cfg_file["data_cfgs"]["rainfall_data_path"] = new_args.rainfall_source_path
-        if isinstance(new_args.rainfall_source_path, list) and len(new_args.rainfall_source_path) == 1:
-            cfg_file["data_cfgs"]["rainfall_data_path"] = new_args.rainfall_source_path[0]
+        if (
+            isinstance(new_args.rainfall_source_path, list)
+            and len(new_args.rainfall_source_path) == 1
+        ):
+            cfg_file["data_cfgs"]["rainfall_data_path"] = new_args.rainfall_source_path[
+                0
+            ]
     if new_args.streamflow_source_path is not None:
         cfg_file["data_cfgs"]["streamflow_data_path"] = new_args.streamflow_source_path
-        if isinstance(new_args.streamflow_source_path, list) and len(new_args.streamflow_source_path) == 1:
-            cfg_file["data_cfgs"]["streamflow_data_path"] = new_args.streamflow_source_path[0]
+        if (
+            isinstance(new_args.streamflow_source_path, list)
+            and len(new_args.streamflow_source_path) == 1
+        ):
+            cfg_file["data_cfgs"][
+                "streamflow_data_path"
+            ] = new_args.streamflow_source_path[0]
     if new_args.water_level_source_path is not None:
-        cfg_file["data_cfgs"]["water_level_data_path"] = new_args.water_level_source_path
-        if isinstance(new_args.water_level_source_path, list) and len(new_args.water_level_source_path) == 1:
-            cfg_file["data_cfgs"]["water_level_data_path"] = new_args.water_level_source_path[0]
+        cfg_file["data_cfgs"][
+            "water_level_data_path"
+        ] = new_args.water_level_source_path
+        if (
+            isinstance(new_args.water_level_source_path, list)
+            and len(new_args.water_level_source_path) == 1
+        ):
+            cfg_file["data_cfgs"][
+                "water_level_data_path"
+            ] = new_args.water_level_source_path[0]
     if new_args.source_region is not None:
         cfg_file["data_cfgs"]["data_region"] = new_args.source_region
         if len(new_args.source_region) == 1:
@@ -1105,7 +1138,7 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
         if "warmup_length" in new_args.model_hyperparam.keys() and (
             not cfg_file["data_cfgs"]["warmup_length"]
-                == new_args.model_hyperparam["warmup_length"]
+            == new_args.model_hyperparam["warmup_length"]
         ):
             raise RuntimeError(
                 "Please set same warmup_length in model_cfgs and data_cfgs"

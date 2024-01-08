@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore")
 
 @pytest.fixture()
 def config():
-    project_name = "test_spp_lstm/ex12"
+    project_name = "test_spp_lstm/ex3"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -34,9 +34,9 @@ def config():
             "forecast_length": 24,
             "n_output": 1,
             "n_hidden_states": 60,
-            "dropout": 0.2,
+            "dropout": 0.25,
         },
-        gage_id=["21401550"],
+        gage_id=["1_02051500", "86_21401550"],
         batch_size=256,
         var_t=["tp"],
         var_out=["streamflow"],
@@ -47,16 +47,16 @@ def config():
         save_epoch=1,
         te=50,
         train_period=[
-            {"start": "2017-07-01", "end": "2017-09-30"},
-            {"start": "2018-07-01", "end": "2018-09-30"},
-            {"start": "2020-07-01", "end": "2020-09-30"},
-            {"start": "2021-07-01", "end": "2021-09-30"},
+            {"start": "2017-07-01", "end": "2017-09-29"},
+            {"start": "2018-07-01", "end": "2018-09-29"},
+            {"start": "2019-07-01", "end": "2019-09-29"},
+            {"start": "2020-07-01", "end": "2020-09-29"},
         ],
         test_period=[
-            {"start": "2019-07-01", "end": "2019-09-30"},
+            {"start": "2021-07-01", "end": "2021-09-29"},
         ],
         valid_period=[
-            {"start": "2019-07-01", "end": "2019-09-30"},
+            {"start": "2021-07-01", "end": "2021-09-29"},
         ],
         loss_func="RMSESum",
         opt="Adam",
