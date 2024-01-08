@@ -235,6 +235,10 @@ class DeepHydro(DeepHydroInterface):
         data_source = self.data_source
         if dataset_name in list(datasets_dict.keys()):
             dataset = datasets_dict[dataset_name](data_source, data_cfgs, is_tra_val_te)
+        elif dataset_name == "GPM_GFS_batch_loading_Dataset":
+            dataset = datasets_dict[dataset_name](
+                data_cfgs, self.cfgs["minio_cfgs"], is_tra_val_te
+            )
         else:
             raise NotImplementedError(
                 f"Error the dataset {str(dataset_name)} was not found in the dataset dict. Please add it."

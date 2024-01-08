@@ -202,6 +202,7 @@ class GPM_GFS(HydroDataset):
             for period in t_range:
                 start_date = period["start"]
                 end_date = period["end"]
+
                 subset = gpm.sel(time_now=slice(start_date, end_date))
                 subset_list.append(subset)
 

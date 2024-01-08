@@ -203,6 +203,7 @@ def default_config_file():
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
             "rolling": False,
+            "loading_batch": None,
         },
         "training_cfgs": {
             # if train_mode is False, don't train and evaluate
@@ -261,6 +262,13 @@ def default_config_file():
             "explainer": None,
             "rolling": None,
         },
+        "minio_cfgs": {
+            "endpoint_url": None,
+            "access_key": None,
+            "secret_key": None,
+            "bucket_name": None,
+            "folder_prefix": None,
+        },
     }
 
 
@@ -277,6 +285,7 @@ def cmd(
     scaler=None,
     scaler_params=None,
     dataset=None,
+    loading_batch=None,
     sampler=None,
     fl_sample=None,
     fl_num_users=None,
@@ -341,6 +350,11 @@ def cmd(
     ensemble_items=None,
     early_stopping=None,
     patience=None,
+    endpoint_url=None,
+    access_key=None,
+    secret_key=None,
+    bucket_name=None,
+    folder_prefix=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -425,6 +439,13 @@ def cmd(
         help="Choose a dataset class for PyTorch",
         default=dataset,
         type=str,
+    )
+    parser.add_argument(
+        "--loading_batch",
+        dest="loading_batch",
+        help="loading_batch",
+        default=loading_batch,
+        type=int,
     )
     parser.add_argument(
         "--sampler",
@@ -849,6 +870,41 @@ def cmd(
         default=patience,
         type=int,
     )
+    parser.add_argument(
+        "--endpoint_url",
+        dest="endpoint_url",
+        help="endpoint_url",
+        default=endpoint_url,
+        type=str,
+    )
+    parser.add_argument(
+        "--access_key",
+        dest="access_key",
+        help="access_key",
+        default=access_key,
+        type=str,
+    )
+    parser.add_argument(
+        "--secret_key",
+        dest="secret_key",
+        help="secret_key",
+        default=secret_key,
+        type=str,
+    )
+    parser.add_argument(
+        "--bucket_name",
+        dest="bucket_name",
+        help="bucket_name",
+        default=bucket_name,
+        type=str,
+    )
+    parser.add_argument(
+        "--folder_prefix",
+        dest="folder_prefix",
+        help="folder_prefix",
+        default=folder_prefix,
+        type=str,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -957,6 +1013,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["scaler_params"] = new_args.scaler_params
     if new_args.dataset is not None:
         cfg_file["data_cfgs"]["dataset"] = new_args.dataset
+    if new_args.loading_batch is not None:
+        cfg_file["data_cfgs"]["loading_batch"] = new_args.loading_batch
     if new_args.sampler is not None:
         cfg_file["data_cfgs"]["sampler"] = new_args.sampler
     if new_args.fl_sample is not None:
@@ -1134,6 +1192,17 @@ def update_cfg(cfg_file, new_args):
         cfg_file["evaluation_cfgs"]["test_epoch"] = new_args.te
         if new_args.train_epoch is not None and new_args.te > new_args.train_epoch:
             raise RuntimeError("testing epoch cannot be larger than training epoch")
+    if new_args.endpoint_url is not None:
+        cfg_file["minio_cfgs"]["endpoint_url"] = new_args.endpoint_url
+    if new_args.access_key is not None:
+        cfg_file["minio_cfgs"]["access_key"] = new_args.access_key
+    if new_args.secret_key is not None:
+        cfg_file["minio_cfgs"]["secret_key"] = new_args.secret_key
+    if new_args.bucket_name is not None:
+        cfg_file["minio_cfgs"]["bucket_name"] = new_args.bucket_name
+    if new_args.folder_prefix is not None:
+        cfg_file["minio_cfgs"]["folder_prefix"] = new_args.folder_prefix
+
     if new_args.warmup_length > 0:
         cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
         if "warmup_length" in new_args.model_hyperparam.keys() and (

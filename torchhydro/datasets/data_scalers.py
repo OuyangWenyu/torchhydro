@@ -815,3 +815,123 @@ class Muti_Basin_GPM_GFS_SCALER(object):
         print("Finish Normalization\n")
         self.x = x
         self.y = y
+
+
+class Muti_Basin_Batch_Loading_SCALER(object):
+    def __init__(
+        self,
+        target_vars: np.array,
+        relevant_vars: dict,
+        data_cfgs: dict = None,
+        minio_cfgs: dict = None,
+        t_s_dict: dict = None,
+        is_tra_val_te: str = None,
+        **kwargs,
+    ):
+        self.data_cfgs = data_cfgs
+        scaler_type = data_cfgs["scaler"]
+        if scaler_type == "GPM_GFS_Scaler":
+            gamma_norm_cols = data_cfgs["scaler_params"]["gamma_norm_cols"]
+            prcp_norm_cols = data_cfgs["scaler_params"]["prcp_norm_cols"]
+            scaler = GPM_GFS_Scaler_3(
+                target_vars=target_vars,
+                relevant_vars=relevant_vars,
+                data_cfgs=data_cfgs,
+                minio_cfgs=minio_cfgs,
+                t_s_dict=t_s_dict,
+                is_tra_val_te=is_tra_val_te,
+                prcp_norm_cols=prcp_norm_cols,
+                gamma_norm_cols=gamma_norm_cols,
+            )
+        print("Finish Normalization\n")
+
+
+class GPM_GFS_Scaler_3(object):
+    def __init__(
+        self,
+        target_vars: np.array,
+        relevant_vars: dict,
+        data_cfgs: dict,
+        minio_cfgs: dict,
+        t_s_dict: dict,
+        is_tra_val_te: str,
+        prcp_norm_cols=None,
+        gamma_norm_cols=None,
+    ):
+        prcp_norm_cols = [
+            "waterlevel",
+            "streamflow",
+        ]
+
+        gamma_norm_cols = [
+            "tp",
+        ]
+        self.t_s_dict = t_s_dict
+        self.data_target = target_vars
+        self.data_forcing = relevant_vars
+        self.data_cfgs = data_cfgs
+        self.minio_cfgs = minio_cfgs
+        self.prcp_norm_cols = prcp_norm_cols
+        self.gamma_norm_cols = gamma_norm_cols
+        self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
+        if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
+            self.stat_dict = self.cal_stat_all()
+
+    def cal_stat_all(self):
+        stat_dict = {}
+
+        x = self.data_forcing
+        forcing_lst = self.data_cfgs["relevant_cols"]
+        for k in range(len(forcing_lst)):
+            var = forcing_lst[k]
+            if var in self.gamma_norm_cols:
+                stat_dict[var] = self.GPM_GFS_cal_stat_gamma(x, var)
+
+        y = self.data_target
+        target_cols = self.data_cfgs["target_cols"]
+        for k in range(len(target_cols)):
+            var = target_cols[k]
+            if var in self.prcp_norm_cols:
+                meanprep = self.read_mean_prcp(self.t_s_dict["sites_id"])
+                stat_dict[var] = self.GPM_GFS_cal_stat_prcp_norm(
+                    y.sel(variable=var).to_numpy(),
+                    meanprep.to_array().to_numpy(),
+                )
+        return stat_dict
+
+    def cal_5_stat_inds(self, b):
+        p10 = np.percentile(b, 10).astype(float)
+        p90 = np.percentile(b, 90).astype(float)
+        mean = np.mean(b).astype(float)
+        std = np.std(b).astype(float)
+        if std < 0.001:
+            std = 1
+        return [p10, p90, mean, std, len(b)]
+
+    def GPM_GFS_cal_stat_prcp_norm(self, y, meanprep):
+        tempprep = np.tile(meanprep, (y.shape[0], 1))
+        flowua = y / tempprep
+        a = flowua.flatten()
+        b = a[~np.isnan(a)]
+        b = np.log10(np.sqrt(b) + 0.1)
+        return self.cal_5_stat_inds(b)
+
+    def GPM_GFS_cal_stat_gamma(self, x, var):
+        combined = np.array([])
+        for basin in x.values():
+            a = basin.sel(variable=var).to_numpy()
+            a = a.flatten()
+            a = a[~np.isnan(a)]
+            combined = np.hstack((combined, a))
+        b = np.log10(np.sqrt(combined) + 0.1)
+        b = b[~np.isnan(b)]
+        return self.cal_5_stat_inds(b)
+
+    def GPM_GFS_prcp_norm(
+        self, x: np.array, mean_prep: np.array, to_norm: bool
+    ) -> np.array:
+        tempprep = np.tile(mean_prep, (x.shape[0], 1))
+        return x / tempprep if to_norm else x * tempprep
+
+    def read_mean_prcp(self, gage_id_lst):
+        pass

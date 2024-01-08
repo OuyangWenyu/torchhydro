@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore")
 
 @pytest.fixture()
 def config():
-    project_name = "test_spp_lstm/ex3"
+    project_name = "test_spp_lstm/ex13"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,

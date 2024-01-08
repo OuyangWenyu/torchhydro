@@ -22,7 +22,7 @@ warnings.filterwarnings("ignore")
 @pytest.fixture()
 def config_data():
     project_name = "test_evalute_spp_lstm/ex1"
-    train_path = os.path.join(os.getcwd(), "results", "test_spp_lstm", "ex2_0")
+    train_path = os.path.join(os.getcwd(), "results", "test_spp_lstm", "ex12_0")
     args = cmd(
         sub=project_name,
         source="GPM_GFS",
