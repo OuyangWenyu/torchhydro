@@ -655,7 +655,9 @@ class GPM_GFS_Scaler_2(object):
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                mean_prep = self.data_source.read_mean_prcp(self.t_w_dict["sites_id"])
+                mean_prep = self.data_source.read_mean_prcp(
+                    self.t_w_dict["sites_id"], self.data_cfgs["attributes_path"]
+                )
                 stat_dict[var] = self.GPM_GFS_cal_stat_prcp_norm(
                     self.data_target.sel(variable=var).to_numpy(),
                     mean_prep.to_array().to_numpy(),
@@ -687,7 +689,9 @@ class GPM_GFS_Scaler_2(object):
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                mean_prep = self.data_source.read_mean_prcp(self.t_w_dict["sites_id"])
+                mean_prep = self.data_source.read_mean_prcp(
+                    self.t_w_dict["sites_id"], self.data_cfgs["attributes_path"]
+                )
                 out.loc[dict(variable=var)] = self.GPM_GFS_prcp_norm(
                     data.sel(variable=var).to_numpy(),
                     mean_prep.to_array().to_numpy(),
@@ -740,7 +744,7 @@ class GPM_GFS_Scaler_2(object):
                 var = self.data_cfgs["target_cols"][i]
                 if var in self.prcp_norm_cols:
                     mean_prep = self.data_source.read_mean_prcp(
-                        self.t_w_dict["sites_id"]
+                        self.t_w_dict["sites_id"], self.data_cfgs["attributes_path"]
                     )
                     pred.loc[dict(variable=var)] = self.GPM_GFS_prcp_norm(
                         pred.sel(variable=var).to_numpy(),

@@ -24,6 +24,9 @@ def config():
     args = cmd(
         sub=project_name,
         source="GPM_GFS",
+        streamflow_source_path="/ftproot/biliuhe/merge_streamflow.nc",
+        rainfall_source_path="/ftproot/biliuhe",
+        attributes_path="/home/wuxinzhuo/attributes.nc",
         source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
         source_region="US",
         download=0,

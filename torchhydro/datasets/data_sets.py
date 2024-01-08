@@ -445,6 +445,7 @@ class GPM_GFS_Dataset(Dataset):
                 self.t_s_dict["t_final_range"],
                 self.data_cfgs["target_cols"],
                 self.forecast_length,
+                self.data_cfgs["water_level_source_path"],
             )
 
             if data_waterlevel_ds is not None:
@@ -460,6 +461,7 @@ class GPM_GFS_Dataset(Dataset):
                 self.t_s_dict["t_final_range"],
                 self.data_cfgs["target_cols"],
                 self.forecast_length,
+                self.data_cfgs["streamflow_source_path"],
             )
 
             if data_streamflow_ds is not None:
@@ -474,6 +476,7 @@ class GPM_GFS_Dataset(Dataset):
             self.t_s_dict["t_final_range"],
             # 1 comes from here
             self.data_cfgs["relevant_cols"],
+            self.data_cfgs["rainfall_source_path"],
         )
 
         data_forcing = {}
