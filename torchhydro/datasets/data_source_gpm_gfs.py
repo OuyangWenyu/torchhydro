@@ -121,14 +121,15 @@ class GPM_GFS(HydroDataset):
         self,
         gage_id_lst=None,
         t_range: list = None,
-        var_list=None,
+        var_list: list = None,
         forecast_length: int = None,
+        water_level_source_path: str = None,
         **kwargs,
     ):
         if var_list is None or len(var_list) == 0:
             return None
 
-        waterlevel = xr.open_dataset(self.cfgs["data_cfgs"]["water_level_data_path"])
+        waterlevel = xr.open_dataset(water_level_source_path)
         all_vars = waterlevel.data_vars
         if any(var not in waterlevel.variables for var in var_list):
             raise ValueError(f"var_lst must all be in {all_vars}")
@@ -153,14 +154,15 @@ class GPM_GFS(HydroDataset):
         self,
         gage_id_lst=None,
         t_range: list = None,
-        var_list=None,
-        forecast_length=None,
+        var_list: list = None,
+        forecast_length: int = None,
+        streamflow_source_path: str = None,
         **kwargs,
     ):
         if var_list is None or len(var_list) == 0:
             return None
 
-        streamflow = xr.open_dataset("/ftproot/biliuhe/merge_streamflow.nc")
+        streamflow = xr.open_dataset(streamflow_source_path)
         all_vars = streamflow.data_vars
         if any(var not in streamflow.variables for var in var_list):
             raise ValueError(f"var_lst must all be in {all_vars}")
@@ -186,6 +188,7 @@ class GPM_GFS(HydroDataset):
         gage_id_lst: list = None,
         t_range: list = None,
         var_lst: list = None,
+        rainfall_source_path: str = None,
         **kwargs,
     ):
         if var_lst is None:
@@ -193,7 +196,7 @@ class GPM_GFS(HydroDataset):
 
         gpm_dict = {}
         for basin in gage_id_lst:
-            gpm = xr.open_dataset(os.path.join("/ftproot", "biliuhe", f"{basin}.nc"))
+            gpm = xr.open_dataset(os.path.join(rainfall_source_path, f"{basin}.nc"))
             subset_list = []
 
             for period in t_range:
@@ -207,19 +210,23 @@ class GPM_GFS(HydroDataset):
 
         return gpm_dict
 
-    def read_attr_xrdataset(self, gage_id_lst=None, var_lst=None, **kwargs):
+    def read_attr_xrdataset(
+        self, gage_id_lst=None, var_lst=None, attributes_path=None, **kwargs
+    ):
         if var_lst is None or len(var_lst) == 0:
             return None
-        attr = xr.open_dataset("/home/wuxinzhuo/attributes.nc")
+        attr = xr.open_dataset(attributes_path)
         if "all_number" in list(kwargs.keys()) and kwargs["all_number"]:
             attr_num = map_string_vars(attr)
             return attr_num[var_lst].sel(basin=gage_id_lst)
         return attr[var_lst].sel(basin=gage_id_lst)
 
-    def read_mean_prcp(self, gage_id_lst) -> np.array:
+    def read_mean_prcp(self, gage_id_lst, attributes_path) -> np.array:
         if self.region in ["US", "AUS", "BR", "GB"]:
             if self.region == "US":
-                return self.read_attr_xrdataset(gage_id_lst, ["p_mean"])
+                return self.read_attr_xrdataset(
+                    gage_id_lst, ["p_mean"], attributes_path
+                )
             return self.read_constant_cols(
                 gage_id_lst, ["p_mean"], is_return_dict=False
             )
