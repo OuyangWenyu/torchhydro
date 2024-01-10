@@ -19,16 +19,16 @@ warnings.filterwarnings("ignore")
 
 @pytest.fixture()
 def config():
-    project_name = "test_spp_lstm/ex13"
+    project_name = "test_spp_lstm/ex3"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source="GPM_GFS",
+        source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
         streamflow_source_path="/ftproot/biliuhe/merge_streamflow.nc",
         rainfall_source_path="/ftproot/biliuhe",
-        attributes_path="/home/wuxinzhuo/attributes.nc",
-        source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
-        source_region="US",
+        attributes_path="/ftproot/biliuhe/camelsus_attributes.nc",
+        gfs_source_path="",
         download=0,
         ctx=[2],
         model_name="SPPLSTM2",
@@ -38,10 +38,12 @@ def config():
             "n_output": 1,
             "n_hidden_states": 60,
             "dropout": 0.25,
+            "len_c": 4,  # 需要与len(var_c)相等
         },
         gage_id=["1_02051500", "86_21401550"],
         batch_size=256,
-        var_t=["tp"],
+        var_t=[["tp"]],  # tp作为list放在第一个，后面放gfs的气象数据
+        var_c=["sgr_dk_sav", "glc_pc_s06", "glc_pc_s07", "nli_ix_sav"],  # 暂时放了4个
         var_out=["streamflow"],
         dataset="GPM_GFS_Dataset",
         sampler="WuSampler",
@@ -65,7 +67,7 @@ def config():
         opt="Adam",
         lr_scheduler={1: 1e-3},
         lr_factor=0.5,
-        lr_patience=3,
+        lr_patience=2,
         weight_decay=1e-5,  # L2正则化衰减权重
         lr_val_loss=True,  # False则用NSE作为指标，而不是val loss,来更新lr、model、早退
         which_first_tensor="sequence",

@@ -22,15 +22,15 @@ warnings.filterwarnings("ignore")
 @pytest.fixture()
 def config_data():
     project_name = "test_evalute_spp_lstm/ex1"
-    train_path = os.path.join(os.getcwd(), "results", "test_spp_lstm", "ex12_0")
+    train_path = os.path.join(os.getcwd(), "results", "test_spp_lstm", "ex3_0")
     args = cmd(
         sub=project_name,
         source="GPM_GFS",
         source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
-        source_region="US",
         streamflow_source_path="/ftproot/biliuhe/merge_streamflow.nc",
         rainfall_source_path="/ftproot/biliuhe",
-        attributes_path="/home/wuxinzhuo/attributes.nc",
+        attributes_path="/ftproot/biliuhe/camelsus_attributes.nc",
+        gfs_source_path="",
         download=0,
         ctx=[2],
         model_name="SPPLSTM2",
@@ -40,11 +40,13 @@ def config_data():
             "n_output": 1,
             "n_hidden_states": 60,
             "dropout": 0.25,
+            "len_c": 4,
         },
         gage_id=["86_21401550"],
         batch_size=256,
-        var_t=["tp"],
+        var_t=[["tp"]],
         var_out=["streamflow"],
+        var_c=["sgr_dk_sav", "glc_pc_s06", "glc_pc_s07", "nli_ix_sav"],
         dataset="GPM_GFS_Dataset",
         sampler="WuSampler",
         scaler="GPM_GFS_Scaler",

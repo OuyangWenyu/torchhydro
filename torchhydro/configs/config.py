@@ -97,6 +97,7 @@ def default_config_file():
             "rainfall_source_path": None,
             "streamflow_source_path": None,
             "water_level_source_path": None,
+            "gfs_source_path": None,
             "data_region": None,
             "download": True,
             "validation_path": None,
@@ -280,6 +281,7 @@ def cmd(
     rainfall_source_path=None,
     streamflow_source_path=None,
     water_level_source_path=None,
+    gfs_source_path=None,
     source_region=None,
     download=0,
     scaler=None,
@@ -403,6 +405,13 @@ def cmd(
         dest="water_level_source_path",
         help="directory of water level's data source",
         default=water_level_source_path,
+        nargs="+",
+    )
+    parser.add_argument(
+        "--gfs_source_path",
+        dest="gfs_source_path",
+        help="directory of gfs data source",
+        default=gfs_source_path,
         nargs="+",
     )
     parser.add_argument(
@@ -975,11 +984,13 @@ def update_cfg(cfg_file, new_args):
             isinstance(new_args.rainfall_source_path, list)
             and len(new_args.rainfall_source_path) == 1
         ):
-            cfg_file["data_cfgs"]["rainfall_source_path"] = new_args.rainfall_source_path[
-                0
-            ]
+            cfg_file["data_cfgs"][
+                "rainfall_source_path"
+            ] = new_args.rainfall_source_path[0]
     if new_args.streamflow_source_path is not None:
-        cfg_file["data_cfgs"]["streamflow_source_path"] = new_args.streamflow_source_path
+        cfg_file["data_cfgs"][
+            "streamflow_source_path"
+        ] = new_args.streamflow_source_path
         if (
             isinstance(new_args.streamflow_source_path, list)
             and len(new_args.streamflow_source_path) == 1
@@ -998,6 +1009,8 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"][
                 "water_level_source_path"
             ] = new_args.water_level_source_path[0]
+    if new_args.gfs_source_path is not None:
+        cfg_file["data_cfgs"]["gfs_source_path"] = new_args.gfs_source_path
     if new_args.source_region is not None:
         cfg_file["data_cfgs"]["data_region"] = new_args.source_region
         if len(new_args.source_region) == 1:

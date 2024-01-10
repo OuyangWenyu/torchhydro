@@ -132,9 +132,6 @@ class SPP_LSTM_Model(nn.Module):
         self.forecast_length = forecast_length
 
     def forward(self, x):
-        #  print(x.shape)
-        x = torch.squeeze(x, dim=1)
-        # print(x.shape)
         x = self.conv1(x)
         x = torch.relu(x)
         x = self.conv2(x)
@@ -148,20 +145,17 @@ class SPP_LSTM_Model(nn.Module):
         x = torch.relu(x)
         x = self.maxpool2(x)
         x = self.dropout(x)
-        # print(x.shape)
         x = x.view(x.shape[0], x.shape[1], -1)
-        # print(x.shape)
         x, _ = self.lstm(x)
-        # print(x.shape)
         x = self.dense(x)
         x = x[:, -self.forecast_length :, :]
-        # print(x.shape)
         return x
-        # return x.unsqueeze(2).transpose(0, 1)
 
 
 class SPP_LSTM_Model_2(nn.Module):
-    def __init__(self, seq_length, forecast_length, n_output, n_hidden_states, dropout):
+    def __init__(
+        self, seq_length, forecast_length, n_output, n_hidden_states, dropout, len_c
+    ):
         super(SPP_LSTM_Model_2, self).__init__()
         self.conv1 = nn.Conv2d(
             in_channels=1,
@@ -173,7 +167,7 @@ class SPP_LSTM_Model_2(nn.Module):
         self.leaky_relu = nn.LeakyReLU(0.01)
 
         self.lstm = nn.LSTM(
-            input_size=32 * 5, hidden_size=n_hidden_states, batch_first=True
+            input_size=32 * 5 + len_c, hidden_size=n_hidden_states, batch_first=True
         )
 
         self.dropout = nn.Dropout(dropout)
@@ -185,15 +179,28 @@ class SPP_LSTM_Model_2(nn.Module):
         self.length = seq_length + forecast_length
         self.forecast_length = forecast_length
 
-    def forward(self, x):
-        x = torch.squeeze(x, dim=1)
-        x = x.view(-1, x.shape[2], x.shape[3], x.shape[4])
-        x = self.conv1(x)
-        x = self.leaky_relu(x)
-        x = self.spp(x)
-        x = x.view(x.shape[0], -1)
-        x = x.view(int(x.shape[0] / (self.length)), self.length, -1)
-        x, _ = self.lstm(x)
-        x = self.dropout(x)
-        x = self.fc(x)
+    def forward(self, *x_lst):
+        if type(x_lst) is not tuple:
+            x = x_lst.view(-1, x_lst.shape[2], x_lst.shape[3], x_lst.shape[4])
+            x = self.conv1(x)
+            x = self.leaky_relu(x)
+            x = self.spp(x)
+            x = x.view(x.shape[0], -1)
+            x = x.view(int(x.shape[0] / (self.length)), self.length, -1)
+            x, _ = self.lstm(x)
+            x = self.dropout(x)
+            x = self.fc(x)
+        elif type(x_lst) is tuple and len(x_lst) == 2:
+            p = x_lst[0]
+            c = x_lst[1].permute(1, 0, 2)
+            p = p.view(-1, p.shape[2], p.shape[3], p.shape[4])
+            p = self.conv1(p)
+            p = self.leaky_relu(p)
+            p = self.spp(p)
+            p = p.view(p.shape[0], -1)
+            p = p.view(int(p.shape[0] / (self.length)), self.length, -1)
+            x = torch.cat([p, c], dim=2)
+            x, _ = self.lstm(x)
+            x = self.dropout(x)
+            x = self.fc(x)
         return x[:, -self.forecast_length :, :]

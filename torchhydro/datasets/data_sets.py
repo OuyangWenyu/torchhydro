@@ -457,13 +457,10 @@ class GPM_GFS_Dataset(Dataset):
                 self.forecast_length,
                 self.data_cfgs["water_level_source_path"],
             )
-
             if data_waterlevel_ds is not None:
-                data_waterlevel = self._trans2da_and_setunits(data_waterlevel_ds)
+                y_origin = self._trans2da_and_setunits(data_waterlevel_ds)
             else:
-                data_waterlevel = None
-
-            self.y_origin = data_waterlevel
+                data_streamflow_ds = None
 
         elif self.data_cfgs["target_cols"] == ["streamflow"]:
             data_streamflow_ds = self.data_source.read_streamflow_xrdataset(
@@ -473,64 +470,86 @@ class GPM_GFS_Dataset(Dataset):
                 self.forecast_length,
                 self.data_cfgs["streamflow_source_path"],
             )
-
             if data_streamflow_ds is not None:
-                data_streamflow = self._trans2da_and_setunits(data_streamflow_ds)
+                y_origin = self._trans2da_and_setunits(data_streamflow_ds)
             else:
-                data_streamflow = None
+                y_origin = self._trans2da_and_setunits(data_streamflow_ds)
 
-            self.y_origin = data_streamflow
-
-        data_forcing_ds = self.data_source.read_gpm_xrdataset(
+        data_rainfall = self.data_source.read_rainfall_xrdataset(
             self.t_s_dict["sites_id"],
             self.t_s_dict["t_final_range"],
-            # 1 comes from here
-            self.data_cfgs["relevant_cols"],
+            self.data_cfgs["relevant_cols"][0],
             self.data_cfgs["rainfall_source_path"],
         )
 
-        data_forcing = {}
-        if data_forcing_ds is not None:
-            for basin, data in data_forcing_ds.items():
-                result = data.to_array(dim="variable")
-                data_forcing[basin] = result
+        if self.data_cfgs["relevant_cols"][1:]:
+            data_gfs_ds = self.data_source.read_gfs_xrdataset(
+                self.t_s_dict["sites_id"],
+                self.t_s_dict["t_final_range"],
+                self.data_cfgs["relevant_cols"][1:],
+                self.data_cfgs["gfs_source_path"],
+            )
+            data_gfs = self._trans2da_and_setunits(data_gfs_ds)
         else:
-            data_forcing = None
+            data_gfs = None
 
-        self.x_origin = data_forcing
+        if self.data_cfgs["constant_cols"]:
+            data_attr_ds = self.data_source.read_attr_xrdataset(
+                self.t_s_dict["sites_id"],
+                self.data_cfgs["constant_cols"],
+                self.data_cfgs["attributes_path"],
+            )
+            data_attr = self._trans2da_and_setunits(data_attr_ds)
+        else:
+            data_attr = None
 
         scaler_hub = Muti_Basin_GPM_GFS_SCALER(
-            self.y_origin,
-            data_forcing,
-            data_attr=None,
+            y_origin,
+            data_rainfall,
+            data_attr,
+            data_gfs,
             data_cfgs=self.data_cfgs,
             is_tra_val_te=self.is_tra_val_te,
             data_source=self.data_source,
         )
 
-        self.x, self.y = self.kill_nan(scaler_hub.x, scaler_hub.y)
+        self.x, self.y, self.c, self.g = self.kill_nan(
+            scaler_hub.x, scaler_hub.y, scaler_hub.c, scaler_hub.g
+        )
 
         self.target_scaler = scaler_hub.target_scaler
 
         self._create_lookup_table()
 
-    def kill_nan(self, x, y):
+    def kill_nan(self, x, y, c, g):
         data_cfgs = self.data_cfgs
         y_rm_nan = data_cfgs["target_rm_nan"]
         x_rm_nan = data_cfgs["relevant_rm_nan"]
+        c_rm_nan = data_cfgs["constant_rm_nan"]
+
         if x_rm_nan:
-            # As input, we cannot have NaN values
             for xx in x.values():
                 for i in range(xx.shape[0]):
                     xx[i] = xx[i].interpolate_na(
                         dim="time_now", fill_value="extrapolate"
                     )
                 warn_if_nan(xx)
+
         if y_rm_nan:
             _fill_gaps_da(y, fill_nan="interpolate")
             warn_if_nan(y)
 
-        return x, y
+        if c_rm_nan and c is not None:
+            _fill_gaps_da(c, fill_nan="mean")
+            warn_if_nan(c)
+
+        if x_rm_nan and g is not None:
+            for gg in g.values():
+                for i in range(gg.shape[0]):
+                    gg[i] = gg[i].interpolate_na(dim="time", fill_value="extrapolate")
+                warn_if_nan(gg)
+
+        return x, y, c, g
 
     def _trans2da_and_setunits(self, ds):
         """Set units for dataarray transfromed from dataset"""
@@ -552,14 +571,14 @@ class GPM_GFS_Dataset(Dataset):
         seq_length = self.rho
         output_seq_len = self.forecast_length
 
-        xx = (
+        x = (
             self.x[basin]
             .sel(time_now=time)
             .sel(step=slice(0, seq_length + output_seq_len - 1))
             .values
         )
+        x = np.transpose(x, (1, 0, 2, 3))
 
-        x = xx.reshape(xx.shape[0], xx.shape[1], 1, xx.shape[2], xx.shape[3])
         y = (
             self.y.sel(basin=basin)
             .sel(
@@ -570,6 +589,14 @@ class GPM_GFS_Dataset(Dataset):
             )
             .values
         ).T
+        if self.c is not None:
+            c = self.c.sel(basin=basin).values
+            c = np.tile(c, (x.shape[0], 1))
+            return (
+                [torch.from_numpy(x).float(), torch.from_numpy(c).float()],
+                torch.from_numpy(y).float(),
+            )
+
         return torch.from_numpy(x).float(), torch.from_numpy(y).float()
 
     def basins(self):
