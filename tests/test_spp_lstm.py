@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore")
 
 @pytest.fixture()
 def config():
-    project_name = "test_spp_lstm/ex3"
+    project_name = "test_spp_lstm/ex1"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -36,14 +36,30 @@ def config():
             "seq_length": 168,
             "forecast_length": 24,
             "n_output": 1,
-            "n_hidden_states": 60,
+            "n_hidden_states": 80,
             "dropout": 0.25,
-            "len_c": 4,  # 需要与len(var_c)相等
+            "len_c": 15,  # 需要与len(var_c)相等
         },
         gage_id=["1_02051500", "86_21401550"],
         batch_size=256,
         var_t=[["tp"]],  # tp作为list放在第一个，后面放gfs的气象数据
-        var_c=["sgr_dk_sav", "glc_pc_s06", "glc_pc_s07", "nli_ix_sav"],  # 暂时放了4个
+        var_c=[
+            "area",  # 面积
+            "ele_mt_smn",  # 海拔(空间平均)
+            "slp_dg_sav",  # 地形坡度 (空间平均)
+            "sgr_dk_sav",  # 河流坡度 (平均)
+            "for_pc_sse",  # 森林覆盖率
+            "glc_cl_smj",  # 土地覆盖类型
+            "run_mm_syr",  # 陆面径流 (流域径流的空间平均值)
+            "inu_pc_slt",  # 淹没范围 (长期最大)
+            "cmi_ix_syr",  # 气候湿度指数
+            "aet_mm_syr",  # 实际蒸散发 (年平均)
+            "snw_pc_syr",  # 雪盖范围 (年平均)
+            "swc_pc_syr",  # 土壤水含量
+            "gwt_cm_sav",  # 地下水位深度
+            "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
+            "dor_pc_pva",  # 调节程度
+        ],
         var_out=["streamflow"],
         dataset="GPM_GFS_Dataset",
         sampler="WuSampler",
@@ -67,12 +83,12 @@ def config():
         opt="Adam",
         lr_scheduler={1: 1e-3},
         lr_factor=0.5,
-        lr_patience=2,
+        lr_patience=1,
         weight_decay=1e-5,  # L2正则化衰减权重
         lr_val_loss=True,  # False则用NSE作为指标，而不是val loss,来更新lr、model、早退
         which_first_tensor="sequence",
         early_stopping=True,
-        patience=10,
+        patience=4,
         rolling=False,  # evaluate 不采用滚动预测
         ensemble=True,
         ensemble_items={

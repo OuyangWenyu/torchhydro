@@ -40,13 +40,29 @@ def config_data():
             "n_output": 1,
             "n_hidden_states": 60,
             "dropout": 0.25,
-            "len_c": 4,
+            "len_c": 15,
         },
         gage_id=["86_21401550"],
         batch_size=256,
         var_t=[["tp"]],
         var_out=["streamflow"],
-        var_c=["sgr_dk_sav", "glc_pc_s06", "glc_pc_s07", "nli_ix_sav"],
+        var_c=[
+            "area",  # 面积
+            "ele_mt_smn",  # 海拔(空间平均)
+            "slp_dg_sav",  # 地形坡度 (空间平均)
+            "sgr_dk_sav",  # 河流坡度 (平均)
+            "for_pc_sse",  # 森林覆盖率
+            "glc_cl_smj",  # 土地覆盖类型
+            "run_mm_syr",  # 陆面径流 (流域径流的空间平均值)
+            "inu_pc_slt",  # 淹没范围 (长期最大)
+            "cmi_ix_syr",  # 气候湿度指数
+            "aet_mm_syr",  # 实际蒸散发 (年平均)
+            "snw_pc_syr",  # 雪盖范围 (年平均)
+            "swc_pc_syr",  # 土壤水含量
+            "gwt_cm_sav",  # 地下水位深度
+            "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
+            "dor_pc_pva",  # 调节程度
+        ],
         dataset="GPM_GFS_Dataset",
         sampler="WuSampler",
         scaler="GPM_GFS_Scaler",
