@@ -7,34 +7,34 @@ Description: A pytorch dataset class; references to https://github.com/neuralhyd
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
-import os
+import io
 import logging
 import sys
-import io
+from collections import OrderedDict
+from datetime import datetime, timedelta
+from typing import Optional
+
+import boto3
 import numpy as np
 import pint_xarray  # noqa: F401
-import torch
-import boto3
 import requests
+import torch
 import xarray as xr
 from botocore.config import Config
-from typing import Optional
 from hydrodataset import HydroDataset
-from torchhydro.datasets.data_source_gpm_gfs import GPM_GFS
 from torch.utils.data import Dataset
 from tqdm import tqdm
+
 from torchhydro.datasets.data_scalers import (
     ScalerHub,
     Muti_Basin_GPM_GFS_SCALER,
-    Muti_Basin_Batch_Loading_SCALER,
 )
+from torchhydro.datasets.data_source_gpm_gfs import GPM_GFS
 from torchhydro.datasets.data_utils import (
     warn_if_nan,
     wrap_t_s_dict,
     unify_streamflow_unit,
 )
-from collections import OrderedDict
-from datetime import datetime, timedelta
 
 LOGGER = logging.getLogger(__name__)
 
@@ -456,6 +456,7 @@ class GPM_GFS_Dataset(Dataset):
                 self.data_cfgs["target_cols"],
                 self.forecast_length,
                 self.data_cfgs["water_level_source_path"],
+                self.data_cfgs['user']
             )
             if data_waterlevel_ds is not None:
                 y_origin = self._trans2da_and_setunits(data_waterlevel_ds)
@@ -468,6 +469,7 @@ class GPM_GFS_Dataset(Dataset):
                 self.t_s_dict["t_final_range"],
                 self.data_cfgs["target_cols"],
                 self.forecast_length,
+                self.data_cfgs["user"],
                 self.data_cfgs["streamflow_source_path"],
             )
             if data_streamflow_ds is not None:
@@ -488,6 +490,7 @@ class GPM_GFS_Dataset(Dataset):
                 self.t_s_dict["t_final_range"],
                 self.data_cfgs["relevant_cols"][1:],
                 self.data_cfgs["gfs_source_path"],
+                self.data_cfgs["user"]
             )
             data_gfs = self._trans2da_and_setunits(data_gfs_ds)
         else:
@@ -498,6 +501,7 @@ class GPM_GFS_Dataset(Dataset):
                 self.t_s_dict["sites_id"],
                 self.data_cfgs["constant_cols"],
                 self.data_cfgs["attributes_path"],
+                self.data_cfgs["user"],
             )
             data_attr = self._trans2da_and_setunits(data_attr_ds)
         else:

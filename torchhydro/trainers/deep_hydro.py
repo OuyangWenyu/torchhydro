@@ -375,7 +375,6 @@ class DeepHydro(DeepHydroInterface):
                 model_filepath, f"model_Ep{str(test_epoch)}.pth"
             )
             self.model = self.load_model()
-
         if self.cfgs["data_cfgs"]["dataset"] == "GPM_GFS_Dataset":
             if self.cfgs["model_cfgs"]["continue_train"]:
                 model_filepath = self.cfgs["data_cfgs"]["test_path"]
@@ -383,7 +382,6 @@ class DeepHydro(DeepHydroInterface):
             else:
                 self.weight_path = self.cfgs["model_cfgs"]["weight_path"]
             self.model = self.load_model()
-
         preds_xr, obss_xr, test_data = self.inference()
         #  Then evaluate the model metrics
         if type(fill_nan) is list and len(fill_nan) != len(target_col):

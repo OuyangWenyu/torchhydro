@@ -27,9 +27,9 @@ def config_data():
         sub=project_name,
         source="GPM_GFS",
         source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
-        streamflow_source_path="/ftproot/biliuhe/merge_streamflow.nc",
-        rainfall_source_path="/ftproot/biliuhe",
-        attributes_path="/ftproot/biliuhe/camelsus_attributes.nc",
+        streamflow_source_path=r"C:\Users\Administrator\.hydrodataset\cache\merge_streamflow.nc",
+        rainfall_source_path=r"C:\Users\Administrator\PycharmProjects\AIFloodForecast\test_data\biliuhe",
+        attributes_path=r"C:\Users\Administrator\PycharmProjects\AIFloodForecast\test_data\camelsus_attributes.nc",
         gfs_source_path="",
         download=0,
         ctx=[2],
@@ -57,6 +57,7 @@ def config_data():
         weight_path=os.path.join(train_path, "best_model.pth"),
         stat_dict_file=os.path.join(train_path, "GPM_GFS_Scaler_2_stat.json"),
         continue_train=False,
+        user='zxw'
     )
     config_data = default_config_file()
     update_cfg(config_data, args)

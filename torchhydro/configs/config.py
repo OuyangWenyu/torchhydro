@@ -205,6 +205,7 @@ def default_config_file():
             "sampler": None,
             "rolling": False,
             "loading_batch": None,
+            "user": None,
         },
         "training_cfgs": {
             # if train_mode is False, don't train and evaluate
@@ -352,6 +353,7 @@ def cmd(
     ensemble_items=None,
     early_stopping=None,
     patience=None,
+    user=None,
     endpoint_url=None,
     access_key=None,
     secret_key=None,
@@ -873,6 +875,13 @@ def cmd(
         type=bool,
     )
     parser.add_argument(
+        "--user",
+        dest="user",
+        help="user_name to distinguish trainer or tester",
+        default=user,
+        type=str,
+    )
+    parser.add_argument(
         "--patience",
         dest="patience",
         help="patience config",
@@ -1229,7 +1238,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["start_epoch"] = new_args.start_epoch
     if new_args.stat_dict_file is not None:
         cfg_file["data_cfgs"]["stat_dict_file"] = new_args.stat_dict_file
-
     if new_args.model_wrapper is not None:
         cfg_file["model_cfgs"]["model_wrapper"] = new_args.model_wrapper
     if new_args.model_wrapper_param is not None:
@@ -1260,6 +1268,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["patience"] = new_args.patience
     if new_args.early_stopping is not None:
         cfg_file["training_cfgs"]["early_stopping"] = new_args.early_stopping
+    if new_args.user is not None:
+        cfg_file["data_cfgs"]["user"] = new_args.user
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 
