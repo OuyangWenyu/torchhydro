@@ -149,10 +149,11 @@ class GPM_GFS(HydroDataset):
 
     def read_rainfall_xrdataset(
         self,
-        gage_id_lst: list = None,
-        t_range: list = None,
-        var_lst: list = None,
-        rainfall_source_path: str = None,
+        gage_id_lst: list,
+        t_range: list,
+        var_lst: list,
+        rainfall_source_path: str | os.PathLike | list,
+        user: str,
         **kwargs,
     ):
         """
@@ -178,19 +179,33 @@ class GPM_GFS(HydroDataset):
         if var_lst is None:
             return None
         rainfall_dict = {}
-        # 如何将流域号与一系列对象组合起来
-        for basin in gage_id_lst:
-            rainfall = xr.open_dataset(
-                os.path.join(rainfall_source_path, f"{basin}.nc")
-            )
-            subset_list = []
-            for period in t_range:
-                start_date = period["start"]
-                end_date = period["end"]
-                subset = rainfall.sel(time_now=slice(start_date, end_date))
-                subset_list.append(subset)
-            merged_dataset_tp = xr.concat(subset_list, dim="time_now")
-            rainfall_dict[basin] = merged_dataset_tp.to_array(dim="variable")
+        if user in privacy_cfg["trainer"]:
+            for basin in gage_id_lst:
+                rainfall = xr.open_dataset(
+                    os.path.join(rainfall_source_path, f"{basin}.nc")
+                )
+                subset_list = []
+                for period in t_range:
+                    start_date = period["start"]
+                    end_date = period["end"]
+                    subset = rainfall.sel(time_now=slice(start_date, end_date))
+                    subset_list.append(subset)
+                merged_dataset_tp = xr.concat(subset_list, dim="time_now")
+                rainfall_dict[basin] = merged_dataset_tp.to_array(dim="variable")
+        elif user in privacy_cfg["tester"]:
+            # 为保证结果正确，rainfall_source_path应该和gage_id一一对应
+            for basin in gage_id_lst:
+                rainfall = rainfall_source_path[gage_id_lst.index(basin)]
+                subset_list = []
+                for period in t_range:
+                    start_date = period["start"]
+                    end_date = period["end"]
+                    subset = rainfall.sel(time_now=slice(start_date, end_date))
+                    subset_list.append(subset)
+                merged_dataset_tp = xr.concat(subset_list, dim="time_now")
+                rainfall_dict[basin] = merged_dataset_tp.to_array(dim="variable")
+        else:
+            raise NotImplementedError
         return rainfall_dict
 
     def read_gfs_xrdataset(
@@ -198,7 +213,7 @@ class GPM_GFS(HydroDataset):
         gage_id_lst: list,
         t_range: list,
         var_lst: list,
-        gfs_source_path: str,
+        gfs_source_path: str|os.PathLike|list,
         user: str,
         **kwargs,
     ):
@@ -226,18 +241,31 @@ class GPM_GFS(HydroDataset):
         if var_lst is None:
             return None
         gfs_dict = {}
-        # 如何将流域号与一系列对象组合起来
-        for basin in gage_id_lst:
-            gfs = xr.open_dataset(os.path.join(gfs_source_path, f"{basin}.nc"))
-            subset_list = []
-            for period in t_range:
-                start_date = period["start"]
-                end_date = period["end"]
-
-                subset = gfs[var_lst].sel(time=slice(start_date, end_date))
-                subset_list.append(subset)
-            merged_dataset_gfs = xr.concat(subset_list, dim="time")
-            gfs_dict[basin] = merged_dataset_gfs.to_array(dim="variable")
+        if user in privacy_cfg["trainer"]:
+            for basin in gage_id_lst:
+                gfs = xr.open_dataset(os.path.join(gfs_source_path, f"{basin}.nc"))
+                subset_list = []
+                for period in t_range:
+                    start_date = period["start"]
+                    end_date = period["end"]
+                    subset = gfs[var_lst].sel(time=slice(start_date, end_date))
+                    subset_list.append(subset)
+                merged_dataset_gfs = xr.concat(subset_list, dim="time")
+                gfs_dict[basin] = merged_dataset_gfs.to_array(dim="variable")
+        elif user in privacy_cfg["tester"]:
+            # 为保证结果正确，gfs_source_path应该和gage_id一一对应
+            for basin in gage_id_lst:
+                gfs = gfs_source_path[gage_id_lst.index(basin)]
+                subset_list = []
+                for period in t_range:
+                    start_date = period["start"]
+                    end_date = period["end"]
+                    subset = gfs[var_lst].sel(time=slice(start_date, end_date))
+                    subset_list.append(subset)
+                merged_dataset_gfs = xr.concat(subset_list, dim="time")
+                gfs_dict[basin] = merged_dataset_gfs.to_array(dim="variable")
+        else:
+            raise NotImplementedError
         return gfs_dict
 
     def read_attr_xrdataset(

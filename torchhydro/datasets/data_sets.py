@@ -499,6 +499,7 @@ class GPM_GFS_Dataset(Dataset):
             self.t_s_dict["t_final_range"],
             self.data_cfgs["relevant_cols"][0],
             self.data_cfgs["rainfall_source_path"],
+            self.data_cfgs['user']
         )
 
         if self.data_cfgs["relevant_cols"][1:]:

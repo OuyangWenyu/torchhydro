@@ -41,6 +41,8 @@ def config_data():
             "n_hidden_states": 60,
             "dropout": 0.25,
             "len_c": 15,
+            "in_channels": 1,  # 卷积层输入通道数，等于len(var_t)
+            "out_channels": 32,  # 输出通道数
         },
         gage_id=["86_21401550"],
         batch_size=256,
