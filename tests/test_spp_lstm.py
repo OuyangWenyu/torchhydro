@@ -91,7 +91,7 @@ def config():
         valid_period=[
             {"start": "2021-07-01", "end": "2021-09-29"},
         ],
-        loss_func="NSELoss",  # RMSESum",#loss可以选择
+        loss_func="MAELoss",  # NSELoss、RMSESum、MAPELoss、MASELoss、MAELoss 可以选择
         opt="Adam",
         lr_scheduler={1: 1e-3},
         lr_factor=0.5,

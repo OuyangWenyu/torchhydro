@@ -25,6 +25,9 @@ from torchhydro.models.crits import (
     DynamicTaskPrior,
     MultiOutWaterBalanceLoss,
     NSELoss,
+    MAPELoss,
+    MASELoss,
+    MAELoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj
 from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
@@ -55,6 +58,9 @@ pytorch_criterion_dict = {
     "DynamicTaskPrior": DynamicTaskPrior,
     "MultiOutWaterBalanceLoss": MultiOutWaterBalanceLoss,
     "NSELoss": NSELoss,
+    "MAPELoss": MAPELoss,
+    "MASELoss": MASELoss,
+    "MAELoss": MAELoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}
