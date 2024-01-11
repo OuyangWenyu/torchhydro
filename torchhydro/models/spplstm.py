@@ -1,7 +1,7 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-09-30 1:20:18
-LastEditTime: 2023-12-29 11:05:57
+LastEditTime: 2023-01-11 14:50:00
 LastEditors: Xinzhuo Wu
 Description: spp lstm model
 FilePath: torchhydr\models\spplstm.py
@@ -154,12 +154,50 @@ class SPP_LSTM_Model(nn.Module):
 
 class SPP_LSTM_Model_2(nn.Module):
     def __init__(
-        self, seq_length, forecast_length, n_output, n_hidden_states, dropout, len_c
+        self,
+        seq_length,
+        forecast_length,
+        n_output,
+        n_hidden_states,
+        dropout,
+        len_c,
+        in_channels,
+        out_channels,
     ):
+        """
+        A neural network model combining Convolutional, Spatial Pyramid Pooling (SPP), and LSTM layers for time series forecasting.
+
+        This model is designed for complex time series data, such as hydrological or meteorological datasets. It utilizes a convolutional layer for feature extraction, an SPP layer for handling inputs of varying sizes, and an LSTM layer for capturing temporal dependencies.
+
+        Components:
+        - Convolutional Layer (conv1): Extracts spatial features from input data.
+        - LeakyReLU Activation: Provides non-linearity to the model.
+        - LSTM Layer (lstm): Captures temporal dependencies in the data.
+        - Dropout Layer: Reduces overfitting by randomly dropping units during training.
+        - Fully Connected Layer (fc): Maps LSTM outputs to the desired output size.
+        - SPP Layer (spp): Enables the model to handle inputs of varying sizes and resolutions.
+
+        Parameters:
+        - seq_length: The length of the input time series sequences.
+        - forecast_length: The length of the forecast horizon.
+        - n_output: The number of output features.
+        - n_hidden_states: The number of hidden states in the LSTM layer.
+        - dropout: The dropout rate for regularization.
+        - len_c: The length of constant attributes input.
+        - in_channels: The number of input channels for the convolutional layer.
+        - out_channels: The number of output channels for the convolutional layer.
+
+        The forward method:
+        - Processes input data through the convolutional, SPP, and LSTM layers.
+        - Handles different input types, including single input arrays and tuples of arrays.
+
+        The model is particularly suited for forecasting tasks where the input data includes both spatial and temporal features, and where the input size might vary.
+        """
+
         super(SPP_LSTM_Model_2, self).__init__()
         self.conv1 = nn.Conv2d(
-            in_channels=1,
-            out_channels=32,
+            in_channels=in_channels,
+            out_channels=out_channels,
             kernel_size=(3, 3),
             padding="same",
         )
@@ -167,7 +205,9 @@ class SPP_LSTM_Model_2(nn.Module):
         self.leaky_relu = nn.LeakyReLU(0.01)
 
         self.lstm = nn.LSTM(
-            input_size=32 * 5 + len_c, hidden_size=n_hidden_states, batch_first=True
+            input_size=out_channels * 5 + len_c,
+            hidden_size=n_hidden_states,
+            batch_first=True,
         )
 
         self.dropout = nn.Dropout(dropout)

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-12-29 11:05:57
+LastEditTime: 2023-01-11 14:44:00
 LastEditors: Xinzhuo Wu
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -441,6 +441,23 @@ class GPM_GFS_Dataset(Dataset):
         self._load_data()
 
     def _load_data(self):
+        """
+        Loads and prepares data for hydrological modeling, accommodating different types of data sources and configurations.
+
+        This internal method orchestrates the loading and preprocessing of various datasets, including water level, streamflow, rainfall, GFS data, and constant attributes. It applies necessary transformations and scaling to these datasets, aligning them with the configuration settings and preparing them for use in model training and evaluation.
+
+        Process:
+        1. Sets up basic configuration parameters such as training mode, historical data length, forecast length, and warmup length.
+        2. Creates a dictionary of site and time information based on the data source and configuration.
+        3. Depending on the target column configuration, loads either water level or streamflow data, and applies transformations.
+        4. Loads rainfall data and, if configured, GFS data.
+        5. Loads constant attribute data if specified in the configuration.
+        6. Initializes the `Muti_Basin_GPM_GFS_SCALER` for scaling and normalization of all datasets.
+        7. Removes NaN values from the datasets and stores the processed data in class attributes.
+        8. Creates a lookup table for data indexing and retrieval.
+
+        The method ensures that all necessary data is loaded, processed, and made ready for the subsequent stages of hydrological modeling. It accounts for various configurations and data types, providing a flexible and robust approach to data preparation.
+        """
         train_mode = self.is_tra_val_te == "train"
         self.train_mode = train_mode
         self.rho = self.data_cfgs["forecast_history"]
@@ -456,7 +473,7 @@ class GPM_GFS_Dataset(Dataset):
                 self.data_cfgs["target_cols"],
                 self.forecast_length,
                 self.data_cfgs["water_level_source_path"],
-                self.data_cfgs['user']
+                self.data_cfgs["user"],
             )
             if data_waterlevel_ds is not None:
                 y_origin = self._trans2da_and_setunits(data_waterlevel_ds)
@@ -485,14 +502,13 @@ class GPM_GFS_Dataset(Dataset):
         )
 
         if self.data_cfgs["relevant_cols"][1:]:
-            data_gfs_ds = self.data_source.read_gfs_xrdataset(
+            data_gfs = self.data_source.read_gfs_xrdataset(
                 self.t_s_dict["sites_id"],
                 self.t_s_dict["t_final_range"],
                 self.data_cfgs["relevant_cols"][1:],
                 self.data_cfgs["gfs_source_path"],
-                self.data_cfgs["user"]
+                self.data_cfgs["user"],
             )
-            data_gfs = self._trans2da_and_setunits(data_gfs_ds)
         else:
             data_gfs = None
 
@@ -526,6 +542,32 @@ class GPM_GFS_Dataset(Dataset):
         self._create_lookup_table()
 
     def kill_nan(self, x, y, c, g):
+        """
+        Removes or interpolates NaN values in the provided datasets.
+
+        This method is responsible for handling NaN (Not a Number) values in various datasets including time series data (x),
+        observation data (y), constant attributes (c), and GFS data (g). It applies specified strategies to either remove or
+        interpolate NaN values based on the data configurations.
+
+        Parameters:
+        - x: Dictionary of time series data for each basin.
+        - y: xarray Dataset or NumPy array of observation data.
+        - c: xarray Dataset or NumPy array of constant attribute data.
+        - g: Dictionary of GFS data for each basin.
+
+        Process:
+        1. For time series data (x), interpolates NaN values if specified in the configuration.
+        2. For observation data (y), fills gaps using interpolation or another specified method.
+        3. For constant attributes (c), fills gaps using the mean or another specified method, if applicable.
+        4. For GFS data (g), interpolates NaN values if specified.
+
+        Each dataset is checked for NaN values, and a warning is issued if NaNs are still present after processing.
+
+        Returns:
+        The processed datasets (x, y, c, g) with NaN values handled according to the specified configurations.
+
+        This method plays a crucial role in ensuring data quality and consistency, particularly in hydrological modeling where NaN values can significantly impact model performance and results.
+        """
         data_cfgs = self.data_cfgs
         y_rm_nan = data_cfgs["target_rm_nan"]
         x_rm_nan = data_cfgs["relevant_rm_nan"]
@@ -570,6 +612,28 @@ class GPM_GFS_Dataset(Dataset):
         return self.num_samples
 
     def __getitem__(self, item: int):
+        """
+        Retrieves a sample from the dataset for a given index, including both input features and target values.
+
+        This method is a key component of the dataset class, enabling indexed access to the data, which is crucial for training and evaluating models in machine learning workflows.
+
+        Parameters:
+        - item: An integer index for the data sample to be retrieved.
+
+        Process:
+        1. Determines the basin and time corresponding to the given index from the lookup table.
+        2. Selects a sequence of data for the specified time and basin, based on configured sequence length (rho) and output sequence length (forecast length).
+        3. Transforms and aligns the time series data (x), observation data (y), constant attributes (c), and GFS data (g) for the specified basin and time.
+        4. If both constant attributes and GFS data are available, concatenates these with the time series data.
+        5. Converts the selected data into PyTorch tensors suitable for model input.
+
+        Returns:
+        A tuple containing:
+        - A list of PyTorch tensors for input features (time series data, constant attributes, and optionally GFS data).
+        - A PyTorch tensor for the target values (y).
+
+        This method facilitates the retrieval of properly formatted and aligned data samples for model training and evaluation, ensuring that each input feature and target value corresponds to the correct time step and basin.
+        """
         # here time is time_now in gpm_gfs_data
         basin, time = self.lookup_table[item]
         seq_length = self.rho
@@ -593,14 +657,34 @@ class GPM_GFS_Dataset(Dataset):
             )
             .values
         ).T
-        if self.c is not None:
+        if self.c is not None and self.g is not None:
+            c = self.c.sel(basin=basin).values
+            c = np.tile(c, (x.shape[0], 1))
+
+            g = (
+                self.g[basin]
+                .sel(
+                    time=slice(
+                        time - np.timedelta64(seq_length, "h"),
+                        time + np.timedelta64(output_seq_len - 1, "h"),
+                    )
+                )
+                .values
+            )
+
+            g = np.transpose(g, (1, 0, 2, 3))
+            x_g = np.concatenate((x, g), axis=1)
+            return (
+                [torch.from_numpy(x_g).float(), torch.from_numpy(c).float()],
+                torch.from_numpy(y).float(),
+            )
+        elif self.c is not None:
             c = self.c.sel(basin=basin).values
             c = np.tile(c, (x.shape[0], 1))
             return (
                 [torch.from_numpy(x).float(), torch.from_numpy(c).float()],
                 torch.from_numpy(y).float(),
             )
-
         return torch.from_numpy(x).float(), torch.from_numpy(y).float()
 
     def basins(self):
@@ -612,6 +696,24 @@ class GPM_GFS_Dataset(Dataset):
         return self.t_s_dict["t_final_range"]
 
     def _create_lookup_table(self):
+        """
+        Creates a lookup table mapping each sample index to a corresponding basin and time step.
+
+        This method is crucial for efficiently accessing data samples during the training and evaluation of models. It generates a dictionary where each key is a sample index, and the value is a tuple of basin ID and time step. The method ensures that the dataset is properly indexed for random access in machine learning workflows.
+
+        Process:
+        1. Initializes an empty list for the lookup table.
+        2. Retrieves the list of basin IDs and the time steps from the time series data.
+        3. Calculates the total number of time steps and divides it by the number of time ranges to find the length of each time range.
+        4. Iterates through each basin and time range, appending tuples of basin and time step to the lookup list.
+        5. Converts the list into a dictionary for faster access, where each key-value pair corresponds to a sample index and its associated basin and time information.
+
+        Post-Process:
+        - Stores the lookup table as a class attribute.
+        - Sets the total number of samples in the dataset for reference.
+
+        This method ensures that each sample in the dataset can be quickly and accurately retrieved by its index, which is essential for batch processing in machine learning models, especially in time series forecasting and hydrological applications.
+        """
         lookup = []
         basins = self.t_s_dict["sites_id"]
         dates = self.x[basins[0]]["time_now"].to_numpy()  # 取其中一个流域的时间作为标尺
@@ -635,6 +737,7 @@ class GPM_GFS_Dataset(Dataset):
         self.num_samples = len(self.lookup_table)
 
 
+# Todo
 class GPM_GFS_batch_loading_Dataset(Dataset):
     def __init__(self, data_cfgs: dict, minio_cfgs: dict, is_tra_val_te: str):
         super(GPM_GFS_batch_loading_Dataset, self).__init__()

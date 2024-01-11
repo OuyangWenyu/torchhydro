@@ -19,16 +19,16 @@ warnings.filterwarnings("ignore")
 
 @pytest.fixture()
 def config():
-    project_name = "test_spp_lstm/ex1"
+    project_name = "test_spp_lstm/ex9"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source="GPM_GFS",
         source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
         streamflow_source_path="/ftproot/biliuhe/merge_streamflow.nc",
-        rainfall_source_path="/ftproot/biliuhe",
+        rainfall_source_path="/ftproot/biliuhe",  # 文件夹(流域编号.nc)
         attributes_path="/ftproot/biliuhe/camelsus_attributes.nc",
-        gfs_source_path="",
+        gfs_source_path="/ftproot/biliuhe/gfs_forcing",  # 文件夹(流域编号.nc)
         download=0,
         ctx=[2],
         model_name="SPPLSTM2",
@@ -36,13 +36,25 @@ def config():
             "seq_length": 168,
             "forecast_length": 24,
             "n_output": 1,
-            "n_hidden_states": 80,
+            "n_hidden_states": 60,
             "dropout": 0.25,
             "len_c": 15,  # 需要与len(var_c)相等
+            "in_channels": 1,  # 卷积层输入通道数，等于len(var_t)
+            "out_channels": 8,  # 输出通道数
         },
-        gage_id=["1_02051500", "86_21401550"],
+        gage_id=["1_02051500", "86_21401550"],  # ["86_21401550"],
         batch_size=256,
-        var_t=[["tp"]],  # tp作为list放在第一个，后面放gfs的气象数据
+        var_t=[
+            ["tp"],
+            # "dswrf",
+            # "pwat",
+            # "2r",
+            # "2sh",
+            # "2t",
+            # "tcc",
+            # "10u",
+            # "10v",
+        ],  # tp作为list放在第一个，后面放gfs的气象数据
         var_c=[
             "area",  # 面积
             "ele_mt_smn",  # 海拔(空间平均)
@@ -79,22 +91,23 @@ def config():
         valid_period=[
             {"start": "2021-07-01", "end": "2021-09-29"},
         ],
-        loss_func="RMSESum",
+        loss_func="NSELoss",  # RMSESum",#loss可以选择
         opt="Adam",
         lr_scheduler={1: 1e-3},
         lr_factor=0.5,
-        lr_patience=1,
+        lr_patience=0,
         weight_decay=1e-5,  # L2正则化衰减权重
-        lr_val_loss=True,  # False则用NSE作为指标，而不是val loss,来更新lr、model、早退
+        lr_val_loss=True,  # False则用NSE作为指标，而不是val loss,来更新lr、model、早退，建议选择True
         which_first_tensor="sequence",
         early_stopping=True,
         patience=4,
         rolling=False,  # evaluate 不采用滚动预测
         ensemble=True,
         ensemble_items={
-            "kfold": 5,
+            "kfold": 5,  # exi_0即17年验证,...exi_4即21年验证
             "batch_sizes": [256],
         },
+        user="zxw",  # 注意，在本地(/home/xxx)需要有privacy_config.yml
     )
     update_cfg(config_data, args)
     return config_data

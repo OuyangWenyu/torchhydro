@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-12-29 11:05:57
+LastEditTime: 2023-01-11 14:49:00
 LastEditors: Xinzhuo Wu
 Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \torchhydro\torchhydro\models\model_dict_function.py
@@ -24,6 +24,7 @@ from torchhydro.models.crits import (
     UncertaintyWeights,
     DynamicTaskPrior,
     MultiOutWaterBalanceLoss,
+    NSELoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj
 from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
@@ -53,6 +54,7 @@ pytorch_criterion_dict = {
     "UncertaintyWeights": UncertaintyWeights,
     "DynamicTaskPrior": DynamicTaskPrior,
     "MultiOutWaterBalanceLoss": MultiOutWaterBalanceLoss,
+    "NSELoss": NSELoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}
