@@ -21,6 +21,7 @@ from hydroutils.hydro_stat import (
     cal_4_stat_inds,
 )
 
+from torchhydro.datasets.data_source_gpm_gfs import GPM_GFS
 from torchhydro.datasets.data_utils import (
     _trans_norm,
     _prcp_norm,
@@ -706,9 +707,13 @@ class GPM_GFS_Scaler_2(object):
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                mean_prep = self.data_source.read_mean_prcp(
-                    self.t_s_dict["sites_id"], self.data_cfgs["attributes_path"]
-                )
+                if isinstance(self.data_source, GPM_GFS):
+                    mean_prep = self.data_source.read_mean_prcp(
+                        self.t_s_dict["sites_id"], self.data_cfgs["attributes_path"], self.data_cfgs['user']
+                    )
+                else:
+                    mean_prep = self.data_source.read_mean_prcp(
+                    self.t_s_dict["sites_id"], self.data_cfgs["attributes_path"])
                 out.loc[dict(variable=var)] = self.GPM_GFS_prcp_norm(
                     data.sel(variable=var).to_numpy(),
                     mean_prep.to_numpy(),
@@ -785,9 +790,13 @@ class GPM_GFS_Scaler_2(object):
             for i in range(len(self.data_cfgs["target_cols"])):
                 var = self.data_cfgs["target_cols"][i]
                 if var in self.prcp_norm_cols:
-                    mean_prep = self.data_source.read_mean_prcp(
-                        self.t_s_dict["sites_id"], self.data_cfgs["attributes_path"]
-                    )
+                    if isinstance(self.data_source, GPM_GFS):
+                        mean_prep = self.data_source.read_mean_prcp(
+                            self.t_s_dict["sites_id"], self.data_cfgs["attributes_path"], self.data_cfgs['user']
+                        )
+                    else:
+                        mean_prep = self.data_source.read_mean_prcp(
+                        self.t_s_dict["sites_id"], self.data_cfgs["attributes_path"])
                     pred.loc[dict(variable=var)] = self.GPM_GFS_prcp_norm(
                         pred.sel(variable=var).to_numpy(),
                         mean_prep.to_numpy(),
