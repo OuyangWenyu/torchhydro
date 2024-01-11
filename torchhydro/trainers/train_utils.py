@@ -19,7 +19,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import xarray as xr
-
+import pandas as pd
 from torchhydro.models.crits import GaussianLoss
 
 
@@ -63,6 +63,8 @@ def model_infer(seq_first, device, model, xs, ys):
         else ys.to(device)
     )
     output = model(*xs)
+    if output.shape[1] == ys.shape[0]:
+        output = output.transpose(0, 1)
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
@@ -70,7 +72,6 @@ def model_infer(seq_first, device, model, xs, ys):
         output = output.transpose(0, 1)
         ys = ys.transpose(0, 1)
     return ys, output
-
 
 def denormalize4eval(validation_data_loader, output, labels):
     target_scaler = validation_data_loader.dataset.target_scaler
@@ -81,24 +82,128 @@ def denormalize4eval(validation_data_loader, output, labels):
         units = {**units, **target_data.attrs["units"]}
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
-    selected_time_points = target_data.coords["time"][warmup_length:]
-    selected_data = target_data.sel(time=selected_time_points)
-    preds_xr = target_scaler.inverse_transform(
-        xr.DataArray(
-            output.transpose(2, 0, 1),
-            dims=selected_data.dims,
-            coords=selected_data.coords,
-            attrs={"units": units},
+    if target_scaler.data_cfgs["scaler"] == "GPM_GFS_Scaler":
+        for i in range(output.shape[1]):
+            if (
+                warmup_length + validation_data_loader.dataset.forecast_length - 1 - i
+                != 0
+            ):
+                selected_time_points = target_data.coords["time"][
+                    -(
+                        warmup_length
+                        + validation_data_loader.batch_size
+                        + validation_data_loader.dataset.forecast_length
+                        - 1
+                        - i
+                    ) : -(
+                        warmup_length
+                        + validation_data_loader.dataset.forecast_length
+                        - 1
+                        - i
+                    )
+                ]
+            else:
+                selected_time_points = target_data.coords["time"][
+                    -(
+                        warmup_length
+                        + validation_data_loader.batch_size
+                        + validation_data_loader.dataset.forecast_length
+                        - 1
+                        - i
+                    ) :
+                ]
+            selected_data = target_data.sel(time=selected_time_points)
+            labels1 = labels[:, i, :].reshape(validation_data_loader.batch_size, -1)
+            labels1 = labels1.reshape(labels1.shape[0], labels1.shape[1], 1)
+            output1 = output.reshape(output.shape[0], output.shape[1], 1)[
+                :, i, :
+            ].reshape(validation_data_loader.batch_size, -1)
+            output1 = output1.reshape(output1.shape[0], output1.shape[1], 1)
+            
+
+            preds_xr = target_scaler.inverse_transform(
+                xr.DataArray(
+                    output1.transpose(1, 0, 2),
+                    dims=selected_data.dims,
+                    coords=selected_data.coords,
+                )
+            )
+            obss_xr = target_scaler.inverse_transform(
+                xr.DataArray(
+                    labels1.transpose(2, 0, 1),
+                    dims=selected_data.dims,
+                    coords=selected_data.coords,
+                )
+            )
+            preds_xr.attrs["units"] = "m"
+            obss_xr.attrs["units"] = "m"
+
+            preds_xr.to_netcdf(
+                os.path.join(
+                    validation_data_loader.dataset.data_cfgs["test_path"],
+                    f"prediction_{str(i+1)}_hour.nc",
+                )
+            )
+
+        selected_time_points = target_data.coords["time"][
+            -(
+                warmup_length
+                + validation_data_loader.batch_size
+                + validation_data_loader.dataset.forecast_length
+                - 1
+            ) : -(+validation_data_loader.dataset.forecast_length - 1)
+        ]
+
+        selected_data = target_data.sel(time=selected_time_points)
+        output = output.reshape(output.shape[0], output.shape[1], 1)[:, 0, :].reshape(
+            validation_data_loader.batch_size, -1
         )
-    )
-    obss_xr = target_scaler.inverse_transform(
-        xr.DataArray(
-            labels.transpose(2, 0, 1),
-            dims=selected_data.dims,
-            coords=selected_data.coords,
-            attrs={"units": units},
+        output = output.reshape(output.shape[0], output.shape[1], 1)
+        labels = labels[:, 0, :].reshape(validation_data_loader.batch_size, -1)
+        labels = labels.reshape(labels.shape[0], labels.shape[1], 1)
+
+        preds_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                output.transpose(2, 0, 1),
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+            )
         )
-    )
+        obss_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                labels.transpose(2, 0, 1),
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+            )
+        )
+        preds_xr.attrs["units"] = "m"
+        obss_xr.attrs["units"] = "m"
+    else:
+        selected_time_points = target_data.coords["time"][warmup_length:output.shape[0]]
+        selected_data = target_data.sel(time=selected_time_points)
+
+        # output = np.sum(output,axis=1)/len(output)
+        # b=[]
+        # for i in output:
+        #     b.append([i.tolist()])
+        # output = np.array(b, dtype='float32')
+
+        preds_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                output.transpose(2, 0, 1),
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
+        )
+        obss_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                labels.transpose(2, 0, 1),
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
+        )
 
     return preds_xr, obss_xr
 
@@ -161,7 +266,13 @@ class EarlyStopper(object):
 
 
 def evaluate_validation(
-    validation_data_loader, output, labels, evaluation_metrics, fill_nan, target_col
+    self,
+    validation_data_loader,
+    output,
+    labels,
+    evaluation_metrics,
+    fill_nan,
+    target_col,
 ):
     """
     calculate metrics for validation
@@ -192,6 +303,9 @@ def evaluate_validation(
     for i in range(len(target_col)):
         obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
         pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
+        if self.cfgs["data_cfgs"]["scaler"] == "GPM_GFS_Scaler":
+            obs_xr = obs_xr.T
+            pred_xr = pred_xr.T
         if type(fill_nan) is str:
             inds = stat_error(
                 obs_xr.to_numpy(),
@@ -209,7 +323,6 @@ def evaluate_validation(
                 evaluation_metric
             ].tolist()
     return eval_log
-
 
 def compute_loss(
     labels: torch.Tensor, output: torch.Tensor, criterion, **kwargs
@@ -235,6 +348,12 @@ def compute_loss(
     float
         the computed loss
     """
+    # a = np.sum(output.cpu().detach().numpy(),axis=1)/len(output)
+    # b=[]
+    # for i in a:
+    #     b.append([i.tolist()])                                 
+    # output = torch.tensor(b, requires_grad=True).to(torch.device("cuda"))
+
     if isinstance(criterion, GaussianLoss):
         if len(output[0].shape) > 2:
             g_loss = GaussianLoss(output[0][:, :, 0], output[1][:, :, 0])
@@ -252,7 +371,6 @@ def compute_loss(
             labels = labels.unsqueeze(0)
     assert labels.shape == output.shape
     return criterion(output, labels.float())
-
 
 def torch_single_train(
     model,
@@ -299,12 +417,13 @@ def torch_single_train(
     for _, (src, trg) in enumerate(pbar):
         # iEpoch starts from 1, iIter starts from 0, we hope both start from 1
         trg, output = model_infer(seq_first, device, model, src, trg)
+
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
-        loss.backward()
-        opt.step()
-        model.zero_grad()
+        loss.backward() # 反向传播计算当前梯度
+        opt.step() # 根据梯度更新网络参数
+        model.zero_grad() # 清空梯度
         if torch.isnan(loss) or loss == float("inf"):
             raise ValueError(
                 "Error infinite or NaN loss detected. Try normalizing data or performing interpolation"
@@ -313,7 +432,6 @@ def torch_single_train(
         n_iter_ep += 1
     total_loss = running_loss / float(n_iter_ep)
     return total_loss, n_iter_ep
-
 
 def compute_validation(
     model,
@@ -353,11 +471,11 @@ def compute_validation(
         # first dim is batch
         obs_final = torch.cat(obs, dim=0)
         pred_final = torch.cat(preds, dim=0)
+
         valid_loss = compute_loss(obs_final, pred_final, criterion)
     y_obs = obs_final.detach().cpu().numpy()
     y_pred = pred_final.detach().cpu().numpy()
     return y_obs, y_pred, valid_loss
-
 
 def average_weights(w):
     """
@@ -369,7 +487,6 @@ def average_weights(w):
             w_avg[key] += w[i][key]
         w_avg[key] = torch.div(w_avg[key], len(w))
     return w_avg
-
 
 def cellstates_when_inference(seq_first, data_cfgs, pred):
     """get cell states when inference"""

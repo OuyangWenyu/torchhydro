@@ -13,6 +13,7 @@ import numpy as np
 import shap
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 
 
 def plot_summary_shap_values(shap_values: torch.tensor, columns):
@@ -186,3 +187,47 @@ def deep_explain_model_heatmap(dl_model, test_dataset) -> None:
     deep_explainer = shap.DeepExplainer(dl_model, history)
     shap_values = shap_results(deep_explainer, history)
     figs = plot_shap_value_heatmaps(shap_values)
+
+
+def shap_summary_plot(dl_model, train_dataset, test_dataset) -> None:
+    dl_model.eval()
+
+    history_list = []
+    for i in range(
+        int(train_dataset.num_samples / len(train_dataset.data_cfgs["object_ids"]))
+    ):
+        h = train_dataset.__getitem__(i)[0]
+        history_list.append(h)
+    history = torch.cat(history_list).cuda()
+
+    test_list = []
+    for i in range(
+        int(test_dataset.num_samples / len(test_dataset.data_cfgs["object_ids"]))
+    ):
+        t = test_dataset.__getitem__(i)[0]
+        test_list.append(t)
+    test = torch.cat(test_list).cuda()
+
+    dl_model = dl_model.cuda()
+    torch.backends.cudnn.enabled = False
+    e = shap.DeepExplainer(dl_model, history)
+    shap_values = e.shap_values(test)[0]
+
+    shap_values_avg = (
+        shap_values.squeeze(2)
+        .reshape(shap_values.shape[0], shap_values.shape[1], -1)
+        .mean(axis=-2)
+    )
+    test_tensor_avg = (
+        test.squeeze(2).reshape(test.shape[0], test.shape[1], -1).mean(axis=-2)
+    ).to("cpu")
+    np.save(
+        os.path.join(test_dataset.data_cfgs["test_path"], "shap_values_avg.npy"),
+        shap_values_avg,
+    )
+    torch.save(
+        test_tensor_avg,
+        os.path.join(test_dataset.data_cfgs["test_path"], "test_tensor_avg.pth"),
+    )
+    shap.summary_plot(shap_values_avg, test_tensor_avg)
+    plt.savefig(os.path.join(test_dataset.data_cfgs["test_path"], "shap.png"))

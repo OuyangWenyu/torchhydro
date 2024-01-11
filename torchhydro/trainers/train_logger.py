@@ -83,13 +83,14 @@ class TrainLogger:
         yield logs
         total_loss = logs["train_loss"]
         elapsed_time = time.time() - start_time
-        log_str = "Epoch {} Loss {:.3f} time {:.2f}".format(
+        log_str = "Epoch {} Loss {:.5f} time {:.5f}".format(
             epoch, total_loss, elapsed_time
         )
         print(log_str)
         model = logs["model"]
+        print(model)
         self.tb.add_scalar("Loss", total_loss, epoch)
-        self.plot_hist_img(model, epoch)
+        # self.plot_hist_img(model, epoch)
         self.train_time.append(log_str)
         self.epoch_loss.append(total_loss)
 
@@ -99,7 +100,7 @@ class TrainLogger:
         yield logs
         valid_loss = logs["valid_loss"]
         valid_metrics = logs["valid_metrics"]
-        val_log = "Epoch {} Valid Loss {:.3f} Valid Metric {}".format(
+        val_log = "Epoch {} Valid Loss {:.5f} Valid Metric {}".format(
             epoch, valid_loss, valid_metrics
         )
         print(val_log)

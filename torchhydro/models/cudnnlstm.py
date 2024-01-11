@@ -154,6 +154,10 @@ class CpuLstmModel(nn.Module):
         reset_mask = True
         for t in range(nt):
             xt = x[t, :, :]
+            xt = torch.where(
+                torch.isnan(xt),
+                torch.full_like(xt, 0),
+                xt)
             x0 = F.relu(self.linearIn(xt))
             ht, ct = self.lstm(x0, hidden=(ht, ct), do_reset_mask=reset_mask)
             yt = self.linearOut(ht)
