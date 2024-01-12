@@ -213,7 +213,9 @@ class GPM_GFS(HydroDataset):
         gage_id_lst: list,
         t_range: list,
         var_lst: list,
-        gfs_source_path: str|os.PathLike|list,
+        forecast_length: int,
+        seq_length: int,
+        gfs_source_path: str | os.PathLike | list,
         user: str,
         **kwargs,
     ):
@@ -243,12 +245,18 @@ class GPM_GFS(HydroDataset):
         gfs_dict = {}
         if user in privacy_cfg["trainer"]:
             for basin in gage_id_lst:
-                gfs = xr.open_dataset(os.path.join(gfs_source_path, f"{basin}.nc"))
+                gfs = xr.open_dataset(os.path.join(gfs_source_path, f"{basin}_gfs.nc"))
                 subset_list = []
                 for period in t_range:
-                    start_date = period["start"]
-                    end_date = period["end"]
-                    subset = gfs[var_lst].sel(time=slice(start_date, end_date))
+                    start_date = datetime.strptime(period["start"], "%Y-%m-%d")
+                    new_start_date = start_date - timedelta(hours=seq_length)
+                    start_date_str = new_start_date.strftime("%Y-%m-%d")
+
+                    end_date = datetime.strptime(period["end"], "%Y-%m-%d")
+                    new_end_date = end_date + timedelta(hours=forecast_length)
+                    end_date_str = new_end_date.strftime("%Y-%m-%d")
+
+                    subset = gfs[var_lst].sel(time=slice(start_date_str, end_date_str))
                     subset_list.append(subset)
                 merged_dataset_gfs = xr.concat(subset_list, dim="time")
                 gfs_dict[basin] = merged_dataset_gfs.to_array(dim="variable")
@@ -258,15 +266,76 @@ class GPM_GFS(HydroDataset):
                 gfs = gfs_source_path[gage_id_lst.index(basin)]
                 subset_list = []
                 for period in t_range:
-                    start_date = period["start"]
-                    end_date = period["end"]
-                    subset = gfs[var_lst].sel(time=slice(start_date, end_date))
+                    start_date = datetime.strptime(period["start"], "%Y-%m-%d")
+                    new_start_date = start_date - timedelta(hours=seq_length)
+                    start_date_str = new_start_date.strftime("%Y-%m-%d")
+
+                    end_date = datetime.strptime(period["end"], "%Y-%m-%d")
+                    new_end_date = end_date + timedelta(hours=forecast_length)
+                    end_date_str = new_end_date.strftime("%Y-%m-%d")
+
+                    subset = gfs[var_lst].sel(time=slice(start_date_str, end_date_str))
                     subset_list.append(subset)
                 merged_dataset_gfs = xr.concat(subset_list, dim="time")
                 gfs_dict[basin] = merged_dataset_gfs.to_array(dim="variable")
         else:
             raise NotImplementedError
         return gfs_dict
+
+    def read_soil_xrdataset(
+        self,
+        gage_id_lst: list,
+        t_range: list,
+        var_lst: list,
+        forecast_length: int,
+        seq_length: int,
+        soil_source_path: str | os.PathLike | list,
+        user: str,
+        **kwargs,
+    ):
+        if var_lst is None:
+            return None
+        soil_dict = {}
+        if user in privacy_cfg["trainer"]:
+            for basin in gage_id_lst:
+                soil = xr.open_dataset(
+                    os.path.join(soil_source_path, f"{basin}_soil.nc")
+                )
+                subset_list = []
+                for period in t_range:
+                    start_date = datetime.strptime(period["start"], "%Y-%m-%d")
+                    new_start_date = start_date - timedelta(hours=seq_length)
+                    start_date_str = new_start_date.strftime("%Y-%m-%d")
+
+                    end_date = datetime.strptime(period["end"], "%Y-%m-%d")
+                    new_end_date = end_date + timedelta(hours=forecast_length)
+                    end_date_str = new_end_date.strftime("%Y-%m-%d")
+
+                    subset = soil[var_lst].sel(time=slice(start_date_str, end_date_str))
+                    subset_list.append(subset)
+                merged_dataset_soil = xr.concat(subset_list, dim="time")
+                soil_dict[basin] = merged_dataset_soil.to_array(dim="variable")
+        elif user in privacy_cfg["tester"]:
+            # 为保证结果正确，soil_source_path应该和gage_id一一对应
+            for basin in gage_id_lst:
+                soil = soil_source_path[gage_id_lst.index(basin)]
+                subset_list = []
+                for period in t_range:
+                    start_date = datetime.strptime(period["start"], "%Y-%m-%d")
+                    new_start_date = start_date - timedelta(hours=seq_length)
+                    start_date_str = new_start_date.strftime("%Y-%m-%d")
+
+                    end_date = datetime.strptime(period["end"], "%Y-%m-%d")
+                    new_end_date = end_date + timedelta(hours=forecast_length)
+                    end_date_str = new_end_date.strftime("%Y-%m-%d")
+
+                    subset = soil[var_lst].sel(time=slice(start_date_str, end_date_str))
+                    subset_list.append(subset)
+                merged_dataset_soil = xr.concat(subset_list, dim="time")
+                soil_dict[basin] = merged_dataset_soil.to_array(dim="variable")
+        else:
+            raise NotImplementedError
+        return soil_dict
 
     def read_attr_xrdataset(
         self, gage_id_lst, var_lst, attributes_path, user, **kwargs

@@ -450,7 +450,7 @@ class GPM_GFS_Dataset(Dataset):
         1. Sets up basic configuration parameters such as training mode, historical data length, forecast length, and warmup length.
         2. Creates a dictionary of site and time information based on the data source and configuration.
         3. Depending on the target column configuration, loads either water level or streamflow data, and applies transformations.
-        4. Loads rainfall data and, if configured, GFS data.
+        4. Loads rainfall data and, if configured, GFS data, soil attributes data.
         5. Loads constant attribute data if specified in the configuration.
         6. Initializes the `Muti_Basin_GPM_GFS_SCALER` for scaling and normalization of all datasets.
         7. Removes NaN values from the datasets and stores the processed data in class attributes.
@@ -499,19 +499,34 @@ class GPM_GFS_Dataset(Dataset):
             self.t_s_dict["t_final_range"],
             self.data_cfgs["relevant_cols"][0],
             self.data_cfgs["rainfall_source_path"],
-            self.data_cfgs['user']
+            self.data_cfgs["user"],
         )
 
-        if self.data_cfgs["relevant_cols"][1:]:
+        if self.data_cfgs["relevant_cols"][1] != ["None"]:
             data_gfs = self.data_source.read_gfs_xrdataset(
                 self.t_s_dict["sites_id"],
                 self.t_s_dict["t_final_range"],
-                self.data_cfgs["relevant_cols"][1:],
+                self.data_cfgs["relevant_cols"][1],
+                self.forecast_length,
+                self.rho,
                 self.data_cfgs["gfs_source_path"],
                 self.data_cfgs["user"],
             )
         else:
             data_gfs = None
+
+        if self.data_cfgs["relevant_cols"][2] != ["None"]:
+            data_soil = self.data_source.read_soil_xrdataset(
+                self.t_s_dict["sites_id"],
+                self.t_s_dict["t_final_range"],
+                self.data_cfgs["relevant_cols"][1],
+                self.forecast_length,
+                self.rho,
+                self.data_cfgs["soil_source_path"],
+                self.data_cfgs["user"],
+            )
+        else:
+            data_soil = None
 
         if self.data_cfgs["constant_cols"]:
             data_attr_ds = self.data_source.read_attr_xrdataset(
@@ -529,20 +544,21 @@ class GPM_GFS_Dataset(Dataset):
             data_rainfall,
             data_attr,
             data_gfs,
+            data_soil,
             data_cfgs=self.data_cfgs,
             is_tra_val_te=self.is_tra_val_te,
             data_source=self.data_source,
         )
 
-        self.x, self.y, self.c, self.g = self.kill_nan(
-            scaler_hub.x, scaler_hub.y, scaler_hub.c, scaler_hub.g
+        self.x, self.y, self.c, self.g, self.s = self.kill_nan(
+            scaler_hub.x, scaler_hub.y, scaler_hub.c, scaler_hub.g, scaler_hub.s
         )
 
         self.target_scaler = scaler_hub.target_scaler
 
         self._create_lookup_table()
 
-    def kill_nan(self, x, y, c, g):
+    def kill_nan(self, x, y, c, g, s):
         """
         Removes or interpolates NaN values in the provided datasets.
 
@@ -555,17 +571,19 @@ class GPM_GFS_Dataset(Dataset):
         - y: xarray Dataset or NumPy array of observation data.
         - c: xarray Dataset or NumPy array of constant attribute data.
         - g: Dictionary of GFS data for each basin.
+        - s: Dictionary of soil attributes data for each basin.
 
         Process:
         1. For time series data (x), interpolates NaN values if specified in the configuration.
         2. For observation data (y), fills gaps using interpolation or another specified method.
         3. For constant attributes (c), fills gaps using the mean or another specified method, if applicable.
         4. For GFS data (g), interpolates NaN values if specified.
+        5. For soil attributes data, interpolates NaN values if specified.
 
         Each dataset is checked for NaN values, and a warning is issued if NaNs are still present after processing.
 
         Returns:
-        The processed datasets (x, y, c, g) with NaN values handled according to the specified configurations.
+        The processed datasets (x, y, c, g, s) with NaN values handled according to the specified configurations.
 
         This method plays a crucial role in ensuring data quality and consistency, particularly in hydrological modeling where NaN values can significantly impact model performance and results.
         """
@@ -595,8 +613,13 @@ class GPM_GFS_Dataset(Dataset):
                 for i in range(gg.shape[0]):
                     gg[i] = gg[i].interpolate_na(dim="time", fill_value="extrapolate")
                 warn_if_nan(gg)
+        if x_rm_nan and s is not None:
+            for ss in s.values():
+                for i in range(ss.shape[0]):
+                    ss[i] = ss[i].interpolate_na(dim="time", fill_value="extrapolate")
+                warn_if_nan(ss)
 
-        return x, y, c, g
+        return x, y, c, g, s
 
     def _trans2da_and_setunits(self, ds):
         """Set units for dataarray transfromed from dataset"""
@@ -614,26 +637,31 @@ class GPM_GFS_Dataset(Dataset):
 
     def __getitem__(self, item: int):
         """
-        Retrieves a sample from the dataset for a given index, including both input features and target values.
-
-        This method is a key component of the dataset class, enabling indexed access to the data, which is crucial for training and evaluating models in machine learning workflows.
+        Retrieves a dataset sample based on the specified index, including input features (x, c, g, s) and target values (y).
 
         Parameters:
-        - item: An integer index for the data sample to be retrieved.
+        - item (int): An index for the dataset sample to retrieve.
 
         Process:
-        1. Determines the basin and time corresponding to the given index from the lookup table.
-        2. Selects a sequence of data for the specified time and basin, based on configured sequence length (rho) and output sequence length (forecast length).
-        3. Transforms and aligns the time series data (x), observation data (y), constant attributes (c), and GFS data (g) for the specified basin and time.
-        4. If both constant attributes and GFS data are available, concatenates these with the time series data.
-        5. Converts the selected data into PyTorch tensors suitable for model input.
+        1. Determines the basin and time corresponding to the given index from a lookup table.
+        2. Selects a sequence of data based on configured sequence length (`rho`) and output sequence length (`forecast_length`).
+        3. Transforms time series data (`x`) for the specified basin and time into a numpy array, and transposes it for model input.
+        4. Transforms observation data (`y`) for the specified basin and time into a numpy array.
+        5. Conditionally adds constant attributes (`c`), GFS data (`g`), and additional data (`s`) based on their availability:
+            - If `c` is not None and `g`, `s` are None, includes `c`.
+            - If `g` is not None and `c`, `s` are None, concatenates `g` with `x`.
+            - If `s` is not None and `c`, `g` are None, includes `s`.
+            - If both `c` and `g` are not None and `s` is None, concatenates `g` with `x` and includes `c`.
+            - If both `c` and `s` are not None and `g` is None, includes both `c` and `s`.
+            - If both `s` and `g` are not None and `c` is None, concatenates `g` with `x` and includes `s`.
+            - If `c`, `g`, and `s` are all not None, concatenates `g` with `x` and includes both `c` and `s`.
+        6. If none of `c`, `g`, `s` are available, only `x` and `y` are included.
+        7. Converts the selected data into PyTorch tensors suitable for model input.
 
         Returns:
-        A tuple containing:
-        - A list of PyTorch tensors for input features (time series data, constant attributes, and optionally GFS data).
-        - A PyTorch tensor for the target values (y).
+        - A tuple containing a list of PyTorch tensors for input features (including time series data, constant attributes, GFS data, and additional data as available), and a PyTorch tensor for the target values.
 
-        This method facilitates the retrieval of properly formatted and aligned data samples for model training and evaluation, ensuring that each input feature and target value corresponds to the correct time step and basin.
+        This method allows for flexible data retrieval from the dataset, accommodating varying availability of additional data sources (`c`, `g`, `s`) and ensuring proper alignment and formatting for model training and evaluation.
         """
         # here time is time_now in gpm_gfs_data
         basin, time = self.lookup_table[item]
@@ -658,35 +686,110 @@ class GPM_GFS_Dataset(Dataset):
             )
             .values
         ).T
-        if self.c is not None and self.g is not None:
-            c = self.c.sel(basin=basin).values
-            c = np.tile(c, (x.shape[0], 1))
 
-            g = (
-                self.g[basin]
-                .sel(
-                    time=slice(
-                        time - np.timedelta64(seq_length, "h"),
-                        time + np.timedelta64(output_seq_len - 1, "h"),
-                    )
-                )
-                .values
+        if self.c is not None and self.g is None and self.s is None:
+            c = self.get_c(basin, x.shape[0])
+            return (
+                [torch.from_numpy(x).float(), torch.from_numpy(c).float()],
+                torch.from_numpy(y).float(),
             )
 
-            g = np.transpose(g, (1, 0, 2, 3))
+        elif self.g is not None and self.c is None and self.s is None:
+            g = self.get_g(basin, time)
+            if x.shape[2] != g.shape[2]:
+                x = np.transpose(x, (0, 1, 3, 2))
+            x_g = np.concatenate((x, g), axis=1)
+            return (torch.from_numpy(x_g).float(), torch.from_numpy(y).float())
+
+        elif self.s is not None and self.c is None and self.g is None:
+            s = self.get_s(basin, time)
+            return (
+                [torch.from_numpy(x).float(), torch.from_numpy(s).float()],
+                torch.from_numpy(y).float(),
+            )
+
+        elif self.c is not None and self.g is not None and self.s is None:
+            c = self.get_c(basin, x.shape[0])
+            g = self.get_g(basin, time)
+            if x.shape[2] != g.shape[2]:
+                x = np.transpose(x, (0, 1, 3, 2))
             x_g = np.concatenate((x, g), axis=1)
             return (
                 [torch.from_numpy(x_g).float(), torch.from_numpy(c).float()],
                 torch.from_numpy(y).float(),
             )
-        elif self.c is not None:
-            c = self.c.sel(basin=basin).values
-            c = np.tile(c, (x.shape[0], 1))
+
+        elif self.c is not None and self.s is not None and self.g is None:
+            c = self.get_c(basin, x.shape[0])
+            s = self.get_s(basin, time)
             return (
-                [torch.from_numpy(x).float(), torch.from_numpy(c).float()],
+                [
+                    torch.from_numpy(x).float(),
+                    torch.from_numpy(c).float(),
+                    torch.from_numpy(s).float(),
+                ],
+                torch.from_numpy(y).float(),
+            )
+
+        elif self.s is not None and self.g is not None and self.c is None:
+            s = self.get_s(basin, time)
+            g = self.get_g(basin, time)
+            if x.shape[2] != g.shape[2]:
+                x = np.transpose(x, (0, 1, 3, 2))
+            x_g = np.concatenate((x, g), axis=1)
+            return (
+                [torch.from_numpy(x_g).float(), torch.from_numpy(s).float()],
+                torch.from_numpy(y).float(),
+            )
+
+        elif self.s is not None and self.g is not None and self.c is not None:
+            c = self.get_c(basin, x.shape[0])
+            g = self.get_g(basin, time)
+            s = self.get_s(basin, time)
+            if x.shape[2] != g.shape[2]:
+                x = np.transpose(x, (0, 1, 3, 2))
+            x_g = np.concatenate((x, g), axis=1)
+            return (
+                [
+                    torch.from_numpy(x_g).float(),
+                    torch.from_numpy(c).float(),
+                    torch.from_numpy(s).float(),
+                ],
                 torch.from_numpy(y).float(),
             )
         return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+
+    def get_c(self, basin, shape):
+        c = self.c.sel(basin=basin).values
+        c = np.tile(c, (shape, 1))
+        return c
+
+    def get_g(self, basin, time):
+        g = (
+            self.g[basin]
+            .sel(
+                time=slice(
+                    time - np.timedelta64(self.rho, "h"),
+                    time + np.timedelta64(self.forecast_length - 1, "h"),
+                )
+            )
+            .values
+        )
+        return np.transpose(g, (1, 0, 2, 3))
+
+    def get_s(self, basin, time):
+        length = int(self.forecast_length * 2.5)
+        s = (
+            self.s[basin]
+            .sel(
+                time=slice(
+                    time - np.timedelta64(self.rho, "h"),
+                    time - np.timedelta64(length + 1, "h"),
+                )
+            )
+            .values
+        )
+        return np.transpose(s, (1, 0, 2, 3))
 
     def basins(self):
         """Return the basins of the dataset"""

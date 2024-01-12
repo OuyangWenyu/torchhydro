@@ -98,6 +98,7 @@ def default_config_file():
             "streamflow_source_path": None,
             "water_level_source_path": None,
             "gfs_source_path": None,
+            "soil_source_path": None,
             "data_region": None,
             "download": True,
             "validation_path": None,
@@ -283,6 +284,7 @@ def cmd(
     streamflow_source_path=None,
     water_level_source_path=None,
     gfs_source_path=None,
+    soil_source_path=None,
     source_region=None,
     download=0,
     scaler=None,
@@ -414,6 +416,13 @@ def cmd(
         dest="gfs_source_path",
         help="directory of gfs data source",
         default=gfs_source_path,
+        nargs="+",
+    )
+    parser.add_argument(
+        "--soil_source_path",
+        dest="soil_source_path",
+        help="directory of soil attributes data source",
+        default=soil_source_path,
         nargs="+",
     )
     parser.add_argument(
@@ -1020,6 +1029,8 @@ def update_cfg(cfg_file, new_args):
             ] = new_args.water_level_source_path[0]
     if new_args.gfs_source_path is not None:
         cfg_file["data_cfgs"]["gfs_source_path"] = new_args.gfs_source_path
+    if new_args.soil_source_path is not None:
+        cfg_file["data_cfgs"]["soil_source_path"] = new_args.soil_source_path
     if new_args.source_region is not None:
         cfg_file["data_cfgs"]["data_region"] = new_args.source_region
         if len(new_args.source_region) == 1:

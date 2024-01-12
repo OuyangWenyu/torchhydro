@@ -19,43 +19,65 @@ warnings.filterwarnings("ignore")
 
 @pytest.fixture()
 def config():
-    project_name = "test_spp_lstm/ex9"
+    project_name = "test_spp_lstm/ex1"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source="GPM_GFS",
         source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
-        streamflow_source_path="/ftproot/biliuhe/merge_streamflow.nc",
-        rainfall_source_path="/ftproot/biliuhe",  # 文件夹(流域编号.nc)
-        attributes_path="/ftproot/biliuhe/camelsus_attributes.nc",
-        gfs_source_path="/ftproot/biliuhe/gfs_forcing",  # 文件夹(流域编号.nc)
+        streamflow_source_path="/ftproot/biliuhe/merge_streamflow.nc",  # 所有流域一个流量文件
+        rainfall_source_path="/ftproot/biliuhe",  # 降水文件夹，一个流域一个文件，以"流域编号.nc"命名
+        attributes_path="/ftproot/biliuhe/camelsus_attributes.nc",  # 所有流域一个属性文件
+        gfs_source_path="/ftproot/biliuhe/",  # GFS气象文件夹，一个流域一个文件，以"流域编号_gfs.nc"命名
+        soil_source_path="/ftproot/biliuhe/",  # 土壤属性文件夹，一个流域一个文件，以”流域编号_soil.nc"命名
         download=0,
-        ctx=[2],
+        ctx=[2],  # 0,1,2使用GPU
         model_name="SPPLSTM2",
-        model_hyperparam={
+        model_hyperparam={  # p代表降水+GFS气象网络分支，S代表土壤属性网络分支
             "seq_length": 168,
             "forecast_length": 24,
-            "n_output": 1,
-            "n_hidden_states": 60,
-            "dropout": 0.25,
-            "len_c": 15,  # 需要与len(var_c)相等
-            "in_channels": 1,  # 卷积层输入通道数，等于len(var_t)
-            "out_channels": 8,  # 输出通道数
+            "p_n_output": 1,
+            "p_n_hidden_states": 60,
+            "p_dropout": 0.25,
+            "p_in_channels": 1,  # 1 or 9 卷积层输入通道数，等于len(var_t[0]+len(var_t[1]))，即降水与GFS气象属性的数量
+            "p_out_channels": 8,  # 输出通道数，值越大，模型越复杂，建议比in_channels大
+            "len_c": 15,  # 需要与len(var_c)相等,即如果不用流域属性，则设置为0
+            "s_seq_length": None,  # 土壤属性所用历史时段，比如只能获取两天半前的数据，则为108,目前只支持108
+            "s_n_output": 1,
+            "s_n_hidden_states": 60,
+            "s_dropout": 0.25,
+            "s_in_channels": 8,  # 卷积层输入通道数，等于len(var_t[2])，即土壤属性的数量
+            "s_out_channels": 8,
         },
-        gage_id=["1_02051500", "86_21401550"],  # ["86_21401550"],
+        gage_id=["1_02051500", "86_21401550"],
         batch_size=256,
-        var_t=[
+        var_t=[  # var_t[0]为["tp"]，var_t[1]为GFS气象，不用则["None"],var_t[2]为土壤属性，不用则["None"]
             ["tp"],
-            # "dswrf",
-            # "pwat",
-            # "2r",
-            # "2sh",
-            # "2t",
-            # "tcc",
-            # "10u",
-            # "10v",
-        ],  # tp作为list放在第一个，后面放gfs的气象数据
+            [
+                "None",
+                # "dswrf",
+                # "pwat",
+                # "2r",
+                # "2sh",
+                # "2t",
+                # "tcc",
+                # "10u",
+                # "10v",
+            ],
+            [
+                "None",
+                # "dswrf",
+                # "pwat",
+                # "2r",
+                # "2sh",
+                # "2t",
+                # "tcc",
+                # "10u",
+                # "10v",
+            ],
+        ],
         var_c=[
+            # "None"  # 不用var_c，则"None"
             "area",  # 面积
             "ele_mt_smn",  # 海拔(空间平均)
             "slp_dg_sav",  # 地形坡度 (空间平均)
@@ -80,29 +102,29 @@ def config():
         save_epoch=1,
         te=50,
         train_period=[
-            {"start": "2017-07-01", "end": "2017-09-29"},
-            {"start": "2018-07-01", "end": "2018-09-29"},
-            {"start": "2019-07-01", "end": "2019-09-29"},
-            {"start": "2020-07-01", "end": "2020-09-29"},
+            {"start": "2017-07-08", "end": "2017-09-29"},
+            {"start": "2018-07-08", "end": "2018-09-29"},
+            {"start": "2019-07-08", "end": "2019-09-29"},
+            {"start": "2020-07-08", "end": "2020-09-29"},
         ],
         test_period=[
-            {"start": "2021-07-01", "end": "2021-09-29"},
+            {"start": "2021-07-08", "end": "2021-09-29"},
         ],
         valid_period=[
-            {"start": "2021-07-01", "end": "2021-09-29"},
+            {"start": "2021-07-08", "end": "2021-09-29"},
         ],
         loss_func="MAELoss",  # NSELoss、RMSESum、MAPELoss、MASELoss、MAELoss 可以选择
-        opt="Adam",
-        lr_scheduler={1: 1e-3},
-        lr_factor=0.5,
-        lr_patience=0,
+        opt="Adam",  # 目前学习率自动调整(下面的参数)只支持Adam
+        lr_scheduler={1: 1e-3},  # 初始化学习率(第1轮开始即使用1e-3)，可强制指定某一轮使用的学习率
+        lr_factor=0.5,  # 学习率更新权重
+        lr_patience=0,  # 连续n+1次valid loss不下降，则更新学习率
         weight_decay=1e-5,  # L2正则化衰减权重
         lr_val_loss=True,  # False则用NSE作为指标，而不是val loss,来更新lr、model、早退，建议选择True
         which_first_tensor="sequence",
         early_stopping=True,
-        patience=4,
+        patience=4,  # 连续n次valid loss不下降，则停止训练，与early_stopping配合使用
         rolling=False,  # evaluate 不采用滚动预测
-        ensemble=True,
+        ensemble=True,  # 交叉验证
         ensemble_items={
             "kfold": 5,  # exi_0即17年验证,...exi_4即21年验证
             "batch_sizes": [256],

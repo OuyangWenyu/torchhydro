@@ -610,6 +610,7 @@ class GPM_GFS_Scaler_2(object):
         relevant_vars: dict,
         constant_vars: np.array,
         data_gfs: dict,
+        data_soil: dict,
         data_cfgs: dict,
         is_tra_val_te: str,
         data_source: HydroDataset,
@@ -629,6 +630,7 @@ class GPM_GFS_Scaler_2(object):
         - data_forcing: Forcing data variables relevant to the model.
         - data_attr: Constant attribute data for the basins.
         - data_gfs: GFS forecast data.
+        - data_soil: soil attributes data.
         - data_source: HydroDataset object containing data sources.
         - data_cfgs: Configuration data for the scaler.
         - t_s_dict: Dictionary for time and site information.
@@ -643,6 +645,7 @@ class GPM_GFS_Scaler_2(object):
         - get_data_obs: Retrieves and normalizes observation data.
         - get_data_ts: Retrieves and normalizes time series data.
         - get_data_gfs: Retrieves and normalizes GFS data.
+        - get_data_soil: Retrieves and normalizes soil data.
         - get_data_const: Retrieves and normalizes constant data.
         - load_data: Loads and processes all data types (observations, time series, GFS, constants).
         - inverse_transform: Applies inverse transformation to bring data back to original scale.
@@ -675,6 +678,7 @@ class GPM_GFS_Scaler_2(object):
         self.data_forcing = relevant_vars
         self.data_attr = constant_vars
         self.data_gfs = data_gfs
+        self.data_soil = data_soil
         self.data_source = data_source
         self.data_cfgs = data_cfgs
         self.t_s_dict = wrap_t_s_dict(data_source, data_cfgs, is_tra_val_te)
@@ -752,13 +756,22 @@ class GPM_GFS_Scaler_2(object):
                 stat_dict[var] = self.GPM_GFS_cal_stat_gamma(x, var)
 
         # gfs_forcing
-        gfs_lst = self.data_cfgs["relevant_cols"][1:]
-        if gfs_lst:
+        gfs_lst = self.data_cfgs["relevant_cols"][1]
+        if gfs_lst != ["None"]:
             data_gfs = self.data_gfs
             for k in range(len(gfs_lst)):
                 var = gfs_lst[k]
                 if var in self.gamma_norm_cols:
                     stat_dict[var] = self.GPM_GFS_cal_stat_gamma(data_gfs, var)
+
+        # soil_attributes
+        soil_lst = self.data_cfgs["relevant_cols"][2]
+        if soil_lst != ["None"]:
+            data_soil = self.data_soil
+            for k in range(len(soil_lst)):
+                var = soil_lst[k]
+                # if var in self.gamma_norm_cols:
+                stat_dict[var] = self.GPM_GFS_cal_stat_gamma(data_soil, var)
 
         # const attribute
         attr_lst = self.data_cfgs["constant_cols"]
@@ -883,8 +896,42 @@ class GPM_GFS_Scaler_2(object):
         This method ensures that GFS data is appropriately scaled and normalized for integration into hydrological models, enhancing the consistency and accuracy of the modeling process.
         """
         stat_dict = self.stat_dict
-        var_list = self.data_cfgs["relevant_cols"][1:]
+        var_list = self.data_cfgs["relevant_cols"][1]
         data = self.data_gfs
+        for id, basin in data.items():
+            basin = _trans_norm(
+                basin,
+                var_list,
+                stat_dict,
+                log_norm_cols=self.log_norm_cols,
+                to_norm=to_norm,
+            )
+            data[id] = basin
+        return data
+
+    def get_data_soil(self, to_norm=True) -> dict:
+        """
+        Retrieves and optionally normalizes soil attributes data for each basin.
+
+        This method processes the soil attributes data, which is a type of forcing data, for each basin. It applies normalization transformations based on specified statistical parameters and variable lists. The method is designed to handle soil attributes data variables, preparing them for use in hydrological modeling.
+
+        Parameters:
+        - to_norm: Boolean flag indicating whether to normalize the data (default is True).
+
+        Process:
+        1. Iterates through each basin in the soil attributes data.
+        2. For each basin, applies the normalization transformation (`_trans_norm`) to the soil attributes data.
+        This transformation is based on the statistical dictionary, variable list, and logarithmic normalization settings.
+        3. Updates the soil attributes data dictionary with the transformed data for each basin.
+
+        Returns:
+        A dictionary where keys are basin IDs, and values are xarray Datasets of processed (and optionally normalized) soil attributes data for each basin.
+
+        This method ensures that soil attributes data is appropriately scaled and normalized for integration into hydrological models, enhancing the consistency and accuracy of the modeling process.
+        """
+        stat_dict = self.stat_dict
+        var_list = self.data_cfgs["relevant_cols"][2]
+        data = self.data_soil
         for id, basin in data.items():
             basin = _trans_norm(
                 basin,
@@ -933,6 +980,7 @@ class GPM_GFS_Scaler_2(object):
         2. Retrieves observation data (target variables) using the `get_data_obs` method.
         3. Retrieves constant attribute data using the `get_data_const` method, if constant columns are specified in the configuration.
         4. Retrieves GFS data using the `get_data_gfs` method, if relevant GFS columns are specified.
+        5. Retrieves soil attributes data using the 'get_data_soil' method, if relevant soil columns are specified.
 
         Returns:
         A tuple containing:
@@ -940,15 +988,24 @@ class GPM_GFS_Scaler_2(object):
         - y: Observation data for target variables.
         - c: Constant attribute data for each basin (or None if not applicable).
         - g: GFS data for each basin (or None if not relevant).
+        - s: soil attributes data for each basin (or None if not revevant)
 
         This method simplifies the process of data preparation by providing a single entry point to gather all necessary datasets for hydrological modeling, ensuring that they are properly normalized and ready for analysis.
         """
         x = self.get_data_ts()
         y = self.get_data_obs()
         c = self.get_data_const() if self.data_cfgs["constant_cols"] else None
-        g = self.get_data_gfs() if self.data_cfgs["relevant_cols"][1:] else None
-
-        return x, y, c, g
+        g = (
+            self.get_data_gfs()
+            if self.data_cfgs["relevant_cols"][1] != ["None"]
+            else None
+        )
+        s = (
+            self.get_data_soil()
+            if self.data_cfgs["relevant_cols"][2] != ["None"]
+            else None
+        )
+        return x, y, c, g, s
 
     def inverse_transform(self, target_values):
         """
@@ -1092,6 +1149,7 @@ class Muti_Basin_GPM_GFS_SCALER(object):
         relevant_vars: dict,
         constant_vars: np.array = None,
         data_gfs: dict = None,
+        data_soil: dict = None,
         data_cfgs: dict = None,
         is_tra_val_te: str = None,
         **kwargs,
@@ -1105,7 +1163,7 @@ class Muti_Basin_GPM_GFS_SCALER(object):
 
         Attributes:
         - data_cfgs: Configuration dictionary specifying scaler settings and parameters.
-        - x, y, c, g: Scaled and normalized data for time series (x), observations (y), constant attributes (c), and GFS data (g).
+        - x, y, c, g, s: Scaled and normalized data for time series (x), observations (y), constant attributes (c), GFS data (g), and soil attributes data.
         - target_scaler: An instance of the scaler class (e.g., GPM_GFS_Scaler_2) used for data normalization and scaling.
 
         Methods:
@@ -1132,6 +1190,7 @@ class Muti_Basin_GPM_GFS_SCALER(object):
                 relevant_vars=relevant_vars,
                 constant_vars=constant_vars,
                 data_gfs=data_gfs,
+                data_soil=data_soil,
                 data_cfgs=data_cfgs,
                 is_tra_val_te=is_tra_val_te,
                 data_source=kwargs["data_source"],
@@ -1139,7 +1198,7 @@ class Muti_Basin_GPM_GFS_SCALER(object):
                 gamma_norm_cols=gamma_norm_cols,
                 pbm_norm=pbm_norm,
             )
-            self.x, self.y, self.c, self.g = scaler.load_data()
+            self.x, self.y, self.c, self.g, self.s = scaler.load_data()
             self.target_scaler = scaler
         print("Finish Normalization\n")
 
