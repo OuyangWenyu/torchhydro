@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-01-11 14:44:00
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-02-12 19:12:52
+LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
@@ -70,9 +70,9 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
             filled_data = var_data.fillna(
                 mean_val
             )  # fill NaN values with the calculated mean
-            da.loc[
-                dict(variable=var)
-            ] = filled_data  # update the original dataarray with the filled data
+            da.loc[dict(variable=var)] = (
+                filled_data  # update the original dataarray with the filled data
+            )
     elif fill_nan == "interpolate":
         # fill interpolation
         for i in range(da.shape[0]):
@@ -1031,6 +1031,8 @@ class GPM_GFS_batch_loading_Dataset(Dataset):
                 data_waterlevel = None
 
             self.y_origin = data_waterlevel
+        # y
+        # streamflow prediction
 
         elif self.data_cfgs["target_cols"] == ["streamflow"]:
             data_streamflow_ds = self.data_source.read_streamflow_xrdataset(
@@ -1046,14 +1048,13 @@ class GPM_GFS_batch_loading_Dataset(Dataset):
                 data_streamflow = None
 
             self.y_origin = data_streamflow
-
         data_forcing_ds = self.data_source.read_gpm_xrdataset(
             self.t_s_dict["sites_id"],
             self.t_s_dict["t_final_range"],
             # 1 comes from here
             self.data_cfgs["relevant_cols"],
         )
-
+        # TODO: to be check again
         data_forcing = {}
         if data_forcing_ds is not None:
             for basin, data in data_forcing_ds.items():
@@ -1063,7 +1064,7 @@ class GPM_GFS_batch_loading_Dataset(Dataset):
             data_forcing = None
 
         self.x_origin = data_forcing
-
+        # TODO: to be check again
         scaler_hub = Muti_Basin_GPM_GFS_SCALER(
             self.y_origin,
             data_forcing,
@@ -1072,7 +1073,7 @@ class GPM_GFS_batch_loading_Dataset(Dataset):
             is_tra_val_te=self.is_tra_val_te,
             data_source=self.data_source,
         )
-
+        # TODO: to be check again
         self.x, self.y = self.kill_nan(scaler_hub.x, scaler_hub.y)
 
         self.target_scaler = scaler_hub.target_scaler
@@ -1085,6 +1086,7 @@ class GPM_GFS_batch_loading_Dataset(Dataset):
         x_rm_nan = data_cfgs["relevant_rm_nan"]
         if x_rm_nan:
             # As input, we cannot have NaN values
+            # TODO: to be check again
             for xx in x.values():
                 for i in range(xx.shape[0]):
                     xx[i] = xx[i].interpolate_na(
@@ -1116,7 +1118,6 @@ class GPM_GFS_batch_loading_Dataset(Dataset):
         basin, time = self.lookup_table[item]
         seq_length = self.rho
         output_seq_len = self.forecast_length
-
         xx = (
             self.x[basin]
             .sel(time_now=time)

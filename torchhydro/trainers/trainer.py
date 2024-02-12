@@ -39,7 +39,7 @@ def set_random_seed(seed):
     -------
     None
     """
-    print("Random seed:", seed)
+    # print("Random seed:", seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -75,6 +75,8 @@ def train_and_evaluate(cfgs: Dict):
             deephydro.model_train()
         test_acc = deephydro.model_evaluate()
         print("summary test_accuracy", test_acc[0])
+        test_acc[1].attrs['units']='mm/h'
+        test_acc[2].attrs['units']='mm/h'
         # save the results
         save_result(
             cfgs["data_cfgs"]["test_path"],

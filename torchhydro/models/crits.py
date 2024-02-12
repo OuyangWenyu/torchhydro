@@ -364,7 +364,15 @@ class RmseLoss(torch.nn.Module):
             t0 = target[:, :, k]
             mask = t0 == t0
             p = p0[mask]
+            p = torch.where(
+                torch.isnan(p),
+                torch.full_like(p, 0),
+                p)
             t = t0[mask]
+            t = torch.where(
+                torch.isnan(t),
+                torch.full_like(t, 0),
+                t)
             temp = torch.sqrt(((p - t) ** 2).mean())
             loss = loss + temp
         return loss

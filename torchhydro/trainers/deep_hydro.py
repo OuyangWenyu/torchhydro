@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-12-29 11:05:57
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-02-12 19:11:23
+LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
@@ -193,6 +193,8 @@ class DeepHydro(DeepHydroInterface):
             model = self._load_model_from_pth()
         else:
             model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
+            # model_data = torch.load(weight_path)
+            # model.load_state_dict(model_data)
         if torch.cuda.device_count() > 1 and len(self.device_num) > 1:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
             which_first_tensor = self.cfgs["training_cfgs"]["which_first_tensor"]
@@ -290,6 +292,9 @@ class DeepHydro(DeepHydroInterface):
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
+
+                if is_tensorboard:
+                    writer.add_scalar("train_loss", total_loss, epoch)
 
             valid_loss = None
             valid_metrics = None

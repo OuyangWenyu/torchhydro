@@ -89,8 +89,9 @@ class TrainLogger:
         )
         print(log_str)
         model = logs["model"]
+        print(model)
         self.tb.add_scalar("Loss", total_loss, epoch)
-        self.plot_hist_img(model, epoch)
+        # self.plot_hist_img(model, epoch)
         self.train_time.append(log_str)
         self.epoch_loss.append(total_loss)
 

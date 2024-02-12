@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:06:12
-LastEditTime: 2023-12-29 11:05:57
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-02-12 19:12:10
+LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
@@ -72,7 +72,6 @@ def model_infer(seq_first, device, model, xs, ys):
         output = output.transpose(0, 1)
         ys = ys.transpose(0, 1)
     return ys, output
-
 
 def denormalize4eval(validation_data_loader, output, labels):
     target_scaler = validation_data_loader.dataset.target_scaler
@@ -276,7 +275,6 @@ def evaluate_validation(
             ].tolist()
     return eval_log
 
-
 def compute_loss(
     labels: torch.Tensor, output: torch.Tensor, criterion, **kwargs
 ) -> float:
@@ -301,6 +299,12 @@ def compute_loss(
     float
         the computed loss
     """
+    # a = np.sum(output.cpu().detach().numpy(),axis=1)/len(output)
+    # b=[]
+    # for i in a:
+    #     b.append([i.tolist()])                                 
+    # output = torch.tensor(b, requires_grad=True).to(torch.device("cuda"))
+
     if isinstance(criterion, GaussianLoss):
         if len(output[0].shape) > 2:
             g_loss = GaussianLoss(output[0][:, :, 0], output[1][:, :, 0])
@@ -318,7 +322,6 @@ def compute_loss(
             labels = labels.unsqueeze(0)
     assert labels.shape == output.shape
     return criterion(output, labels.float())
-
 
 def torch_single_train(
     model,
@@ -365,12 +368,13 @@ def torch_single_train(
     for _, (src, trg) in enumerate(pbar):
         # iEpoch starts from 1, iIter starts from 0, we hope both start from 1
         trg, output = model_infer(seq_first, device, model, src, trg)
+
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
-        loss.backward()
-        opt.step()
-        model.zero_grad()
+        loss.backward() # 反向传播计算当前梯度
+        opt.step() # 根据梯度更新网络参数
+        model.zero_grad() # 清空梯度
         if torch.isnan(loss) or loss == float("inf"):
             raise ValueError(
                 "Error infinite or NaN loss detected. Try normalizing data or performing interpolation"
@@ -379,7 +383,6 @@ def torch_single_train(
         n_iter_ep += 1
     total_loss = running_loss / float(n_iter_ep)
     return total_loss, n_iter_ep
-
 
 def compute_validation(
     model,
@@ -419,11 +422,11 @@ def compute_validation(
         # first dim is batch
         obs_final = torch.cat(obs, dim=0)
         pred_final = torch.cat(preds, dim=0)
+
         valid_loss = compute_loss(obs_final, pred_final, criterion)
     y_obs = obs_final.detach().cpu().numpy()
     y_pred = pred_final.detach().cpu().numpy()
     return y_obs, y_pred, valid_loss
-
 
 def average_weights(w):
     """
@@ -435,7 +438,6 @@ def average_weights(w):
             w_avg[key] += w[i][key]
         w_avg[key] = torch.div(w_avg[key], len(w))
     return w_avg
-
 
 def cellstates_when_inference(seq_first, data_cfgs, pred):
     """get cell states when inference"""

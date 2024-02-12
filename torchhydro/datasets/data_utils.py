@@ -73,6 +73,7 @@ def unify_streamflow_unit(ds: xr.Dataset, area=None, inverse=False):
         r = ds.pint.quantify()
         a = area.pint.quantify()
         q = r[list(r.keys())[0]] * a[list(a.keys())[0]]
+        # q = q.pint.quantify()
         result = q.pint.to(target_unit).to_dataset(name=list(r.keys())[0])
     # dequantify to get normal xr_dataset
     return result.pint.dequantify()
@@ -161,7 +162,7 @@ def _trans_norm(
         stat = stat_dict[item]
         if to_norm:
             out.loc[dict(variable=item)] = (
-                (np.log10(np.sqrt(x.sel(variable=item)) + 0.1) - stat[2]) / stat[3]
+                (np.log10(np.sqrt(np.abs(x.sel(variable=item))) + 0.1) - stat[2]) / stat[3]
                 if item in log_norm_cols
                 else (x.sel(variable=item) - stat[2]) / stat[3]
             )

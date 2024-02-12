@@ -224,12 +224,9 @@ class DapengScaler(object):
             ]
         if gamma_norm_cols is None:
             gamma_norm_cols = [
+                "p_mean",
                 "prcp",
-                "pr",
-                "total_precipitation",
-                "pet",
-                "potential_evaporation",
-                "PET",
+                "temperature"
             ]
         self.data_target = target_vars
         self.data_forcing = relevant_vars
@@ -301,9 +298,10 @@ class DapengScaler(object):
         pred.attrs.update(self.data_target.attrs)
         # trans to xarray dataset
         pred_ds = pred.to_dataset(dim="variable")
-        pred_ds = pred_ds.pint.quantify(pred_ds.attrs["units"])
-        area = self.data_source.read_area(self.t_s_dict["sites_id"])
-        return unify_streamflow_unit(pred_ds, area=area, inverse=True)
+        # pred_ds = pred_ds.pint.quantify(pred_ds.attrs["units"])
+        # area = self.data_source.read_area(self.t_s_dict["sites_id"])
+        return pred_ds
+        # return unify_streamflow_unit(pred_ds, area=area, inverse=True)
 
     def cal_stat_all(self):
         """
@@ -343,11 +341,11 @@ class DapengScaler(object):
                 stat_dict[var] = cal_stat(x.sel(variable=var).to_numpy())
 
         # const attribute
-        attr_data = self.data_attr
-        attr_lst = self.data_cfgs["constant_cols"]
-        for k in range(len(attr_lst)):
-            var = attr_lst[k]
-            stat_dict[var] = cal_stat(attr_data.sel(variable=var).to_numpy())
+        # attr_data = self.data_attr
+        # attr_lst = self.data_cfgs["constant_cols"]
+        # for k in range(len(attr_lst)):
+        #     var = attr_lst[k]
+        #     stat_dict[var] = cal_stat(attr_data.sel(variable=var).to_numpy())
 
         return stat_dict
 
