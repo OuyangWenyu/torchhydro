@@ -1,10 +1,10 @@
 <!--
  * @Author: Wenyu Ouyang
  * @Date: 2022-05-28 17:46:32
- * @LastEditTime: 2023-11-27 17:49:09
+ * @LastEditTime: 2023-12-15 17:00:20
  * @LastEditors: Wenyu Ouyang
  * @Description: README for torchhydro
- * @FilePath: \torchhydro\README.md
+ * @FilePath: /torchhydro/README.md
  * Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 -->
 # torchhydro
@@ -25,6 +25,18 @@
 ## Features
 
 -   TODO
+
+## Data source settings
+
+We set a unified data path in settings.json in the `.hydrodataset` directory which is located in the user directory (for example, `C:\Users\username\.hydrodataset` in Windows). You can change the data path in this file.
+
+We have some conventions for data sources and we think it could be better to follow these conventions:
+
+1. Public datasets such as CAMELS are put in the `waterism/datasets-origin` directory.
+2. The processed datasets are put in the `waterism/datasets-interim` directory.
+3. Some cache files are put in the `.hydrodataset/cache` directory.
+
+We set these conventions in the `settings.json`` file. You can specify by yourself. Don't change the "key" in the JSON file unless you are clear about what you are doing.
 
 ## For developers
 

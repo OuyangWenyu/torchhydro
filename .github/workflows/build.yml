@@ -33,13 +33,12 @@ jobs:
                   python -m pip install --upgrade pip
                   pip install --user --no-cache-dir Cython
                   pip install --user -r requirements.txt
-                  pip install --user -r requirements_dev.txt
                   pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
             - name: Add project root to PYTHONPATH
               run: echo "PYTHONPATH=${PYTHONPATH}$(pwd)" >> $GITHUB_ENV
             - name: Download Camels data
               run: |
-                kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/camels/camels_us/ --unzip
+                kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/ --unzip
                 kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/ --unzip
               env:
                   KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}

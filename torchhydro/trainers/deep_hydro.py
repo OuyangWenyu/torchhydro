@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-28 13:22:06
+LastEditTime: 2024-02-12 19:00:29
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -134,6 +134,7 @@ class DeepHydro(DeepHydroInterface):
     """
     The Base Trainer class for Hydrological Deep Learning models
     """
+
     def __init__(
         self,
         data_source: HydroDataset,
@@ -256,12 +257,6 @@ class DeepHydro(DeepHydroInterface):
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
 
-        is_tensorboard = self.cfgs["training_cfgs"]["is_tensorboard"] == True
-        if is_tensorboard:
-            writer = SummaryWriter(
-                log_dir=os.path.join(data_cfgs["test_path"], "tensorboard_event_file"),
-                flush_secs=30,
-            )
         for epoch in range(start_epoch, max_epochs + 1):
             with logger.log_epoch_train(epoch) as train_logs:
                 if lr_scheduler is not None and epoch in lr_scheduler.keys():
@@ -349,7 +344,11 @@ class DeepHydro(DeepHydroInterface):
             # Generally we use same epoch for train and test, but sometimes not
             # TODO: better refactor this part, because sometimes we save multi models for multi hyperparameters
             model_filepath = self.cfgs["data_cfgs"]["test_path"]
-            self.weight_path = os.path.join(model_filepath, 'opt_Adam_lr_0.001_bsize_4', f"model_Ep{str(test_epoch)}.pth")
+            self.weight_path = os.path.join(
+                model_filepath,
+                "opt_Adam_lr_0.001_bsize_4",
+                f"model_Ep{str(test_epoch)}.pth",
+            )
             self.model = self.load_model(
                 # self.cfgs["model_cfgs"],
                 # weight_path=os.path.join(

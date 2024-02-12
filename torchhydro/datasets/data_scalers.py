@@ -448,8 +448,8 @@ class DapengScaler(object):
         """
         x = self.get_data_ts()
         y = self.get_data_obs()
-        # c = self.get_data_const()
-        return x, y
+        c = self.get_data_const()
+        return x, y, c
 
 
 class GPM_GFS_Scaler(object):
@@ -612,6 +612,7 @@ class GPM_GFS_Scaler_2(object):
         gamma_norm_cols=None,
         pbm_norm=False,
     ):
+        # TODO: these two cols need to be check again
         prcp_norm_cols = [
             "waterlevel",
             "streamflow",

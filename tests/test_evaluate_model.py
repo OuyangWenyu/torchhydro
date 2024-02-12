@@ -1,17 +1,18 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-18 14:34:53
-LastEditTime: 2023-11-29 17:55:05
+LastEditTime: 2023-12-18 09:10:59
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
 FilePath: \torchhydro\tests\test_evaluate_model.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
-import hydrodataset as hds
 import pytest
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
 from hydroutils.hydro_plot import plot_ts
+
+from torchhydro import DATASOURCE_SETTINGS
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.trainers.deep_hydro import DeepHydro
@@ -31,7 +32,9 @@ def config_data():
     args = cmd(
         sub=project_name,
         download=0,
-        source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_us"),
+        source_path=os.path.join(
+            DATASOURCE_SETTINGS["datasets-origin"], "camels", "camels_us"
+        ),
         source_region="US",
         ctx=[-1],
         model_name="CpuLSTM",

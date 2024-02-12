@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:06:12
-LastEditTime: 2023-10-03 18:04:22
+LastEditTime: 2024-02-12 19:07:39
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -113,17 +113,16 @@ def denormalize4eval(validation_data_loader, output, labels):
                     ) :
                 ]
             selected_data = target_data.sel(time=selected_time_points)
-            labels1 = labels[:, i, :].reshape(validation_data_loader.batch_size, -1)
-            labels1 = labels1.reshape(labels1.shape[0], labels1.shape[1], 1)
             output1 = output.reshape(output.shape[0], output.shape[1], 1)[
                 :, i, :
             ].reshape(validation_data_loader.batch_size, -1)
             output1 = output1.reshape(output1.shape[0], output1.shape[1], 1)
-            
+            labels1 = labels[:, i, :].reshape(validation_data_loader.batch_size, -1)
+            labels1 = labels1.reshape(labels1.shape[0], labels1.shape[1], 1)
 
             preds_xr = target_scaler.inverse_transform(
                 xr.DataArray(
-                    output1.transpose(1, 0, 2),
+                    output1.transpose(2, 0, 1),
                     dims=selected_data.dims,
                     coords=selected_data.coords,
                 )
@@ -179,15 +178,8 @@ def denormalize4eval(validation_data_loader, output, labels):
         preds_xr.attrs["units"] = "m"
         obss_xr.attrs["units"] = "m"
     else:
-        selected_time_points = target_data.coords["time"][warmup_length:output.shape[0]]
+        selected_time_points = target_data.coords["time"][warmup_length:]
         selected_data = target_data.sel(time=selected_time_points)
-
-        # output = np.sum(output,axis=1)/len(output)
-        # b=[]
-        # for i in output:
-        #     b.append([i.tolist()])
-        # output = np.array(b, dtype='float32')
-
         preds_xr = target_scaler.inverse_transform(
             xr.DataArray(
                 output.transpose(2, 0, 1),

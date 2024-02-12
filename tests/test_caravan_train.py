@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2023-10-18 15:58:42
+LastEditTime: 2023-12-17 16:18:16
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: \torchhydro\tests\test_caravan_train.py
@@ -9,7 +9,7 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
 import pytest
-import hydrodataset as hds
+from torchhydro import DATASOURCE_SETTINGS
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -38,7 +38,7 @@ def config(var_c, var_t):
     args = cmd(
         sub=project_name,
         source="Caravan",
-        source_path=os.path.join(hds.ROOT_DIR, "caravan"),
+        source_path=os.path.join(DATASOURCE_SETTINGS["datasets-origin"], "caravan"),
         source_region="Global",
         download=0,
         ctx=[-1],

@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2023-10-18 19:09:57
+LastEditTime: 2024-02-12 18:53:09
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+
 import logging
 import sys
 from typing import Optional
@@ -18,7 +19,11 @@ from hydrodataset import HydroDataset
 from torchhydro.datasets.data_source_gpm_gfs import GPM_GFS
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from torchhydro.datasets.data_scalers import ScalerHub, Muti_Basin_GPM_GFS_SCALER, DapengScaler
+from torchhydro.datasets.data_scalers import (
+    ScalerHub,
+    Muti_Basin_GPM_GFS_SCALER,
+    DapengScaler,
+)
 from torchhydro.datasets.data_utils import (
     warn_if_nan,
     wrap_t_s_dict,
@@ -26,6 +31,7 @@ from torchhydro.datasets.data_utils import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
 
 def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataArray:
     """Fill gaps in a DataArray"""
@@ -58,9 +64,9 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
             filled_data = var_data.fillna(
                 mean_val
             )  # fill NaN values with the calculated mean
-            da.loc[
-                dict(variable=var)
-            ] = filled_data  # update the original dataarray with the filled data
+            da.loc[dict(variable=var)] = (
+                filled_data  # update the original dataarray with the filled data
+            )
     elif fill_nan == "interpolate":
         # fill interpolation
         for i in range(da.shape[0]):
@@ -68,6 +74,7 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
     else:
         raise NotImplementedError(f"fill_nan {fill_nan} not implemented")
     return da
+
 
 class BaseDataset(Dataset):
     """Base data set class to load and preprocess data (batch-first) using PyTorch's Dataset"""
@@ -264,6 +271,7 @@ class BaseDataset(Dataset):
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
 
+
 class BasinSingleFlowDataset(BaseDataset):
     """one time length output for each grid in a batch"""
 
@@ -279,6 +287,7 @@ class BasinSingleFlowDataset(BaseDataset):
 
     def __len__(self):
         return self.num_samples
+
 
 class DplDataset(BaseDataset):
     """pytorch dataset for Differential parameter learning"""
@@ -410,6 +419,7 @@ class DplDataset(BaseDataset):
     def __len__(self):
         return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])
 
+
 class GPM_GFS_Dataset(Dataset):
     def __init__(self, data_source: GPM_GFS, data_cfgs: dict, is_tra_val_te: str):
         super(GPM_GFS_Dataset, self).__init__()
@@ -444,6 +454,7 @@ class GPM_GFS_Dataset(Dataset):
             self.y_origin = data_waterlevel
         # y
         # streamflow prediction
+
         elif self.data_cfgs["target_cols"] == ["streamflow"]:
             data_streamflow_ds = self.data_source.read_streamflow_xrdataset(
                 self.t_s_dict["sites_id"],
@@ -458,32 +469,36 @@ class GPM_GFS_Dataset(Dataset):
 
             self.y_origin = data_streamflow
         # x
-        data_forcing_ds = self.data_source.read_pmean_xrdataset(
+        # data_forcing_ds = self.data_source.read_pmean_xrdataset(
+        data_forcing_ds = self.data_source.read_gpm_xrdataset(
             self.t_s_dict["sites_id"],
             self.t_s_dict["t_final_range"],
             # 1 comes from here
             self.data_cfgs["relevant_cols"],
         )
-
+        # TODO: to be check again
+        data_forcing = {}
         if data_forcing_ds is not None:
-            data_forcing = self._trans2da_and_setunits(data_forcing_ds)
+            for basin, data in data_forcing_ds.items():
+                result = data.to_array(dim="variable")
+
+                data_forcing[basin] = result
         else:
             data_forcing = None
 
         self.x_origin = data_forcing
-
-        scaler_hub = DapengScaler(
+        # TODO: to be check again
+        scaler_hub = Muti_Basin_GPM_GFS_SCALER(
             self.y_origin,
-            self.x_origin,
-            constant_vars=None,
+            data_forcing,
+            data_attr=None,
             data_cfgs=self.data_cfgs,
             is_tra_val_te=self.is_tra_val_te,
             data_source=self.data_source,
         )
-        self.x, self.y = scaler_hub.load_data()
-        self.target_scaler = scaler_hub
-        self.x, self.y = self.kill_nan(self.x, self.y)
-        # self.target_scaler = scaler_hub.target_scaler
+        # TODO: to be check again
+        self.x, self.y = self.kill_nan(scaler_hub.x, scaler_hub.y)
+        self.target_scaler = scaler_hub.target_scaler
         self.train_mode = train_mode
         self.rho = self.data_cfgs["forecast_history"]
         self.forecast_length = self.data_cfgs["forecast_length"]
@@ -496,10 +511,8 @@ class GPM_GFS_Dataset(Dataset):
         x_rm_nan = data_cfgs["relevant_rm_nan"]
         if x_rm_nan:
             # As input, we cannot have NaN values
-            # x (variable, time, basin)
-            for xx in x:
-                # xx (time, basin)
-                xx = xx.transpose('basin','time')
+            # TODO: to be check again
+            for xx in x.values():
                 _fill_gaps_da(xx, fill_nan="interpolate")
                 warn_if_nan(xx)
         if y_rm_nan:
@@ -528,19 +541,19 @@ class GPM_GFS_Dataset(Dataset):
         seq_length = self.rho
         output_seq_len = self.forecast_length
         warmup_length = self.warmup_length
+        # TODO: to be check again
         xx = (
-            self.x
+            self.x[basin]
+            .sel(time_now=time)
             .sel(
-                # time=slice(
-                #     time - np.timedelta64(warmup_length + seq_length, "h"),
-                #     time + np.timedelta64(output_seq_len - 1, "h"),
-                # ),
-                time=time - np.timedelta64(warmup_length + seq_length, "h")
+                time=slice(
+                    time - np.timedelta64(warmup_length + seq_length, "h"),
+                    time + np.timedelta64(output_seq_len - 1, "h"),
+                ),
             )
             .to_numpy()
         )
-        x = xx.reshape(xx.shape[0], xx.shape[1])
-        
+        x = xx.reshape(xx.shape[0], xx.shape[1], 1, xx.shape[2], xx.shape[3])
         y = (
             self.y.sel(
                 basin=basin,

@@ -8,9 +8,10 @@ FilePath: /torchhydro/experiments/run_camelslstm_experiments.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import os
-import hydrodataset as hds
-from configs.config import cmd, default_config_file, update_cfg
-from trainers.trainer import train_and_evaluate
+
+from torchhydro import DATASOURCE_SETTINGS
+from torchhydro.configs.config import cmd, default_config_file, update_cfg
+from torchhydro.trainers.trainer import train_and_evaluate
 
 VAR_C_CHOSEN_FROM_CAMELS_US = [
     "elev_mean",
@@ -62,7 +63,9 @@ def run_normal_dl(
         sub=project_name,
         source="CAMELS",
         source_region="US",
-        source_path=os.path.join(hds.ROOT_DIR, "camels", "camels_us"),
+        source_path=os.path.join(
+            DATASOURCE_SETTINGS["datasets-origin"], "camels", "camels_us"
+        ),
         download=0,
         ctx=[0],
         model_name="KuaiLSTM",
