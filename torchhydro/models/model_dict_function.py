@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-06 19:55:59
-LastEditors: Wenyu Ouyang
+LastEditTime: 2023-01-11 14:49:00
+LastEditors: Xinzhuo Wu
 Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \torchhydro\torchhydro\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
@@ -24,9 +24,13 @@ from torchhydro.models.crits import (
     UncertaintyWeights,
     DynamicTaskPrior,
     MultiOutWaterBalanceLoss,
+    NSELoss,
+    MAPELoss,
+    MASELoss,
+    MAELoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj
-from torchhydro.models.spplstm import SPP_LSTM_Model
+from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
 
 """
 Utility dictionaries to map a string to a class.
@@ -40,6 +44,7 @@ pytorch_model_dict = {
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
     "DplLstmXaj": DplLstmXaj,
     "SPPLSTM": SPP_LSTM_Model,
+    "SPPLSTM2": SPP_LSTM_Model_2,
 }
 
 pytorch_model_wrapper_dict = {}
@@ -52,6 +57,10 @@ pytorch_criterion_dict = {
     "UncertaintyWeights": UncertaintyWeights,
     "DynamicTaskPrior": DynamicTaskPrior,
     "MultiOutWaterBalanceLoss": MultiOutWaterBalanceLoss,
+    "NSELoss": NSELoss,
+    "MAPELoss": MAPELoss,
+    "MASELoss": MASELoss,
+    "MAELoss": MAELoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}

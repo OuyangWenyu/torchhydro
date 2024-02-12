@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-11-25 18:20:24
-LastEditors: Wenyu Ouyang
+LastEditTime: 2023-12-29 11:05:57
+LastEditors: Xinzhuo Wu
 Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
@@ -17,7 +17,7 @@ import random
 import numpy as np
 from typing import Dict, Tuple, Union
 import pandas as pd
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, TimeSeriesSplit
 import torch
 from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import unserialize_numpy
@@ -39,7 +39,7 @@ def set_random_seed(seed):
     -------
     None
     """
-    print("Random seed:", seed)
+    # print("Random seed:", seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -75,6 +75,8 @@ def train_and_evaluate(cfgs: Dict):
             deephydro.model_train()
         test_acc = deephydro.model_evaluate()
         print("summary test_accuracy", test_acc[0])
+        test_acc[1].attrs['units']='mm/h'
+        test_acc[2].attrs['units']='mm/h'
         # save the results
         save_result(
             cfgs["data_cfgs"]["test_path"],
@@ -266,9 +268,14 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
     """
     new_cfg = copy.deepcopy(cfg)
     if key == "kfold":
-        new_cfg["data_cfgs"]["t_range_train"] = value[0]
-        new_cfg["data_cfgs"]["t_range_valid"] = None
-        new_cfg["data_cfgs"]["t_range_test"] = value[1]
+        if new_cfg["data_cfgs"]["dataset"] != "GPM_GFS_Dataset":
+            new_cfg["data_cfgs"]["t_range_train"] = value[0]
+            new_cfg["data_cfgs"]["t_range_valid"] = None
+            new_cfg["data_cfgs"]["t_range_test"] = value[1]
+        else:
+            new_cfg["data_cfgs"]["t_range_train"] = value[0]
+            new_cfg["data_cfgs"]["t_range_valid"] = value[1]
+            new_cfg["data_cfgs"]["t_range_test"] = value[1]
     elif key == "batch_sizes":
         new_cfg["training_cfgs"]["batch_size"] = value
         new_cfg["data_cfgs"]["batch_size"] = value
@@ -318,7 +325,8 @@ def _create_kfold_periods(train_period, valid_period, test_period, kfold):
     periods = np.array(range(len(full_period)))
 
     # Apply KFold
-    kf = KFold(n_splits=kfold)
+    # kf = KFold(n_splits=kfold)
+    kf = TimeSeriesSplit(n_splits=kfold)
     folds = []
     for train_index, test_index in kf.split(periods):
         train_start = full_period[train_index[0]].strftime("%Y-%m-%d")
@@ -328,6 +336,19 @@ def _create_kfold_periods(train_period, valid_period, test_period, kfold):
         folds.append(([train_start, train_end], [test_start, test_end]))
 
     return folds
+
+
+def _create_kfold_discontinuous_periods(train_period, valid_period, kfold):
+    periods = train_period + valid_period
+    periods = sorted(periods, key=lambda x: x['start'])
+    cross_validation_sets = []
+
+    for i in range(kfold):
+        valid = [periods[i]]
+        train = [p for j, p in enumerate(periods) if j != i]
+        train = sorted(train, key=lambda x: x["start"])
+        cross_validation_sets.append((train, valid))
+    return cross_validation_sets
 
 
 def _nested_loop_train_and_evaluate(keys, index, my_dict, update_dict, perform_count=0):
@@ -371,9 +392,14 @@ def _trans_kfold_to_periods(update_dict, my_dict, current_key="kfold"):
     valid_period = update_dict["data_cfgs"]["t_range_valid"]
     test_period = update_dict["data_cfgs"]["t_range_test"]
     kfold = my_dict[current_key]
-    kfold_periods = _create_kfold_periods(
-        train_period, valid_period, test_period, kfold
-    )
+    if update_dict["data_cfgs"]["dataset"] != "GPM_GFS_Dataset":
+        kfold_periods = _create_kfold_periods(
+            train_period, valid_period, test_period, kfold
+        )
+    else:
+        kfold_periods = _create_kfold_discontinuous_periods(
+            train_period, valid_period, kfold
+        )
     my_dict[current_key] = kfold_periods
 
 

@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-11-27 15:17:16
-LastEditors: Wenyu Ouyang
+LastEditTime: 2023-12-29 11:05:57
+LastEditors: Xinzhuo Wu
 Description: Training function for DL models
 FilePath: \torchhydro\torchhydro\trainers\train_logger.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
@@ -83,13 +83,15 @@ class TrainLogger:
         yield logs
         total_loss = logs["train_loss"]
         elapsed_time = time.time() - start_time
-        log_str = "Epoch {} Loss {:.3f} time {:.2f}".format(
-            epoch, total_loss, elapsed_time
+        lr = self.opt.param_groups[0]["lr"]
+        log_str = "Epoch {} Loss {:.4f} time {:.2f} lr {}".format(
+            epoch, total_loss, elapsed_time, lr
         )
         print(log_str)
         model = logs["model"]
+        print(model)
         self.tb.add_scalar("Loss", total_loss, epoch)
-        self.plot_hist_img(model, epoch)
+        # self.plot_hist_img(model, epoch)
         self.train_time.append(log_str)
         self.epoch_loss.append(total_loss)
 
@@ -99,7 +101,7 @@ class TrainLogger:
         yield logs
         valid_loss = logs["valid_loss"]
         valid_metrics = logs["valid_metrics"]
-        val_log = "Epoch {} Valid Loss {:.3f} Valid Metric {}".format(
+        val_log = "Epoch {} Valid Loss {:.4f} Valid Metric {}".format(
             epoch, valid_loss, valid_metrics
         )
         print(val_log)

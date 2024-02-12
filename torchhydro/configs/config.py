@@ -10,10 +10,10 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 import argparse
 import fnmatch
 import json
-import logging
 import os
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 from hydroutils import hydro_file
 
 DAYMET_NAME = "daymet"
@@ -63,6 +63,7 @@ def default_config_file():
                 "num_layers": 1,
                 "bias": True,
                 "batch_size": 100,
+                "dropout": 0.2,
             },
             "weight_path": None,
             "continue_train": True,
@@ -92,6 +93,12 @@ def default_config_file():
         "data_cfgs": {
             "data_source_name": "CAMELS",
             "data_path": "../../example/camels_us",
+            "attributes_path": None,
+            "rainfall_source_path": None,
+            "streamflow_source_path": None,
+            "water_level_source_path": None,
+            "gfs_source_path": None,
+            "soil_source_path": None,
             "data_region": None,
             "download": True,
             "validation_path": None,
@@ -110,7 +117,7 @@ def default_config_file():
             "warmup_length": 0,
             # the output
             "target_cols": [Q_CAMELS_US_NAME],
-            "target_rm_nan": False,
+            "target_rm_nan": True,
             # only for cases in which target data will be used as input:
             # data assimilation -- use streamflow from period 0 to t-1 (TODO: not included now)
             # for physics-based model -- use streamflow to calibrate models
@@ -197,6 +204,9 @@ def default_config_file():
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
+            "rolling": False,
+            "loading_batch": None,
+            "user": None,
         },
         "training_cfgs": {
             # if train_mode is False, don't train and evaluate
@@ -208,6 +218,12 @@ def default_config_file():
                 "lr": 0.001,
             },
             "lr_scheduler": None,
+            "lr_factor": 0.1,
+            "lr_patience": 1,
+            "lr_val_loss": True,
+            "weight_decay": None,
+            "early_stopping": False,
+            "patience": 1,
             "epochs": 20,
             # save_epoch ==0 means only save once in the final epoch
             "save_epoch": 0,
@@ -225,6 +241,7 @@ def default_config_file():
             # for example, we want to save each epoch's log again, and in this time, we will set train_but_not_real to True
             "train_but_not_real": False,
             "which_first_tensor": "sequence",
+            "is_tensorboard": False,
             # for ensemble exp:
             # basically we set kfold/seeds/hyper_params for trianing such as batch_sizes
             "ensemble": False,
@@ -237,14 +254,24 @@ def default_config_file():
                 # if seeds is not None,
                 # we will use different seeds for different sub-exps
                 "seeds": None,
+                "patience": None,
+                "early_stopping": None,
             },
         },
         # For evaluation
         "evaluation_cfgs": {
-            "metrics": ["NSE"],
+            "metrics": ["NSE","RMSE","R2","KGE","FHV","FLV"],
             "fill_nan": "no",
             "test_epoch": 20,
             "explainer": None,
+            "rolling": None,
+        },
+        "minio_cfgs": {
+            "endpoint_url": None,
+            "access_key": None,
+            "secret_key": None,
+            "bucket_name": None,
+            "folder_prefix": None,
         },
     }
 
@@ -253,11 +280,18 @@ def cmd(
     sub=None,
     source="CAMELS",
     source_path=None,
+    attributes_path=None,
+    rainfall_source_path=None,
+    streamflow_source_path=None,
+    water_level_source_path=None,
+    gfs_source_path=None,
+    soil_source_path=None,
     source_region=None,
     download=0,
     scaler=None,
     scaler_params=None,
     dataset=None,
+    loading_batch=None,
     sampler=None,
     fl_sample=None,
     fl_num_users=None,
@@ -273,6 +307,10 @@ def cmd(
     test_period=None,
     opt=None,
     lr_scheduler=None,
+    lr_factor=None,
+    lr_patience=None,
+    weight_decay=None,
+    lr_val_loss=None,
     opt_param=None,
     batch_size=None,
     rho=None,
@@ -292,6 +330,7 @@ def cmd(
     n_output=None,
     loss_func=None,
     model_hyperparam=None,
+    dropout=None,
     weight_path_add=None,
     var_t_type=None,
     var_o=None,
@@ -304,6 +343,7 @@ def cmd(
     metrics=None,
     fill_nan=None,
     explainer=None,
+    rolling=None,
     warmup_length=0,
     start_epoch=1,
     stat_dict_file=None,
@@ -312,8 +352,17 @@ def cmd(
     num_workers=None,
     train_but_not_real=None,
     which_first_tensor=None,
+    is_tensorboard=False,
     ensemble=0,
     ensemble_items=None,
+    early_stopping=None,
+    patience=None,
+    user=None,
+    endpoint_url=None,
+    access_key=None,
+    secret_key=None,
+    bucket_name=None,
+    folder_prefix=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -334,6 +383,48 @@ def cmd(
         dest="source_path",
         help="directory of data source",
         default=source_path,
+        nargs="+",
+    )
+    parser.add_argument(
+        "--attributes_path",
+        dest="attributes_path",
+        help="directory of attributes",
+        default=attributes_path,
+        nargs="+",
+    )
+    parser.add_argument(
+        "--rainfall_source_path",
+        dest="rainfall_source_path",
+        help="directory of rainfall's data source",
+        default=rainfall_source_path,
+        nargs="+",
+    )
+    parser.add_argument(
+        "--streamflow_source_path",
+        dest="streamflow_source_path",
+        help="directory of streamflow's data source",
+        default=streamflow_source_path,
+        nargs="+",
+    )
+    parser.add_argument(
+        "--water_level_source_path",
+        dest="water_level_source_path",
+        help="directory of water level's data source",
+        default=water_level_source_path,
+        nargs="+",
+    )
+    parser.add_argument(
+        "--gfs_source_path",
+        dest="gfs_source_path",
+        help="directory of gfs data source",
+        default=gfs_source_path,
+        nargs="+",
+    )
+    parser.add_argument(
+        "--soil_source_path",
+        dest="soil_source_path",
+        help="directory of soil attributes data source",
+        default=soil_source_path,
         nargs="+",
     )
     parser.add_argument(
@@ -370,6 +461,13 @@ def cmd(
         help="Choose a dataset class for PyTorch",
         default=dataset,
         type=str,
+    )
+    parser.add_argument(
+        "--loading_batch",
+        dest="loading_batch",
+        help="loading_batch",
+        default=loading_batch,
+        type=int,
     )
     parser.add_argument(
         "--sampler",
@@ -494,6 +592,13 @@ def cmd(
         type=int,
     )
     parser.add_argument(
+        "--dropout",
+        dest="dropout",
+        help="dropout",
+        default=dropout,
+        type=float,
+    )
+    parser.add_argument(
         "--rho",
         dest="rho",
         help="length of time sequence when training",
@@ -552,7 +657,7 @@ def cmd(
     parser.add_argument(
         "--gage_id_file",
         dest="gage_id_file",
-        help="select some sites from a file",
+        help="choose some sites from a file",
         default=gage_id_file,
         type=str,
     )
@@ -661,6 +766,13 @@ def cmd(
         nargs="+",
     )
     parser.add_argument(
+        "--rolling",
+        dest="rolling",
+        help="rolling",
+        default=rolling,
+        type=bool,
+    )
+    parser.add_argument(
         "--warmup_length",
         dest="warmup_length",
         help="Physical hydro models need warmup",
@@ -718,11 +830,46 @@ def cmd(
         type=str,
     )
     parser.add_argument(
+        "--is_tensorboard",
+        dest="is_tensorboard",
+        help="is_tensorboard",
+        default=is_tensorboard,
+        type=bool,
+    )
+    parser.add_argument(
         "--lr_scheduler",
         dest="lr_scheduler",
         help="The learning rate scheduler",
         default=lr_scheduler,
         type=json.loads,
+    )
+    parser.add_argument(
+        "--lr_patience",
+        dest="lr_patience",
+        help="lr_patience",
+        default=lr_patience,
+        type=int,
+    )
+    parser.add_argument(
+        "--lr_factor",
+        dest="lr_factor",
+        help="lr_factor",
+        default=lr_factor,
+        type=float,
+    )
+    parser.add_argument(
+        "--lr_val_loss",
+        dest="lr_val_loss",
+        help="lr_val_loss",
+        default=lr_val_loss,
+        type=bool,
+    )
+    parser.add_argument(
+        "--weight_decay",
+        dest="weight_decay",
+        help="weight_decay",
+        default=weight_decay,
+        type=float,
     )
     parser.add_argument(
         "--ensemble",
@@ -737,6 +884,62 @@ def cmd(
         help="ensemble config",
         default=ensemble_items,
         type=json.loads,
+    )
+    parser.add_argument(
+        "--early_stopping",
+        dest="early_stopping",
+        help="early_stopping config",
+        default=early_stopping,
+        type=bool,
+    )
+    parser.add_argument(
+        "--user",
+        dest="user",
+        help="user_name to distinguish trainer or tester",
+        default=user,
+        type=str,
+    )
+    parser.add_argument(
+        "--patience",
+        dest="patience",
+        help="patience config",
+        default=patience,
+        type=int,
+    )
+    parser.add_argument(
+        "--endpoint_url",
+        dest="endpoint_url",
+        help="endpoint_url",
+        default=endpoint_url,
+        type=str,
+    )
+    parser.add_argument(
+        "--access_key",
+        dest="access_key",
+        help="access_key",
+        default=access_key,
+        type=str,
+    )
+    parser.add_argument(
+        "--secret_key",
+        dest="secret_key",
+        help="secret_key",
+        default=secret_key,
+        type=str,
+    )
+    parser.add_argument(
+        "--bucket_name",
+        dest="bucket_name",
+        help="bucket_name",
+        default=bucket_name,
+        type=str,
+    )
+    parser.add_argument(
+        "--folder_prefix",
+        dest="folder_prefix",
+        help="folder_prefix",
+        default=folder_prefix,
+        type=str,
     )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
@@ -795,6 +998,48 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["data_path"] = new_args.source_path
         if type(new_args.source_path) == list and len(new_args.source_path) == 1:
             cfg_file["data_cfgs"]["data_path"] = new_args.source_path[0]
+    if new_args.attributes_path is not None:
+        cfg_file["data_cfgs"]["attributes_path"] = new_args.attributes_path
+        if (
+            isinstance(new_args.attributes_path, list)
+            and len(new_args.attributes_path) == 1
+        ):
+            cfg_file["data_cfgs"]["attributes_path"] = new_args.attributes_path[0]
+    if new_args.rainfall_source_path is not None:
+        cfg_file["data_cfgs"]["rainfall_source_path"] = new_args.rainfall_source_path
+        if (
+            isinstance(new_args.rainfall_source_path, list)
+            and len(new_args.rainfall_source_path) == 1
+        ):
+            cfg_file["data_cfgs"][
+                "rainfall_source_path"
+            ] = new_args.rainfall_source_path[0]
+    if new_args.streamflow_source_path is not None:
+        cfg_file["data_cfgs"][
+            "streamflow_source_path"
+        ] = new_args.streamflow_source_path
+        if (
+            isinstance(new_args.streamflow_source_path, list)
+            and len(new_args.streamflow_source_path) == 1
+        ):
+            cfg_file["data_cfgs"][
+                "streamflow_source_path"
+            ] = new_args.streamflow_source_path[0]
+    if new_args.water_level_source_path is not None:
+        cfg_file["data_cfgs"][
+            "water_level_source_path"
+        ] = new_args.water_level_source_path
+        if (
+            isinstance(new_args.water_level_source_path, list)
+            and len(new_args.water_level_source_path) == 1
+        ):
+            cfg_file["data_cfgs"][
+                "water_level_source_path"
+            ] = new_args.water_level_source_path[0]
+    if new_args.gfs_source_path is not None:
+        cfg_file["data_cfgs"]["gfs_source_path"] = new_args.gfs_source_path
+    if new_args.soil_source_path is not None:
+        cfg_file["data_cfgs"]["soil_source_path"] = new_args.soil_source_path
     if new_args.source_region is not None:
         cfg_file["data_cfgs"]["data_region"] = new_args.source_region
         if len(new_args.source_region) == 1:
@@ -810,6 +1055,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["scaler_params"] = new_args.scaler_params
     if new_args.dataset is not None:
         cfg_file["data_cfgs"]["dataset"] = new_args.dataset
+    if new_args.loading_batch is not None:
+        cfg_file["data_cfgs"]["loading_batch"] = new_args.loading_batch
     if new_args.sampler is not None:
         cfg_file["data_cfgs"]["sampler"] = new_args.sampler
     if new_args.fl_sample is not None:
@@ -884,6 +1131,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["other_cols"] = new_args.var_o
     if new_args.var_out is not None:
         cfg_file["data_cfgs"]["target_cols"] = new_args.var_out
+    if new_args.rolling is not None:
+        cfg_file["data_cfgs"]["rolling"] = new_args.rolling
     if new_args.out_rm_nan == 0:
         cfg_file["data_cfgs"]["target_rm_nan"] = False
     else:
@@ -935,6 +1184,8 @@ def update_cfg(cfg_file, new_args):
             cfg_file["model_cfgs"]["model_hyperparam"][
                 "output_seq_len"
             ] = new_args.n_output
+        if new_args.dropout is not None:
+            cfg_file["model_cfgs"]["model_hyperparam"]["dropout"] = new_args.dropout
     else:
         cfg_file["model_cfgs"]["model_hyperparam"] = new_args.model_hyperparam
         if "batch_size" in new_args.model_hyperparam.keys():
@@ -983,6 +1234,17 @@ def update_cfg(cfg_file, new_args):
         cfg_file["evaluation_cfgs"]["test_epoch"] = new_args.te
         if new_args.train_epoch is not None and new_args.te > new_args.train_epoch:
             raise RuntimeError("testing epoch cannot be larger than training epoch")
+    if new_args.endpoint_url is not None:
+        cfg_file["minio_cfgs"]["endpoint_url"] = new_args.endpoint_url
+    if new_args.access_key is not None:
+        cfg_file["minio_cfgs"]["access_key"] = new_args.access_key
+    if new_args.secret_key is not None:
+        cfg_file["minio_cfgs"]["secret_key"] = new_args.secret_key
+    if new_args.bucket_name is not None:
+        cfg_file["minio_cfgs"]["bucket_name"] = new_args.bucket_name
+    if new_args.folder_prefix is not None:
+        cfg_file["minio_cfgs"]["folder_prefix"] = new_args.folder_prefix
+
     if new_args.warmup_length > 0:
         cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
         if "warmup_length" in new_args.model_hyperparam.keys() and (
@@ -996,7 +1258,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["start_epoch"] = new_args.start_epoch
     if new_args.stat_dict_file is not None:
         cfg_file["data_cfgs"]["stat_dict_file"] = new_args.stat_dict_file
-
     if new_args.model_wrapper is not None:
         cfg_file["model_cfgs"]["model_wrapper"] = new_args.model_wrapper
     if new_args.model_wrapper_param is not None:
@@ -1007,14 +1268,30 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["train_but_not_real"] = True
     if new_args.which_first_tensor is not None:
         cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
+    if new_args.is_tensorboard is not None:
+        cfg_file["training_cfgs"]["is_tensorboard"] = new_args.is_tensorboard
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
+    if new_args.lr_patience is not None:
+        cfg_file["training_cfgs"]["lr_patience"] = new_args.lr_patience
+    if new_args.lr_factor is not None:
+        cfg_file["training_cfgs"]["lr_factor"] = new_args.lr_factor
+    if new_args.lr_val_loss is not None:
+        cfg_file["training_cfgs"]["lr_val_loss"] = new_args.lr_val_loss
+    if new_args.weight_decay is not None:
+        cfg_file["training_cfgs"]["weight_decay"] = new_args.weight_decay
     if new_args.ensemble == 0:
         cfg_file["training_cfgs"]["ensemble"] = False
     else:
         cfg_file["training_cfgs"]["ensemble"] = True
     if new_args.ensemble_items is not None:
         cfg_file["training_cfgs"]["ensemble_items"] = new_args.ensemble_items
+    if new_args.patience is not None:
+        cfg_file["training_cfgs"]["patience"] = new_args.patience
+    if new_args.early_stopping is not None:
+        cfg_file["training_cfgs"]["early_stopping"] = new_args.early_stopping
+    if new_args.user is not None:
+        cfg_file["data_cfgs"]["user"] = new_args.user
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 

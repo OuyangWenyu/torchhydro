@@ -72,10 +72,10 @@ def deal_gap_data(output, target, data_gap, device):
                 torch.tensor(scatter_index).to(device=device),
                 reduce="mean",
             )
-                    # the following code cause grad nan, so we use scatter rather than segment_csr.
-                    # But notice start index of output become non_nan_idx[0] rather than 0
-                    # seg = segment_csr(output[:, j], torch.tensor(non_nan_idx).to(device=self.device),
-                    #                   reduce="mean")
+            # the following code cause grad nan, so we use scatter rather than segment_csr.
+            # But notice start index of output become non_nan_idx[0] rather than 0
+            # seg = segment_csr(output[:, j], torch.tensor(non_nan_idx).to(device=self.device),
+            #                   reduce="mean")
         else:
             raise NotImplementedError(
                 "We have not provided this reduce way now!! Please choose 1 or 2!!"
@@ -234,6 +234,22 @@ class MAPELoss(torch.nn.Module):
             return torch.mean(torch.abs(torch.sub(target, output) / target))
 
 
+class MAELoss(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, output: torch.Tensor, target: torch.Tensor):
+        # Create a mask to filter out NaN values
+        mask = ~torch.isnan(target)
+
+        # Apply the mask to both target and output
+        target = target[mask]
+        output = output[mask]
+
+        # Calculate MAE for the non-NaN values
+        return torch.mean(torch.abs(target - output))
+
+
 class PenalizedMSELoss(torch.nn.Module):
     """
     Returns MSE using:
@@ -348,7 +364,15 @@ class RmseLoss(torch.nn.Module):
             t0 = target[:, :, k]
             mask = t0 == t0
             p = p0[mask]
+            p = torch.where(
+                torch.isnan(p),
+                torch.full_like(p, 0),
+                p)
             t = t0[mask]
+            t = torch.where(
+                torch.isnan(t),
+                torch.full_like(t, 0),
+                t)
             temp = torch.sqrt(((p - t) ** 2).mean())
             loss = loss + temp
         return loss
@@ -610,7 +634,19 @@ class DynamicTaskPrior(torch.nn.Module):
 
 
 class MultiOutWaterBalanceLoss(torch.nn.Module):
-    def __init__(self, loss_funcs: Union[torch.nn.Module, list], data_gap: list = None, device: list = None, limit_part: list = None, item_weight: list = None, alpha=0.5, beta=0.0, wb_loss_func=None, means=None, stds=None):
+    def __init__(
+        self,
+        loss_funcs: Union[torch.nn.Module, list],
+        data_gap: list = None,
+        device: list = None,
+        limit_part: list = None,
+        item_weight: list = None,
+        alpha=0.5,
+        beta=0.0,
+        wb_loss_func=None,
+        means=None,
+        stds=None,
+    ):
         """
         Loss function for multiple output considering water balance
 

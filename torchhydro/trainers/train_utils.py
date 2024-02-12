@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:06:12
-LastEditTime: 2023-10-03 18:04:22
+LastEditTime: 2024-02-12 19:12:10
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -73,7 +73,6 @@ def model_infer(seq_first, device, model, xs, ys):
         ys = ys.transpose(0, 1)
     return ys, output
 
-
 def denormalize4eval(validation_data_loader, output, labels):
     target_scaler = validation_data_loader.dataset.target_scaler
     target_data = target_scaler.data_target
@@ -84,98 +83,52 @@ def denormalize4eval(validation_data_loader, output, labels):
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
     if target_scaler.data_cfgs["scaler"] == "GPM_GFS_Scaler":
-        for i in range(output.shape[1]):
-            if (
-                warmup_length + validation_data_loader.dataset.forecast_length - 1 - i
-                != 0
-            ):
-                selected_time_points = target_data.coords["time"][
-                    -(
-                        warmup_length
-                        + validation_data_loader.batch_size
-                        + validation_data_loader.dataset.forecast_length
-                        - 1
-                        - i
-                    ) : -(
-                        warmup_length
-                        + validation_data_loader.dataset.forecast_length
-                        - 1
-                        - i
-                    )
-                ]
-            else:
-                selected_time_points = target_data.coords["time"][
-                    -(
-                        warmup_length
-                        + validation_data_loader.batch_size
-                        + validation_data_loader.dataset.forecast_length
-                        - 1
-                        - i
-                    ) :
-                ]
+        first_basin = target_scaler.data_cfgs["object_ids"][0]
+        source_data = target_scaler.data_forcing[first_basin]
+        batch_size = validation_data_loader.batch_size
+        forecast_length = validation_data_loader.dataset.forecast_length
+        basin_num = len(target_data.basin)
+        if target_scaler.data_cfgs["rolling"] == False:
+            selected_time_points = source_data.coords["time_now"]
             selected_data = target_data.sel(time=selected_time_points)
-            output1 = output.reshape(output.shape[0], output.shape[1], 1)[
-                :, i, :
-            ].reshape(validation_data_loader.batch_size, -1)
-            output1 = output1.reshape(output1.shape[0], output1.shape[1], 1)
-            labels1 = labels[:, i, :].reshape(validation_data_loader.batch_size, -1)
-            labels1 = labels1.reshape(labels1.shape[0], labels1.shape[1], 1)
-
+            output = output[:, 0, :].reshape(basin_num, batch_size, 1)
+            labels = labels[:, 0, :].reshape(basin_num, batch_size, 1)
             preds_xr = target_scaler.inverse_transform(
                 xr.DataArray(
-                    output1.transpose(2, 0, 1),
+                    output.transpose(2, 1, 0),
                     dims=selected_data.dims,
                     coords=selected_data.coords,
                 )
             )
             obss_xr = target_scaler.inverse_transform(
                 xr.DataArray(
-                    labels1.transpose(2, 0, 1),
+                    labels.transpose(2, 1, 0),
                     dims=selected_data.dims,
                     coords=selected_data.coords,
                 )
             )
-            preds_xr.attrs["units"] = "m"
-            obss_xr.attrs["units"] = "m"
+        else:
+            selected_time_points = source_data.coords["time_now"]
+            selected_data = target_data.sel(time=selected_time_points)
+            output = output[::forecast_length]
+            labels = labels[::forecast_length]
 
-            preds_xr.to_netcdf(
-                os.path.join(
-                    validation_data_loader.dataset.data_cfgs["test_path"],
-                    f"prediction_{str(i+1)}_hour.nc",
+            output = np.concatenate(output, axis=0).reshape(basin_num, -1, 1)
+            labels = np.concatenate(labels, axis=0).reshape(basin_num, -1, 1)
+            preds_xr = target_scaler.inverse_transform(
+                xr.DataArray(
+                    output,
+                    dims=selected_data.dims,
+                    coords=selected_data.coords,
                 )
             )
-
-        selected_time_points = target_data.coords["time"][
-            -(
-                warmup_length
-                + validation_data_loader.batch_size
-                + validation_data_loader.dataset.forecast_length
-                - 1
-            ) : -(+validation_data_loader.dataset.forecast_length - 1)
-        ]
-
-        selected_data = target_data.sel(time=selected_time_points)
-        output = output.reshape(output.shape[0], output.shape[1], 1)[:, 0, :].reshape(
-            validation_data_loader.batch_size, -1
-        )
-        output = output.reshape(output.shape[0], output.shape[1], 1)
-        labels = labels[:, 0, :].reshape(validation_data_loader.batch_size, -1)
-        labels = labels.reshape(labels.shape[0], labels.shape[1], 1)
-
-        preds_xr = target_scaler.inverse_transform(
-            xr.DataArray(
-                output.transpose(2, 0, 1),
-                dims=selected_data.dims,
-                coords=selected_data.coords,
+            obss_xr = target_scaler.inverse_transform(
+                xr.DataArray(
+                    labels,
+                    dims=selected_data.dims,
+                    coords=selected_data.coords,
+                )
             )
-        )
-        obss_xr = target_scaler.inverse_transform(
-            xr.DataArray(
-                labels.transpose(2, 0, 1),
-                dims=selected_data.dims,
-                coords=selected_data.coords,
-            )
-        )
         preds_xr.attrs["units"] = "m"
         obss_xr.attrs["units"] = "m"
     else:
@@ -235,27 +188,32 @@ class EarlyStopper(object):
         self.counter = 0
         self.best_score = None
 
-    def check_loss(self, model, validation_loss) -> bool:
+    def check_loss(self, model, validation_loss, save_dir, lr_val_loss) -> bool:
         score = validation_loss
         if self.best_score is None:
-            self.save_model_checkpoint(model)
+            self.save_model_checkpoint(model, save_dir)
             self.best_score = score
 
-        elif score + self.min_delta >= self.best_score:
-            if not self.cumulative_delta and score > self.best_score:
-                self.best_score = score
+        elif (
+            (score + self.min_delta >= self.best_score)
+            if lr_val_loss
+            else (score + self.min_delta <= self.best_score)
+        ):
+            # if not self.cumulative_delta and score > self.best_score:
+            #     self.best_score = score
             self.counter += 1
-            print(self.counter)
+            print("Epochs without Model Update:", self.counter)
             if self.counter >= self.patience:
                 return False
         else:
-            self.save_model_checkpoint(model)
+            self.save_model_checkpoint(model, save_dir)
+            print("Model Update")
             self.best_score = score
             self.counter = 0
         return True
 
-    def save_model_checkpoint(self, model):
-        torch.save(model.state_dict(), "checkpoint.pth")
+    def save_model_checkpoint(self, model, save_dir):
+        torch.save(model.state_dict(), os.path.join(save_dir, "best_model.pth"))
 
 
 def evaluate_validation(
@@ -317,7 +275,6 @@ def evaluate_validation(
             ].tolist()
     return eval_log
 
-
 def compute_loss(
     labels: torch.Tensor, output: torch.Tensor, criterion, **kwargs
 ) -> float:
@@ -342,6 +299,12 @@ def compute_loss(
     float
         the computed loss
     """
+    # a = np.sum(output.cpu().detach().numpy(),axis=1)/len(output)
+    # b=[]
+    # for i in a:
+    #     b.append([i.tolist()])                                 
+    # output = torch.tensor(b, requires_grad=True).to(torch.device("cuda"))
+
     if isinstance(criterion, GaussianLoss):
         if len(output[0].shape) > 2:
             g_loss = GaussianLoss(output[0][:, :, 0], output[1][:, :, 0])
@@ -359,7 +322,6 @@ def compute_loss(
             labels = labels.unsqueeze(0)
     assert labels.shape == output.shape
     return criterion(output, labels.float())
-
 
 def torch_single_train(
     model,
@@ -406,12 +368,13 @@ def torch_single_train(
     for _, (src, trg) in enumerate(pbar):
         # iEpoch starts from 1, iIter starts from 0, we hope both start from 1
         trg, output = model_infer(seq_first, device, model, src, trg)
+
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
-        loss.backward()
-        opt.step()
-        model.zero_grad()
+        loss.backward() # 反向传播计算当前梯度
+        opt.step() # 根据梯度更新网络参数
+        model.zero_grad() # 清空梯度
         if torch.isnan(loss) or loss == float("inf"):
             raise ValueError(
                 "Error infinite or NaN loss detected. Try normalizing data or performing interpolation"
@@ -420,7 +383,6 @@ def torch_single_train(
         n_iter_ep += 1
     total_loss = running_loss / float(n_iter_ep)
     return total_loss, n_iter_ep
-
 
 def compute_validation(
     model,
@@ -460,11 +422,11 @@ def compute_validation(
         # first dim is batch
         obs_final = torch.cat(obs, dim=0)
         pred_final = torch.cat(preds, dim=0)
+
         valid_loss = compute_loss(obs_final, pred_final, criterion)
     y_obs = obs_final.detach().cpu().numpy()
     y_pred = pred_final.detach().cpu().numpy()
     return y_obs, y_pred, valid_loss
-
 
 def average_weights(w):
     """
@@ -476,7 +438,6 @@ def average_weights(w):
             w_avg[key] += w[i][key]
         w_avg[key] = torch.div(w_avg[key], len(w))
     return w_avg
-
 
 def cellstates_when_inference(seq_first, data_cfgs, pred):
     """get cell states when inference"""

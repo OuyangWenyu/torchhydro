@@ -10,15 +10,12 @@ tbparse~=0.0.7
 pandas
 torch~=1.12.1
 torchvision
-pillow~=9.5.0
+pillow
 hydroerr~=1.24
 shap~=0.43.0
 matplotlib
 seaborn
-
 kaggle~=1.5.16
-
 pytest
-
 hydroutils
 hydrodataset
