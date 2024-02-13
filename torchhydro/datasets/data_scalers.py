@@ -223,11 +223,7 @@ class DapengScaler(object):
                 "streamflow",
             ]
         if gamma_norm_cols is None:
-            gamma_norm_cols = [
-                "p_mean",
-                "prcp",
-                "temperature"
-            ]
+            gamma_norm_cols = ["p_mean", "prcp", "temperature"]
         self.data_target = target_vars
         self.data_forcing = relevant_vars
         self.data_attr = constant_vars
@@ -341,11 +337,11 @@ class DapengScaler(object):
                 stat_dict[var] = cal_stat(x.sel(variable=var).to_numpy())
 
         # const attribute
-        # attr_data = self.data_attr
-        # attr_lst = self.data_cfgs["constant_cols"]
-        # for k in range(len(attr_lst)):
-        #     var = attr_lst[k]
-        #     stat_dict[var] = cal_stat(attr_data.sel(variable=var).to_numpy())
+        attr_data = self.data_attr
+        attr_lst = self.data_cfgs["constant_cols"]
+        for k in range(len(attr_lst)):
+            var = attr_lst[k]
+            stat_dict[var] = cal_stat(attr_data.sel(variable=var).to_numpy())
 
         return stat_dict
 
