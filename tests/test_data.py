@@ -7,13 +7,14 @@ Description: Test some functions for dataset
 FilePath: \torchhydro\tests\test_data.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import os
 import pytest
 import hydrodataset as hds
 from hydrodataset.caravan import Caravan
 from torch.utils.data import Dataset
 
-from torchhydro import DATASOURCE_SETTINGS
+from torchhydro import SETTING
 from torchhydro.datasets.sampler import KuaiSampler
 
 
@@ -68,7 +69,7 @@ def test_cache_file():
     Test whether the cache file is generated correctly
     """
     camels_dir = os.path.join(
-        DATASOURCE_SETTINGS["datasets-origin"], "camels", "camels_us"
+        SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
     )
     camels_us = hds.Camels(camels_dir)
     camels_us.cache_xrdataset()
@@ -78,5 +79,7 @@ def test_cache_caravan():
     """
     Test whether the cache file is generated correctly
     """
-    caravan = Caravan(os.path.join(DATASOURCE_SETTINGS["datasets-origin"], "caravan"))
+    caravan = Caravan(
+        os.path.join(SETTING["local_data_path"]["datasets-origin"], "caravan")
+    )
     caravan.cache_xrdataset()

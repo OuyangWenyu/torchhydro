@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2023-12-17 16:12:33
+LastEditTime: 2024-02-14 15:56:15
 LastEditors: Wenyu Ouyang
 Description: Top-level package for torchhydro
 FilePath: \torchhydro\torchhydro\__init__.py
@@ -14,39 +14,75 @@ __author__ = """Wenyu Ouyang"""
 __email__ = "wenyuouyang@outlook.com"
 __version__ = '0.0.4'
 
-# we use a .hydrodataset dir to save the setting
 from pathlib import Path
-import json
+import yaml
+import os
+
+from hydroutils import hydro_file
+
+CACHE_DIR = hydro_file.get_cache_dir()
+SETTING_FILE = os.path.join(Path.home(), "hydro_setting.yml")
 
 
-datasource_setting_dir = Path.home().joinpath(".hydrodataset")
-if not datasource_setting_dir.is_dir():
-    datasource_setting_dir.mkdir(parents=True)
-datasource_cache_dir = datasource_setting_dir.joinpath("cache")
-if not datasource_cache_dir.is_dir():
-    datasource_cache_dir.mkdir(parents=True)
-datasource_setting_file = datasource_setting_dir.joinpath("settings.json")
-if not datasource_setting_file.is_file():
-    datasource_setting_file.touch(exist_ok=False)
-    # default data dir is cache, user should modify it to his/her own
-    set_json = {
-        "cache": str(datasource_cache_dir),
-        "root": str(datasource_cache_dir),
-        "datasets-origin": str(
-            datasource_cache_dir.joinpath("waterism", "datasets-origin")
-        ),
-        "datasets-interim": str(
-            datasource_cache_dir.joinpath("waterism", "datasets-interim")
-        ),
+def read_setting(setting_path):
+    if not os.path.exists(setting_path):
+        raise FileNotFoundError(f"Configuration file not found: {setting_path}")
+
+    with open(setting_path, "r") as file:
+        setting = yaml.safe_load(file)
+
+    example_setting = (
+        "minio:\n"
+        "  server_url: 'http://minio.waterism.com:9090' # Update with your URL\n"
+        "  client_endpoint: 'http://minio.waterism.com:9000' # Update with your URL\n"
+        "  access_key: 'your minio access key'\n"
+        "  secret: 'your minio secret'\n\n"
+        "trainer: ['zxw', 'xxx']\n"
+        "tester: ['yyy']\n\n"
+        "local_data_path:\n"
+        "  root: 'D:\\data\\waterism' # Update with your root data directory\n"
+        "  datasets-origin: 'D:\\data\\waterism\\datasets-origin'\n"
+        "  datasets-interim: 'D:\\data\\waterism\\datasets-interim'"
+    )
+
+    if setting is None:
+        raise ValueError(
+            f"Configuration file is empty or has invalid format.\n\nExample configuration:\n{example_setting}"
+        )
+
+    # Define the expected structure
+    expected_structure = {
+        "minio": ["server_url", "client_endpoint", "access_key", "secret"],
+        "trainer": list,
+        "tester": list,
+        "local_data_path": ["root", "datasets-origin", "datasets-interim"],
     }
-    # Ensure directories exist
-    for path in set_json.values():
-        Path(path).mkdir(parents=True, exist_ok=True)
-    with open(datasource_setting_file, "w") as file:
-        json.dump(set_json, file, indent=4)
 
-# read json file
-DATASOURCE_SETTINGS = json.loads(datasource_setting_file.read_text())
+    # Validate the structure
+    try:
+        for key, subkeys in expected_structure.items():
+            if key not in setting:
+                raise KeyError(f"Missing required key in config: {key}")
+
+            if isinstance(subkeys, list):
+                for subkey in subkeys:
+                    if subkey not in setting[key]:
+                        raise KeyError(f"Missing required subkey '{subkey}' in '{key}'")
+    except KeyError as e:
+        raise ValueError(
+            f"Incorrect configuration format: {e}\n\nExample configuration:\n{example_setting}"
+        ) from e
+
+    return setting
+
+
+try:
+    SETTING = read_setting(SETTING_FILE)
+except ValueError as e:
+    print(e)
+except Exception as e:
+    print(f"Unexpected error: {e}")
+
 
 from .configs import *
 from .datasets import *
