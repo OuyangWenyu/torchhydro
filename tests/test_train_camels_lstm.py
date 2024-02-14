@@ -7,9 +7,10 @@ Description: Test a full training and evaluating process
 FilePath: /torchhydro/tests/test_train_camels_lstm.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import os
 import pytest
-from torchhydro import DATASOURCE_SETTINGS
+from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -17,10 +18,8 @@ from torchhydro.trainers.trainer import train_and_evaluate
 @pytest.fixture()
 def config():
     project_name = "test_camels/exp1"
-    data_dir = DATASOURCE_SETTINGS["datasets-origin"]
-    source_path = os.path.join(
-        data_dir, "camels", "camels_us"
-    )
+    data_dir = SETTING["local_data_path"]["datasets-origin"]
+    source_path = os.path.join(data_dir, "camels", "camels_us")
     config_data = default_config_file()
     args = cmd(
         sub=project_name,

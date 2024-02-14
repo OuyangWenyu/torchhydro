@@ -1,4 +1,5 @@
 """A module for datasets made by ourselves"""
+
 from abc import ABC
 import collections
 import pint_xarray  # noqa: F401
@@ -13,7 +14,7 @@ import xarray as xr
 from hydrodataset import HydroDataset
 from hydroutils import hydro_time
 
-from torchhydro import DATASOURCE_SETTINGS
+from torchhydro import SETTING, CACHE_DIR
 
 
 class HydroData(ABC):
@@ -26,7 +27,7 @@ class HydroData(ABC):
     """
 
     def __init__(self, data_path):
-        self.data_source_dir = Path(DATASOURCE_SETTINGS["root"], data_path)
+        self.data_source_dir = Path(SETTING["local_data_path"]["root"], data_path)
         if not self.data_source_dir.is_dir():
             self.data_source_dir.mkdir(parents=True)
 
@@ -504,15 +505,11 @@ class SelfMadeCamels(HydroDataset):
     def cache_xrdataset(self):
         """Save all data in a netcdf file in the cache directory"""
         ds_attr = self.cache_attributes_xrdataset()
-        ds_attr.to_netcdf(
-            os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_attributes.nc")
-        )
+        ds_attr.to_netcdf(os.path.join(CACHE_DIR, "camelscc_attributes.nc"))
         ds_streamflow = self.cache_streamflow_xrdataset()
         ds_forcing = self.cache_forcing_xrdataset()
         ds = xr.merge([ds_streamflow, ds_forcing])
-        ds.to_netcdf(
-            os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_timeseries.nc")
-        )
+        ds.to_netcdf(os.path.join(CACHE_DIR, "camelscc_timeseries.nc"))
 
     def read_ts_xrdataset(
         self,
@@ -525,14 +522,10 @@ class SelfMadeCamels(HydroDataset):
         if var_lst is None:
             return None
         try:
-            ts = xr.open_dataset(
-                os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_timeseries.nc")
-            )
+            ts = xr.open_dataset(os.path.join(CACHE_DIR, "camelscc_timeseries.nc"))
         except FileNotFoundError:
             self.cache_xrdataset()
-            ts = xr.open_dataset(
-                os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_timeseries.nc")
-            )
+            ts = xr.open_dataset(os.path.join(CACHE_DIR, "camelscc_timeseries.nc"))
         all_vars = ts.data_vars
         if any(var not in ts.variables for var in var_lst):
             raise ValueError(f"var_lst must all be in {all_vars}")
@@ -543,14 +536,10 @@ class SelfMadeCamels(HydroDataset):
         if var_lst is None or len(var_lst) == 0:
             return None
         try:
-            attr = xr.open_dataset(
-                os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_attributes.nc")
-            )
+            attr = xr.open_dataset(os.path.join(CACHE_DIR, "camelscc_attributes.nc"))
         except FileNotFoundError:
             self.cache_xrdataset()
-            attr = xr.open_dataset(
-                os.path.join(DATASOURCE_SETTINGS["cache"], "camelscc_attributes.nc")
-            )
+            attr = xr.open_dataset(os.path.join(CACHE_DIR, "camelscc_attributes.nc"))
         return attr[var_lst].sel(basin=gage_id_lst)
 
     def read_area(self, gage_id_lst=None):

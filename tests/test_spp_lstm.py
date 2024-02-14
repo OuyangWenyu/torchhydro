@@ -1,12 +1,13 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-09-30 1:20:18
-LastEditTime: 2023-12-29 11:05:57
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-02-13 13:18:21
+LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process with Spp_Lstm
 FilePath: \torchhydro\tests\test_spp_lstm.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+
 import os
 import pytest
 import hydrodataset as hds
@@ -115,7 +116,9 @@ def config():
         ],
         loss_func="MAELoss",  # NSELoss、RMSESum、MAPELoss、MASELoss、MAELoss 可以选择
         opt="Adam",  # 目前学习率自动调整(下面的参数)只支持Adam
-        lr_scheduler={1: 1e-3},  # 初始化学习率(第1轮开始即使用1e-3)，可强制指定某一轮使用的学习率
+        lr_scheduler={
+            1: 1e-3
+        },  # 初始化学习率(第1轮开始即使用1e-3)，可强制指定某一轮使用的学习率
         lr_factor=0.5,  # 学习率更新权重
         lr_patience=0,  # 连续n+1次valid loss不下降，则更新学习率
         weight_decay=1e-5,  # L2正则化衰减权重

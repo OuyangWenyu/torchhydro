@@ -1,15 +1,16 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-09-09 14:47:42
-LastEditTime: 2023-09-21 20:13:44
+LastEditTime: 2024-02-14 16:06:26
 LastEditors: Wenyu Ouyang
 Description: a script to run experiments for LSTM - CAMELS
-FilePath: /torchhydro/experiments/run_camelslstm_experiments.py
+FilePath: \torchhydro\experiments\run_camelslstm_experiments.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import os
 
-from torchhydro import DATASOURCE_SETTINGS
+from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -64,7 +65,7 @@ def run_normal_dl(
         source="CAMELS",
         source_region="US",
         source_path=os.path.join(
-            DATASOURCE_SETTINGS["datasets-origin"], "camels", "camels_us"
+            SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
         ),
         download=0,
         ctx=[0],

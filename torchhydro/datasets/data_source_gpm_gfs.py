@@ -1,8 +1,8 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-09-30 1:20:18
-LastEditTime: 2024-01-11 14:21:00
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-02-13 13:26:17
+LastEditors: Wenyu Ouyang
 Description: data source
 FilePath: \torchhydro\torchhydro\datasets\data_source_gpm_gfs.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
@@ -13,9 +13,9 @@ from typing import Union
 
 import numpy as np
 import xarray as xr
-import yaml
 from hydrodataset import HydroDataset
-import pathlib as pl
+
+from torchhydro import SETTING
 
 GPM_GFS_NO_DATASET_ERROR_LOG = (
     "We cannot read this dataset now. Please check if you choose correctly:\n"
@@ -69,11 +69,11 @@ class GPM_GFS(HydroDataset):
         ValueError: If any variable in var_list is not present in the dataset.
         """
 
-        if var_list is None or len(var_list) == 0:
+        if var_list is None or not var_list:
             return None
-        if user in privacy_cfg["trainer"]:
+        if user in SETTING["trainer"]:
             waterlevel = xr.open_dataset(water_level_source_path)
-        elif user in privacy_cfg["tester"]:
+        elif user in SETTING["tester"]:
             waterlevel = water_level_source_path
         else:
             waterlevel = xr.Dataset()
@@ -124,11 +124,11 @@ class GPM_GFS(HydroDataset):
         ValueError: If any of the specified variables in var_list are not found in the dataset.
         """
 
-        if var_list is None or len(var_list) == 0:
+        if var_list is None or not var_list:
             return None
-        if user in privacy_cfg["trainer"]:
+        if user in SETTING["trainer"]:
             streamflow = xr.open_dataset(streamflow_source_path)
-        elif user in privacy_cfg["tester"]:
+        elif user in SETTING["tester"]:
             streamflow = streamflow_source_path
         else:
             streamflow = xr.Dataset()
@@ -179,7 +179,7 @@ class GPM_GFS(HydroDataset):
         if var_lst is None:
             return None
         rainfall_dict = {}
-        if user in privacy_cfg["trainer"]:
+        if user in SETTING["trainer"]:
             for basin in gage_id_lst:
                 rainfall = xr.open_dataset(
                     os.path.join(rainfall_source_path, f"{basin}.nc")
@@ -192,7 +192,7 @@ class GPM_GFS(HydroDataset):
                     subset_list.append(subset)
                 merged_dataset_tp = xr.concat(subset_list, dim="time_now")
                 rainfall_dict[basin] = merged_dataset_tp.to_array(dim="variable")
-        elif user in privacy_cfg["tester"]:
+        elif user in SETTING["tester"]:
             # 为保证结果正确，rainfall_source_path应该和gage_id一一对应
             for basin in gage_id_lst:
                 rainfall = rainfall_source_path[gage_id_lst.index(basin)]
@@ -243,7 +243,7 @@ class GPM_GFS(HydroDataset):
         if var_lst is None:
             return None
         gfs_dict = {}
-        if user in privacy_cfg["trainer"]:
+        if user in SETTING["trainer"]:
             for basin in gage_id_lst:
                 gfs = xr.open_dataset(os.path.join(gfs_source_path, f"{basin}_gfs.nc"))
                 subset_list = []
@@ -260,7 +260,7 @@ class GPM_GFS(HydroDataset):
                     subset_list.append(subset)
                 merged_dataset_gfs = xr.concat(subset_list, dim="time")
                 gfs_dict[basin] = merged_dataset_gfs.to_array(dim="variable")
-        elif user in privacy_cfg["tester"]:
+        elif user in SETTING["tester"]:
             # 为保证结果正确，gfs_source_path应该和gage_id一一对应
             for basin in gage_id_lst:
                 gfs = gfs_source_path[gage_id_lst.index(basin)]
@@ -296,7 +296,7 @@ class GPM_GFS(HydroDataset):
         if var_lst is None:
             return None
         soil_dict = {}
-        if user in privacy_cfg["trainer"]:
+        if user in SETTING["trainer"]:
             for basin in gage_id_lst:
                 soil = xr.open_dataset(
                     os.path.join(soil_source_path, f"{basin}_soil.nc")
@@ -315,7 +315,7 @@ class GPM_GFS(HydroDataset):
                     subset_list.append(subset)
                 merged_dataset_soil = xr.concat(subset_list, dim="time")
                 soil_dict[basin] = merged_dataset_soil.to_array(dim="variable")
-        elif user in privacy_cfg["tester"]:
+        elif user in SETTING["tester"]:
             # 为保证结果正确，soil_source_path应该和gage_id一一对应
             for basin in gage_id_lst:
                 soil = soil_source_path[gage_id_lst.index(basin)]
@@ -362,9 +362,9 @@ class GPM_GFS(HydroDataset):
 
         if var_lst is None or len(var_lst) == 0:
             return None
-        if user in privacy_cfg["trainer"]:
+        if user in SETTING["trainer"]:
             attr = xr.open_dataset(attributes_path)
-        elif user in privacy_cfg["tester"]:
+        elif user in SETTING["tester"]:
             attr = attributes_path
         else:
             attr = xr.Dataset()
@@ -392,9 +392,9 @@ class GPM_GFS(HydroDataset):
         - The function adapts the data source based on the user's access level (trainer or tester).
         """
 
-        if user in privacy_cfg["trainer"]:
+        if user in SETTING["trainer"]:
             mean_prep = xr.open_dataset(mean_prep_path)
-        elif user in privacy_cfg["tester"]:
+        elif user in SETTING["tester"]:
             mean_prep = mean_prep_path
         else:
             mean_prep = xr.Dataset()

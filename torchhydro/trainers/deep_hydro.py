@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-02-12 19:11:23
+LastEditTime: 2024-02-14 17:49:50
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py

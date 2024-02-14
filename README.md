@@ -28,7 +28,7 @@
 
 ## Data source settings
 
-We set a unified data path in settings.json in the `.hydrodataset` directory which is located in the user directory (for example, `C:\Users\username\.hydrodataset` in Windows). You can change the data path in this file.
+We set a unified data path in hydro_setting.yml in the user directory (for example, `C:\Users\username\` in Windows). You can change the data path in this file.
 
 We have some conventions for data sources and we think it could be better to follow these conventions:
 
