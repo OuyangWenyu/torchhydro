@@ -32,6 +32,18 @@ class SimpleLSTM(nn.Module):
         out_lstm, (hn, cn) = self.lstm(x0)
         return self.linearOut(out_lstm)
 
+class SimpleLSTMForecast(SimpleLSTM):
+    def __init__(self, input_size, output_size, hidden_size, forecast_length, dr=0.0):
+        super(SimpleLSTMForecast, self).__init__(input_size, output_size, hidden_size, dr)
+        self.forecast_length = forecast_length
+
+    def forward(self, x):
+        # 调用父类的forward方法获取完整的输出
+        full_output = super(SimpleLSTMForecast, self).forward(x)
+
+        # 只选择最后forecast_length个时间步的输出
+        forecast_output = full_output[-self.forecast_length:, :, :]
+        return forecast_output
 
 class SlowLSTM(nn.Module):
     """
