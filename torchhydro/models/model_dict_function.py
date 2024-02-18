@@ -16,6 +16,8 @@ from torchhydro.models.cudnnlstm import (
     CpuLstmModel,
 )
 
+from torchhydro.models.simple_lstm import SimpleLSTMForecast
+
 from torch.optim import Adam, SGD, Adadelta
 from torchhydro.models.crits import (
     RMSELoss,
@@ -40,6 +42,7 @@ pytorch_model_dict = {
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
     "DplLstmXaj": DplLstmXaj,
     "SPPLSTM": SPP_LSTM_Model,
+    "SimpleLSTMForecast": SimpleLSTMForecast,
 }
 
 pytorch_model_wrapper_dict = {}
