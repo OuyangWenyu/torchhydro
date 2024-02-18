@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-02-13 12:56:08
+LastEditTime: 2024-02-14 17:49:50
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -292,6 +292,9 @@ class DeepHydro(DeepHydroInterface):
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
+
+                if is_tensorboard:
+                    writer.add_scalar("train_loss", total_loss, epoch)
 
             valid_loss = None
             valid_metrics = None

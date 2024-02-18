@@ -7,7 +7,6 @@ Description: data source
 FilePath: \torchhydro\torchhydro\datasets\data_source_gpm_gfs.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
-
 import os
 from datetime import datetime, timedelta
 from typing import Union
@@ -21,6 +20,9 @@ from torchhydro import SETTING
 GPM_GFS_NO_DATASET_ERROR_LOG = (
     "We cannot read this dataset now. Please check if you choose correctly:\n"
 )
+
+with open(os.path.join(pl.Path.home(), "privacy_config.yml"), "r") as f:
+    privacy_cfg = yaml.safe_load(f)
 
 
 class GPM_GFS(HydroDataset):

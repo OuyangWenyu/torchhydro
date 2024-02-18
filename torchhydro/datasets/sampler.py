@@ -127,19 +127,19 @@ class GPM_GFS_Sampler(Sampler[int]):
                 generator=generator,
             ).tolist()
         else:
-            basin_list = torch.randperm(basin_number, generator=generator).tolist()
+            for _ in range(self.num_samples // n):
+                select_basin = torch.randperm(
+                    basin_number, generator=generator
+                ).tolist()[0]
+                x = torch.randperm(int(basin_range), generator=generator)
+                yield from (x[:n] + int(basin_range) * (select_basin)).tolist()
+            # basin_list = torch.randperm(basin_number, generator=generator).tolist()
 
-            for basin_id in basin_list:
-                basin_start = basin_id * basin_range
+            # for basin_id in basin_list:
+            #     basin_start = basin_id * basin_range
 
-                x = torch.randperm(basin_range, generator=generator)
-                x += basin_start
-
-                for i in range(0, len(x), n):
-                    if len(x) - i >= n:
-                        yield from (x[i : i + n]).tolist()
-                    else:
-                        break
+            #     x = torch.randperm(basin_range, generator=generator)
+            #     x += basin_start
 
     def __len__(self) -> int:
         return self.num_samples
