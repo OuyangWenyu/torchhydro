@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-10-05 16:16:48
-LastEditTime: 2023-10-15 15:51:51
+LastEditTime: 2024-02-14 16:12:50
 LastEditors: Wenyu Ouyang
 Description: A test function for transfer learning
 FilePath: \torchhydro\tests\test_transfer_learning.py
@@ -11,7 +11,7 @@ import os
 import pytest
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
 
-from torchhydro import DATASOURCE_SETTINGS
+from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -76,7 +76,7 @@ def test_transfer_gages_lstm_model(
         sub=project_name,
         source="CAMELS",
         source_path=os.path.join(
-            DATASOURCE_SETTINGS["datasets-origin"], "camels", "camels_us"
+            SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
         ),
         source_region="US",
         download=0,

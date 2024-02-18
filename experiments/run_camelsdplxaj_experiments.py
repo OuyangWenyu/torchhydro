@@ -7,10 +7,11 @@ Description: A case for dPL-XAJ model
 FilePath: \torchhydro\experiments\run_camelsdplxaj_experiments.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import os
 from configs.config import cmd, default_config_file, update_cfg
 
-from torchhydro import DATASOURCE_SETTINGS
+from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
 
 
@@ -38,7 +39,7 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         source="CAMELS",
         source_region="US",
         source_path=os.path.join(
-            DATASOURCE_SETTINGS["datasets-origin"], "camels", "camels_us"
+            SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
         ),
         download=0,
         ctx=[0],

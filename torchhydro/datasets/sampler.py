@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-25 08:21:27
-LastEditTime: 2023-10-05 15:50:27
-LastEditors: Wenyu Ouyang
+LastEditTime: 2023-12-29 11:05:57
+LastEditors: Xinzhuo Wu
 Description: Some sampling class or functions
 FilePath: \torchhydro\torchhydro\datasets\sampler.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
@@ -140,12 +140,6 @@ class GPM_GFS_Sampler(Sampler[int]):
 
             #     x = torch.randperm(basin_range, generator=generator)
             #     x += basin_start
-
-            #     for i in range(0, len(x), n):
-            #         if len(x) - i >= n:
-            #             yield from (x[i : i + n]).tolist()
-            #         else:
-            #             break
 
     def __len__(self) -> int:
         return self.num_samples

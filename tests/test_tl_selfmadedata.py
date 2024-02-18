@@ -11,7 +11,7 @@ import os
 import pytest
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
 
-from torchhydro import DATASOURCE_SETTINGS
+from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -78,7 +78,7 @@ def test_transfer_gages_lstm_model(
         source="SelfMadeCAMELS",
         # cc means China continent
         source_path=os.path.join(
-            DATASOURCE_SETTINGS["datasets-interim"], "camels_cc_v2"
+            SETTING["local_data_path"]["datasets-interim"], "camels_cc_v2"
         ),
         download=0,
         ctx=[0],

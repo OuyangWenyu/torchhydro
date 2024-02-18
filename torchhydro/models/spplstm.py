@@ -1,3 +1,12 @@
+"""
+Author: Xinzhuo Wu
+Date: 2023-09-30 1:20:18
+LastEditTime: 2023-01-11 14:50:00
+LastEditors: Xinzhuo Wu
+Description: spp lstm model
+FilePath: torchhydr\models\spplstm.py
+Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
+"""
 import torch
 from torch import nn
 
@@ -56,7 +65,7 @@ class SppLayer(nn.Module):
 
 
 class SPP_LSTM_Model(nn.Module):
-    def __init__(self, seq_length, forecast_length, n_output, n_hidden_states):
+    def __init__(self, seq_length, forecast_length, n_output, n_hidden_states, dropout):
         super(SPP_LSTM_Model, self).__init__()
 
         self.conv1 = TimeDistributed(
@@ -112,7 +121,7 @@ class SPP_LSTM_Model(nn.Module):
 
         self.maxpool2 = TimeDistributed(SppLayer([4, 2, 1]))
 
-        self.dropout = nn.Dropout(p=0.1)
+        self.dropout = nn.Dropout(dropout)
 
         self.lstm = nn.LSTM(
             input_size=21 * 32, hidden_size=n_hidden_states, batch_first=True
@@ -123,9 +132,6 @@ class SPP_LSTM_Model(nn.Module):
         self.forecast_length = forecast_length
 
     def forward(self, x):
-        #  print(x.shape)
-        x = torch.squeeze(x, dim=1)
-        # print(x.shape)
         x = self.conv1(x)
         x = torch.relu(x)
         x = self.conv2(x)
@@ -139,13 +145,186 @@ class SPP_LSTM_Model(nn.Module):
         x = torch.relu(x)
         x = self.maxpool2(x)
         x = self.dropout(x)
-        # print(x.shape)
         x = x.view(x.shape[0], x.shape[1], -1)
-        # print(x.shape)
         x, _ = self.lstm(x)
-        # print(x.shape)
         x = self.dense(x)
         x = x[:, -self.forecast_length :, :]
-        # print(x.shape)
         return x
-        # return x.unsqueeze(2).transpose(0, 1)
+
+
+class SPP_LSTM_Model_2(nn.Module):
+    def __init__(
+        self,
+        seq_length,
+        forecast_length,
+        p_n_output,
+        p_n_hidden_states,
+        p_dropout,
+        p_in_channels,
+        p_out_channels,
+        len_c=None,
+        s_seq_length=None,
+        s_n_output=None,
+        s_n_hidden_states=None,
+        s_dropout=None,
+        s_in_channels=None,
+        s_out_channels=None,
+    ):
+        """
+        A custom neural network model designed for handling and integrating various types of meteorological and geographical data.
+        This model incorporates data from different sources: precipitation (p), soil (s), basin attributes (c), and Global Forecast System (g).
+
+        Parameters:
+        - seq_length: The length of the input sequence for precipitation data.
+        - forecast_length: The length of the forecast period.
+        - p_n_output: Output dimension for the precipitation (p) data path.
+        - p_n_hidden_states: Number of hidden states in the LSTM for the precipitation path.
+        - p_dropout: Dropout rate applied in the precipitation path.
+        - p_in_channels: Number of input channels for the convolutional layer in the precipitation path.
+        - p_out_channels: Number of output channels for the convolutional layer in the precipitation path.
+        - len_c: Optional, the number of basin attribute (c) features.
+        - s_seq_length, s_n_output, s_n_hidden_states, s_dropout, s_in_channels, s_out_channels: Similar parameters for the soil (s) data path.
+
+        Methods:
+        - forward(*x_lst): Processes the input data depending on its composition:
+            - If only precipitation data is provided, processes it through the primary precipitation path.
+            - If precipitation and either basin attributes or soil data are provided, integrates these with precipitation data for processing.
+            - If all three types of data (precipitation, basin attributes, soil) are provided, combines them effectively for prediction.
+
+        This model's architecture is versatile, enabling it to adapt to various data availability scenarios, making it suitable for complex meteorological and geographical data processing tasks.
+        """
+        super(SPP_LSTM_Model_2, self).__init__()
+        self.conv_p = nn.Conv2d(
+            in_channels=p_in_channels,
+            out_channels=p_out_channels,
+            kernel_size=(3, 3),
+            padding="same",
+        )
+
+        self.leaky_relu_p = nn.LeakyReLU(0.01)
+
+        self.lstm_p = nn.LSTM(
+            input_size=p_out_channels * 5 + len_c,
+            hidden_size=p_n_hidden_states,
+            batch_first=True,
+        )
+
+        self.dropout_p = nn.Dropout(p_dropout)
+
+        self.fc_p = nn.Linear(p_n_hidden_states, p_n_output)
+
+        self.spp_p = SppLayer([2, 1])
+
+        self.p_length = seq_length + forecast_length
+        self.forecast_length = forecast_length
+
+        if s_seq_length is not None:
+            self.conv_s = nn.Conv2d(
+                in_channels=s_in_channels,
+                out_channels=s_out_channels,
+                kernel_size=(3, 3),
+                padding="same",
+            )
+
+            self.leaky_relu_s = nn.LeakyReLU(0.01)
+            self.sigmoid_s = nn.Sigmoid()
+
+            self.lstm_s = nn.LSTM(
+                input_size=s_out_channels * 5,
+                hidden_size=s_n_hidden_states,
+                batch_first=True,
+            )
+
+            self.dropout_s = nn.Dropout(s_dropout)
+
+            self.fc_s = nn.Linear(s_n_hidden_states, s_n_output)
+
+            self.spp_s = SppLayer([2, 1])
+
+            self.s_length = s_seq_length
+
+    def forward(self, *x_lst):
+        # c and s must be None, g might be None
+        if len(x_lst) == 1:
+            x = x_lst[0]
+            x = x.view(-1, x.shape[2], x.shape[3], x.shape[4])
+            x = self.conv_p(x)
+            x = self.leaky_relu_p(x)
+            x = self.spp_p(x)
+            x = x.view(x.shape[0], -1)
+            x = x.view(int(x.shape[0] / (self.p_length)), self.p_length, -1)
+            x, _ = self.lstm_p(x)
+            x = self.dropout_p(x)
+            x = self.fc_p(x)
+        # g might be None. either c or s must be None, but not both
+        elif len(x_lst) == 2:
+            p = x_lst[0]
+            m = x_lst[1].permute(1, 0, 2)
+            # c is not None
+            if m.dim() == 3:
+                p = p.view(-1, p.shape[2], p.shape[3], p.shape[4])
+                p = self.conv_p(p)
+                p = self.leaky_relu_p(p)
+                p = self.spp_p(p)
+                p = p.view(p.shape[0], -1)
+                p = p.view(int(p.shape[0] / (self.p_length)), self.p_length, -1)
+                x = torch.cat([p, m], dim=2)
+                x, _ = self.lstm_p(x)
+                x = self.dropout_p(x)
+                x = self.fc_p(x)
+            # s is not None
+            else:
+                p = p.view(-1, p.shape[2], p.shape[3], p.shape[4])
+                p = self.conv_p(p)
+                p = self.leaky_relu_p(p)
+                p = self.spp_p(p)
+                p = p.view(p.shape[0], -1)
+                p = p.view(int(p.shape[0] / (self.p_length)), self.p_length, -1)
+                p, _ = self.lstm_p(p)
+                p = self.dropout_p(p)
+                p = self.fc_p(p)
+
+                m = m.view(-1, m.shape[2], m.shape[3], m.shape[4])
+                m = self.conv_s(m)
+                m = self.leaky_relu_s(m)
+                m = self.spp_s(m)
+                m = m.view(m.shape[0], -1)
+                m = m.view(int(m.shape[0] / (self.s_length)), self.s_length, -1)
+                m, _ = self.lstm_s(m)
+                m = m[:, -1:, :]
+                m = self.dropout_s(m)
+                m = self.fc_s(m)
+                m = self.sigmoid_s(m)
+
+                x = m * p
+        # g might be None. Both s and c are not None
+        elif len(x_lst) == 3:
+            p = x_lst[0]
+            c = x_lst[1].permute(1, 0, 2)
+            s = x_lst[2]
+
+            p = p.view(-1, p.shape[2], p.shape[3], p.shape[4])
+            p = self.conv_p(p)
+            p = self.leaky_relu_p(p)
+            p = self.spp_p(p)
+            p = p.view(p.shape[0], -1)
+            p = p.view(int(p.shape[0] / (self.p_length)), self.p_length, -1)
+            p_c = torch.cat([p, c], dim=2)
+            p_c, _ = self.lstm_p(p_c)
+            p_c = self.dropout_p(p_c)
+            p_c = self.fc_p(p_c)
+
+            s = s.view(-1, s.shape[2], s.shape[3], s.shape[4])
+            s = self.conv_s(s)
+            s = self.leaky_relu_s(s)
+            s = self.spp_s(s)
+            s = s.view(s.shape[0], -1)
+            s = s.view(int(s.shape[0] / (self.s_length)), self.s_length, -1)
+            s, _ = self.lstm_s(s)
+            s = s[:, -1:, :]
+            s = self.dropout_s(s)
+            s = self.fc_s(s)
+            s = self.sigmoid_s(s)
+
+            x = s * p_c
+        return x[:, -self.forecast_length :, :]

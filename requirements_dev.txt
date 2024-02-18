@@ -1,22 +1,19 @@
-numpy~=1.23.4
 xarray
-netCDF4~=1.6.5
+netCDF4
 dask[complete]
-geopandas~=0.14.0
+geopandas
 scikit-learn
-tqdm
-tbparse~=0.0.7
+tbparse
+scipy
+fsspec
+intake
 
-pandas
 torch~=1.12.1+cu113
 torchvision
 pillow~=9.5.0
-hydroerr~=1.24
-shap~=0.43.0
-matplotlib
-seaborn
+shap
 
-kaggle~=1.5.16
+kaggle
 
 pytest
 

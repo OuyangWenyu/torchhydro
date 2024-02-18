@@ -10,7 +10,7 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 import os
 import pytest
 
-from torchhydro import DATASOURCE_SETTINGS
+from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -23,7 +23,7 @@ def config():
         sub=project_name,
         source="CAMELS",
         source_path=os.path.join(
-            DATASOURCE_SETTINGS["datasets-origin"], "camels", "camels_us"
+            SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
         ),
         source_region="US",
         download=0,
