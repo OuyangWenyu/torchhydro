@@ -6,12 +6,8 @@ channels:
   - defaults
 dependencies:
   - python=3.10
-  - xarray
-  - netcdf4
-  - dask
   - geopandas
   - scikit-learn
-  - scipy
   - fsspec
   - intake
   - pytorch=1.12
@@ -32,5 +28,4 @@ dependencies:
     - wheel
     - twine
     - bump2version
-    - hydroutils
     - hydrodataset

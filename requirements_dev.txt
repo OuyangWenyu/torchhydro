@@ -1,15 +1,13 @@
-xarray
-netCDF4
-dask[complete]
 geopandas
 scikit-learn
 tbparse
-scipy
 fsspec
 intake
 
 torch~=1.12.1+cu113
 torchvision
+torch-scatter
+tensorboard
 pillow~=9.5.0
 shap
 
@@ -17,7 +15,6 @@ kaggle
 
 pytest
 
-hydroutils
 hydrodataset
 
 setuptools
