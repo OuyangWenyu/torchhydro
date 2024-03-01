@@ -18,7 +18,8 @@ from torchhydro.trainers.trainer import train_and_evaluate
 @pytest.fixture()
 def config():
     project_name = "test_camels/exp1"
-    data_dir = SETTING["local_data_path"]["datasets-origin"]
+    # data_dir = SETTING["local_data_path"]["datasets-origin"]
+    data_dir="/ftproot/"
     source_path = os.path.join(data_dir, "camels", "camels_us")
     config_data = default_config_file()
     args = cmd(

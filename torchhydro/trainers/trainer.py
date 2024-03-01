@@ -21,7 +21,6 @@ from sklearn.model_selection import KFold, TimeSeriesSplit
 import torch
 from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import unserialize_numpy
-from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.trainers.deep_hydro import model_type_dict
 
@@ -65,8 +64,7 @@ def train_and_evaluate(cfgs: Dict):
     result_dir = cfgs["data_cfgs"]["test_path"]
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
-    data_source = _get_datasource(cfgs)
-    deephydro = _get_deep_hydro(cfgs, data_source)
+    deephydro = _get_deep_hydro(cfgs)
     if cfgs["training_cfgs"]["train_mode"]:
         if (
             deephydro.weight_path is not None
@@ -100,25 +98,11 @@ def train_and_evaluate(cfgs: Dict):
         save_model_params_log(cfgs, save_param_log_path)
 
 
-def _get_deep_hydro(cfgs, data_source):
+def _get_deep_hydro(cfgs):
     model_type = cfgs["model_cfgs"]["model_type"]
-    return model_type_dict[model_type](data_source, cfgs)
+    return model_type_dict[model_type](cfgs)
 
 
-def _get_datasource(cfgs):
-    data_cfgs = cfgs["data_cfgs"]
-    data_source_name = data_cfgs["data_source_name"]
-    return (
-        data_sources_dict[data_source_name](
-            data_cfgs["data_path"],
-            data_cfgs["download"],
-            data_cfgs["data_region"],
-        )
-        if data_source_name in ["CAMELS", "Caravan"]
-        else data_sources_dict[data_source_name](
-            data_cfgs["data_path"], data_cfgs["download"]
-        )
-    )
 
 
 def save_result(save_dir, epoch, pred, obs, pred_name="flow_pred", obs_name="flow_obs"):

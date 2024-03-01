@@ -21,7 +21,7 @@ gage_id = show['id'].values.tolist()
 
 @pytest.fixture()
 def config():
-    project_name = "test_mean_lstm/exp13"
+    project_name = "test_mean_lstm/exp01"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -44,7 +44,7 @@ def config():
         gage_id=gage_id,
         batch_size=512,
         rho=168, # seq_length forecast_history forecast_length=1 linearIn
-        forecast_length=24,
+        # forecast_length=24,
         # var_t=["p_mean"],
         var_t=["total_precipitation", "streamflow"],
         # var_c=["None"],

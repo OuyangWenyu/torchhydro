@@ -12,7 +12,7 @@ import pytest
 import hydrodataset as hds
 import warnings
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.datasets.data_dict import data_sources_dict
+from torchhydro.datasets.data_dict import s_dict
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed, save_result
 
@@ -86,11 +86,11 @@ def test_evaluate_spp_lstm(config_data):
     random_seed = config_data["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
     data_cfgs = config_data["data_cfgs"]
-    data_source_name = data_cfgs["data_source_name"]
-    data_source = data_sources_dict[data_source_name](
+    _name = data_cfgs["_name"]
+     = s_dict[_name](
         data_cfgs["data_path"], data_cfgs["download"]
     )
-    model = DeepHydro(data_source, config_data)
+    model = DeepHydro(, config_data)
     test_acc = model.model_evaluate()
     print("summary test_accuracy", test_acc[0])
     save_result(

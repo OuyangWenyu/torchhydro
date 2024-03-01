@@ -20,18 +20,17 @@ warnings.filterwarnings("ignore")
 
 @pytest.fixture()
 def config():
-    project_name = "test_spp_lstm/ex1"
+    project_name = "test_spp_lstm/ex4"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source="GPM_GFS",
         source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
         streamflow_source_path="/ftproot/biliuhe/merge_streamflow.nc",  # 所有流域一个流量文件
-        rainfall_source_path="/ftproot/biliuhe",  # 降水文件夹，一个流域一个文件，以"流域编号.nc"命名
+        rainfall_source_path=None,  # "/ftproot/biliuhe",  # 降水文件夹，一个流域一个文件，以"流域编号.nc"命名
         attributes_path="/ftproot/biliuhe/camelsus_attributes.nc",  # 所有流域一个属性文件
         gfs_source_path="/ftproot/biliuhe/",  # GFS气象文件夹，一个流域一个文件，以"流域编号_gfs.nc"命名
         soil_source_path="/ftproot/biliuhe/",  # 土壤属性文件夹，一个流域一个文件，以”流域编号_soil.nc"命名
-        download=0,
         ctx=[2],  # 0,1,2使用GPU
         model_name="SPPLSTM2",
         model_hyperparam={  # p代表降水+GFS气象网络分支，S代表土壤属性网络分支
@@ -99,9 +98,9 @@ def config():
         dataset="GPM_GFS_Dataset",
         sampler="WuSampler",
         scaler="GPM_GFS_Scaler",
-        train_epoch=50,
+        train_epoch=1,
         save_epoch=1,
-        te=50,
+        te=1,
         train_period=[
             {"start": "2017-07-08", "end": "2017-09-29"},
             {"start": "2018-07-08", "end": "2018-09-29"},
@@ -114,13 +113,13 @@ def config():
         valid_period=[
             {"start": "2021-07-08", "end": "2021-09-29"},
         ],
-        loss_func="MAELoss",  # NSELoss、RMSESum、MAPELoss、MASELoss、MAELoss 可以选择
+        loss_func="RMSESum",  # NSELoss、RMSESum、MAPELoss、MASELoss、MAELoss 可以选择
         opt="Adam",  # 目前学习率自动调整(下面的参数)只支持Adam
         lr_scheduler={
             1: 1e-3
         },  # 初始化学习率(第1轮开始即使用1e-3)，可强制指定某一轮使用的学习率
         lr_factor=0.5,  # 学习率更新权重
-        lr_patience=0,  # 连续n+1次valid loss不下降，则更新学习率
+        lr_patience=1,  # 连续n+1次valid loss不下降，则更新学习率
         weight_decay=1e-5,  # L2正则化衰减权重
         lr_val_loss=True,  # False则用NSE作为指标，而不是val loss,来更新lr、model、早退，建议选择True
         which_first_tensor="sequence",
@@ -139,5 +138,5 @@ def config():
 
 
 def test_spp_lstm(config):
-    # train_and_evaluate(config)
-    ensemble_train_and_evaluate(config)
+    train_and_evaluate(config)
+    # ensemble_train_and_evaluate(config)

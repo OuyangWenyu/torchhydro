@@ -5,7 +5,6 @@ import pickle as pkl
 import shutil
 import pint_xarray  # noqa: F401
 import xarray as xr
-from hydrodataset import HydroDataset
 import numpy as np
 from sklearn.preprocessing import (
     StandardScaler,
@@ -21,7 +20,6 @@ from hydroutils.hydro_stat import (
     cal_4_stat_inds,
 )
 
-from torchhydro.datasets.data_source_gpm_gfs import GPM_GFS
 from torchhydro.datasets.data_utils import (
     _trans_norm,
     _prcp_norm,
@@ -49,6 +47,7 @@ class ScalerHub(object):
         constant_vars: np.array = None,
         data_cfgs: dict = None,
         is_tra_val_te: str = None,
+        data_source: object = None,
         **kwargs,
     ):
         """
@@ -76,7 +75,6 @@ class ScalerHub(object):
         norm_dict = {}
         scaler_type = data_cfgs["scaler"]
         if scaler_type == "DapengScaler":
-            assert "data_source" in list(kwargs.keys())
             gamma_norm_cols = data_cfgs["scaler_params"]["gamma_norm_cols"]
             prcp_norm_cols = data_cfgs["scaler_params"]["prcp_norm_cols"]
             pbm_norm = data_cfgs["scaler_params"]["pbm_norm"]
@@ -86,31 +84,12 @@ class ScalerHub(object):
                 constant_vars,
                 data_cfgs,
                 is_tra_val_te,
-                kwargs["data_source"],
                 prcp_norm_cols=prcp_norm_cols,
                 gamma_norm_cols=gamma_norm_cols,
                 pbm_norm=pbm_norm,
+                data_source=data_source,
             )
             x, y, c = scaler.load_data()
-            self.target_scaler = scaler
-
-        elif scaler_type == "GPM_GFS_Scaler":
-            assert "data_source" in list(kwargs.keys())
-            gamma_norm_cols = data_cfgs["scaler_params"]["gamma_norm_cols"]
-            prcp_norm_cols = data_cfgs["scaler_params"]["prcp_norm_cols"]
-            pbm_norm = data_cfgs["scaler_params"]["pbm_norm"]
-            scaler = GPM_GFS_Scaler(
-                target_vars=target_vars,
-                relevant_vars=relevant_vars,
-                data_cfgs=data_cfgs,
-                is_tra_val_te=is_tra_val_te,
-                data_source=kwargs["data_source"],
-                prcp_norm_cols=prcp_norm_cols,
-                gamma_norm_cols=gamma_norm_cols,
-                pbm_norm=pbm_norm,
-            )
-            x, y = scaler.load_data()
-            c = None
             self.target_scaler = scaler
 
         elif scaler_type in SCALER_DICT.keys():
@@ -185,11 +164,11 @@ class DapengScaler(object):
         constant_vars: np.array,
         data_cfgs: dict,
         is_tra_val_te: str,
-        data_source: HydroDataset,
         other_vars: dict = None,
         prcp_norm_cols=None,
         gamma_norm_cols=None,
         pbm_norm=False,
+        data_source: object = None,
     ):
         """
         The normalization and denormalization methods from Dapeng's 1st WRR paper.
@@ -207,8 +186,6 @@ class DapengScaler(object):
             data parameter config in data source
         is_tra_val_te
             train/valid/test
-        data_source
-            all config about data source
         other_vars
             if more input are needed, list them in other_vars
         prcp_norm_cols
@@ -227,15 +204,15 @@ class DapengScaler(object):
         self.data_target = target_vars
         self.data_forcing = relevant_vars
         self.data_attr = constant_vars
-        self.data_source = data_source
         self.data_cfgs = data_cfgs
-        self.t_s_dict = wrap_t_s_dict(data_source, data_cfgs, is_tra_val_te)
+        self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
         self.data_other = other_vars
         self.prcp_norm_cols = prcp_norm_cols
         self.gamma_norm_cols = gamma_norm_cols
         # both prcp_norm_cols and gamma_norm_cols use log(\sqrt(x)+.1) method to normalize
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
         self.pbm_norm = pbm_norm
+        self.data_source = data_source
         # save stat_dict of training period in test_path for valid/test
         stat_file = os.path.join(data_cfgs["test_path"], "dapengscaler_stat.json")
         # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
@@ -294,10 +271,8 @@ class DapengScaler(object):
         pred.attrs.update(self.data_target.attrs)
         # trans to xarray dataset
         pred_ds = pred.to_dataset(dim="variable")
-        # pred_ds = pred_ds.pint.quantify(pred_ds.attrs["units"])
-        # area = self.data_source.read_area(self.t_s_dict["sites_id"])
+
         return pred_ds
-        # return unify_streamflow_unit(pred_ds, area=area, inverse=True)
 
     def cal_stat_all(self):
         """
@@ -453,164 +428,16 @@ class GPM_GFS_Scaler(object):
     def __init__(
         self,
         target_vars: np.array,
-        relevant_vars: np.array,
-        data_cfgs: dict,
-        is_tra_val_te: str,
-        data_source: HydroDataset,
-        prcp_norm_cols=None,
-        gamma_norm_cols=None,
-        pbm_norm=False,
-    ):
-        if prcp_norm_cols is not None:
-            prcp_norm_cols = [
-                "waterlevel",
-            ]
-
-        if gamma_norm_cols is not None:
-            gamma_norm_cols = [
-                "precipitationCal",
-            ]
-
-        self.data_target = target_vars
-        self.data_forcing = relevant_vars
-        self.data_source = data_source
-        self.data_cfgs = data_cfgs
-        self.t_w_dict = wrap_t_s_dict(data_source, data_cfgs, is_tra_val_te)
-        self.prcp_norm_cols = prcp_norm_cols
-        self.gamma_norm_cols = gamma_norm_cols
-        # both prcp_norm_cols and gamma_norm_cols use log(\sqrt(x)+.1) method to normalize
-        self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
-        self.pbm_norm = pbm_norm
-        stat_file = os.path.join(data_cfgs["test_path"], "GPM_GFS_Scaler_stat.json")
-
-        if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
-            self.stat_dict = self.cal_stat_all()
-            with open(stat_file, "w") as fp:
-                json.dump(self.stat_dict, fp)
-        else:
-            if data_cfgs["stat_dict_file"] is not None:
-                shutil.copy(data_cfgs["stat_dict_file"], stat_file)
-            assert os.path.isfile(stat_file)
-            with open(stat_file, "r") as fp:
-                self.stat_dict = json.load(fp)
-
-    def cal_stat_all(self):
-        # waterlevel
-        target_cols = self.data_cfgs["target_cols"]
-        stat_dict = {}
-        for i in range(len(target_cols)):
-            var = target_cols[i]
-            if var in self.prcp_norm_cols:
-                mean_prep = self.data_source.read_mean_prcp(self.t_w_dict["sites_id"])
-                stat_dict[var] = cal_stat_prcp_norm(
-                    self.data_target.sel(variable=var).to_numpy(),
-                    mean_prep.to_array().to_numpy().T,
-                )
-            elif var in self.gamma_norm_cols:
-                stat_dict[var] = cal_stat_gamma(
-                    self.data_target.sel(variable=var).tp_numpy()
-                )
-            else:
-                stat_dict[var] = cal_stat(self.data_target.sel(variable=var).to_numpy())
-
-        forcing_lst = self.data_cfgs["relevant_cols"]
-        x = self.data_forcing
-        for k in range(len(forcing_lst)):
-            var = forcing_lst[k]
-            if var in self.gamma_norm_cols:
-                stat_dict[var] = cal_stat_gamma(x.sel(variable=var).to_numpy())
-            else:
-                stat_dict[var] = cal_stat(x.sel(variable=var).to_numpy())
-
-        return stat_dict
-
-    def load_data(self):
-        x = self.get_data_ts()
-        y = self.get_data_obs()
-        return x, y
-
-    def get_data_ts(self, to_norm=True) -> np.array:
-        stat_dict = self.stat_dict
-        var_list = self.data_cfgs["relevant_cols"]
-        data = self.data_forcing
-        data = _trans_norm(
-            data, var_list, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=to_norm
-        )
-        return data
-
-    def get_data_obs(self, to_norm: bool = True) -> np.array:
-        stat_dict = self.stat_dict
-        data = self.data_target
-        out = xr.full_like(data, np.nan)
-        out.attrs = copy.deepcopy(data.attrs)
-        target_cols = self.data_cfgs["target_cols"]
-        for i in range(len(target_cols)):
-            var = target_cols[i]
-            if var in self.prcp_norm_cols:
-                mean_prep = self.data_source.read_mean_prcp(self.t_w_dict["sites_id"])
-                out.loc[dict(variable=var)] = _prcp_norm(
-                    data.sel(variable=var).to_numpy(),
-                    mean_prep.to_array().to_numpy().T,
-                    to_norm=True,
-                )
-                out.attrs["units"][var] = "dimensionless"
-        out = _trans_norm(
-            out,
-            target_cols,
-            stat_dict,
-            log_norm_cols=self.log_norm_cols,
-            to_norm=to_norm,
-        )
-        return out
-
-    def inverse_transform(self, target_values):
-        star_dict = self.stat_dict
-        target_cols = self.data_cfgs["target_cols"]
-        if self.pbm_norm:
-            pred = target_values
-        else:
-            pred = _trans_norm(
-                target_values,
-                target_cols,
-                star_dict,
-                log_norm_cols=self.log_norm_cols,
-                to_norm=False,
-            )
-            for i in range(len(self.data_cfgs["target_cols"])):
-                var = self.data_cfgs["target_cols"][i]
-                if var in self.prcp_norm_cols:
-                    mean_prep = self.data_source.read_mean_prcp(
-                        self.t_w_dict["sites_id"]
-                    )
-                    pred.loc[dict(variable=var)] = _prcp_norm(
-                        pred.sel(variable=var).to_numpy(),
-                        mean_prep.to_array().to_numpy().T,
-                        to_norm=False,
-                    )
-            # add attrs for units
-            pred.attrs.update(self.data_target.attrs)
-            # trans to xarray dataset
-            pred_ds = pred.to_dataset(dim="variable")
-            pred_ds = pred_ds.pint.quantify(pred_ds.attrs["units"])
-            # area = self.data_source.read_area(self.t_w_dict["sites_id"])
-            # return unify_streamflow_unit(pred_ds, area=area, inverse=True)
-            return pred_ds
-
-
-class GPM_GFS_Scaler_2(object):
-    def __init__(
-        self,
-        target_vars: np.array,
         relevant_vars: dict,
         constant_vars: np.array,
         data_gfs: dict,
         data_soil: dict,
         data_cfgs: dict,
         is_tra_val_te: str,
-        data_source: HydroDataset,
         prcp_norm_cols=None,
         gamma_norm_cols=None,
         pbm_norm=False,
+        basin_data: object = None,
     ):
         """
         A class for scaling and normalizing Global Precipitation Measurement (GPM) and Global Forecast System (GFS) datasets.
@@ -625,7 +452,6 @@ class GPM_GFS_Scaler_2(object):
         - data_attr: Constant attribute data for the basins.
         - data_gfs: GFS forecast data.
         - data_soil: soil attributes data.
-        - data_source: HydroDataset object containing data sources.
         - data_cfgs: Configuration data for the scaler.
         - t_s_dict: Dictionary for time and site information.
         - prcp_norm_cols: Columns to normalize using precipitation normalization.
@@ -667,21 +493,20 @@ class GPM_GFS_Scaler_2(object):
             "10u",
             "10v",
         ]
-
         self.data_target = target_vars
         self.data_forcing = relevant_vars
         self.data_attr = constant_vars
         self.data_gfs = data_gfs
         self.data_soil = data_soil
-        self.data_source = data_source
         self.data_cfgs = data_cfgs
-        self.t_s_dict = wrap_t_s_dict(data_source, data_cfgs, is_tra_val_te)
+        self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
         self.prcp_norm_cols = prcp_norm_cols
         self.gamma_norm_cols = gamma_norm_cols
         self.pbm_norm = pbm_norm
         # both prcp_norm_cols and gamma_norm_cols use log(\sqrt(x)+.1) method to normalize
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
-        stat_file = os.path.join(data_cfgs["test_path"], "GPM_GFS_Scaler_2_stat.json")
+        self.basin_data = basin_data
+        stat_file = os.path.join(data_cfgs["test_path"], "GPM_GFS_Scaler_stat.json")
 
         if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
             self.stat_dict = self.cal_stat_all()
@@ -726,16 +551,12 @@ class GPM_GFS_Scaler_2(object):
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                if isinstance(self.data_source, GPM_GFS):
-                    mean_prep = self.data_source.read_mean_prcp(
-                        self.t_s_dict["sites_id"],
-                        self.data_cfgs["attributes_path"],
-                        self.data_cfgs["user"],
-                    )
-                else:
-                    mean_prep = self.data_source.read_mean_prcp(
-                        self.t_s_dict["sites_id"], self.data_cfgs["attributes_path"]
-                    )
+                mean_prep = self.basin_data.read_MP(
+                    self.t_s_dict["sites_id"],
+                    self.data_cfgs["attributes_path"],
+                    self.data_cfgs["user"],
+                )
+
                 stat_dict[var] = self.GPM_GFS_cal_stat_prcp_norm(
                     y.sel(variable=var).to_numpy(),
                     mean_prep.to_numpy(),
@@ -764,7 +585,6 @@ class GPM_GFS_Scaler_2(object):
             data_soil = self.data_soil
             for k in range(len(soil_lst)):
                 var = soil_lst[k]
-                # if var in self.gamma_norm_cols:
                 stat_dict[var] = self.GPM_GFS_cal_stat_gamma(data_soil, var)
 
         # const attribute
@@ -808,16 +628,12 @@ class GPM_GFS_Scaler_2(object):
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                if isinstance(self.data_source, GPM_GFS):
-                    mean_prep = self.data_source.read_mean_prcp(
-                        self.t_s_dict["sites_id"],
-                        self.data_cfgs["attributes_path"],
-                        self.data_cfgs["user"],
-                    )
-                else:
-                    mean_prep = self.data_source.read_mean_prcp(
-                        self.t_s_dict["sites_id"], self.data_cfgs["attributes_path"]
-                    )
+                mean_prep = self.basin_data.read_MP(
+                    self.t_s_dict["sites_id"],
+                    self.data_cfgs["attributes_path"],
+                    self.data_cfgs["user"],
+                )
+
                 out.loc[dict(variable=var)] = self.GPM_GFS_prcp_norm(
                     data.sel(variable=var).to_numpy(),
                     mean_prep.to_numpy(),
@@ -1037,16 +853,12 @@ class GPM_GFS_Scaler_2(object):
             for i in range(len(self.data_cfgs["target_cols"])):
                 var = self.data_cfgs["target_cols"][i]
                 if var in self.prcp_norm_cols:
-                    if isinstance(self.data_source, GPM_GFS):
-                        mean_prep = self.data_source.read_mean_prcp(
-                            self.t_s_dict["sites_id"],
-                            self.data_cfgs["attributes_path"],
-                            self.data_cfgs["user"],
-                        )
-                    else:
-                        mean_prep = self.data_source.read_mean_prcp(
-                            self.t_s_dict["sites_id"], self.data_cfgs["attributes_path"]
-                        )
+                    mean_prep = self.basin_data.read_MP(
+                        self.t_s_dict["sites_id"],
+                        self.data_cfgs["attributes_path"],
+                        self.data_cfgs["user"],
+                    )
+
                     pred.loc[dict(variable=var)] = self.GPM_GFS_prcp_norm(
                         pred.sel(variable=var).to_numpy(),
                         mean_prep.to_numpy(),
@@ -1146,6 +958,7 @@ class Muti_Basin_GPM_GFS_SCALER(object):
         data_soil: dict = None,
         data_cfgs: dict = None,
         is_tra_val_te: str = None,
+        basin_data: object = None,
         **kwargs,
     ):
         """
@@ -1175,11 +988,10 @@ class Muti_Basin_GPM_GFS_SCALER(object):
         self.data_cfgs = data_cfgs
         scaler_type = data_cfgs["scaler"]
         if scaler_type == "GPM_GFS_Scaler":
-            assert "data_source" in list(kwargs.keys())
             gamma_norm_cols = data_cfgs["scaler_params"]["gamma_norm_cols"]
             prcp_norm_cols = data_cfgs["scaler_params"]["prcp_norm_cols"]
             pbm_norm = data_cfgs["scaler_params"]["pbm_norm"]
-            scaler = GPM_GFS_Scaler_2(
+            scaler = GPM_GFS_Scaler(
                 target_vars=target_vars,
                 relevant_vars=relevant_vars,
                 constant_vars=constant_vars,
@@ -1187,10 +999,10 @@ class Muti_Basin_GPM_GFS_SCALER(object):
                 data_soil=data_soil,
                 data_cfgs=data_cfgs,
                 is_tra_val_te=is_tra_val_te,
-                data_source=kwargs["data_source"],
                 prcp_norm_cols=prcp_norm_cols,
                 gamma_norm_cols=gamma_norm_cols,
                 pbm_norm=pbm_norm,
+                basin_data=basin_data,
             )
             self.x, self.y, self.c, self.g, self.s = scaler.load_data()
             self.target_scaler = scaler
