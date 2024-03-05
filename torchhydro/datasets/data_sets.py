@@ -35,8 +35,9 @@ from torchhydro.datasets.data_utils import (
     wrap_t_s_dict,
     unify_streamflow_unit,
 )
-from hydrodata.reader.data_source import  HydroGrids, HydroBasins
+from hydrodata.reader.data_source import HydroGrids, HydroBasins
 from hydrodataset import Camels
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -461,7 +462,7 @@ class GPM_GFS_Dataset(Dataset):
         if data_target_ds is not None:
             y_origin = self._trans2da_and_setunits(data_target_ds)
         else:
-            y_origin = self._trans2da_and_setunits(data_target_ds)
+            y_origin = None
 
         data_rainfall = self.prepare_PPT()
 
@@ -880,7 +881,7 @@ class GPM_GFS_Dataset(Dataset):
         if var_lst is None or not var_lst:
             return None
 
-        data = self.basin_data.read_Y_xrdataset(gage_id_lst, user, path)
+        data = self.basin_data.read_Y_xrdataset(gage_id_lst, path, user)
 
         all_vars = data.data_vars
         if any(var not in data.variables for var in var_lst):
@@ -896,3 +897,260 @@ class GPM_GFS_Dataset(Dataset):
         return xr.concat(subset_list, dim="time")
 
 
+class GPM_GFS_Mean_Dataset(Dataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(GPM_GFS_Mean_Dataset, self).__init__()
+        self.data_cfgs = data_cfgs
+        self.basin_data = HydroBasins(self.data_cfgs["data_path"])
+        if is_tra_val_te in {"train", "valid", "test"}:
+            self.is_tra_val_te = is_tra_val_te
+        else:
+            raise ValueError(
+                "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
+            )
+
+        self._load_data()
+
+    def _load_data(self):
+        train_mode = self.is_tra_val_te == "train"
+        self.train_mode = train_mode
+        self.rho = self.data_cfgs["forecast_history"]
+        self.forecast_length = self.data_cfgs["forecast_length"]
+        self.warmup_length = self.data_cfgs["warmup_length"]
+        self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
+
+        data_target_ds = self.prepare_Y()
+        if data_target_ds is not None:
+            y_origin = self._trans2da_and_setunits(data_target_ds)
+        else:
+            y_origin = None
+
+        data_rainfall_ds = self.prepare_MPPT()
+
+        if data_rainfall_ds is not None:
+            x_origin = self._trans2da_and_setunits(data_rainfall_ds)
+        else:
+            x_origin = None
+
+        if self.data_cfgs["constant_cols"]:
+            data_attr_ds = self.basin_data.read_BA_xrdataset(
+                self.t_s_dict["sites_id"],
+                self.data_cfgs["constant_cols"],
+                self.data_cfgs["user"],
+                self.data_cfgs["attributes_path"],
+            )
+            c_orgin = self._trans2da_and_setunits(data_attr_ds)
+        else:
+            c_orgin = None
+
+        scaler_hub = ScalerHub(
+            y_origin,
+            x_origin,
+            constant_vars=c_orgin,
+            data_cfgs=self.data_cfgs,
+            is_tra_val_te=self.is_tra_val_te,
+            data_source=self.basin_data,
+        )
+        self.target_scaler = scaler_hub.target_scaler
+        self.x, self.y, self.c = self.kill_nan(scaler_hub.x, scaler_hub.y, scaler_hub.c)
+        self._create_lookup_table()
+
+    def _create_lookup_table(self):
+        lookup = []
+        basins = self.t_s_dict["sites_id"]
+        rho = self.rho
+        forecast_length = self.forecast_length
+        warmup_length = self.warmup_length
+        dates = self.y["time"].to_numpy()
+        time_num = len(self.t_s_dict["t_final_range"])
+        time_total_length = len(dates)
+        time_single_length = int(time_total_length / time_num)
+        is_tra_val_te = self.is_tra_val_te
+        for basin in tqdm(
+            basins,
+            file=sys.stdout,
+            disable=False,
+            desc=f"Creating {is_tra_val_te} lookup table",
+        ):
+            for num in range(time_num):
+                lookup.extend(
+                    (basin, dates[f + num * time_single_length])
+                    for f in range(
+                        warmup_length + rho, time_single_length - forecast_length
+                    )
+                    if f < time_single_length
+                )
+        self.lookup_table = dict(enumerate(lookup))
+        self.num_samples = len(self.lookup_table)
+
+    def __getitem__(self, item: int):
+        basin, time = self.lookup_table[item]
+        seq_length = self.rho
+        output_seq_len = self.forecast_length
+        warmup_length = self.warmup_length
+        x = (
+            self.x.sel(
+                basin=basin,
+                time=slice(
+                    time - np.timedelta64(warmup_length + seq_length - 1, "h"),
+                    time, 
+                ),
+            )
+            .to_numpy()
+            .T
+        )
+
+        y = (
+            self.y.sel(
+                basin=basin,
+                time=slice(
+                    time,
+                    time + np.timedelta64(output_seq_len - 1, "h"),
+                ),
+            )
+            .to_numpy()
+            .T
+        )
+        return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+
+    @property
+    def basins(self):
+        """Return the basins of the dataset"""
+        return self.t_s_dict["sites_id"]
+
+    @property
+    def times(self):
+        """Return the time range of the dataset"""
+        return self.t_s_dict["t_final_range"]
+
+    def __len__(self):
+        return self.num_samples
+
+    def _trans2da_and_setunits(self, ds):
+        """Set units for dataarray transfromed from dataset"""
+        result = ds.to_array(dim="variable")
+        units_dict = {
+            var: ds[var].attrs["units"]
+            for var in ds.variables
+            if "units" in ds[var].attrs
+        }
+        result.attrs["units"] = units_dict
+        return result
+
+    def kill_nan(self, x, y, c):
+        data_cfgs = self.data_cfgs
+        y_rm_nan = data_cfgs["target_rm_nan"]
+        x_rm_nan = data_cfgs["relevant_rm_nan"]
+        c_rm_nan = data_cfgs["constant_rm_nan"]
+        if x_rm_nan:
+            # As input, we cannot have NaN values
+            _fill_gaps_da(x, fill_nan="interpolate")
+            warn_if_nan(x)
+        if y_rm_nan:
+            _fill_gaps_da(y, fill_nan="interpolate")
+            warn_if_nan(y)
+        if c_rm_nan:
+            _fill_gaps_da(c, fill_nan="mean")
+            warn_if_nan(c)
+        return x, y, c
+
+    def prepare_Y(self):
+        gage_id_lst = self.t_s_dict["sites_id"]
+        t_range = self.t_s_dict["t_final_range"]
+        var_lst = self.data_cfgs["target_cols"]
+        path = self.data_cfgs["streamflow_source_path"]
+        user = self.data_cfgs["user"]
+
+        if var_lst is None or not var_lst:
+            return None
+
+        data = xr.open_dataset(path)
+        data = data[var_lst].sel(basin=gage_id_lst)
+        # data = self.basin_data.read_Y_xrdataset(gage_id_lst, user, path)
+
+        all_vars = data.data_vars
+        if any(var not in data.variables for var in var_lst):
+            raise ValueError(f"var_lst must all be in {all_vars}")
+        subset_list = []
+        for period in t_range:
+            start_date = period["start"]
+            end_date = datetime.strptime(period["end"], "%Y-%m-%d")
+            new_end_date = end_date + timedelta(hours=self.forecast_length)
+            end_date_str = new_end_date.strftime("%Y-%m-%d")
+            subset = data.sel(time=slice(start_date, end_date_str))
+            subset_list.append(subset)
+        return xr.concat(subset_list, dim="time")
+
+    def prepare_MPPT(self):
+        gage_id_lst = self.t_s_dict["sites_id"]
+        t_range = self.t_s_dict["t_final_range"]
+        var_lst = self.data_cfgs["relevant_cols"]
+        path = self.data_cfgs["rainfall_source_path"]
+        user = self.data_cfgs["user"]
+
+        if var_lst is None:
+            return None
+
+        data = xr.open_dataset(path)
+        data = data[var_lst].sel(basin=gage_id_lst)
+        # data = self.basin_data.read_MPPT_xrdataset(gage_id_lst, path, user)
+        subset_list = []
+        for period in t_range:
+            start_date = period["start"]
+            end_date = period["end"]
+            subset = data.sel(time=slice(start_date, end_date))
+            subset_list.append(subset)
+
+        return xr.concat(subset_list, dim="time")
+
+    def prepare_MGFS(self):
+        gage_id_lst = self.t_s_dict["sites_id"]
+        t_range = self.t_s_dict["t_final_range"]
+        var_lst = self.data_cfgs["relevant_cols"][1]
+        path = self.data_cfgs["gfs_source_path"]
+        user = self.data_cfgs["user"]
+
+        if var_lst is None:
+            return None
+
+        data = self.basin_data.read_MGFS_xrdataset(gage_id_lst, path, user)
+        subset_list = []
+        for period in t_range:
+            start_date = period["start"]
+            new_start_date = start_date - timedelta(hours=self.rho)
+            start_date_str = new_start_date.strftime("%Y-%m-%d")
+
+            end_date = period["end"]
+            new_end_date = end_date + timedelta(hours=self.forecast_length)
+            end_date_str = new_end_date.strftime("%Y-%m-%d")
+
+            subset = data.sel(time=slice(start_date_str, end_date_str))
+            subset_list.append(subset)
+
+        return xr.concat(subset_list, dim="time")
+
+    def prepare_MSP(self):
+        gage_id_lst = self.t_s_dict["sites_id"]
+        t_range = self.t_s_dict["t_final_range"]
+        var_lst = self.data_cfgs["relevant_cols"][2]
+        path = self.data_cfgs["soil_source_path"]
+        user = self.data_cfgs["user"]
+
+        if var_lst is None:
+            return None
+
+        data = self.basin_data.read_MSP_xrdataset(gage_id_lst, path, user)
+        subset_list = []
+        for period in t_range:
+            start_date = period["start"]
+            new_start_date = start_date - timedelta(hours=self.rho)
+            start_date_str = new_start_date.strftime("%Y-%m-%d")
+
+            end_date = period["end"]
+            new_end_date = end_date + timedelta(hours=self.forecast_length)
+            end_date_str = new_end_date.strftime("%Y-%m-%d")
+
+            subset = data.sel(time=slice(start_date_str, end_date_str))
+            subset_list.append(subset)
+
+        return xr.concat(subset_list, dim="time")

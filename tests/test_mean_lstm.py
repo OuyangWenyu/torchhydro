@@ -7,17 +7,17 @@ Description: Test a full training and evaluating process
 FilePath: \torchhydro\tests\test_train_camels_lstm.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import os
 import pytest
 import hydrodataset as hds
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-
-# import xarray as xr
-# show = xr.open_dataset("/ftproot/camels_hourly/data/usgs-streamflow-nldas_hourly.nc")
 import pandas as pd
-show = pd.read_csv("data/gage_id.csv", dtype={'id':str})
-gage_id = show['id'].values.tolist()
+
+# show = pd.read_csv("data/gage_id.csv", dtype={'id':str})
+# gage_id = show['id'].values.tolist()
+
 
 @pytest.fixture()
 def config():
@@ -25,57 +25,64 @@ def config():
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
-        source="Mean",
-        source_path=os.path.join(hds.ROOT_DIR, "lstm_data"),
-        source_region="US",
-        download=0,
+        source_path=os.path.join(hds.ROOT_DIR),
+        streamflow_source_path="/ftproot/LSTM_data/nldas_hourly.nc",
+        rainfall_source_path="/ftproot/LSTM_data/nldas_hourly.nc",
+        attributes_path="/ftproot/camelsus_attributes_us.nc",
         ctx=[0],
         model_name="SimpleLSTMForecast",
         model_hyperparam={
-            # "n_input_features": 1,
-            "input_size": 2,
+            "input_size": 1,
             "output_size": 1,
             "hidden_size": 256,
             "forecast_length": 24,
         },
-        # gage_id=[
-        #     "21401550"
-        # ],
-        gage_id=gage_id,
-        batch_size=512,
-        rho=168, # seq_length forecast_history forecast_length=1 linearIn
-        # forecast_length=24,
-        # var_t=["p_mean"],
-        var_t=["total_precipitation", "streamflow"],
-        # var_c=["None"],
+        gage_id=["02051500"],
+        batch_size=64,
+        rho=168,
+        var_t=["total_precipitation"],
+        var_c=["elev_mean"],
         var_out=["streamflow"],
         dataset="MEAN_Dataset",
-        # dataset = "GPM_GFS_Dataset",
-        sampler = "WuSampler",
-        scaler="MeanScaler",
-        train_epoch=50,
+        sampler="WuSampler",
+        scaler="DapengScaler",
+        train_epoch=1,
         save_epoch=1,
-        te=49,
-        #1979
-        train_period=[            
-            ["2014-07-01T00:00:00", "2014-09-30T00:00:00"],
-            # ["2015-07-01T00:00:00", "2015-09-30T00:00:00"],
-            # ["2016-07-01T00:00:00", "2016-09-30T00:00:00"],
-            ],
-        valid_period=[["2018-07-01T00:00:00", "2018-09-30T00:00:00"]],
-        test_period=[["2017-07-01T00:00:00", "2017-09-30T00:00:00"]],
-
+        te=1,
+        train_period=[
+            {"start": "2014-07-08", "end": "2014-09-28"},
+            {"start": "2015-07-08", "end": "2015-09-28"},
+            {"start": "2016-07-08", "end": "2016-09-28"},
+            {"start": "2017-07-08", "end": "2017-09-28"},
+        ],
+        test_period=[
+            {"start": "2018-07-08", "end": "2018-09-28"},
+        ],
+        valid_period=[
+            {"start": "2018-07-08", "end": "2018-09-28"},
+        ],
         loss_func="RMSESum",
         opt="Adam",
-        # key is epoch, start from 1
-        lr_scheduler={1: 1e-2, 2: 5e-3, 3: 1e-3},
+        lr_scheduler={1: 1e-3},
         which_first_tensor="sequence",
+        lr_factor=0.5,
+        lr_patience=1,
+        weight_decay=1e-5,
+        lr_val_loss=True,
+        early_stopping=True,
+        patience=4,
         is_tensorboard=False,
-        user = "zxw"
+        ensemble=True,
+        ensemble_items={
+            "kfold": 5,
+            "batch_sizes": [256],
+        },
+        user="zxw",
     )
     update_cfg(config_data, args)
     return config_data
 
 
-def test_train_evaluate(config):
+def test_mean_lstm(config):
     train_and_evaluate(config)
+    # ensemble_train_and_evaluate(config)

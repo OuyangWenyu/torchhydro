@@ -19,6 +19,7 @@ from hydroutils.hydro_stat import (
     cal_stat,
     cal_4_stat_inds,
 )
+from hydrodata.reader.data_source import HydroBasins
 
 from torchhydro.datasets.data_utils import (
     _trans_norm,
@@ -199,8 +200,8 @@ class DapengScaler(object):
             prcp_norm_cols = [
                 "streamflow",
             ]
-        if gamma_norm_cols is None:
-            gamma_norm_cols = ["p_mean", "prcp", "temperature"]
+        if gamma_norm_cols is None or isinstance(data_source, HydroBasins):
+            gamma_norm_cols = ["p_mean", "prcp", "temperature", "total_precipitation"]
         self.data_target = target_vars
         self.data_forcing = relevant_vars
         self.data_attr = constant_vars
@@ -259,14 +260,26 @@ class DapengScaler(object):
             for i in range(len(self.data_cfgs["target_cols"])):
                 var = self.data_cfgs["target_cols"][i]
                 if var in self.prcp_norm_cols:
-                    mean_prep = self.data_source.read_mean_prcp(
-                        self.t_s_dict["sites_id"]
-                    )
-                    pred.loc[dict(variable=var)] = _prcp_norm(
-                        pred.sel(variable=var).to_numpy(),
-                        mean_prep.to_array().to_numpy().T,
-                        to_norm=False,
-                    )
+                    if isinstance(self.data_source, HydroBasins):
+                        mean_prep = self.data_source.read_MP(
+                            self.t_s_dict["sites_id"],
+                            self.data_cfgs["attributes_path"],
+                            self.data_cfgs["user"],
+                        )
+                        pred.loc[dict(variable=var)] = _prcp_norm(
+                            pred.sel(variable=var).to_numpy(),
+                            mean_prep.to_numpy(),
+                            to_norm=False,
+                        )
+                    else:
+                        mean_prep = self.data_source.read_mean_prcp(
+                            self.t_s_dict["sites_id"]
+                        )
+                        pred.loc[dict(variable=var)] = _prcp_norm(
+                            pred.sel(variable=var).to_numpy(),
+                            mean_prep.to_array().to_numpy().T,
+                            to_norm=False,
+                        )
         # add attrs for units
         pred.attrs.update(self.data_target.attrs)
         # trans to xarray dataset
@@ -289,11 +302,24 @@ class DapengScaler(object):
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                mean_prep = self.data_source.read_mean_prcp(self.t_s_dict["sites_id"])
-                stat_dict[var] = cal_stat_prcp_norm(
-                    self.data_target.sel(variable=var).to_numpy(),
-                    mean_prep.to_array().to_numpy().T,
-                )
+                if isinstance(self.data_source, HydroBasins):
+                    mean_prep = self.data_source.read_MP(
+                        self.t_s_dict["sites_id"],
+                        self.data_cfgs["attributes_path"],
+                        self.data_cfgs["user"],
+                    )
+                    stat_dict[var] = cal_stat_prcp_norm(
+                        self.data_target.sel(variable=var).to_numpy(),
+                        mean_prep.to_numpy(),
+                    )
+                else:
+                    mean_prep = self.data_source.read_mean_prcp(
+                        self.t_s_dict["sites_id"]
+                    )
+                    stat_dict[var] = cal_stat_prcp_norm(
+                        self.data_target.sel(variable=var).to_numpy(),
+                        mean_prep.to_array().to_numpy().T,
+                    )
             elif var in self.gamma_norm_cols:
                 stat_dict[var] = cal_stat_gamma(
                     self.data_target.sel(variable=var).to_numpy()
@@ -345,12 +371,26 @@ class DapengScaler(object):
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                mean_prep = self.data_source.read_mean_prcp(self.t_s_dict["sites_id"])
-                out.loc[dict(variable=var)] = _prcp_norm(
-                    data.sel(variable=var).to_numpy(),
-                    mean_prep.to_array().to_numpy().T,
-                    to_norm=True,
-                )
+                if isinstance(self.data_source, HydroBasins):
+                    mean_prep = self.data_source.read_MP(
+                        self.t_s_dict["sites_id"],
+                        self.data_cfgs["attributes_path"],
+                        self.data_cfgs["user"],
+                    )
+                    out.loc[dict(variable=var)] = _prcp_norm(
+                        data.sel(variable=var).to_numpy(),
+                        mean_prep.to_numpy(),
+                        to_norm=True,
+                    )
+                else:
+                    mean_prep = self.data_source.read_mean_prcp(
+                        self.t_s_dict["sites_id"]
+                    )
+                    out.loc[dict(variable=var)] = _prcp_norm(
+                        data.sel(variable=var).to_numpy(),
+                        mean_prep.to_array().to_numpy().T,
+                        to_norm=True,
+                    )
                 out.attrs["units"][var] = "dimensionless"
         out = _trans_norm(
             out,

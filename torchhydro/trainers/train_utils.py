@@ -8,7 +8,6 @@ FilePath: \torchhydro\torchhydro\trainers\train_utils.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
-
 import copy
 import os
 from functools import reduce
@@ -46,16 +45,20 @@ def model_infer(seq_first, device, model, xs, ys):
     """
     if type(xs) is list:
         xs = [
-            data_tmp.permute([1, 0, 2]).to(device)
-            if seq_first and data_tmp.ndim == 3
-            else data_tmp.to(device)
+            (
+                data_tmp.permute([1, 0, 2]).to(device)
+                if seq_first and data_tmp.ndim == 3
+                else data_tmp.to(device)
+            )
             for data_tmp in xs
         ]
     else:
         xs = [
-            xs.permute([1, 0, 2]).to(device)
-            if seq_first and xs.ndim == 3
-            else xs.to(device)
+            (
+                xs.permute([1, 0, 2]).to(device)
+                if seq_first and xs.ndim == 3
+                else xs.to(device)
+            )
         ]
     ys = (
         ys.permute([1, 0, 2]).to(device)
@@ -73,6 +76,7 @@ def model_infer(seq_first, device, model, xs, ys):
         ys = ys.transpose(0, 1)
     return ys, output
 
+
 def denormalize4eval(validation_data_loader, output, labels):
     target_scaler = validation_data_loader.dataset.target_scaler
     target_data = target_scaler.data_target
@@ -82,7 +86,7 @@ def denormalize4eval(validation_data_loader, output, labels):
         units = {**units, **target_data.attrs["units"]}
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
-    if target_scaler.data_cfgs["scaler"] == "GPM_GFS_Scaler":
+    if target_scaler.data_cfgs["dataset"] == "GPM_GFS_Dataset":
         first_basin = target_scaler.data_cfgs["object_ids"][0]
         source_data = target_scaler.data_forcing[first_basin]
         batch_size = validation_data_loader.batch_size
@@ -131,6 +135,37 @@ def denormalize4eval(validation_data_loader, output, labels):
             )
         preds_xr.attrs["units"] = "m"
         obss_xr.attrs["units"] = "m"
+
+    elif target_scaler.data_cfgs["dataset"] == "MEAN_Dataset":
+        first_basin = target_scaler.data_cfgs["object_ids"][0]
+        source_data = target_scaler.data_forcing.sel(basin=first_basin)
+        batch_size = validation_data_loader.batch_size
+        basin_num = len(target_data.basin)
+        selected_time_points = source_data.coords["time"].drop_vars("basin")
+        forecast_history = validation_data_loader.dataset.rho
+        selected_data = target_data.sel(time=selected_time_points).isel(
+            time=slice(forecast_history, None)
+        )
+        
+        output = output[:, 0, :].reshape(basin_num, batch_size, 1)
+        labels = labels[:, 0, :].reshape(basin_num, batch_size, 1)
+        
+        preds_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                output.transpose(2, 0, 1),
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
+        )
+        obss_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                labels.transpose(2, 0, 1),
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
+        )
     else:
         selected_time_points = target_data.coords["time"][warmup_length:]
         selected_data = target_data.sel(time=selected_time_points)
@@ -275,6 +310,7 @@ def evaluate_validation(
             ].tolist()
     return eval_log
 
+
 def compute_loss(
     labels: torch.Tensor, output: torch.Tensor, criterion, **kwargs
 ) -> float:
@@ -302,7 +338,7 @@ def compute_loss(
     # a = np.sum(output.cpu().detach().numpy(),axis=1)/len(output)
     # b=[]
     # for i in a:
-    #     b.append([i.tolist()])                                 
+    #     b.append([i.tolist()])
     # output = torch.tensor(b, requires_grad=True).to(torch.device("cuda"))
 
     if isinstance(criterion, GaussianLoss):
@@ -322,6 +358,7 @@ def compute_loss(
             labels = labels.unsqueeze(0)
     assert labels.shape == output.shape
     return criterion(output, labels.float())
+
 
 def torch_single_train(
     model,
@@ -372,9 +409,9 @@ def torch_single_train(
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
-        loss.backward() # 反向传播计算当前梯度
-        opt.step() # 根据梯度更新网络参数
-        model.zero_grad() # 清空梯度
+        loss.backward()  # 反向传播计算当前梯度
+        opt.step()  # 根据梯度更新网络参数
+        model.zero_grad()  # 清空梯度
         if torch.isnan(loss) or loss == float("inf"):
             raise ValueError(
                 "Error infinite or NaN loss detected. Try normalizing data or performing interpolation"
@@ -383,6 +420,7 @@ def torch_single_train(
         n_iter_ep += 1
     total_loss = running_loss / float(n_iter_ep)
     return total_loss, n_iter_ep
+
 
 def compute_validation(
     model,
@@ -428,6 +466,7 @@ def compute_validation(
     y_pred = pred_final.detach().cpu().numpy()
     return y_obs, y_pred, valid_loss
 
+
 def average_weights(w):
     """
     Returns the average of the weights.
@@ -438,6 +477,7 @@ def average_weights(w):
             w_avg[key] += w[i][key]
         w_avg[key] = torch.div(w_avg[key], len(w))
     return w_avg
+
 
 def cellstates_when_inference(seq_first, data_cfgs, pred):
     """get cell states when inference"""

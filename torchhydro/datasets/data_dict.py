@@ -13,7 +13,7 @@ from torchhydro.datasets.data_sets import (
     BasinSingleFlowDataset,
     DplDataset,
     GPM_GFS_Dataset,
-    GPM_GFS_batch_loading_Dataset,
+    GPM_GFS_Mean_Dataset,
 )
 
 
@@ -22,6 +22,5 @@ datasets_dict = {
     "SingleflowDataset": BasinSingleFlowDataset,
     "DplDataset": DplDataset,
     "GPM_GFS_Dataset": GPM_GFS_Dataset,
-    "GPM_GFS_batch_loading_Dataset": GPM_GFS_batch_loading_Dataset,
-    "MEAN_Dataset": GPM_GFS_Dataset,
+    "MEAN_Dataset": GPM_GFS_Mean_Dataset,
 }

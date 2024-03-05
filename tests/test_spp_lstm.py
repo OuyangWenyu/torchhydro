@@ -24,7 +24,6 @@ def config():
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
-        source="GPM_GFS",
         source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
         streamflow_source_path="/ftproot/biliuhe/merge_streamflow.nc",  # 所有流域一个流量文件
         rainfall_source_path=None,  # "/ftproot/biliuhe",  # 降水文件夹，一个流域一个文件，以"流域编号.nc"命名
