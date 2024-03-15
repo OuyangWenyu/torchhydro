@@ -201,7 +201,15 @@ class DapengScaler(object):
                 "streamflow",
             ]
         if gamma_norm_cols is None or isinstance(data_source, HydroBasins):
-            gamma_norm_cols = ["p_mean", "prcp", "temperature", "total_precipitation"]
+            gamma_norm_cols = [
+                "p_mean",
+                "prcp",
+                "temperature",
+                "total_precipitation",
+                "gpm_tp",
+                "gfs_tp",
+                "pwat",
+            ]
         self.data_target = target_vars
         self.data_forcing = relevant_vars
         self.data_attr = constant_vars
@@ -264,10 +272,9 @@ class DapengScaler(object):
                         mean_prep = self.data_source.read_MP(
                             self.t_s_dict["sites_id"],
                             self.data_cfgs["attributes_path"],
-                            self.data_cfgs["user"],
                         )
-                        pred.loc[dict(variable=var)] = _prcp_norm(
-                            pred.sel(variable=var).to_numpy(),
+                        pred.loc[dict(variable=var)] = self.mean_prcp_norm(
+                            pred.sel(variable=var).to_numpy().T,
                             mean_prep.to_numpy(),
                             to_norm=False,
                         )
@@ -306,10 +313,9 @@ class DapengScaler(object):
                     mean_prep = self.data_source.read_MP(
                         self.t_s_dict["sites_id"],
                         self.data_cfgs["attributes_path"],
-                        self.data_cfgs["user"],
                     )
-                    stat_dict[var] = cal_stat_prcp_norm(
-                        self.data_target.sel(variable=var).to_numpy(),
+                    stat_dict[var] = self.mean_cal_stat_prcp_norm(
+                        self.data_target.sel(variable=var).to_numpy().T,
                         mean_prep.to_numpy(),
                     )
                 else:
@@ -375,10 +381,9 @@ class DapengScaler(object):
                     mean_prep = self.data_source.read_MP(
                         self.t_s_dict["sites_id"],
                         self.data_cfgs["attributes_path"],
-                        self.data_cfgs["user"],
                     )
-                    out.loc[dict(variable=var)] = _prcp_norm(
-                        data.sel(variable=var).to_numpy(),
+                    out.loc[dict(variable=var)] = self.mean_prcp_norm(
+                        data.sel(variable=var).to_numpy().T,
                         mean_prep.to_numpy(),
                         to_norm=True,
                     )
@@ -462,6 +467,17 @@ class DapengScaler(object):
         y = self.get_data_obs()
         c = self.get_data_const()
         return x, y, c
+
+    def mean_cal_stat_prcp_norm(self, x, meanprep):
+        tempprep = np.tile(meanprep, (x.shape[0], 1))
+        flowua = (x / tempprep).T
+        return cal_stat_gamma(flowua)
+
+    def mean_prcp_norm(
+        self, x: np.array, mean_prep: np.array, to_norm: bool
+    ) -> np.array:
+        tempprep = np.tile(mean_prep, (x.shape[0], 1))
+        return (x / tempprep).T if to_norm else (x * tempprep).T
 
 
 class GPM_GFS_Scaler(object):

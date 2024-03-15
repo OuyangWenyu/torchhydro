@@ -143,13 +143,14 @@ def denormalize4eval(validation_data_loader, output, labels):
         basin_num = len(target_data.basin)
         selected_time_points = source_data.coords["time"].drop_vars("basin")
         forecast_history = validation_data_loader.dataset.rho
+        forecast_length = validation_data_loader.dataset.forecast_length
         selected_data = target_data.sel(time=selected_time_points).isel(
-            time=slice(forecast_history, None)
+            time=slice(forecast_history, -forecast_length)
         )
-        
+
         output = output[:, 0, :].reshape(basin_num, batch_size, 1)
         labels = labels[:, 0, :].reshape(basin_num, batch_size, 1)
-        
+
         preds_xr = target_scaler.inverse_transform(
             xr.DataArray(
                 output.transpose(2, 0, 1),

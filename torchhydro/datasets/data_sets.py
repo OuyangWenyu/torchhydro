@@ -8,6 +8,7 @@ FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
+import os
 import io
 import logging
 import sys
@@ -628,8 +629,8 @@ class GPM_GFS_Dataset(Dataset):
             self.y.sel(basin=basin)
             .sel(
                 time=slice(
-                    time,
-                    time + np.timedelta64(output_seq_len - 1, "h"),
+                    time + np.timedelta64(1, "h"),
+                    time + np.timedelta64(output_seq_len, "h"),
                 )
             )
             .values
@@ -936,7 +937,6 @@ class GPM_GFS_Mean_Dataset(Dataset):
             data_attr_ds = self.basin_data.read_BA_xrdataset(
                 self.t_s_dict["sites_id"],
                 self.data_cfgs["constant_cols"],
-                self.data_cfgs["user"],
                 self.data_cfgs["attributes_path"],
             )
             c_orgin = self._trans2da_and_setunits(data_attr_ds)
@@ -976,7 +976,7 @@ class GPM_GFS_Mean_Dataset(Dataset):
                 lookup.extend(
                     (basin, dates[f + num * time_single_length])
                     for f in range(
-                        warmup_length + rho, time_single_length - forecast_length
+                        warmup_length + rho, time_single_length - forecast_length * 2
                     )
                     if f < time_single_length
                 )
@@ -988,24 +988,41 @@ class GPM_GFS_Mean_Dataset(Dataset):
         seq_length = self.rho
         output_seq_len = self.forecast_length
         warmup_length = self.warmup_length
-        x = (
+        gpm_tp = (
             self.x.sel(
+                variable="gpm_tp",
                 basin=basin,
                 time=slice(
                     time - np.timedelta64(warmup_length + seq_length - 1, "h"),
-                    time, 
+                    time,
                 ),
             )
             .to_numpy()
             .T
-        )
-
+        ).reshape(-1, 1)
+        gfs_tp = (
+            self.x.sel(
+                variable="gfs_tp",
+                basin=basin,
+                time=slice(
+                    time + np.timedelta64(1, "h"),
+                    time + np.timedelta64(output_seq_len, "h"),
+                ),
+            )
+            .to_numpy()
+            .T
+        ).reshape(-1, 1)
+        x = np.concatenate((gpm_tp, gfs_tp), axis=0)
+        if self.c is not None and self.c.shape[-1] > 0:
+            c = self.c.sel(basin=basin).values
+            c = np.tile(c, (warmup_length + seq_length + output_seq_len, 1))
+            x = np.concatenate((x, c), axis=1)
         y = (
             self.y.sel(
                 basin=basin,
                 time=slice(
-                    time,
-                    time + np.timedelta64(output_seq_len - 1, "h"),
+                    time + np.timedelta64(1, "h"),
+                    time + np.timedelta64(output_seq_len, "h"),
                 ),
             )
             .to_numpy()
@@ -1044,12 +1061,15 @@ class GPM_GFS_Mean_Dataset(Dataset):
         c_rm_nan = data_cfgs["constant_rm_nan"]
         if x_rm_nan:
             # As input, we cannot have NaN values
+            x = x.compute()
             _fill_gaps_da(x, fill_nan="interpolate")
             warn_if_nan(x)
         if y_rm_nan:
+            y = y.compute()
             _fill_gaps_da(y, fill_nan="interpolate")
             warn_if_nan(y)
         if c_rm_nan:
+            c = c.compute()
             _fill_gaps_da(c, fill_nan="mean")
             warn_if_nan(c)
         return x, y, c
@@ -1059,14 +1079,11 @@ class GPM_GFS_Mean_Dataset(Dataset):
         t_range = self.t_s_dict["t_final_range"]
         var_lst = self.data_cfgs["target_cols"]
         path = self.data_cfgs["streamflow_source_path"]
-        user = self.data_cfgs["user"]
 
         if var_lst is None or not var_lst:
             return None
 
-        data = xr.open_dataset(path)
-        data = data[var_lst].sel(basin=gage_id_lst)
-        # data = self.basin_data.read_Y_xrdataset(gage_id_lst, user, path)
+        data = self.basin_data.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
 
         all_vars = data.data_vars
         if any(var not in data.variables for var in var_lst):
@@ -1086,34 +1103,31 @@ class GPM_GFS_Mean_Dataset(Dataset):
         t_range = self.t_s_dict["t_final_range"]
         var_lst = self.data_cfgs["relevant_cols"]
         path = self.data_cfgs["rainfall_source_path"]
-        user = self.data_cfgs["user"]
 
         if var_lst is None:
             return None
 
-        data = xr.open_dataset(path)
-        data = data[var_lst].sel(basin=gage_id_lst)
-        # data = self.basin_data.read_MPPT_xrdataset(gage_id_lst, path, user)
-        subset_list = []
+        data = self.basin_data.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
+
+        var_subset_list = []
         for period in t_range:
             start_date = period["start"]
             end_date = period["end"]
             subset = data.sel(time=slice(start_date, end_date))
-            subset_list.append(subset)
+            var_subset_list.append(subset)
 
-        return xr.concat(subset_list, dim="time")
+        return xr.concat(var_subset_list, dim="time")
 
     def prepare_MGFS(self):
         gage_id_lst = self.t_s_dict["sites_id"]
         t_range = self.t_s_dict["t_final_range"]
-        var_lst = self.data_cfgs["relevant_cols"][1]
+        var_lst = self.data_cfgs["relevant_cols"]
         path = self.data_cfgs["gfs_source_path"]
-        user = self.data_cfgs["user"]
 
         if var_lst is None:
             return None
 
-        data = self.basin_data.read_MGFS_xrdataset(gage_id_lst, path, user)
+        data = self.basin_data.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
         subset_list = []
         for period in t_range:
             start_date = period["start"]
@@ -1134,12 +1148,11 @@ class GPM_GFS_Mean_Dataset(Dataset):
         t_range = self.t_s_dict["t_final_range"]
         var_lst = self.data_cfgs["relevant_cols"][2]
         path = self.data_cfgs["soil_source_path"]
-        user = self.data_cfgs["user"]
 
         if var_lst is None:
             return None
 
-        data = self.basin_data.read_MSP_xrdataset(gage_id_lst, path, user)
+        data = self.basin_data.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
         subset_list = []
         for period in t_range:
             start_date = period["start"]

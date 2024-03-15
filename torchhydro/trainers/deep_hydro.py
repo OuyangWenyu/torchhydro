@@ -225,13 +225,7 @@ class DeepHydro(DeepHydroInterface):
         dataset_name = data_cfgs["dataset"]
 
         if dataset_name in list(datasets_dict.keys()):
-            if dataset_name in ["GPM_GFS_batch_loading_Dataset"]:
-                dataset = datasets_dict[dataset_name](
-                    data_cfgs, self.cfgs["minio_cfgs"], is_tra_val_te
-                )
-            else:
-                dataset = datasets_dict[dataset_name](data_cfgs, is_tra_val_te)
-
+            dataset = datasets_dict[dataset_name](data_cfgs, is_tra_val_te)
         else:
             raise NotImplementedError(
                 f"Error the dataset {str(dataset_name)} was not found in the dataset dict. Please add it."
@@ -259,12 +253,13 @@ class DeepHydro(DeepHydroInterface):
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
 
-        scheduler = ReduceLROnPlateau(
-            opt,
-            mode="min" if training_cfgs["lr_val_loss"] else "max",
-            factor=training_cfgs["lr_factor"],
-            patience=training_cfgs["lr_patience"],
-        )
+        # scheduler = ReduceLROnPlateau(
+        #     opt,
+        #     mode="min" if training_cfgs["lr_val_loss"] else "max",
+        #     factor=training_cfgs["lr_factor"],
+        #     patience=training_cfgs["lr_patience"],
+        # )
+        scheduler = ExponentialLR(opt, gamma=training_cfgs["lr_factor"])
         if training_cfgs["weight_decay"] is not None:
             for param_group in opt.param_groups:
                 param_group["weight_decay"] = training_cfgs["weight_decay"]
@@ -311,11 +306,11 @@ class DeepHydro(DeepHydroInterface):
                     valid_logs["valid_metrics"] = valid_metrics
 
             lr_val_loss = training_cfgs["lr_val_loss"]
-            if lr_val_loss:
-                scheduler.step(valid_loss.item())
-            else:
-                scheduler.step(list(valid_metrics.items())[0][1][0])
-
+            # if lr_val_loss:
+            #     scheduler.step(valid_loss.item())
+            # else:
+            #     scheduler.step(list(valid_metrics.items())[0][1][0])
+            scheduler.step()
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
             )
@@ -368,7 +363,7 @@ class DeepHydro(DeepHydroInterface):
                 model_filepath, f"model_Ep{str(test_epoch)}.pth"
             )
             self.model = self.load_model()
-        if self.cfgs["data_cfgs"]["dataset"] == "GPM_GFS_Dataset":
+        if self.cfgs["data_cfgs"]["dataset"] in ["GPM_GFS_Dataset", "MEAN_Dataset"]:
             if self.cfgs["model_cfgs"]["continue_train"]:
                 model_filepath = self.cfgs["data_cfgs"]["test_path"]
                 self.weight_path = os.path.join(model_filepath, "best_model.pth")

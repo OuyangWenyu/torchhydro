@@ -7,6 +7,7 @@ Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+
 import copy
 from datetime import datetime
 import fnmatch
@@ -73,8 +74,8 @@ def train_and_evaluate(cfgs: Dict):
             deephydro.model_train()
         test_acc = deephydro.model_evaluate()
         print("summary test_accuracy", test_acc[0])
-        test_acc[1].attrs['units']='mm/h'
-        test_acc[2].attrs['units']='mm/h'
+        test_acc[1].attrs["units"] = "mm/h"
+        test_acc[2].attrs["units"] = "mm/h"
         # save the results
         save_result(
             cfgs["data_cfgs"]["test_path"],
@@ -101,8 +102,6 @@ def train_and_evaluate(cfgs: Dict):
 def _get_deep_hydro(cfgs):
     model_type = cfgs["model_cfgs"]["model_type"]
     return model_type_dict[model_type](cfgs)
-
-
 
 
 def save_result(save_dir, epoch, pred, obs, pred_name="flow_pred", obs_name="flow_obs"):
@@ -324,7 +323,7 @@ def _create_kfold_periods(train_period, valid_period, test_period, kfold):
 
 def _create_kfold_discontinuous_periods(train_period, valid_period, kfold):
     periods = train_period + valid_period
-    periods = sorted(periods, key=lambda x: x['start'])
+    periods = sorted(periods, key=lambda x: x["start"])
     cross_validation_sets = []
 
     for i in range(kfold):
@@ -376,7 +375,7 @@ def _trans_kfold_to_periods(update_dict, my_dict, current_key="kfold"):
     valid_period = update_dict["data_cfgs"]["t_range_valid"]
     test_period = update_dict["data_cfgs"]["t_range_test"]
     kfold = my_dict[current_key]
-    if update_dict["data_cfgs"]["dataset"] != "GPM_GFS_Dataset":
+    if update_dict["data_cfgs"]["dataset"] not in ["GPM_GFS_Dataset", "MEAN_Dataset"]:
         kfold_periods = _create_kfold_periods(
             train_period, valid_period, test_period, kfold
         )
