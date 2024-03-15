@@ -169,6 +169,7 @@ def default_config_file():
                     "streamflow",
                     Q_CAMELS_CC_NAME,
                     "qobs",
+                    "qobs_mm_per_hour"
                 ],
                 "gamma_norm_cols": [
                     PRCP_DAYMET_NAME,
