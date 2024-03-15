@@ -14,6 +14,7 @@ from torchhydro.datasets.data_sets import (
     DplDataset,
     GPM_GFS_Dataset,
     GPM_GFS_Mean_Dataset,
+    GPM_GFS_Mean_CNN_LSTM_Dataset
 )
 
 
@@ -23,4 +24,5 @@ datasets_dict = {
     "DplDataset": DplDataset,
     "GPM_GFS_Dataset": GPM_GFS_Dataset,
     "MEAN_Dataset": GPM_GFS_Mean_Dataset,
+    "CNN1D_Dataset": GPM_GFS_Mean_CNN_LSTM_Dataset
 }
