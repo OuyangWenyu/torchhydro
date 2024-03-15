@@ -268,7 +268,17 @@ class DapengScaler(object):
             for i in range(len(self.data_cfgs["target_cols"])):
                 var = self.data_cfgs["target_cols"][i]
                 if var in self.prcp_norm_cols:
-                    if isinstance(self.data_source, HydroBasins):
+                    if var == 'qobs_mm_per_hour': # should be deleted
+                        mean_prep = self.read_attr_xrdataset(
+                            self.t_s_dict["sites_id"],
+                            ["p_mean"]
+                        )
+                        pred.loc[dict(variable=var)] = _prcp_norm(
+                            pred.sel(variable=var).to_numpy(),
+                            mean_prep.to_array().to_numpy().T,
+                            to_norm=False,
+                        )
+                    elif isinstance(self.data_source, HydroBasins):
                         mean_prep = self.data_source.read_MP(
                             self.t_s_dict["sites_id"],
                             self.data_cfgs["attributes_path"],
@@ -309,7 +319,16 @@ class DapengScaler(object):
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                if isinstance(self.data_source, HydroBasins):
+                if var == 'qobs_mm_per_hour': # should be deleted if data all in minio
+                    mean_prep = self.read_attr_xrdataset(
+                        self.t_s_dict["sites_id"],
+                        ["p_mean"]
+                    )
+                    stat_dict[var] = cal_stat_prcp_norm(
+                        self.data_target.sel(variable=var).to_numpy(),
+                        mean_prep.to_array().to_numpy().T,
+                    )
+                elif isinstance(self.data_source, HydroBasins):
                     mean_prep = self.data_source.read_MP(
                         self.t_s_dict["sites_id"],
                         self.data_cfgs["attributes_path"],
@@ -377,7 +396,17 @@ class DapengScaler(object):
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                if isinstance(self.data_source, HydroBasins):
+                if var == 'qobs_mm_per_hour':# should be deleted
+                    mean_prep = self.read_attr_xrdataset(
+                        self.t_s_dict["sites_id"],
+                        ["p_mean"]
+                    )
+                    out.loc[dict(variable=var)] = _prcp_norm(
+                        data.sel(variable=var).to_numpy(),
+                        mean_prep.to_array().to_numpy().T,
+                        to_norm=True,
+                    )
+                elif isinstance(self.data_source, HydroBasins):
                     mean_prep = self.data_source.read_MP(
                         self.t_s_dict["sites_id"],
                         self.data_cfgs["attributes_path"],
@@ -386,7 +415,7 @@ class DapengScaler(object):
                         data.sel(variable=var).to_numpy().T,
                         mean_prep.to_numpy(),
                         to_norm=True,
-                    )
+                    )                  
                 else:
                     mean_prep = self.data_source.read_mean_prcp(
                         self.t_s_dict["sites_id"]
@@ -405,6 +434,13 @@ class DapengScaler(object):
             to_norm=to_norm,
         )
         return out
+    
+    # temporarily used, it's related to hydrodataset
+    def read_attr_xrdataset(self, gage_id_lst=None, var_lst=None, **kwargs):
+        if var_lst is None or len(var_lst) == 0:
+            return None
+        attr = xr.open_dataset(os.path.join("/ftproot", "camelsus_attributes_us.nc"))
+        return attr[var_lst].sel(basin=gage_id_lst)
 
     def get_data_ts(self, to_norm=True) -> np.array:
         """
