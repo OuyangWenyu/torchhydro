@@ -7,6 +7,7 @@ Description: Test a full training and evaluating process
 FilePath: \torchhydro\tests\test_train_camels_lstm.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import os
 import pytest
 import hydrodataset as hds
@@ -16,8 +17,7 @@ from torchhydro.trainers.trainer import train_and_evaluate
 # import xarray as xr
 # show = xr.open_dataset("/ftproot/camels_hourly/data/usgs-streamflow-nldas_hourly.nc")
 import pandas as pd
-show = pd.read_csv("data/gage_id.csv", dtype={'id':str})
-gage_id = show['id'].values.tolist()
+
 
 @pytest.fixture()
 def config():
@@ -41,9 +41,11 @@ def config():
         # gage_id=[
         #     "21401550"
         # ],
-        gage_id=gage_id,
+        gage_id=pd.read_csv("data/gage_id.csv", dtype={"id": str})[
+            "id"
+        ].values.tolist(),
         batch_size=512,
-        rho=168, # seq_length forecast_history forecast_length=1 linearIn
+        rho=168,  # seq_length forecast_history forecast_length=1 linearIn
         forecast_length=24,
         # var_t=["p_mean"],
         var_t=["total_precipitation", "streamflow"],
@@ -51,27 +53,26 @@ def config():
         var_out=["streamflow"],
         dataset="MEAN_Dataset",
         # dataset = "GPM_GFS_Dataset",
-        sampler = "WuSampler",
+        sampler="WuSampler",
         scaler="MeanScaler",
         train_epoch=50,
         save_epoch=1,
         te=49,
-        #1979
-        train_period=[            
+        # 1979
+        train_period=[
             ["2014-07-01T00:00:00", "2014-09-30T00:00:00"],
             # ["2015-07-01T00:00:00", "2015-09-30T00:00:00"],
             # ["2016-07-01T00:00:00", "2016-09-30T00:00:00"],
-            ],
+        ],
         valid_period=[["2018-07-01T00:00:00", "2018-09-30T00:00:00"]],
         test_period=[["2017-07-01T00:00:00", "2017-09-30T00:00:00"]],
-
         loss_func="RMSESum",
         opt="Adam",
         # key is epoch, start from 1
         lr_scheduler={1: 1e-2, 2: 5e-3, 3: 1e-3},
         which_first_tensor="sequence",
         is_tensorboard=False,
-        user = "zxw"
+        user="zxw",
     )
     update_cfg(config_data, args)
     return config_data

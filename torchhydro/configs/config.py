@@ -46,7 +46,7 @@ def default_config_file():
 
     return {
         "model_cfgs": {
-            # model_type including normal deep learning (Normal), federated learning (FedLearn), transfer learing (TransLearn), multi-task learning, etc.
+            # model_type including normal deep learning (Normal), federated learning (FedLearn), transfer learing (TransLearn), multi-task learning (MTL), etc.
             "model_type": "Normal",
             # supported models can be seen in hydroDL/model_dict_function.py
             "model_name": "LSTM",

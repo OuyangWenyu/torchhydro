@@ -1,16 +1,18 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-07-29 10:53:25
+LastEditTime: 2024-03-28 19:04:33
 LastEditors: Wenyu Ouyang
 Description: Loss functions
-FilePath: \HydroTL\hydrotl\models\crits.py
+FilePath: \torchhydro\torchhydro\models\crits.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
-from typing import Union
 
+from typing import Union
 import torch
 from torch import distributions as tdist, Tensor
+from torch_scatter import segment_csr, scatter
+
 from torchhydro.models.model_utils import get_the_device
 
 
@@ -364,15 +366,9 @@ class RmseLoss(torch.nn.Module):
             t0 = target[:, :, k]
             mask = t0 == t0
             p = p0[mask]
-            p = torch.where(
-                torch.isnan(p),
-                torch.full_like(p, 0),
-                p)
+            p = torch.where(torch.isnan(p), torch.full_like(p, 0), p)
             t = t0[mask]
-            t = torch.where(
-                torch.isnan(t),
-                torch.full_like(t, 0),
-                t)
+            t = torch.where(torch.isnan(t), torch.full_like(t, 0), t)
             temp = torch.sqrt(((p - t) ** 2).mean())
             loss = loss + temp
         return loss

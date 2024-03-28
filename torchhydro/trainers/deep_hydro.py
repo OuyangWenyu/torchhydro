@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-02-19 17:00:26
+LastEditTime: 2024-03-28 19:55:31
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -789,8 +789,79 @@ class TransLearnHydro(DeepHydro):
         return model
 
 
+class MultiTaskHydro(DeepHydro):
+    def __init__(self, data_source: HydroDataset, cfgs: Dict, pre_model=None):
+        super().__init__(data_source, cfgs, pre_model)
+
+    def model_train(self) -> None:
+        training_cfgs = self.cfgs["training_cfgs"]
+        model_cfgs = self.cfgs["model_cfgs"]
+
+        if "criterion_params" in training_cfgs:
+            loss_param = training_cfgs["criterion_params"]
+            if loss_param is not None:
+                criterion_init_params = {
+                    key: (
+                        pytorch_criterion_dict[loss_param[key]]()
+                        if key == "loss_funcs"
+                        else loss_param[key]
+                    )
+                    for key in loss_param.keys()
+                }
+        if training_cfgs["criterion"] == "MultiOutWaterBalanceLoss":
+            # TODO: hard code for streamflow and ET
+            stat_dict = self.training.target_scaler.stat_dict
+            stat_dict_keys = list(stat_dict.keys())
+            q_name = np.intersect1d(
+                [
+                    "usgsFlow",
+                    "streamflow",
+                    "Q",
+                    "qobs",
+                ],
+                stat_dict_keys,
+            )[0]
+            et_name = np.intersect1d(
+                [
+                    "ET",
+                    "LE",
+                    "GPP",
+                    "Ec",
+                    "Es",
+                    "Ei",
+                    "ET_water",
+                    # sum pf ET components in PML V2
+                    "ET_sum",
+                ],
+                stat_dict_keys,
+            )[0]
+            q_mean = self.training.target_scaler.stat_dict[q_name][2]
+            q_std = self.training.target_scaler.stat_dict[q_name][3]
+            et_mean = self.training.target_scaler.stat_dict[et_name][2]
+            et_std = self.training.target_scaler.stat_dict[et_name][3]
+            means = [q_mean, et_mean]
+            stds = [q_std, et_std]
+            criterion_init_params["means"] = means
+            criterion_init_params["stds"] = stds
+        criterion = pytorch_criterion_dict[training_cfgs["criterion"]](
+            **criterion_init_params
+        )
+        params_in_opt = self.model.parameters()
+        if training_cfgs["criterion"] == "UncertaintyWeights":
+            # log_var = torch.zeros((1,), requires_grad=True)
+            log_vars = [
+                torch.zeros((1,), requires_grad=True, device=self.device)
+                for _ in range(training_cfgs["multi_targets"])
+            ]
+            params_in_opt = list(self.model.parameters()) + log_vars
+        opt = pytorch_opt_dict[training_cfgs["optimizer"]](
+            params_in_opt, **training_cfgs["optim_params"]
+        )
+
+
 model_type_dict = {
     "Normal": DeepHydro,
     "FedLearn": FedLearnHydro,
     "TransLearn": TransLearnHydro,
+    "MTL": MultiTaskHydro,
 }
