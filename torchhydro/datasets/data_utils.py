@@ -7,8 +7,8 @@ Description: Some basic funtions for dealing with data
 FilePath: \torchhydro\torchhydro\datasets\data_utils.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 from typing import Union
-from hydrodataset import HydroDataset
 from collections import OrderedDict
 import numpy as np
 import xarray as xr
@@ -79,16 +79,13 @@ def unify_streamflow_unit(ds: xr.Dataset, area=None, inverse=False):
     return result.pint.dequantify()
 
 
-def wrap_t_s_dict(
-    data_source: HydroDataset, data_cfgs: dict, is_tra_val_te: str
-) -> OrderedDict:
+def wrap_t_s_dict(data_cfgs: dict, is_tra_val_te: str) -> OrderedDict:
     """
     Basins and periods
 
     Parameters
     ----------
-    data_source
-        source data object
+
     data_cfgs
         configs for reading from data source
     is_tra_val_te
@@ -100,14 +97,14 @@ def wrap_t_s_dict(
         OrderedDict(sites_id=basins_id, t_final_range=t_range_list)
     """
     basins_id = data_cfgs["object_ids"]
-    if type(basins_id) is str and basins_id == "ALL":
-        basins_id = data_source.read_object_ids().tolist()
+    # if type(basins_id) is str and basins_id == "ALL":
+    #     basins_id = data_source.read_object_ids().tolist()
     # assert all(x < y for x, y in zip(basins_id, basins_id[1:]))
     if f"t_range_{is_tra_val_te}" in data_cfgs:
         t_range_list = data_cfgs[f"t_range_{is_tra_val_te}"]
     else:
         raise Exception(
-            f"Error! The mode {is_tra_val_te} was not found in the data_source params dict. Please add it."
+            f"Error! The mode {is_tra_val_te} was not found. Please add it."
         )
     return OrderedDict(sites_id=basins_id, t_final_range=t_range_list)
 
@@ -162,7 +159,8 @@ def _trans_norm(
         stat = stat_dict[item]
         if to_norm:
             out.loc[dict(variable=item)] = (
-                (np.log10(np.sqrt(np.abs(x.sel(variable=item))) + 0.1) - stat[2]) / stat[3]
+                (np.log10(np.sqrt(np.abs(x.sel(variable=item))) + 0.1) - stat[2])
+                / stat[3]
                 if item in log_norm_cols
                 else (x.sel(variable=item) - stat[2]) / stat[3]
             )

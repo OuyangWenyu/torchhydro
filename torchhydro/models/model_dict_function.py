@@ -14,6 +14,7 @@ from torchhydro.models.cudnnlstm import (
     CudnnLstmModelLstmKernel,
     CudnnLstmModelMultiOutput,
     CpuLstmModel,
+    HybridLSTMModel
 )
 
 from torchhydro.models.simple_lstm import SimpleLSTMForecast
@@ -48,6 +49,7 @@ pytorch_model_dict = {
     "SPPLSTM": SPP_LSTM_Model,
     "SimpleLSTMForecast": SimpleLSTMForecast,
     "SPPLSTM2": SPP_LSTM_Model_2,
+    "HybridLSTMModel": HybridLSTMModel
 }
 
 pytorch_model_wrapper_dict = {}
