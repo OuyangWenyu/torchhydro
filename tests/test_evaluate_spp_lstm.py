@@ -27,10 +27,6 @@ def config_data():
         sub=project_name,
         source="GPM_GFS",
         source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
-        streamflow_source_path=r"C:\Users\Administrator\.hydrodataset\cache\merge_streamflow.nc",
-        rainfall_source_path=r"C:\Users\Administrator\PycharmProjects\AIFloodForecast\test_data\biliuhe",
-        attributes_path=r"C:\Users\Administrator\PycharmProjects\AIFloodForecast\test_data\camelsus_attributes.nc",
-        gfs_source_path="",
         download=0,
         ctx=[2],
         model_name="SPPLSTM2",
@@ -66,7 +62,7 @@ def config_data():
             "dor_pc_pva",  # 调节程度
         ],
         dataset="GPM_GFS_Dataset",
-        sampler="WuSampler",
+        sampler="HydroSampler",
         scaler="GPM_GFS_Scaler",
         test_period=[
             {"start": "2017-07-01", "end": "2017-09-29"},
@@ -86,11 +82,10 @@ def test_evaluate_spp_lstm(config_data):
     random_seed = config_data["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
     data_cfgs = config_data["data_cfgs"]
-    _name = data_cfgs["_name"]
-     = s_dict[_name](
+    _name = data_cfgs["_name"]= s_dict[_name](
         data_cfgs["data_path"], data_cfgs["download"]
     )
-    model = DeepHydro(, config_data)
+    model = DeepHydro(config_data)
     test_acc = model.model_evaluate()
     print("summary test_accuracy", test_acc[0])
     save_result(

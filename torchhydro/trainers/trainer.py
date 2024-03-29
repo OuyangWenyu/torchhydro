@@ -74,8 +74,6 @@ def train_and_evaluate(cfgs: Dict):
             deephydro.model_train()
         test_acc = deephydro.model_evaluate()
         print("summary test_accuracy", test_acc[0])
-        test_acc[1].attrs["units"] = "mm/h"
-        test_acc[2].attrs["units"] = "mm/h"
         # save the results
         save_result(
             cfgs["data_cfgs"]["test_path"],

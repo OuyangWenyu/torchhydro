@@ -95,7 +95,7 @@ def config():
         ],
         var_out=["streamflow"],
         dataset="GPM_GFS_Dataset",
-        sampler="WuSampler",
+        sampler="HydroSampler",
         scaler="GPM_GFS_Scaler",
         train_epoch=1,
         save_epoch=1,

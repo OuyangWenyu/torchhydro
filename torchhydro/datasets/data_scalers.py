@@ -19,7 +19,7 @@ from hydroutils.hydro_stat import (
     cal_stat,
     cal_4_stat_inds,
 )
-from hydrodata.reader.data_source import HydroBasins
+from hydrodatasource.reader.data_source import HydroBasins
 
 from torchhydro.datasets.data_utils import (
     _trans_norm,
@@ -281,7 +281,7 @@ class DapengScaler(object):
                     elif isinstance(self.data_source, HydroBasins):
                         mean_prep = self.data_source.read_MP(
                             self.t_s_dict["sites_id"],
-                            self.data_cfgs["attributes_path"],
+                            self.data_cfgs["data_path"]["attributes"],
                         )
                         pred.loc[dict(variable=var)] = self.mean_prcp_norm(
                             pred.sel(variable=var).to_numpy().T,
@@ -331,7 +331,7 @@ class DapengScaler(object):
                 elif isinstance(self.data_source, HydroBasins):
                     mean_prep = self.data_source.read_MP(
                         self.t_s_dict["sites_id"],
-                        self.data_cfgs["attributes_path"],
+                        self.data_cfgs["data_path"]["attributes"],
                     )
                     stat_dict[var] = self.mean_cal_stat_prcp_norm(
                         self.data_target.sel(variable=var).to_numpy().T,
@@ -409,7 +409,7 @@ class DapengScaler(object):
                 elif isinstance(self.data_source, HydroBasins):
                     mean_prep = self.data_source.read_MP(
                         self.t_s_dict["sites_id"],
-                        self.data_cfgs["attributes_path"],
+                        self.data_cfgs["data_path"]["attributes"],
                     )
                     out.loc[dict(variable=var)] = self.mean_prcp_norm(
                         data.sel(variable=var).to_numpy().T,

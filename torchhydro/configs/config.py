@@ -20,7 +20,6 @@ DAYMET_NAME = "daymet"
 SSM_SMAP_NAME = "ssm"
 ET_MODIS_NAME = "ET"
 Q_CAMELS_US_NAME = "usgsFlow"
-# Q_CAMELS_CC_NAME = "Q_fix"
 Q_CAMELS_CC_NAME = "Q"
 PRCP_DAYMET_NAME = "prcp"
 PRCP_NLDAS_NAME = "total_precipitation"
@@ -93,12 +92,6 @@ def default_config_file():
         "data_cfgs": {
             "data_source_name": "CAMELS",
             "data_path": "../../example/camels_us",
-            "attributes_path": None,
-            "rainfall_source_path": None,
-            "streamflow_source_path": None,
-            "water_level_source_path": None,
-            "gfs_source_path": None,
-            "soil_source_path": None,
             "data_region": None,
             "download": True,
             "validation_path": None,
@@ -281,12 +274,6 @@ def cmd(
     sub=None,
     source="CAMELS",
     source_path=None,
-    attributes_path=None,
-    rainfall_source_path=None,
-    streamflow_source_path=None,
-    water_level_source_path=None,
-    gfs_source_path=None,
-    soil_source_path=None,
     source_region=None,
     download=0,
     scaler=None,
@@ -384,48 +371,6 @@ def cmd(
         dest="source_path",
         help="directory of data source",
         default=source_path,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--attributes_path",
-        dest="attributes_path",
-        help="directory of attributes",
-        default=attributes_path,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--rainfall_source_path",
-        dest="rainfall_source_path",
-        help="directory of rainfall's data source",
-        default=rainfall_source_path,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--streamflow_source_path",
-        dest="streamflow_source_path",
-        help="directory of streamflow's data source",
-        default=streamflow_source_path,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--water_level_source_path",
-        dest="water_level_source_path",
-        help="directory of water level's data source",
-        default=water_level_source_path,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--gfs_source_path",
-        dest="gfs_source_path",
-        help="directory of gfs data source",
-        default=gfs_source_path,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--soil_source_path",
-        dest="soil_source_path",
-        help="directory of soil attributes data source",
-        default=soil_source_path,
         nargs="+",
     )
     parser.add_argument(
@@ -999,48 +944,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["data_path"] = new_args.source_path
         if type(new_args.source_path) == list and len(new_args.source_path) == 1:
             cfg_file["data_cfgs"]["data_path"] = new_args.source_path[0]
-    if new_args.attributes_path is not None:
-        cfg_file["data_cfgs"]["attributes_path"] = new_args.attributes_path
-        if (
-            isinstance(new_args.attributes_path, list)
-            and len(new_args.attributes_path) == 1
-        ):
-            cfg_file["data_cfgs"]["attributes_path"] = new_args.attributes_path[0]
-    if new_args.rainfall_source_path is not None:
-        cfg_file["data_cfgs"]["rainfall_source_path"] = new_args.rainfall_source_path
-        if (
-            isinstance(new_args.rainfall_source_path, list)
-            and len(new_args.rainfall_source_path) == 1
-        ):
-            cfg_file["data_cfgs"][
-                "rainfall_source_path"
-            ] = new_args.rainfall_source_path[0]
-    if new_args.streamflow_source_path is not None:
-        cfg_file["data_cfgs"][
-            "streamflow_source_path"
-        ] = new_args.streamflow_source_path
-        if (
-            isinstance(new_args.streamflow_source_path, list)
-            and len(new_args.streamflow_source_path) == 1
-        ):
-            cfg_file["data_cfgs"][
-                "streamflow_source_path"
-            ] = new_args.streamflow_source_path[0]
-    if new_args.water_level_source_path is not None:
-        cfg_file["data_cfgs"][
-            "water_level_source_path"
-        ] = new_args.water_level_source_path
-        if (
-            isinstance(new_args.water_level_source_path, list)
-            and len(new_args.water_level_source_path) == 1
-        ):
-            cfg_file["data_cfgs"][
-                "water_level_source_path"
-            ] = new_args.water_level_source_path[0]
-    if new_args.gfs_source_path is not None:
-        cfg_file["data_cfgs"]["gfs_source_path"] = new_args.gfs_source_path
-    if new_args.soil_source_path is not None:
-        cfg_file["data_cfgs"]["soil_source_path"] = new_args.soil_source_path
     if new_args.source_region is not None:
         cfg_file["data_cfgs"]["data_region"] = new_args.source_region
         if len(new_args.source_region) == 1:

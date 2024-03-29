@@ -66,8 +66,6 @@ def model_infer(seq_first, device, model, xs, ys):
         else ys.to(device)
     )
     output = model(*xs)
-    if output.shape[1] == ys.shape[0]:
-        output = output.transpose(0, 1)
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
@@ -137,16 +135,13 @@ def denormalize4eval(validation_data_loader, output, labels):
         obss_xr.attrs["units"] = "m"
 
     elif target_scaler.data_cfgs["dataset"] == "MEAN_Dataset":
-        first_basin = target_scaler.data_cfgs["object_ids"][0]
-        source_data = target_scaler.data_forcing.sel(basin=first_basin)
         batch_size = validation_data_loader.batch_size
         basin_num = len(target_data.basin)
-        selected_time_points = source_data.coords["time"].drop_vars("basin")
-        forecast_history = validation_data_loader.dataset.rho
         forecast_length = validation_data_loader.dataset.forecast_length
-        selected_data = target_data.sel(time=selected_time_points).isel(
-            time=slice(forecast_history, -forecast_length)
-        )
+        selected_time_points = target_data.coords["time"][
+            warmup_length:-forecast_length
+        ]
+        selected_data = target_data.sel(time=selected_time_points)
 
         output = output[:, 0, :].reshape(basin_num, batch_size, 1)
         labels = labels[:, 0, :].reshape(basin_num, batch_size, 1)
