@@ -359,6 +359,33 @@ class LinearCudnnLstmModel(CudnnLstmModel):
         )
 
 
+def cal_conv_size(lin, kernel, stride, padding=0, dilation=1):
+    lout = (lin + 2 * padding - dilation * (kernel - 1) - 1) / stride + 1
+    return int(lout)
+
+
+def cal_pool_size(lin, kernel, stride=None, padding=0, dilation=1):
+    if stride is None:
+        stride = kernel
+    lout = (lin + 2 * padding - dilation * (kernel - 1) - 1) / stride + 1
+    return int(lout)
+
+class CNN1dKernel(torch.nn.Module):
+    def __init__(self, *, ninchannel=1, nkernel=3, kernelSize=3, stride=1, padding=0):
+        super(CNN1dKernel, self).__init__()
+        self.cnn1d = torch.nn.Conv1d(
+            in_channels=ninchannel,
+            out_channels=nkernel,
+            kernel_size=kernelSize,
+            padding=padding,
+            stride=stride,
+        )
+        self.name = "CNN1dkernel"
+        self.is_legacy = True
+
+    def forward(self, x):
+        return F.relu(self.cnn1d(x))
+
 class CNN1dLCmodel(nn.Module):
     # Directly add the CNN extracted features into LSTM inputSize
     def __init__(
@@ -380,6 +407,11 @@ class CNN1dLCmodel(nn.Module):
         """
         # two convolutional layer
         super(CNN1dLCmodel, self).__init__()
+        # N_cnn_out代表输出的特征数量
+        # nx代表历史的输入
+        # ny代表最后线性层输出的维度，如果只预报流量，则为1
+        # nobs代表要输入到CNN的维度
+        # hidden_size是线性层的隐藏层的节点数
         self.nx = nx
         self.ny = ny
         self.obs = nobs
@@ -390,9 +422,9 @@ class CNN1dLCmodel(nn.Module):
         lout = nobs
         for ii in range(n_layer):
             conv_layer = CNN1dKernel(
-                n_in_channel=n_in_chan,
-                n_kernel=n_kernel[ii],
-                kernel_size=kernel_size[ii],
+                ninchannel=n_in_chan,
+                nkernel=n_kernel[ii],
+                kernelSize=kernel_size[ii],
                 stride=stride[ii],
             )
             self.features.add_module("CnnLayer%d" % (ii + 1), conv_layer)
@@ -410,9 +442,15 @@ class CNN1dLCmodel(nn.Module):
             lout * n_kernel[-1]
         )  # total CNN feature number after convolution
         self.cat_first = cat_first
+        # 要不要先拼接？
+        # 先拼接，则代表线性层中，输入的维度是未来的降水等输入输出的CNN特征维度，和历史观测的等时间序列的特征数量，通过线性层合并成一个，然后再把这些特征输出到一个线性层中
+        # 如果不拼接，那么历史观测数据先进入一个线性层
         if cat_first:
             nf = self.N_cnn_out + nx
             self.linearIn = torch.nn.Linear(nf, hidden_size)
+            # CudnnLstm除了最基础的部分以外，主要是有个h和c两个门为空的纠错，这个在论文里讲述的是因为可能输入缺失，但是又不想用插值处理
+            # 不想用插值处理是因为认为会暴露未来信息
+            # 采用了置零操作，原文的表述是这种缺失点较少，在模型的不断更新参数后，这种置零的影响对于模型的输出影响很小
             self.lstm = CudnnLstm(
                 input_size=hidden_size, hidden_size=hidden_size, dr=dr
             )
@@ -425,8 +463,9 @@ class CNN1dLCmodel(nn.Module):
 
     def forward(self, x, z, do_drop_mc=False):
         # z = n_grid*nVar add a channel dimension
-        z = z.t()
-        n_grid, nobs = z.shape
+        # z = z.t()
+        n_grid, nobs, _ = z.shape
+        z = z.reshape(n_grid * nobs, 1)
         rho, bs, n_var = x.shape
         # add a channel dimension
         z = torch.unsqueeze(z, dim=1)
@@ -441,7 +480,6 @@ class CNN1dLCmodel(nn.Module):
             x0 = torch.cat((x, z0), dim=2)
         out_lstm, (hn, cn) = self.lstm(x0, do_drop_mc=do_drop_mc)
         return self.linearOut(out_lstm)
-
 
 class CudnnLstmModelLstmKernel(nn.Module):
     """use a trained/un-trained CudnnLstm as a kernel generator before another CudnnLstm."""
@@ -549,3 +587,45 @@ class CudnnLstmModelMultiOutput(nn.Module):
         outs = [mod(out_lstm) for mod in self.multi_layers]
         final = torch.cat(outs, dim=-1)
         return (final, (hn, cn)) if return_h_c else final
+
+class HybridLSTMModel(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, cnn_output_size, forecast_length):
+        super(HybridLSTMModel, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.cnn_output_size = cnn_output_size
+        self.forecast_length = forecast_length
+
+        # Define the LSTM layer
+        self.lstm = nn.LSTM(input_size=self.input_size, 
+                            hidden_size=self.hidden_size, 
+                            batch_first=False)
+
+        # Define the CNN layer for processing the last 24 hours of rainfall data
+        self.cnn = nn.Sequential(
+            nn.Conv1d(in_channels=1, out_channels=self.cnn_output_size, kernel_size=3, stride=1, padding=1),
+            nn.ReLU()
+        )
+
+        # Define the output layer
+        self.linear = nn.Linear(self.hidden_size, self.output_size)
+
+    def forward(self, x_past, x_future):
+        # x_past: (batch_size, seq_len_past, input_size)
+        # x_future: (batch_size, seq_len_future, 1)
+
+        # Process the future data with CNN
+        x_future = x_future.permute(1, 2, 0) 
+        x_future = self.cnn(x_future)
+        x_future = x_future.permute(2, 0, 1)  
+        # Concatenate past and future data
+        x = torch.cat((x_past, x_future), dim=0)  # (batch_size, seq_len_past + seq_len_future, input_size)
+
+        # Pass the combined sequence through LSTM
+        out, _ = self.lstm(x)
+
+        # Pass the output of LSTM through the linear layer
+        out = self.linear(out[-self.forecast_length:, :, :])  # Only take the last 24 timesteps for prediction
+
+        return out

@@ -7,6 +7,7 @@ Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+
 import copy
 from datetime import datetime
 import fnmatch
@@ -21,7 +22,6 @@ from sklearn.model_selection import KFold, TimeSeriesSplit
 import torch
 from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import unserialize_numpy
-from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.trainers.deep_hydro import model_type_dict
 
@@ -65,8 +65,7 @@ def train_and_evaluate(cfgs: Dict):
     result_dir = cfgs["data_cfgs"]["test_path"]
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
-    data_source = _get_datasource(cfgs)
-    deephydro = _get_deep_hydro(cfgs, data_source)
+    deephydro = _get_deep_hydro(cfgs)
     if cfgs["training_cfgs"]["train_mode"]:
         if (
             deephydro.weight_path is not None
@@ -75,8 +74,6 @@ def train_and_evaluate(cfgs: Dict):
             deephydro.model_train()
         test_acc = deephydro.model_evaluate()
         print("summary test_accuracy", test_acc[0])
-        test_acc[1].attrs['units']='mm/h'
-        test_acc[2].attrs['units']='mm/h'
         # save the results
         save_result(
             cfgs["data_cfgs"]["test_path"],
@@ -100,25 +97,9 @@ def train_and_evaluate(cfgs: Dict):
         save_model_params_log(cfgs, save_param_log_path)
 
 
-def _get_deep_hydro(cfgs, data_source):
+def _get_deep_hydro(cfgs):
     model_type = cfgs["model_cfgs"]["model_type"]
-    return model_type_dict[model_type](data_source, cfgs)
-
-
-def _get_datasource(cfgs):
-    data_cfgs = cfgs["data_cfgs"]
-    data_source_name = data_cfgs["data_source_name"]
-    return (
-        data_sources_dict[data_source_name](
-            data_cfgs["data_path"],
-            data_cfgs["download"],
-            data_cfgs["data_region"],
-        )
-        if data_source_name in ["CAMELS", "Caravan"]
-        else data_sources_dict[data_source_name](
-            data_cfgs["data_path"], data_cfgs["download"]
-        )
-    )
+    return model_type_dict[model_type](cfgs)
 
 
 def save_result(save_dir, epoch, pred, obs, pred_name="flow_pred", obs_name="flow_obs"):
@@ -340,7 +321,7 @@ def _create_kfold_periods(train_period, valid_period, test_period, kfold):
 
 def _create_kfold_discontinuous_periods(train_period, valid_period, kfold):
     periods = train_period + valid_period
-    periods = sorted(periods, key=lambda x: x['start'])
+    periods = sorted(periods, key=lambda x: x["start"])
     cross_validation_sets = []
 
     for i in range(kfold):
@@ -392,7 +373,7 @@ def _trans_kfold_to_periods(update_dict, my_dict, current_key="kfold"):
     valid_period = update_dict["data_cfgs"]["t_range_valid"]
     test_period = update_dict["data_cfgs"]["t_range_test"]
     kfold = my_dict[current_key]
-    if update_dict["data_cfgs"]["dataset"] != "GPM_GFS_Dataset":
+    if update_dict["data_cfgs"]["dataset"] not in ["GPM_GFS_Dataset", "MEAN_Dataset"]:
         kfold_periods = _create_kfold_periods(
             train_period, valid_period, test_period, kfold
         )

@@ -18,7 +18,6 @@ from hydroutils.hydro_stat import stat_error
 import numpy as np
 import torch
 from torch import nn
-from hydrodataset import HydroDataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torchhydro.explainers.shap import (
@@ -31,7 +30,7 @@ from torchhydro.datasets.sampler import (
     KuaiSampler,
     fl_sample_basin,
     fl_sample_region,
-    WuSampler,
+    HydroSampler,
 )
 from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.models.model_dict_function import (
@@ -63,22 +62,15 @@ class DeepHydroInterface(ABC):
     This class assumes that data is already split into test train and validation at this point.
     """
 
-    def __init__(self, data_source: HydroDataset, cfgs: Dict):
+    def __init__(self, cfgs: Dict):
         """
         Parameters
         ----------
-        data_source
-            the digital twin of a data_source in reality
         cfgs
             configs for initializing DeepHydro
         """
-        self._data_source = data_source
-        self._cfgs = cfgs
 
-    @property
-    def data_source(self):
-        """data source"""
-        return self._data_source
+        self._cfgs = cfgs
 
     @property
     def cfgs(self):
@@ -102,7 +94,7 @@ class DeepHydroInterface(ABC):
     @abstractmethod
     def make_dataset(self, is_tra_val_te: str) -> object:
         """
-        Initializes a pytorch dataset based on the provided data_source.
+        Initializes a pytorch dataset.
 
         Parameters
         ----------
@@ -138,15 +130,12 @@ class DeepHydro(DeepHydroInterface):
 
     def __init__(
         self,
-        data_source: HydroDataset,
         cfgs: Dict,
         pre_model=None,
     ):
         """
         Parameters
         ----------
-        data_source
-            data source where we read data from
         cfgs
             configs for the model
         pre_model
@@ -157,7 +146,7 @@ class DeepHydro(DeepHydroInterface):
         self.device_num = cfgs["training_cfgs"]["device"]
         self.device = get_the_device(self.device_num)
         self.pre_model = pre_model
-        super().__init__(data_source, cfgs)
+        super().__init__(cfgs)
         if (
             cfgs["data_cfgs"]["dataset"] == "GPM_GFS_Dataset"
             and cfgs["model_cfgs"]["continue_train"] == False
@@ -220,7 +209,7 @@ class DeepHydro(DeepHydroInterface):
 
     def make_dataset(self, is_tra_val_te: str):
         """
-        Initializes a pytorch dataset based on the provided data_source.
+        Initializes a pytorch dataset.
 
         Parameters
         ----------
@@ -234,13 +223,9 @@ class DeepHydro(DeepHydroInterface):
         """
         data_cfgs = self.cfgs["data_cfgs"]
         dataset_name = data_cfgs["dataset"]
-        data_source = self.data_source
+
         if dataset_name in list(datasets_dict.keys()):
-            dataset = datasets_dict[dataset_name](data_source, data_cfgs, is_tra_val_te)
-        elif dataset_name == "GPM_GFS_batch_loading_Dataset":
-            dataset = datasets_dict[dataset_name](
-                data_cfgs, self.cfgs["minio_cfgs"], is_tra_val_te
-            )
+            dataset = datasets_dict[dataset_name](data_cfgs, is_tra_val_te)
         else:
             raise NotImplementedError(
                 f"Error the dataset {str(dataset_name)} was not found in the dataset dict. Please add it."
@@ -255,7 +240,7 @@ class DeepHydro(DeepHydroInterface):
         model_filepath = self.cfgs["data_cfgs"]["test_path"]
         data_cfgs = self.cfgs["data_cfgs"]
         es = None
-        if training_cfgs["early_stopping"] == True:
+        if training_cfgs["early_stopping"]:
             es = EarlyStopper(training_cfgs["patience"])
         criterion = self._get_loss_func(training_cfgs)
         opt = self._get_optimizer(training_cfgs)
@@ -267,13 +252,7 @@ class DeepHydro(DeepHydroInterface):
             training_cfgs, data_cfgs
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
-
-        scheduler = ReduceLROnPlateau(
-            opt,
-            mode="min" if training_cfgs["lr_val_loss"] else "max",
-            factor=training_cfgs["lr_factor"],
-            patience=training_cfgs["lr_patience"],
-        )
+        scheduler = ExponentialLR(opt, gamma=training_cfgs["lr_factor"])
         if training_cfgs["weight_decay"] is not None:
             for param_group in opt.param_groups:
                 param_group["weight_decay"] = training_cfgs["weight_decay"]
@@ -320,11 +299,7 @@ class DeepHydro(DeepHydroInterface):
                     valid_logs["valid_metrics"] = valid_metrics
 
             lr_val_loss = training_cfgs["lr_val_loss"]
-            if lr_val_loss:
-                scheduler.step(valid_loss.item())
-            else:
-                scheduler.step(list(valid_metrics.items())[0][1][0])
-
+            scheduler.step()
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
             )
@@ -377,7 +352,7 @@ class DeepHydro(DeepHydroInterface):
                 model_filepath, f"model_Ep{str(test_epoch)}.pth"
             )
             self.model = self.load_model()
-        if self.cfgs["data_cfgs"]["dataset"] == "GPM_GFS_Dataset":
+        if self.cfgs["data_cfgs"]["dataset"] in ["GPM_GFS_Dataset", "MEAN_Dataset"]:
             if self.cfgs["model_cfgs"]["continue_train"]:
                 model_filepath = self.cfgs["data_cfgs"]["test_path"]
                 self.weight_path = os.path.join(model_filepath, "best_model.pth")
@@ -426,7 +401,7 @@ class DeepHydro(DeepHydroInterface):
         training_cfgs = self.cfgs["training_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
 
-        if data_cfgs["sampler"] == "WuSampler":
+        if data_cfgs["sampler"] == "HydroSampler":
             ngrid = self.testdataset.y.basin.size
             test_num_samples = self.testdataset.num_samples
             test_dataloader = DataLoader(
@@ -516,15 +491,8 @@ class DeepHydro(DeepHydroInterface):
             warmup_length = data_cfgs["warmup_length"]
             ngrid = train_dataset.y.basin.size
             nt = train_dataset.y.time.size
-            if data_cfgs["sampler"] == "WuSampler":
-                sampler = WuSampler(
-                    train_dataset,
-                    batch_size=batch_size,
-                    warmup_length=warmup_length,
-                    rho=rho,
-                    ngrid=ngrid,
-                    nt=nt,
-                )
+            if data_cfgs["sampler"] == "HydroSampler":
+                sampler = HydroSampler(train_dataset)
             else:
                 sampler = KuaiSampler(
                     train_dataset,
@@ -546,7 +514,7 @@ class DeepHydro(DeepHydroInterface):
         if data_cfgs["t_range_valid"] is not None:
             valid_dataset = self.validdataset
 
-            if data_cfgs["sampler"] == "WuSampler":
+            if data_cfgs["sampler"] == "HydroSampler":
                 eval_num_samples = valid_dataset.num_samples
                 validation_data_loader = DataLoader(
                     valid_dataset,
@@ -573,8 +541,8 @@ class DeepHydro(DeepHydroInterface):
 class FedLearnHydro(DeepHydro):
     """Federated Learning Hydrological DL model"""
 
-    def __init__(self, data_source: HydroDataset, cfgs: Dict):
-        super().__init__(data_source, cfgs)
+    def __init__(self, cfgs: Dict):
+        super().__init__(cfgs)
         # a user group which is a dict where the keys are the user index
         # and the values are the corresponding data for each of those users
         train_dataset = self.traindataset
@@ -626,7 +594,6 @@ class FedLearnHydro(DeepHydro):
                 # user_gourps[idx] means the idx of dataset for a user
                 user_cfgs = self._get_a_user_cfgs(idx)
                 local_model = DeepHydro(
-                    self.data_source,
                     user_cfgs,
                     pre_model=copy.deepcopy(global_model),
                 )
@@ -649,7 +616,6 @@ class FedLearnHydro(DeepHydro):
             for c in range(self.num_users):
                 one_user_cfg = self._get_a_user_cfgs(c)
                 local_model = DeepHydro(
-                    self.data_source,
                     one_user_cfg,
                     pre_model=global_model,
                 )
@@ -743,8 +709,8 @@ class FedLearnHydro(DeepHydro):
 
 
 class TransLearnHydro(DeepHydro):
-    def __init__(self, data_source: HydroDataset, cfgs: Dict, pre_model=None):
-        super().__init__(data_source, cfgs, pre_model)
+    def __init__(self, cfgs: Dict, pre_model=None):
+        super().__init__(cfgs, pre_model)
 
     def load_model(self):
         """Load model for transfer learning"""
