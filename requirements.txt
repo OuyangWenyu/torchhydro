@@ -14,4 +14,4 @@ kaggle
 
 pytest
 
-hydrodataset
+hydrodatasource

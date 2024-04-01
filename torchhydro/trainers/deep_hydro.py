@@ -756,7 +756,7 @@ class TransLearnHydro(DeepHydro):
 
 
 class MultiTaskHydro(DeepHydro):
-    def __init__(self, data_source: HydroDataset, cfgs: Dict, pre_model=None):
+    def __init__(self, data_source, cfgs: Dict, pre_model=None):
         super().__init__(data_source, cfgs, pre_model)
 
     def model_train(self) -> None:

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-18 14:34:53
-LastEditTime: 2024-02-14 16:12:16
+LastEditTime: 2024-04-01 21:23:19
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
 FilePath: \torchhydro\tests\test_evaluate_model.py
@@ -14,7 +14,6 @@ from hydroutils.hydro_plot import plot_ts
 
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.datasets.data_dict import data_sources_dict
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed
 

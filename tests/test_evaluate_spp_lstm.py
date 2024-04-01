@@ -1,10 +1,10 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-12-29 14:20:18
-LastEditTime: 2023-12-29 11:05:57
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-04-01 21:23:40
+LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
-FilePath: \torchhydro\tests\test_spp_lstm.py
+FilePath: \torchhydro\tests\test_evaluate_spp_lstm.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 import os
@@ -12,7 +12,6 @@ import pytest
 import hydrodataset as hds
 import warnings
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.datasets.data_dict import s_dict
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed, save_result
 
