@@ -249,7 +249,7 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
     """
     new_cfg = copy.deepcopy(cfg)
     if key == "kfold":
-        if new_cfg["data_cfgs"]["dataset"] != "GPM_GFS_Dataset":
+        if new_cfg["data_cfgs"]["dataset"] not in ["GridDataset", "MeanDataset"]:
             new_cfg["data_cfgs"]["t_range_train"] = value[0]
             new_cfg["data_cfgs"]["t_range_valid"] = None
             new_cfg["data_cfgs"]["t_range_test"] = value[1]
@@ -321,13 +321,12 @@ def _create_kfold_periods(train_period, valid_period, test_period, kfold):
 
 def _create_kfold_discontinuous_periods(train_period, valid_period, kfold):
     periods = train_period + valid_period
-    periods = sorted(periods, key=lambda x: x["start"])
+    periods = sorted(periods, key=lambda x: x[0])
     cross_validation_sets = []
 
     for i in range(kfold):
         valid = [periods[i]]
         train = [p for j, p in enumerate(periods) if j != i]
-        train = sorted(train, key=lambda x: x["start"])
         cross_validation_sets.append((train, valid))
     return cross_validation_sets
 
@@ -373,7 +372,7 @@ def _trans_kfold_to_periods(update_dict, my_dict, current_key="kfold"):
     valid_period = update_dict["data_cfgs"]["t_range_valid"]
     test_period = update_dict["data_cfgs"]["t_range_test"]
     kfold = my_dict[current_key]
-    if update_dict["data_cfgs"]["dataset"] not in ["GPM_GFS_Dataset", "MEAN_Dataset"]:
+    if update_dict["data_cfgs"]["dataset"] not in ["GridDataset", "MeanDataset"]:
         kfold_periods = _create_kfold_periods(
             train_period, valid_period, test_period, kfold
         )

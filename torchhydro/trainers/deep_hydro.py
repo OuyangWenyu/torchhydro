@@ -148,7 +148,7 @@ class DeepHydro(DeepHydroInterface):
         self.pre_model = pre_model
         super().__init__(cfgs)
         if (
-            cfgs["data_cfgs"]["dataset"] == "GPM_GFS_Dataset"
+            cfgs["data_cfgs"]["dataset"] == "GridDataset"
             and cfgs["model_cfgs"]["continue_train"] == False
         ):
             self.testdataset = self.make_dataset("test")
@@ -352,7 +352,7 @@ class DeepHydro(DeepHydroInterface):
                 model_filepath, f"model_Ep{str(test_epoch)}.pth"
             )
             self.model = self.load_model()
-        if self.cfgs["data_cfgs"]["dataset"] in ["GPM_GFS_Dataset", "MEAN_Dataset"]:
+        if self.cfgs["data_cfgs"]["dataset"] in ["GridDataset", "MeanDataset"]:
             if self.cfgs["model_cfgs"]["continue_train"]:
                 model_filepath = self.cfgs["data_cfgs"]["test_path"]
                 self.weight_path = os.path.join(model_filepath, "best_model.pth")
@@ -366,7 +366,7 @@ class DeepHydro(DeepHydroInterface):
         for i in range(len(target_col)):
             obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
             pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
-            if self.cfgs["data_cfgs"]["scaler"] == "GPM_GFS_Scaler":
+            if self.cfgs["data_cfgs"]["scaler"] == "MutiBasinScaler":
                 obs_xr = obs_xr.T
                 pred_xr = pred_xr.T
             if type(fill_nan) is str:

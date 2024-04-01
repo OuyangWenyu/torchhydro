@@ -19,6 +19,7 @@ def config():
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
+        source="HydroMean",
         source_path=[
             {
                 "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_forcing",
@@ -58,7 +59,7 @@ def config():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow"],
-        dataset="MEAN_Dataset",
+        dataset="MeanDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
         train_epoch=50,
@@ -67,14 +68,14 @@ def config():
         train_period=[
             ("2017-07-01", "2017-09-29"),
             ("2018-07-01", "2018-09-29"),
+            ("2019-07-01", "2019-09-29"),
             ("2020-07-01", "2020-09-29"),
-            ("2021-07-01", "2021-09-29"),
         ],
         test_period=[
-            ("2019-07-01", "2019-09-29"),
+            ("2021-07-01", "2021-09-29"),
         ],
         valid_period=[
-            ("2019-07-01", "2019-09-29"),
+            ("2021-07-01", "2021-09-29"),
         ],
         loss_func="RMSESum",
         opt="Adam",
@@ -95,5 +96,5 @@ def config():
 
 
 def test_mean_lstm(config):
-    train_and_evaluate(config)
-    # ensemble_train_and_evaluate(config)
+    # train_and_evaluate(config)
+    ensemble_train_and_evaluate(config)
