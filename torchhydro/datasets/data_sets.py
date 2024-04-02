@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2024-02-12 19:12:52
+LastEditTime: 2024-04-02 15:06:26
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -24,6 +24,7 @@ from torchhydro.datasets.data_scalers import (
     ScalerHub,
     Muti_Basin_GPM_GFS_SCALER,
 )
+from torchhydro.datasets.data_sources import data_sources_dict
 
 from torchhydro.datasets.data_utils import (
     warn_if_nan,
@@ -412,6 +413,36 @@ class DplDataset(BaseDataset):
 
     def __len__(self):
         return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])
+
+
+class FlexibleDataset(BaseDataset):
+    """A dataset whose datasources are from multiple sources according to the configuration"""
+
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(FlexibleDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    def _load_data(self):
+        loaded_data = {}
+        source_cfgs = self.data_cfgs["source_cfgs"]
+        for name, path in zip(source_cfgs["source_names"], source_cfgs["source_paths"]):
+            loader_function = data_sources_dict[name]
+            data = loader_function(name, path)
+            standardized_data = self._unify_data_format(data)
+            loaded_data[name] = standardized_data
+        return loaded_data
+
+    def __len__(self):
+        main_source_length = ...
+        return main_source_length
+
+    def __getitem__(self, idx):
+        # 合并来自不同数据源的数据
+        x = {}
+        for source_name, config in self.data_cfgs.items():
+            # 根据配置读取和预处理数据
+            data = self.read_and_process(source_name, idx, config)
+            x.update(data)
+        return x
 
 
 class GPM_GFS_Dataset(Dataset):

@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-11-24 18:19:55
+LastEditTime: 2024-04-02 15:51:02
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: /torchhydro/torchhydro/configs/config.py
+FilePath: \torchhydro\torchhydro\configs\config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+
 import argparse
 import fnmatch
 import json
@@ -90,10 +91,11 @@ def default_config_file():
             },
         },
         "data_cfgs": {
-            "data_source_name": "CAMELS",
-            "data_path": "../../example/camels_us",
-            "data_region": None,
-            "download": True,
+            "source_cfgs": {
+                # the name of data source, such as CAMELS
+                "source_names": ["CAMELS"],
+                "source_paths": ["../../example/camels_us"],
+            },
             "validation_path": None,
             "test_path": None,
             "batch_size": 100,
@@ -162,7 +164,7 @@ def default_config_file():
                     "streamflow",
                     Q_CAMELS_CC_NAME,
                     "qobs",
-                    "qobs_mm_per_hour"
+                    "qobs_mm_per_hour",
                 ],
                 "gamma_norm_cols": [
                     PRCP_DAYMET_NAME,
@@ -254,7 +256,7 @@ def default_config_file():
         },
         # For evaluation
         "evaluation_cfgs": {
-            "metrics": ["NSE","RMSE","R2","KGE","FHV","FLV"],
+            "metrics": ["NSE", "RMSE", "R2", "KGE", "FHV", "FLV"],
             "fill_nan": "no",
             "test_epoch": 20,
             "explainer": None,
@@ -272,9 +274,7 @@ def default_config_file():
 
 def cmd(
     sub=None,
-    source="CAMELS",
-    source_path=None,
-    source_region=None,
+    source_cfgs=None,
     download=0,
     scaler=None,
     scaler_params=None,
@@ -360,25 +360,11 @@ def cmd(
         "--sub", dest="sub", help="subset and sub experiment", default=sub, type=str
     )
     parser.add_argument(
-        "--source",
-        dest="source",
-        help="name of data source such as CAMELS",
-        default=source,
-        type=str,
-    )
-    parser.add_argument(
-        "--source_path",
-        dest="source_path",
-        help="directory of data source",
-        default=source_path,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--source_region",
-        dest="source_region",
-        help="region(s) of data source such as US, or ['US','CE']",
-        default=source_region,
-        nargs="+",
+        "--source_cfgs",
+        dest="source_cfgs",
+        help="configs for data sources",
+        default=source_cfgs,
+        type=json.loads,
     )
     parser.add_argument(
         "--download",
@@ -938,16 +924,8 @@ def update_cfg(cfg_file, new_args):
             project_dir, "results", subset, subexp
         )
         cfg_file["data_cfgs"]["test_path"] = os.path.join(result_dir, subset, subexp)
-    if new_args.source is not None:
-        cfg_file["data_cfgs"]["data_source_name"] = new_args.source
-    if new_args.source_path is not None:
-        cfg_file["data_cfgs"]["data_path"] = new_args.source_path
-        if type(new_args.source_path) == list and len(new_args.source_path) == 1:
-            cfg_file["data_cfgs"]["data_path"] = new_args.source_path[0]
-    if new_args.source_region is not None:
-        cfg_file["data_cfgs"]["data_region"] = new_args.source_region
-        if len(new_args.source_region) == 1:
-            cfg_file["data_cfgs"]["data_region"] = new_args.source_region[0]
+    if new_args.source_cfgs is not None:
+        cfg_file["data_cfgs"]["source_cfgs"] = new_args.source_cfgs
     if new_args.download is not None:
         if new_args.download == 0:
             cfg_file["data_cfgs"]["download"] = False

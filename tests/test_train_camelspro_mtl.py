@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-04-06 14:45:34
-LastEditTime: 2024-03-28 19:22:41
+LastEditTime: 2024-04-02 16:34:50
 LastEditors: Wenyu Ouyang
 Description: Test the multioutput model
-FilePath: \torchhydro\tests\test_mtl.py
+FilePath: \torchhydro\tests\test_train_camelspro_mtl.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -13,7 +13,7 @@ import torch
 import os
 
 from torchhydro import SETTING
-from torchhydro.configs.config import cmd, update_cfg
+from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.models.crits import MultiOutLoss, RMSELoss
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -51,7 +51,7 @@ def test_multiout_loss_nan_gap():
     )
 
 
-def test_flow_et_mtl(config_data):
+def test_flow_et_mtl():
     """
     Test for data augmentation of flow -> et with KuaiLSTM
 
@@ -64,22 +64,29 @@ def test_flow_et_mtl(config_data):
 
     """
     project_name = "test_camels/expmtl001"
-    data_dir = SETTING["local_data_path"]["datasets-origin"]
+    data_origin_dir = SETTING["local_data_path"]["datasets-origin"]
+    data_interim_dir = SETTING["local_data_path"]["datasets-interim"]
     args = cmd(
         sub=project_name,
-        source="CAMELS_FLOW_ET",
-        source_path=[
-            os.path.join(data_dir, "camelsflowet"),
-            os.path.join(data_dir, "modiset4camels"),
-            os.path.join(data_dir, "camels", "camels_us"),
-            os.path.join(data_dir, "nldas4camels"),
-            os.path.join(data_dir, "smap4camels"),
-        ],
+        source_cfgs={
+            "source_names": [
+                "CAMELS_US",
+                "MODISET4CAMELS",
+                "NLAS4CAMELS",
+                "SMAP4CAMELS",
+            ],
+            "source_paths": [
+                os.path.join(data_origin_dir, "camels", "camels_us"),
+                os.path.join(data_interim_dir, "camels_us", "modiset4camels"),
+                os.path.join(data_interim_dir, "camels_us", "nldas4camels"),
+                os.path.join(data_interim_dir, "camels_us", "smap4camels"),
+            ],
+        },
         download=0,
         ctx=[0],
         model_type="MTL",
         model_name="KuaiLSTMMultiOut",
-        model_param={
+        model_hyperparam={
             "n_input_features": 23,
             "n_output_features": 2,
             "n_hidden_states": 64,
@@ -93,8 +100,6 @@ def test_flow_et_mtl(config_data):
             "item_weight": [1.0, 0.0],
             "limit_part": [1],
         },
-        cache_write=1,
-        cache_read=1,
         gage_id=[
             "01013500",
             "01022500",
@@ -121,12 +126,14 @@ def test_flow_et_mtl(config_data):
         var_out=["usgsFlow", "ET"],
         train_period=["2015-04-01", "2016-04-01"],
         test_period=["2016-04-01", "2017-04-01"],
-        data_loader="StreamflowDataModel",
+        dataset="FlexDataset",
+        sampler="KuaiSampler",
         scaler="DapengScaler",
         n_output=2,
         train_epoch=20,
         te=20,
         fill_nan=["no", "mean"],
     )
+    config_data = default_config_file()
     update_cfg(config_data, args)
     train_and_evaluate(config_data)

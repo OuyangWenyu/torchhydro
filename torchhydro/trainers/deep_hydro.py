@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-03-28 19:55:31
+LastEditTime: 2024-04-02 16:15:34
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -143,21 +143,15 @@ class DeepHydro(DeepHydroInterface):
             we will use its weights to initialize this model
             by default None
         """
+        super().__init__(cfgs)
         self.device_num = cfgs["training_cfgs"]["device"]
         self.device = get_the_device(self.device_num)
         self.pre_model = pre_model
-        super().__init__(cfgs)
-        if (
-            cfgs["data_cfgs"]["dataset"] == "GPM_GFS_Dataset"
-            and cfgs["model_cfgs"]["continue_train"] == False
-        ):
-            self.testdataset = self.make_dataset("test")
-        else:
-            self.model = self.load_model()
-            self.traindataset = self.make_dataset("train")
-            if cfgs["data_cfgs"]["t_range_valid"] is not None:
-                self.validdataset = self.make_dataset("valid")
-            self.testdataset = self.make_dataset("test")
+        self.model = self.load_model()
+        self.traindataset = self.make_dataset("train")
+        if cfgs["data_cfgs"]["t_range_valid"] is not None:
+            self.validdataset = self.make_dataset("valid")
+        self.testdataset = self.make_dataset("test")
         print(f"Torch is using {str(self.device)}")
 
     def load_model(self):
@@ -756,8 +750,8 @@ class TransLearnHydro(DeepHydro):
 
 
 class MultiTaskHydro(DeepHydro):
-    def __init__(self, data_source, cfgs: Dict, pre_model=None):
-        super().__init__(data_source, cfgs, pre_model)
+    def __init__(self, cfgs: Dict, pre_model=None):
+        super().__init__(cfgs, pre_model)
 
     def model_train(self) -> None:
         training_cfgs = self.cfgs["training_cfgs"]
