@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-02 14:37:09
-LastEditTime: 2024-04-06 11:35:49
+LastEditTime: 2024-04-06 18:56:49
 LastEditors: Wenyu Ouyang
 Description: A module for different data sources
 FilePath: \torchhydro\torchhydro\datasets\data_sources.py
@@ -12,22 +12,28 @@ import collections
 import os
 import numpy as np
 import pandas as pd
+import xarray as xr
+import pint_xarray  # noqa but it is used in the code
 
 from hydroutils import hydro_time
 from hydrodataset import Camels
 from tqdm import tqdm
 
-from torchhydro import SETTING
+from torchhydro import CACHE_DIR, SETTING
 
 
 class SupData4Camels:
+    """A parent class for different data sources for CAMELS-US
+    and also a class for reading streamflow data after 2014-12-31"""
+
     def __init__(self, supdata_dir=None) -> None:
-        camels = Camels(
+        self.camels = Camels(
             data_path=os.path.join(
                 SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
             )
         )
-        self.camels671_sites = camels.read_site_info()
+        self.camels671_sites = self.camels.read_site_info()
+
         if supdata_dir is None:
             supdata_dir = os.path.join(
                 SETTING["local_data_path"]["datasets-interim"],
@@ -37,10 +43,107 @@ class SupData4Camels:
         self.data_source_description = self.set_data_source_describe()
 
     def set_data_source_describe(self):
-        raise NotImplementedError("Please implement this method")
+        return self.camels.data_source_description
 
-    def read_ts_xrdataset(self, gage_id_lst=None, t_range=None, var_lst=None, **kwargs):
-        raise NotImplementedError("Please implement this method")
+    def read_ts_table(self, gage_id_lst=None, t_range=None, var_lst=None, **kwargs):
+        """A parent function for reading camels timeseries data from csv or txt files.
+        For different data sources, we need to implement this function.
+        Here it is also a function for reading streamflow data after 2014-12-31.
+
+
+        Parameters
+        ----------
+        gage_id_lst : _type_, optional
+            basin ids, by default None
+        t_range : _type_, optional
+            time range, by default None
+        var_lst : _type_, optional
+            all variables including forcing and streamflow, by default None
+
+        Raises
+        ------
+        NotImplementedError
+            _description_
+        """
+        if gage_id_lst is None:
+            gage_id_lst = self.all_basins
+        if t_range is None:
+            t_range = self.all_t_range
+        if var_lst is None:
+            var_lst = self.vars
+        return self.camels.read_target_cols(
+            gage_id_lst=gage_id_lst,
+            t_range=t_range,
+            target_cols=var_lst,
+        )
+
+    @property
+    def all_basins(self):
+        return self.camels671_sites["gauge_id"].values
+
+    @property
+    def all_t_range(self):
+        return ["1980-01-01", "2021-12-31"]
+
+    @property
+    def units(self):
+        return ["ft^3/s"]
+
+    @property
+    def vars(self):
+        return ["streamflow"]
+
+    @property
+    def ts_xrdataset_path(self):
+        return CACHE_DIR.joinpath("camelsus_streamflow.nc")
+
+    def cache_ts_xrdataset(self):
+        """Save all timeseries data in a netcdf file in the cache directory"""
+        basins = self.all_basins
+        t_range = self.all_t_range
+        times = [
+            hydro_time.t2str(tmp) for tmp in hydro_time.t_range_days(t_range).tolist()
+        ]
+        variables = self.vars
+        ts_data = self.read_ts_table(
+            gage_id_lst=basins,
+            t_range=t_range,
+            var_lst=variables,
+        )
+        # All units' names are from Pint https://github.com/hgrecco/pint/blob/master/pint/default_en.txt
+        units = self.units
+        xr_data = xr.Dataset(
+            data_vars={
+                **{
+                    variables[i]: (
+                        ["basin", "time"],
+                        ts_data[:, :, i],
+                        {"units": units[i]},
+                    )
+                    for i in range(len(variables))
+                }
+            },
+            coords={
+                "basin": basins,
+                "time": times,
+            },
+        )
+        xr_data.to_netcdf(self.ts_xrdataset_path)
+
+    def read_ts_xrdataset(self, gage_id_lst=None, t_range=None, var_lst=None):
+        """Read all timeseries data from a netcdf file in the cache directory"""
+        if not self.ts_xrdataset_path.exists():
+            self.cache_ts_xrdataset()
+        if var_lst is None:
+            return None
+        ts = xr.open_dataset(self.ts_xrdataset_path)
+        all_vars = ts.data_vars
+        if any(var not in ts.variables for var in var_lst):
+            raise ValueError(f"var_lst must all be in {all_vars}")
+        return ts[var_lst].sel(basin=gage_id_lst, time=slice(t_range[0], t_range[1]))
+
+    def read_attr_xrdataset(self, gage_id_lst=None, var_lst=None):
+        return self.camels.read_attr_xrdataset(gage_id_lst=gage_id_lst, var_lst=var_lst)
 
 
 # the following is a dict for different data sources
@@ -74,7 +177,30 @@ class ModisEt4Camels(SupData4Camels):
                 "modiset4camels",
             )
         super().__init__(supdata_dir)
-        self.vars = [
+
+    @property
+    def all_t_range(self):
+        return ["2001-01-01", "2021-12-31"]
+
+    @property
+    def units(self):
+        return [
+            "gC/m^2/d",
+            "mm/day",
+            "mm/day",
+            "mm/day",
+            "mm/day",
+            "mm/day",
+            "mm/day",
+            "mm/day",
+            "mm/day",
+            "mm/day",
+            "dimensionless",
+        ]
+
+    @property
+    def vars(self):
+        return [
             # PMLV2
             "GPP",
             "Ec",
@@ -90,6 +216,10 @@ class ModisEt4Camels(SupData4Camels):
             "PLE",
             "ET_QC",
         ]
+
+    @property
+    def ts_xrdataset_path(self):
+        return CACHE_DIR.joinpath("camelsus_modiset.nc")
 
     def set_data_source_describe(self):
         et_db = self.data_source_dir
@@ -109,7 +239,7 @@ class ModisEt4Camels(SupData4Camels):
             PMLV2_CAMELS_DIR=pmlv2_dir,
         )
 
-    def read_ts_xrdataset(
+    def read_ts_table(
         self,
         gage_id_lst=None,
         t_range=None,
@@ -350,7 +480,29 @@ class Nldas4Camels(SupData4Camels):
                 "nldas4camels",
             )
         super().__init__(supdata_dir=supdata_dir)
-        self.vars = [
+
+    @property
+    def units(self):
+        return [
+            "°C",
+            "dimensionless",
+            "Pa",
+            "m/s",
+            "m/s",
+            "W/m^2",
+            "dimensionless",
+            "W/m^2",
+            "J/kg",
+            # unit of potential_evaporation and total_precipitation is kg/m^2 (for a day),
+            # we use rho=1000kg/m^3 as water's density to transform these two variables‘ unit to mm/day
+            # so it's 10^-3 m /day and it is just mm/day, hence we don't need to transform actually
+            "mm/day",
+            "mm/day",
+        ]
+
+    @property
+    def vars(self):
+        return [
             "temperature",
             "specific_humidity",
             "pressure",
@@ -363,6 +515,10 @@ class Nldas4Camels(SupData4Camels):
             "potential_evaporation",
             "total_precipitation",
         ]
+
+    @property
+    def ts_xrdataset_path(self):
+        return CACHE_DIR.joinpath("camelsus_nldas.nc")
 
     def set_data_source_describe(self):
         nldas_db = self.data_source_dir
@@ -386,26 +542,7 @@ class Nldas4Camels(SupData4Camels):
             data_folder, huc, f"{usgs_id}_lump_nldas_forcing_leap.txt"
         )
         data_temp = pd.read_csv(data_file, sep=r"\s+", header=None, skiprows=1)
-        forcing_lst = [
-            "Year",
-            "Mnth",
-            "Day",
-            "Hr",
-            "temperature",
-            "specific_humidity",
-            "pressure",
-            "wind_u",
-            "wind_v",
-            "longwave_radiation",
-            "convective_fraction",
-            "shortwave_radiation",
-            "potential_energy",
-            "potential_evaporation",
-            "total_precipitation",
-        ]
-        # unit of potential_evaporation and total_precipitation is kg/m^2 (for a day),
-        # we use rho=1000kg/m^3 as water's density to transform these two variables‘ unit to mm/day
-        # so it's 10^-3 m /day and it is just mm/day, hence we don't need to transform actually
+        forcing_lst = ["Year", "Mnth", "Day", "Hr"] + self.vars
         df_date = data_temp[[0, 1, 2]]
         df_date.columns = ["year", "month", "day"]
         date = pd.to_datetime(df_date).values.astype("datetime64[D]")
@@ -420,7 +557,7 @@ class Nldas4Camels(SupData4Camels):
             out[:, k] = data_temp[ind].values[ind1]
         return out
 
-    def read_ts_xrdataset(
+    def read_ts_table(
         self,
         gage_id_lst: list = None,
         t_range: list = None,
@@ -481,7 +618,22 @@ class Smap4Camels(SupData4Camels):
                 "smap4camels",
             )
         super().__init__(supdata_dir=supdata_dir)
-        self.vars = ["ssm", "susm", "smp", "ssma", "susma"]
+
+    @property
+    def all_t_range(self):
+        return ["2015-04-01", "2021-10-03"]
+
+    @property
+    def units(self):
+        return ["mm", "mm", "dimensionless", "dimensionless", "dimensionless"]
+
+    @property
+    def vars(self):
+        return ["ssm", "susm", "smp", "ssma", "susma"]
+
+    @property
+    def ts_xrdataset_path(self):
+        return CACHE_DIR.joinpath("camelsus_smap.nc")
 
     def set_data_source_describe(self):
         # forcing
@@ -495,7 +647,7 @@ class Smap4Camels(SupData4Camels):
             SMAP_CAMELS_DIR=smap_db, SMAP_CAMELS_MEAN_DIR=smap_data_dir
         )
 
-    def read_ts_xrdataset(self, gage_id_lst=None, t_range=None, var_lst=None, **kwargs):
+    def read_ts_table(self, gage_id_lst=None, t_range=None, var_lst=None, **kwargs):
         """
         Read SMAP basin mean data
 
@@ -566,6 +718,7 @@ class Smap4Camels(SupData4Camels):
 
 data_sources_dict = {
     "camels_us": Camels,
+    "usgs4camels": SupData4Camels,
     "modiset4camels": ModisEt4Camels,
     "nldas4camels": Nldas4Camels,
     "smap4camels": Smap4Camels,

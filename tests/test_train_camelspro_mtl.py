@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-04-06 14:45:34
-LastEditTime: 2024-04-06 11:34:16
+LastEditTime: 2024-04-06 19:08:32
 LastEditors: Wenyu Ouyang
 Description: Test the multioutput model
 FilePath: \torchhydro\tests\test_train_camelspro_mtl.py
@@ -70,7 +70,7 @@ def test_flow_et_mtl():
         sub=project_name,
         source_cfgs={
             "source_names": [
-                "camels_us",
+                "usgs4camels",
                 "modiset4camels",
                 "nldas4camels",
                 "smap4camels",
@@ -123,7 +123,7 @@ def test_flow_et_mtl():
             "total_precipitation",
         ],
         var_t_type=["nldas"],
-        var_out=["usgsFlow", "ET"],
+        var_out=["streamflow", "ET"],
         var_to_source_map={
             "temperature": "nldas4camels",
             "specific_humidity": "nldas4camels",
@@ -131,25 +131,25 @@ def test_flow_et_mtl():
             "potential_energy": "nldas4camels",
             "potential_evaporation": "nldas4camels",
             "total_precipitation": "nldas4camels",
-            "usgsFlow": "camels_us",
+            "streamflow": "usgs4camels",
             "ET": "modiset4camels",
-            "elev_mean": "camels_us",
-            "slope_mean": "camels_us",
-            "area_gages2": "camels_us",
-            "frac_forest": "camels_us",
-            "lai_max": "camels_us",
-            "lai_diff": "camels_us",
-            "dom_land_cover_frac": "camels_us",
-            "dom_land_cover": "camels_us",
-            "root_depth_50": "camels_us",
-            "soil_depth_statsgo": "camels_us",
-            "soil_porosity": "camels_us",
-            "soil_conductivity": "camels_us",
-            "max_water_content": "camels_us",
-            "geol_1st_class": "camels_us",
-            "geol_2nd_class": "camels_us",
-            "geol_porostiy": "camels_us",
-            "geol_permeability": "camels_us",
+            "elev_mean": "usgs4camels",
+            "slope_mean": "usgs4camels",
+            "area_gages2": "usgs4camels",
+            "frac_forest": "usgs4camels",
+            "lai_max": "usgs4camels",
+            "lai_diff": "usgs4camels",
+            "dom_land_cover_frac": "usgs4camels",
+            "dom_land_cover": "usgs4camels",
+            "root_depth_50": "usgs4camels",
+            "soil_depth_statsgo": "usgs4camels",
+            "soil_porosity": "usgs4camels",
+            "soil_conductivity": "usgs4camels",
+            "max_water_content": "usgs4camels",
+            "geol_1st_class": "usgs4camels",
+            "geol_2nd_class": "usgs4camels",
+            "geol_porostiy": "usgs4camels",
+            "geol_permeability": "usgs4camels",
         },
         train_period=["2015-04-01", "2016-04-01"],
         test_period=["2016-04-01", "2017-04-01"],

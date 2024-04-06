@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2024-04-06 11:52:25
+LastEditTime: 2024-04-06 20:33:40
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -19,6 +19,7 @@ from typing import Optional
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from hydrodataset.camels import map_string_vars
+from hydrodatasource.utils.utils import streamflow_unit_conv
 
 from torchhydro.datasets.data_scalers import (
     ScalerHub,
@@ -29,7 +30,6 @@ from torchhydro.datasets.data_sources import data_sources_dict
 from torchhydro.datasets.data_utils import (
     warn_if_nan,
     wrap_t_s_dict,
-    unify_streamflow_unit,
 )
 from hydrodatasource.reader.data_source import HydroBasins
 from hydrodataset import Camels
@@ -103,6 +103,10 @@ class BaseDataset(Dataset):
         # load and preprocess data
         self._load_data()
 
+    @property
+    def data_source(self):
+        return Camels(self.data_cfgs["data_path"])
+
     def __len__(self):
         return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])
 
@@ -157,13 +161,60 @@ class BaseDataset(Dataset):
 
     def _load_data(self):
         self._pre_load_data()
-        self.data_source = Camels(self.data_cfgs["data_path"])
+        data_forcing_ds, data_output_ds, data_attr_ds = self._read_xyc()
+        # save unnormalized data to use in physics-based modeling, we will use streamflow with unit of mm/day
+        self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
+            data_forcing_ds, data_output_ds, data_attr_ds
+        )
+        # normalization
+        scaler_hub = ScalerHub(
+            self.y_origin,
+            self.x_origin,
+            self.c_origin,
+            data_cfgs=self.data_cfgs,
+            is_tra_val_te=self.is_tra_val_te,
+            data_source=self.data_source,
+        )
+        self.target_scaler = scaler_hub.target_scaler
+        self.x, self.y, self.c = self.kill_nan(scaler_hub.x, scaler_hub.c, scaler_hub.y)
+        self._create_lookup_table()
+
+    def _to_dataarray_with_unit(self, data_forcing_ds, data_output_ds, data_attr_ds):
+        # trans to dataarray to better use xbatch
+        if data_output_ds is not None:
+            data_output = self._trans2da_and_setunits(data_output_ds)
+        else:
+            data_output = None
+        if data_forcing_ds is not None:
+            data_forcing = self._trans2da_and_setunits(data_forcing_ds)
+        else:
+            data_forcing = None
+        if data_attr_ds is not None:
+            # firstly, we should transform some str type data to float type
+            data_attr = self._trans2da_and_setunits(data_attr_ds)
+        else:
+            data_attr = None
+        return data_forcing, data_output, data_attr
+
+    def _read_xyc(self):
+        """Read x, y, c data from data source
+
+        Returns
+        -------
+        tuple[xr.Dataset, xr.Dataset, xr.Dataset]
+            x, y, c data
+        """
+
         # y
         data_flow_ds = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             self.t_s_dict["t_final_range"],
             self.data_cfgs["target_cols"],
         )
+        if self.data_source.streamflow_unit != "mm/d":
+            data_flow_ds = streamflow_unit_conv(
+                data_flow_ds, self.data_source.read_area(self.t_s_dict["sites_id"])
+            )
         # x
         data_forcing_ds = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
@@ -177,37 +228,8 @@ class BaseDataset(Dataset):
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
-        # trans to dataarray to better use xbatch
-        if self.data_source.streamflow_unit != "mm/d":
-            data_flow_ds = unify_streamflow_unit(
-                data_flow_ds, self.data_source.read_area(self.t_s_dict["sites_id"])
-            )
-        data_flow = self._trans2da_and_setunits(data_flow_ds)
-        if data_forcing_ds is not None:
-            data_forcing = self._trans2da_and_setunits(data_forcing_ds)
-        else:
-            data_forcing = None
-        if data_attr_ds is not None:
-            # firstly, we should transform some str type data to float type
-            data_attr = self._trans2da_and_setunits(data_attr_ds)
-        else:
-            data_attr = None
-        # save unnormalized data to use in physics-based modeling, we will use streamflow with unit of mm/day
-        self.x_origin = data_forcing_ds
-        self.y_origin = data_flow_ds
-        self.c_origin = data_attr_ds
-        # normalization
-        scaler_hub = ScalerHub(
-            data_flow,
-            data_forcing,
-            data_attr,
-            data_cfgs=self.data_cfgs,
-            is_tra_val_te=self.is_tra_val_te,
-            data_source=self.data_source,
-        )
-        self.target_scaler = scaler_hub.target_scaler
-        self.x, self.y, self.c = self.kill_nan(scaler_hub.x, scaler_hub.c, scaler_hub.y)
-        self._create_lookup_table()
+
+        return data_forcing_ds, data_flow_ds, data_attr_ds
 
     @property
     def basins(self):
@@ -421,19 +443,17 @@ class FlexibleDataset(BaseDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         super(FlexibleDataset, self).__init__(data_cfgs, is_tra_val_te)
 
-    def _load_data(self):
-        self._pre_load_data()
+    @property
+    def data_source(self):
         source_cfgs = self.data_cfgs["source_cfgs"]
-        data_sources = {
+        return {
             name: data_sources_dict[name](path)
             for name, path in zip(
                 source_cfgs["source_names"], source_cfgs["source_paths"]
             )
         }
-        x, y, c = self._read_yxc(data_sources)
-        return x, y, c
 
-    def _read_yxc(self, data_sources):
+    def _read_xyc(self):
         var_to_source_map = self.data_cfgs["var_to_source_map"]
         x_datasets, y_datasets, c_datasets = [], [], []
         gage_ids = self.t_s_dict["sites_id"]
@@ -441,24 +461,27 @@ class FlexibleDataset(BaseDataset):
 
         for var_name in var_to_source_map:
             source_name = var_to_source_map[var_name]
-            data_source = data_sources[source_name]
-
+            data_source_ = self.data_source[source_name]
             if var_name in self.data_cfgs["relevant_cols"]:
                 x_datasets.append(
-                    data_source.read_ts_xrdataset(gage_ids, t_range, [var_name])
+                    data_source_.read_ts_xrdataset(gage_ids, t_range, [var_name])
                 )
             elif var_name in self.data_cfgs["target_cols"]:
                 y_datasets.append(
-                    data_source.read_ts_xrdataset(gage_ids, t_range, [var_name])
+                    data_source_.read_ts_xrdataset(gage_ids, t_range, [var_name])
                 )
             elif var_name in self.data_cfgs["constant_cols"]:
-                c_datasets.append(data_source.read_attr_xrdataset(gage_ids, [var_name]))
+                c_datasets.append(
+                    data_source_.read_attr_xrdataset(gage_ids, [var_name])
+                )
 
         # 合并所有x, y, c类型的数据集
         x = xr.merge(x_datasets) if x_datasets else xr.Dataset()
         y = xr.merge(y_datasets) if y_datasets else xr.Dataset()
         c = xr.merge(c_datasets) if c_datasets else xr.Dataset()
-
+        if "streamflow" in y:
+            area = data_source_.camels.read_area(self.t_s_dict["sites_id"])
+            y.update(streamflow_unit_conv(y[["streamflow"]], area))
         return x, y, c
 
     def __len__(self):

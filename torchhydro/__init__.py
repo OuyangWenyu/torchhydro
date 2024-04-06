@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2024-02-14 15:56:15
+LastEditTime: 2024-04-06 17:29:03
 LastEditors: Wenyu Ouyang
 Description: Top-level package for torchhydro
 FilePath: \torchhydro\torchhydro\__init__.py
@@ -20,7 +20,7 @@ import os
 
 from hydroutils import hydro_file
 
-CACHE_DIR = hydro_file.get_cache_dir()
+CACHE_DIR = Path(hydro_file.get_cache_dir())
 SETTING_FILE = os.path.join(Path.home(), "hydro_setting.yml")
 
 
