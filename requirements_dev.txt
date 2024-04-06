@@ -15,7 +15,7 @@ kaggle
 
 pytest
 
-hydrodataset
+hydrodatasource
 
 setuptools
 bump2version

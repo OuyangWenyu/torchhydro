@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-03-28 19:55:31
+LastEditTime: 2024-04-02 16:15:34
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -30,7 +30,7 @@ from torchhydro.datasets.sampler import (
     KuaiSampler,
     fl_sample_basin,
     fl_sample_region,
-    WuSampler,
+    HydroSampler,
 )
 from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.models.model_dict_function import (
@@ -143,21 +143,15 @@ class DeepHydro(DeepHydroInterface):
             we will use its weights to initialize this model
             by default None
         """
+        super().__init__(cfgs)
         self.device_num = cfgs["training_cfgs"]["device"]
         self.device = get_the_device(self.device_num)
         self.pre_model = pre_model
-        super().__init__(cfgs)
-        if (
-            cfgs["data_cfgs"]["dataset"] == "GPM_GFS_Dataset"
-            and cfgs["model_cfgs"]["continue_train"] == False
-        ):
-            self.testdataset = self.make_dataset("test")
-        else:
-            self.model = self.load_model()
-            self.traindataset = self.make_dataset("train")
-            if cfgs["data_cfgs"]["t_range_valid"] is not None:
-                self.validdataset = self.make_dataset("valid")
-            self.testdataset = self.make_dataset("test")
+        self.model = self.load_model()
+        self.traindataset = self.make_dataset("train")
+        if cfgs["data_cfgs"]["t_range_valid"] is not None:
+            self.validdataset = self.make_dataset("valid")
+        self.testdataset = self.make_dataset("test")
         print(f"Torch is using {str(self.device)}")
 
     def load_model(self):
@@ -240,7 +234,7 @@ class DeepHydro(DeepHydroInterface):
         model_filepath = self.cfgs["data_cfgs"]["test_path"]
         data_cfgs = self.cfgs["data_cfgs"]
         es = None
-        if training_cfgs["early_stopping"] == True:
+        if training_cfgs["early_stopping"]:
             es = EarlyStopper(training_cfgs["patience"])
         criterion = self._get_loss_func(training_cfgs)
         opt = self._get_optimizer(training_cfgs)
@@ -252,13 +246,6 @@ class DeepHydro(DeepHydroInterface):
             training_cfgs, data_cfgs
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
-
-        # scheduler = ReduceLROnPlateau(
-        #     opt,
-        #     mode="min" if training_cfgs["lr_val_loss"] else "max",
-        #     factor=training_cfgs["lr_factor"],
-        #     patience=training_cfgs["lr_patience"],
-        # )
         scheduler = ExponentialLR(opt, gamma=training_cfgs["lr_factor"])
         if training_cfgs["weight_decay"] is not None:
             for param_group in opt.param_groups:
@@ -306,10 +293,6 @@ class DeepHydro(DeepHydroInterface):
                     valid_logs["valid_metrics"] = valid_metrics
 
             lr_val_loss = training_cfgs["lr_val_loss"]
-            # if lr_val_loss:
-            #     scheduler.step(valid_loss.item())
-            # else:
-            #     scheduler.step(list(valid_metrics.items())[0][1][0])
             scheduler.step()
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
@@ -412,7 +395,7 @@ class DeepHydro(DeepHydroInterface):
         training_cfgs = self.cfgs["training_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
 
-        if data_cfgs["sampler"] == "WuSampler":
+        if data_cfgs["sampler"] == "HydroSampler":
             ngrid = self.testdataset.y.basin.size
             test_num_samples = self.testdataset.num_samples
             test_dataloader = DataLoader(
@@ -502,15 +485,8 @@ class DeepHydro(DeepHydroInterface):
             warmup_length = data_cfgs["warmup_length"]
             ngrid = train_dataset.y.basin.size
             nt = train_dataset.y.time.size
-            if data_cfgs["sampler"] == "WuSampler":
-                sampler = WuSampler(
-                    train_dataset,
-                    batch_size=batch_size,
-                    warmup_length=warmup_length,
-                    rho=rho,
-                    ngrid=ngrid,
-                    nt=nt,
-                )
+            if data_cfgs["sampler"] == "HydroSampler":
+                sampler = HydroSampler(train_dataset)
             else:
                 sampler = KuaiSampler(
                     train_dataset,
@@ -532,7 +508,7 @@ class DeepHydro(DeepHydroInterface):
         if data_cfgs["t_range_valid"] is not None:
             valid_dataset = self.validdataset
 
-            if data_cfgs["sampler"] == "WuSampler":
+            if data_cfgs["sampler"] == "HydroSampler":
                 eval_num_samples = valid_dataset.num_samples
                 validation_data_loader = DataLoader(
                     valid_dataset,
@@ -774,8 +750,8 @@ class TransLearnHydro(DeepHydro):
 
 
 class MultiTaskHydro(DeepHydro):
-    def __init__(self, data_source: HydroDataset, cfgs: Dict, pre_model=None):
-        super().__init__(data_source, cfgs, pre_model)
+    def __init__(self, cfgs: Dict, pre_model=None):
+        super().__init__(cfgs, pre_model)
 
     def model_train(self) -> None:
         training_cfgs = self.cfgs["training_cfgs"]

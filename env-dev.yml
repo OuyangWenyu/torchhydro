@@ -28,4 +28,4 @@ dependencies:
     - wheel
     - twine
     - bump2version
-    - hydrodataset
+    - hydrodatasource

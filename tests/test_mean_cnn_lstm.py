@@ -49,7 +49,7 @@ def config():
         var_out=['qobs_mm_per_hour'],
         dataset="CNN1D_Dataset",
         # dataset = "GPM_GFS_Dataset",
-        sampler = "WuSampler",
+        sampler = "HydroSampler",
         scaler="DapengScaler",
         train_epoch=10,
         save_epoch=1,
