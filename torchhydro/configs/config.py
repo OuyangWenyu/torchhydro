@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-02 15:51:02
+LastEditTime: 2024-04-06 11:32:00
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -150,6 +150,14 @@ def default_config_file():
                 "geol_porostiy",
                 "geol_permeability",
             ],
+            # specify the data source of each variable
+            "var_to_source_map": None,
+            # {
+            #     "temperature": "nldas4camels",
+            #     "specific_humidity": "nldas4camels",
+            #     "usgsFlow": "camels_us",
+            #     "ET": "modiset4camels",
+            # },
             "constant_rm_nan": True,
             # if constant_only, we will only use constant data as DL models' input: this is only for dpl models now
             "constant_only": False,
@@ -323,6 +331,7 @@ def cmd(
     var_t_type=None,
     var_o=None,
     var_out=None,
+    var_to_source_map=None,
     out_rm_nan=0,
     target_as_input=0,
     constant_only=0,
@@ -639,6 +648,13 @@ def cmd(
     )
     parser.add_argument(
         "--var_out", dest="var_out", help="type of outputs", default=var_out, nargs="+"
+    )
+    parser.add_argument(
+        "--var_to_source_map",
+        dest="var_to_source_map",
+        help="var_to_source_map",
+        default=var_to_source_map,
+        type=json.loads,
     )
     parser.add_argument(
         "--out_rm_nan",
@@ -1013,6 +1029,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["other_cols"] = new_args.var_o
     if new_args.var_out is not None:
         cfg_file["data_cfgs"]["target_cols"] = new_args.var_out
+    if new_args.var_to_source_map is not None:
+        cfg_file["data_cfgs"]["var_to_source_map"] = new_args.var_to_source_map
     if new_args.rolling is not None:
         cfg_file["data_cfgs"]["rolling"] = new_args.rolling
     if new_args.out_rm_nan == 0:

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-02 14:37:09
-LastEditTime: 2024-04-02 17:21:21
+LastEditTime: 2024-04-06 11:35:49
 LastEditors: Wenyu Ouyang
 Description: A module for different data sources
 FilePath: \torchhydro\torchhydro\datasets\data_sources.py
@@ -17,19 +17,29 @@ from hydroutils import hydro_time
 from hydrodataset import Camels
 from tqdm import tqdm
 
+from torchhydro import SETTING
+
 
 class SupData4Camels:
-    def __init__(self) -> None:
-        camels = Camels()
+    def __init__(self, supdata_dir=None) -> None:
+        camels = Camels(
+            data_path=os.path.join(
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
+            )
+        )
         self.camels671_sites = camels.read_site_info()
+        if supdata_dir is None:
+            supdata_dir = os.path.join(
+                SETTING["local_data_path"]["datasets-interim"],
+                "camels_us",
+            )
+        self.data_source_dir = supdata_dir
         self.data_source_description = self.set_data_source_describe()
 
     def set_data_source_describe(self):
         raise NotImplementedError("Please implement this method")
 
-    def read_target_cols(
-        self, usgs_id_lst=None, t_range=None, target_cols=None, **kwargs
-    ):
+    def read_ts_xrdataset(self, gage_id_lst=None, t_range=None, var_lst=None, **kwargs):
         raise NotImplementedError("Please implement this method")
 
 
@@ -45,7 +55,7 @@ class ModisEt4Camels(SupData4Camels):
         MODIS16A2v105 (https://developers.google.com/earth-engine/datasets/catalog/MODIS_NTSG_MOD16A2_105?hl=en#description)
     """
 
-    def __init__(self):
+    def __init__(self, supdata_dir=None):
         """
         Initialize a ModisEt4Camels instance.
 
@@ -57,7 +67,13 @@ class ModisEt4Camels(SupData4Camels):
             if True we will download the data
 
         """
-        super().__init__()
+        if supdata_dir is None:
+            supdata_dir = os.path.join(
+                SETTING["local_data_path"]["datasets-interim"],
+                "camels_us",
+                "modiset4camels",
+            )
+        super().__init__(supdata_dir)
         self.vars = [
             # PMLV2
             "GPP",
@@ -93,11 +109,11 @@ class ModisEt4Camels(SupData4Camels):
             PMLV2_CAMELS_DIR=pmlv2_dir,
         )
 
-    def read_target_cols(
+    def read_ts_xrdataset(
         self,
-        usgs_id_lst=None,
+        gage_id_lst=None,
         t_range=None,
-        target_cols=None,
+        var_lst=None,
         reduce_way="mean",
         **kwargs,
     ):
@@ -106,7 +122,7 @@ class ModisEt4Camels(SupData4Camels):
 
         Parameters
         ----------
-        usgs_id_lst
+        gage_id_lst
             the ids of gages in CAMELS
         t_range
             the start and end periods
@@ -122,18 +138,18 @@ class ModisEt4Camels(SupData4Camels):
         """
 
         assert len(t_range) == 2
-        assert all(x < y for x, y in zip(usgs_id_lst, usgs_id_lst[1:]))
+        assert all(x < y for x, y in zip(gage_id_lst, gage_id_lst[1:]))
         # Data is not daily. For convenience, we fill NaN values in gap periods.
         # For example, the data is in period 1 (1-8 days), then there is one data in the 1st day while the rest are NaN
         t_range_list = hydro_time.t_range_days(t_range)
         nt = t_range_list.shape[0]
-        x = np.empty([len(usgs_id_lst), nt, len(target_cols)])
-        for k in tqdm(range(len(usgs_id_lst)), desc="Read MODIS ET data for CAMELS-US"):
+        x = np.empty([len(gage_id_lst), nt, len(var_lst)])
+        for k in tqdm(range(len(gage_id_lst)), desc="Read MODIS ET data for CAMELS-US"):
             # two way to read data are provided:
             # 1. directly read data: the data is sum of 8 days
             # 2. calculate daily mean value of 8 days
             data = self.read_basin_mean_modiset(
-                usgs_id_lst[k], target_cols, t_range_list, reduce_way=reduce_way
+                gage_id_lst[k], var_lst, t_range_list, reduce_way=reduce_way
             )
             x[k, :, :] = data
         return x
@@ -315,7 +331,7 @@ class Nldas4Camels(SupData4Camels):
     The forcing data are basin mean values. Attributes and streamflow data come from CAMELS.
     """
 
-    def __init__(self):
+    def __init__(self, supdata_dir=None):
         """
         Initialize a Nldas4Camels instance.
 
@@ -327,7 +343,13 @@ class Nldas4Camels(SupData4Camels):
             if True we will download the data
 
         """
-        super().__init__()
+        if supdata_dir is None:
+            supdata_dir = os.path.join(
+                SETTING["local_data_path"]["datasets-interim"],
+                "camels_us",
+                "nldas4camels",
+            )
+        super().__init__(supdata_dir=supdata_dir)
         self.vars = [
             "temperature",
             "specific_humidity",
@@ -344,8 +366,6 @@ class Nldas4Camels(SupData4Camels):
 
     def set_data_source_describe(self):
         nldas_db = self.data_source_dir
-        # shp file of basins
-        camels671_shp = self.camels.data_source_description["CAMELS_BASINS_SHP_FILE"]
         # forcing
         nldas_forcing_basin_mean_dir = os.path.join(nldas_db, "basin_mean_forcing")
         if not os.path.isdir(nldas_forcing_basin_mean_dir):
@@ -354,7 +374,6 @@ class Nldas4Camels(SupData4Camels):
             )
         return collections.OrderedDict(
             NLDAS_CAMELS_DIR=nldas_db,
-            CAMELS_SHP_FILE=camels671_shp,
             NLDAS_CAMELS_MEAN_DIR=nldas_forcing_basin_mean_dir,
         )
 
@@ -401,9 +420,9 @@ class Nldas4Camels(SupData4Camels):
             out[:, k] = data_temp[ind].values[ind1]
         return out
 
-    def read_target_cols(
+    def read_ts_xrdataset(
         self,
-        usgs_id_lst: list = None,
+        gage_id_lst: list = None,
         t_range: list = None,
         var_lst: list = None,
         **kwargs,
@@ -413,7 +432,7 @@ class Nldas4Camels(SupData4Camels):
 
         Parameters
         ----------
-        usgs_id_lst
+        gage_id_lst
             the ids of gages in CAMELS
         t_range
             the start and end periods
@@ -427,15 +446,15 @@ class Nldas4Camels(SupData4Camels):
         """
 
         assert len(t_range) == 2
-        assert all(x < y for x, y in zip(usgs_id_lst, usgs_id_lst[1:]))
+        assert all(x < y for x, y in zip(gage_id_lst, gage_id_lst[1:]))
 
         t_range_list = hydro_time.t_range_days(t_range)
         nt = t_range_list.shape[0]
-        x = np.empty([len(usgs_id_lst), nt, len(var_lst)])
+        x = np.empty([len(gage_id_lst), nt, len(var_lst)])
         for k in tqdm(
-            range(len(usgs_id_lst)), desc="Read NLDAS forcing data for CAMELS-US"
+            range(len(gage_id_lst)), desc="Read NLDAS forcing data for CAMELS-US"
         ):
-            data = self.read_basin_mean_nldas(usgs_id_lst[k], var_lst, t_range_list)
+            data = self.read_basin_mean_nldas(gage_id_lst[k], var_lst, t_range_list)
             x[k, :, :] = data
         return x
 
@@ -445,7 +464,7 @@ class Smap4Camels(SupData4Camels):
     A datasource class for geo attributes data, forcing data, and SMAP data of basins in CAMELS.
     """
 
-    def __init__(self):
+    def __init__(self, supdata_dir=None):
         """
         Parameters
         ----------
@@ -455,7 +474,13 @@ class Smap4Camels(SupData4Camels):
             if True we will download the data
 
         """
-        super().__init__()
+        if supdata_dir is None:
+            supdata_dir = os.path.join(
+                SETTING["local_data_path"]["datasets-interim"],
+                "camels_us",
+                "smap4camels",
+            )
+        super().__init__(supdata_dir=supdata_dir)
         self.vars = ["ssm", "susm", "smp", "ssma", "susma"]
 
     def set_data_source_describe(self):
@@ -470,9 +495,7 @@ class Smap4Camels(SupData4Camels):
             SMAP_CAMELS_DIR=smap_db, SMAP_CAMELS_MEAN_DIR=smap_data_dir
         )
 
-    def read_target_cols(
-        self, usgs_id_lst=None, t_range=None, target_cols=None, **kwargs
-    ):
+    def read_ts_xrdataset(self, gage_id_lst=None, t_range=None, var_lst=None, **kwargs):
         """
         Read SMAP basin mean data
 
@@ -481,7 +504,7 @@ class Smap4Camels(SupData4Camels):
 
         Parameters
         ----------
-        usgs_id_lst
+        gage_id_lst
             the ids of gages in CAMELS
         t_range
             the start and end periods
@@ -497,14 +520,14 @@ class Smap4Camels(SupData4Camels):
         # For example, the data is in period 1 (1-3 days), then there is one data in the 1st day while the rest are NaN
         t_range_list = hydro_time.t_range_days(t_range)
         nt = t_range_list.shape[0]
-        x = np.empty([len(usgs_id_lst), nt, len(target_cols)])
+        x = np.empty([len(gage_id_lst), nt, len(var_lst)])
         for k in tqdm(
-            range(len(usgs_id_lst)), desc="Read NSDA-SMAP data for CAMELS-US"
+            range(len(gage_id_lst)), desc="Read NSDA-SMAP data for CAMELS-US"
         ):
             # two way to read data are provided:
             # 1. directly read data: the data is sum of 8 days
             # 2. calculate daily mean value of 8 days
-            data = self.read_basin_mean_smap(usgs_id_lst[k], target_cols, t_range_list)
+            data = self.read_basin_mean_smap(gage_id_lst[k], var_lst, t_range_list)
             x[k, :, :] = data
         return x
 
@@ -542,8 +565,8 @@ class Smap4Camels(SupData4Camels):
 
 
 data_sources_dict = {
-    "camels_us": Camels(),
-    "modiset4camels": ModisEt4Camels(),
-    "nlas4camels": Nldas4Camels(),
-    "smap4camels": Smap4Camels(),
+    "camels_us": Camels,
+    "modiset4camels": ModisEt4Camels,
+    "nldas4camels": Nldas4Camels,
+    "smap4camels": Smap4Camels,
 }

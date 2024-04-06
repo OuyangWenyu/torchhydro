@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2024-04-02 15:06:26
+LastEditTime: 2024-04-06 11:52:25
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -149,15 +149,15 @@ class BaseDataset(Dataset):
         )
         return torch.from_numpy(x).float(), torch.from_numpy(y).float()
 
-    def common_load_data(self):
+    def _pre_load_data(self):
         self.train_mode = self.is_tra_val_te == "train"
         self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
         self.rho = self.data_cfgs["forecast_history"]
         self.warmup_length = self.data_cfgs["warmup_length"]
 
     def _load_data(self):
+        self._pre_load_data()
         self.data_source = Camels(self.data_cfgs["data_path"])
-        self.common_load_data()
         # y
         data_flow_ds = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
@@ -422,14 +422,44 @@ class FlexibleDataset(BaseDataset):
         super(FlexibleDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     def _load_data(self):
-        loaded_data = {}
+        self._pre_load_data()
         source_cfgs = self.data_cfgs["source_cfgs"]
-        for name, path in zip(source_cfgs["source_names"], source_cfgs["source_paths"]):
-            loader_function = data_sources_dict[name]
-            data = loader_function(name, path)
-            standardized_data = self._unify_data_format(data)
-            loaded_data[name] = standardized_data
-        return loaded_data
+        data_sources = {
+            name: data_sources_dict[name](path)
+            for name, path in zip(
+                source_cfgs["source_names"], source_cfgs["source_paths"]
+            )
+        }
+        x, y, c = self._read_yxc(data_sources)
+        return x, y, c
+
+    def _read_yxc(self, data_sources):
+        var_to_source_map = self.data_cfgs["var_to_source_map"]
+        x_datasets, y_datasets, c_datasets = [], [], []
+        gage_ids = self.t_s_dict["sites_id"]
+        t_range = self.t_s_dict["t_final_range"]
+
+        for var_name in var_to_source_map:
+            source_name = var_to_source_map[var_name]
+            data_source = data_sources[source_name]
+
+            if var_name in self.data_cfgs["relevant_cols"]:
+                x_datasets.append(
+                    data_source.read_ts_xrdataset(gage_ids, t_range, [var_name])
+                )
+            elif var_name in self.data_cfgs["target_cols"]:
+                y_datasets.append(
+                    data_source.read_ts_xrdataset(gage_ids, t_range, [var_name])
+                )
+            elif var_name in self.data_cfgs["constant_cols"]:
+                c_datasets.append(data_source.read_attr_xrdataset(gage_ids, [var_name]))
+
+        # 合并所有x, y, c类型的数据集
+        x = xr.merge(x_datasets) if x_datasets else xr.Dataset()
+        y = xr.merge(y_datasets) if y_datasets else xr.Dataset()
+        c = xr.merge(c_datasets) if c_datasets else xr.Dataset()
+
+        return x, y, c
 
     def __len__(self):
         main_source_length = ...
@@ -930,7 +960,7 @@ class HydroMeanDataset(BaseDataset):
     def _load_data(self):
         self.data_source = HydroBasins(self.data_cfgs["data_path"])
         self.forecast_length = self.data_cfgs["forecast_length"]
-        super().common_load_data()
+        super()._pre_load_data()
 
         data_target_ds = self.prepare_target()
         if data_target_ds is not None:

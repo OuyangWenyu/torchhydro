@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-04-06 14:45:34
-LastEditTime: 2024-04-02 16:34:50
+LastEditTime: 2024-04-06 11:34:16
 LastEditors: Wenyu Ouyang
 Description: Test the multioutput model
 FilePath: \torchhydro\tests\test_train_camelspro_mtl.py
@@ -70,10 +70,10 @@ def test_flow_et_mtl():
         sub=project_name,
         source_cfgs={
             "source_names": [
-                "CAMELS_US",
-                "MODISET4CAMELS",
-                "NLAS4CAMELS",
-                "SMAP4CAMELS",
+                "camels_us",
+                "modiset4camels",
+                "nldas4camels",
+                "smap4camels",
             ],
             "source_paths": [
                 os.path.join(data_origin_dir, "camels", "camels_us"),
@@ -124,6 +124,33 @@ def test_flow_et_mtl():
         ],
         var_t_type=["nldas"],
         var_out=["usgsFlow", "ET"],
+        var_to_source_map={
+            "temperature": "nldas4camels",
+            "specific_humidity": "nldas4camels",
+            "shortwave_radiation": "nldas4camels",
+            "potential_energy": "nldas4camels",
+            "potential_evaporation": "nldas4camels",
+            "total_precipitation": "nldas4camels",
+            "usgsFlow": "camels_us",
+            "ET": "modiset4camels",
+            "elev_mean": "camels_us",
+            "slope_mean": "camels_us",
+            "area_gages2": "camels_us",
+            "frac_forest": "camels_us",
+            "lai_max": "camels_us",
+            "lai_diff": "camels_us",
+            "dom_land_cover_frac": "camels_us",
+            "dom_land_cover": "camels_us",
+            "root_depth_50": "camels_us",
+            "soil_depth_statsgo": "camels_us",
+            "soil_porosity": "camels_us",
+            "soil_conductivity": "camels_us",
+            "max_water_content": "camels_us",
+            "geol_1st_class": "camels_us",
+            "geol_2nd_class": "camels_us",
+            "geol_porostiy": "camels_us",
+            "geol_permeability": "camels_us",
+        },
         train_period=["2015-04-01", "2016-04-01"],
         test_period=["2016-04-01", "2017-04-01"],
         dataset="FlexDataset",
