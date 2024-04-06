@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-02 14:37:09
-LastEditTime: 2024-04-06 18:56:49
+LastEditTime: 2024-04-06 21:26:51
 LastEditors: Wenyu Ouyang
 Description: A module for different data sources
 FilePath: \torchhydro\torchhydro\datasets\data_sources.py
@@ -83,7 +83,8 @@ class SupData4Camels:
 
     @property
     def all_t_range(self):
-        return ["1980-01-01", "2021-12-31"]
+        # this is a left-closed right-open interval
+        return ["1980-01-01", "2022-01-01"]
 
     @property
     def units(self):
@@ -101,9 +102,7 @@ class SupData4Camels:
         """Save all timeseries data in a netcdf file in the cache directory"""
         basins = self.all_basins
         t_range = self.all_t_range
-        times = [
-            hydro_time.t2str(tmp) for tmp in hydro_time.t_range_days(t_range).tolist()
-        ]
+        times = hydro_time.t_range_days(t_range).tolist()
         variables = self.vars
         ts_data = self.read_ts_table(
             gage_id_lst=basins,
@@ -180,7 +179,8 @@ class ModisEt4Camels(SupData4Camels):
 
     @property
     def all_t_range(self):
-        return ["2001-01-01", "2021-12-31"]
+        # this is a left-closed right-open interval
+        return ["2001-01-01", "2022-01-01"]
 
     @property
     def units(self):
@@ -621,7 +621,8 @@ class Smap4Camels(SupData4Camels):
 
     @property
     def all_t_range(self):
-        return ["2015-04-01", "2021-10-03"]
+        # this is a left-closed right-open interval
+        return ["2015-04-01", "2021-10-04"]
 
     @property
     def units(self):

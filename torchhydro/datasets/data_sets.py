@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2024-04-06 20:33:40
+LastEditTime: 2024-04-06 21:09:51
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -167,6 +167,11 @@ class BaseDataset(Dataset):
             data_forcing_ds, data_output_ds, data_attr_ds
         )
         # normalization
+        norm_x, norm_y, norm_c = self._normalize()
+        self.x, self.y, self.c = self._kill_nan(norm_x, norm_c, norm_y)
+        self._create_lookup_table()
+
+    def _normalize(self):
         scaler_hub = ScalerHub(
             self.y_origin,
             self.x_origin,
@@ -176,8 +181,7 @@ class BaseDataset(Dataset):
             data_source=self.data_source,
         )
         self.target_scaler = scaler_hub.target_scaler
-        self.x, self.y, self.c = self.kill_nan(scaler_hub.x, scaler_hub.c, scaler_hub.y)
-        self._create_lookup_table()
+        return scaler_hub.x, scaler_hub.y, scaler_hub.c
 
     def _to_dataarray_with_unit(self, data_forcing_ds, data_output_ds, data_attr_ds):
         # trans to dataarray to better use xbatch
@@ -252,7 +256,7 @@ class BaseDataset(Dataset):
         result.attrs["units"] = units_dict
         return result
 
-    def kill_nan(self, x, c, y):
+    def _kill_nan(self, x, c, y):
         data_cfgs = self.data_cfgs
         y_rm_nan = data_cfgs["target_rm_nan"]
         x_rm_nan = data_cfgs["relevant_rm_nan"]
@@ -483,6 +487,23 @@ class FlexibleDataset(BaseDataset):
             area = data_source_.camels.read_area(self.t_s_dict["sites_id"])
             y.update(streamflow_unit_conv(y[["streamflow"]], area))
         return x, y, c
+
+    def _normalize(self):
+        var_to_source_map = self.data_cfgs["var_to_source_map"]
+        for var_name in var_to_source_map:
+            source_name = var_to_source_map[var_name]
+            data_source_ = self.data_source[source_name]
+            break
+        scaler_hub = ScalerHub(
+            self.y_origin,
+            self.x_origin,
+            self.c_origin,
+            data_cfgs=self.data_cfgs,
+            is_tra_val_te=self.is_tra_val_te,
+            data_source=data_source_.camels,
+        )
+        self.target_scaler = scaler_hub.target_scaler
+        return scaler_hub.x, scaler_hub.y, scaler_hub.c
 
     def __len__(self):
         main_source_length = ...
@@ -1017,7 +1038,7 @@ class HydroMeanDataset(BaseDataset):
             self.data_source,
         )
         self.target_scaler = scaler_hub.target_scaler
-        self.x, self.y, self.c = super().kill_nan(
+        self.x, self.y, self.c = super()._kill_nan(
             scaler_hub.x.compute(), scaler_hub.c.compute(), scaler_hub.y.compute()
         )
         self._create_lookup_table()
