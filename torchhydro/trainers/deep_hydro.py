@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-02 16:15:34
+LastEditTime: 2024-04-07 20:47:55
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -270,27 +270,9 @@ class DeepHydro(DeepHydroInterface):
             valid_metrics = None
             if data_cfgs["t_range_valid"] is not None:
                 with logger.log_epoch_valid(epoch) as valid_logs:
-                    valid_obss_np, valid_preds_np, valid_loss = compute_validation(
-                        self.model,
-                        criterion,
-                        validation_data_loader,
-                        device=self.device,
-                        which_first_tensor=training_cfgs["which_first_tensor"],
+                    valid_loss, valid_metrics = self._1epoch_valid(
+                        training_cfgs, criterion, validation_data_loader, valid_logs
                     )
-                    evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
-                    fill_nan = self.cfgs["evaluation_cfgs"]["fill_nan"]
-                    target_col = self.cfgs["data_cfgs"]["target_cols"]
-                    valid_metrics = evaluate_validation(
-                        self,
-                        validation_data_loader,
-                        valid_preds_np,
-                        valid_obss_np,
-                        evaluation_metrics,
-                        fill_nan,
-                        target_col,
-                    )
-                    valid_logs["valid_loss"] = valid_loss
-                    valid_logs["valid_metrics"] = valid_metrics
 
             lr_val_loss = training_cfgs["lr_val_loss"]
             scheduler.step()
@@ -311,6 +293,32 @@ class DeepHydro(DeepHydroInterface):
 
         # return the trained model weights and bias and the epoch loss
         return self.model.state_dict(), sum(logger.epoch_loss) / len(logger.epoch_loss)
+
+    def _1epoch_valid(
+        self, training_cfgs, criterion, validation_data_loader, valid_logs
+    ):
+        valid_obss_np, valid_preds_np, valid_loss = compute_validation(
+            self.model,
+            criterion,
+            validation_data_loader,
+            device=self.device,
+            which_first_tensor=training_cfgs["which_first_tensor"],
+        )
+        evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
+        fill_nan = self.cfgs["evaluation_cfgs"]["fill_nan"]
+        target_col = self.cfgs["data_cfgs"]["target_cols"]
+        valid_metrics = evaluate_validation(
+            self,
+            validation_data_loader,
+            valid_preds_np,
+            valid_obss_np,
+            evaluation_metrics,
+            fill_nan,
+            target_col,
+        )
+        valid_logs["valid_loss"] = valid_loss
+        valid_logs["valid_metrics"] = valid_metrics
+        return valid_loss, valid_metrics
 
     def model_evaluate(self) -> Tuple[Dict, np.array, np.array]:
         """
@@ -753,10 +761,20 @@ class MultiTaskHydro(DeepHydro):
     def __init__(self, cfgs: Dict, pre_model=None):
         super().__init__(cfgs, pre_model)
 
-    def model_train(self) -> None:
-        training_cfgs = self.cfgs["training_cfgs"]
-        model_cfgs = self.cfgs["model_cfgs"]
+    def _get_optimizer(self, training_cfgs):
+        params_in_opt = self.model.parameters()
+        if training_cfgs["criterion"] == "UncertaintyWeights":
+            # log_var = torch.zeros((1,), requires_grad=True)
+            log_vars = [
+                torch.zeros((1,), requires_grad=True, device=self.device)
+                for _ in range(training_cfgs["multi_targets"])
+            ]
+            params_in_opt = list(self.model.parameters()) + log_vars
+        return pytorch_opt_dict[training_cfgs["optimizer"]](
+            params_in_opt, **training_cfgs["optim_params"]
+        )
 
+    def _get_loss_func(self, training_cfgs):
         if "criterion_params" in training_cfgs:
             loss_param = training_cfgs["criterion_params"]
             if loss_param is not None:
@@ -770,7 +788,7 @@ class MultiTaskHydro(DeepHydro):
                 }
         if training_cfgs["criterion"] == "MultiOutWaterBalanceLoss":
             # TODO: hard code for streamflow and ET
-            stat_dict = self.training.target_scaler.stat_dict
+            stat_dict = self.traindataset.target_scaler.stat_dict
             stat_dict_keys = list(stat_dict.keys())
             q_name = np.intersect1d(
                 [
@@ -803,19 +821,8 @@ class MultiTaskHydro(DeepHydro):
             stds = [q_std, et_std]
             criterion_init_params["means"] = means
             criterion_init_params["stds"] = stds
-        criterion = pytorch_criterion_dict[training_cfgs["criterion"]](
+        return pytorch_criterion_dict[training_cfgs["criterion"]](
             **criterion_init_params
-        )
-        params_in_opt = self.model.parameters()
-        if training_cfgs["criterion"] == "UncertaintyWeights":
-            # log_var = torch.zeros((1,), requires_grad=True)
-            log_vars = [
-                torch.zeros((1,), requires_grad=True, device=self.device)
-                for _ in range(training_cfgs["multi_targets"])
-            ]
-            params_in_opt = list(self.model.parameters()) + log_vars
-        opt = pytorch_opt_dict[training_cfgs["optimizer"]](
-            params_in_opt, **training_cfgs["optim_params"]
         )
 
 
