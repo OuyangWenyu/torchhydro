@@ -8,9 +8,7 @@ FilePath: \torchhydro\tests\test_spp_lstm.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
-import os
 import pytest
-import hydrodataset as hds
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
 import warnings
@@ -20,17 +18,21 @@ warnings.filterwarnings("ignore")
 
 @pytest.fixture()
 def config():
-    project_name = "test_spp_lstm/ex4"
+    project_name = "test_spp_lstm/ex1"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
-        source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
-        streamflow_source_path="/ftproot/biliuhe/merge_streamflow.nc",  # 所有流域一个流量文件
-        rainfall_source_path=None,  # "/ftproot/biliuhe",  # 降水文件夹，一个流域一个文件，以"流域编号.nc"命名
-        attributes_path="/ftproot/biliuhe/camelsus_attributes.nc",  # 所有流域一个属性文件
-        gfs_source_path="/ftproot/biliuhe/",  # GFS气象文件夹，一个流域一个文件，以"流域编号_gfs.nc"命名
-        soil_source_path="/ftproot/biliuhe/",  # 土壤属性文件夹，一个流域一个文件，以”流域编号_soil.nc"命名
-        ctx=[2],  # 0,1,2使用GPU
+        source="HydroGrid",
+        source_path=[
+            {
+                "gpm": "basins-origin/hour_data/1h/grid_data/grid_gpm_data",
+                "gfs": "basins-origin/hour_data/1h/grid_data/grid_gfs_data",
+                "smap": "basins-origin/hour_data/1h/grid_data/grid_smap_data",
+                "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
+                "attributes": "basins-origin/attributes.nc",
+            }
+        ],
+        ctx=[2],
         model_name="SPPLSTM2",
         model_hyperparam={  # p代表降水+GFS气象网络分支，S代表土壤属性网络分支
             "seq_length": 168,
@@ -48,12 +50,13 @@ def config():
             "s_in_channels": 8,  # 卷积层输入通道数，等于len(var_t[2])，即土壤属性的数量
             "s_out_channels": 8,
         },
-        gage_id=["1_02051500", "86_21401550"],
+        gage_id=["02051500", "21401550"],
         batch_size=256,
-        var_t=[  # var_t[0]为["tp"]，var_t[1]为GFS气象，不用则["None"],var_t[2]为土壤属性，不用则["None"]
-            ["tp"],
+        var_t=[  # var_t[0]为["gpm_tp"], var_t[1]为GFS, var_t[2]为土壤含水量，无则["None"]
+            ["gpm_tp"],
             [
                 "None",
+                # "gfs_tp",
                 # "dswrf",
                 # "pwat",
                 # "2r",
@@ -65,18 +68,9 @@ def config():
             ],
             [
                 "None",
-                # "dswrf",
-                # "pwat",
-                # "2r",
-                # "2sh",
-                # "2t",
-                # "tcc",
-                # "10u",
-                # "10v",
             ],
         ],
         var_c=[
-            # "None"  # 不用var_c，则"None"
             "area",  # 面积
             "ele_mt_smn",  # 海拔(空间平均)
             "slp_dg_sav",  # 地形坡度 (空间平均)
@@ -94,32 +88,30 @@ def config():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow"],
-        dataset="GPM_GFS_Dataset",
+        dataset="GridDataset",
         sampler="HydroSampler",
-        scaler="GPM_GFS_Scaler",
+        scaler="MutiBasinScaler",
         train_epoch=1,
         save_epoch=1,
         te=1,
         train_period=[
-            {"start": "2017-07-08", "end": "2017-09-29"},
-            {"start": "2018-07-08", "end": "2018-09-29"},
-            {"start": "2019-07-08", "end": "2019-09-29"},
-            {"start": "2020-07-08", "end": "2020-09-29"},
+            ("2017-07-08", "2017-09-29"),
+            ("2018-07-08", "2018-09-29"),
+            ("2019-07-08", "2019-09-29"),
+            ("2020-07-08", "2020-09-29"),
         ],
         test_period=[
-            {"start": "2021-07-08", "end": "2021-09-29"},
+            ("2021-07-08", "2021-09-29"),
         ],
         valid_period=[
-            {"start": "2021-07-08", "end": "2021-09-29"},
+            ("2021-07-08", "2021-09-29"),
         ],
-        loss_func="RMSESum",  # NSELoss、RMSESum、MAPELoss、MASELoss、MAELoss 可以选择
-        opt="Adam",  # 目前学习率自动调整(下面的参数)只支持Adam
+        loss_func="RMSESum",  # NSELoss、RMSESum、MAPELoss、MASELoss、MAELoss 可选
+        opt="Adam",
         lr_scheduler={
             1: 1e-3
         },  # 初始化学习率(第1轮开始即使用1e-3)，可强制指定某一轮使用的学习率
-        lr_factor=0.5,  # 学习率更新权重
-        lr_patience=1,  # 连续n+1次valid loss不下降，则更新学习率
-        weight_decay=1e-5,  # L2正则化衰减权重
+        lr_factor=0.96,  # 学习率更新权重
         lr_val_loss=True,  # False则用NSE作为指标，而不是val loss,来更新lr、model、早退，建议选择True
         which_first_tensor="sequence",
         early_stopping=True,
@@ -130,7 +122,6 @@ def config():
             "kfold": 5,  # exi_0即17年验证,...exi_4即21年验证
             "batch_sizes": [256],
         },
-        user="zxw",  # 注意，在本地(/home/xxx)需要有privacy_config.yml
     )
     update_cfg(config_data, args)
     return config_data

@@ -84,15 +84,15 @@ def denormalize4eval(validation_data_loader, output, labels):
         units = {**units, **target_data.attrs["units"]}
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
-    if target_scaler.data_cfgs["dataset"] == "GPM_GFS_Dataset":
-        first_basin = target_scaler.data_cfgs["object_ids"][0]
-        source_data = target_scaler.data_forcing[first_basin]
+    if target_scaler.data_cfgs["dataset"] == "GridDataset":
         batch_size = validation_data_loader.batch_size
-        forecast_length = validation_data_loader.dataset.forecast_length
         basin_num = len(target_data.basin)
+        forecast_length = validation_data_loader.dataset.forecast_length
+        selected_time_points = target_data.coords["time"][
+            warmup_length:-forecast_length
+        ]
+        selected_data = target_data.sel(time=selected_time_points)
         if target_scaler.data_cfgs["rolling"] == False:
-            selected_time_points = source_data.coords["time_now"]
-            selected_data = target_data.sel(time=selected_time_points)
             output = output[:, 0, :].reshape(basin_num, batch_size, 1)
             labels = labels[:, 0, :].reshape(basin_num, batch_size, 1)
             preds_xr = target_scaler.inverse_transform(
@@ -110,8 +110,6 @@ def denormalize4eval(validation_data_loader, output, labels):
                 )
             )
         else:
-            selected_time_points = source_data.coords["time_now"]
-            selected_data = target_data.sel(time=selected_time_points)
             output = output[::forecast_length]
             labels = labels[::forecast_length]
 
@@ -134,7 +132,7 @@ def denormalize4eval(validation_data_loader, output, labels):
         preds_xr.attrs["units"] = "m"
         obss_xr.attrs["units"] = "m"
 
-    elif target_scaler.data_cfgs["dataset"] == "MEAN_Dataset":
+    elif target_scaler.data_cfgs["dataset"] == "MeanDataset":
         batch_size = validation_data_loader.batch_size
         basin_num = len(target_data.basin)
         forecast_length = validation_data_loader.dataset.forecast_length
@@ -162,6 +160,8 @@ def denormalize4eval(validation_data_loader, output, labels):
                 attrs={"units": units},
             )
         )
+        preds_xr.attrs["units"] = "m"
+        obss_xr.attrs["units"] = "m"
     else:
         selected_time_points = target_data.coords["time"][warmup_length:]
         selected_data = target_data.sel(time=selected_time_points)
@@ -285,7 +285,7 @@ def evaluate_validation(
     for i in range(len(target_col)):
         obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
         pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
-        if self.cfgs["data_cfgs"]["scaler"] == "GPM_GFS_Scaler":
+        if self.cfgs["data_cfgs"]["scaler"] == "MutiBasinScaler":
             obs_xr = obs_xr.T
             pred_xr = pred_xr.T
         if type(fill_nan) is str:

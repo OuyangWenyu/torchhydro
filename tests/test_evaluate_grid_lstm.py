@@ -1,17 +1,18 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-12-29 14:20:18
-LastEditTime: 2024-04-01 21:23:40
+LastEditTime: 2024-04-07 20:51:04
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
-FilePath: \torchhydro\tests\test_evaluate_spp_lstm.py
+FilePath: \torchhydro\tests\test_evaluate_grid_lstm.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+
 import os
 import pytest
-import hydrodataset as hds
 import warnings
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
+from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed, save_result
 
@@ -21,27 +22,49 @@ warnings.filterwarnings("ignore")
 @pytest.fixture()
 def config_data():
     project_name = "test_evalute_spp_lstm/ex1"
-    train_path = os.path.join(os.getcwd(), "results", "test_spp_lstm", "ex3_0")
+    train_path = os.path.join(os.getcwd(), "results", "test_spp_lstm", "ex1_0")
     args = cmd(
         sub=project_name,
-        source="GPM_GFS",
-        source_path=os.path.join(hds.ROOT_DIR, "gpm_gfs_data"),
+        source="HydroGrid",
+        source_path=[
+            {
+                "gpm": "basins-origin/hour_data/1h/grid_data/grid_gpm_data",
+                "gfs": "basins-origin/hour_data/1h/grid_data/grid_gfs_data",
+                "smap": "basins-origin/hour_data/1h/grid_data/grid_smap_data",
+                "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
+                "attributes": "basins-origin/attributes.nc",
+            }
+        ],
         download=0,
         ctx=[2],
         model_name="SPPLSTM2",
         model_hyperparam={
             "seq_length": 168,
             "forecast_length": 24,
-            "n_output": 1,
-            "n_hidden_states": 60,
-            "dropout": 0.25,
+            "p_n_output": 1,
+            "p_n_hidden_states": 60,
+            "p_dropout": 0.25,
+            "p_in_channels": 1,
+            "p_out_channels": 8,
             "len_c": 15,
-            "in_channels": 1,  # 卷积层输入通道数，等于len(var_t)
-            "out_channels": 32,  # 输出通道数
+            "s_seq_length": None,
+            "s_n_output": 1,
+            "s_n_hidden_states": 60,
+            "s_dropout": 0.25,
+            "s_in_channels": 8,
+            "s_out_channels": 8,
         },
-        gage_id=["86_21401550"],
+        gage_id=["21401550"],
         batch_size=256,
-        var_t=[["tp"]],
+        var_t=[
+            ["gpm_tp"],
+            [
+                "None",
+            ],
+            [
+                "None",
+            ],
+        ],
         var_out=["streamflow"],
         var_c=[
             "area",  # 面积
@@ -60,17 +83,16 @@ def config_data():
             "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
             "dor_pc_pva",  # 调节程度
         ],
-        dataset="GPM_GFS_Dataset",
+        dataset="GridDataset",
         sampler="HydroSampler",
-        scaler="GPM_GFS_Scaler",
+        scaler="MutiBasinScaler",
         test_period=[
-            {"start": "2017-07-01", "end": "2017-09-29"},
-        ],  # 该范围为降水的时间范围，流量会整体往后推24h
+            ("2017-07-01", "2017-09-29"),
+        ],
         rolling=False,
         weight_path=os.path.join(train_path, "best_model.pth"),
-        stat_dict_file=os.path.join(train_path, "GPM_GFS_Scaler_2_stat.json"),
+        stat_dict_file=os.path.join(train_path, "MutiBasinScaler_stat.json"),
         continue_train=False,
-        user='zxw'
     )
     config_data = default_config_file()
     update_cfg(config_data, args)
@@ -81,7 +103,7 @@ def test_evaluate_spp_lstm(config_data):
     random_seed = config_data["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
     data_cfgs = config_data["data_cfgs"]
-    _name = data_cfgs["_name"]= s_dict[_name](
+    _name = data_cfgs["_name"] = datasets_dict[_name](
         data_cfgs["data_path"], data_cfgs["download"]
     )
     model = DeepHydro(config_data)

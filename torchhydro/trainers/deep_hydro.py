@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-07 20:47:55
+LastEditTime: 2024-04-07 21:01:44
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -148,9 +148,11 @@ class DeepHydro(DeepHydroInterface):
         self.device = get_the_device(self.device_num)
         self.pre_model = pre_model
         self.model = self.load_model()
-        self.traindataset = self.make_dataset("train")
-        if cfgs["data_cfgs"]["t_range_valid"] is not None:
-            self.validdataset = self.make_dataset("valid")
+        if cfgs["training_cfgs"]["train_mode"]:
+            # if the mode is inference, we don't need to load train/valid data
+            self.traindataset = self.make_dataset("train")
+            if cfgs["data_cfgs"]["t_range_valid"] is not None:
+                self.validdataset = self.make_dataset("valid")
         self.testdataset = self.make_dataset("test")
         print(f"Torch is using {str(self.device)}")
 
@@ -354,7 +356,7 @@ class DeepHydro(DeepHydroInterface):
                 model_filepath, f"model_Ep{str(test_epoch)}.pth"
             )
             self.model = self.load_model()
-        if self.cfgs["data_cfgs"]["dataset"] in ["GPM_GFS_Dataset", "MEAN_Dataset"]:
+        if self.cfgs["data_cfgs"]["dataset"] in ["GridDataset", "MeanDataset"]:
             if self.cfgs["model_cfgs"]["continue_train"]:
                 model_filepath = self.cfgs["data_cfgs"]["test_path"]
                 self.weight_path = os.path.join(model_filepath, "best_model.pth")
@@ -368,7 +370,7 @@ class DeepHydro(DeepHydroInterface):
         for i in range(len(target_col)):
             obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
             pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
-            if self.cfgs["data_cfgs"]["scaler"] == "GPM_GFS_Scaler":
+            if self.cfgs["data_cfgs"]["scaler"] == "MutiBasinScaler":
                 obs_xr = obs_xr.T
                 pred_xr = pred_xr.T
             if type(fill_nan) is str:
