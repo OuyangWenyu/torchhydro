@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-07 21:01:44
+LastEditTime: 2024-04-07 21:25:48
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -248,6 +248,7 @@ class DeepHydro(DeepHydroInterface):
             training_cfgs, data_cfgs
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
+        # TODO: need refactor opt config
         scheduler = ExponentialLR(opt, gamma=training_cfgs["lr_factor"])
         if training_cfgs["weight_decay"] is not None:
             for param_group in opt.param_groups:
@@ -497,7 +498,7 @@ class DeepHydro(DeepHydroInterface):
             nt = train_dataset.y.time.size
             if data_cfgs["sampler"] == "HydroSampler":
                 sampler = HydroSampler(train_dataset)
-            else:
+            elif data_cfgs["sampler"] == "KuaiSampler":
                 sampler = KuaiSampler(
                     train_dataset,
                     batch_size=batch_size,
@@ -506,6 +507,8 @@ class DeepHydro(DeepHydroInterface):
                     ngrid=ngrid,
                     nt=nt,
                 )
+            else:
+                raise NotImplementedError("This sampler not implemented yet")
         data_loader = DataLoader(
             train_dataset,
             batch_size=training_cfgs["batch_size"],
@@ -517,26 +520,19 @@ class DeepHydro(DeepHydroInterface):
         )
         if data_cfgs["t_range_valid"] is not None:
             valid_dataset = self.validdataset
-
+            batch_size_valid = training_cfgs["batch_size"]
             if data_cfgs["sampler"] == "HydroSampler":
-                eval_num_samples = valid_dataset.num_samples
-                validation_data_loader = DataLoader(
-                    valid_dataset,
-                    batch_size=int(eval_num_samples / ngrid),
-                    shuffle=False,
-                    num_workers=worker_num,
-                    pin_memory=pin_memory,
-                    timeout=0,
-                )
-            else:
-                validation_data_loader = DataLoader(
-                    valid_dataset,
-                    batch_size=training_cfgs["batch_size"],
-                    shuffle=False,
-                    num_workers=worker_num,
-                    pin_memory=pin_memory,
-                    timeout=0,
-                )
+                # for HydroSampler when evaluating, we need to set new batch size
+                # TODO: may be same for other samplers
+                batch_size_valid = int(valid_dataset.num_samples / ngrid)
+            validation_data_loader = DataLoader(
+                valid_dataset,
+                batch_size=batch_size_valid,
+                shuffle=False,
+                num_workers=worker_num,
+                pin_memory=pin_memory,
+                timeout=0,
+            )
             return data_loader, validation_data_loader
 
         return data_loader, None

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2024-04-06 21:09:51
+LastEditTime: 2024-04-07 21:45:45
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -537,6 +537,7 @@ class FlexibleDataset(BaseDataset):
         return x, y, c
 
     def _normalize(self):
+        # TODO: bug for x -- after norm potential_evaporation is all nan
         var_to_source_map = self.data_cfgs["var_to_source_map"]
         for var_name in var_to_source_map:
             source_name = var_to_source_map[var_name]
@@ -552,19 +553,6 @@ class FlexibleDataset(BaseDataset):
         )
         self.target_scaler = scaler_hub.target_scaler
         return scaler_hub.x, scaler_hub.y, scaler_hub.c
-
-    def __len__(self):
-        main_source_length = ...
-        return main_source_length
-
-    def __getitem__(self, idx):
-        # 合并来自不同数据源的数据
-        x = {}
-        for source_name, config in self.data_cfgs.items():
-            # 根据配置读取和预处理数据
-            data = self.read_and_process(source_name, idx, config)
-            x.update(data)
-        return x
 
 
 class HydroGridDataset(BaseDataset):
