@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-07 21:25:48
+LastEditTime: 2024-04-08 10:50:12
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -36,7 +36,6 @@ from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.models.model_dict_function import (
     pytorch_criterion_dict,
     pytorch_model_dict,
-    pytorch_model_wrapper_dict,
     pytorch_opt_dict,
 )
 from torchhydro.models.model_utils import get_the_device
@@ -240,7 +239,7 @@ class DeepHydro(DeepHydroInterface):
             es = EarlyStopper(training_cfgs["patience"])
         criterion = self._get_loss_func(training_cfgs)
         opt = self._get_optimizer(training_cfgs)
-        lr_scheduler = training_cfgs["lr_scheduler"]
+        scheduler = self._get_scheduler(training_cfgs, opt)
         max_epochs = training_cfgs["epochs"]
         start_epoch = training_cfgs["start_epoch"]
         # use PyTorch's DataLoader to load the data into batches in each epoch
@@ -248,15 +247,7 @@ class DeepHydro(DeepHydroInterface):
             training_cfgs, data_cfgs
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
-        # TODO: need refactor opt config
-        scheduler = ExponentialLR(opt, gamma=training_cfgs["lr_factor"])
-        if training_cfgs["weight_decay"] is not None:
-            for param_group in opt.param_groups:
-                param_group["weight_decay"] = training_cfgs["weight_decay"]
         for epoch in range(start_epoch, max_epochs + 1):
-            if lr_scheduler is not None and epoch in lr_scheduler.keys():
-                for param_group in opt.param_groups:
-                    param_group["lr"] = lr_scheduler[epoch]
             with logger.log_epoch_train(epoch) as train_logs:
                 total_loss, n_iter_ep = torch_single_train(
                     self.model,
@@ -296,6 +287,15 @@ class DeepHydro(DeepHydroInterface):
 
         # return the trained model weights and bias and the epoch loss
         return self.model.state_dict(), sum(logger.epoch_loss) / len(logger.epoch_loss)
+
+    def _get_scheduler(self, training_cfgs, opt):
+        # TODO: not finished yet
+        lr_scheduler = training_cfgs["lr_scheduler"]
+        if lr_scheduler is not None and epoch in lr_scheduler.keys():
+            for param_group in opt.param_groups:
+                param_group["lr"] = lr_scheduler[epoch]
+        scheduler = ExponentialLR(opt, gamma=training_cfgs["lr_factor"])
+        return scheduler
 
     def _1epoch_valid(
         self, training_cfgs, criterion, validation_data_loader, valid_logs
@@ -727,12 +727,6 @@ class TransLearnHydro(DeepHydro):
             freeze_params = model_cfgs["weight_path_add"]["freeze_params"]
             for param in freeze_params:
                 exec(f"model.{param}.requires_grad = False")
-        if ("model_wrapper" in list(model_cfgs.keys())) and (
-            model_cfgs["model_wrapper"] is not None
-        ):
-            wrapper_name = model_cfgs["model_wrapper"]
-            wrapper_params = model_cfgs["model_wrapper_param"]
-            model = pytorch_model_wrapper_dict[wrapper_name](model, **wrapper_params)
         return model
 
     def _load_model_from_pth(self):

@@ -62,7 +62,6 @@ def config():
         # key is epoch, start from 1
         lr_scheduler={1: 1e-2, 2: 5e-3, 3: 1e-3},
         which_first_tensor="sequence",
-        is_tensorboard=False
     )
     update_cfg(config_data, args)
     return config_data

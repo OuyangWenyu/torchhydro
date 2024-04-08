@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:06:12
-LastEditTime: 2024-02-12 19:12:10
+LastEditTime: 2024-04-08 10:20:18
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -92,7 +92,8 @@ def denormalize4eval(validation_data_loader, output, labels):
             warmup_length:-forecast_length
         ]
         selected_data = target_data.sel(time=selected_time_points)
-        if target_scaler.data_cfgs["rolling"] == False:
+        # TODO: rolling should be placed in the inference function
+        if not target_scaler.evaluation_cfgs["rolling"]:
             output = output[:, 0, :].reshape(basin_num, batch_size, 1)
             labels = labels[:, 0, :].reshape(basin_num, batch_size, 1)
             preds_xr = target_scaler.inverse_transform(

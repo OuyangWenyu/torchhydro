@@ -109,10 +109,9 @@ def config():
         loss_func="RMSESum",  # NSELoss、RMSESum、MAPELoss、MASELoss、MAELoss 可选
         opt="Adam",
         lr_scheduler={
-            1: 1e-3
-        },  # 初始化学习率(第1轮开始即使用1e-3)，可强制指定某一轮使用的学习率
-        lr_factor=0.96,  # 学习率更新权重
-        lr_val_loss=True,  # False则用NSE作为指标，而不是val loss,来更新lr、model、早退，建议选择True
+            "lr": 0.001,
+            "lr_factor": 0.96,
+        },  # 初始化学习率(第1轮开始即使用1e-3)，可强制指定某一轮使用的学习率； 学习率更新权重
         which_first_tensor="sequence",
         early_stopping=True,
         patience=4,  # 连续n次valid loss不下降，则停止训练，与early_stopping配合使用

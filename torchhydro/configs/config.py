@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-06 11:32:00
+LastEditTime: 2024-04-08 10:59:19
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -67,10 +67,6 @@ def default_config_file():
             },
             "weight_path": None,
             "continue_train": True,
-            # the name of the model's wrapper class
-            "model_wrapper": None,
-            # the wrapper class's parameters
-            "model_wrapper_param": None,
             # federated learning parameters
             "fl_hyperparam": {
                 # sampling for federated learning
@@ -208,7 +204,6 @@ def default_config_file():
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
-            "rolling": False,
             "loading_batch": None,
             "user": None,
         },
@@ -217,15 +212,21 @@ def default_config_file():
             "train_mode": True,
             "criterion": "RMSE",
             "criterion_params": None,
+            # "weight_decay": None, a regularization term in loss func
             "optimizer": "Adam",
-            "optim_params": {
+            "optim_params": None,
+            "lr_scheduler": {
+                # 1st opt config, all epochs use this lr
                 "lr": 0.001,
+                # 2nd opt config, different epochs use different lr
+                # "lr_scheduler": {1: 1e-2, 2: 5e-3, 3: 1e-3},
+                # 3rd opt config, lr as a initial value, and lr_factor as a exponential decay factor
+                # "lr": 0.001, "lr_factor": 0.1,
+                # 4th opt config, lr as a initial value,
+                # lr_patience represent how many epochs without opt (we watch val_loss) could be tolerated
+                # if lr_patience is satisfied, then lr will be decayed by lr_factor by a linear way
+                # "lr": 0.001, "lr_factor": 0.1, "lr_patience": 1,
             },
-            "lr_scheduler": None,
-            "lr_factor": 0.1,
-            "lr_patience": 1,
-            "lr_val_loss": True,
-            "weight_decay": None,
             "early_stopping": False,
             "patience": 1,
             "epochs": 20,
@@ -241,11 +242,7 @@ def default_config_file():
             "device": [0],
             "multi_targets": 1,
             "num_workers": 0,
-            # sometimes we want to directly use the trained model in each epoch during training,
-            # for example, we want to save each epoch's log again, and in this time, we will set train_but_not_real to True
-            "train_but_not_real": False,
             "which_first_tensor": "sequence",
-            "is_tensorboard": False,
             # for ensemble exp:
             # basically we set kfold/seeds/hyper_params for trianing such as batch_sizes
             "ensemble": False,
@@ -269,13 +266,6 @@ def default_config_file():
             "test_epoch": 20,
             "explainer": None,
             "rolling": None,
-        },
-        "minio_cfgs": {
-            "endpoint_url": None,
-            "access_key": None,
-            "secret_key": None,
-            "bucket_name": None,
-            "folder_prefix": None,
         },
     }
 
@@ -303,10 +293,6 @@ def cmd(
     test_period=None,
     opt=None,
     lr_scheduler=None,
-    lr_factor=None,
-    lr_patience=None,
-    weight_decay=None,
-    lr_val_loss=None,
     opt_param=None,
     batch_size=None,
     rho=None,
@@ -344,12 +330,8 @@ def cmd(
     warmup_length=0,
     start_epoch=1,
     stat_dict_file=None,
-    model_wrapper=None,
-    model_wrapper_param=None,
     num_workers=None,
-    train_but_not_real=None,
     which_first_tensor=None,
-    is_tensorboard=False,
     ensemble=0,
     ensemble_items=None,
     early_stopping=None,
@@ -716,7 +698,7 @@ def cmd(
     parser.add_argument(
         "--rolling",
         dest="rolling",
-        help="rolling",
+        help="if False, evaluate 1-period output with a rolling window",
         default=rolling,
         type=bool,
     )
@@ -743,31 +725,10 @@ def cmd(
         type=str,
     )
     parser.add_argument(
-        "--model_wrapper",
-        dest="model_wrapper",
-        help="Sometimes we need a wrapper for the DL models to add some functions",
-        default=model_wrapper,
-        type=str,
-    )
-    parser.add_argument(
-        "--model_wrapper_param",
-        dest="model_wrapper_param",
-        help="The parameters for model_wrapper",
-        default=model_wrapper_param,
-        type=json.loads,
-    )
-    parser.add_argument(
         "--num_workers",
         dest="num_workers",
         help="The number of workers used in Dataloader",
         default=num_workers,
-        type=int,
-    )
-    parser.add_argument(
-        "--train_but_not_real",
-        dest="train_but_not_real",
-        help="If true, we will enter the training function but not really train the model and just use the trained model during training",
-        default=train_but_not_real,
         type=int,
     )
     parser.add_argument(
@@ -778,46 +739,11 @@ def cmd(
         type=str,
     )
     parser.add_argument(
-        "--is_tensorboard",
-        dest="is_tensorboard",
-        help="is_tensorboard",
-        default=is_tensorboard,
-        type=bool,
-    )
-    parser.add_argument(
         "--lr_scheduler",
         dest="lr_scheduler",
         help="The learning rate scheduler",
         default=lr_scheduler,
         type=json.loads,
-    )
-    parser.add_argument(
-        "--lr_patience",
-        dest="lr_patience",
-        help="lr_patience",
-        default=lr_patience,
-        type=int,
-    )
-    parser.add_argument(
-        "--lr_factor",
-        dest="lr_factor",
-        help="lr_factor",
-        default=lr_factor,
-        type=float,
-    )
-    parser.add_argument(
-        "--lr_val_loss",
-        dest="lr_val_loss",
-        help="lr_val_loss",
-        default=lr_val_loss,
-        type=bool,
-    )
-    parser.add_argument(
-        "--weight_decay",
-        dest="weight_decay",
-        help="weight_decay",
-        default=weight_decay,
-        type=float,
     )
     parser.add_argument(
         "--ensemble",
@@ -1031,8 +957,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["target_cols"] = new_args.var_out
     if new_args.var_to_source_map is not None:
         cfg_file["data_cfgs"]["var_to_source_map"] = new_args.var_to_source_map
-    if new_args.rolling is not None:
-        cfg_file["data_cfgs"]["rolling"] = new_args.rolling
     if new_args.out_rm_nan == 0:
         cfg_file["data_cfgs"]["target_rm_nan"] = False
     else:
@@ -1134,17 +1058,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["evaluation_cfgs"]["test_epoch"] = new_args.te
         if new_args.train_epoch is not None and new_args.te > new_args.train_epoch:
             raise RuntimeError("testing epoch cannot be larger than training epoch")
-    if new_args.endpoint_url is not None:
-        cfg_file["minio_cfgs"]["endpoint_url"] = new_args.endpoint_url
-    if new_args.access_key is not None:
-        cfg_file["minio_cfgs"]["access_key"] = new_args.access_key
-    if new_args.secret_key is not None:
-        cfg_file["minio_cfgs"]["secret_key"] = new_args.secret_key
-    if new_args.bucket_name is not None:
-        cfg_file["minio_cfgs"]["bucket_name"] = new_args.bucket_name
-    if new_args.folder_prefix is not None:
-        cfg_file["minio_cfgs"]["folder_prefix"] = new_args.folder_prefix
-
+    if new_args.rolling is not None:
+        cfg_file["evaluation_cfgs"]["rolling"] = new_args.rolling
     if new_args.warmup_length > 0:
         cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
         if "warmup_length" in new_args.model_hyperparam.keys() and (
@@ -1158,28 +1073,10 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["start_epoch"] = new_args.start_epoch
     if new_args.stat_dict_file is not None:
         cfg_file["data_cfgs"]["stat_dict_file"] = new_args.stat_dict_file
-    if new_args.model_wrapper is not None:
-        cfg_file["model_cfgs"]["model_wrapper"] = new_args.model_wrapper
-    if new_args.model_wrapper_param is not None:
-        cfg_file["model_cfgs"]["model_wrapper_param"] = new_args.model_wrapper_param
     if new_args.num_workers is not None and new_args.num_workers > 0:
         cfg_file["training_cfgs"]["num_workers"] = new_args.num_workers
-    if new_args.train_but_not_real is not None and new_args.train_but_not_real > 0:
-        cfg_file["training_cfgs"]["train_but_not_real"] = True
     if new_args.which_first_tensor is not None:
         cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
-    if new_args.is_tensorboard is not None:
-        cfg_file["training_cfgs"]["is_tensorboard"] = new_args.is_tensorboard
-    if new_args.lr_scheduler is not None:
-        cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
-    if new_args.lr_patience is not None:
-        cfg_file["training_cfgs"]["lr_patience"] = new_args.lr_patience
-    if new_args.lr_factor is not None:
-        cfg_file["training_cfgs"]["lr_factor"] = new_args.lr_factor
-    if new_args.lr_val_loss is not None:
-        cfg_file["training_cfgs"]["lr_val_loss"] = new_args.lr_val_loss
-    if new_args.weight_decay is not None:
-        cfg_file["training_cfgs"]["weight_decay"] = new_args.weight_decay
     if new_args.ensemble == 0:
         cfg_file["training_cfgs"]["ensemble"] = False
     else:

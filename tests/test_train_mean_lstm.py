@@ -1,10 +1,10 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-07-25 16:47:19
-LastEditTime: 2024-04-06 09:25:09
+LastEditTime: 2024-04-08 09:59:17
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
-FilePath: \torchhydro\tests\test_mean_lstm.py
+FilePath: \torchhydro\tests\test_train_mean_lstm.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -19,14 +19,16 @@ def config():
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
-        source="HydroMean",
-        source_path=[
-            {
-                "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_forcing",
-                "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
-                "attributes": "basins-origin/attributes.nc",
-            }
-        ],
+        source_cfgs={
+            "source": "HydroMean",
+            "source_path": [
+                {
+                    "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_forcing",
+                    "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
+                    "attributes": "basins-origin/attributes.nc",
+                }
+            ],
+        },
         ctx=[0],
         model_name="SimpleLSTMForecast",
         model_hyperparam={
@@ -79,10 +81,11 @@ def config():
         ],
         loss_func="RMSESum",
         opt="Adam",
-        lr_scheduler={1: 1e-3},
+        lr_scheduler={
+            "lr": 0.001,
+            "lr_factor": 0.96,
+        },
         which_first_tensor="sequence",
-        lr_factor=0.96,
-        lr_val_loss=True,
         early_stopping=True,
         patience=4,
         ensemble=True,

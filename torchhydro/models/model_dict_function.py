@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-01-11 14:49:00
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-04-08 10:02:30
+LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \torchhydro\torchhydro\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
@@ -51,8 +51,6 @@ pytorch_model_dict = {
     "SPPLSTM2": SPP_LSTM_Model_2,
     "HybridLSTMModel": HybridLSTMModel
 }
-
-pytorch_model_wrapper_dict = {}
 
 pytorch_criterion_dict = {
     "RMSE": RMSELoss,
