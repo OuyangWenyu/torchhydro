@@ -1,11 +1,11 @@
 """
 Author: Wenyu Ouyang
-Date: 2023-09-21 15:06:12
-LastEditTime: 2024-04-08 10:20:18
-LastEditors: Wenyu Ouyang
+Date: 2024-04-08 18:16:26
+LastEditTime: 2024-04-08 18:16:26
+LastEditors: Xinzhuo Wu
 Description: Some basic functions for training
-FilePath: \torchhydro\torchhydro\trainers\train_utils.py
-Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
+FilePath: /torchhydro/torchhydro/trainers/train_utils.py
+Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import copy
@@ -220,19 +220,13 @@ class EarlyStopper(object):
         self.counter = 0
         self.best_score = None
 
-    def check_loss(self, model, validation_loss, save_dir, lr_val_loss) -> bool:
+    def check_loss(self, model, validation_loss, save_dir) -> bool:
         score = validation_loss
         if self.best_score is None:
             self.save_model_checkpoint(model, save_dir)
             self.best_score = score
 
-        elif (
-            (score + self.min_delta >= self.best_score)
-            if lr_val_loss
-            else (score + self.min_delta <= self.best_score)
-        ):
-            # if not self.cumulative_delta and score > self.best_score:
-            #     self.best_score = score
+        elif score + self.min_delta >= self.best_score:
             self.counter += 1
             print("Epochs without Model Update:", self.counter)
             if self.counter >= self.patience:

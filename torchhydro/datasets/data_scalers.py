@@ -1,3 +1,13 @@
+"""
+Author: Wenyu Ouyang
+Date: 2024-04-08 18:17:44
+LastEditTime: 2024-04-08 18:17:44
+LastEditors: Xinzhuo Wu
+Description: normalize the data
+FilePath: /torchhydro/torchhydro/datasets/data_scalers.py
+Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
+"""
+
 import copy
 import json
 import os
@@ -220,6 +230,7 @@ class DapengScaler(object):
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
         self.pbm_norm = pbm_norm
         self.data_source = data_source
+        self.read_meanprep()
         # save stat_dict of training period in test_path for valid/test
         stat_file = os.path.join(data_cfgs["test_path"], "dapengscaler_stat.json")
         # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
@@ -235,6 +246,17 @@ class DapengScaler(object):
             assert os.path.isfile(stat_file)
             with open(stat_file, "r") as fp:
                 self.stat_dict = json.load(fp)
+
+    def read_meanprep(self):
+        if isinstance(self.data_source, HydroBasins):
+            self.mean_prep = self.data_source.read_MP(
+                self.t_s_dict["sites_id"],
+                self.data_cfgs["source_cfgs"]["source_path"]["attributes"],
+            )
+        else:
+            self.mean_prep = self.data_source.read_mean_prcp(
+                self.t_s_dict["sites_id"]
+            ).to_array()
 
     def inverse_transform(self, target_values):
         """
@@ -265,41 +287,14 @@ class DapengScaler(object):
             )
             for i in range(len(self.data_cfgs["target_cols"])):
                 var = self.data_cfgs["target_cols"][i]
-                if var in self.prcp_norm_cols:
-                    if var == "qobs_mm_per_hour":  # should be deleted
-                        mean_prep = self.read_attr_xrdataset(
-                            self.t_s_dict["sites_id"], ["p_mean"]
-                        )
-                        pred.loc[dict(variable=var)] = _prcp_norm(
-                            pred.sel(variable=var).to_numpy(),
-                            mean_prep.to_array().to_numpy().T,
-                            to_norm=False,
-                        )
-                    elif isinstance(self.data_source, HydroBasins):
-                        mean_prep = self.data_source.read_MP(
-                            self.t_s_dict["sites_id"],
-                            self.data_cfgs["data_path"]["attributes"],
-                        )
-                        pred.loc[dict(variable=var)] = self.mean_prcp_norm(
-                            pred.sel(variable=var).to_numpy().T,
-                            mean_prep.to_numpy(),
-                            to_norm=False,
-                        )
-                    else:
-                        mean_prep = self.data_source.read_mean_prcp(
-                            self.t_s_dict["sites_id"]
-                        )
-                        pred.loc[dict(variable=var)] = _prcp_norm(
-                            pred.sel(variable=var).to_numpy(),
-                            mean_prep.to_array().to_numpy().T,
-                            to_norm=False,
-                        )
+                pred.loc[dict(variable=var)] = _prcp_norm(
+                    pred.sel(variable=var).to_numpy(),
+                    self.mean_prep.to_numpy().T,
+                    to_norm=False,
+                )
         # add attrs for units
         pred.attrs.update(self.data_target.attrs)
-        # trans to xarray dataset
-        pred_ds = pred.to_dataset(dim="variable")
-
-        return pred_ds
+        return pred.to_dataset(dim="variable")
 
     def cal_stat_all(self):
         """
@@ -316,31 +311,10 @@ class DapengScaler(object):
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                if var == "qobs_mm_per_hour":  # should be deleted if data all in minio
-                    mean_prep = self.read_attr_xrdataset(
-                        self.t_s_dict["sites_id"], ["p_mean"]
-                    )
-                    stat_dict[var] = cal_stat_prcp_norm(
-                        self.data_target.sel(variable=var).to_numpy(),
-                        mean_prep.to_array().to_numpy().T,
-                    )
-                elif isinstance(self.data_source, HydroBasins):
-                    mean_prep = self.data_source.read_MP(
-                        self.t_s_dict["sites_id"],
-                        self.data_cfgs["data_path"]["attributes"],
-                    )
-                    stat_dict[var] = self.mean_cal_stat_prcp_norm(
-                        self.data_target.sel(variable=var).to_numpy().T,
-                        mean_prep.to_numpy(),
-                    )
-                else:
-                    mean_prep = self.data_source.read_mean_prcp(
-                        self.t_s_dict["sites_id"]
-                    )
-                    stat_dict[var] = cal_stat_prcp_norm(
-                        self.data_target.sel(variable=var).to_numpy(),
-                        mean_prep.to_array().to_numpy().T,
-                    )
+                stat_dict[var] = cal_stat_prcp_norm(
+                    self.data_target.sel(variable=var).to_numpy(),
+                    self.mean_prep.to_numpy().T,
+                )
             elif var in self.gamma_norm_cols:
                 stat_dict[var] = cal_stat_gamma(
                     self.data_target.sel(variable=var).to_numpy()
@@ -392,34 +366,11 @@ class DapengScaler(object):
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                if var == "qobs_mm_per_hour":  # should be deleted
-                    mean_prep = self.read_attr_xrdataset(
-                        self.t_s_dict["sites_id"], ["p_mean"]
-                    )
-                    out.loc[dict(variable=var)] = _prcp_norm(
-                        data.sel(variable=var).to_numpy(),
-                        mean_prep.to_array().to_numpy().T,
-                        to_norm=True,
-                    )
-                elif isinstance(self.data_source, HydroBasins):
-                    mean_prep = self.data_source.read_MP(
-                        self.t_s_dict["sites_id"],
-                        self.data_cfgs["data_path"]["attributes"],
-                    )
-                    out.loc[dict(variable=var)] = self.mean_prcp_norm(
-                        data.sel(variable=var).to_numpy().T,
-                        mean_prep.to_numpy(),
-                        to_norm=True,
-                    )
-                else:
-                    mean_prep = self.data_source.read_mean_prcp(
-                        self.t_s_dict["sites_id"]
-                    )
-                    out.loc[dict(variable=var)] = _prcp_norm(
-                        data.sel(variable=var).to_numpy(),
-                        mean_prep.to_array().to_numpy().T,
-                        to_norm=True,
-                    )
+                out.loc[dict(variable=var)] = _prcp_norm(
+                    data.sel(variable=var).to_numpy(),
+                    self.mean_prep.to_numpy().T,
+                    to_norm=True,
+                )
                 out.attrs["units"][var] = "dimensionless"
         out = _trans_norm(
             out,
@@ -429,13 +380,6 @@ class DapengScaler(object):
             to_norm=to_norm,
         )
         return out
-
-    # temporarily used, it's related to hydrodataset
-    def read_attr_xrdataset(self, gage_id_lst=None, var_lst=None, **kwargs):
-        if var_lst is None or len(var_lst) == 0:
-            return None
-        attr = xr.open_dataset(os.path.join("/ftproot", "camelsus_attributes_us.nc"))
-        return attr[var_lst].sel(basin=gage_id_lst)
 
     def get_data_ts(self, to_norm=True) -> np.array:
         """
@@ -498,17 +442,6 @@ class DapengScaler(object):
         y = self.get_data_obs()
         c = self.get_data_const()
         return x, y, c
-
-    def mean_cal_stat_prcp_norm(self, x, meanprep):
-        tempprep = np.tile(meanprep, (x.shape[0], 1))
-        flowua = (x / tempprep).T
-        return cal_stat_gamma(flowua)
-
-    def mean_prcp_norm(
-        self, x: np.array, mean_prep: np.array, to_norm: bool
-    ) -> np.array:
-        tempprep = np.tile(mean_prep, (x.shape[0], 1))
-        return (x / tempprep).T if to_norm else (x * tempprep).T
 
 
 class MutiBasinScaler(object):
@@ -620,9 +553,7 @@ class MutiBasinScaler(object):
                 if var in self.gamma_norm_cols:
                     stat_dict[var] = self.grid_cal_stat_gamma(data_smap, var)
 
-        # const attribute
-        attr_lst = self.data_cfgs["constant_cols"]
-        if attr_lst:
+        if attr_lst := self.data_cfgs["constant_cols"]:
             data_attr = self.data_attr
             for k in range(len(attr_lst)):
                 var = attr_lst[k]
@@ -688,8 +619,16 @@ class MutiBasinScaler(object):
 
     def load_data(self):
         x = self.get_data_ts(0).compute()
-        g = self.get_data_ts(1).compute() if self.data_cfgs["relevant_cols"][1] != ["None"] else None
-        s = self.get_data_ts(2).compute() if self.data_cfgs["relevant_cols"][2] != ["None"] else None
+        g = (
+            self.get_data_ts(1).compute()
+            if self.data_cfgs["relevant_cols"][1] != ["None"]
+            else None
+        )
+        s = (
+            self.get_data_ts(2).compute()
+            if self.data_cfgs["relevant_cols"][2] != ["None"]
+            else None
+        )
         y = self.get_data_obs().compute()
         c = self.get_data_const().compute() if self.data_cfgs["constant_cols"] else None
         return x, y, c, g, s
