@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-02-13 21:20:18
-LastEditTime: 2024-04-08 11:28:35
+LastEditTime: 2024-04-08 12:03:12
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -483,7 +483,9 @@ class FlexibleDataset(BaseDataset):
         if "streamflow" in y:
             area = data_source_.camels.read_area(self.t_s_dict["sites_id"])
             y.update(streamflow_unit_conv(y[["streamflow"]], area))
-        return x, y, c
+        self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
+            x, y, c
+        )
 
     def _normalize(self):
         # TODO: bug for x -- after norm potential_evaporation is all nan
