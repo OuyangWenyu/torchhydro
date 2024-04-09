@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-04-09 19:50:06
+LastEditTime: 2024-04-09 21:19:02
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -268,6 +268,9 @@ class BaseDataset(Dataset):
         if c_rm_nan:
             _fill_gaps_da(c, fill_nan="mean")
             warn_if_nan(c)
+        warn_if_nan(x, nan_mode="all")
+        warn_if_nan(y, nan_mode="all")
+        warn_if_nan(c, nan_mode="all")
         return x, y, c
 
     def _create_lookup_table(self):

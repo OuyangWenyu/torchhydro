@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:37:58
-LastEditTime: 2023-10-11 10:52:09
+LastEditTime: 2024-04-09 21:16:49
 LastEditors: Wenyu Ouyang
 Description: Some basic funtions for dealing with data
 FilePath: \torchhydro\torchhydro\datasets\data_utils.py
@@ -16,7 +16,7 @@ import pint_xarray  # noqa: F401
 import warnings
 
 
-def warn_if_nan(dataarray, max_display=5):
+def warn_if_nan(dataarray, max_display=5, nan_mode="any"):
     """
     Issue a warning if the dataarray contains any NaN values and display their locations.
 
@@ -26,7 +26,15 @@ def warn_if_nan(dataarray, max_display=5):
         Input dataarray to check for NaN values.
     max_display: int
         Maximum number of NaN locations to display in the warning.
+    nan_mode: str
+        Mode of NaN checking: 'any' for any NaNs, 'all' for all values being NaNs.
     """
+    if nan_mode not in ["any", "all"]:
+        raise ValueError("nan_mode must be 'any' or 'all'")
+
+    if nan_mode == "all" and np.all(np.isnan(dataarray.values)):
+        raise ValueError("The dataarray contains only NaN values!")
+
     nan_indices = np.argwhere(np.isnan(dataarray.values))
     total_nans = len(nan_indices)
 

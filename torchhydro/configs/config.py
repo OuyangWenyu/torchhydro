@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-09 20:01:22
+LastEditTime: 2024-04-09 20:14:22
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -214,7 +214,7 @@ def default_config_file():
             "criterion_params": None,
             # "weight_decay": None, a regularization term in loss func
             "optimizer": "Adam",
-            "optim_params": None,
+            "optim_params": {},
             "lr_scheduler": {
                 # 1st opt config, all epochs use this lr
                 "lr": 0.001,

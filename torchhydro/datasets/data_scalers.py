@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:17:44
-LastEditTime: 2024-04-09 10:53:12
+LastEditTime: 2024-04-09 20:58:21
 LastEditors: Wenyu Ouyang
 Description: normalize the data
 FilePath: \torchhydro\torchhydro\datasets\data_scalers.py
@@ -304,7 +304,7 @@ class DapengScaler(object):
         dict
             a dict with statistic values
         """
-        # streamflow
+        # streamflow, et, ssm, etc
         target_cols = self.data_cfgs["target_cols"]
         stat_dict = {}
         for i in range(len(target_cols)):
@@ -367,10 +367,12 @@ class DapengScaler(object):
             if var in self.prcp_norm_cols:
                 out.loc[dict(variable=var)] = _prcp_norm(
                     data.sel(variable=var).to_numpy(),
-                    self.mean_prcp.to_numpy().T,
+                    self.mean_prcp.to_numpy().T,  # TODO: check why T is needed
                     to_norm=True,
                 )
-                out.attrs["units"][var] = "dimensionless"
+            else:
+                out.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()
+            out.attrs["units"][var] = "dimensionless"
         out = _trans_norm(
             out,
             target_cols,
