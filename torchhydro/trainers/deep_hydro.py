@@ -1,11 +1,11 @@
 """
 Author: Wenyu Ouyang
-Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-08 10:50:12
-LastEditors: Wenyu Ouyang
+Date: 2024-04-08 18:15:48
+LastEditTime: 2024-04-08 18:15:48
+LastEditors: Xinzhuo Wu
 Description: HydroDL model class
-FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
-Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
+FilePath:/torchhydro/torchhydro/trainers/deep_hydro.py
+Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 from abc import ABC, abstractmethod
@@ -268,7 +268,6 @@ class DeepHydro(DeepHydroInterface):
                         training_cfgs, criterion, validation_data_loader, valid_logs
                     )
 
-            lr_val_loss = training_cfgs["lr_val_loss"]
             scheduler.step()
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
@@ -276,9 +275,8 @@ class DeepHydro(DeepHydroInterface):
             logger.save_model_and_params(self.model, epoch, self.cfgs)
             if es and not es.check_loss(
                 self.model,
-                valid_loss if lr_val_loss else list(valid_metrics.items())[0][1][0],
+                valid_loss,
                 self.cfgs["data_cfgs"]["test_path"],
-                lr_val_loss,
             ):
                 print("Stopping model now")
                 break
@@ -289,13 +287,17 @@ class DeepHydro(DeepHydroInterface):
         return self.model.state_dict(), sum(logger.epoch_loss) / len(logger.epoch_loss)
 
     def _get_scheduler(self, training_cfgs, opt):
-        # TODO: not finished yet
-        lr_scheduler = training_cfgs["lr_scheduler"]
-        if lr_scheduler is not None and epoch in lr_scheduler.keys():
-            for param_group in opt.param_groups:
-                param_group["lr"] = lr_scheduler[epoch]
-        scheduler = ExponentialLR(opt, gamma=training_cfgs["lr_factor"])
-        return scheduler
+        return (
+            ExponentialLR(opt, gamma=training_cfgs["lr_scheduler"]["lr_factor"])
+            if "lr_factor" in training_cfgs["lr_scheduler"]
+            and "lr_patience" not in training_cfgs["lr_scheduler"]
+            else ReduceLROnPlateau(
+                opt,
+                mode="min",
+                factor=training_cfgs["lr_factor"],
+                patience=training_cfgs["lr_patience"],
+            )
+        )
 
     def _1epoch_valid(
         self, training_cfgs, criterion, validation_data_loader, valid_logs
@@ -452,7 +454,7 @@ class DeepHydro(DeepHydroInterface):
         # TODO: not support return_cell_states yet
         return_cell_state = False
         if return_cell_state:
-            return cellstates_when_inference(seq_first, data_cfgs, pred)
+            return cellstates_when_inference(seq_first, data_cfgs, pred) 
         pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
         return pred_xr, obs_xr, self.testdataset
 

@@ -1,11 +1,11 @@
 """
 Author: Xinzhuo Wu
-Date: 2023-07-25 16:47:19
-LastEditTime: 2024-04-08 09:59:17
-LastEditors: Wenyu Ouyang
+Date: 2024-04-08 18:13:05
+LastEditTime: 2024-04-08 18:13:05
+LastEditors: Xinzhuo Wu
 Description: Test a full training and evaluating process
-FilePath: \torchhydro\tests\test_train_mean_lstm.py
-Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
+FilePath:/torchhydro/tests/test_train_mean_lstm.py
+Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import pytest
@@ -21,15 +21,13 @@ def config():
         sub=project_name,
         source_cfgs={
             "source": "HydroMean",
-            "source_path": [
-                {
-                    "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_forcing",
-                    "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
-                    "attributes": "basins-origin/attributes.nc",
-                }
-            ],
+            "source_path": {
+                "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_forcing",
+                "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
+                "attributes": "basins-origin/attributes.nc",
+            },
         },
-        ctx=[0],
+        ctx=[1],
         model_name="SimpleLSTMForecast",
         model_hyperparam={
             "input_size": 16,

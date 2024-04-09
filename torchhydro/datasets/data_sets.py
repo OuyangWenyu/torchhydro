@@ -1,11 +1,11 @@
 """
 Author: Wenyu Ouyang
-Date: 2022-02-13 21:20:18
-LastEditTime: 2024-04-08 12:03:12
+Date: 2024-04-08 18:16:53
+LastEditTime: 2024-04-09 08:01:14
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
-Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
+Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import logging
@@ -512,7 +512,7 @@ class HydroMeanDataset(BaseDataset):
 
     @property
     def data_source(self):
-        return HydroBasins(self.data_cfgs["data_path"])
+        return HydroBasins(self.data_cfgs["source_cfgs"]["source_path"])
 
     def _normalize(self):
         x, y, c = super()._normalize()
@@ -521,14 +521,14 @@ class HydroMeanDataset(BaseDataset):
     def _read_xyc(self):
         data_target_ds = self._prepare_target()
         if data_target_ds is not None:
-            y_origin = super()._trans2da_and_setunits(data_target_ds)
+            y_origin = self._trans2da_and_setunits(data_target_ds)
         else:
             y_origin = None
 
         data_forcing_ds = self._prepare_forcing()
 
         if data_forcing_ds is not None:
-            x_origin = super()._trans2da_and_setunits(data_forcing_ds)
+            x_origin = self._trans2da_and_setunits(data_forcing_ds)
         else:
             x_origin = None
 
@@ -536,9 +536,9 @@ class HydroMeanDataset(BaseDataset):
             data_attr_ds = self.data_source.read_BA_xrdataset(
                 self.t_s_dict["sites_id"],
                 self.data_cfgs["constant_cols"],
-                self.data_cfgs["data_path"]["attributes"],
+                self.data_cfgs["source_cfgs"]["source_path"]["attributes"],
             )
-            c_orgin = super()._trans2da_and_setunits(data_attr_ds)
+            c_orgin = self._trans2da_and_setunits(data_attr_ds)
         else:
             c_orgin = None
         self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin
@@ -547,7 +547,7 @@ class HydroMeanDataset(BaseDataset):
         gage_id_lst = self.t_s_dict["sites_id"]
         t_range = self.t_s_dict["t_final_range"]
         var_lst = self.data_cfgs["target_cols"]
-        path = self.data_cfgs["data_path"]["target"]
+        path = self.data_cfgs["source_cfgs"]["source_path"]["target"]
 
         if var_lst is None or not var_lst:
             return None
@@ -561,7 +561,7 @@ class HydroMeanDataset(BaseDataset):
         for start_date, end_date in t_range:
             adjusted_end_date = (
                 datetime.strptime(end_date, "%Y-%m-%d")
-                + timedelta(hours=self.forecast_length)
+                + timedelta(hours=self.data_cfgs["forecast_length"])
             ).strftime("%Y-%m-%d")
             subset = data.sel(time=slice(start_date, adjusted_end_date))
             subset_list.append(subset)
@@ -570,7 +570,7 @@ class HydroMeanDataset(BaseDataset):
     def _create_lookup_table(self):
         lookup = []
         basins = self.t_s_dict["sites_id"]
-        forecast_length = self.forecast_length
+        forecast_length = self.data_cfgs["forecast_length"]
         warmup_length = self.warmup_length
         dates = self.y["time"].to_numpy()
         time_num = len(self.t_s_dict["t_final_range"])
@@ -645,7 +645,7 @@ class HydroMeanDataset(BaseDataset):
         gage_id_lst = self.t_s_dict["sites_id"]
         t_range = self.t_s_dict["t_final_range"]
         var_lst = self.data_cfgs["relevant_cols"]
-        path = self.data_cfgs["data_path"]["forcing"]
+        path = self.data_cfgs["source_cfgs"]["source_path"]["forcing"]
 
         if var_lst is None:
             return None

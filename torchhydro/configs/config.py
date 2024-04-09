@@ -205,7 +205,6 @@ def default_config_file():
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
             "loading_batch": None,
-            "user": None,
         },
         "training_cfgs": {
             # if train_mode is False, don't train and evaluate
@@ -336,12 +335,6 @@ def cmd(
     ensemble_items=None,
     early_stopping=None,
     patience=None,
-    user=None,
-    endpoint_url=None,
-    access_key=None,
-    secret_key=None,
-    bucket_name=None,
-    folder_prefix=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -767,53 +760,11 @@ def cmd(
         type=bool,
     )
     parser.add_argument(
-        "--user",
-        dest="user",
-        help="user_name to distinguish trainer or tester",
-        default=user,
-        type=str,
-    )
-    parser.add_argument(
         "--patience",
         dest="patience",
         help="patience config",
         default=patience,
         type=int,
-    )
-    parser.add_argument(
-        "--endpoint_url",
-        dest="endpoint_url",
-        help="endpoint_url",
-        default=endpoint_url,
-        type=str,
-    )
-    parser.add_argument(
-        "--access_key",
-        dest="access_key",
-        help="access_key",
-        default=access_key,
-        type=str,
-    )
-    parser.add_argument(
-        "--secret_key",
-        dest="secret_key",
-        help="secret_key",
-        default=secret_key,
-        type=str,
-    )
-    parser.add_argument(
-        "--bucket_name",
-        dest="bucket_name",
-        help="bucket_name",
-        default=bucket_name,
-        type=str,
-    )
-    parser.add_argument(
-        "--folder_prefix",
-        dest="folder_prefix",
-        help="folder_prefix",
-        default=folder_prefix,
-        type=str,
     )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
@@ -1087,8 +1038,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["patience"] = new_args.patience
     if new_args.early_stopping is not None:
         cfg_file["training_cfgs"]["early_stopping"] = new_args.early_stopping
-    if new_args.user is not None:
-        cfg_file["data_cfgs"]["user"] = new_args.user
+    if new_args.lr_scheduler is not None:
+        cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 
