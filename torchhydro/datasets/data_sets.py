@@ -508,6 +508,7 @@ class FlexibleDataset(BaseDataset):
 
 class HydroMeanDataset(BaseDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        self.forecast_length=data_cfgs["forecast_length"]
         super(HydroMeanDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     @property
@@ -526,7 +527,6 @@ class HydroMeanDataset(BaseDataset):
             y_origin = None
 
         data_forcing_ds = self._prepare_forcing()
-
         if data_forcing_ds is not None:
             x_origin = self._trans2da_and_setunits(data_forcing_ds)
         else:
@@ -543,34 +543,10 @@ class HydroMeanDataset(BaseDataset):
             c_orgin = None
         self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin
 
-    def _prepare_target(self):
-        gage_id_lst = self.t_s_dict["sites_id"]
-        t_range = self.t_s_dict["t_final_range"]
-        var_lst = self.data_cfgs["target_cols"]
-        path = self.data_cfgs["source_cfgs"]["source_path"]["target"]
-
-        if var_lst is None or not var_lst:
-            return None
-
-        data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
-
-        all_vars = data.data_vars
-        if any(var not in data.variables for var in var_lst):
-            raise ValueError(f"var_lst must all be in {all_vars}")
-        subset_list = []
-        for start_date, end_date in t_range:
-            adjusted_end_date = (
-                datetime.strptime(end_date, "%Y-%m-%d")
-                + timedelta(hours=self.data_cfgs["forecast_length"])
-            ).strftime("%Y-%m-%d")
-            subset = data.sel(time=slice(start_date, adjusted_end_date))
-            subset_list.append(subset)
-        return xr.concat(subset_list, dim="time")
-
     def _create_lookup_table(self):
         lookup = []
         basins = self.t_s_dict["sites_id"]
-        forecast_length = self.data_cfgs["forecast_length"]
+        forecast_length = self.forecast_length
         warmup_length = self.warmup_length
         dates = self.y["time"].to_numpy()
         time_num = len(self.t_s_dict["t_final_range"])
@@ -594,7 +570,7 @@ class HydroMeanDataset(BaseDataset):
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
         seq_length = self.rho
-        output_seq_len = self.data_cfgs["forecast_length"]
+        output_seq_len = self.forecast_length
         warmup_length = self.warmup_length
         gpm_tp = (
             self.x.sel(
@@ -641,6 +617,30 @@ class HydroMeanDataset(BaseDataset):
     def __len__(self):
         return self.num_samples
 
+    def _prepare_target(self):
+        gage_id_lst = self.t_s_dict["sites_id"]
+        t_range = self.t_s_dict["t_final_range"]
+        var_lst = self.data_cfgs["target_cols"]
+        path = self.data_cfgs["source_cfgs"]["source_path"]["target"]
+
+        if var_lst is None or not var_lst:
+            return None
+
+        data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
+
+        all_vars = data.data_vars
+        if any(var not in data.variables for var in var_lst):
+            raise ValueError(f"var_lst must all be in {all_vars}")
+        subset_list = []
+        for start_date, end_date in t_range:
+            adjusted_end_date = (
+                datetime.strptime(end_date, "%Y-%m-%d")
+                + timedelta(hours=self.forecast_length)
+            ).strftime("%Y-%m-%d")
+            subset = data.sel(time=slice(start_date, adjusted_end_date))
+            subset_list.append(subset)
+        return xr.concat(subset_list, dim="time")
+    
     def _prepare_forcing(self):
         gage_id_lst = self.t_s_dict["sites_id"]
         t_range = self.t_s_dict["t_final_range"]
@@ -659,7 +659,7 @@ class HydroMeanDataset(BaseDataset):
             ).strftime("%Y-%m-%d")
             adjusted_end_date = (
                 datetime.strptime(end_date, "%Y-%m-%d")
-                + timedelta(hours=self.data_cfgs["forecast_length"])
+                + timedelta(hours=self.forecast_length)
             ).strftime("%Y-%m-%d")
             subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
             var_subset_list.append(subset)

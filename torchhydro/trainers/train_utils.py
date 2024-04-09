@@ -75,7 +75,7 @@ def model_infer(seq_first, device, model, xs, ys):
     return ys, output
 
 
-def denormalize4eval(validation_data_loader, output, labels):
+def denormalize4eval(validation_data_loader, output, labels, length=0):
     target_scaler = validation_data_loader.dataset.target_scaler
     target_data = target_scaler.data_target
     # the units are dimensionless for pure DL models
@@ -84,104 +84,37 @@ def denormalize4eval(validation_data_loader, output, labels):
         units = {**units, **target_data.attrs["units"]}
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
-    if target_scaler.data_cfgs["dataset"] == "GridDataset":
-        batch_size = validation_data_loader.batch_size
-        basin_num = len(target_data.basin)
+
+    if target_scaler.data_cfgs["dataset"] in ["MeanDataset", "GridDataset"]:
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
-            warmup_length:-forecast_length
+            warmup_length + length : -forecast_length + length
         ]
-        selected_data = target_data.sel(time=selected_time_points)
-        # TODO: rolling should be placed in the inference function
-        if not target_scaler.evaluation_cfgs["rolling"]:
-            output = output[:, 0, :].reshape(basin_num, batch_size, 1)
-            labels = labels[:, 0, :].reshape(basin_num, batch_size, 1)
-            preds_xr = target_scaler.inverse_transform(
-                xr.DataArray(
-                    output.transpose(2, 1, 0),
-                    dims=selected_data.dims,
-                    coords=selected_data.coords,
-                )
-            )
-            obss_xr = target_scaler.inverse_transform(
-                xr.DataArray(
-                    labels.transpose(2, 1, 0),
-                    dims=selected_data.dims,
-                    coords=selected_data.coords,
-                )
-            )
-        else:
-            output = output[::forecast_length]
-            labels = labels[::forecast_length]
-
-            output = np.concatenate(output, axis=0).reshape(basin_num, -1, 1)
-            labels = np.concatenate(labels, axis=0).reshape(basin_num, -1, 1)
-            preds_xr = target_scaler.inverse_transform(
-                xr.DataArray(
-                    output,
-                    dims=selected_data.dims,
-                    coords=selected_data.coords,
-                )
-            )
-            obss_xr = target_scaler.inverse_transform(
-                xr.DataArray(
-                    labels,
-                    dims=selected_data.dims,
-                    coords=selected_data.coords,
-                )
-            )
-        preds_xr.attrs["units"] = "m"
-        obss_xr.attrs["units"] = "m"
-
-    elif target_scaler.data_cfgs["dataset"] == "MeanDataset":
-        batch_size = validation_data_loader.batch_size
-        basin_num = len(target_data.basin)
-        forecast_length = validation_data_loader.dataset.forecast_length
-        selected_time_points = target_data.coords["time"][
-            warmup_length:-forecast_length
-        ]
-        selected_data = target_data.sel(time=selected_time_points)
-
-        output = output[:, 0, :].reshape(basin_num, batch_size, 1)
-        labels = labels[:, 0, :].reshape(basin_num, batch_size, 1)
-
-        preds_xr = target_scaler.inverse_transform(
-            xr.DataArray(
-                output.transpose(2, 0, 1),
-                dims=selected_data.dims,
-                coords=selected_data.coords,
-                attrs={"units": units},
-            )
-        )
-        obss_xr = target_scaler.inverse_transform(
-            xr.DataArray(
-                labels.transpose(2, 0, 1),
-                dims=selected_data.dims,
-                coords=selected_data.coords,
-                attrs={"units": units},
-            )
-        )
-        preds_xr.attrs["units"] = "m"
-        obss_xr.attrs["units"] = "m"
     else:
         selected_time_points = target_data.coords["time"][warmup_length:]
-        selected_data = target_data.sel(time=selected_time_points)
-        preds_xr = target_scaler.inverse_transform(
-            xr.DataArray(
-                output.transpose(2, 0, 1),
-                dims=selected_data.dims,
-                coords=selected_data.coords,
-                attrs={"units": units},
-            )
+
+    selected_data = target_data.sel(time=selected_time_points)
+    preds_xr = target_scaler.inverse_transform(
+        xr.DataArray(
+            output.transpose(2, 0, 1),
+            dims=selected_data.dims,
+            coords=selected_data.coords,
+            attrs={"units": units},
         )
-        obss_xr = target_scaler.inverse_transform(
-            xr.DataArray(
-                labels.transpose(2, 0, 1),
-                dims=selected_data.dims,
-                coords=selected_data.coords,
-                attrs={"units": units},
-            )
+    )
+    obss_xr = target_scaler.inverse_transform(
+        xr.DataArray(
+            labels.transpose(2, 0, 1),
+            dims=selected_data.dims,
+            coords=selected_data.coords,
+            attrs={"units": units},
         )
+    )
+
+    # Unit handling is problematic, temporary code
+    if target_scaler.data_cfgs["dataset"] in ["MeanDataset", "GridDataset"]:
+        preds_xr.attrs["units"] = "m"
+        obss_xr.attrs["units"] = "m"
 
     return preds_xr, obss_xr
 
@@ -242,8 +175,21 @@ class EarlyStopper(object):
         torch.save(model.state_dict(), os.path.join(save_dir, "best_model.pth"))
 
 
+def calculate_and_record_metrics(
+    obs, pred, evaluation_metrics, target_col, fill_nan, eval_log
+):
+    fill_nan_value = fill_nan
+    inds = stat_error(obs, pred, fill_nan_value)
+
+    for evaluation_metric in evaluation_metrics:
+        eval_log[f"{evaluation_metric} of {target_col}"] = inds[
+            evaluation_metric
+        ].tolist()
+
+    return eval_log
+
+
 def evaluate_validation(
-    self,
     validation_data_loader,
     output,
     labels,
@@ -272,33 +218,60 @@ def evaluate_validation(
     tuple
         metrics
     """
-    if type(fill_nan) is list and len(fill_nan) != len(target_col):
-        raise ValueError("length of fill_nan must be equal to target_col's")
+    if isinstance(fill_nan, list) and len(fill_nan) != len(target_col):
+        raise ValueError("Length of fill_nan must be equal to length of target_col.")
+
     eval_log = {}
-    # renormalization to get real metrics
-    preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels)
-    for i in range(len(target_col)):
-        obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
-        pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
-        if self.cfgs["data_cfgs"]["scaler"] == "MutiBasinScaler":
-            obs_xr = obs_xr.T
-            pred_xr = pred_xr.T
-        if type(fill_nan) is str:
-            inds = stat_error(
-                obs_xr.to_numpy(),
-                pred_xr.to_numpy(),
-                fill_nan,
+    batch_size = validation_data_loader.batch_size
+
+    if validation_data_loader.dataset.data_cfgs["dataset"] in [
+        "GridDataset",
+        "MeanDataset",
+    ]:
+        target_scaler = validation_data_loader.dataset.target_scaler
+        target_data = target_scaler.data_target
+        basin_num = len(target_data.basin)
+
+        for i, col in enumerate(target_col):
+            obs_list, pred_list = [], []
+            for length in range(validation_data_loader.dataset.forecast_length):
+                o = output[:, length, :].reshape(basin_num, batch_size, 1)
+                l = labels[:, length, :].reshape(basin_num, batch_size, 1)
+                preds_xr, obss_xr = denormalize4eval(
+                    validation_data_loader, o, l, length
+                )
+                obs = obss_xr[col].to_numpy()
+                pred = preds_xr[col].to_numpy()
+                obs_list.append(obs)
+                pred_list.append(pred)
+
+            obs = np.concatenate(obs_list, axis=1)
+            pred = np.concatenate(pred_list, axis=1)
+
+            eval_log = calculate_and_record_metrics(
+                obs,
+                pred,
+                evaluation_metrics,
+                col,
+                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
+                eval_log,
             )
-        else:
-            inds = stat_error(
-                obs_xr.to_numpy(),
-                pred_xr.to_numpy(),
-                fill_nan[i],
+
+    else:
+        preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels)
+        for i, col in enumerate(target_col):
+            obs = obss_xr[col].to_numpy()
+            pred = preds_xr[col].to_numpy()
+
+            eval_log = calculate_and_record_metrics(
+                obs,
+                pred,
+                evaluation_metrics,
+                col,
+                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
+                eval_log,
             )
-        for evaluation_metric in evaluation_metrics:
-            eval_log[f"{evaluation_metric} of {target_col[i]}"] = inds[
-                evaluation_metric
-            ].tolist()
+
     return eval_log
 
 

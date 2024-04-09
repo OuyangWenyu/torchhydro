@@ -313,7 +313,6 @@ class DeepHydro(DeepHydroInterface):
         fill_nan = self.cfgs["evaluation_cfgs"]["fill_nan"]
         target_col = self.cfgs["data_cfgs"]["target_cols"]
         valid_metrics = evaluate_validation(
-            self,
             validation_data_loader,
             valid_preds_np,
             valid_obss_np,
@@ -366,16 +365,13 @@ class DeepHydro(DeepHydroInterface):
             else:
                 self.weight_path = self.cfgs["model_cfgs"]["weight_path"]
             self.model = self.load_model()
-        preds_xr, obss_xr, test_data = self.inference()
+        preds_xr, obss_xr = self.inference()
         #  Then evaluate the model metrics
         if type(fill_nan) is list and len(fill_nan) != len(target_col):
             raise ValueError("length of fill_nan must be equal to target_col's")
         for i in range(len(target_col)):
             obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
             pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
-            if self.cfgs["data_cfgs"]["scaler"] == "MutiBasinScaler":
-                obs_xr = obs_xr.T
-                pred_xr = pred_xr.T
             if type(fill_nan) is str:
                 inds = stat_error(
                     obs_xr.to_numpy(),
@@ -396,7 +392,7 @@ class DeepHydro(DeepHydroInterface):
         # Finally, try to explain model behaviour using shap
         is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
         if is_shap:
-            shap_summary_plot(self.model, self.traindataset, test_data)
+            shap_summary_plot(self.model, self.traindataset, self.testdataset)
             # deep_explain_model_summary_plot(self.model, test_data)
             # deep_explain_model_heatmap(self.model, test_data)
 
@@ -406,14 +402,15 @@ class DeepHydro(DeepHydroInterface):
         """infer using trained model and unnormalized results"""
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
+        evaluation_cfgs = self.cfgs["evaluation_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
+        ngrid = self.testdataset.y.basin.size
 
         if data_cfgs["sampler"] == "HydroSampler":
-            ngrid = self.testdataset.y.basin.size
             test_num_samples = self.testdataset.num_samples
             test_dataloader = DataLoader(
                 self.testdataset,
-                batch_size=int(test_num_samples / ngrid),
+                batch_size=test_num_samples // ngrid,
                 shuffle=False,
                 drop_last=False,
                 timeout=0,
@@ -439,8 +436,8 @@ class DeepHydro(DeepHydroInterface):
                 # here the a batch doesn't mean a basin; it is only an index in lookup table
                 # for NtoN mode, only basin is index in lookup table, so the batch is same as basin
                 # for Nto1 mode, batch is only an index
-                ys, output = model_infer(seq_first, device, self.model, xs, ys)
-                test_preds.append(output.cpu().numpy())
+                ys, pred = model_infer(seq_first, device, self.model, xs, ys)
+                test_preds.append(pred.cpu().numpy())
                 obss.append(ys.cpu().numpy())
             pred = reduce(lambda x, y: np.vstack((x, y)), test_preds)
             obs = reduce(lambda x, y: np.vstack((x, y)), obss)
@@ -454,9 +451,24 @@ class DeepHydro(DeepHydroInterface):
         # TODO: not support return_cell_states yet
         return_cell_state = False
         if return_cell_state:
-            return cellstates_when_inference(seq_first, data_cfgs, pred) 
+            return cellstates_when_inference(seq_first, data_cfgs, pred)
+
+        if data_cfgs["dataset"] in ["GridDataset", "MeanDataset"]:
+            target_len = len(data_cfgs["target_cols"])
+            if evaluation_cfgs["rolling"]:
+                forecast_length = data_cfgs["forecast_length"]
+                pred = pred[::forecast_length]
+                obs = obs[::forecast_length]
+
+                pred = np.concatenate(pred, axis=0).reshape(ngrid, -1, target_len)
+                obs = np.concatenate(obs, axis=0).reshape(ngrid, -1, target_len)
+
+            else:
+                batch_size = test_dataloader.batch_size
+                pred = pred[:, 0, :].reshape(ngrid, batch_size, target_len)
+                obs = obs[:, 0, :].reshape(ngrid, batch_size, target_len)
         pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
-        return pred_xr, obs_xr, self.testdataset
+        return pred_xr, obs_xr
 
     def _get_optimizer(self, training_cfgs):
         params_in_opt = self.model.parameters()

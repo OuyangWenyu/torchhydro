@@ -252,11 +252,10 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
         if new_cfg["data_cfgs"]["dataset"] not in ["GridDataset", "MeanDataset"]:
             new_cfg["data_cfgs"]["t_range_train"] = value[0]
             new_cfg["data_cfgs"]["t_range_valid"] = None
-            new_cfg["data_cfgs"]["t_range_test"] = value[1]
         else:
             new_cfg["data_cfgs"]["t_range_train"] = value[0]
             new_cfg["data_cfgs"]["t_range_valid"] = value[1]
-            new_cfg["data_cfgs"]["t_range_test"] = value[1]
+        new_cfg["data_cfgs"]["t_range_test"] = value[1]
     elif key == "batch_sizes":
         new_cfg["training_cfgs"]["batch_size"] = value
         new_cfg["data_cfgs"]["batch_size"] = value
