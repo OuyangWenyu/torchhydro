@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-19 09:36:25
-LastEditTime: 2023-11-29 11:34:29
+LastEditTime: 2024-04-09 15:29:35
 LastEditors: Wenyu Ouyang
-Description: 
+Description: Some self-made LSTMs
 FilePath: \torchhydro\torchhydro\models\simple_lstm.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import math
 import torch as th
 import torch.nn as nn
@@ -32,18 +33,20 @@ class SimpleLSTM(nn.Module):
         out_lstm, (hn, cn) = self.lstm(x0)
         return self.linearOut(out_lstm)
 
+
 class SimpleLSTMForecast(SimpleLSTM):
     def __init__(self, input_size, output_size, hidden_size, forecast_length, dr=0.0):
-        super(SimpleLSTMForecast, self).__init__(input_size, output_size, hidden_size, dr)
+        super(SimpleLSTMForecast, self).__init__(
+            input_size, output_size, hidden_size, dr
+        )
         self.forecast_length = forecast_length
 
     def forward(self, x):
         # 调用父类的forward方法获取完整的输出
         full_output = super(SimpleLSTMForecast, self).forward(x)
 
-        # 只选择最后forecast_length个时间步的输出
-        forecast_output = full_output[-self.forecast_length:, :, :]
-        return forecast_output
+        return full_output[-self.forecast_length :, :, :]
+
 
 class SlowLSTM(nn.Module):
     """

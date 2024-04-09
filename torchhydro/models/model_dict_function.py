@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-08 10:02:30
+LastEditTime: 2024-04-09 14:47:21
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \torchhydro\torchhydro\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+
 from torchhydro.models.cudnnlstm import (
     CudnnLstmModel,
     LinearCudnnLstmModel,
@@ -14,7 +15,6 @@ from torchhydro.models.cudnnlstm import (
     CudnnLstmModelLstmKernel,
     CudnnLstmModelMultiOutput,
     CpuLstmModel,
-    HybridLSTMModel
 )
 
 from torchhydro.models.simple_lstm import SimpleLSTMForecast
@@ -49,7 +49,6 @@ pytorch_model_dict = {
     "SPPLSTM": SPP_LSTM_Model,
     "SimpleLSTMForecast": SimpleLSTMForecast,
     "SPPLSTM2": SPP_LSTM_Model_2,
-    "HybridLSTMModel": HybridLSTMModel
 }
 
 pytorch_criterion_dict = {

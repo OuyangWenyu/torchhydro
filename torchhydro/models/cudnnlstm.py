@@ -1,10 +1,10 @@
 """
 Author: MHPI group, Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-10-11 11:38:48
+LastEditTime: 2024-04-09 14:44:12
 LastEditors: Wenyu Ouyang
 Description: LSTM with dropout implemented by Kuai Fang and more LSTMs using it
-FilePath: /torchhydro/torchhydro/models/cudnnlstm.py
+FilePath: \torchhydro\torchhydro\models\cudnnlstm.py
 Copyright (c) 2021-2022 MHPI group, Wenyu Ouyang. All rights reserved.
 """
 
@@ -154,10 +154,7 @@ class CpuLstmModel(nn.Module):
         reset_mask = True
         for t in range(nt):
             xt = x[t, :, :]
-            xt = torch.where(
-                torch.isnan(xt),
-                torch.full_like(xt, 0),
-                xt)
+            xt = torch.where(torch.isnan(xt), torch.full_like(xt, 0), xt)
             x0 = F.relu(self.linearIn(xt))
             ht, ct = self.lstm(x0, hidden=(ht, ct), do_reset_mask=reset_mask)
             yt = self.linearOut(ht)
@@ -370,6 +367,7 @@ def cal_pool_size(lin, kernel, stride=None, padding=0, dilation=1):
     lout = (lin + 2 * padding - dilation * (kernel - 1) - 1) / stride + 1
     return int(lout)
 
+
 class CNN1dKernel(torch.nn.Module):
     def __init__(self, *, ninchannel=1, nkernel=3, kernelSize=3, stride=1, padding=0):
         super(CNN1dKernel, self).__init__()
@@ -385,6 +383,7 @@ class CNN1dKernel(torch.nn.Module):
 
     def forward(self, x):
         return F.relu(self.cnn1d(x))
+
 
 class CNN1dLCmodel(nn.Module):
     # Directly add the CNN extracted features into LSTM inputSize
@@ -480,6 +479,7 @@ class CNN1dLCmodel(nn.Module):
             x0 = torch.cat((x, z0), dim=2)
         out_lstm, (hn, cn) = self.lstm(x0, do_drop_mc=do_drop_mc)
         return self.linearOut(out_lstm)
+
 
 class CudnnLstmModelLstmKernel(nn.Module):
     """use a trained/un-trained CudnnLstm as a kernel generator before another CudnnLstm."""
@@ -587,45 +587,3 @@ class CudnnLstmModelMultiOutput(nn.Module):
         outs = [mod(out_lstm) for mod in self.multi_layers]
         final = torch.cat(outs, dim=-1)
         return (final, (hn, cn)) if return_h_c else final
-
-class HybridLSTMModel(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, cnn_output_size, forecast_length):
-        super(HybridLSTMModel, self).__init__()
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.output_size = output_size
-        self.cnn_output_size = cnn_output_size
-        self.forecast_length = forecast_length
-
-        # Define the LSTM layer
-        self.lstm = nn.LSTM(input_size=self.input_size, 
-                            hidden_size=self.hidden_size, 
-                            batch_first=False)
-
-        # Define the CNN layer for processing the last 24 hours of rainfall data
-        self.cnn = nn.Sequential(
-            nn.Conv1d(in_channels=1, out_channels=self.cnn_output_size, kernel_size=3, stride=1, padding=1),
-            nn.ReLU()
-        )
-
-        # Define the output layer
-        self.linear = nn.Linear(self.hidden_size, self.output_size)
-
-    def forward(self, x_past, x_future):
-        # x_past: (batch_size, seq_len_past, input_size)
-        # x_future: (batch_size, seq_len_future, 1)
-
-        # Process the future data with CNN
-        x_future = x_future.permute(1, 2, 0) 
-        x_future = self.cnn(x_future)
-        x_future = x_future.permute(2, 0, 1)  
-        # Concatenate past and future data
-        x = torch.cat((x_past, x_future), dim=0)  # (batch_size, seq_len_past + seq_len_future, input_size)
-
-        # Pass the combined sequence through LSTM
-        out, _ = self.lstm(x)
-
-        # Pass the output of LSTM through the linear layer
-        out = self.linear(out[-self.forecast_length:, :, :])  # Only take the last 24 timesteps for prediction
-
-        return out

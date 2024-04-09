@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2024-04-08 18:15:48
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-04-09 15:49:44
+LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath:/torchhydro/torchhydro/trainers/deep_hydro.py
+FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -294,8 +294,8 @@ class DeepHydro(DeepHydroInterface):
             else ReduceLROnPlateau(
                 opt,
                 mode="min",
-                factor=training_cfgs["lr_factor"],
-                patience=training_cfgs["lr_patience"],
+                factor=training_cfgs["lr_scheduler"]["lr_factor"],
+                patience=training_cfgs["lr_scheduler"]["lr_patience"],
             )
         )
 
@@ -359,6 +359,7 @@ class DeepHydro(DeepHydroInterface):
             )
             self.model = self.load_model()
         if self.cfgs["data_cfgs"]["dataset"] in ["GridDataset", "MeanDataset"]:
+            # TODO: if statement is weird, need to refactor
             if self.cfgs["model_cfgs"]["continue_train"]:
                 model_filepath = self.cfgs["data_cfgs"]["test_path"]
                 self.weight_path = os.path.join(model_filepath, "best_model.pth")

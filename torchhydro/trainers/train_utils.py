@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-04-08 18:16:26
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-04-09 15:48:08
+LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
-FilePath: /torchhydro/torchhydro/trainers/train_utils.py
+FilePath: \torchhydro\torchhydro\trainers\train_utils.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -228,6 +228,7 @@ def evaluate_validation(
         "GridDataset",
         "MeanDataset",
     ]:
+        # TODO: guarantee the if condition is corrosponding to the code below
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)

@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-25 08:21:27
-LastEditTime: 2023-12-29 11:05:57
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-04-09 15:18:45
+LastEditors: Wenyu Ouyang
 Description: Some sampling class or functions
 FilePath: \torchhydro\torchhydro\datasets\sampler.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
@@ -78,8 +78,7 @@ class HydroSampler(Sampler[int]):
 
         if not isinstance(self.num_samples, int) or self.num_samples <= 0:
             raise ValueError(
-                "num_samples should be a positive integer "
-                "value, but got num_samples={}".format(self.num_samples)
+                f"num_samples should be a positive integer value, but got num_samples={self.num_samples}"
             )
 
     @property
@@ -89,12 +88,10 @@ class HydroSampler(Sampler[int]):
     def __iter__(self) -> Iterator[int]:
         n = self.data_source.data_cfgs["batch_size"]
         basin_number = len(self.data_source.data_cfgs["object_ids"])
-        basin_range = int(len(self.data_source) / basin_number)
+        basin_range = len(self.data_source) // basin_number
         if n > basin_range:
             raise ValueError(
-                "batch_size should equal or less than basin_range={} ".format(
-                    basin_range
-                )
+                f"batch_size should equal or less than basin_range={basin_range} "
             )
 
         if self.generator is None:
@@ -108,8 +105,7 @@ class HydroSampler(Sampler[int]):
             select_basin = torch.randint(0, basin_number, (1,)).item()
             x = torch.randperm(basin_range)
             for i in range(0, basin_range, n):
-                yield from (x[i:i+n] + basin_range * select_basin).tolist()
-
+                yield from (x[i : i + n] + basin_range * select_basin).tolist()
 
     def __len__(self) -> int:
         return self.num_samples

@@ -1,10 +1,10 @@
 """
 Author: Xinzhuo Wu
 Date: 2024-04-08 18:13:05
-LastEditTime: 2024-04-08 18:13:05
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-04-09 14:08:01
+LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
-FilePath:/torchhydro/tests/test_train_mean_lstm.py
+FilePath: \torchhydro\tests\test_train_mean_lstm.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -27,7 +27,7 @@ def config():
                 "attributes": "basins-origin/attributes.nc",
             },
         },
-        ctx=[1],
+        ctx=[0],
         model_name="SimpleLSTMForecast",
         model_hyperparam={
             "input_size": 16,
