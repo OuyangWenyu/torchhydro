@@ -84,6 +84,7 @@ def config():
             "lr_factor": 0.96,
         },
         which_first_tensor="sequence",
+        rolling=True,
         early_stopping=True,
         patience=4,
         ensemble=True,
