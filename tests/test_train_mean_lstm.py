@@ -85,6 +85,7 @@ def config():
         },
         which_first_tensor="sequence",
         rolling=True,
+        static=False,
         early_stopping=True,
         patience=4,
         ensemble=True,

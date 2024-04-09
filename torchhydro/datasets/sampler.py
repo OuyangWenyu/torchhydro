@@ -64,6 +64,23 @@ class KuaiSampler(RandomSampler):
 
 
 class HydroSampler(Sampler[int]):
+    """
+    A custom sampler for hydrological modeling that iterates over a dataset in
+    a way tailored for batches of hydrological data. It ensures that each batch
+    contains data from a single randomly selected 'basin' out of several basins,
+    with batches constructed to respect the specified batch size and the unique
+    characteristics of hydrological datasets.
+
+    Parameters:
+    - data_source (Sized): The dataset to sample from, expected to have a `data_cfgs` attribute.
+    - num_samples (Optional[int], default=None): The total number of samples to draw (optional).
+    - generator: A PyTorch Generator object for random number generation (optional).
+
+    The sampler divides the dataset by the number of basins, then iterates through
+    each basin's range in shuffled order, ensuring non-overlapping, basin-specific
+    batches suitable for models that predict hydrological outcomes.
+    """
+
     data_source: Sized
 
     def __init__(

@@ -42,6 +42,7 @@ from torchhydro.models.model_utils import get_the_device
 from torchhydro.trainers.train_utils import (
     EarlyStopper,
     average_weights,
+    calculate_and_record_metrics,
     denormalize4eval,
     evaluate_validation,
     compute_validation,
@@ -268,7 +269,7 @@ class DeepHydro(DeepHydroInterface):
                         training_cfgs, criterion, validation_data_loader, valid_logs
                     )
 
-            scheduler.step()
+            self._scheduler_step(training_cfgs, scheduler, valid_loss)
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
             )
@@ -287,17 +288,37 @@ class DeepHydro(DeepHydroInterface):
         return self.model.state_dict(), sum(logger.epoch_loss) / len(logger.epoch_loss)
 
     def _get_scheduler(self, training_cfgs, opt):
-        return (
-            ExponentialLR(opt, gamma=training_cfgs["lr_scheduler"]["lr_factor"])
-            if "lr_factor" in training_cfgs["lr_scheduler"]
-            and "lr_patience" not in training_cfgs["lr_scheduler"]
-            else ReduceLROnPlateau(
+        lr_scheduler_cfg = training_cfgs["lr_scheduler"]
+
+        if "lr" in lr_scheduler_cfg and "lr_factor" not in lr_scheduler_cfg:
+            scheduler = LambdaLR(opt, lr_lambda=lambda epoch: 1.0)
+        elif isinstance(lr_scheduler_cfg, dict) and all(
+            isinstance(epoch, int) for epoch in lr_scheduler_cfg
+        ):
+            scheduler = LambdaLR(
+                opt, lr_lambda=lambda epoch: lr_scheduler_cfg.get(epoch, 1.0)
+            )
+        elif "lr_factor" in lr_scheduler_cfg and "lr_patience" not in lr_scheduler_cfg:
+            scheduler = ExponentialLR(opt, gamma=lr_scheduler_cfg["lr_factor"])
+        elif "lr_factor" in lr_scheduler_cfg:
+            scheduler = ReduceLROnPlateau(
                 opt,
                 mode="min",
-                factor=training_cfgs["lr_scheduler"]["lr_factor"],
-                patience=training_cfgs["lr_scheduler"]["lr_patience"],
+                factor=lr_scheduler_cfg["lr_factor"],
+                patience=lr_scheduler_cfg["lr_patience"],
             )
-        )
+        else:
+            raise ValueError("Invalid lr_scheduler configuration")
+
+        return scheduler
+
+    def _scheduler_step(self, training_cfgs, scheduler, valid_loss):
+        lr_scheduler_cfg = training_cfgs["lr_scheduler"]
+        required_keys = {"lr_factor", "lr_patience"}
+        if required_keys.issubset(lr_scheduler_cfg.keys()):
+            scheduler.step(valid_loss)
+        else:
+            scheduler.step()
 
     def _1epoch_valid(
         self, training_cfgs, criterion, validation_data_loader, valid_logs
@@ -358,8 +379,7 @@ class DeepHydro(DeepHydroInterface):
                 model_filepath, f"model_Ep{str(test_epoch)}.pth"
             )
             self.model = self.load_model()
-        if self.cfgs["data_cfgs"]["dataset"] in ["GridDataset", "MeanDataset"]:
-            # TODO: if statement is weird, need to refactor
+        if not self.cfgs["data_cfgs"]["static"]:
             if self.cfgs["model_cfgs"]["continue_train"]:
                 model_filepath = self.cfgs["data_cfgs"]["test_path"]
                 self.weight_path = os.path.join(model_filepath, "best_model.pth")
@@ -370,25 +390,18 @@ class DeepHydro(DeepHydroInterface):
         #  Then evaluate the model metrics
         if type(fill_nan) is list and len(fill_nan) != len(target_col):
             raise ValueError("length of fill_nan must be equal to target_col's")
-        for i in range(len(target_col)):
-            obs_xr = obss_xr[list(obss_xr.data_vars.keys())[i]]
-            pred_xr = preds_xr[list(preds_xr.data_vars.keys())[i]]
-            if type(fill_nan) is str:
-                inds = stat_error(
-                    obs_xr.to_numpy(),
-                    pred_xr.to_numpy(),
-                    fill_nan,
-                )
-            else:
-                inds = stat_error(
-                    obs_xr.to_numpy(),
-                    pred_xr.to_numpy(),
-                    fill_nan[i],
-                )
-            for evaluation_metric in evaluation_metrics:
-                eval_log[f"{evaluation_metric} of {target_col[i]}"] = inds[
-                    evaluation_metric
-                ]
+        for i, col in enumerate(target_col):
+            obs = obss_xr[col].to_numpy()
+            pred = preds_xr[col].to_numpy()
+
+            eval_log = calculate_and_record_metrics(
+                obs,
+                pred,
+                evaluation_metrics,
+                col,
+                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
+                eval_log,
+            )
 
         # Finally, try to explain model behaviour using shap
         is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
@@ -454,7 +467,7 @@ class DeepHydro(DeepHydroInterface):
         if return_cell_state:
             return cellstates_when_inference(seq_first, data_cfgs, pred)
 
-        if data_cfgs["dataset"] in ["GridDataset", "MeanDataset"]:
+        if not data_cfgs["static"]:
             target_len = len(data_cfgs["target_cols"])
             if evaluation_cfgs["rolling"]:
                 forecast_length = data_cfgs["forecast_length"]
@@ -538,8 +551,7 @@ class DeepHydro(DeepHydroInterface):
             batch_size_valid = training_cfgs["batch_size"]
             if data_cfgs["sampler"] == "HydroSampler":
                 # for HydroSampler when evaluating, we need to set new batch size
-                # TODO: may be same for other samplers
-                batch_size_valid = int(valid_dataset.num_samples / ngrid)
+                batch_size_valid = valid_dataset.num_samples // ngrid
             validation_data_loader = DataLoader(
                 valid_dataset,
                 batch_size=batch_size_valid,

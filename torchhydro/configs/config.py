@@ -205,6 +205,7 @@ def default_config_file():
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
             "loading_batch": None,
+            "static": True,
         },
         "training_cfgs": {
             # if train_mode is False, don't train and evaluate
@@ -326,6 +327,7 @@ def cmd(
     fill_nan=None,
     explainer=None,
     rolling=None,
+    static=None,
     warmup_length=0,
     start_epoch=1,
     stat_dict_file=None,
@@ -696,6 +698,13 @@ def cmd(
         type=bool,
     )
     parser.add_argument(
+        "--static",
+        dest="static",
+        help="if True, direct, one-step, long-term sequence prediction",
+        default=static,
+        type=bool,
+    )
+    parser.add_argument(
         "--warmup_length",
         dest="warmup_length",
         help="Physical hydro models need warmup",
@@ -920,6 +929,8 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["constant_only"] = True
     else:
         cfg_file["data_cfgs"]["target_as_input"] = True
+    if new_args.rolling is not None:
+        cfg_file["data_cfgs"]["static"] = new_args.static
     if new_args.train_epoch is not None:
         cfg_file["training_cfgs"]["epochs"] = new_args.train_epoch
     if new_args.save_epoch is not None:

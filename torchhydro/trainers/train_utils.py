@@ -85,7 +85,7 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
     # need to remove data in the warmup period
     warmup_length = validation_data_loader.dataset.warmup_length
 
-    if target_scaler.data_cfgs["dataset"] in ["MeanDataset", "GridDataset"]:
+    if not target_scaler.data_cfgs["static"]:
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
             warmup_length + length : -forecast_length + length
@@ -112,7 +112,7 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
     )
 
     # Unit handling is problematic, temporary code
-    if target_scaler.data_cfgs["dataset"] in ["MeanDataset", "GridDataset"]:
+    if not target_scaler.data_cfgs["static"]:
         preds_xr.attrs["units"] = "m"
         obss_xr.attrs["units"] = "m"
 
@@ -224,11 +224,7 @@ def evaluate_validation(
     eval_log = {}
     batch_size = validation_data_loader.batch_size
 
-    if validation_data_loader.dataset.data_cfgs["dataset"] in [
-        "GridDataset",
-        "MeanDataset",
-    ]:
-        # TODO: guarantee the if condition is corrosponding to the code below
+    if not validation_data_loader.dataset.data_cfgs["static"]:
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)

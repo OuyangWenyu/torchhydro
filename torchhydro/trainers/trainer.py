@@ -249,7 +249,7 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
     """
     new_cfg = copy.deepcopy(cfg)
     if key == "kfold":
-        if new_cfg["data_cfgs"]["dataset"] not in ["GridDataset", "MeanDataset"]:
+        if new_cfg["data_cfgs"]["static"]:
             new_cfg["data_cfgs"]["t_range_train"] = value[0]
             new_cfg["data_cfgs"]["t_range_valid"] = None
         else:
@@ -371,7 +371,7 @@ def _trans_kfold_to_periods(update_dict, my_dict, current_key="kfold"):
     valid_period = update_dict["data_cfgs"]["t_range_valid"]
     test_period = update_dict["data_cfgs"]["t_range_test"]
     kfold = my_dict[current_key]
-    if update_dict["data_cfgs"]["dataset"] not in ["GridDataset", "MeanDataset"]:
+    if update_dict["data_cfgs"]["static"]:
         kfold_periods = _create_kfold_periods(
             train_period, valid_period, test_period, kfold
         )
