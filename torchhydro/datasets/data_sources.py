@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-02 14:37:09
-LastEditTime: 2024-04-06 21:26:51
+LastEditTime: 2024-04-09 13:35:56
 LastEditors: Wenyu Ouyang
 Description: A module for different data sources
 FilePath: \torchhydro\torchhydro\datasets\data_sources.py
@@ -554,7 +554,13 @@ class Nldas4Camels(SupData4Camels):
 
         for k in range(nf):
             ind = forcing_lst.index(var_lst[k])
-            out[:, k] = data_temp[ind].values[ind1]
+            if "potential_evaporation" in var_lst[k]:
+                pet = data_temp[ind].values
+                # there are a few negative values for pet, set them 0
+                pet[pet < 0] = 0.0
+                out[ind2, k] = pet[ind1]
+            else:
+                out[ind2, k] = data_temp[ind].values[ind1]
         return out
 
     def read_ts_table(

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:17:44
-LastEditTime: 2024-04-08 18:17:44
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-04-09 10:53:12
+LastEditors: Wenyu Ouyang
 Description: normalize the data
-FilePath: /torchhydro/torchhydro/datasets/data_scalers.py
+FilePath: \torchhydro\torchhydro\datasets\data_scalers.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -230,7 +230,6 @@ class DapengScaler(object):
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
         self.pbm_norm = pbm_norm
         self.data_source = data_source
-        self.read_meanprep()
         # save stat_dict of training period in test_path for valid/test
         stat_file = os.path.join(data_cfgs["test_path"], "dapengscaler_stat.json")
         # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
@@ -247,16 +246,16 @@ class DapengScaler(object):
             with open(stat_file, "r") as fp:
                 self.stat_dict = json.load(fp)
 
-    def read_meanprep(self):
-        if isinstance(self.data_source, HydroBasins):
-            self.mean_prep = self.data_source.read_MP(
+    @property
+    def mean_prcp(self):
+        return (
+            self.data_source.read_MP(
                 self.t_s_dict["sites_id"],
                 self.data_cfgs["source_cfgs"]["source_path"]["attributes"],
             )
-        else:
-            self.mean_prep = self.data_source.read_mean_prcp(
-                self.t_s_dict["sites_id"]
-            ).to_array()
+            if isinstance(self.data_source, HydroBasins)
+            else self.data_source.read_mean_prcp(self.t_s_dict["sites_id"]).to_array()
+        )
 
     def inverse_transform(self, target_values):
         """
@@ -289,7 +288,7 @@ class DapengScaler(object):
                 var = self.data_cfgs["target_cols"][i]
                 pred.loc[dict(variable=var)] = _prcp_norm(
                     pred.sel(variable=var).to_numpy(),
-                    self.mean_prep.to_numpy().T,
+                    self.mean_prcp.to_numpy().T,
                     to_norm=False,
                 )
         # add attrs for units
@@ -313,7 +312,7 @@ class DapengScaler(object):
             if var in self.prcp_norm_cols:
                 stat_dict[var] = cal_stat_prcp_norm(
                     self.data_target.sel(variable=var).to_numpy(),
-                    self.mean_prep.to_numpy().T,
+                    self.mean_prcp.to_numpy().T,
                 )
             elif var in self.gamma_norm_cols:
                 stat_dict[var] = cal_stat_gamma(
@@ -368,7 +367,7 @@ class DapengScaler(object):
             if var in self.prcp_norm_cols:
                 out.loc[dict(variable=var)] = _prcp_norm(
                     data.sel(variable=var).to_numpy(),
-                    self.mean_prep.to_numpy().T,
+                    self.mean_prcp.to_numpy().T,
                     to_norm=True,
                 )
                 out.attrs["units"][var] = "dimensionless"
