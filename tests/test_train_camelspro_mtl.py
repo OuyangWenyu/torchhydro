@@ -82,7 +82,6 @@ def test_flow_et_mtl():
                 os.path.join(data_interim_dir, "camels_us", "smap4camels"),
             ],
         },
-        download=0,
         ctx=[0],
         model_type="MTL",
         model_name="KuaiLSTMMultiOut",

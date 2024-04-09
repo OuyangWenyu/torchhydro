@@ -28,7 +28,6 @@ def config():
         source="Mean",
         source_path=os.path.join(hds.ROOT_DIR, "lstm_data"),
         source_region="US",
-        download=0,
         ctx=[0],
         model_name="KuaiLSTM",
         model_hyperparam={

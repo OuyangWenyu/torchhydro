@@ -72,7 +72,6 @@ def test_run_lstm_cross_val(var_c_target, var_t_target, gage_id):
         source_path=os.path.join(
             SETTING["local_data_path"]["datasets-interim"], "camels_cc"
         ),
-        download=0,
         ctx=[0],
         model_name="KuaiLSTM",
         model_hyperparam={
@@ -129,7 +128,6 @@ def test_run_cross_val_tlcamelsus2cc(
         source_path=os.path.join(
             SETTING["local_data_path"]["datasets-interim"], "camels_cc"
         ),
-        download=0,
         ctx=[0],
         model_type="TransLearn",
         model_name="KaiLSTM",

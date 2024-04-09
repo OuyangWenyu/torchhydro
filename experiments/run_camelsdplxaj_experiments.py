@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-20 20:05:10
-LastEditTime: 2023-12-18 09:26:14
+LastEditTime: 2024-04-09 19:59:43
 LastEditors: Wenyu Ouyang
 Description: A case for dPL-XAJ model
 FilePath: \torchhydro\experiments\run_camelsdplxaj_experiments.py
@@ -41,7 +41,6 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         source_path=os.path.join(
             SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
         ),
-        download=0,
         ctx=[0],
         model_name="DplLstmXaj",
         model_hyperparam={

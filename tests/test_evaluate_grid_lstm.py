@@ -1,7 +1,7 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-12-29 14:20:18
-LastEditTime: 2024-04-07 20:51:04
+LastEditTime: 2024-04-09 20:05:03
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
 FilePath: \torchhydro\tests\test_evaluate_grid_lstm.py
@@ -35,7 +35,6 @@ def config_data():
                 "attributes": "basins-origin/attributes.nc",
             }
         ],
-        download=0,
         ctx=[2],
         model_name="SPPLSTM2",
         model_hyperparam={
@@ -102,10 +101,6 @@ def config_data():
 def test_evaluate_spp_lstm(config_data):
     random_seed = config_data["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
-    data_cfgs = config_data["data_cfgs"]
-    _name = data_cfgs["_name"] = datasets_dict[_name](
-        data_cfgs["data_path"], data_cfgs["download"]
-    )
     model = DeepHydro(config_data)
     test_acc = model.model_evaluate()
     print("summary test_accuracy", test_acc[0])

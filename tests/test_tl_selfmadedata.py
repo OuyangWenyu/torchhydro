@@ -80,7 +80,6 @@ def test_transfer_gages_lstm_model(
         source_path=os.path.join(
             SETTING["local_data_path"]["datasets-interim"], "camels_cc_v2"
         ),
-        download=0,
         ctx=[0],
         model_type="TransLearn",
         model_name="KaiLSTM",

@@ -67,7 +67,6 @@ def run_normal_dl(
         source_path=os.path.join(
             SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
         ),
-        download=0,
         ctx=[0],
         model_name="KuaiLSTM",
         model_hyperparam={

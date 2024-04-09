@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-18 14:34:53
-LastEditTime: 2024-04-01 21:23:19
+LastEditTime: 2024-04-09 20:07:44
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
 FilePath: \torchhydro\tests\test_evaluate_model.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import os
 import pytest
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
@@ -30,7 +31,6 @@ def config_data():
     weight_path = get_lastest_file_in_a_dir(weight_dir)
     args = cmd(
         sub=project_name,
-        download=0,
         source_path=os.path.join(
             SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
         ),
@@ -79,12 +79,7 @@ def config_data():
 def test_evaluate_model(config_data):
     random_seed = config_data["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
-    data_cfgs = config_data["data_cfgs"]
-    data_source_name = data_cfgs["data_source_name"]
-    data_source = data_sources_dict[data_source_name](
-        data_cfgs["data_path"], data_cfgs["download"]
-    )
-    model = DeepHydro(data_source, config_data)
+    model = DeepHydro(config_data)
     eval_log, preds_xr, obss_xr = model.model_evaluate()
     print(eval_log)
     plot_ts(

@@ -79,7 +79,6 @@ def test_transfer_gages_lstm_model(
             SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
         ),
         source_region="US",
-        download=0,
         ctx=[0],
         model_type="TransLearn",
         model_name="KaiLSTM",

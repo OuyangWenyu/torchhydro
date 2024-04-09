@@ -43,7 +43,6 @@ def config(var_c, var_t):
             SETTING["local_data_path"]["datasets-origin"], "caravan"
         ),
         source_region="Global",
-        download=0,
         ctx=[-1],
         model_name="CpuLSTM",
         model_hyperparam={

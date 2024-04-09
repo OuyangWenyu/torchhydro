@@ -163,10 +163,8 @@ class ModisEt4Camels(SupData4Camels):
 
         Parameters
         ----------
-        data_path
+        supdata_dir
             a list including the data file directory for the instance and CAMELS's path
-        download
-            if True we will download the data
 
         """
         if supdata_dir is None:
@@ -467,10 +465,8 @@ class Nldas4Camels(SupData4Camels):
 
         Parameters
         ----------
-        data_path
+        supdata_dir
             a list including the data file directory for the instance and CAMELS's path
-        download
-            if True we will download the data
 
         """
         if supdata_dir is None:
@@ -611,10 +607,8 @@ class Smap4Camels(SupData4Camels):
         """
         Parameters
         ----------
-        data_path
+        supdata_dir
             a list including the data file directory for the instance and CAMELS's path
-        download
-            if True we will download the data
 
         """
         if supdata_dir is None:

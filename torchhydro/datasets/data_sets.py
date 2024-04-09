@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-04-09 14:06:31
+LastEditTime: 2024-04-09 19:50:06
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -488,7 +488,6 @@ class FlexibleDataset(BaseDataset):
         )
 
     def _normalize(self):
-        # TODO: bug for x -- after norm potential_evaporation is all nan
         var_to_source_map = self.data_cfgs["var_to_source_map"]
         for var_name in var_to_source_map:
             source_name = var_to_source_map[var_name]

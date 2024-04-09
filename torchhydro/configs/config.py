@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-08 10:59:19
+LastEditTime: 2024-04-09 20:01:22
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -273,7 +273,6 @@ def default_config_file():
 def cmd(
     sub=None,
     source_cfgs=None,
-    download=0,
     scaler=None,
     scaler_params=None,
     dataset=None,
@@ -351,13 +350,6 @@ def cmd(
         help="configs for data sources",
         default=source_cfgs,
         type=json.loads,
-    )
-    parser.add_argument(
-        "--download",
-        dest="download",
-        help="Do we need to download data",
-        default=download,
-        type=int,
     )
     parser.add_argument(
         "--scaler",
@@ -828,11 +820,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["test_path"] = os.path.join(result_dir, subset, subexp)
     if new_args.source_cfgs is not None:
         cfg_file["data_cfgs"]["source_cfgs"] = new_args.source_cfgs
-    if new_args.download is not None:
-        if new_args.download == 0:
-            cfg_file["data_cfgs"]["download"] = False
-        else:
-            cfg_file["data_cfgs"]["download"] = True
     if new_args.scaler is not None:
         cfg_file["data_cfgs"]["scaler"] = new_args.scaler
     if new_args.scaler_params is not None:
@@ -861,10 +848,7 @@ def update_cfg(cfg_file, new_args):
     if new_args.rs is not None:
         cfg_file["training_cfgs"]["random_seed"] = new_args.rs
     if new_args.train_mode is not None:
-        if new_args.train_mode > 0:
-            cfg_file["training_cfgs"]["train_mode"] = True
-        else:
-            cfg_file["training_cfgs"]["train_mode"] = False
+        cfg_file["training_cfgs"]["train_mode"] = bool(new_args.train_mode > 0)
     if new_args.loss_func is not None:
         cfg_file["training_cfgs"]["criterion"] = new_args.loss_func
         if new_args.loss_param is not None:
@@ -875,14 +859,18 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["t_range_valid"] = new_args.valid_period
     if new_args.test_period is not None:
         cfg_file["data_cfgs"]["t_range_test"] = new_args.test_period
-    if new_args.gage_id is not None or new_args.gage_id_file is not None:
-        if new_args.gage_id_file is not None:
-            gage_id_lst = (
-                pd.read_csv(new_args.gage_id_file, dtype={0: str}).iloc[:, 0].values
-            )
-            cfg_file["data_cfgs"]["object_ids"] = gage_id_lst.tolist()
-        else:
-            cfg_file["data_cfgs"]["object_ids"] = new_args.gage_id
+    if (
+        new_args.gage_id is not None
+        and new_args.gage_id_file is not None
+        or new_args.gage_id is None
+        and new_args.gage_id_file is not None
+    ):
+        gage_id_lst = (
+            pd.read_csv(new_args.gage_id_file, dtype={0: str}).iloc[:, 0].values
+        )
+        cfg_file["data_cfgs"]["object_ids"] = gage_id_lst.tolist()
+    elif new_args.gage_id is not None:
+        cfg_file["data_cfgs"]["object_ids"] = new_args.gage_id
     if new_args.opt is not None:
         cfg_file["training_cfgs"]["optimizer"] = new_args.opt
         if new_args.opt_param is not None:
@@ -899,10 +887,7 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["constant_cols"] = []
         else:
             cfg_file["data_cfgs"]["constant_cols"] = new_args.var_c
-    if new_args.c_rm_nan == 0:
-        cfg_file["data_cfgs"]["constant_rm_nan"] = False
-    else:
-        cfg_file["data_cfgs"]["constant_rm_nan"] = True
+    cfg_file["data_cfgs"]["constant_rm_nan"] = bool(new_args.c_rm_nan != 0)
     if new_args.var_t is not None:
         cfg_file["data_cfgs"]["relevant_cols"] = new_args.var_t
     if new_args.var_t_type is not None:
@@ -1067,5 +1052,4 @@ def get_config_file(cfg_dir):
             json_files_ctime.append(os.path.getctime(os.path.join(cfg_dir, file)))
     sort_idx = np.argsort(json_files_ctime)
     cfg_file = json_files_lst[sort_idx[-1]]
-    cfg = hydro_file.unserialize_json(cfg_file)
-    return cfg
+    return hydro_file.unserialize_json(cfg_file)

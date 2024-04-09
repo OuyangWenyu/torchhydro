@@ -26,7 +26,6 @@ def config():
         source="CAMELS",
         source_path=source_path,
         source_region="US",
-        download=0,
         ctx=[-1],
         model_name="CpuLSTM",
         model_hyperparam={
