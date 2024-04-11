@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-04-09 21:19:02
+LastEditTime: 2024-04-10 21:07:58
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -18,7 +18,6 @@ from datetime import datetime, timedelta
 from typing import Optional
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from hydrodataset.camels import map_string_vars
 from hydrodatasource.utils.utils import streamflow_unit_conv
 
 from torchhydro.datasets.data_scalers import (
@@ -32,7 +31,6 @@ from torchhydro.datasets.data_utils import (
     wrap_t_s_dict,
 )
 from hydrodatasource.reader.data_source import HydroBasins
-from hydrodataset import Camels
 
 LOGGER = logging.getLogger(__name__)
 
@@ -105,7 +103,9 @@ class BaseDataset(Dataset):
 
     @property
     def data_source(self):
-        return Camels(self.data_cfgs["data_path"])
+        source_name = self.data_cfgs["source_cfgs"]["source_name"]
+        source_path = self.data_cfgs["source_cfgs"]["source_path"]
+        return data_sources_dict[source_name](source_path)
 
     def __len__(self):
         return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])

@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2023-12-29 11:05:57
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-04-11 21:10:30
+LastEditors: Wenyu Ouyang
 Description: Training function for DL models
 FilePath: \torchhydro\torchhydro\trainers\train_logger.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+
 from contextlib import contextmanager
 from datetime import datetime
 import json
@@ -40,15 +41,7 @@ class TrainLogger:
         self.data_cfgs = params["data_cfgs"]
         self.evaluation_cfgs = params["evaluation_cfgs"]
         self.opt = opt
-        self.hyper_param_set = (
-            "opt_"
-            + self.training_cfgs["optimizer"]
-            + "_lr_"
-            + str(opt.defaults["lr"])
-            + "_bsize_"
-            + str(self.training_cfgs["batch_size"])
-        )
-        self.training_save_dir = os.path.join(model_filepath, self.hyper_param_set)
+        self.training_save_dir = model_filepath
         self.tb = SummaryWriter(self.training_save_dir)
         self.session_params = []
         self.train_time = []
@@ -124,7 +117,7 @@ class TrainLogger:
     def save_model_and_params(self, model, epoch, params):
         final_epoch = params["training_cfgs"]["epochs"]
         save_epoch = params["training_cfgs"]["save_epoch"]
-        if save_epoch is None or save_epoch == 0:
+        if save_epoch is None or save_epoch == 0 and epoch != final_epoch:
             return
         if (save_epoch > 0 and epoch % save_epoch == 0) or epoch == final_epoch:
             # save for save_epoch

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-09 20:14:22
+LastEditTime: 2024-04-11 09:23:10
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -204,7 +204,6 @@ def default_config_file():
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
-            "loading_batch": None,
             "static": True,
         },
         "training_cfgs": {
@@ -218,9 +217,10 @@ def default_config_file():
             "lr_scheduler": {
                 # 1st opt config, all epochs use this lr
                 "lr": 0.001,
-                # 2nd opt config, different epochs use different lr
-                # "lr_scheduler": {1: 1e-2, 2: 5e-3, 3: 1e-3},
-                # 3rd opt config, lr as a initial value, and lr_factor as a exponential decay factor
+                # 2nd opt config, diff epoch uses diff lr, key is epoch,
+                # start from 0, each value means the decay rate
+                # "lr_scheduler": {0: 1, 1: 0.5, 2: 0.2},
+                # 3rd opt config, lr as a initial value, and lr_factor as an exponential decay factor
                 # "lr": 0.001, "lr_factor": 0.1,
                 # 4th opt config, lr as a initial value,
                 # lr_patience represent how many epochs without opt (we watch val_loss) could be tolerated
@@ -261,9 +261,17 @@ def default_config_file():
         },
         # For evaluation
         "evaluation_cfgs": {
+            # there are some different loading way of trained model weights
+            # 'epoch' means we load the weights of the specified epoch;
+            # 'best' means we load the best weights during training especially for early stopping
+            # 'latest' means we load the latest weights during training
+            # 'pth' means we load the weights from the specified path
+            "model_loader": {"load_way": "specified", "test_epoch": 20},
+            # "model_loader": {"load_way": "best"},
+            # "model_loader": {"load_way": "latest"},
+            # "model_loader": {"load_way": "pth", "pth": "path/to/weights"},
             "metrics": ["NSE", "RMSE", "R2", "KGE", "FHV", "FLV"],
             "fill_nan": "no",
-            "test_epoch": 20,
             "explainer": None,
             "rolling": None,
         },
@@ -276,7 +284,7 @@ def cmd(
     scaler=None,
     scaler_params=None,
     dataset=None,
-    loading_batch=None,
+    model_loader=None,
     sampler=None,
     fl_sample=None,
     fl_num_users=None,
@@ -299,7 +307,6 @@ def cmd(
     train_epoch=None,
     save_epoch=None,
     save_iter=None,
-    te=None,
     model_type=None,
     model_name=None,
     weight_path=None,
@@ -373,13 +380,6 @@ def cmd(
         type=str,
     )
     parser.add_argument(
-        "--loading_batch",
-        dest="loading_batch",
-        help="loading_batch",
-        default=loading_batch,
-        type=int,
-    )
-    parser.add_argument(
         "--sampler",
         dest="sampler",
         help="None or KuaiSampler",
@@ -429,7 +429,6 @@ def cmd(
         nargs="+",
     )
     parser.add_argument("--rs", dest="rs", help="random seed", default=rs, type=int)
-    parser.add_argument("--te", dest="te", help="test epoch", default=te, type=int)
     # There is something wrong with "bool", so I used 1 as True, 0 as False
     parser.add_argument(
         "--train_mode",
@@ -690,6 +689,13 @@ def cmd(
         type=bool,
     )
     parser.add_argument(
+        "--model_loader",
+        dest="model_loader",
+        help="the way to load weights of trained model",
+        default=model_loader,
+        type=int,
+    )
+    parser.add_argument(
         "--static",
         dest="static",
         help="if True, direct, one-step, long-term sequence prediction",
@@ -826,8 +832,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["scaler_params"] = new_args.scaler_params
     if new_args.dataset is not None:
         cfg_file["data_cfgs"]["dataset"] = new_args.dataset
-    if new_args.loading_batch is not None:
-        cfg_file["data_cfgs"]["loading_batch"] = new_args.loading_batch
     if new_args.sampler is not None:
         cfg_file["data_cfgs"]["sampler"] = new_args.sampler
     if new_args.fl_sample is not None:
@@ -1001,12 +1005,10 @@ def update_cfg(cfg_file, new_args):
         cfg_file["evaluation_cfgs"]["fill_nan"] = new_args.fill_nan
     if new_args.explainer is not None:
         cfg_file["evaluation_cfgs"]["explainer"] = new_args.explainer
-    if new_args.te is not None:
-        cfg_file["evaluation_cfgs"]["test_epoch"] = new_args.te
-        if new_args.train_epoch is not None and new_args.te > new_args.train_epoch:
-            raise RuntimeError("testing epoch cannot be larger than training epoch")
     if new_args.rolling is not None:
         cfg_file["evaluation_cfgs"]["rolling"] = new_args.rolling
+    if new_args.model_loader is not None:
+        cfg_file["evaluation_cfgs"]["model_loader"] = new_args.model_loader
     if new_args.warmup_length > 0:
         cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
         if "warmup_length" in new_args.model_hyperparam.keys() and (

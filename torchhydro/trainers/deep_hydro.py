@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2024-04-09 15:49:44
+LastEditTime: 2024-04-11 21:26:37
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -14,17 +14,14 @@ import copy
 from functools import reduce
 import os
 from typing import Dict, Tuple
-from hydroutils.hydro_stat import stat_error
 import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import *
 from tqdm import tqdm
-from torchhydro.explainers.shap import (
-    deep_explain_model_heatmap,
-    deep_explain_model_summary_plot,
-    shap_summary_plot,
-)
+
+from hydroutils.hydro_file import get_lastest_file_in_a_dir
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.sampler import (
     KuaiSampler,
@@ -42,7 +39,6 @@ from torchhydro.models.model_utils import get_the_device
 from torchhydro.trainers.train_utils import (
     EarlyStopper,
     average_weights,
-    calculate_and_record_metrics,
     denormalize4eval,
     evaluate_validation,
     compute_validation,
@@ -51,8 +47,6 @@ from torchhydro.trainers.train_utils import (
     cellstates_when_inference,
 )
 from torchhydro.trainers.train_logger import TrainLogger
-from torch.utils.tensorboard import SummaryWriter
-from torch.optim.lr_scheduler import *
 
 
 class DeepHydroInterface(ABC):
@@ -87,7 +81,7 @@ class DeepHydroInterface(ABC):
         self._cfgs["model_cfgs"]["weight_path"] = weight_path
 
     @abstractmethod
-    def load_model(self) -> object:
+    def load_model(self, mode="train") -> object:
         """Get a Hydro DL model"""
         raise NotImplementedError
 
@@ -156,7 +150,7 @@ class DeepHydro(DeepHydroInterface):
         self.testdataset = self.make_dataset("test")
         print(f"Torch is using {str(self.device)}")
 
-    def load_model(self):
+    def load_model(self, mode="train"):
         """
         Load a time series forecast model in pytorch_model_dict in model_dict_function.py
 
@@ -165,6 +159,10 @@ class DeepHydro(DeepHydroInterface):
         object
             model in pytorch_model_dict in model_dict_function.py
         """
+        if mode == "infer":
+            self.weight_path = self._get_trained_model()
+        elif mode != "train":
+            raise ValueError("Invalid mode; must be 'train' or 'infer'")
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
         if model_name not in pytorch_model_dict:
@@ -345,6 +343,22 @@ class DeepHydro(DeepHydroInterface):
         valid_logs["valid_metrics"] = valid_metrics
         return valid_loss, valid_metrics
 
+    def _get_trained_model(self):
+        model_loader = self.cfgs["evaluation_cfgs"]["model_loader"]
+        model_pth_dir = self.cfgs["data_cfgs"]["test_path"]
+        if model_loader["load_way"] == "specified":
+            test_epoch = model_loader["test_epoch"]
+            weight_path = os.path.join(model_pth_dir, f"model_Ep{str(test_epoch)}.pth")
+        elif model_loader["load_way"] == "best":
+            weight_path = os.path.join(model_pth_dir, "best_model.pth")
+        elif model_loader["load_way"] == "latest":
+            weight_path = get_lastest_file_in_a_dir(model_pth_dir)
+        elif model_loader["load_way"] == "pth":
+            weight_path = model_loader["pth_path"]
+        else:
+            raise ValueError("Invalid load_way")
+        return weight_path
+
     def model_evaluate(self) -> Tuple[Dict, np.array, np.array]:
         """
         A function to evaluate a model, called at end of training.
@@ -354,63 +368,9 @@ class DeepHydro(DeepHydroInterface):
         tuple[dict, np.array, np.array]
             eval_log, denormalized predictions and observations
         """
-        # types of observations
-        target_col = self.cfgs["data_cfgs"]["target_cols"]
-        evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
-        # fill_nan: "no" means ignoring the NaN value;
-        #           "sum" means calculate the sum of the following values in the NaN locations.
-        #           For example, observations are [1, nan, nan, 2], and predictions are [0.3, 0.3, 0.3, 1.5].
-        #           Then, "no" means [1, 2] v.s. [0.3, 1.5] while "sum" means [1, 2] v.s. [0.3 + 0.3 + 0.3, 1.5].
-        #           If it is a str, then all target vars use same fill_nan method;
-        #           elif it is a list, each for a var
-        fill_nan = self.cfgs["evaluation_cfgs"]["fill_nan"]
-        # save result here
-        eval_log = {}
-
-        # test the trained model
-        test_epoch = self.cfgs["evaluation_cfgs"]["test_epoch"]
-        train_epoch = self.cfgs["training_cfgs"]["epochs"]
-
-        if test_epoch != train_epoch:
-            # Generally we use same epoch for train and test, but sometimes not
-            # TODO: better refactor this part, because sometimes we save multi models for multi hyperparameters
-            model_filepath = self.cfgs["data_cfgs"]["test_path"]
-            self.weight_path = os.path.join(
-                model_filepath, f"model_Ep{str(test_epoch)}.pth"
-            )
-            self.model = self.load_model()
-        if not self.cfgs["data_cfgs"]["static"]:
-            if self.cfgs["model_cfgs"]["continue_train"]:
-                model_filepath = self.cfgs["data_cfgs"]["test_path"]
-                self.weight_path = os.path.join(model_filepath, "best_model.pth")
-            else:
-                self.weight_path = self.cfgs["model_cfgs"]["weight_path"]
-            self.model = self.load_model()
+        self.model = self.load_model(mode="infer")
         preds_xr, obss_xr = self.inference()
-        #  Then evaluate the model metrics
-        if type(fill_nan) is list and len(fill_nan) != len(target_col):
-            raise ValueError("length of fill_nan must be equal to target_col's")
-        for i, col in enumerate(target_col):
-            obs = obss_xr[col].to_numpy()
-            pred = preds_xr[col].to_numpy()
-
-            eval_log = calculate_and_record_metrics(
-                obs,
-                pred,
-                evaluation_metrics,
-                col,
-                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
-                eval_log,
-            )
-
-        # Finally, try to explain model behaviour using shap
-        is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
-        if is_shap:
-            shap_summary_plot(self.model, self.traindataset, self.testdataset)
-            # deep_explain_model_summary_plot(self.model, test_data)
-            # deep_explain_model_heatmap(self.model, test_data)
-
-        return eval_log, preds_xr, obss_xr
+        return preds_xr, obss_xr
 
     def inference(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """infer using trained model and unnormalized results"""
@@ -739,14 +699,14 @@ class TransLearnHydro(DeepHydro):
     def __init__(self, cfgs: Dict, pre_model=None):
         super().__init__(cfgs, pre_model)
 
-    def load_model(self):
+    def load_model(self, mode="train"):
         """Load model for transfer learning"""
         model_cfgs = self.cfgs["model_cfgs"]
         if self.weight_path is None and self.pre_model is None:
             raise NotImplementedError(
                 "For transfer learning, we need a pre-trained model"
             )
-        model = super().load_model()
+        model = super().load_model(mode)
         if (
             "weight_path_add" in model_cfgs
             and "freeze_params" in model_cfgs["weight_path_add"]

@@ -1,85 +1,49 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-18 14:34:53
-LastEditTime: 2024-04-09 20:07:44
+LastEditTime: 2024-04-11 09:06:09
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
 FilePath: \torchhydro\tests\test_evaluate_model.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
-import os
 import pytest
-from hydroutils.hydro_file import get_lastest_file_in_a_dir
-from hydroutils.hydro_plot import plot_ts
 
-from torchhydro import SETTING
-from torchhydro.configs.config import cmd, default_config_file, update_cfg
+from hydroutils.hydro_plot import plot_ts
+from torchhydro.configs.config import update_cfg
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed
 
 
 @pytest.fixture()
-def config_data():
-    project_name = "test_camels/exp1"
-    weight_dir = os.path.join(
-        os.getcwd(),
-        "results",
-        "test_camels",
-        "exp1",
-    )
-    weight_path = get_lastest_file_in_a_dir(weight_dir)
-    args = cmd(
-        sub=project_name,
-        source_path=os.path.join(
-            SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
-        ),
-        source_region="US",
-        ctx=[-1],
-        model_name="CpuLSTM",
-        model_hyperparam={
-            "n_input_features": 23,
-            "n_output_features": 1,
-            "n_hidden_states": 256,
-        },
-        gage_id=[
-            "01013500",
-            "01022500",
-            "01030500",
-            "01031500",
-            "01047000",
-            "01052500",
-            "01054200",
-            "01055000",
-            "01057000",
-            "01170100",
-        ],
-        batch_size=5,
-        rho=20,  # batch_size=100, rho=365,
-        var_t=["dayl", "prcp", "srad", "tmax", "tmin", "vp"],
-        var_out=["streamflow"],
-        dataset="StreamflowDataset",
-        scaler="DapengScaler",
-        train_epoch=5,
-        save_epoch=1,
-        te=5,
-        train_period=["2000-10-01", "2001-10-01"],
-        test_period=["2001-10-01", "2002-10-01"],
-        loss_func="RMSESum",
-        opt="Adadelta",
-        which_first_tensor="sequence",
-        weight_path=weight_path,
-        continue_train=False,
-    )
-    config_data = default_config_file()
+def camelslstm_config(args, config_data):
+    args.model_loader = {"load_way": "latest"}
+    args.train_mode = False
     update_cfg(config_data, args)
     return config_data
 
 
-def test_evaluate_model(config_data):
-    random_seed = config_data["training_cfgs"]["random_seed"]
+@pytest.fixture()
+def camelsmtllstm_config(mtl_args, config_data):
+    mtl_args.model_loader = {"load_way": "latest"}
+    mtl_args.train_mode = False
+    update_cfg(config_data, mtl_args)
+    return config_data
+
+
+@pytest.fixture
+def _config(request):
+    return request.getfixturevalue(request.param)
+
+
+@pytest.mark.parametrize(
+    "_config", ["camelslstm_config", "camelsmtllstm_config"], indirect=True
+)
+def test_evaluate_model(_config):
+    random_seed = _config["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
-    model = DeepHydro(config_data)
+    model = DeepHydro(_config)
     eval_log, preds_xr, obss_xr = model.model_evaluate()
     print(eval_log)
     plot_ts(

@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2023-12-29 11:05:57
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-04-11 21:27:42
+LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
@@ -10,20 +10,17 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 
 import copy
 from datetime import datetime
-import fnmatch
 import os
 from pathlib import Path
 import random
 
 import numpy as np
-from typing import Dict, Tuple, Union
+from typing import Dict
 import pandas as pd
 from sklearn.model_selection import KFold, TimeSeriesSplit
 import torch
-from hydroutils.hydro_stat import stat_error
-from hydroutils.hydro_file import unserialize_numpy
-from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.trainers.deep_hydro import model_type_dict
+from torchhydro.trainers.resulter import Resulter
 
 
 def set_random_seed(seed):
@@ -62,177 +59,25 @@ def train_and_evaluate(cfgs: Dict):
     """
     random_seed = cfgs["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
-    result_dir = cfgs["data_cfgs"]["test_path"]
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
+    resulter = Resulter(cfgs)
     deephydro = _get_deep_hydro(cfgs)
-    if cfgs["training_cfgs"]["train_mode"]:
-        if (
+    if cfgs["training_cfgs"]["train_mode"] and (
+        (
             deephydro.weight_path is not None
             and deephydro.cfgs["model_cfgs"]["continue_train"]
-        ) or (deephydro.weight_path is None):
-            deephydro.model_train()
-        test_acc = deephydro.model_evaluate()
-        print("summary test_accuracy", test_acc[0])
-        # save the results
-        save_result(
-            cfgs["data_cfgs"]["test_path"],
-            cfgs["evaluation_cfgs"]["test_epoch"],
-            test_acc[1],
-            test_acc[2],
         )
-    param_file_exist = any(
-        (
-            fnmatch.fnmatch(file, "*.json")
-            and "_stat" not in file  # statistics json file
-            and "_dict" not in file  # data cache json file
-        )
-        for file in os.listdir(cfgs["data_cfgs"]["test_path"])
-    )
-    if not param_file_exist:
-        # although we save params log during training, but sometimes we directly evaluate a model
-        # so here we still save params log if param file does not exist
-        # no param file was saved yet, here we save data and params setting
-        save_param_log_path = cfgs["data_cfgs"]["test_path"]
-        save_model_params_log(cfgs, save_param_log_path)
+        or (deephydro.weight_path is None)
+    ):
+        deephydro.model_train()
+    preds, obss = deephydro.model_evaluate()
+    resulter.save_cfg(deephydro.cfgs)
+    resulter.save_result(preds, obss)
+    resulter.eval_result(preds, obss)
 
 
 def _get_deep_hydro(cfgs):
     model_type = cfgs["model_cfgs"]["model_type"]
     return model_type_dict[model_type](cfgs)
-
-
-def save_result(save_dir, epoch, pred, obs, pred_name="flow_pred", obs_name="flow_obs"):
-    """
-    save the pred value of testing period and obs value
-
-    Parameters
-    ----------
-    save_dir
-        directory where we save the results
-    epoch
-        in this epoch, we save the results
-    pred
-        predictions
-    obs
-        observations
-    pred_name
-        the file name of predictions
-    obs_name
-        the file name of observations
-
-    Returns
-    -------
-    None
-    """
-    flow_pred_file = os.path.join(save_dir, f"epoch{str(epoch)}" + pred_name)
-    flow_obs_file = os.path.join(save_dir, f"epoch{str(epoch)}" + obs_name)
-    pred.to_netcdf(flow_pred_file + ".nc")
-    obs.to_netcdf(flow_obs_file + ".nc")
-
-
-def load_result(
-    save_dir, epoch, pred_name="flow_pred", obs_name="flow_obs", not_only_1out=False
-) -> Tuple[np.array, np.array]:
-    """load the pred value of testing period and obs value
-
-    Parameters
-    ----------
-    save_dir : _type_
-        _description_
-    epoch : _type_
-        _description_
-    pred_name : str, optional
-        _description_, by default "flow_pred"
-    obs_name : str, optional
-        _description_, by default "flow_obs"
-    not_only_1out : bool, optional
-        Sometimes our model give multiple output and we will load all of them,
-        then we set this parameter True, by default False
-
-    Returns
-    -------
-    Tuple[np.array, np.array]
-        _description_
-    """
-    flow_pred_file = os.path.join(save_dir, f"epoch{str(epoch)}" + pred_name + ".npy")
-    flow_obs_file = os.path.join(save_dir, f"epoch{str(epoch)}" + obs_name + ".npy")
-    pred = unserialize_numpy(flow_pred_file)
-    obs = unserialize_numpy(flow_obs_file)
-    if not_only_1out:
-        return pred, obs
-    if obs.ndim == 3 and obs.shape[-1] == 1:
-        if pred.shape[-1] != obs.shape[-1]:
-            # TODO: for convenient, now we didn't process this special case for MTL
-            pred = pred[:, :, 0]
-        pred = pred.reshape(pred.shape[0], pred.shape[1])
-        obs = obs.reshape(obs.shape[0], obs.shape[1])
-    return pred, obs
-
-
-def stat_result_for1out(var_name, unit, pred, obs, fill_nan, basin_area=None):
-    """
-    show the statistics result for 1 output
-    """
-    inds = stat_error(obs, pred, fill_nan=fill_nan)
-    inds_df = pd.DataFrame(inds)
-    return inds_df, obs, pred
-
-
-def stat_result(
-    save_dirs: str,
-    test_epoch: int,
-    return_value: bool = False,
-    fill_nan: Union[str, list, tuple] = "no",
-    unit="m3/s",
-    basin_area=None,
-    var_name=None,
-) -> Tuple[pd.DataFrame, np.array, np.array]:
-    """
-    Show the statistics result
-
-    Parameters
-    ----------
-    save_dirs : str
-        where we read results
-    test_epoch : int
-        the epoch of test
-    return_value : bool, optional
-        if True, returen pred and obs data, by default False
-    fill_nan : Union[str, list, tuple], optional
-        how to deal with nan in obs, by default "no"
-    unit : str, optional
-        unit of flow, by default "m3/s"
-        if m3/s, then didn't transform; else transform to m3/s
-
-    Returns
-    -------
-    Tuple[pd.DataFrame, np.array, np.array]
-        statistics results, 3-dim predicitons, 3-dim observations
-    """
-    pred, obs = load_result(save_dirs, test_epoch)
-    if type(unit) is list:
-        inds_df_lst = []
-        pred_lst = []
-        obs_lst = []
-        for i in range(len(unit)):
-            inds_df_, pred_, obs_ = stat_result_for1out(
-                var_name[i],
-                unit[i],
-                pred[:, :, i],
-                obs[:, :, i],
-                fill_nan[i],
-                basin_area=basin_area,
-            )
-            inds_df_lst.append(inds_df_)
-            pred_lst.append(pred_)
-            obs_lst.append(obs_)
-        return inds_df_lst, pred_lst, obs_lst if return_value else inds_df_lst
-    else:
-        inds_df_, pred_, obs_ = stat_result_for1out(
-            var_name, unit, pred, obs, fill_nan, basin_area=basin_area
-        )
-        return (inds_df_, pred_, obs_) if return_value else inds_df_
 
 
 def _update_cfg_with_1ensembleitem(cfg, key, value):
@@ -409,82 +254,3 @@ def ensemble_train_and_evaluate(cfgs: Dict):
     if "kfold" in keys_list:
         _trans_kfold_to_periods(cfgs, ensemble_items, "kfold")
     _nested_loop_train_and_evaluate(keys_list, 0, ensemble_items, cfgs)
-
-
-def load_ensemble_result(
-    save_dirs, test_epoch, flow_unit="m3/s", basin_areas=None
-) -> Tuple[np.array, np.array]:
-    """
-    load ensemble mean value
-
-    Parameters
-    ----------
-    save_dirs
-    test_epoch
-    flow_unit
-        default is m3/s, if it is not m3/s, transform the results
-    basin_areas
-        if unit is mm/day it will be used, default is None
-
-    Returns
-    -------
-
-    """
-    preds = []
-    obss = []
-    for save_dir in save_dirs:
-        pred_i, obs_i = load_result(save_dir, test_epoch)
-        if pred_i.ndim == 3 and pred_i.shape[-1] == 1:
-            pred_i = pred_i.reshape(pred_i.shape[0], pred_i.shape[1])
-            obs_i = obs_i.reshape(obs_i.shape[0], obs_i.shape[1])
-        preds.append(pred_i)
-        obss.append(obs_i)
-    preds_np = np.array(preds)
-    obss_np = np.array(obss)
-    pred_mean = np.mean(preds_np, axis=0)
-    obs_mean = np.mean(obss_np, axis=0)
-    if flow_unit == "mm/day":
-        if basin_areas is None:
-            raise ArithmeticError("No basin areas we cannot calculate")
-        basin_areas = np.repeat(basin_areas, obs_mean.shape[1], axis=0).reshape(
-            obs_mean.shape
-        )
-        obs_mean = obs_mean * basin_areas * 1e-3 * 1e6 / 86400
-        pred_mean = pred_mean * basin_areas * 1e-3 * 1e6 / 86400
-    elif flow_unit == "m3/s":
-        pass
-    elif flow_unit == "ft3/s":
-        obs_mean = obs_mean / 35.314666721489
-        pred_mean = pred_mean / 35.314666721489
-    return pred_mean, obs_mean
-
-
-def stat_ensemble_result(
-    save_dirs, test_epoch, return_value=False, flow_unit="m3/s", basin_areas=None
-) -> Tuple[np.array, np.array]:
-    """calculate statistics for ensemble results
-
-    Parameters
-    ----------
-    save_dirs : _type_
-        where the results save
-    test_epoch : _type_
-        we name the results files with the test_epoch
-    return_value : bool, optional
-        if True, return (inds_df, pred_mean, obs_mean), by default False
-    flow_unit : str, optional
-        arg for load_ensemble_result, by default "m3/s"
-    basin_areas : _type_, optional
-        arg for load_ensemble_result, by default None
-
-    Returns
-    -------
-    Tuple[np.array, np.array]
-        inds_df or (inds_df, pred_mean, obs_mean)
-    """
-    pred_mean, obs_mean = load_ensemble_result(
-        save_dirs, test_epoch, flow_unit=flow_unit, basin_areas=basin_areas
-    )
-    inds = stat_error(obs_mean, pred_mean)
-    inds_df = pd.DataFrame(inds)
-    return (inds_df, pred_mean, obs_mean) if return_value else inds_df
