@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-09-09 14:47:42
-LastEditTime: 2024-02-14 16:06:26
+LastEditTime: 2024-04-13 19:27:10
 LastEditors: Wenyu Ouyang
 Description: a script to run experiments for LSTM - CAMELS
 FilePath: \torchhydro\experiments\run_camelslstm_experiments.py
@@ -62,11 +62,12 @@ def run_normal_dl(
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
-        source="CAMELS",
-        source_region="US",
-        source_path=os.path.join(
-            SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
-        ),
+        source_cfgs={
+            "source_name": "camels_us",
+            "source_path": os.path.join(
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
+            ),
+        },
         ctx=[0],
         model_name="KuaiLSTM",
         model_hyperparam={
@@ -90,7 +91,10 @@ def run_normal_dl(
         rs=1234,
         train_epoch=20,
         save_epoch=1,
-        te=20,
+        model_loader={
+            "load_way": "specified",
+            "test_epoch": 20,
+        },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",
     )

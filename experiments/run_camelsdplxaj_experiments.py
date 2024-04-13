@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-20 20:05:10
-LastEditTime: 2024-04-09 19:59:43
+LastEditTime: 2024-04-13 19:32:48
 LastEditors: Wenyu Ouyang
 Description: A case for dPL-XAJ model
 FilePath: \torchhydro\experiments\run_camelsdplxaj_experiments.py
@@ -36,11 +36,12 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
     config = default_config_file()
     args = cmd(
         sub="test_camels/expdplxaj",
-        source="CAMELS",
-        source_region="US",
-        source_path=os.path.join(
-            SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
-        ),
+        source_cfgs={
+            "source_name": "camels_us",
+            "source_path": os.path.join(
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
+            ),
+        },
         ctx=[0],
         model_name="DplLstmXaj",
         model_hyperparam={
@@ -99,7 +100,10 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         target_as_input=0,
         constant_only=0,
         train_epoch=2,
-        te=2,
+        model_loader={
+            "load_way": "specified",
+            "test_epoch": 20,
+        },
         warmup_length=10,
         opt="Adadelta",
         which_first_tensor="sequence",
