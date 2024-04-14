@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-11 09:23:10
+LastEditTime: 2024-04-14 19:49:55
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -819,7 +819,7 @@ def update_cfg(cfg_file, new_args):
     if os.path.exists(result_dir) is False:
         os.makedirs(result_dir)
     if new_args.sub is not None:
-        subset, subexp = new_args.sub.split("/")
+        subset, subexp = new_args.sub.split(os.sep)
         cfg_file["data_cfgs"]["validation_path"] = os.path.join(
             project_dir, "results", subset, subexp
         )

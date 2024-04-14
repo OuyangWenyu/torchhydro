@@ -13,7 +13,7 @@ from torchhydro.explainers.shap import (
     deep_explain_model_summary_plot,
     shap_summary_plot,
 )
-from trainers.train_utils import calculate_and_record_metrics
+from torchhydro.trainers.train_utils import calculate_and_record_metrics
 
 
 def set_unit_to_var(ds):
