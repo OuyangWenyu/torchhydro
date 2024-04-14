@@ -1,7 +1,7 @@
 <!--
  * @Author: Wenyu Ouyang
  * @Date: 2024-04-13 18:29:19
- * @LastEditTime: 2024-04-13 21:45:43
+ * @LastEditTime: 2024-04-14 09:12:47
  * @LastEditors: Wenyu Ouyang
  * @Description: English version of the README
  * @FilePath: \torchhydro\README.md
@@ -15,6 +15,8 @@
 
 - License: BSD license
 - Documentation: https://OuyangWenyu.github.io/torchhydro  
+
+📜 [中文文档](README.zh.md)
 
 **Note: This repository is still under development**
 

@@ -115,7 +115,6 @@ class Resulter:
         #  Then evaluate the model metrics
         if type(fill_nan) is list and len(fill_nan) != len(target_col):
             raise ValueError("length of fill_nan must be equal to target_col's")
-        eval_log = {}
         for i, col in enumerate(target_col):
             obs = obss_xr[col].to_numpy()
             pred = preds_xr[col].to_numpy()
@@ -126,7 +125,6 @@ class Resulter:
                 evaluation_metrics,
                 col,
                 fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
-                eval_log,
             )
 
         # Finally, try to explain model behaviour using shap

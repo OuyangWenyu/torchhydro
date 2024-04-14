@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-04-09 15:48:08
+LastEditTime: 2024-04-14 11:02:10
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -175,18 +175,16 @@ class EarlyStopper(object):
         torch.save(model.state_dict(), os.path.join(save_dir, "best_model.pth"))
 
 
-def calculate_and_record_metrics(
-    obs, pred, evaluation_metrics, target_col, fill_nan, eval_log
-):
+def calculate_and_record_metrics(obs, pred, evaluation_metrics, target_col, fill_nan):
     fill_nan_value = fill_nan
     inds = stat_error(obs, pred, fill_nan_value)
 
-    for evaluation_metric in evaluation_metrics:
-        eval_log[f"{evaluation_metric} of {target_col}"] = inds[
-            evaluation_metric
-        ].tolist()
-
-    return eval_log
+    return {
+        f"{evaluation_metric} of {target_col}": np.asarray(
+            inds[evaluation_metric]
+        ).tolist()
+        for evaluation_metric in evaluation_metrics
+    }
 
 
 def evaluate_validation(
@@ -221,7 +219,6 @@ def evaluate_validation(
     if isinstance(fill_nan, list) and len(fill_nan) != len(target_col):
         raise ValueError("Length of fill_nan must be equal to length of target_col.")
 
-    eval_log = {}
     batch_size = validation_data_loader.batch_size
 
     if not validation_data_loader.dataset.data_cfgs["static"]:
@@ -251,7 +248,6 @@ def evaluate_validation(
                 evaluation_metrics,
                 col,
                 fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
-                eval_log,
             )
 
     else:
@@ -266,7 +262,6 @@ def evaluate_validation(
                 evaluation_metrics,
                 col,
                 fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
-                eval_log,
             )
 
     return eval_log
