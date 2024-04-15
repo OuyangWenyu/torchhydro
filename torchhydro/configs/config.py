@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-14 19:49:55
+LastEditTime: 2024-04-15 16:56:38
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: \torchhydro\torchhydro\configs\config.py
+FilePath: \HydroMTLe:\Code\torchhydro\torchhydro\configs\config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -20,7 +20,7 @@ from hydroutils import hydro_file
 DAYMET_NAME = "daymet"
 SSM_SMAP_NAME = "ssm"
 ET_MODIS_NAME = "ET"
-Q_CAMELS_US_NAME = "usgsFlow"
+Q_CAMELS_US_NAME = "streamflow"
 Q_CAMELS_CC_NAME = "Q"
 PRCP_DAYMET_NAME = "prcp"
 PRCP_NLDAS_NAME = "total_precipitation"
