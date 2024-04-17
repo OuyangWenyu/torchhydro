@@ -85,6 +85,7 @@ def default_config_file():
                 # part of transfer learning in a model: a list of layers' names, such as ["lstm"]
                 "tl_part": None,
             },
+            "model_mode": "single",
         },
         "data_cfgs": {
             "source_cfgs": {
@@ -309,6 +310,7 @@ def cmd(
     save_iter=None,
     model_type=None,
     model_name=None,
+    model_mode=None,
     weight_path=None,
     continue_train=None,
     var_c=None,
@@ -526,6 +528,13 @@ def cmd(
         dest="model_name",
         help="The name of DL model. now in the zoo",
         default=model_name,
+        type=str,
+    )
+    parser.add_argument(
+        "--model_mode",
+        dest="model_mode",
+        help="the mode variable determines whether the seq2seq model processes a single data stream or two separate data streams",
+        default=model_mode,
         type=str,
     )
     parser.add_argument(
@@ -930,6 +939,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["model_cfgs"]["model_type"] = new_args.model_type
     if new_args.model_name is not None:
         cfg_file["model_cfgs"]["model_name"] = new_args.model_name
+    if new_args.model_mode is not None:
+        cfg_file["model_cfgs"]["model_mode"] = new_args.model_mode
     if new_args.weight_path is not None:
         cfg_file["model_cfgs"]["weight_path"] = new_args.weight_path
         if new_args.continue_train is None or new_args.continue_train == 0:

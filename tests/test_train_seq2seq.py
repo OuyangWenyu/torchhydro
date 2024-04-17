@@ -1,21 +1,27 @@
 """
-Author: Xinzhuo Wu
-Date: 2024-04-08 18:13:05
-LastEditTime: 2024-04-09 14:08:01
-LastEditors: Wenyu Ouyang
-Description: Test a full training and evaluating process
-FilePath: \torchhydro\tests\test_train_mean_lstm.py
-Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
+Author: Wenyu Ouyang
+Date: 2024-04-17 12:55:24
+LastEditTime: 2024-04-17 13:31:16
+LastEditors: Xinzhuo Wu
+Description: 
+FilePath: /torchhydro/tests/test_train_seq2seq.py
+Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import pytest
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
+for logger_name in logging.root.manager.loggerDict:
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
 
 @pytest.fixture()
 def config():
-    project_name = "test_mean_lstm/ex1"
+    project_name = "test_mean_seq2seq/ex1"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -27,13 +33,16 @@ def config():
                 "attributes": "basins-origin/attributes.nc",
             },
         },
-        ctx=[0],
-        model_name="SimpleLSTMForecast",
+        ctx=[1],
+        model_name="Seq2Seq",
         model_hyperparam={
             "input_size": 16,
             "output_size": 1,
             "hidden_size": 256,
+            "cnn_size": 128,
             "forecast_length": 24,
+            "device": "cuda:1",
+            "mode": "dual",
         },
         gage_id=[
             "21401550",
@@ -59,10 +68,11 @@ def config():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow"],
-        dataset="MeanDataset",
+        dataset="MultiSourceDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
         train_epoch=50,
+        model_mode="single",
         save_epoch=1,
         train_period=[
             ("2017-07-01", "2017-09-29"),
@@ -82,7 +92,7 @@ def config():
             "lr": 0.001,
             "lr_factor": 0.96,
         },
-        which_first_tensor="sequence",
+        which_first_tensor="batch",
         rolling=True,
         static=False,
         early_stopping=True,
@@ -97,6 +107,6 @@ def config():
     return config_data
 
 
-def test_mean_lstm(config):
+def test_seq2seq(config):
     # train_and_evaluate(config)
     ensemble_train_and_evaluate(config)
