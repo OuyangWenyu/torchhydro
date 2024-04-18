@@ -19,6 +19,7 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
+
 @pytest.fixture()
 def config():
     project_name = "test_mean_seq2seq/ex1"
@@ -39,11 +40,11 @@ def config():
             "input_size": 16,
             "output_size": 1,
             "hidden_size": 256,
-            "cnn_size": 128,
+            "cnn_size": 120,
             "forecast_length": 24,
-            "device": "cuda:1",
-            "mode": "dual",
+            "model_mode": "dual",
         },
+        model_loader={"load_way": "best"},
         gage_id=[
             "21401550",
         ],
@@ -71,8 +72,7 @@ def config():
         dataset="MultiSourceDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
-        train_epoch=50,
-        model_mode="single",
+        train_epoch=1,
         save_epoch=1,
         train_period=[
             ("2017-07-01", "2017-09-29"),

@@ -935,7 +935,7 @@ class HydroMultiSourceDataset(HydroMeanDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         super(HydroMultiSourceDataset, self).__init__(data_cfgs, is_tra_val_te)
 
-    def get_x(self, variable, basin, time, seq_length, time_offset=0):
+    def get_x(self, variable, basin, time, seq_length, offset1=0, offset2=0):
         return (
             self.x.sel(
                 variable=variable,
@@ -943,12 +943,8 @@ class HydroMultiSourceDataset(HydroMeanDataset):
                 time=slice(
                     time
                     - np.timedelta64(seq_length - 1, "h")
-                    + np.timedelta64(time_offset, "h"),
-                    (
-                        time
-                        if time_offset == 0
-                        else time + np.timedelta64(time_offset, "h")
-                    ),
+                    + np.timedelta64(offset1, "h"),
+                    (time if offset2 == 0 else time + np.timedelta64(offset2, "h")),
                 ),
             )
             .to_numpy()
@@ -989,14 +985,14 @@ class HydroMultiSourceDataset(HydroMeanDataset):
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
         seq_length = self.rho
-        sm_length = 40
+        sm_length = seq_length - self.data_cfgs["cnn_size"]
         x, y, s = None, None, None
 
         var_lst = self.data_cfgs["relevant_cols"]
         station_tp_present = "station_tp" in var_lst
 
         if station_tp_present:
-            gpm_tp = self.get_x("gpm_tp", basin, time, seq_length, -6)
+            gpm_tp = self.get_x("gpm_tp", basin, time, seq_length, 0, -6)
             station_tp = self.get_x("station_tp", basin, time, seq_length)
             expanded_gpm_tp = np.vstack([gpm_tp, station_tp[-6:, :]])
             x = np.hstack([expanded_gpm_tp, station_tp])
@@ -1011,13 +1007,14 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             c = np.tile(c, (seq_length, 1))
             x = np.concatenate((x, c), axis=1)
 
-        # Todo
-        mode = "dual"
+        mode = self.data_cfgs["model_mode"]
         if mode == "dual":
-            s = self.get_x("gfs_tp", basin, time, seq_length - sm_length)
+            s = self.get_x("gfs_tp", basin, time, seq_length, 0, -sm_length)
         else:
             all_features = [
-                self.get_x("gfs_tp", basin, time, seq_length - sm_length, offset)
+                self.get_x(
+                    "gfs_tp", basin, time, seq_length, -offset, -sm_length - offset
+                )
                 for offset in range(seq_length)
             ]
             s = np.array(
@@ -1034,3 +1031,29 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             torch.from_numpy(s).float(),
             torch.from_numpy(start_token).float(),
         ], torch.from_numpy(y).float()
+
+    def _prepare_forcing(self):
+        gage_id_lst = self.t_s_dict["sites_id"]
+        t_range = self.t_s_dict["t_final_range"]
+        var_lst = self.data_cfgs["relevant_cols"]
+        path = self.data_cfgs["source_cfgs"]["source_path"]["forcing"]
+
+        if var_lst is None:
+            return None
+
+        data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
+
+        var_subset_list = []
+        for start_date, end_date in t_range:
+            adjusted_start_date = (
+                datetime.strptime(start_date, "%Y-%m-%d")
+                - timedelta(hours=self.rho + self.data_cfgs["cnn_size"])
+            ).strftime("%Y-%m-%d")
+            adjusted_end_date = (
+                datetime.strptime(end_date, "%Y-%m-%d")
+                + timedelta(hours=self.forecast_length)
+            ).strftime("%Y-%m-%d")
+            subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
+            var_subset_list.append(subset)
+
+        return xr.concat(var_subset_list, dim="time")

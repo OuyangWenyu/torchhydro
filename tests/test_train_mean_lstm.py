@@ -35,6 +35,7 @@ def config():
             "hidden_size": 256,
             "forecast_length": 24,
         },
+        model_loader={"load_way": "best"},
         gage_id=[
             "21401550",
         ],
