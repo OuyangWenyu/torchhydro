@@ -113,8 +113,8 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
 
     # Unit handling is problematic, temporary code
     if not target_scaler.data_cfgs["static"]:
-        preds_xr.attrs["units"] = "m"
-        obss_xr.attrs["units"] = "m"
+        preds_xr["streamflow"].attrs["units"] = "m"
+        obss_xr["streamflow"].attrs["units"] = "m"
 
     return preds_xr, obss_xr
 
