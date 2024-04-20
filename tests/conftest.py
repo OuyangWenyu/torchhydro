@@ -1,7 +1,7 @@
 import os
 import pytest
 
-from configs.config import cmd, default_config_file
+from torchhydro.configs.config import cmd, default_config_file
 from torchhydro import SETTING
 
 
