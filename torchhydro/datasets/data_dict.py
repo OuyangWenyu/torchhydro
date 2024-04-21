@@ -15,6 +15,7 @@ from torchhydro.datasets.data_sets import (
     FlexibleDataset,
     HydroGridDataset,
     HydroMeanDataset,
+    HydroMultiSourceDataset,
 )
 
 
@@ -25,4 +26,5 @@ datasets_dict = {
     "GridDataset": HydroGridDataset,
     "MeanDataset": HydroMeanDataset,
     "FlexDataset": FlexibleDataset,
+    "MultiSourceDataset": HydroMultiSourceDataset,
 }

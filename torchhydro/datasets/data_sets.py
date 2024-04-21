@@ -929,3 +929,131 @@ class HydroGridDataset(HydroMeanDataset):
             data_dict[basin] = merged_dataset.to_array(dim="variable")
 
         return data_dict
+
+
+class HydroMultiSourceDataset(HydroMeanDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(HydroMultiSourceDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    def get_x(self, variable, basin, time, seq_length, offset1=0, offset2=0):
+        return (
+            self.x.sel(
+                variable=variable,
+                basin=basin,
+                time=slice(
+                    time
+                    - np.timedelta64(seq_length - 1, "h")
+                    + np.timedelta64(offset1, "h"),
+                    (time if offset2 == 0 else time + np.timedelta64(offset2, "h")),
+                ),
+            )
+            .to_numpy()
+            .T.reshape(-1, 1)
+        )
+
+    def get_y(self, basin, time, seq_length):
+        return (
+            self.y.sel(
+                basin=basin,
+                time=slice(
+                    time,
+                    time + np.timedelta64(seq_length - 1, "h"),
+                ),
+            )
+            .to_numpy()
+            .T
+        )
+
+    # Todo
+    def get_token(self, basin, time):
+        data = (
+            self.y.sel(
+                basin=basin,
+                time=slice(
+                    time - np.timedelta64(1, "h"), time - np.timedelta64(1, "h")
+                ),
+            )
+            .to_numpy()
+            .T
+        )
+
+        if data.shape[0] == 0:
+            data = self.y.sel(basin=basin, time=slice(time, time)).to_numpy().T
+
+        return data
+
+    def __getitem__(self, item: int):
+        basin, time = self.lookup_table[item]
+        seq_length = self.rho
+        sm_length = seq_length - self.data_cfgs["cnn_size"]
+        x, y, s = None, None, None
+
+        var_lst = self.data_cfgs["relevant_cols"]
+        station_tp_present = "station_tp" in var_lst
+
+        if station_tp_present:
+            gpm_tp = self.get_x("gpm_tp", basin, time, seq_length, 0, -6)
+            station_tp = self.get_x("station_tp", basin, time, seq_length)
+            expanded_gpm_tp = np.vstack([gpm_tp, station_tp[-6:, :]])
+            x = np.hstack([expanded_gpm_tp, station_tp])
+            if "streamflow" in var_lst:
+                yy = self.get_y("streamflow", basin, time, seq_length)
+                x = np.hstack([yy, x])
+        else:
+            x = self.get_x("gpm_tp", basin, time, seq_length)
+
+        if self.c is not None and self.c.shape[-1] > 0:
+            c = self.c.sel(basin=basin).values
+            c = np.tile(c, (seq_length, 1))
+            x = np.concatenate((x, c), axis=1)
+
+        mode = self.data_cfgs["model_mode"]
+        if mode == "dual":
+            s = self.get_x("gfs_tp", basin, time, seq_length, 0, -sm_length)
+        else:
+            all_features = [
+                self.get_x(
+                    "gfs_tp", basin, time, seq_length, -offset, -sm_length - offset
+                )
+                for offset in range(seq_length)
+            ]
+            s = np.array(
+                [
+                    feat.squeeze()
+                    for feat in all_features
+                    if feat.size == seq_length - sm_length
+                ]
+            )
+        start_token = self.get_token(basin, time)
+        y = self.get_y(basin, time, self.forecast_length)
+        return [
+            torch.from_numpy(x).float(),
+            torch.from_numpy(s).float(),
+            torch.from_numpy(start_token).float(),
+        ], torch.from_numpy(y).float()
+
+    def _prepare_forcing(self):
+        gage_id_lst = self.t_s_dict["sites_id"]
+        t_range = self.t_s_dict["t_final_range"]
+        var_lst = self.data_cfgs["relevant_cols"]
+        path = self.data_cfgs["source_cfgs"]["source_path"]["forcing"]
+
+        if var_lst is None:
+            return None
+
+        data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
+
+        var_subset_list = []
+        for start_date, end_date in t_range:
+            adjusted_start_date = (
+                datetime.strptime(start_date, "%Y-%m-%d")
+                - timedelta(hours=self.rho + self.data_cfgs["cnn_size"])
+            ).strftime("%Y-%m-%d")
+            adjusted_end_date = (
+                datetime.strptime(end_date, "%Y-%m-%d")
+                + timedelta(hours=self.forecast_length)
+            ).strftime("%Y-%m-%d")
+            subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
+            var_subset_list.append(subset)
+
+        return xr.concat(var_subset_list, dim="time")
