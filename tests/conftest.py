@@ -1,7 +1,7 @@
 import os
 import pytest
 
-from configs.config import cmd, default_config_file
+from torchhydro.configs.config import cmd, default_config_file
 from torchhydro import SETTING
 
 
@@ -12,7 +12,7 @@ def config_data():
 
 @pytest.fixture()
 def args():
-    project_name = "test_camels/exp1"
+    project_name = os.path.join("test_camels", "exp1")
     data_dir = SETTING["local_data_path"]["datasets-origin"]
     source_path = os.path.join(data_dir, "camels", "camels_us")
     return cmd(
@@ -64,7 +64,7 @@ def args():
 
 @pytest.fixture()
 def mtl_args():
-    project_name = "test_camels/expmtl001"
+    project_name = os.path.join("test_camels", "expmtl001")
     data_origin_dir = SETTING["local_data_path"]["datasets-origin"]
     data_interim_dir = SETTING["local_data_path"]["datasets-interim"]
     return cmd(
@@ -89,17 +89,17 @@ def mtl_args():
         model_hyperparam={
             "n_input_features": 23,
             "n_output_features": 2,
-            "n_hidden_states": 64,
-            "layer_hidden_size": 32,
+            "n_hidden_states": 256,
+            "layer_hidden_size": 128,
         },
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
             "data_gap": [0, 2],
             "device": [0],
-            "item_weight": [1.0, 0.0],
-            "limit_part": [1],
+            "item_weight": [0.5, 0.5],
         },
+        # gage_id_file=os.path.join("results", "test_camels", "camels_us_mtl_2001_2021_flow_screen.csv"),
         gage_id=[
             "01013500",
             "01022500",
@@ -112,8 +112,8 @@ def mtl_args():
             "01057000",
             "01170100",
         ],
-        batch_size=5,
-        rho=30,  # batch_size=100, rho=365,
+        batch_size=100,
+        rho=365,  # batch_size=100, rho=365,
         var_t=[
             "temperature",
             "specific_humidity",
@@ -151,7 +151,7 @@ def mtl_args():
             "geol_porostiy": "usgs4camels",
             "geol_permeability": "usgs4camels",
         },
-        train_period=["2015-04-01", "2016-04-01"],
+        train_period=["2001-04-01", "2011-04-01"],
         test_period=["2016-04-01", "2017-04-01"],
         dataset="FlexDataset",
         sampler="KuaiSampler",
