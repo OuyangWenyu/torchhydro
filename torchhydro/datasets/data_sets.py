@@ -1009,11 +1009,16 @@ class HydroMultiSourceDataset(HydroMeanDataset):
 
         mode = self.data_cfgs["model_mode"]
         if mode == "dual":
-            s = self.get_x("gfs_tp", basin, time, seq_length, 0, -sm_length)
+            s = self.get_x("gfs_tp", basin, time, seq_length, sm_length, 0)
         else:
             all_features = [
                 self.get_x(
-                    "gfs_tp", basin, time, seq_length, -offset, -sm_length - offset
+                    "gfs_tp",
+                    basin,
+                    time,
+                    seq_length,
+                    sm_length - offset,
+                    -offset,
                 )
                 for offset in range(seq_length)
             ]
