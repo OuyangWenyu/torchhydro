@@ -29,7 +29,7 @@ def config():
         source_cfgs={
             "source": "HydroMean",
             "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_forcing",
+                "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_merged",
                 "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
                 "attributes": "basins-origin/attributes.nc",
             },
@@ -50,7 +50,8 @@ def config():
         ],
         batch_size=256,
         rho=168,
-        var_t=["gpm_tp", "gfs_tp"],
+        # var_t=["gpm_tp", "sta_tp", "smap", "streamflow"],
+        var_t=["gpm_tp", "smap"],
         var_c=[
             "area",  # 面积
             "ele_mt_smn",  # 海拔(空间平均)
@@ -72,19 +73,22 @@ def config():
         dataset="MultiSourceDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
-        train_epoch=1,
+        train_epoch=50,
         save_epoch=1,
         train_period=[
-            ("2017-07-01", "2017-09-29"),
-            ("2018-07-01", "2018-09-29"),
-            ("2019-07-01", "2019-09-29"),
-            ("2020-07-01", "2020-09-29"),
+            # ("2017-07-01", "2017-09-29"),
+            # ("2018-07-01", "2018-09-29"),
+            # ("2019-07-01", "2019-09-29"),
+            # ("2020-07-01", "2020-09-29"),
+            ("2020-07-08", "2020-07-30"),
         ],
         test_period=[
-            ("2021-07-01", "2021-09-29"),
+            # ("2021-07-01", "2021-09-29"),
+            ("2020-07-08", "2020-07-30"),
         ],
         valid_period=[
-            ("2021-07-01", "2021-09-29"),
+            # ("2021-07-01", "2021-09-29"),
+            ("2020-07-08", "2020-07-30"),
         ],
         loss_func="RMSESum",
         opt="Adam",
@@ -93,7 +97,7 @@ def config():
             "lr_factor": 0.96,
         },
         which_first_tensor="batch",
-        rolling=True,
+        rolling=False,
         static=False,
         early_stopping=True,
         patience=4,
@@ -108,5 +112,5 @@ def config():
 
 
 def test_seq2seq(config):
-    # train_and_evaluate(config)
-    ensemble_train_and_evaluate(config)
+    train_and_evaluate(config)
+    # ensemble_train_and_evaluate(config)

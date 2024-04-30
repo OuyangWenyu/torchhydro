@@ -964,7 +964,6 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             .T
         )
 
-    # Todo
     def get_token(self, basin, time):
         data = (
             self.y.sel(
@@ -987,17 +986,17 @@ class HydroMultiSourceDataset(HydroMeanDataset):
         seq_length = self.rho
         sm_length = seq_length - self.data_cfgs["cnn_size"]
         x, y, s = None, None, None
-
         var_lst = self.data_cfgs["relevant_cols"]
-        station_tp_present = "station_tp" in var_lst
+        station_tp_present = "sta_tp" in var_lst
 
         if station_tp_present:
-            gpm_tp = self.get_x("gpm_tp", basin, time, seq_length, 0, -6)
-            station_tp = self.get_x("station_tp", basin, time, seq_length)
-            expanded_gpm_tp = np.vstack([gpm_tp, station_tp[-6:, :]])
+            delay = 6
+            gpm_tp = self.get_x("gpm_tp", basin, time, seq_length, 0, -delay)
+            station_tp = self.get_x("sta_tp", basin, time, seq_length)
+            expanded_gpm_tp = np.vstack([gpm_tp, station_tp[-delay:, :]])
             x = np.hstack([expanded_gpm_tp, station_tp])
             if "streamflow" in var_lst:
-                yy = self.get_y("streamflow", basin, time, seq_length)
+                yy = self.get_x("streamflow", basin, time, seq_length)
                 x = np.hstack([yy, x])
         else:
             x = self.get_x("gpm_tp", basin, time, seq_length)
@@ -1009,11 +1008,11 @@ class HydroMultiSourceDataset(HydroMeanDataset):
 
         mode = self.data_cfgs["model_mode"]
         if mode == "dual":
-            s = self.get_x("gfs_tp", basin, time, seq_length, sm_length, 0)
+            s = self.get_x("smap", basin, time, seq_length, sm_length, 0)
         else:
             all_features = [
                 self.get_x(
-                    "gfs_tp",
+                    "smap",
                     basin,
                     time,
                     seq_length,
@@ -1054,11 +1053,7 @@ class HydroMultiSourceDataset(HydroMeanDataset):
                 datetime.strptime(start_date, "%Y-%m-%d")
                 - timedelta(hours=self.rho + self.data_cfgs["cnn_size"])
             ).strftime("%Y-%m-%d")
-            adjusted_end_date = (
-                datetime.strptime(end_date, "%Y-%m-%d")
-                + timedelta(hours=self.forecast_length)
-            ).strftime("%Y-%m-%d")
-            subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
+            subset = data.sel(time=slice(adjusted_start_date,end_date))
             var_subset_list.append(subset)
 
         return xr.concat(var_subset_list, dim="time")
