@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2024-04-11 21:26:37
+LastEditTime: 2024-05-04 11:10:46
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -279,7 +279,7 @@ class DeepHydro(DeepHydroInterface):
             ):
                 print("Stopping model now")
                 break
-
+        logger.plot_model_structure(self.model)
         logger.tb.close()
 
         # return the trained model weights and bias and the epoch loss
@@ -482,8 +482,8 @@ class DeepHydro(DeepHydroInterface):
             batch_size = data_cfgs["batch_size"]
             rho = data_cfgs["forecast_history"]
             warmup_length = data_cfgs["warmup_length"]
-            ngrid = train_dataset.y.basin.size
-            nt = train_dataset.y.time.size
+            ngrid = train_dataset.ngrid
+            nt = train_dataset.nt
             if data_cfgs["sampler"] == "HydroSampler":
                 sampler = HydroSampler(train_dataset)
             elif data_cfgs["sampler"] == "KuaiSampler":

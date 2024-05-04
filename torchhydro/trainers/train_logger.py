@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-11 21:10:30
+LastEditTime: 2024-05-04 11:30:00
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
 FilePath: \torchhydro\torchhydro\trainers\train_logger.py
@@ -40,6 +40,7 @@ class TrainLogger:
         self.training_cfgs = params["training_cfgs"]
         self.data_cfgs = params["data_cfgs"]
         self.evaluation_cfgs = params["evaluation_cfgs"]
+        self.model_cfgs = params["model_cfgs"]
         self.opt = opt
         self.training_save_dir = model_filepath
         self.tb = SummaryWriter(self.training_save_dir)
@@ -154,3 +155,18 @@ class TrainLogger:
                         global_step,
                         dataformats=img_format,
                     )
+
+    def plot_model_structure(self, model):
+        """plot model structure in tensorboard
+
+        Parameters
+        ----------
+        model :
+            torch model
+        """
+        input4modelplot = torch.randn(
+            self.data_cfgs["batch_size"],
+            self.data_cfgs["forecast_history"],
+            self.model_cfgs["model_hyperparam"]["n_input_features"],
+        )
+        self.tb.add_graph(model, input4modelplot)

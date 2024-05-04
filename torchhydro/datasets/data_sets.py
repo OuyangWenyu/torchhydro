@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-04-10 21:07:58
+LastEditTime: 2024-05-04 10:42:32
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -106,6 +106,28 @@ class BaseDataset(Dataset):
         source_name = self.data_cfgs["source_cfgs"]["source_name"]
         source_path = self.data_cfgs["source_cfgs"]["source_path"]
         return data_sources_dict[source_name](source_path)
+
+    @property
+    def ngrid(self):
+        """How many basins/grids in the dataset
+
+        Returns
+        -------
+        int
+            number of basins/grids
+        """
+        return self.y.basin.size
+
+    @property
+    def nt(self):
+        """how long is the time series
+
+        Returns
+        -------
+        int
+            number of time steps
+        """
+        return self.y.time.size
 
     def __len__(self):
         return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])
@@ -1053,7 +1075,7 @@ class HydroMultiSourceDataset(HydroMeanDataset):
                 datetime.strptime(start_date, "%Y-%m-%d")
                 - timedelta(hours=self.rho + self.data_cfgs["cnn_size"])
             ).strftime("%Y-%m-%d")
-            subset = data.sel(time=slice(adjusted_start_date,end_date))
+            subset = data.sel(time=slice(adjusted_start_date, end_date))
             var_subset_list.append(subset)
 
         return xr.concat(var_subset_list, dim="time")
