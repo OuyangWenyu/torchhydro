@@ -18,7 +18,7 @@ def test_model():
             "input_size": 16,
             "output_size": 1,
             "hidden_size": 256,
-            "forecast_length": 168,
+            "forecast_length": 24,
             "cnn_size": 120,
             "model_mode": "single",
         },
@@ -26,16 +26,17 @@ def test_model():
             "input_size": 16,
             "output_size": 1,
             "hidden_size": 256,
-            "forecast_length": 168,
+            "forecast_length": 24,
             "cnn_size": 120,
             "model_mode": "dual",
             "input_size_encoder2": 1,
         },
     }
     batch_size = 2
+    rho = 168
 
     # Initialize the model
-    model_config = model_configs["Seq2Seq_dual"]
+    model_config = model_configs["Seq2Seq"]
 
     model = model_dict_function.pytorch_model_dict["Seq2Seq"](
         input_size=model_config["input_size"],
@@ -51,19 +52,19 @@ def test_model():
     if model_config["model_mode"] == "single":
         src1 = torch.rand(
             batch_size,
-            model_config["forecast_length"],
+            rho,
             model_config["input_size"] - 1,
         )
         src2 = torch.rand(
-            batch_size, model_config["forecast_length"], model_config["cnn_size"]
+            batch_size, rho, model_config["cnn_size"]
         )
     else:  # "dual"
         src1 = torch.rand(
-            batch_size, model_config["forecast_length"], model_config["input_size"]
+            batch_size, rho, model_config["input_size"]
         )
         src2 = torch.rand(
             batch_size,
-            model_config["forecast_length"],
+            rho,
             model_config["input_size_encoder2"],
         )
 
