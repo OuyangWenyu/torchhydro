@@ -279,7 +279,7 @@ class DeepHydro(DeepHydroInterface):
             ):
                 print("Stopping model now")
                 break
-        logger.plot_model_structure(self.model)
+        # logger.plot_model_structure(self.model)
         logger.tb.close()
 
         # return the trained model weights and bias and the epoch loss

@@ -38,6 +38,7 @@ class Encoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, 1)
         self.mode = mode
         if self.mode == "single":
             self.sm_encoder = SMEncoder(input_channels, output_channels=1)
@@ -51,7 +52,8 @@ class Encoder(nn.Module):
         else:
             outputs, (hidden, cell) = self.lstm(x)
         outputs = self.fc(outputs)
-        return outputs, hidden, cell
+        token = self.fc2(outputs[:, -1, :].unsqueeze(1))
+        return outputs, hidden, cell, token
 
 
 class Attention(nn.Module):
@@ -107,7 +109,7 @@ class GeneralSeq2Seq(nn.Module):
         )
         self.decoder1 = Decoder(output_dim=output_size, hidden_dim=hidden_size)
         self.encoder2 = (
-            Encoder(input_dim=1, hidden_dim=hidden_size, mode=self.mode)
+            Encoder(input_dim=2, hidden_dim=hidden_size, mode=self.mode)
             if self.mode != "single"
             else None
         )
@@ -119,12 +121,11 @@ class GeneralSeq2Seq(nn.Module):
 
     def forward(self, *src):
         if self.mode != "single":
-            return self.process_dual(src[:2], self.trg_len, src[2])
-        return self.process_single(src[:2], self.trg_len, src[2])
+            return self.process_dual(src, self.trg_len)
+        return self.process_single(src, self.trg_len)
 
-    def process_single(self, src, trg_len, trg_start_token):
-        encoder_outputs, hidden, cell = self.encoder1(src)
-        current_input = trg_start_token
+    def process_single(self, src, trg_len):
+        encoder_outputs, hidden, cell, current_input = self.encoder1(src)
 
         outputs = []
         for _ in range(trg_len):
@@ -136,31 +137,70 @@ class GeneralSeq2Seq(nn.Module):
         outputs = torch.stack(outputs, dim=0)
         return outputs.permute(1, 0, 2)
 
-    def process_dual(self, src, trg_len, trg_start_token):
+    def process_dual(self, src, trg_len):
         src1, src2 = src
-        encoder_outputs1, hidden1, cell1 = self.encoder1(src1)
-        current_input = trg_start_token
+        encoder_outputs1, hidden1, cell1, current_input1 = self.encoder1(src1)
 
         outputs1 = []
         for _ in range(trg_len):
             output1, hidden1, cell1 = self.decoder1(
-                current_input, hidden1, cell1, encoder_outputs1
+                current_input1, hidden1, cell1, encoder_outputs1
             )
             outputs1.append(output1)
-            current_input = output1.unsqueeze(1)
+            current_input1 = output1.unsqueeze(1)
         outputs1 = torch.stack(outputs1, dim=0)
 
-        encoder_outputs2, hidden2, cell2 = self.encoder2(src2)
-        current_input = trg_start_token
+        encoder_outputs2, hidden2, cell2, current_input2 = self.encoder2(src2)
 
         outputs2 = []
         for _ in range(trg_len):
             output2, hidden2, cell2 = self.decoder2(
-                current_input, hidden2, cell2, encoder_outputs2
+                current_input2, hidden2, cell2, encoder_outputs2
             )
             outputs2.append(output2)
-            current_input = output2.unsqueeze(1)
+            current_input2 = output2.unsqueeze(1)
         outputs2 = torch.stack(outputs2, dim=0)
         runoff_coefficients = torch.sigmoid(outputs2)
         final_outputs = outputs1 * runoff_coefficients
         return final_outputs.permute(1, 0, 2)
+
+
+class DataEnhancedModel(GeneralSeq2Seq):
+    def __init__(self, hidden_length, **kwargs):
+        super(DataEnhancedModel, self).__init__(**kwargs)
+        self.lstm = nn.LSTM(1, hidden_length, num_layers=1, batch_first=True)
+        self.fc = nn.Linear(hidden_length, 6)
+
+    def forward(self, *src):
+        src1, src2, token = src
+        processed_src1 = torch.unsqueeze(src1[:, :, 0], dim=2)
+        out_src1, _ = self.lstm(processed_src1)
+        out_src1 = self.fc(out_src1)
+        combined_input = torch.cat((out_src1, src1[:, :, 1:]), dim=2)
+
+        return super(DataEnhancedModel, self).forward(combined_input, src2, token)
+
+
+class DataFusionModel(DataEnhancedModel):
+    def __init__(self, input_dim, **kwargs):
+        super(DataFusionModel, self).__init__(**kwargs)
+        self.input_dim = input_dim
+
+        self.fusion_layer = nn.Conv1d(
+            in_channels=input_dim, out_channels=1, kernel_size=1
+        )
+
+    def forward(self, *src):
+        src1, src2, token = src
+        if self.input_dim == 3:
+            processed_src1 = self.fusion_layer(
+                src1[:, :, 0:3].permute(0, 2, 1)
+            ).permute(0, 2, 1)
+            combined_input = torch.cat((processed_src1, src1[:, :, 3:]), dim=2)
+        else:
+            processed_src1 = self.fusion_layer(
+                src1[:, :, 0:2].permute(0, 2, 1)
+            ).permute(0, 2, 1)
+            combined_input = torch.cat((processed_src1, src1[:, :, 2:]), dim=2)
+
+        return super(DataFusionModel, self).forward(combined_input, src2, token)

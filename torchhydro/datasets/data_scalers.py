@@ -206,17 +206,20 @@ class DapengScaler(object):
         pbm_norm
             if true, use pbm_norm method to normalize; the output of pbms is not normalized data, so its inverse is different.
         """
-        if prcp_norm_cols is None:
+        if prcp_norm_cols is None or isinstance(data_source, HydroBasins):
             prcp_norm_cols = [
                 "streamflow",
             ]
         if gamma_norm_cols is None or isinstance(data_source, HydroBasins):
             gamma_norm_cols = [
-                "p_mean",
-                "prcp",
                 "gpm_tp",
-                "gfs_tp",
-                "pwat",
+                "sta_tp",
+                "total_precipitation_hourly",
+                "temperature_2m",
+                "dewpoint_temperature_2m",
+                "surface_net_solar_radiation",
+                "sm_surface",
+                "sm_rootzone",
             ]
         self.data_target = target_vars
         self.data_forcing = relevant_vars
@@ -252,9 +255,12 @@ class DapengScaler(object):
             self.data_source.read_MP(
                 self.t_s_dict["sites_id"],
                 self.data_cfgs["source_cfgs"]["source_path"]["attributes"],
-            )
+            ).values.reshape(-1, 1)
             if isinstance(self.data_source, HydroBasins)
-            else self.data_source.read_mean_prcp(self.t_s_dict["sites_id"]).to_array()
+            else self.data_source.read_mean_prcp(self.t_s_dict["sites_id"])
+            .to_array()
+            .to_numpy()
+            .T  # TODO: check why T is needed
         )
 
     def inverse_transform(self, target_values):
@@ -288,7 +294,7 @@ class DapengScaler(object):
                 var = self.data_cfgs["target_cols"][i]
                 pred.loc[dict(variable=var)] = _prcp_norm(
                     pred.sel(variable=var).to_numpy(),
-                    self.mean_prcp.to_numpy().T,
+                    self.mean_prcp,
                     to_norm=False,
                 )
         # add attrs for units
@@ -312,7 +318,7 @@ class DapengScaler(object):
             if var in self.prcp_norm_cols:
                 stat_dict[var] = cal_stat_prcp_norm(
                     self.data_target.sel(variable=var).to_numpy(),
-                    self.mean_prcp.to_numpy().T,
+                    self.mean_prcp,
                 )
             elif var in self.gamma_norm_cols:
                 stat_dict[var] = cal_stat_gamma(
@@ -367,7 +373,7 @@ class DapengScaler(object):
             if var in self.prcp_norm_cols:
                 out.loc[dict(variable=var)] = _prcp_norm(
                     data.sel(variable=var).to_numpy(),
-                    self.mean_prcp.to_numpy().T,  # TODO: check why T is needed
+                    self.mean_prcp,
                     to_norm=True,
                 )
             else:

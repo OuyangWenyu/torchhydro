@@ -970,7 +970,7 @@ class HydroMultiSourceDataset(HydroMeanDataset):
                 ),
             )
             .to_numpy()
-            .T.reshape(-1, 1)
+            .T.reshape(-1, len(variable))
         )
 
     def get_y(self, basin, time, seq_length):
@@ -985,23 +985,6 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             .to_numpy()
             .T
         )
-
-    def get_token(self, basin, time):
-        data = (
-            self.y.sel(
-                basin=basin,
-                time=slice(
-                    time - np.timedelta64(1, "h"), time - np.timedelta64(1, "h")
-                ),
-            )
-            .to_numpy()
-            .T
-        )
-
-        if data.shape[0] == 0:
-            data = self.y.sel(basin=basin, time=slice(time, time)).to_numpy().T
-
-        return data
 
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
@@ -1022,7 +1005,6 @@ class HydroMultiSourceDataset(HydroMeanDataset):
                 x = np.hstack([yy, x])
         else:
             x = self.get_x("gpm_tp", basin, time, seq_length)
-
         if self.c is not None and self.c.shape[-1] > 0:
             c = self.c.sel(basin=basin).values
             c = np.tile(c, (seq_length, 1))
@@ -1030,11 +1012,13 @@ class HydroMultiSourceDataset(HydroMeanDataset):
 
         mode = self.data_cfgs["model_mode"]
         if mode == "dual":
-            s = self.get_x("smap", basin, time, seq_length, sm_length, 0)
+            s = self.get_x(
+                ["sm_surface", "sm_rootzone"], basin, time, seq_length, sm_length, 0
+            )
         else:
             all_features = [
                 self.get_x(
-                    "smap",
+                    ["sm_surface", "sm_rootzone"],
                     basin,
                     time,
                     seq_length,
@@ -1050,12 +1034,10 @@ class HydroMultiSourceDataset(HydroMeanDataset):
                     if feat.size == seq_length - sm_length
                 ]
             )
-        start_token = self.get_token(basin, time)
         y = self.get_y(basin, time, self.forecast_length)
         return [
             torch.from_numpy(x).float(),
             torch.from_numpy(s).float(),
-            torch.from_numpy(start_token).float(),
         ], torch.from_numpy(y).float()
 
     def _prepare_forcing(self):
@@ -1069,13 +1051,101 @@ class HydroMultiSourceDataset(HydroMeanDataset):
 
         data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
 
+        if self.data_cfgs["model_mode"] == "single":
+            cnn_size = self.data_cfgs["cnn_size"]
+        else:
+            cnn_size = 0
+
         var_subset_list = []
         for start_date, end_date in t_range:
             adjusted_start_date = (
                 datetime.strptime(start_date, "%Y-%m-%d")
-                - timedelta(hours=self.rho + self.data_cfgs["cnn_size"])
+                - timedelta(hours=self.rho + cnn_size)
             ).strftime("%Y-%m-%d")
             subset = data.sel(time=slice(adjusted_start_date, end_date))
             var_subset_list.append(subset)
 
         return xr.concat(var_subset_list, dim="time")
+
+
+class ERA5LandDataset(HydroMultiSourceDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(ERA5LandDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    def __getitem__(self, item: int):
+        basin, time = self.lookup_table[item]
+        seq_length = self.rho
+        sm_length = seq_length - self.data_cfgs["cnn_size"]
+        x, y, s = None, None, None
+
+        x = self.get_x(
+            [
+                "total_precipitation_hourly",
+                "temperature_2m",
+                "dewpoint_temperature_2m",
+                "surface_net_solar_radiation",
+            ],
+            basin,
+            time,
+            seq_length,
+        )
+
+        if self.c is not None and self.c.shape[-1] > 0:
+            c = self.c.sel(basin=basin).values
+            c = np.tile(c, (seq_length, 1))
+            x = np.concatenate((x, c), axis=1)
+
+        mode = self.data_cfgs["model_mode"]
+        if mode == "dual":
+            s = self.get_x(
+                ["sm_surface", "sm_rootzone"], basin, time, seq_length, sm_length, 0
+            )
+        else:
+            all_features = [
+                self.get_x(
+                    ["sm_surface", "sm_rootzone"],
+                    basin,
+                    time,
+                    seq_length,
+                    sm_length - offset,
+                    -offset,
+                )
+                for offset in range(seq_length)
+            ]
+            s = np.array(
+                [
+                    feat.squeeze()
+                    for feat in all_features
+                    if feat.size == seq_length - sm_length
+                ]
+            )
+        y = self.get_y(basin, time, self.forecast_length)
+        return [
+            torch.from_numpy(x).float(),
+            torch.from_numpy(s).float(),
+        ], torch.from_numpy(y).float()
+
+    def _read_xyc(self):
+        data_target_ds = self._prepare_target()
+        if data_target_ds is not None:
+            y_origin = self._trans2da_and_setunits(data_target_ds)
+        else:
+            y_origin = None
+
+        data_forcing_ds = self._prepare_forcing()
+        if data_forcing_ds is not None:
+            x_origin = self._trans2da_and_setunits(data_forcing_ds)
+            x_origin = xr.where(x_origin < 0, float("nan"), x_origin)
+        else:
+            x_origin = None
+
+        if self.data_cfgs["constant_cols"]:
+            data_attr_ds = self.data_source.read_BA_xrdataset(
+                self.t_s_dict["sites_id"],
+                self.data_cfgs["constant_cols"],
+                self.data_cfgs["source_cfgs"]["source_path"]["attributes"],
+            )
+            c_orgin = self._trans2da_and_setunits(data_attr_ds)
+        else:
+            c_orgin = None
+        self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin

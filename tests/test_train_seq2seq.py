@@ -22,22 +22,22 @@ for logger_name in logging.root.manager.loggerDict:
 
 @pytest.fixture()
 def config():
-    project_name = "test_mean_seq2seq/ex1"
+    project_name = "test_mean_seq2seq/ex22"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source_cfgs={
             "source": "HydroMean",
             "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_merged",
-                "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
+                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land",
+                "target": "basins-origin/hour_data/1h/mean_data/streamflow_basin",
                 "attributes": "basins-origin/attributes.nc",
             },
         },
         ctx=[1],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 16,
+            "input_size": 19,
             "output_size": 1,
             "hidden_size": 256,
             "cnn_size": 120,
@@ -46,12 +46,32 @@ def config():
         },
         model_loader={"load_way": "best"},
         gage_id=[
-            "21401550",
+            # "21401550",碧流河
+            "01181000",
+            # "01411300",2021年缺失，暂时不用
+            "01414500",
+            "02016000",
+            "02018000",
+            "02481510",
+            "03070500",
+            "08324000",
+            "11266500",
+            "11523200",
+            "12020000",
+            "12167000",
+            "14185000",
+            "14306500",
         ],
         batch_size=256,
-        rho=168,
-        # var_t=["gpm_tp", "sta_tp", "smap", "streamflow"],
-        var_t=["gpm_tp", "smap"],
+        rho=336,
+        var_t=[
+            "total_precipitation_hourly",
+            "temperature_2m",
+            "dewpoint_temperature_2m",
+            "surface_net_solar_radiation",
+            "sm_surface",
+            "sm_rootzone",
+        ],
         var_c=[
             "area",  # 面积
             "ele_mt_smn",  # 海拔(空间平均)
@@ -70,25 +90,22 @@ def config():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow"],
-        dataset="MultiSourceDataset",
+        dataset="ERA5LandDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
-        train_epoch=50,
+        train_epoch=1,
         save_epoch=1,
         train_period=[
-            # ("2017-07-01", "2017-09-29"),
-            # ("2018-07-01", "2018-09-29"),
-            # ("2019-07-01", "2019-09-29"),
-            # ("2020-07-01", "2020-09-29"),
-            ("2020-07-08", "2020-07-30"),
+            # ("2019-06-01", "2019-10-31"),
+            # ("2020-06-01", "2020-10-31"),
+            # ("2021-06-01", "2021-10-31"),
+            ("2022-06-01", "2022-09-30"),
         ],
         test_period=[
-            # ("2021-07-01", "2021-09-29"),
-            ("2020-07-08", "2020-07-30"),
+            ("2023-06-01", "2023-09-30"),
         ],
         valid_period=[
-            # ("2021-07-01", "2021-09-29"),
-            ("2020-07-08", "2020-07-30"),
+            ("2023-06-01", "2023-09-30"),
         ],
         loss_func="RMSESum",
         opt="Adam",
