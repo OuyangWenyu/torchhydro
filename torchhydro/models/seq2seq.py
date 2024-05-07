@@ -11,7 +11,7 @@ Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import math
 
 class SMEncoder(nn.Module):
     def __init__(self, input_channels, output_channels):
@@ -66,7 +66,54 @@ class Attention(nn.Module):
         hidden = hidden.repeat(seq_len, 1, 1).transpose(0, 1)
         energy = torch.tanh(self.attn(torch.cat((hidden, encoder_outputs), dim=2)))
         return F.softmax(energy.squeeze(2), dim=1)
+    
+class AdditiveAttention(nn.Module):
+    def __init__(self, hidden_dim):
+        super(AdditiveAttention, self).__init__()
+        # Separate linear transformations for queries and keys
+        self.W_q = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.W_k = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        # A linear layer to compute scores from the combined features
+        self.v = nn.Linear(hidden_dim, 1, bias=False)
 
+    def forward(self, encoder_outputs, hidden):
+        seq_len = encoder_outputs.shape[1]
+        # Apply transformations to the hidden states and encoder outputs
+        hidden_transformed = self.W_q(hidden).repeat(seq_len, 1, 1).transpose(0, 1)
+        encoder_outputs_transformed = self.W_k(encoder_outputs)
+        # Combine and apply activation function
+        combined = torch.tanh(hidden_transformed + encoder_outputs_transformed)
+        # Compute attention scores using the single linear layer
+        scores = self.v(combined).squeeze(2)
+        return F.softmax(scores, dim=1)
+
+class DotProductAttention(nn.Module):
+    def __init__(self, hidden_dim, dropout=0.1):
+        super(DotProductAttention, self).__init__()
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, encoder_outputs, hidden):
+        seq_len = encoder_outputs.shape[1]
+        batch_size = encoder_outputs.shape[0]
+        hidden_dim = encoder_outputs.shape[2]
+
+        # 调整 hidden 的维度以匹配 encoder_outputs
+        hidden_expanded = hidden.unsqueeze(1)
+
+        # 计算点积
+        scores = torch.bmm(hidden_expanded, encoder_outputs.transpose(1, 2)) / math.sqrt(hidden_dim)
+
+        # 应用 softmax 获取注意力权重
+        attention_weights = F.softmax(scores, dim=-1)
+
+        # 应用 dropout
+        attention_weights = self.dropout(attention_weights)
+
+        # 计算最终的加权和输出
+        # weighted_sum = torch.bmm(attention_weights, encoder_outputs)
+
+        # 输出维度是 (batch_size, 1, hidden_dim)，我们通常希望移除中间的维度
+        return attention_weights.squeeze(1)
 
 class Decoder(nn.Module):
     def __init__(self, output_dim, hidden_dim, num_layers=1):
@@ -77,7 +124,7 @@ class Decoder(nn.Module):
             hidden_dim + output_dim, hidden_dim, num_layers, batch_first=True
         )
         self.fc_out = nn.Linear(hidden_dim, output_dim)
-        self.attention = Attention(hidden_dim)
+        self.attention = DotProductAttention(hidden_dim)
 
     def forward(self, input, hidden, cell, encoder_outputs):
         attention_weights = self.attention(encoder_outputs, hidden.squeeze(0))
