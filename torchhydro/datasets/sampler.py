@@ -118,11 +118,11 @@ class HydroSampler(Sampler[int]):
         else:
             generator = self.generator
 
-        for _ in range(basin_number):
-            select_basin = torch.randint(0, basin_number, (1,)).item()
+        basin_list = torch.randperm(basin_number)
+        for select_basin in basin_list:
             x = torch.randperm(basin_range)
             for i in range(0, basin_range, n):
-                yield from (x[i : i + n] + basin_range * select_basin).tolist()
+                yield from (x[i : i + n] + basin_range * select_basin.item()).tolist()
 
     def __len__(self) -> int:
         return self.num_samples

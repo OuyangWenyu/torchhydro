@@ -86,7 +86,7 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
     warmup_length = validation_data_loader.dataset.warmup_length
 
     if not target_scaler.data_cfgs["static"]:
-        target_data=validation_data_loader.dataset.y
+        target_data = validation_data_loader.dataset.y
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
             warmup_length + length : -forecast_length + length
@@ -366,15 +366,21 @@ def torch_single_train(
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
+        if torch.isnan(loss):
+            continue
         loss.backward()  # 反向传播计算当前梯度
         opt.step()  # 根据梯度更新网络参数
         model.zero_grad()  # 清空梯度
-        if torch.isnan(loss) or loss == float("inf"):
+        if loss == float("inf"):
             raise ValueError(
-                "Error infinite or NaN loss detected. Try normalizing data or performing interpolation"
+                "Error infinite loss detected. Try normalizing data or performing interpolation"
             )
         running_loss += loss.item()
         n_iter_ep += 1
+    if n_iter_ep == 0:
+        raise ValueError(
+            "All batch computations of loss result in NAN. Please check the data."
+        )
     total_loss = running_loss / float(n_iter_ep)
     return total_loss, n_iter_ep
 
