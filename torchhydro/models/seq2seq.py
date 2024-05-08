@@ -13,6 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+
 class SMEncoder(nn.Module):
     def __init__(self, input_channels, output_channels):
         super(SMEncoder, self).__init__()
@@ -32,28 +33,45 @@ class Encoder(nn.Module):
         hidden_dim,
         input_channels=None,
         mode="single",
+        prec_window=0,
         num_layers=1,
     ):
         super(Encoder, self).__init__()
         self.hidden_dim = hidden_dim
+        self.prec_window = prec_window
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, 1)
         self.mode = mode
         if self.mode == "single":
-            self.sm_encoder = SMEncoder(input_channels, output_channels=1)
+            self.sm_encoder1 = SMEncoder(input_channels, output_channels=1)
+            self.sm_encoder2 = SMEncoder(input_channels, output_channels=1)
 
     def forward(self, x):
         if self.mode == "single":
             src1, src2 = x
-            sm_encoded = self.sm_encoder(src2)
-            src_combined = torch.cat((src1, sm_encoded), dim=2)
+            sm_encoded1 = self.sm_encoder1(src2[:, :, :, 0])
+            sm_encoded2 = self.sm_encoder1(src2[:, :, :, 1])
+            src_combined = torch.cat((src1, sm_encoded1), dim=2)
+            src_combined = torch.cat((src_combined, sm_encoded2), dim=2)
             outputs, (hidden, cell) = self.lstm(src_combined)
         else:
             outputs, (hidden, cell) = self.lstm(x)
-        outputs = self.fc(outputs)
-        token = self.fc2(outputs[:, -1, :].unsqueeze(1))
-        return outputs, hidden, cell, token
+        pred_outputs = self.fc(outputs)
+        prec_outputs = self.fc2(outputs)
+        token = prec_outputs[:, -1, :].unsqueeze(1)
+
+        if self.prec_window != 0:
+            prec_outputs = prec_outputs[:, -self.prec_window, :].unsqueeze(1)
+        else:
+            prec_outputs = None
+        return (
+            pred_outputs,
+            hidden,
+            cell,
+            token,
+            prec_outputs,
+        )
 
 
 class Attention(nn.Module):
@@ -66,54 +84,39 @@ class Attention(nn.Module):
         hidden = hidden.repeat(seq_len, 1, 1).transpose(0, 1)
         energy = torch.tanh(self.attn(torch.cat((hidden, encoder_outputs), dim=2)))
         return F.softmax(energy.squeeze(2), dim=1)
-    
+
+
 class AdditiveAttention(nn.Module):
     def __init__(self, hidden_dim):
         super(AdditiveAttention, self).__init__()
-        # Separate linear transformations for queries and keys
         self.W_q = nn.Linear(hidden_dim, hidden_dim, bias=False)
         self.W_k = nn.Linear(hidden_dim, hidden_dim, bias=False)
-        # A linear layer to compute scores from the combined features
         self.v = nn.Linear(hidden_dim, 1, bias=False)
 
     def forward(self, encoder_outputs, hidden):
         seq_len = encoder_outputs.shape[1]
-        # Apply transformations to the hidden states and encoder outputs
         hidden_transformed = self.W_q(hidden).repeat(seq_len, 1, 1).transpose(0, 1)
         encoder_outputs_transformed = self.W_k(encoder_outputs)
-        # Combine and apply activation function
         combined = torch.tanh(hidden_transformed + encoder_outputs_transformed)
-        # Compute attention scores using the single linear layer
         scores = self.v(combined).squeeze(2)
         return F.softmax(scores, dim=1)
 
+
 class DotProductAttention(nn.Module):
-    def __init__(self, hidden_dim, dropout=0.1):
+    def __init__(self, dropout=0.1):
         super(DotProductAttention, self).__init__()
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, encoder_outputs, hidden):
-        seq_len = encoder_outputs.shape[1]
-        batch_size = encoder_outputs.shape[0]
         hidden_dim = encoder_outputs.shape[2]
-
-        # 调整 hidden 的维度以匹配 encoder_outputs
         hidden_expanded = hidden.unsqueeze(1)
-
-        # 计算点积
-        scores = torch.bmm(hidden_expanded, encoder_outputs.transpose(1, 2)) / math.sqrt(hidden_dim)
-
-        # 应用 softmax 获取注意力权重
+        scores = torch.bmm(
+            hidden_expanded, encoder_outputs.transpose(1, 2)
+        ) / math.sqrt(hidden_dim)
         attention_weights = F.softmax(scores, dim=-1)
-
-        # 应用 dropout
         attention_weights = self.dropout(attention_weights)
-
-        # 计算最终的加权和输出
-        # weighted_sum = torch.bmm(attention_weights, encoder_outputs)
-
-        # 输出维度是 (batch_size, 1, hidden_dim)，我们通常希望移除中间的维度
         return attention_weights.squeeze(1)
+
 
 class Decoder(nn.Module):
     def __init__(self, output_dim, hidden_dim, num_layers=1):
@@ -124,7 +127,7 @@ class Decoder(nn.Module):
             hidden_dim + output_dim, hidden_dim, num_layers, batch_first=True
         )
         self.fc_out = nn.Linear(hidden_dim, output_dim)
-        self.attention = DotProductAttention(hidden_dim)
+        self.attention = DotProductAttention()
 
     def forward(self, input, hidden, cell, encoder_outputs):
         attention_weights = self.attention(encoder_outputs, hidden.squeeze(0))
@@ -144,6 +147,7 @@ class GeneralSeq2Seq(nn.Module):
         forecast_length,
         cnn_size=None,
         model_mode="single",
+        prec_window=0,
     ):
         super(GeneralSeq2Seq, self).__init__()
         self.mode = model_mode
@@ -153,10 +157,16 @@ class GeneralSeq2Seq(nn.Module):
             hidden_dim=hidden_size,
             input_channels=cnn_size,
             mode=self.mode,
+            prec_window=prec_window,
         )
         self.decoder1 = Decoder(output_dim=output_size, hidden_dim=hidden_size)
         self.encoder2 = (
-            Encoder(input_dim=2, hidden_dim=hidden_size, mode=self.mode)
+            Encoder(
+                input_dim=2,
+                hidden_dim=hidden_size,
+                mode=self.mode,
+                prec_window=prec_window,
+            )
             if self.mode != "single"
             else None
         )
@@ -172,7 +182,7 @@ class GeneralSeq2Seq(nn.Module):
         return self.process_single(src, self.trg_len)
 
     def process_single(self, src, trg_len):
-        encoder_outputs, hidden, cell, current_input = self.encoder1(src)
+        encoder_outputs, hidden, cell, current_input, prec_outputs = self.encoder1(src)
 
         outputs = []
         for _ in range(trg_len):
@@ -182,11 +192,15 @@ class GeneralSeq2Seq(nn.Module):
             outputs.append(output)
             current_input = output.unsqueeze(1)
         outputs = torch.stack(outputs, dim=0)
+        if prec_outputs is not None:
+            outputs = torch.cat((prec_outputs.permute(1, 0, 2), outputs), dim=0)
         return outputs.permute(1, 0, 2)
 
     def process_dual(self, src, trg_len):
         src1, src2 = src
-        encoder_outputs1, hidden1, cell1, current_input1 = self.encoder1(src1)
+        encoder_outputs1, hidden1, cell1, current_input1, prec_outputs1 = self.encoder1(
+            src1
+        )
 
         outputs1 = []
         for _ in range(trg_len):
@@ -197,7 +211,12 @@ class GeneralSeq2Seq(nn.Module):
             current_input1 = output1.unsqueeze(1)
         outputs1 = torch.stack(outputs1, dim=0)
 
-        encoder_outputs2, hidden2, cell2, current_input2 = self.encoder2(src2)
+        if prec_outputs1 is not None:
+            outputs1 = torch.cat((prec_outputs1.permute(1, 0, 2), outputs1), dim=0)
+
+        encoder_outputs2, hidden2, cell2, current_input2, prec_outputs2 = self.encoder2(
+            src2
+        )
 
         outputs2 = []
         for _ in range(trg_len):
@@ -207,6 +226,10 @@ class GeneralSeq2Seq(nn.Module):
             outputs2.append(output2)
             current_input2 = output2.unsqueeze(1)
         outputs2 = torch.stack(outputs2, dim=0)
+
+        if prec_outputs2 is not None:
+            outputs2 = torch.cat((prec_outputs2.permute(1, 0, 2), outputs2), dim=0)
+
         runoff_coefficients = torch.sigmoid(outputs2)
         final_outputs = outputs1 * runoff_coefficients
         return final_outputs.permute(1, 0, 2)

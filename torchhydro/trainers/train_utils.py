@@ -86,6 +86,7 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
     warmup_length = validation_data_loader.dataset.warmup_length
 
     if not target_scaler.data_cfgs["static"]:
+        target_data=validation_data_loader.dataset.y
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
             warmup_length + length : -forecast_length + length

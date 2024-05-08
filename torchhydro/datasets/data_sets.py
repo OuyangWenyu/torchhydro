@@ -973,13 +973,13 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             .T.reshape(-1, len(variable))
         )
 
-    def get_y(self, basin, time, seq_length):
+    def get_y(self, basin, time, forecast_length, prec_window):
         return (
             self.y.sel(
                 basin=basin,
                 time=slice(
-                    time,
-                    time + np.timedelta64(seq_length - 1, "h"),
+                    time - np.timedelta64(prec_window, "h"),
+                    time + np.timedelta64(forecast_length - 1, "h"),
                 ),
             )
             .to_numpy()
@@ -1031,10 +1031,10 @@ class HydroMultiSourceDataset(HydroMeanDataset):
                 [
                     feat.squeeze()
                     for feat in all_features
-                    if feat.size == seq_length - sm_length
+                    if feat.shape[0] == seq_length - sm_length
                 ]
             )
-        y = self.get_y(basin, time, self.forecast_length)
+        y = self.get_y(basin, time, self.forecast_length, self.data_cfgs["prec_window"])
         return [
             torch.from_numpy(x).float(),
             torch.from_numpy(s).float(),
@@ -1061,11 +1061,52 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             adjusted_start_date = (
                 datetime.strptime(start_date, "%Y-%m-%d")
                 - timedelta(hours=self.rho + cnn_size)
-            ).strftime("%Y-%m-%d")
+            ).strftime("%Y-%m-%d-%H")
             subset = data.sel(time=slice(adjusted_start_date, end_date))
             var_subset_list.append(subset)
 
         return xr.concat(var_subset_list, dim="time")
+
+    def _prepare_target(self):
+        gage_id_lst = self.t_s_dict["sites_id"]
+        t_range = self.t_s_dict["t_final_range"]
+        var_lst = self.data_cfgs["target_cols"]
+        path = self.data_cfgs["source_cfgs"]["source_path"]["target"]
+
+        if var_lst is None or not var_lst:
+            return None
+
+        data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
+
+        all_vars = data.data_vars
+        if any(var not in data.variables for var in var_lst):
+            raise ValueError(f"var_lst must all be in {all_vars}")
+        subset_list = []
+
+        for start_date, end_date in t_range:
+            adjusted_start_date = (
+                datetime.strptime(start_date, "%Y-%m-%d")
+                - timedelta(hours=self.data_cfgs["prec_window"])
+            ).strftime("%Y-%m-%d-%H")
+
+            adjusted_end_date = (
+                datetime.strptime(end_date, "%Y-%m-%d")
+                + timedelta(hours=self.forecast_length)
+            ).strftime("%Y-%m-%d-%H")
+            subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
+            subset_list.append(subset)
+        return xr.concat(subset_list, dim="time")
+
+    def _load_data(self):
+        self._pre_load_data()
+        self._read_xyc()
+        norm_x, norm_y, norm_c = self._normalize()
+        self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)
+        if self.data_cfgs["prec_window"] != 0:
+            prec_window = self.data_cfgs["prec_window"]
+            self.y_prec = self.y.isel(time=slice(0, prec_window))
+            self.y = self.y.isel(time=slice(prec_window, None))
+        self._create_lookup_table()
 
 
 class ERA5LandDataset(HydroMultiSourceDataset):
@@ -1116,10 +1157,16 @@ class ERA5LandDataset(HydroMultiSourceDataset):
                 [
                     feat.squeeze()
                     for feat in all_features
-                    if feat.size == seq_length - sm_length
+                    if feat.shape[0] == seq_length - sm_length
                 ]
             )
-        y = self.get_y(basin, time, self.forecast_length)
+        prec_window = self.data_cfgs["prec_window"]
+        y = self.get_y(basin, time, self.forecast_length, prec_window)
+
+        if y.shape[0] != (self.forecast_length + prec_window):
+            y_prec = self.y_prec.sel(basin=basin).to_numpy().T
+            y = np.concatenate((y_prec, y), axis=0)
+
         return [
             torch.from_numpy(x).float(),
             torch.from_numpy(s).float(),

@@ -1005,6 +1005,10 @@ def update_cfg(cfg_file, new_args):
             ]
         if "cnn_size" in new_args.model_hyperparam.keys():
             cfg_file["data_cfgs"]["cnn_size"] = new_args.model_hyperparam["cnn_size"]
+        if "prec_window" in new_args.model_hyperparam.keys():
+            cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam[
+                "prec_window"
+            ]
     if new_args.metrics is not None:
         cfg_file["evaluation_cfgs"]["metrics"] = new_args.metrics
     if new_args.fill_nan is not None:

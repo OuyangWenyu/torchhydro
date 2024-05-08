@@ -22,7 +22,7 @@ for logger_name in logging.root.manager.loggerDict:
 
 @pytest.fixture()
 def config():
-    project_name = "test_mean_seq2seq/ex22"
+    project_name = "test_mean_seq2seq/ex24"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -37,12 +37,13 @@ def config():
         ctx=[1],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 19,
+            "input_size": 19,  # dual比single少2
             "output_size": 1,
             "hidden_size": 256,
             "cnn_size": 120,
             "forecast_length": 24,
             "model_mode": "dual",
+            "prec_window": 1,  # 将前序径流一起作为输出，选择的时段数，该值需小于等于rho
         },
         model_loader={"load_way": "best"},
         gage_id=[
@@ -50,17 +51,17 @@ def config():
             "01181000",
             # "01411300",2021年缺失，暂时不用
             "01414500",
-            "02016000",
-            "02018000",
-            "02481510",
-            "03070500",
-            "08324000",
-            "11266500",
-            "11523200",
-            "12020000",
-            "12167000",
-            "14185000",
-            "14306500",
+            # "02016000",
+            # "02018000",
+            # "02481510",
+            # "03070500",
+            # "08324000",
+            # "11266500",
+            # "11523200",
+            # "12020000",
+            # "12167000",
+            # "14185000",
+            # "14306500",
         ],
         batch_size=256,
         rho=336,
@@ -99,10 +100,10 @@ def config():
             # ("2019-06-01", "2019-10-31"),
             # ("2020-06-01", "2020-10-31"),
             # ("2021-06-01", "2021-10-31"),
-            ("2022-06-01", "2022-09-30"),
+            ("2023-06-01", "2023-09-30"),
         ],
         test_period=[
-            ("2023-06-01", "2023-09-30"),
+            ("2022-06-01", "2022-09-30"),
         ],
         valid_period=[
             ("2023-06-01", "2023-09-30"),
