@@ -13,7 +13,7 @@ import sys
 import torch
 import xarray as xr
 import numpy as np
-
+import pandas as pd
 from datetime import datetime, timedelta
 from typing import Optional
 from torch.utils.data import Dataset
@@ -1038,6 +1038,7 @@ class HydroMultiSourceDataset(HydroMeanDataset):
         return [
             torch.from_numpy(x).float(),
             torch.from_numpy(s).float(),
+            torch.from_numpy(y).float(),
         ], torch.from_numpy(y).float()
 
     def _prepare_forcing(self):
@@ -1097,16 +1098,40 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             subset_list.append(subset)
         return xr.concat(subset_list, dim="time")
 
-    def _load_data(self):
-        self._pre_load_data()
-        self._read_xyc()
-        norm_x, norm_y, norm_c = self._normalize()
-        self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)
-        if self.data_cfgs["prec_window"] != 0:
-            prec_window = self.data_cfgs["prec_window"]
-            self.y_prec = self.y.isel(time=slice(0, prec_window))
-            self.y = self.y.isel(time=slice(prec_window, None))
-        self._create_lookup_table()
+    def _create_lookup_table(self):
+        is_tra_val_te = self.is_tra_val_te
+        if is_tra_val_te == "train":
+            date_ranges = self.data_cfgs["t_range_train"]
+        elif is_tra_val_te == "valid":
+            date_ranges = self.data_cfgs["t_range_valid"]
+        else:
+            date_ranges = self.data_cfgs["t_range_test"]
+        dates = []
+        for start, end in date_ranges:
+            date_range = pd.date_range(start=start, end=end, freq="h")
+            dates.extend(date_range)
+        dates = np.array(dates, dtype="datetime64[ns]")
+        lookup = []
+        basins = self.t_s_dict["sites_id"]
+        forecast_length = self.forecast_length
+        warmup_length = self.warmup_length
+        time_num = len(self.t_s_dict["t_final_range"])
+        time_total_length = len(dates)
+        time_single_length = time_total_length // time_num
+
+        for basin in tqdm(
+            basins,
+            file=sys.stdout,
+            disable=False,
+            desc=f"Creating {is_tra_val_te} lookup table",
+        ):
+            for num in range(time_num):
+                lookup.extend(
+                    (basin, dates[f + num * time_single_length])
+                    for f in range(warmup_length, time_single_length - forecast_length)
+                )
+        self.lookup_table = dict(enumerate(lookup))
+        self.num_samples = len(self.lookup_table)
 
 
 class ERA5LandDataset(HydroMultiSourceDataset):
@@ -1163,13 +1188,10 @@ class ERA5LandDataset(HydroMultiSourceDataset):
         prec_window = self.data_cfgs["prec_window"]
         y = self.get_y(basin, time, self.forecast_length, prec_window)
 
-        if y.shape[0] != (self.forecast_length + prec_window):
-            y_prec = self.y_prec.sel(basin=basin).to_numpy().T
-            y = np.concatenate((y_prec, y), axis=0)
-
         return [
             torch.from_numpy(x).float(),
             torch.from_numpy(s).float(),
+            torch.from_numpy(y).float(),
         ], torch.from_numpy(y).float()
 
     def _read_xyc(self):

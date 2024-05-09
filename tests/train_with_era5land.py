@@ -1,20 +1,12 @@
-"""
-Author: Wenyu Ouyang
-Date: 2024-04-17 12:55:24
-LastEditTime: 2024-04-17 13:31:16
-LastEditors: Xinzhuo Wu
-Description: 
-FilePath: /torchhydro/tests/test_train_seq2seq.py
-Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
-"""
-
-import pytest
 import logging
 import pandas as pd
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
+from torchhydro.trainers.trainer import train_and_evaluate
 
+# 设置日志记录器的级别为 INFO
 logging.basicConfig(level=logging.INFO)
+
+# 配置日志记录器，确保所有子记录器也记录 INFO 级别的日志
 for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
@@ -23,10 +15,20 @@ show = pd.read_csv("data/basin_id(46+1).csv", dtype={"id": str})
 gage_id = show["id"].values.tolist()
 
 
-@pytest.fixture()
-def config():
-    project_name = "test_mean_seq2seq/ex25"
+def main():
+    # 创建测试配置
+    config_data = create_config()
+
+    # 运行测试函数
+    test_seq2seq(config_data)
+
+
+def create_config():
+    # 设置测试所需的项目名称和默认配置文件
+    project_name = "train_with_era5land/ex1"
     config_data = default_config_file()
+
+    # 填充测试所需的命令行参数
     args = cmd(
         sub=project_name,
         source_cfgs={
@@ -49,24 +51,24 @@ def config():
             "prec_window": 1,  # 将前序径流一起作为输出，选择的时段数，该值需小于等于rho，建议置为1
         },
         model_loader={"load_way": "best"},
-        gage_id=[
-            # "21401550",#碧流河
-            "01181000",
-            # "01411300",  # 2020年缺失
-            "01414500",
-            # "02016000",
-            # "02018000",
-            # "02481510",
-            # "03070500",
-            # "08324000",#-3000
-            # "11266500",
-            # "11523200",
-            # "12020000",
-            # "12167000",
-            # "14185000",
-            # "14306500",
-        ],
-        # gage_id=gage_id,
+        # gage_id=[
+        #     # "21401550",#碧流河
+        #     "01181000",
+        #     # "01411300",  # 2020年缺失
+        #     "01414500",
+        #     # "02016000",
+        #     # "02018000",
+        #     # "02481510",
+        #     # "03070500",
+        #     # "08324000",#-3000
+        #     # "11266500",
+        #     # "11523200",
+        #     # "12020000",
+        #     # "12167000",
+        #     # "14185000",
+        #     # "14306500",
+        # ],
+        gage_id=gage_id,
         batch_size=1024,
         rho=336,
         var_t=[
@@ -133,10 +135,17 @@ def config():
             "batch_sizes": [1024],
         },
     )
+
+    # 更新默认配置
     update_cfg(config_data, args)
+
     return config_data
 
 
-def test_seq2seq(config):
-    # train_and_evaluate(config)
-    ensemble_train_and_evaluate(config)
+def test_seq2seq(config_data):
+    # 运行测试
+    train_and_evaluate(config_data)
+
+
+if __name__ == "__main__":
+    main()

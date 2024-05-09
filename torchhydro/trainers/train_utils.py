@@ -89,7 +89,10 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
         target_data = validation_data_loader.dataset.y
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
-            warmup_length + length : -forecast_length + length
+            warmup_length
+            + length
+            + target_scaler.data_cfgs["prec_window"] : -forecast_length * 2
+            + length
         ]
     else:
         selected_time_points = target_data.coords["time"][warmup_length:]

@@ -10,14 +10,18 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 
 import os
 import pytest
-from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.trainers.trainer import train_and_evaluate
 import logging
+import pandas as pd
+from torchhydro.configs.config import cmd, default_config_file, update_cfg
+from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
+
+show = pd.read_csv("data/basin_id(46+1).csv", dtype={"id": str})
+gage_id = show["id"].values.tolist()
 
 
 @pytest.fixture()
@@ -41,7 +45,7 @@ def config():
         model_name="DataEnhanced",
         model_hyperparam={
             "hidden_length": 256,
-            "input_size": 20,
+            "input_size": 19,
             "output_size": 1,
             "hidden_size": 256,
             "cnn_size": 120,
@@ -59,16 +63,20 @@ def config():
         batch_size=256,
         rho=336,
         train_period=[
-            # ("2019-06-01", "2019-10-31"),
-            # ("2020-06-01", "2020-10-31"),
-            # ("2021-06-01", "2021-10-31"),
+            ("2015-06-01", "2015-09-30"),
+            ("2016-06-01", "2016-09-30"),
+            ("2017-06-01", "2017-09-30"),
+            ("2018-06-01", "2018-09-30"),
+            ("2019-06-01", "2019-09-30"),
+            ("2020-06-01", "2020-09-30"),
+            ("2021-06-01", "2021-09-30"),
             ("2022-06-01", "2022-09-30"),
         ],
         test_period=[
             ("2023-06-01", "2023-09-30"),
         ],
         valid_period=[
-            ("2023-06-01", "2023-09-30"),
+            ("2023-06-01", "2023-09-30"),  # 目前只支持一个时段
         ],
         dataset="MultiSourceDataset",
         sampler="HydroSampler",
@@ -109,7 +117,7 @@ def config():
             ]
         },
         continue_train=True,
-        train_epoch=1,
+        train_epoch=50,
         save_epoch=1,
         var_t=[
             "gpm_tp",
@@ -155,7 +163,12 @@ def config():
         rolling=False,
         static=False,
         early_stopping=True,
-        patience=4,
+        patience=10,
+        ensemble=True,
+        ensemble_items={
+            "kfold": 9,
+            "batch_sizes": [1024],
+        },
     )
     config_data = default_config_file()
     update_cfg(config_data, args)
@@ -163,4 +176,5 @@ def config():
 
 
 def test_dataenhanced(config):
-    train_and_evaluate(config)
+    # train_and_evaluate(config)
+    ensemble_train_and_evaluate(config)

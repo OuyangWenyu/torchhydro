@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+import random
 
 
 class SMEncoder(nn.Module):
@@ -148,10 +149,13 @@ class GeneralSeq2Seq(nn.Module):
         cnn_size=None,
         model_mode="single",
         prec_window=0,
+        teacher_forcing_ratio=0.5,
     ):
         super(GeneralSeq2Seq, self).__init__()
         self.mode = model_mode
         self.trg_len = forecast_length
+        self.prec_window = prec_window
+        self.teacher_forcing_ratio = teacher_forcing_ratio
         self.encoder1 = Encoder(
             input_dim=input_size,
             hidden_dim=hidden_size,
@@ -182,57 +186,47 @@ class GeneralSeq2Seq(nn.Module):
         return self.process_single(src, self.trg_len)
 
     def process_single(self, src, trg_len):
-        encoder_outputs, hidden, cell, current_input, prec_outputs = self.encoder1(src)
-
-        outputs = []
-        for _ in range(trg_len):
-            output, hidden, cell = self.decoder1(
-                current_input, hidden, cell, encoder_outputs
-            )
-            outputs.append(output)
-            current_input = output.unsqueeze(1)
-        outputs = torch.stack(outputs, dim=0)
-        if prec_outputs is not None:
-            outputs = torch.cat((prec_outputs.permute(1, 0, 2), outputs), dim=0)
+        outputs = self.process_encoder_decoder(
+            self.encoder1, self.decoder1, src[:1], trg_len, src[2]
+        )
         return outputs.permute(1, 0, 2)
 
     def process_dual(self, src, trg_len):
-        src1, src2 = src
-        encoder_outputs1, hidden1, cell1, current_input1, prec_outputs1 = self.encoder1(
-            src1
+        src1, src2, src3 = src
+        outputs1 = self.process_encoder_decoder(
+            self.encoder1, self.decoder1, src1, trg_len, src3
         )
-
-        outputs1 = []
-        for _ in range(trg_len):
-            output1, hidden1, cell1 = self.decoder1(
-                current_input1, hidden1, cell1, encoder_outputs1
-            )
-            outputs1.append(output1)
-            current_input1 = output1.unsqueeze(1)
-        outputs1 = torch.stack(outputs1, dim=0)
-
-        if prec_outputs1 is not None:
-            outputs1 = torch.cat((prec_outputs1.permute(1, 0, 2), outputs1), dim=0)
-
-        encoder_outputs2, hidden2, cell2, current_input2, prec_outputs2 = self.encoder2(
-            src2
+        outputs2 = self.process_encoder_decoder(
+            self.encoder2, self.decoder2, src2, trg_len, src3
         )
-
-        outputs2 = []
-        for _ in range(trg_len):
-            output2, hidden2, cell2 = self.decoder2(
-                current_input2, hidden2, cell2, encoder_outputs2
-            )
-            outputs2.append(output2)
-            current_input2 = output2.unsqueeze(1)
-        outputs2 = torch.stack(outputs2, dim=0)
-
-        if prec_outputs2 is not None:
-            outputs2 = torch.cat((prec_outputs2.permute(1, 0, 2), outputs2), dim=0)
 
         runoff_coefficients = torch.sigmoid(outputs2)
         final_outputs = outputs1 * runoff_coefficients
         return final_outputs.permute(1, 0, 2)
+
+    def process_encoder_decoder(self, encoder, decoder, src, trg_len, trgs):
+        encoder_outputs, hidden, cell, current_input, prec_outputs = encoder(src)
+
+        outputs = []
+        for t in range(trg_len):
+            output, hidden, cell = decoder(current_input, hidden, cell, encoder_outputs)
+            outputs.append(output)
+
+            if isinstance(self.encoder1, type(self.encoder1)):
+                trg = trgs[:, (self.prec_window + t), :].unsqueeze(1)
+                if torch.any(torch.isnan(trg)).item():
+                    current_input = output.unsqueeze(1)
+                else:
+                    use_teacher_forcing = random.random() < self.teacher_forcing_ratio
+                    current_input = trg if use_teacher_forcing else output.unsqueeze(1)
+
+            current_input = output.unsqueeze(1)
+        outputs = torch.stack(outputs, dim=0)
+
+        if prec_outputs is not None:
+            outputs = torch.cat((prec_outputs.permute(1, 0, 2), outputs), dim=0)
+
+        return outputs
 
 
 class DataEnhancedModel(GeneralSeq2Seq):
