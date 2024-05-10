@@ -1133,67 +1133,11 @@ class HydroMultiSourceDataset(HydroMeanDataset):
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
 
-
-class ERA5LandDataset(HydroMultiSourceDataset):
+class Seq2SeqDataset(HydroMultiSourceDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(ERA5LandDataset, self).__init__(data_cfgs, is_tra_val_te)
-
-    def __getitem__(self, item: int):
-        basin, time = self.lookup_table[item]
-        seq_length = self.rho
-        sm_length = seq_length - self.data_cfgs["cnn_size"]
-        x, y, s = None, None, None
-
-        x = self.get_x(
-            [
-                "total_precipitation_hourly",
-                "temperature_2m",
-                "dewpoint_temperature_2m",
-                "surface_net_solar_radiation",
-            ],
-            basin,
-            time,
-            seq_length,
-        )
-
-        if self.c is not None and self.c.shape[-1] > 0:
-            c = self.c.sel(basin=basin).values
-            c = np.tile(c, (seq_length, 1))
-            x = np.concatenate((x, c), axis=1)
-
-        mode = self.data_cfgs["model_mode"]
-        if mode == "dual":
-            s = self.get_x(
-                ["sm_surface", "sm_rootzone"], basin, time, seq_length, sm_length, 0
-            )
-        else:
-            all_features = [
-                self.get_x(
-                    ["sm_surface", "sm_rootzone"],
-                    basin,
-                    time,
-                    seq_length,
-                    sm_length - offset,
-                    -offset,
-                )
-                for offset in range(seq_length)
-            ]
-            s = np.array(
-                [
-                    feat.squeeze()
-                    for feat in all_features
-                    if feat.shape[0] == seq_length - sm_length
-                ]
-            )
-        prec_window = self.data_cfgs["prec_window"]
-        y = self.get_y(basin, time, self.forecast_length, prec_window)
-
-        return [
-            torch.from_numpy(x).float(),
-            torch.from_numpy(s).float(),
-            torch.from_numpy(y).float(),
-        ], torch.from_numpy(y).float()
-
+        super(Seq2SeqDataset, self).__init__(data_cfgs, is_tra_val_te)
+        self.features = self.get_features()
+    
     def _read_xyc(self):
         data_target_ds = self._prepare_target()
         if data_target_ds is not None:
@@ -1218,3 +1162,52 @@ class ERA5LandDataset(HydroMultiSourceDataset):
         else:
             c_orgin = None
         self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin
+
+    def get_features(self):
+        raise NotImplementedError("Subclasses must implement this method to specify data features")
+
+    def __getitem__(self, item: int):
+        basin, time = self.lookup_table[item]
+        seq_length = self.rho
+        sm_length = seq_length - self.data_cfgs["cnn_size"]
+        x, y, s = None, None, None
+
+        x = self.get_x(self.features, basin, time, seq_length)
+
+        if self.c is not None and self.c.shape[-1] > 0:
+            c = self.c.sel(basin=basin).values
+            c = np.tile(c, (seq_length, 1))
+            x = np.concatenate((x, c), axis=1)
+
+        mode = self.data_cfgs["model_mode"]
+        if mode == "dual":
+            s = self.get_x(["sm_surface", "sm_rootzone"], basin, time, seq_length, sm_length, 0)
+        else:
+            all_features = [
+                self.get_x(["sm_surface", "sm_rootzone"], basin, time, seq_length, sm_length - offset, -offset)
+                for offset in range(seq_length)
+            ]
+            s = np.array([feat.squeeze() for feat in all_features if feat.shape[0] == seq_length - sm_length])
+
+        prec_window = self.data_cfgs["prec_window"]
+        y = self.get_y(basin, time, self.forecast_length, prec_window)
+
+        return [torch.from_numpy(x).float(), torch.from_numpy(s).float(), torch.from_numpy(y).float()], torch.from_numpy(y).float()
+
+
+
+class ERA5LandDataset(Seq2SeqDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(ERA5LandDataset, self).__init__(data_cfgs, is_tra_val_te)
+        self.features = self.get_features()
+
+    def get_features(self):
+        return ["total_precipitation_hourly", "temperature_2m", "dewpoint_temperature_2m", "surface_net_solar_radiation"]
+
+class GPMDataset(Seq2SeqDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(GPMDataset, self).__init__(data_cfgs, is_tra_val_te)
+        self.features = self.get_features()
+
+    def get_features(self):
+        return ["gpm_tp"]

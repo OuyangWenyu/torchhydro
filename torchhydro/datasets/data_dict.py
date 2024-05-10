@@ -17,6 +17,7 @@ from torchhydro.datasets.data_sets import (
     HydroMeanDataset,
     HydroMultiSourceDataset,
     ERA5LandDataset,
+    GPMDataset
 )
 
 
@@ -29,4 +30,5 @@ datasets_dict = {
     "FlexDataset": FlexibleDataset,
     "MultiSourceDataset": HydroMultiSourceDataset,
     "ERA5LandDataset": ERA5LandDataset,
+    "GPMDataset": GPMDataset
 }
