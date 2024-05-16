@@ -239,7 +239,7 @@ def default_config_file():
             "start_epoch": 1,
             "batch_size": 100,
             "random_seed": 1234,
-            "device": [0],
+            "device": [0, 1, 2],
             "multi_targets": 1,
             "num_workers": 0,
             "which_first_tensor": "sequence",

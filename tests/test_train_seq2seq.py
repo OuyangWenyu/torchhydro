@@ -3,23 +3,26 @@ Author: Wenyu Ouyang
 Date: 2024-04-17 12:55:24
 LastEditTime: 2024-04-17 13:31:16
 LastEditors: Xinzhuo Wu
-Description: 
+Description:
 FilePath: /torchhydro/tests/test_train_seq2seq.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
-
-import pytest
 import logging
+import os.path
+import pathlib
+
 import pandas as pd
+import pytest
+
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
+from torchhydro.trainers.trainer import ensemble_train_and_evaluate
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-show = pd.read_csv("data/basin_id(46+1).csv", dtype={"id": str})
+show = pd.read_csv(os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(46+1).csv"), dtype={"id": str})
 gage_id = show["id"].values.tolist()
 
 
@@ -32,8 +35,8 @@ def config():
         source_cfgs={
             "source": "HydroMean",
             "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land",
-                "target": "basins-origin/hour_data/1h/mean_data/streamflow_basin",
+                "forcing": "/ftproot/data_240509/data_forcing_era5land_100/",
+                "target": "/ftproot/data_240509/data_forcing_era5land_100/",
                 "attributes": "basins-origin/attributes.nc",
             },
         },
@@ -41,8 +44,8 @@ def config():
         model_name="Seq2Seq",
         model_hyperparam={
             "input_size": 19,  # dual比single少2
-            "output_size": 1,
-            "hidden_size": 256,
+            "output_size": 2,
+            "hidden_size": 128,
             "cnn_size": 120,
             "forecast_length": 24,
             "model_mode": "dual",
@@ -67,7 +70,7 @@ def config():
             # "14306500",
         ],
         # gage_id=gage_id,
-        batch_size=1024,
+        batch_size=512,
         rho=336,
         var_t=[
             "total_precipitation_hourly",
@@ -94,16 +97,16 @@ def config():
             "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
             "dor_pc_pva",  # 调节程度
         ],
-        var_out=["streamflow"],
+        var_out=["sm_surface", "sm_rootzone"],
         dataset="ERA5LandDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
         train_epoch=50,
         save_epoch=1,
         train_period=[
-            ("2015-06-01", "2015-09-30"),
-            ("2016-06-01", "2016-09-30"),
-            ("2017-06-01", "2017-09-30"),
+            # ("2015-06-01", "2015-09-30"),
+            # ("2016-06-01", "2016-09-30"),
+            # ("2017-06-01", "2017-09-30"),
             ("2018-06-01", "2018-09-30"),
             ("2019-06-01", "2019-09-30"),
             ("2020-06-01", "2020-09-30"),
@@ -129,9 +132,13 @@ def config():
         patience=10,
         ensemble=True,
         ensemble_items={
-            "kfold": 9,
+            "kfold": 6,
             "batch_sizes": [1024],
         },
+        # teacher_forcing只对soil_moisture设置
+        # 去掉多余的fc2，只按照非线性层-单层lstm-非线性层组织
+        # 需要多个loss？
+        # model_type="MTL"
     )
     update_cfg(config_data, args)
     return config_data

@@ -12,7 +12,6 @@ from typing import Union
 import torch
 from torch import distributions as tdist, Tensor
 from torch_scatter import segment_csr, scatter
-
 from torchhydro.models.model_utils import get_the_device
 
 
