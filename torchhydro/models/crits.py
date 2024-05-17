@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-03-28 19:04:33
+LastEditTime: 2024-05-17 11:29:13
 LastEditors: Wenyu Ouyang
 Description: Loss functions
 FilePath: \torchhydro\torchhydro\models\crits.py
@@ -11,8 +11,6 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 from typing import Union
 import torch
 from torch import distributions as tdist, Tensor
-from torch_scatter import segment_csr, scatter
-
 from torchhydro.models.model_utils import get_the_device
 
 
@@ -48,47 +46,53 @@ def deal_gap_data(output, target, data_gap, device):
     seg_p_lst = []
     seg_t_lst = []
     for j in range(target.shape[1]):
-        non_nan_idx = [
-            i for i in range(len(target[:, j])) if not torch.isnan(target[i, j])
-        ]
-        scatter_index = []
-        idx_tmp = 0
-        if not non_nan_idx:
+        non_nan_idx = torch.nonzero(
+            ~torch.isnan(target[:, j]), as_tuple=False
+        ).squeeze()
+        if len(non_nan_idx) < 1:
             raise ArithmeticError("All NaN elements, please check your data")
-        for i in range(non_nan_idx[0], len(target[:, j])):
-            if i > non_nan_idx[0] and (not torch.isnan(target[i, j])):
-                idx_tmp = idx_tmp + 1
-            scatter_index.append(idx_tmp)
+
+        # 使用 cumsum 生成 scatter_index
+        is_not_nan = ~torch.isnan(target[:, j])
+        cumsum_is_not_nan = torch.cumsum(is_not_nan.to(torch.int), dim=0)
+        first_non_nan = non_nan_idx[0]
+        scatter_index = torch.full_like(
+            target[:, j], fill_value=-1, dtype=torch.long
+        )  # 将所有值初始化为 -1
+        scatter_index[first_non_nan:] = cumsum_is_not_nan[first_non_nan:] - 1
+        scatter_index = scatter_index.to(device=device)
+
+        # 创建掩码，只保留有效的索引
+        valid_mask = scatter_index >= 0
+
         if data_gap == 1:
-            seg = segment_csr(
-                output[:, j],
-                torch.tensor(non_nan_idx).to(device=device),
-                reduce="sum",
-            )
+            seg = torch.zeros(
+                len(non_nan_idx), device=device, dtype=output.dtype
+            ).scatter_add_(0, scatter_index[valid_mask], output[valid_mask, j])
+            # for sum, better exclude final non-nan value as it didn't include all necessary periods
+            seg_p_lst.append(seg[:-1])
+            seg_t_lst.append(target[non_nan_idx[:-1], j])
+
         elif data_gap == 2:
-            if non_nan_idx[-1] != len(target[:, j]):
-                # this will be used in t_j = target[non_nan_idx[:-1], j, k]
-                non_nan_idx += [len(target[:, j])]
-            seg = scatter(
-                output[non_nan_idx[0] :, j],
-                torch.tensor(scatter_index).to(device=device),
-                reduce="mean",
+            counts = torch.zeros(
+                len(non_nan_idx), device=device, dtype=output.dtype
+            ).scatter_add_(
+                0,
+                scatter_index[valid_mask],
+                torch.ones_like(output[valid_mask, j], dtype=output.dtype),
             )
-            # the following code cause grad nan, so we use scatter rather than segment_csr.
-            # But notice start index of output become non_nan_idx[0] rather than 0
-            # seg = segment_csr(output[:, j], torch.tensor(non_nan_idx).to(device=self.device),
-            #                   reduce="mean")
+            seg = torch.zeros(
+                len(non_nan_idx), device=device, dtype=output.dtype
+            ).scatter_add_(0, scatter_index[valid_mask], output[valid_mask, j])
+            seg = seg / counts.clamp(min=1)
+            # for mean, we can include all periods
+            seg_p_lst.append(seg)
+            seg_t_lst.append(target[non_nan_idx, j])
         else:
             raise NotImplementedError(
                 "We have not provided this reduce way now!! Please choose 1 or 2!!"
             )
-        seg_p_lst.append(seg)
-        # t0_j = target[:, j, k]
-        # mask_j = t0_j == t0_j
-        # t_j = t0_j[mask_j]
-        # Accordingly, we only chose target[non_nan_idx[:-1], j, k] rather than [non_nan_idx, j, k]
-        t_j = target[non_nan_idx[:-1], j]
-        seg_t_lst.append(t_j)
+
     p = torch.cat(seg_p_lst)
     t = torch.cat(seg_t_lst)
     return p, t
