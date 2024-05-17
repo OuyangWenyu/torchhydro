@@ -216,10 +216,10 @@ class GeneralSeq2Seq(nn.Module):
         outputs = []
         for t in range(trg_len):
             output, hidden, cell = decoder(encoder_outputs, hidden, cell)
-            str_trg = trgs[:, (self.prec_window + t), 0].unsqueeze(1).unsqueeze(-1)
             sm_trg = trgs[:, (self.prec_window + t), 1:].unsqueeze(1)
             if not torch.any(torch.isnan(sm_trg)).item():
                 use_teacher_forcing = random.random() < self.teacher_forcing_ratio
+                str_trg = output[:, -1, 0].unsqueeze(-1).unsqueeze(-1)
                 output = torch.cat((str_trg, sm_trg), dim=-1) if use_teacher_forcing else output[:, -1, :].unsqueeze(1)
             else:
                 output = output[:, -1, :].unsqueeze(1)
