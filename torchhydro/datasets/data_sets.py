@@ -977,7 +977,7 @@ class HydroMultiSourceDataset(HydroMeanDataset):
     def get_y(self, basin, time, forecast_length, prec_window):
         # 数据是3小时，取索引却是按1小时，故出现索引差别崩溃
         # x可能也会有这样的问题
-        should_length = prec_window + int((forecast_length - 1) / 3) + 1
+        should_length = prec_window + int(forecast_length / 3)
         slice_y = self.y.sel(
             basin=basin,
             time=slice(
@@ -1174,7 +1174,7 @@ class Seq2SeqDataset(HydroMultiSourceDataset):
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
         seq_length = self.rho
-        sm_length = seq_length - self.data_cfgs["cnn_size"]
+        sm_length = seq_length # - self.data_cfgs["cnn_size"]
         x, y, s = None, None, None
 
         x = self.get_x(self.features, basin, time, seq_length)

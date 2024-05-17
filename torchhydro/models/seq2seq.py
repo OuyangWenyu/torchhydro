@@ -32,23 +32,27 @@ class Encoder(nn.Module):
         self,
         input_dim,
         hidden_dim,
-        input_channels=None,
-        mode="single",
+        # input_channels=None,
+        mode="dual",
         prec_window=0,
-        num_layers=2,
+        num_layers=1,
         dropout=0.1,
     ):
         super(Encoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.prec_window = prec_window
+        self.pre_fc = nn.Linear(input_dim, input_dim)
+        self.pre_relu = nn.ReLU()
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
         self.dropout = nn.Dropout(dropout)
-        self.fc = nn.Linear(hidden_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, 2)
+        self.fc = nn.Linear(hidden_dim, out_features=3)
         self.mode = mode
+        '''
+        self.fc2 = nn.Linear(hidden_dim, 2)
         if self.mode == "single":
             self.sm_encoder1 = SMEncoder(input_channels, output_channels=1)
             self.sm_encoder2 = SMEncoder(input_channels, output_channels=1)
+        '''
 
     def forward(self, x):
         if self.mode == "single":
@@ -59,9 +63,12 @@ class Encoder(nn.Module):
             src_combined = torch.cat((src_combined, sm_encoded2), dim=2)
             outputs, (hidden, cell) = self.lstm(src_combined)
         else:
-            outputs, (hidden, cell) = self.lstm(x)
+            fc_x = self.pre_fc(x)
+            fc_x = self.pre_relu(fc_x)
+            outputs, (hidden, cell) = self.lstm(fc_x)
             outputs = self.dropout(outputs)
         pred_outputs = self.fc(outputs)
+        '''
         prec_outputs = self.fc2(outputs)
         token = prec_outputs[:, -1, :].unsqueeze(1)
 
@@ -69,12 +76,13 @@ class Encoder(nn.Module):
             prec_outputs = prec_outputs[:, -self.prec_window, :].unsqueeze(1)
         else:
             prec_outputs = None
+        '''
         return (
             pred_outputs,
             hidden,
             cell,
-            token,
-            prec_outputs,
+            # token,
+            # prec_outputs,
         )
 
 
@@ -123,10 +131,12 @@ class DotProductAttention(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, output_dim, hidden_dim, num_layers=2, dropout=0.1):
+    def __init__(self, output_dim, hidden_dim, num_layers=1, dropout=0.1):
         super(Decoder, self).__init__()
         self.output_dim = output_dim
         self.hidden_dim = hidden_dim
+        self.pre_fc = nn.Linear(output_dim, hidden_dim)
+        self.pre_relu = nn.ReLU()
         self.lstm = nn.LSTM(
             hidden_dim, hidden_dim, num_layers, batch_first=True
         )
@@ -134,7 +144,9 @@ class Decoder(nn.Module):
         self.fc_out = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, input, hidden, cell):
-        lstm_input = torch.cat((input.permute(1, 0, 2), hidden), dim=0)
+        input_fc = self.pre_fc(input)
+        input_fc = self.pre_relu(input_fc)
+        lstm_input = torch.cat((input_fc.permute(1, 0, 2), hidden), dim=0)
         output, (hidden, cell) = self.lstm(lstm_input.permute(1, 0, 2), (hidden, cell))
         output = self.dropout(output)
         prediction = self.fc_out(output.squeeze(0))
@@ -148,31 +160,21 @@ class GeneralSeq2Seq(nn.Module):
         output_size,
         hidden_size,
         forecast_length,
-        cnn_size=None,
-        model_mode="single",
+        # cnn_size=None,
+        model_mode="dual",
         prec_window=0,
         teacher_forcing_ratio=0.5,
     ):
         super(GeneralSeq2Seq, self).__init__()
         self.mode = model_mode
-        self.trg_len = int(forecast_length/3)
+        self.trg_len = int(forecast_length / 3)
         self.prec_window = prec_window
         self.teacher_forcing_ratio = teacher_forcing_ratio
-        self.encoder1 = Encoder(
-            input_dim=input_size,
-            hidden_dim=hidden_size,
-            input_channels=cnn_size,
-            mode=self.mode,
-            prec_window=prec_window,
-        )
+        self.encoder1 = Encoder(input_dim=input_size, hidden_dim=hidden_size, prec_window=prec_window)
         self.decoder1 = Decoder(output_dim=output_size, hidden_dim=hidden_size)
+        '''
         self.encoder2 = (
-            Encoder(
-                input_dim=2,
-                hidden_dim=hidden_size,
-                mode=self.mode,
-                prec_window=prec_window,
-            )
+            Encoder(input_dim=2, hidden_dim=hidden_size, prec_window=prec_window)
             if self.mode != "single"
             else None
         )
@@ -181,6 +183,7 @@ class GeneralSeq2Seq(nn.Module):
             if self.mode != "single"
             else None
         )
+        '''
 
     def forward(self, *src):
         if self.mode != "single":
@@ -208,20 +211,22 @@ class GeneralSeq2Seq(nn.Module):
         return outputs1.permute(1, 0, 2)
 
     def process_encoder_decoder(self, encoder, decoder, src, trg_len, trgs):
-        encoder_outputs, hidden, cell, current_input, prec_outputs = encoder(src)
+        # encoder_outputs, hidden, cell, current_input, prec_outputs = encoder(src)
+        encoder_outputs, hidden, cell = encoder(src)
         outputs = []
         for t in range(trg_len):
             output, hidden, cell = decoder(encoder_outputs, hidden, cell)
-            trg = trgs[:, (self.prec_window + t), :].unsqueeze(1)
-            if not torch.any(torch.isnan(trg)).item():
+            str_trg = trgs[:, (self.prec_window + t), 0].unsqueeze(1).unsqueeze(-1)
+            sm_trg = trgs[:, (self.prec_window + t), 1:].unsqueeze(1)
+            if not torch.any(torch.isnan(sm_trg)).item():
                 use_teacher_forcing = random.random() < self.teacher_forcing_ratio
-                output = trg if use_teacher_forcing else output[:, -1, :].unsqueeze(1)
+                output = torch.cat((str_trg, sm_trg), dim=-1) if use_teacher_forcing else output[:, -1, :].unsqueeze(1)
             else:
                 output = output[:, -1, :].unsqueeze(1)
             outputs.append(output)
         outputs = torch.stack(outputs, dim=0)
-        if prec_outputs is not None:
-            outputs = torch.cat((prec_outputs.permute(1, 0, 2), outputs.squeeze(-2)), dim=0)
+        prec_outputs = encoder_outputs.permute(1, 0, 2)[-1, :, :].unsqueeze(0)
+        outputs = torch.cat((prec_outputs, outputs.squeeze(-2)), dim=0)
         return outputs
 
 

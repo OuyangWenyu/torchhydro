@@ -13,6 +13,8 @@ import pathlib
 
 import pandas as pd
 import pytest
+import hydrodatasource.configs.config as hdscc
+import xarray as xr
 
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import ensemble_train_and_evaluate
@@ -26,6 +28,18 @@ show = pd.read_csv(os.path.join(pathlib.Path(__file__).parent.parent, "data/basi
 gage_id = show["id"].values.tolist()
 
 
+def test_merge_forcing_and_streamflow():
+    for id in gage_id:
+        forcing_nc = f"/ftproot/data_240509/data_forcing_era5land_100/data_forcing_{id}.nc"
+        stream_nc = f's3://basins-origin/hour_data/1h/mean_data/streamflow_basin/streamflow_{id}.nc'
+        forcing_df = xr.open_dataset(forcing_nc).to_dataframe()
+        stream_df = xr.open_dataset(hdscc.FS.open(stream_nc)).to_dataframe()
+        stream_df = stream_df[stream_df.index >= '2015-04-01 04:00:00']
+        concat_ds = xr.Dataset.from_dataframe(pd.concat([forcing_df, stream_df]))
+        concat_ds_path = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow/data_forcing_streamflow_{id}.nc"
+        hdscc.FS.write_bytes(concat_ds_path, concat_ds.to_netcdf())
+
+
 @pytest.fixture()
 def config():
     project_name = "test_mean_seq2seq/ex25"
@@ -35,8 +49,8 @@ def config():
         source_cfgs={
             "source": "HydroMean",
             "source_path": {
-                "forcing": "/ftproot/data_240509/data_forcing_era5land_100/",
-                "target": "/ftproot/data_240509/data_forcing_era5land_100/",
+                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
+                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
         },
@@ -44,22 +58,22 @@ def config():
         model_name="Seq2Seq",
         model_hyperparam={
             "input_size": 19,  # dual比single少2
-            "output_size": 2,
+            "output_size": 3,
             "hidden_size": 128,
-            "cnn_size": 120,
+            # "cnn_size": 120,
             "forecast_length": 24,
             "model_mode": "dual",
             "prec_window": 1,  # 将前序径流一起作为输出，选择的时段数，该值需小于等于rho，建议置为1
         },
         model_loader={"load_way": "best"},
         gage_id=[
-            # "21401550",#碧流河
+            "21401550", #碧流河
             "01181000",
             # "01411300",  # 2020年缺失
             "01414500",
-            # "02016000",
-            # "02018000",
-            # "02481510",
+            "02016000",
+            "02018000",
+            "02481510",
             # "03070500",
             # "08324000",#-3000
             # "11266500",
@@ -97,11 +111,11 @@ def config():
             "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
             "dor_pc_pva",  # 调节程度
         ],
-        var_out=["sm_surface", "sm_rootzone"],
+        var_out=["streamflow", "sm_surface", "sm_rootzone"],
         dataset="ERA5LandDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
-        train_epoch=50,
+        train_epoch=5,
         save_epoch=1,
         train_period=[
             # ("2015-06-01", "2015-09-30"),
@@ -119,7 +133,14 @@ def config():
         valid_period=[
             ("2023-06-01", "2023-09-30"),  # 目前只支持一个时段
         ],
-        loss_func="RMSESum",
+        loss_func="MultiOutLoss",
+        loss_param={
+            "loss_funcs": "RMSESum",
+            "data_gap": [0, 2],
+            "device": [1],
+            "item_weight": [1.0, 0.0],
+            "limit_part": [1],
+        },
         opt="Adam",
         lr_scheduler={
             "lr": 0.001,
@@ -135,10 +156,7 @@ def config():
             "kfold": 6,
             "batch_sizes": [1024],
         },
-        # teacher_forcing只对soil_moisture设置
-        # 去掉多余的fc2，只按照非线性层-单层lstm-非线性层组织
-        # 需要多个loss？
-        # model_type="MTL"
+        model_type="MTL"
     )
     update_cfg(config_data, args)
     return config_data

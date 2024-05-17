@@ -42,14 +42,8 @@ def config():
         model_name="DataFusion",
         model_hyperparam={
             "original_model": DataEnhancedModel(
-                original_model=GeneralSeq2Seq(
-                    input_size=16,
-                    output_size=1,
-                    hidden_size=256,
-                    cnn_size=120,
-                    forecast_length=24,
-                    model_mode="dual",
-                ),
+                original_model=GeneralSeq2Seq(input_size=16, output_size=1, hidden_size=256, forecast_length=24,
+                                              model_mode="dual"),
                 hidden_length=256,
             ),
             "cnn_size": 120,  # todo 有冗余
@@ -80,7 +74,7 @@ def config():
         weight_path=weight_path,
         weight_path_add={
             "freeze_params": [
-                 "encoder1.lstm.weight_ih_l0",
+                "encoder1.lstm.weight_ih_l0",
                 "encoder1.lstm.weight_hh_l0",
                 "encoder1.lstm.bias_ih_l0",
                 "encoder1.lstm.bias_hh_l0",
