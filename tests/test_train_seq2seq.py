@@ -136,10 +136,10 @@ def config():
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
-            "data_gap": [0, 2],
+            "data_gap": [0, 0, 0],
             "device": [1],
-            "item_weight": [1.0, 0.0],
-            "limit_part": [1],
+            "item_weight": [0.7, 0.2, 0.1],
+            # "limit_part": [1],
         },
         opt="Adam",
         lr_scheduler={
