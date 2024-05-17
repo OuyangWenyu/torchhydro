@@ -28,7 +28,7 @@ def read_setting(setting_path):
     if not os.path.exists(setting_path):
         raise FileNotFoundError(f"Configuration file not found: {setting_path}")
 
-    with open(setting_path, "r") as file:
+    with open(setting_path, "r", encoding="utf-8") as file:
         setting = yaml.safe_load(file)
 
     example_setting = (
