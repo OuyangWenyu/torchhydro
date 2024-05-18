@@ -383,7 +383,7 @@ class DplDataset(BaseDataset):
             if self.target_as_input:
                 # y_morn and xc_norm are concatenated and used for DL model
                 y_norm = torch.from_numpy(
-                    self.y[basin, time - warmup_length: time + self.rho, :]
+                    self.y[basin, time - warmup_length : time + self.rho, :]
                 ).float()
                 # the order of xc_norm and y_norm matters, please be careful!
                 z_train = torch.cat((xc_norm, y_norm), -1)
@@ -644,8 +644,13 @@ class HydroMeanDataset(BaseDataset):
     def _prepare_target(self):
         gage_id_lst = self.t_s_dict["sites_id"]
         # t_range加一小时或三小时
-        t_range = [(datetime.fromisoformat(date_tuple[0]) + timedelta(hours=3), datetime.fromisoformat(date_tuple[1])
-                    + timedelta(hours=3)) for date_tuple in self.t_s_dict["t_final_range"]]
+        t_range = [
+            (
+                datetime.fromisoformat(date_tuple[0]) + timedelta(hours=3),
+                datetime.fromisoformat(date_tuple[1]) + timedelta(hours=3),
+            )
+            for date_tuple in self.t_s_dict["t_final_range"]
+        ]
         var_lst = self.data_cfgs["target_cols"]
         path = self.data_cfgs["source_cfgs"]["source_path"]["target"]
 
@@ -978,16 +983,20 @@ class HydroMultiSourceDataset(HydroMeanDataset):
         # 数据是3小时，取索引却是按1小时，故出现索引差别崩溃
         # x可能也会有这样的问题
         should_length = prec_window + int(forecast_length / 3)
-        slice_y = self.y.sel(
-            basin=basin,
-            time=slice(
-                time - np.timedelta64(prec_window, "3h"),
-                time + np.timedelta64(int((forecast_length - 1) / 3), "3h"),
+        slice_y = (
+            self.y.sel(
+                basin=basin,
+                time=slice(
+                    time - np.timedelta64(prec_window, "3h"),
+                    time + np.timedelta64(int((forecast_length - 1) / 3), "3h"),
                 ),
-        ).to_numpy().T
+            )
+            .to_numpy()
+            .T
+        )
         if slice_y.shape[0] < should_length:
             diff = should_length - slice_y.shape[0]
-            slice_y = np.pad(slice_y, ((0, diff), (0, 0)), 'edge')
+            slice_y = np.pad(slice_y, ((0, diff), (0, 0)), "edge")
         return slice_y
 
     def __getitem__(self, item: int):
@@ -1012,7 +1021,7 @@ class HydroMultiSourceDataset(HydroMeanDataset):
         if self.c is not None and self.c.shape[-1] > 0:
             c = self.c.sel(basin=basin).values
             # TODO: WARNING: length of c has been divided by 3
-            c = np.tile(c, (int(seq_length/3), 1))
+            c = np.tile(c, (int(seq_length / 3), 1))
             x = np.concatenate((x, c), axis=1)
 
         mode = self.data_cfgs["model_mode"]
@@ -1057,16 +1066,10 @@ class HydroMultiSourceDataset(HydroMeanDataset):
 
         data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
 
-        if self.data_cfgs["model_mode"] == "single":
-            cnn_size = self.data_cfgs["cnn_size"]
-        else:
-            cnn_size = 0
-
         var_subset_list = []
         for start_date, end_date in t_range:
             adjusted_start_date = (
-                datetime.strptime(start_date, "%Y-%m-%d")
-                - timedelta(hours=self.rho + cnn_size)
+                datetime.strptime(start_date, "%Y-%m-%d") - timedelta(hours=self.rho)
             ).strftime("%Y-%m-%d-%H")
             subset = data.sel(time=slice(adjusted_start_date, end_date))
             var_subset_list.append(subset)
@@ -1075,8 +1078,13 @@ class HydroMultiSourceDataset(HydroMeanDataset):
 
     def _prepare_target(self):
         gage_id_lst = self.t_s_dict["sites_id"]
-        t_range = [(datetime.fromisoformat(date_tuple[0]) + timedelta(hours=3), datetime.fromisoformat(date_tuple[1]) +
-                    timedelta(hours=3)) for date_tuple in self.t_s_dict["t_final_range"]]
+        t_range = [
+            (
+                datetime.fromisoformat(date_tuple[0]) + timedelta(hours=3),
+                datetime.fromisoformat(date_tuple[1]) + timedelta(hours=3),
+            )
+            for date_tuple in self.t_s_dict["t_final_range"]
+        ]
         var_lst = self.data_cfgs["target_cols"]
         path = self.data_cfgs["source_cfgs"]["source_path"]["target"]
 
@@ -1132,7 +1140,9 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             for num in range(time_num):
                 lookup.extend(
                     (basin, dates[f + num * time_single_length])
-                    for f in range(warmup_length, time_single_length - int(forecast_length/3))
+                    for f in range(
+                        warmup_length, time_single_length - (forecast_length // 3)
+                    )
                 )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
@@ -1169,37 +1179,27 @@ class Seq2SeqDataset(HydroMultiSourceDataset):
         self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin
 
     def get_features(self):
-        raise NotImplementedError("Subclasses must implement this method to specify data features")
+        raise NotImplementedError(
+            "Subclasses must implement this method to specify data features"
+        )
 
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
         seq_length = self.rho
-        sm_length = seq_length # - self.data_cfgs["cnn_size"]
-        x, y, s = None, None, None
-
         x = self.get_x(self.features, basin, time, seq_length)
 
         if self.c is not None and self.c.shape[-1] > 0:
             c = self.c.sel(basin=basin).values
-            # TODO: WARNING: length of c has been divided by 3
-            c = np.tile(c, (int(seq_length / 3), 1))
+            c = np.tile(c, (seq_length // 3, 1))
             x = np.concatenate((x, c), axis=1)
-
-        mode = self.data_cfgs["model_mode"]
-        if mode == "dual":
-            s = self.get_x(["sm_surface", "sm_rootzone"], basin, time, seq_length, sm_length, 0)
-        else:
-            all_features = [
-                self.get_x(["sm_surface", "sm_rootzone"], basin, time, seq_length, sm_length - offset, -offset)
-                for offset in range(seq_length)
-            ]
-            s = np.array([feat.squeeze() for feat in all_features if feat.shape[0] == seq_length - sm_length])
 
         prec_window = self.data_cfgs["prec_window"]
         y = self.get_y(basin, time, self.forecast_length, prec_window)
 
-        return [torch.from_numpy(x).float(), torch.from_numpy(s).float(),
-                torch.from_numpy(y).float()], torch.from_numpy(y).float()
+        return [
+            torch.from_numpy(x).float(),
+            torch.from_numpy(y).float(),
+        ], torch.from_numpy(y).float()
 
 
 class ERA5LandDataset(Seq2SeqDataset):
@@ -1208,8 +1208,13 @@ class ERA5LandDataset(Seq2SeqDataset):
         self.features = self.get_features()
 
     def get_features(self):
-        return ["total_precipitation_hourly", "temperature_2m", "dewpoint_temperature_2m",
-                "surface_net_solar_radiation"]
+        return [
+            "total_precipitation_hourly",
+            "temperature_2m",
+            "dewpoint_temperature_2m",
+            "surface_net_solar_radiation",
+            "sm_surface",
+        ]
 
 
 class GPMDataset(Seq2SeqDataset):
@@ -1218,4 +1223,4 @@ class GPMDataset(Seq2SeqDataset):
         self.features = self.get_features()
 
     def get_features(self):
-        return ["gpm_tp"]
+        return ["gpm_tp", "sm_surface"]

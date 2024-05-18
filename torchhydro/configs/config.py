@@ -999,12 +999,6 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["forecast_length"] = new_args.model_hyperparam[
                 "forecast_length"
             ]
-        if "model_mode" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["model_mode"] = new_args.model_hyperparam[
-                "model_mode"
-            ]
-        if "cnn_size" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["cnn_size"] = new_args.model_hyperparam["cnn_size"]
         if "prec_window" in new_args.model_hyperparam.keys():
             cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam[
                 "prec_window"

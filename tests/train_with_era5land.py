@@ -25,7 +25,7 @@ def main():
 
 def create_config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = "train_with_era5land/ex1"
+    project_name = "train_with_era5land/ex2"
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -34,50 +34,30 @@ def create_config():
         source_cfgs={
             "source": "HydroMean",
             "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land",
-                "target": "basins-origin/hour_data/1h/mean_data/streamflow_basin",
+                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
+                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
         },
         ctx=[1],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 19,  # dual比single少2
-            "output_size": 1,
+            "input_size": 20,
+            "output_size": 2,
             "hidden_size": 256,
-            "cnn_size": 120,
-            "forecast_length": 24,
-            "model_mode": "dual",
+            "forecast_length": 168,
             "prec_window": 1,  # 将前序径流一起作为输出，选择的时段数，该值需小于等于rho，建议置为1
         },
         model_loader={"load_way": "best"},
-        # gage_id=[
-        #     # "21401550",#碧流河
-        #     "01181000",
-        #     # "01411300",  # 2020年缺失
-        #     "01414500",
-        #     # "02016000",
-        #     # "02018000",
-        #     # "02481510",
-        #     # "03070500",
-        #     # "08324000",#-3000
-        #     # "11266500",
-        #     # "11523200",
-        #     # "12020000",
-        #     # "12167000",
-        #     # "14185000",
-        #     # "14306500",
-        # ],
         gage_id=gage_id,
         batch_size=1024,
-        rho=336,
+        rho=672,
         var_t=[
             "total_precipitation_hourly",
             "temperature_2m",
             "dewpoint_temperature_2m",
             "surface_net_solar_radiation",
             "sm_surface",
-            "sm_rootzone",
         ],
         var_c=[
             "area",  # 面积
@@ -96,29 +76,28 @@ def create_config():
             "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
             "dor_pc_pva",  # 调节程度
         ],
-        var_out=["streamflow"],
+        var_out=["streamflow", "sm_surface"],
         dataset="ERA5LandDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
-        train_epoch=50,
+        train_epoch=100,
         save_epoch=1,
         train_period=[
-            ("2015-06-01", "2015-09-30"),
-            ("2016-06-01", "2016-09-30"),
-            ("2017-06-01", "2017-09-30"),
-            ("2018-06-01", "2018-09-30"),
-            ("2019-06-01", "2019-09-30"),
-            ("2020-06-01", "2020-09-30"),
-            ("2021-06-01", "2021-09-30"),
-            ("2022-06-01", "2022-09-30"),
+            ("2015-07-01", "2022-12-31")
         ],
         test_period=[
-            ("2023-06-01", "2023-09-30"),
+            ("2023-02-01", "2023-12-20"),
         ],
         valid_period=[
-            ("2023-06-01", "2023-09-30"),  # 目前只支持一个时段
+            ("2023-02-01", "2023-12-20"),
         ],
-        loss_func="RMSESum",
+        loss_func="MultiOutLoss",
+        loss_param={
+            "loss_funcs": "RMSESum",
+            "data_gap": [0, 0],
+            "device": [1],
+            "item_weight": [0.8, 0.2],
+        },
         opt="Adam",
         lr_scheduler={
             "lr": 0.001,
@@ -129,11 +108,7 @@ def create_config():
         static=False,
         early_stopping=True,
         patience=10,
-        ensemble=True,
-        ensemble_items={
-            "kfold": 9,
-            "batch_sizes": [1024],
-        },
+        model_type="MTL",
     )
 
     # 更新默认配置

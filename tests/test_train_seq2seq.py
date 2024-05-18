@@ -7,6 +7,7 @@ Description:
 FilePath: /torchhydro/tests/test_train_seq2seq.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import logging
 import os.path
 import pathlib
@@ -24,17 +25,22 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-show = pd.read_csv(os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(46+1).csv"), dtype={"id": str})
+show = pd.read_csv(
+    os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(46+1).csv"),
+    dtype={"id": str},
+)
 gage_id = show["id"].values.tolist()
 
 
 def test_merge_forcing_and_streamflow():
     for id in gage_id:
-        forcing_nc = f"/ftproot/data_240509/data_forcing_era5land_100/data_forcing_{id}.nc"
-        stream_nc = f's3://basins-origin/hour_data/1h/mean_data/streamflow_basin/streamflow_{id}.nc'
+        forcing_nc = (
+            f"/ftproot/data_240509/data_forcing_era5land_100/data_forcing_{id}.nc"
+        )
+        stream_nc = f"s3://basins-origin/hour_data/1h/mean_data/streamflow_basin/streamflow_{id}.nc"
         forcing_df = xr.open_dataset(forcing_nc).to_dataframe()
         stream_df = xr.open_dataset(hdscc.FS.open(stream_nc)).to_dataframe()
-        stream_df = stream_df[stream_df.index >= '2015-04-01 04:00:00']
+        stream_df = stream_df[stream_df.index >= "2015-04-01 04:00:00"]
         concat_ds = xr.Dataset.from_dataframe(pd.concat([forcing_df, stream_df]))
         concat_ds_path = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow/data_forcing_streamflow_{id}.nc"
         hdscc.FS.write_bytes(concat_ds_path, concat_ds.to_netcdf())
@@ -42,7 +48,7 @@ def test_merge_forcing_and_streamflow():
 
 @pytest.fixture()
 def config():
-    project_name = "test_mean_seq2seq/ex25"
+    project_name = "test_mean_seq2seq/ex26"
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -57,42 +63,39 @@ def config():
         ctx=[1],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 19,  # dual比single少2
-            "output_size": 3,
+            "input_size": 20,
+            "output_size": 2,
             "hidden_size": 128,
-            # "cnn_size": 120,
-            "forecast_length": 24,
-            "model_mode": "dual",
+            "forecast_length": 168,
             "prec_window": 1,  # 将前序径流一起作为输出，选择的时段数，该值需小于等于rho，建议置为1
         },
         model_loader={"load_way": "best"},
         gage_id=[
-            "21401550", #碧流河
+            "21401550",  # 碧流河
             "01181000",
-            # "01411300",  # 2020年缺失
+            "01411300",
             "01414500",
             "02016000",
             "02018000",
             "02481510",
-            # "03070500",
-            # "08324000",#-3000
-            # "11266500",
+            "03070500",
+            # "08324000",
+            "11266500",
             # "11523200",
-            # "12020000",
+            "12020000",
             # "12167000",
-            # "14185000",
-            # "14306500",
+            "14185000",
+            "14306500",
         ],
         # gage_id=gage_id,
         batch_size=512,
-        rho=336,
+        rho=672,
         var_t=[
             "total_precipitation_hourly",
             "temperature_2m",
             "dewpoint_temperature_2m",
             "surface_net_solar_radiation",
             "sm_surface",
-            "sm_rootzone",
         ],
         var_c=[
             "area",  # 面积
@@ -111,16 +114,16 @@ def config():
             "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
             "dor_pc_pva",  # 调节程度
         ],
-        var_out=["streamflow", "sm_surface", "sm_rootzone"],
+        var_out=["streamflow", "sm_surface"],
         dataset="ERA5LandDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
-        train_epoch=5,
+        train_epoch=50,
         save_epoch=1,
         train_period=[
-            # ("2015-06-01", "2015-09-30"),
-            # ("2016-06-01", "2016-09-30"),
-            # ("2017-06-01", "2017-09-30"),
+            ("2015-06-01", "2015-09-30"),
+            ("2016-06-01", "2016-09-30"),
+            ("2017-06-01", "2017-09-30"),
             ("2018-06-01", "2018-09-30"),
             ("2019-06-01", "2019-09-30"),
             ("2020-06-01", "2020-09-30"),
@@ -136,9 +139,9 @@ def config():
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
-            "data_gap": [0, 0, 0],
+            "data_gap": [0, 0],
             "device": [1],
-            "item_weight": [0.7, 0.2, 0.1],
+            "item_weight": [0.8, 0.2],
             # "limit_part": [1],
         },
         opt="Adam",
@@ -150,18 +153,18 @@ def config():
         rolling=False,
         static=False,
         early_stopping=True,
-        patience=10,
+        patience=5,
         ensemble=True,
         ensemble_items={
-            "kfold": 6,
+            "kfold": 9,
             "batch_sizes": [1024],
         },
-        model_type="MTL"
+        model_type="MTL",
     )
     update_cfg(config_data, args)
     return config_data
 
 
 def test_seq2seq(config):
-    # train_and_evaluate(config)
-    ensemble_train_and_evaluate(config)
+    train_and_evaluate(config)
+    # ensemble_train_and_evaluate(config)
