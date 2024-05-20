@@ -278,6 +278,7 @@ def evaluate_validation(
     return eval_log
 
 
+@dask.delayed
 def len_denormalize_delayed(
     length,
     output,
