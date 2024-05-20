@@ -1,3 +1,13 @@
+"""
+Author: Wenyu Ouyang
+Date: 2024-05-20 10:40:46
+LastEditTime: 2024-05-20 10:40:46
+LastEditors: Xinzhuo Wu
+Description: 
+FilePath: /torchhydro/tests/train_with_gpm_streamflow.py
+Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
+"""
+
 import logging
 import pandas as pd
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
@@ -25,7 +35,7 @@ def main():
 
 def create_config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = "train_with_era5land/ex20"
+    project_name = "train_with_gpm_streamflow/ex1"
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -34,15 +44,15 @@ def create_config():
         source_cfgs={
             "source": "HydroMean",
             "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
+                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
+                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
         },
-        ctx=[2],
+        ctx=[1],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 20,
+            "input_size": 18,
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 168,
@@ -53,11 +63,9 @@ def create_config():
         batch_size=1024,
         rho=672,
         var_t=[
-            "total_precipitation_hourly",
-            "temperature_2m",
-            "dewpoint_temperature_2m",
-            "surface_net_solar_radiation",
+            "gpm_tp",
             "sm_surface",
+            "streamflow",
         ],
         var_c=[
             "area",  # 面积
@@ -77,7 +85,7 @@ def create_config():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow", "sm_surface"],
-        dataset="ERA5LandDataset",
+        dataset="GPMSTRDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
         train_epoch=100,

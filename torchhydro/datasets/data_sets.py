@@ -1196,10 +1196,12 @@ class Seq2SeqDataset(HydroMultiSourceDataset):
         prec_window = self.data_cfgs["prec_window"]
         y = self.get_y(basin, time, self.forecast_length, prec_window)
 
-        return [
-            torch.from_numpy(x).float(),
-            torch.from_numpy(y).float(),
-        ], torch.from_numpy(y).float()
+        if self.is_tra_val_te == "train":
+            return [
+                torch.from_numpy(x).float(),
+                torch.from_numpy(y).float(),
+            ], torch.from_numpy(y).float()
+        return [torch.from_numpy(x).float()], torch.from_numpy(y).float()
 
 
 class ERA5LandDataset(Seq2SeqDataset):
@@ -1224,3 +1226,12 @@ class GPMDataset(Seq2SeqDataset):
 
     def get_features(self):
         return ["gpm_tp", "sm_surface"]
+
+
+class GPMSTRDataset(Seq2SeqDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(GPMSTRDataset, self).__init__(data_cfgs, is_tra_val_te)
+        self.features = self.get_features()
+
+    def get_features(self):
+        return ["gpm_tp", "sm_surface", "streamflow"]

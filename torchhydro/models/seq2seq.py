@@ -124,7 +124,11 @@ class GeneralSeq2Seq(nn.Module):
         self.decoder = Decoder(output_dim=output_size, hidden_dim=hidden_size)
 
     def forward(self, *src):
-        src1, trgs = src
+        if len(src) != 1:
+            src1, trgs = src
+        else:
+            src1 = src[0]
+            trgs = None
         encoder_outputs, hidden, cell = self.encoder(src1)
         outputs = []
         current_input = encoder_outputs[:, -1, :].unsqueeze(1)
@@ -132,17 +136,20 @@ class GeneralSeq2Seq(nn.Module):
         for t in range(self.trg_len):
             output, hidden, cell = self.decoder(current_input, hidden, cell)
             outputs.append(output.squeeze(1))
-            sm_trg = trgs[:, (self.prec_window + t), 1].unsqueeze(1).unsqueeze(1)
-            if not torch.any(torch.isnan(sm_trg)).item():
-                use_teacher_forcing = random.random() < self.teacher_forcing_ratio
-                str_trg = output[:, :, 0].unsqueeze(2)
-                current_input = (
-                    torch.cat((str_trg, sm_trg), dim=2)
-                    if use_teacher_forcing
-                    else output
-                )
-            else:
+            if trgs is None:
                 current_input = output
+            else:
+                sm_trg = trgs[:, (self.prec_window + t), 1].unsqueeze(1).unsqueeze(1)
+                if not torch.any(torch.isnan(sm_trg)).item():
+                    use_teacher_forcing = random.random() < self.teacher_forcing_ratio
+                    str_trg = output[:, :, 0].unsqueeze(2)
+                    current_input = (
+                        torch.cat((str_trg, sm_trg), dim=2)
+                        if use_teacher_forcing
+                        else output
+                    )
+                else:
+                    current_input = output
 
         outputs = torch.stack(outputs, dim=1)
         prec_outputs = encoder_outputs[:, -self.prec_window, :].unsqueeze(1)

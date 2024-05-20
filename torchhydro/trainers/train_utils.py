@@ -91,10 +91,11 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
             # warmup_length + length + target_scaler.data_cfgs["prec_window"] :
-            0: - int((forecast_length * 2)/3) + length
+            0 : -int((forecast_length * 2) / 3)
+            + length
         ]
         if len(selected_time_points) > output.shape[1]:
-            selected_time_points = selected_time_points[:output.shape[1]]
+            selected_time_points = selected_time_points[: output.shape[1]]
     else:
         selected_time_points = target_data.coords["time"][warmup_length:]
 
@@ -231,9 +232,19 @@ def evaluate_validation(
 
         for i, col in enumerate(target_col):
             obs_list, pred_list = [], []
-            for length in range(int(validation_data_loader.dataset.forecast_length / 3)):
-                obs_res_list, pred_res_list = delayed(len_denormalize, nout=2)(obs_list, pred_list, length, output, labels, basin_num, batch_size,
-                                                     target_col, validation_data_loader, col)
+            for length in range(validation_data_loader.dataset.forecast_length // 3):
+                obs_res_list, pred_res_list = delayed(len_denormalize, nout=2)(
+                    obs_list,
+                    pred_list,
+                    length,
+                    output,
+                    labels,
+                    basin_num,
+                    batch_size,
+                    target_col,
+                    validation_data_loader,
+                    col,
+                )
             obs = np.concatenate(obs_res_list.compute(), axis=1)
             pred = np.concatenate(pred_res_list.compute(), axis=1)
             eval_log = calculate_and_record_metrics(
@@ -263,13 +274,21 @@ def evaluate_validation(
     return eval_log
 
 
-def len_denormalize(obs_list, pred_list, length, output, labels, basin_num, batch_size,
-                    target_col, validation_data_loader, col):
+def len_denormalize(
+    obs_list,
+    pred_list,
+    length,
+    output,
+    labels,
+    basin_num,
+    batch_size,
+    target_col,
+    validation_data_loader,
+    col,
+):
     o = output[:, length, :].reshape(basin_num, batch_size, len(target_col))
     l = labels[:, length, :].reshape(basin_num, batch_size, len(target_col))
-    preds_xr, obss_xr = denormalize4eval(
-        validation_data_loader, o, l, length
-    )
+    preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, length)
     obs = obss_xr[col].to_numpy()
     pred = preds_xr[col].to_numpy()
     obs_list.append(obs)
