@@ -18,7 +18,7 @@ import hydrodatasource.configs.config as hdscc
 import xarray as xr
 
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.trainers.trainer import ensemble_train_and_evaluate
+from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
@@ -34,9 +34,7 @@ gage_id = show["id"].values.tolist()
 
 def test_merge_forcing_and_streamflow():
     for id in gage_id:
-        forcing_nc = (
-            f"/ftproot/data_240509/data_forcing_era5land_100/data_forcing_{id}.nc"
-        )
+        forcing_nc = f"/ftproot/data_240509/data_forcing_era5land_100/data_forcing_{id}.nc"
         stream_nc = f"s3://basins-origin/hour_data/1h/mean_data/streamflow_basin/streamflow_{id}.nc"
         forcing_df = xr.open_dataset(forcing_nc).to_dataframe()
         stream_df = xr.open_dataset(hdscc.FS.open(stream_nc)).to_dataframe()
@@ -88,7 +86,7 @@ def config():
             "14306500",
         ],
         # gage_id=gage_id,
-        batch_size=512,
+        batch_size=1024,
         rho=672,
         var_t=[
             "total_precipitation_hourly",
@@ -118,23 +116,16 @@ def config():
         dataset="ERA5LandDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
-        train_epoch=50,
+        train_epoch=2,
         save_epoch=1,
         train_period=[
-            ("2015-06-01", "2015-09-30"),
-            ("2016-06-01", "2016-09-30"),
-            ("2017-06-01", "2017-09-30"),
-            ("2018-06-01", "2018-09-30"),
-            ("2019-06-01", "2019-09-30"),
-            ("2020-06-01", "2020-09-30"),
-            ("2021-06-01", "2021-09-30"),
-            ("2022-06-01", "2022-09-30"),
+            ("2015-06-01", "2022-12-20"),
         ],
         test_period=[
-            ("2023-06-01", "2023-09-30"),
+            ("2023-02-01", "2023-11-30"),
         ],
         valid_period=[
-            ("2023-06-01", "2023-09-30"),  # 目前只支持一个时段
+            ("2023-02-01", "2023-11-30"),  # 目前只支持一个时段
         ],
         loss_func="MultiOutLoss",
         loss_param={
