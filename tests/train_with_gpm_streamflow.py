@@ -61,7 +61,7 @@ def create_config():
         model_loader={"load_way": "best"},
         gage_id=gage_id,
         batch_size=1024,
-        rho=672,
+        rho=720,
         var_t=[
             "gpm_tp",
             "sm_surface",

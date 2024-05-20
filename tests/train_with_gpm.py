@@ -35,7 +35,7 @@ def main():
 
 def create_config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = "train_with_gpm/ex1"
+    project_name = "train_with_gpm/ex3"
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -61,7 +61,7 @@ def create_config():
         model_loader={"load_way": "best"},
         gage_id=gage_id,
         batch_size=1024,
-        rho=672,
+        rho=720,
         var_t=[
             "gpm_tp",
             "sm_surface",

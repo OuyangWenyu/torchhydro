@@ -19,7 +19,8 @@ import xarray as xr
 from hydroutils.hydro_stat import stat_error
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from dask import delayed
+import dask
+import dask.array as da
 from torchhydro.models.crits import GaussianLoss
 
 
@@ -231,11 +232,9 @@ def evaluate_validation(
         basin_num = len(target_data.basin)
 
         for i, col in enumerate(target_col):
-            obs_list, pred_list = [], []
+            delayed_tasks = []
             for length in range(validation_data_loader.dataset.forecast_length // 3):
-                obs_res_list, pred_res_list = delayed(len_denormalize, nout=2)(
-                    obs_list,
-                    pred_list,
+                delayed_task = len_denormalize_delayed(
                     length,
                     output,
                     labels,
@@ -245,8 +244,13 @@ def evaluate_validation(
                     validation_data_loader,
                     col,
                 )
-            obs = np.concatenate(obs_res_list.compute(), axis=1)
-            pred = np.concatenate(pred_res_list.compute(), axis=1)
+                delayed_tasks.append(delayed_task)
+
+            obs_pred_results = dask.compute(*delayed_tasks)
+            obs_list, pred_list = zip(*obs_pred_results)
+            obs = da.concatenate(obs_list, axis=1)
+            pred = da.concatenate(pred_list, axis=1)
+
             eval_log = calculate_and_record_metrics(
                 obs,
                 pred,
@@ -274,9 +278,7 @@ def evaluate_validation(
     return eval_log
 
 
-def len_denormalize(
-    obs_list,
-    pred_list,
+def len_denormalize_delayed(
     length,
     output,
     labels,
@@ -291,9 +293,7 @@ def len_denormalize(
     preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, length)
     obs = obss_xr[col].to_numpy()
     pred = preds_xr[col].to_numpy()
-    obs_list.append(obs)
-    pred_list.append(pred)
-    return obs_list, pred_list
+    return obs, pred
 
 
 def compute_loss(
