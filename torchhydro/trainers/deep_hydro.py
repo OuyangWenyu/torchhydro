@@ -439,8 +439,11 @@ class DeepHydro(DeepHydroInterface):
 
         if not data_cfgs["static"]:
             target_len = len(data_cfgs["target_cols"])
+            prec_window = data_cfgs["prec_window"]
             if evaluation_cfgs["rolling"]:
-                forecast_length = data_cfgs["forecast_length"]
+                forecast_length = data_cfgs["forecast_length"] // 3
+                pred = pred[:, prec_window:, :]
+                obs = obs[:, prec_window:, :]
                 pred = pred[::forecast_length]
                 obs = obs[::forecast_length]
 
@@ -449,8 +452,8 @@ class DeepHydro(DeepHydroInterface):
 
             else:
                 batch_size = test_dataloader.batch_size
-                pred = pred[:, 0, :].reshape(ngrid, batch_size, target_len)
-                obs = obs[:, 0, :].reshape(ngrid, batch_size, target_len)
+                pred = pred[:, prec_window, :].reshape(ngrid, batch_size, target_len)
+                obs = obs[:, prec_window, :].reshape(ngrid, batch_size, target_len)
         pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
         return pred_xr, obs_xr
 
