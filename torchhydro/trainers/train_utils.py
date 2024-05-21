@@ -20,7 +20,6 @@ from hydroutils.hydro_stat import stat_error
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import dask
-import dask.array as da
 from torchhydro.models.crits import GaussianLoss
 
 
@@ -248,8 +247,8 @@ def evaluate_validation(
 
             obs_pred_results = dask.compute(*delayed_tasks)
             obs_list, pred_list = zip(*obs_pred_results)
-            obs = da.concatenate(obs_list, axis=1)
-            pred = da.concatenate(pred_list, axis=1)
+            obs = np.concatenate(obs_list, axis=1)
+            pred = np.concatenate(pred_list, axis=1)
 
             eval_log = calculate_and_record_metrics(
                 obs,
