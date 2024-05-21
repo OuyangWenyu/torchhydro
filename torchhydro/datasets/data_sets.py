@@ -1080,8 +1080,8 @@ class HydroMultiSourceDataset(HydroMeanDataset):
         gage_id_lst = self.t_s_dict["sites_id"]
         t_range = [
             (
-                datetime.fromisoformat(date_tuple[0]) + timedelta(hours=3),
-                datetime.fromisoformat(date_tuple[1]) + timedelta(hours=3),
+                datetime.fromisoformat(date_tuple[0]),
+                datetime.fromisoformat(date_tuple[1]),
             )
             for date_tuple in self.t_s_dict["t_final_range"]
         ]
@@ -1100,7 +1100,8 @@ class HydroMultiSourceDataset(HydroMeanDataset):
 
         for start_date, end_date in t_range:
             adjusted_start_date = (
-                start_date - timedelta(hours=self.data_cfgs["prec_window"])
+                start_date
+                - timedelta(hours=(self.data_cfgs["prec_window"] * 3))  # ERROR!!
             ).strftime("%Y-%m-%d-%H")
 
             adjusted_end_date = (
@@ -1141,7 +1142,9 @@ class HydroMultiSourceDataset(HydroMeanDataset):
                 lookup.extend(
                     (basin, dates[f + num * time_single_length])
                     for f in range(
-                        warmup_length, time_single_length - (forecast_length // 3)
+                        warmup_length,
+                        # time_single_length - (forecast_length // 3),  # ERROR!
+                        time_single_length,
                     )
                 )
         self.lookup_table = dict(enumerate(lookup))

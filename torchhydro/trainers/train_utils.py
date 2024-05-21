@@ -91,11 +91,14 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
             # warmup_length + length + target_scaler.data_cfgs["prec_window"] :
-            0 : -int((forecast_length * 2) / 3)
+            # 0 : -int((forecast_length * 2) / 3)
+            # + length
+            length : -int(forecast_length / 3)
             + length
+            - target_scaler.data_cfgs["prec_window"]
         ]
-        if len(selected_time_points) > output.shape[1]:
-            selected_time_points = selected_time_points[: output.shape[1]]
+        # if len(selected_time_points) > output.shape[1]:
+        #     selected_time_points = selected_time_points[: output.shape[1]]
     else:
         selected_time_points = target_data.coords["time"][warmup_length:]
 
@@ -277,7 +280,7 @@ def evaluate_validation(
     return eval_log
 
 
-@dask.delayed
+# @dask.delayed
 def len_denormalize_delayed(
     length,
     output,
