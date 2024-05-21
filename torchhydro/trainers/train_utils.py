@@ -83,23 +83,17 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
     units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
     if target_scaler.pbm_norm:
         units = {**units, **target_data.attrs["units"]}
-    # need to remove data in the warmup period
-    warmup_length = validation_data_loader.dataset.warmup_length
-
     if not target_scaler.data_cfgs["static"]:
         target_data = validation_data_loader.dataset.y
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
-            # warmup_length + length + target_scaler.data_cfgs["prec_window"] :
-            # 0 : -int((forecast_length * 2) / 3)
-            # + length
-            length : -int(forecast_length / 3)
+            length : -(forecast_length // 3)
             + length
             - target_scaler.data_cfgs["prec_window"]
         ]
-        # if len(selected_time_points) > output.shape[1]:
-        #     selected_time_points = selected_time_points[: output.shape[1]]
+
     else:
+        warmup_length = validation_data_loader.dataset.warmup_length
         selected_time_points = target_data.coords["time"][warmup_length:]
 
     selected_data = target_data.sel(time=selected_time_points)
@@ -280,7 +274,7 @@ def evaluate_validation(
     return eval_log
 
 
-# @dask.delayed
+@dask.delayed
 def len_denormalize_delayed(
     length,
     output,
