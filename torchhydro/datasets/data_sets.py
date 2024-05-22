@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-05-04 10:42:32
+LastEditTime: 2024-05-22 19:36:45
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -9,6 +9,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import logging
+import re
 import sys
 import torch
 import xarray as xr
@@ -218,6 +219,36 @@ class BaseDataset(Dataset):
             data_attr = None
         return data_forcing, data_output, data_attr
 
+    def _check_ts_xrds_unit(self, data_forcing_ds, data_output_ds):
+        """Check timeseries xarray dataset unit and convert if necessary
+
+        Parameters
+        ----------
+        data_forcing_ds : _type_
+            _description_
+        data_output_ds : _type_
+            _description_
+        """
+
+        def standardize_unit(unit):
+            unit = unit.lower()  # convert to lower case
+            unit = re.sub(r"day", "d", unit)
+            unit = re.sub(r"hour", "h", unit)
+            return unit
+
+        streamflow_unit = data_output_ds["streamflow"].attrs["units"]
+        prcp_unit = data_forcing_ds["prcp"].attrs["units"]
+
+        standardized_streamflow_unit = standardize_unit(streamflow_unit)
+        standardized_prcp_unit = standardize_unit(prcp_unit)
+        if standardized_streamflow_unit != standardized_prcp_unit:
+            data_output_ds = streamflow_unit_conv(
+                data_output_ds,
+                self.data_source.read_area(self.t_s_dict["sites_id"]),
+                target_unit=prcp_unit,
+            )
+        return data_forcing_ds, data_output_ds
+
     def _read_xyc(self):
         """Read x, y, c data from data source
 
@@ -226,23 +257,20 @@ class BaseDataset(Dataset):
         tuple[xr.Dataset, xr.Dataset, xr.Dataset]
             x, y, c data
         """
-
+        # x
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.t_s_dict["t_final_range"],
+            self.data_cfgs["relevant_cols"],
+        )
         # y
-        data_output_ds = self.data_source.read_ts_xrdataset(
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             self.t_s_dict["t_final_range"],
             self.data_cfgs["target_cols"],
         )
-        if self.data_source.streamflow_unit != "mm/d":
-            data_output_ds = streamflow_unit_conv(
-                data_output_ds, self.data_source.read_area(self.t_s_dict["sites_id"])
-            )
-        # x
-        data_forcing_ds = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            self.t_s_dict["t_final_range"],
-            # 6 comes from here
-            self.data_cfgs["relevant_cols"],
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
         )
         # c
         data_attr_ds = self.data_source.read_attr_xrdataset(
