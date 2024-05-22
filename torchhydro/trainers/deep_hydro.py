@@ -8,9 +8,7 @@ FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 import copy
-import logging
 import os
-import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from functools import reduce
@@ -21,7 +19,6 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
-from torch import optim
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import *
 from torch.utils.data import DataLoader, DistributedSampler
