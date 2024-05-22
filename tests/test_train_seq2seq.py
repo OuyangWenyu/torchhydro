@@ -15,10 +15,14 @@ import pathlib
 import pandas as pd
 import pytest
 import hydrodatasource.configs.config as hdscc
+import torch
 import xarray as xr
+import torch.multiprocessing as mp
 
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
+from torchhydro.trainers.deep_hydro import train_worker
+
+# from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
@@ -58,7 +62,7 @@ def config():
                 "attributes": "basins-origin/attributes.nc",
             },
         },
-        ctx=[1],
+        ctx=[0, 1, 2],
         model_name="Seq2Seq",
         model_hyperparam={
             "input_size": 20,
@@ -70,17 +74,17 @@ def config():
         model_loader={"load_way": "best"},
         gage_id=[
             "21401550",  # 碧流河
-            "01181000",
-            "01411300",
-            "01414500",
-            "02016000",
-            "02018000",
-            "02481510",
-            "03070500",
+            # "01181000",
+            # "01411300",
+            # "01414500",
+            # "02016000",
+            # "02018000",
+            # "02481510",
+            # "03070500",
             # "08324000",
-            "11266500",
+            # "11266500",
             # "11523200",
-            "12020000",
+            # "12020000",
             # "12167000",
             "14185000",
             "14306500",
@@ -119,7 +123,7 @@ def config():
         train_epoch=2,
         save_epoch=1,
         train_period=[
-            ("2015-06-01", "2022-12-20"),
+            ("2015-06-01", "2016-12-20"),
         ],
         test_period=[
             ("2023-02-01", "2023-11-30"),
@@ -150,12 +154,15 @@ def config():
             "kfold": 9,
             "batch_sizes": [1024],
         },
-        model_type="MTL",
+        model_type="DDP_MTL",
+        fill_nan=['no', 'no']
     )
     update_cfg(config_data, args)
     return config_data
 
 
 def test_seq2seq(config):
-    train_and_evaluate(config)
+    world_size = torch.cuda.device_count()
+    mp.spawn(train_worker, args=(world_size, config), nprocs=world_size, join=True)
+    # train_and_evaluate(config)
     # ensemble_train_and_evaluate(config)

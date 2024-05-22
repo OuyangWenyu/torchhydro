@@ -207,6 +207,8 @@ def default_config_file():
             "static": True,
         },
         "training_cfgs": {
+            "master_addr": "localhost",
+            "port": "12335",
             # if train_mode is False, don't train and evaluate
             "train_mode": True,
             "criterion": "RMSE",
@@ -291,6 +293,8 @@ def cmd(
     fl_local_ep=None,
     fl_local_bs=None,
     fl_frac=None,
+    master_addr=None,
+    port=None,
     ctx=None,
     rs=None,
     gage_id_file=None,
@@ -420,6 +424,20 @@ def cmd(
         help="the fraction of clients for federated learning",
         default=fl_frac,
         type=float,
+    )
+    parser.add_argument(
+        "--master_addr",
+        dest="master_addr",
+        help="Running Context --default is localhost if you only train model on your computer",
+        default=master_addr,
+        nargs="+",
+    )
+    parser.add_argument(
+        "--port",
+        dest="port",
+        help="Running Context -- which port do you want to use when using DistributedDataParallel",
+        default=port,
+        nargs="+",
     )
     parser.add_argument(
         "--ctx",
@@ -847,6 +865,10 @@ def update_cfg(cfg_file, new_args):
         cfg_file["model_cfgs"]["fl_hyperparam"]["fl_local_bs"] = new_args.fl_local_bs
     if new_args.fl_frac is not None:
         cfg_file["model_cfgs1"]["fl_hyperparam"]["fl_frac"] = new_args.fl_frac
+    if new_args.master_addr is not None:
+        cfg_file["training_cfgs"]["master_addr"] = new_args.master_addr
+    if new_args.port is not None:
+        cfg_file["training_cfgs"]["port"] = new_args.port
     if new_args.ctx is not None:
         cfg_file["training_cfgs"]["device"] = new_args.ctx
     if new_args.rs is not None:
