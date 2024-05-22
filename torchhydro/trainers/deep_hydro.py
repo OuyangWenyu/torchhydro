@@ -441,18 +441,28 @@ class DeepHydro(DeepHydroInterface):
 
         if not data_cfgs["static"]:
             target_len = len(data_cfgs["target_cols"])
+            prec_window = data_cfgs["prec_window"]
+            batch_size = test_dataloader.batch_size
             if evaluation_cfgs["rolling"]:
-                forecast_length = data_cfgs["forecast_length"]
-                pred = pred[::forecast_length]
-                obs = obs[::forecast_length]
+                forecast_length = data_cfgs["forecast_length"] // 3
+                pred = pred[:, prec_window:, :].reshape(
+                    ngrid, batch_size, forecast_length, target_len
+                )
+                obs = obs[:, prec_window:, :].reshape(
+                    ngrid, batch_size, forecast_length, target_len
+                )
+
+                pred = pred[:, ::forecast_length, :, :]
+                obs = obs[:, ::forecast_length, :, :]
 
                 pred = np.concatenate(pred, axis=0).reshape(ngrid, -1, target_len)
                 obs = np.concatenate(obs, axis=0).reshape(ngrid, -1, target_len)
 
+                pred = pred[:, :batch_size, :]
+                obs = obs[:, :batch_size, :]
             else:
-                batch_size = test_dataloader.batch_size
-                pred = pred[:, 0, :].reshape(ngrid, batch_size, target_len)
-                obs = obs[:, 0, :].reshape(ngrid, batch_size, target_len)
+                pred = pred[:, prec_window, :].reshape(ngrid, batch_size, target_len)
+                obs = obs[:, prec_window, :].reshape(ngrid, batch_size, target_len)
         pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
         return pred_xr, obs_xr
 
