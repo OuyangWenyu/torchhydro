@@ -4,7 +4,7 @@ Date: 2024-05-20 10:40:46
 LastEditTime: 2024-05-20 10:40:46
 LastEditors: Xinzhuo Wu
 Description: 
-FilePath: /torchhydro/tests/train_with_gpm_streamflow.py
+FilePath: /torchhydro/tests/train_with_gpm.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -30,12 +30,12 @@ def main():
     config_data = create_config()
 
     # 运行测试函数
-    test_seq2seq(config_data)
+    train_and_evaluate(config_data)
 
 
 def create_config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = "train_with_gpm_streamflow/ex1"
+    project_name = "train_with_gpm/ex1"
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -49,10 +49,10 @@ def create_config():
                 "attributes": "basins-origin/attributes.nc",
             },
         },
-        ctx=[1],
+        ctx=[0],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 18,
+            "input_size": 17,
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 168,
@@ -65,7 +65,6 @@ def create_config():
         var_t=[
             "gpm_tp",
             "sm_surface",
-            "streamflow",
         ],
         var_c=[
             "area",  # 面积
@@ -85,7 +84,7 @@ def create_config():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow", "sm_surface"],
-        dataset="GPMSTRDataset",
+        dataset="GPMDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
         train_epoch=100,
@@ -117,11 +116,6 @@ def create_config():
     update_cfg(config_data, args)
 
     return config_data
-
-
-def test_seq2seq(config_data):
-    # 运行测试
-    train_and_evaluate(config_data)
 
 
 if __name__ == "__main__":

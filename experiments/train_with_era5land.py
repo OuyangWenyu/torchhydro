@@ -20,7 +20,7 @@ def main():
     config_data = create_config()
 
     # 运行测试函数
-    test_seq2seq(config_data)
+    train_and_evaluate(config_data)
 
 
 def create_config():
@@ -109,11 +109,6 @@ def create_config():
     update_cfg(config_data, args)
 
     return config_data
-
-
-def test_seq2seq(config_data):
-    # 运行测试
-    train_and_evaluate(config_data)
 
 
 if __name__ == "__main__":
