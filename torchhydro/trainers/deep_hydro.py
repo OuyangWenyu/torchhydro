@@ -7,6 +7,7 @@ Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import copy
 import os
 from abc import ABC, abstractmethod
@@ -143,17 +144,11 @@ class DeepHydro(DeepHydroInterface):
         self.device_num = cfgs["training_cfgs"]["device"]
         self.device = get_the_device(self.device_num)
         self.pre_model = pre_model
+        self.model = self.load_model()
         if cfgs["training_cfgs"]["train_mode"]:
-            # if the mode is inference, we don't need to load train/valid data
-            # and we only need to load model in this mode
-            # otherwise,we load model both in this init function and evaluate function
-            # it will cause problem because self._get_trained_model() will change the weight path, and the second time we load model, it will cause an
-            self.model = self.load_model(mode="train")
             self.traindataset = self.make_dataset("train")
             if cfgs["data_cfgs"]["t_range_valid"] is not None:
                 self.validdataset = self.make_dataset("valid")
-        else:
-            self.model = self.load_model(mode="infer")
         self.testdataset = self.make_dataset("test")
         print(f"Torch is using {str(self.device)}")
 
@@ -167,11 +162,7 @@ class DeepHydro(DeepHydroInterface):
             model in pytorch_model_dict in model_dict_function.py
         """
         if mode == "infer":
-            if self.weight_path is None:
-                # for continue training
-                self.weight_path = self._get_trained_model()
-            else:
-                pass
+            self.weight_path = self._get_trained_model()
         elif mode != "train":
             raise ValueError("Invalid mode; must be 'train' or 'infer'")
         model_cfgs = self.cfgs["model_cfgs"]
@@ -379,7 +370,7 @@ class DeepHydro(DeepHydroInterface):
         tuple[dict, np.array, np.array]
             eval_log, denormalized predictions and observations
         """
-        # self.model = self.load_model(mode="infer")
+        self.model = self.load_model(mode="infer")
         preds_xr, obss_xr = self.inference()
         return preds_xr, obss_xr
 
@@ -479,7 +470,9 @@ class DeepHydro(DeepHydroInterface):
             if loss_param is not None:
                 for key in loss_param.keys():
                     if key == "loss_funcs":
-                        criterion_init_params[key] = pytorch_criterion_dict[loss_param[key]]()
+                        criterion_init_params[key] = pytorch_criterion_dict[
+                            loss_param[key]
+                        ]()
                     else:
                         criterion_init_params[key] = loss_param[key]
         return pytorch_criterion_dict[training_cfgs["criterion"]](
@@ -515,7 +508,7 @@ class DeepHydro(DeepHydroInterface):
                     ngrid=ngrid,
                     nt=nt,
                 )
-            elif data_cfgs['sampler'] == "DistSampler":
+            elif data_cfgs["sampler"] == "DistSampler":
                 sampler = DistributedSampler(train_dataset)
             else:
                 raise NotImplementedError("This sampler not implemented yet")
@@ -829,14 +822,15 @@ class MultiTaskHydro(DeepHydro):
 
 class DistributedDeepHydro(MultiTaskHydro):
     def __init__(self, world_size, cfgs: Dict):
-        super().__init__(cfgs, cfgs['model_cfgs']['weight_path'])
+        super().__init__(cfgs, cfgs["model_cfgs"]["weight_path"])
         self.world_size = world_size
-        # self.cfgs = cfgs
 
     def setup(self, rank):
-        os.environ['MASTER_ADDR'] = self.cfgs['training_cfgs']['master_addr']
-        os.environ['MASTER_PORT'] = self.cfgs['training_cfgs']['port']
-        dist.init_process_group(backend='nccl', init_method='env://', world_size=self.world_size, rank=rank)
+        os.environ["MASTER_ADDR"] = self.cfgs["training_cfgs"]["master_addr"]
+        os.environ["MASTER_PORT"] = self.cfgs["training_cfgs"]["port"]
+        dist.init_process_group(
+            backend="nccl", init_method="env://", world_size=self.world_size, rank=rank
+        )
         torch.cuda.set_device(rank)
         self.device = torch.device(rank)
         self.rank = rank
@@ -844,13 +838,11 @@ class DistributedDeepHydro(MultiTaskHydro):
     def cleanup(self):
         dist.destroy_process_group()
 
-    def load_model(self, mode='train'):
+    def load_model(self, mode="train"):
         if mode == "infer":
             if self.weight_path is None:
                 # for continue training
                 self.weight_path = self._get_trained_model()
-            else:
-                pass
         elif mode != "train":
             raise ValueError("Invalid mode; must be 'train' or 'infer'")
         model_cfgs = self.cfgs["model_cfgs"]
@@ -860,13 +852,12 @@ class DistributedDeepHydro(MultiTaskHydro):
                 f"Error the model {model_name} was not found in the model dict. Please add it."
             )
         if self.pre_model is not None:
-            model = self._load_pretrain_model()
+            return self._load_pretrain_model()
         elif self.weight_path is not None:
             # load model from pth file (saved weights and biases)
-            model = self._load_model_from_pth()
+            return self._load_model_from_pth()
         else:
-            model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
-        return model
+            return pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
 
     def model_train(self):
         model = self.load_model().to(self.device)
@@ -922,7 +913,7 @@ class DistributedDeepHydro(MultiTaskHydro):
                 print("Stopping model now")
                 break
         # if self.rank == 0:
-            # logging.log(1, f"Training complete in: {time.time() - start_time:.2f} seconds"
+        # logging.log(1, f"Training complete in: {time.time() - start_time:.2f} seconds"
 
     def run(self):
         self.setup(self.rank)
@@ -942,5 +933,5 @@ model_type_dict = {
     "FedLearn": FedLearnHydro,
     "TransLearn": TransLearnHydro,
     "MTL": MultiTaskHydro,
-    "DDP_MTL": DistributedDeepHydro
+    "DDP_MTL": DistributedDeepHydro,
 }
