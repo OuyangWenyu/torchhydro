@@ -27,6 +27,7 @@ from tqdm import tqdm
 
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
+from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.sampler import (
     KuaiSampler,
     fl_sample_basin,
@@ -149,7 +150,7 @@ class DeepHydro(DeepHydroInterface):
             self.traindataset = self.make_dataset("train")
             if cfgs["data_cfgs"]["t_range_valid"] is not None:
                 self.validdataset = self.make_dataset("valid")
-        self.testdataset = self.make_dataset("test")
+        self.testdataset: BaseDataset = self.make_dataset("test")
         print(f"Torch is using {str(self.device)}")
 
     def load_model(self, mode="train"):
@@ -488,7 +489,7 @@ class DeepHydro(DeepHydroInterface):
         if "pin_memory" in training_cfgs:
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
-        train_dataset = self.traindataset
+        train_dataset: BaseDataset = self.traindataset
         sampler = None
         if data_cfgs["sampler"] is not None:
             # now we only have one special sampler from Kuai Fang's Deep Learning papers
@@ -522,7 +523,7 @@ class DeepHydro(DeepHydroInterface):
             timeout=0,
         )
         if data_cfgs["t_range_valid"] is not None:
-            valid_dataset = self.validdataset
+            valid_dataset: BaseDataset = self.validdataset
             batch_size_valid = training_cfgs["batch_size"]
             if data_cfgs["sampler"] == "HydroSampler":
                 # for HydroSampler when evaluating, we need to set new batch size
@@ -880,15 +881,10 @@ class DistributedDeepHydro(MultiTaskHydro):
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
         for epoch in range(start_epoch, max_epochs + 1):
+            data_loader.sampler.set_epoch(epoch)
             with logger.log_epoch_train(epoch) as train_logs:
-                total_loss, n_iter_ep = torch_single_train(
-                    self.model,
-                    opt,
-                    criterion,
-                    data_loader,
-                    device=self.device,
-                    which_first_tensor=training_cfgs["which_first_tensor"],
-                )
+                total_loss, n_iter_ep = torch_single_train(self.model, opt, criterion, data_loader,
+                    device=self.device, which_first_tensor=training_cfgs["which_first_tensor"])
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
 
@@ -897,8 +893,7 @@ class DistributedDeepHydro(MultiTaskHydro):
             if data_cfgs["t_range_valid"] is not None:
                 with logger.log_epoch_valid(epoch) as valid_logs:
                     valid_loss, valid_metrics = self._1epoch_valid(
-                        training_cfgs, criterion, validation_data_loader, valid_logs
-                    )
+                        training_cfgs, criterion, validation_data_loader, valid_logs)
 
             self._scheduler_step(training_cfgs, scheduler, valid_loss)
             logger.save_session_param(

@@ -218,43 +218,28 @@ def evaluate_validation(
     """
     if isinstance(fill_nan, list) and len(fill_nan) != len(target_col):
         raise ValueError("Length of fill_nan must be equal to length of target_col.")
-
     eval_log = {}
+    # probably because of DistSampler
+    # batch_size = len(validation_data_loader.dataset) / len(validation_data_loader.dataset.basins)
     batch_size = validation_data_loader.batch_size
-
     if not validation_data_loader.dataset.data_cfgs["static"]:
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)
-
+        # output, labels.dim = (time, forecast_length / 3+1, basin_num), not batch_size
+        # len(time) = basin_num * time on single basin
         for i, col in enumerate(target_col):
             delayed_tasks = []
             for length in range(validation_data_loader.dataset.forecast_length // 3):
-                delayed_task = len_denormalize_delayed(
-                    length,
-                    output,
-                    labels,
-                    basin_num,
-                    batch_size,
-                    target_col,
-                    validation_data_loader,
-                    col,
-                )
+                delayed_task = len_denormalize_delayed(length, output, labels, basin_num, batch_size,
+                    target_col, validation_data_loader, col)
                 delayed_tasks.append(delayed_task)
-
             obs_pred_results = dask.compute(*delayed_tasks)
             obs_list, pred_list = zip(*obs_pred_results)
             obs = np.concatenate(obs_list, axis=1)
             pred = np.concatenate(pred_list, axis=1)
-
-            eval_log = calculate_and_record_metrics(
-                obs,
-                pred,
-                evaluation_metrics,
-                col,
-                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
-                eval_log,
-            )
+            eval_log = calculate_and_record_metrics(obs, pred, evaluation_metrics, col,
+                fill_nan[i] if isinstance(fill_nan, list) else fill_nan, eval_log)
 
     else:
         preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels)
@@ -283,6 +268,7 @@ def len_denormalize_delayed(
     validation_data_loader,
     col,
 ):
+    # batch_size != output.shape[0]
     o = output[:, length, :].reshape(basin_num, batch_size, len(target_col))
     l = labels[:, length, :].reshape(basin_num, batch_size, len(target_col))
     preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, length)
