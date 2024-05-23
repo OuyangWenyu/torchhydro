@@ -91,7 +91,9 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
                                # warmup_length + length + target_scaler.data_cfgs["prec_window"] :
-                               0: -int((forecast_length * 2) / 3) + length]
+                               0 : -int((forecast_length * 2) / 3)
+                                   + length
+                               ]
         if len(selected_time_points) > output.shape[1]:
             selected_time_points = selected_time_points[: output.shape[1]]
     else:
@@ -177,14 +179,25 @@ class EarlyStopper(object):
 def calculate_and_record_metrics(
     obs, pred, evaluation_metrics, target_col, fill_nan, eval_log
 ):
-    inds = stat_error(obs, pred, fill_nan)
+    fill_nan_value = fill_nan
+    inds = stat_error(obs, pred, fill_nan_value)
+
     for evaluation_metric in evaluation_metrics:
-        for i in range(len(target_col)):
-            eval_log[f"{evaluation_metric} of {target_col[i]}"] = inds[i][evaluation_metric].tolist()
+        eval_log[f"{evaluation_metric} of {target_col}"] = inds[
+            evaluation_metric
+        ].tolist()
+
     return eval_log
 
 
-def evaluate_validation(validation_data_loader, output, labels, evaluation_metrics, fill_nan, target_col):
+def evaluate_validation(
+    validation_data_loader,
+    output,
+    labels,
+    evaluation_metrics,
+    fill_nan,
+    target_col,
+):
     """
     calculate metrics for validation
 
@@ -216,17 +229,22 @@ def evaluate_validation(validation_data_loader, output, labels, evaluation_metri
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)
-        delayed_tasks = []
-        for length in range(validation_data_loader.dataset.forecast_length // 3):
-            delayed_task = len_denormalize_delayed(length, output, labels, basin_num, batch_size, target_col,
-                                                   validation_data_loader)
-            delayed_tasks.append(delayed_task)
-        obs_pred_results = dask.compute(*delayed_tasks)
-        obs_list, pred_list = zip(*obs_pred_results)
-        obs = np.concatenate(obs_list, axis=1)
-        pred = np.concatenate(pred_list, axis=1)
-        eval_log = calculate_and_record_metrics(obs, pred, evaluation_metrics, target_col,
-            fill_nan[0] if isinstance(fill_nan, list) else fill_nan, eval_log)
+
+        for i, col in enumerate(target_col):
+            delayed_tasks = []
+            for length in range(validation_data_loader.dataset.forecast_length // 3):
+                delayed_task = len_denormalize_delayed(length, output, labels, basin_num,
+                    batch_size, target_col, validation_data_loader, col)
+                delayed_tasks.append(delayed_task)
+
+            obs_pred_results = dask.compute(*delayed_tasks)
+            obs_list, pred_list = zip(*obs_pred_results)
+            obs = np.concatenate(obs_list, axis=1)
+            pred = np.concatenate(pred_list, axis=1)
+
+            eval_log = calculate_and_record_metrics(obs, pred, evaluation_metrics, col,
+                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,  eval_log)
+
     else:
         preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels)
         for i, col in enumerate(target_col):
@@ -238,20 +256,12 @@ def evaluate_validation(validation_data_loader, output, labels, evaluation_metri
 
 
 @dask.delayed
-def len_denormalize_delayed(
-    length,
-    output,
-    labels,
-    basin_num,
-    batch_size,
-    target_col,
-    validation_data_loader,
-):
+def len_denormalize_delayed(length, output, labels, basin_num, batch_size, target_col, validation_data_loader, col):
     o = output[:, length, :].reshape(basin_num, batch_size, len(target_col))
     l = labels[:, length, :].reshape(basin_num, batch_size, len(target_col))
     preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, length)
-    obs = obss_xr[target_col].to_array().to_numpy()
-    pred = preds_xr[target_col].to_array().to_numpy()
+    obs = obss_xr[col].to_numpy()
+    pred = preds_xr[col].to_numpy()
     return obs, pred
 
 

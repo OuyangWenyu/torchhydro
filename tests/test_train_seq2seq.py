@@ -15,7 +15,6 @@ import pathlib
 import pandas as pd
 import pytest
 import hydrodatasource.configs.config as hdscc
-import torch
 import xarray as xr
 import torch.multiprocessing as mp
 
@@ -74,18 +73,18 @@ def config():
         model_loader={"load_way": "best"},
         gage_id=[
             "21401550",  # 碧流河
-            # "01181000",
-            # "01411300",
-            # "01414500",
-            # "02016000",
-            # "02018000",
-            # "02481510",
-            # "03070500",
-            # "08324000",
-            # "11266500",
-            # "11523200",
-            # "12020000",
-            # "12167000",
+            "01181000",
+            "01411300",
+            "01414500",
+            "02016000",
+            "02018000",
+            "02481510",
+            "03070500",
+            "08324000",
+            "11266500",
+            "11523200",
+            "12020000",
+            "12167000",
             "14185000",
             "14306500",
         ],
@@ -123,7 +122,7 @@ def config():
         train_epoch=2,
         save_epoch=1,
         train_period=[
-            ("2015-06-01", "2016-12-20"),
+            ("2015-06-01", "2022-12-20"),
         ],
         test_period=[
             ("2023-02-01", "2023-11-30"),
