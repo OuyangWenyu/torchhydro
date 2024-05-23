@@ -1008,9 +1008,6 @@ class HydroMultiSourceDataset(HydroMeanDataset):
         )
 
     def get_y(self, basin, time, forecast_length, prec_window):
-        # 数据是3小时，取索引却是按1小时，故出现索引差别崩溃
-        # x可能也会有这样的问题
-        should_length = prec_window + int(forecast_length / 3)
         slice_y = (
             self.y.sel(
                 basin=basin,
@@ -1022,9 +1019,6 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             .to_numpy()
             .T
         )
-        if slice_y.shape[0] < should_length:
-            diff = should_length - slice_y.shape[0]
-            slice_y = np.pad(slice_y, ((0, diff), (0, 0)), "edge")
         return slice_y
 
     def __getitem__(self, item: int):
