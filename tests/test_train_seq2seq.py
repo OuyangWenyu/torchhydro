@@ -36,14 +36,15 @@ gage_id = show["id"].values.tolist()
 
 
 def test_merge_forcing_and_streamflow():
+    data_name = "era5land"  #'gpm'
     for id in gage_id:
-        forcing_nc = f"/ftproot/data_240509/data_forcing_era5land_100/data_forcing_{id}.nc"
-        stream_nc = f"s3://basins-origin/hour_data/1h/mean_data/streamflow_basin/streamflow_{id}.nc"
-        forcing_df = xr.open_dataset(forcing_nc).to_dataframe()
+        forcing_nc = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_{data_name}/data_forcing_{id}.nc"
+        stream_nc = f"s3://basins-origin/hour_data/1h/mean_data/streamflow_{data_name}/streamflow_{id}.nc"
+        forcing_df = xr.open_dataset(hdscc.FS.open(forcing_nc)).to_dataframe()
         stream_df = xr.open_dataset(hdscc.FS.open(stream_nc)).to_dataframe()
         stream_df = stream_df[stream_df.index >= "2015-04-01 04:00:00"]
         concat_ds = xr.Dataset.from_dataframe(pd.concat([forcing_df, stream_df]))
-        concat_ds_path = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow/data_forcing_streamflow_{id}.nc"
+        concat_ds_path = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_{data_name}_streamflow/data_forcing_streamflow_{id}.nc"
         hdscc.FS.write_bytes(concat_ds_path, concat_ds.to_netcdf())
 
 
@@ -154,7 +155,7 @@ def config():
             "batch_sizes": [1024],
         },
         model_type="DDP_MTL",
-        fill_nan=['no', 'no']
+        fill_nan=["no", "no"],
     )
     update_cfg(config_data, args)
     return config_data

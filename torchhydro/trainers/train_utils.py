@@ -83,20 +83,17 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
     units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
     if target_scaler.pbm_norm:
         units = {**units, **target_data.attrs["units"]}
-    # need to remove data in the warmup period
-    warmup_length = validation_data_loader.dataset.warmup_length
 
     if not target_scaler.data_cfgs["static"]:
         target_data = validation_data_loader.dataset.y
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
-                               # warmup_length + length + target_scaler.data_cfgs["prec_window"] :
-                               0 : -int((forecast_length * 2) / 3)
-                                   + length
-                               ]
-        if len(selected_time_points) > output.shape[1]:
-            selected_time_points = selected_time_points[: output.shape[1]]
+            length : -(forecast_length // 3)
+            + length
+            - target_scaler.data_cfgs["prec_window"]
+        ]
     else:
+        warmup_length = validation_data_loader.dataset.warmup_length
         selected_time_points = target_data.coords["time"][warmup_length:]
 
     selected_data = target_data.sel(time=selected_time_points)
@@ -233,8 +230,16 @@ def evaluate_validation(
         for i, col in enumerate(target_col):
             delayed_tasks = []
             for length in range(validation_data_loader.dataset.forecast_length // 3):
-                delayed_task = len_denormalize_delayed(length, output, labels, basin_num,
-                    batch_size, target_col, validation_data_loader, col)
+                delayed_task = len_denormalize_delayed(
+                    length,
+                    output,
+                    labels,
+                    basin_num,
+                    batch_size,
+                    target_col,
+                    validation_data_loader,
+                    col,
+                )
                 delayed_tasks.append(delayed_task)
 
             obs_pred_results = dask.compute(*delayed_tasks)
@@ -242,21 +247,42 @@ def evaluate_validation(
             obs = np.concatenate(obs_list, axis=1)
             pred = np.concatenate(pred_list, axis=1)
 
-            eval_log = calculate_and_record_metrics(obs, pred, evaluation_metrics, col,
-                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,  eval_log)
+            eval_log = calculate_and_record_metrics(
+                obs,
+                pred,
+                evaluation_metrics,
+                col,
+                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
+                eval_log,
+            )
 
     else:
         preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels)
         for i, col in enumerate(target_col):
             obs = obss_xr[col].to_numpy()
             pred = preds_xr[col].to_numpy()
-            eval_log = calculate_and_record_metrics(obs, pred, evaluation_metrics, col,
-                fill_nan[i] if isinstance(fill_nan, list) else fill_nan, eval_log)
+            eval_log = calculate_and_record_metrics(
+                obs,
+                pred,
+                evaluation_metrics,
+                col,
+                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
+                eval_log,
+            )
     return eval_log
 
 
 @dask.delayed
-def len_denormalize_delayed(length, output, labels, basin_num, batch_size, target_col, validation_data_loader, col):
+def len_denormalize_delayed(
+    length,
+    output,
+    labels,
+    basin_num,
+    batch_size,
+    target_col,
+    validation_data_loader,
+    col,
+):
     o = output[:, length, :].reshape(basin_num, batch_size, len(target_col))
     l = labels[:, length, :].reshape(basin_num, batch_size, len(target_col))
     preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, length)
