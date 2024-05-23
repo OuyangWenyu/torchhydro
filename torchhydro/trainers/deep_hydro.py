@@ -144,17 +144,11 @@ class DeepHydro(DeepHydroInterface):
         self.device_num = cfgs["training_cfgs"]["device"]
         self.device = get_the_device(self.device_num)
         self.pre_model = pre_model
+        self.model = self.load_model()
         if cfgs["training_cfgs"]["train_mode"]:
-            # if the mode is inference, we don't need to load train/valid data
-            # and we only need to load model in this mode
-            # otherwise,we load model both in this init function and evaluate function
-            # it will cause problem because self._get_trained_model() will change the weight path, and the second time we load model, it will cause an
-            self.model = self.load_model(mode="train")
             self.traindataset = self.make_dataset("train")
             if cfgs["data_cfgs"]["t_range_valid"] is not None:
                 self.validdataset = self.make_dataset("valid")
-        else:
-            self.model = self.load_model(mode="infer")
         self.testdataset = self.make_dataset("test")
         print(f"Torch is using {str(self.device)}")
 
@@ -168,11 +162,7 @@ class DeepHydro(DeepHydroInterface):
             model in pytorch_model_dict in model_dict_function.py
         """
         if mode == "infer":
-            if self.weight_path is None:
-                # for continue training
-                self.weight_path = self._get_trained_model()
-            else:
-                pass
+            self.weight_path = self._get_trained_model()
         elif mode != "train":
             raise ValueError("Invalid mode; must be 'train' or 'infer'")
         model_cfgs = self.cfgs["model_cfgs"]
@@ -380,7 +370,7 @@ class DeepHydro(DeepHydroInterface):
         tuple[dict, np.array, np.array]
             eval_log, denormalized predictions and observations
         """
-        # self.model = self.load_model(mode="infer")
+        self.model = self.load_model(mode="infer")
         preds_xr, obss_xr = self.inference()
         return preds_xr, obss_xr
 
