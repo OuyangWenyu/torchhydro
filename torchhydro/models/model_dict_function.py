@@ -18,7 +18,7 @@ from torchhydro.models.cudnnlstm import (
 )
 
 from torchhydro.models.simple_lstm import SimpleLSTMForecast
-from torchhydro.models.seq2seq import GeneralSeq2Seq
+from torchhydro.models.seq2seq import GeneralSeq2Seq, DataEnhancedModel, DataFusionModel
 from torch.optim import Adam, SGD, Adadelta
 from torchhydro.models.crits import (
     RMSELoss,
@@ -50,6 +50,8 @@ pytorch_model_dict = {
     "SimpleLSTMForecast": SimpleLSTMForecast,
     "SPPLSTM2": SPP_LSTM_Model_2,
     "Seq2Seq": GeneralSeq2Seq,
+    "DataEnhanced": DataEnhancedModel,
+    "DataFusion": DataFusionModel,
 }
 
 pytorch_criterion_dict = {

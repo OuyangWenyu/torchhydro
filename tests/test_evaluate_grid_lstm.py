@@ -1,7 +1,7 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-12-29 14:20:18
-LastEditTime: 2024-04-09 20:05:03
+LastEditTime: 2024-04-24 19:40:03
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
 FilePath: \torchhydro\tests\test_evaluate_grid_lstm.py
@@ -12,9 +12,9 @@ import os
 import pytest
 import warnings
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.trainers.deep_hydro import DeepHydro
-from torchhydro.trainers.trainer import set_random_seed, save_result
+from torchhydro.trainers.trainer import set_random_seed
+from torchhydro.trainers.resulter import Resulter
 
 warnings.filterwarnings("ignore")
 
@@ -101,10 +101,11 @@ def config_data():
 def test_evaluate_spp_lstm(config_data):
     random_seed = config_data["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
+    resulter = Resulter(config_data)
     model = DeepHydro(config_data)
     test_acc = model.model_evaluate()
     print("summary test_accuracy", test_acc[0])
-    save_result(
+    resulter.save_result(
         config_data["data_cfgs"]["test_path"],
         "0",
         test_acc[1],

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2024-04-11 21:27:42
+LastEditTime: 2024-05-23 15:21:17
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
@@ -94,12 +94,10 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
     """
     new_cfg = copy.deepcopy(cfg)
     if key == "kfold":
-        if new_cfg["data_cfgs"]["static"]:
-            new_cfg["data_cfgs"]["t_range_train"] = value[0]
-            new_cfg["data_cfgs"]["t_range_valid"] = None
-        else:
-            new_cfg["data_cfgs"]["t_range_train"] = value[0]
-            new_cfg["data_cfgs"]["t_range_valid"] = value[1]
+        new_cfg["data_cfgs"]["t_range_train"] = value[0]
+        # although cross_validation contain the name "valid",
+        # it is actually the test period for our model's evaluating
+        new_cfg["data_cfgs"]["t_range_valid"] = None
         new_cfg["data_cfgs"]["t_range_test"] = value[1]
     elif key == "batch_sizes":
         new_cfg["training_cfgs"]["batch_size"] = value
@@ -119,14 +117,13 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
     return new_cfg
 
 
-def _create_kfold_periods(train_period, valid_period, test_period, kfold):
+def _create_kfold_periods(train_period, test_period, kfold):
     """
     Create k folds from the complete time period defined by the earliest start date and latest end date
     among train, valid, and test periods, ignoring any period that is None or has NaN values.
 
     Parameters:
     - train_period: List with 2 elements [start_date, end_date] for training period.
-    - valid_period: List with 2 elements [start_date, end_date] for validation period.
     - test_period: List with 2 elements [start_date, end_date] for testing period.
     - kfold: Number of folds to split the data into.
 
@@ -135,7 +132,7 @@ def _create_kfold_periods(train_period, valid_period, test_period, kfold):
     """
 
     # Collect periods, ignoring None or NaN
-    periods = [train_period, valid_period, test_period]
+    periods = [train_period, test_period]
     periods = [p for p in periods if p and not pd.isna(p[0]) and not pd.isna(p[1])]
 
     # Convert string dates to datetime objects and find the earliest start and latest end dates
@@ -163,8 +160,8 @@ def _create_kfold_periods(train_period, valid_period, test_period, kfold):
     return folds
 
 
-def _create_kfold_discontinuous_periods(train_period, valid_period, kfold):
-    periods = train_period + valid_period
+def _create_kfold_discontinuous_periods(train_period, test_period, kfold):
+    periods = train_period + test_period
     periods = sorted(periods, key=lambda x: x[0])
     cross_validation_sets = []
 
@@ -210,21 +207,18 @@ def _nested_loop_train_and_evaluate(keys, index, my_dict, update_dict, perform_c
     return perform_count
 
 
-def _trans_kfold_to_periods(update_dict, my_dict, current_key="kfold"):
+def _trans_kfold_to_periods(update_dict, ensemble_items, current_key="kfold"):
     # set train and test period
     train_period = update_dict["data_cfgs"]["t_range_train"]
-    valid_period = update_dict["data_cfgs"]["t_range_valid"]
     test_period = update_dict["data_cfgs"]["t_range_test"]
-    kfold = my_dict[current_key]
-    if update_dict["data_cfgs"]["static"]:
-        kfold_periods = _create_kfold_periods(
-            train_period, valid_period, test_period, kfold
-        )
+    kfold = ensemble_items[current_key]
+    if ensemble_items["kfold_continuous"]:
+        kfold_periods = _create_kfold_periods(train_period, test_period, kfold)
     else:
         kfold_periods = _create_kfold_discontinuous_periods(
-            train_period, valid_period, kfold
+            train_period, test_period, kfold
         )
-    my_dict[current_key] = kfold_periods
+    ensemble_items[current_key] = kfold_periods
 
 
 def ensemble_train_and_evaluate(cfgs: Dict):

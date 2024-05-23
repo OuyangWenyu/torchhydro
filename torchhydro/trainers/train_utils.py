@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-04-09 15:48:08
+LastEditTime: 2024-05-23 15:51:17
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -11,14 +11,15 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 import copy
 import os
 from functools import reduce
-from hydroutils.hydro_stat import stat_error
+
 import numpy as np
 import torch
 import torch.optim as optim
+import xarray as xr
+from hydroutils.hydro_stat import stat_error
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import xarray as xr
-import pandas as pd
+import dask
 from torchhydro.models.crits import GaussianLoss
 
 
@@ -75,22 +76,26 @@ def model_infer(seq_first, device, model, xs, ys):
     return ys, output
 
 
-def denormalize4eval(validation_data_loader, output, labels, length=0):
+def denormalize4eval(
+    validation_data_loader, output, labels, length=0, long_seq_pred=True
+):
     target_scaler = validation_data_loader.dataset.target_scaler
     target_data = target_scaler.data_target
     # the units are dimensionless for pure DL models
     units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
     if target_scaler.pbm_norm:
         units = {**units, **target_data.attrs["units"]}
-    # need to remove data in the warmup period
-    warmup_length = validation_data_loader.dataset.warmup_length
-
-    if not target_scaler.data_cfgs["static"]:
+    if not long_seq_pred:
+        target_data = validation_data_loader.dataset.y
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
-            warmup_length + length : -forecast_length + length
+            length : -(forecast_length // 3)
+            + length
+            - target_scaler.data_cfgs["prec_window"]
         ]
+
     else:
+        warmup_length = validation_data_loader.dataset.warmup_length
         selected_time_points = target_data.coords["time"][warmup_length:]
 
     selected_data = target_data.sel(time=selected_time_points)
@@ -110,11 +115,6 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
             attrs={"units": units},
         )
     )
-
-    # Unit handling is problematic, temporary code
-    if not target_scaler.data_cfgs["static"]:
-        preds_xr["streamflow"].attrs["units"] = "m"
-        obss_xr["streamflow"].attrs["units"] = "m"
 
     return preds_xr, obss_xr
 
@@ -193,8 +193,7 @@ def evaluate_validation(
     validation_data_loader,
     output,
     labels,
-    evaluation_metrics,
-    fill_nan,
+    evaluation_cfgs,
     target_col,
 ):
     """
@@ -206,10 +205,8 @@ def evaluate_validation(
         model output
     labels
         model target
-    evaluation_metrics
-        metrics to evaluate
-    fill_nan
-        how to fill nan
+    evaluation_cfgs
+        evaluation configs
     target_col
         target columns
 
@@ -223,25 +220,31 @@ def evaluate_validation(
 
     eval_log = {}
     batch_size = validation_data_loader.batch_size
-
-    if not validation_data_loader.dataset.data_cfgs["static"]:
+    evaluation_metrics = evaluation_cfgs["metrics"]
+    fill_nan = evaluation_cfgs["fill_nan"]
+    if not evaluation_cfgs["long_seq_pred"]:
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)
 
         for i, col in enumerate(target_col):
-            obs_list, pred_list = [], []
-            for length in range(validation_data_loader.dataset.forecast_length):
-                o = output[:, length, :].reshape(basin_num, batch_size, 1)
-                l = labels[:, length, :].reshape(basin_num, batch_size, 1)
-                preds_xr, obss_xr = denormalize4eval(
-                    validation_data_loader, o, l, length
+            delayed_tasks = []
+            for length in range(validation_data_loader.dataset.forecast_length // 3):
+                delayed_task = len_denormalize_delayed(
+                    length,
+                    output,
+                    labels,
+                    basin_num,
+                    batch_size,
+                    target_col,
+                    validation_data_loader,
+                    col,
+                    evaluation_cfgs["long_seq_pred"],
                 )
-                obs = obss_xr[col].to_numpy()
-                pred = preds_xr[col].to_numpy()
-                obs_list.append(obs)
-                pred_list.append(pred)
+                delayed_tasks.append(delayed_task)
 
+            obs_pred_results = dask.compute(*delayed_tasks)
+            obs_list, pred_list = zip(*obs_pred_results)
             obs = np.concatenate(obs_list, axis=1)
             pred = np.concatenate(pred_list, axis=1)
 
@@ -270,6 +273,26 @@ def evaluate_validation(
             )
 
     return eval_log
+
+
+@dask.delayed
+def len_denormalize_delayed(
+    length,
+    output,
+    labels,
+    basin_num,
+    batch_size,
+    target_col,
+    validation_data_loader,
+    col,
+    long_seq_pred,
+):
+    o = output[:, length, :].reshape(basin_num, batch_size, len(target_col))
+    l = labels[:, length, :].reshape(basin_num, batch_size, len(target_col))
+    preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, length, long_seq_pred)
+    obs = obss_xr[col].to_numpy()
+    pred = preds_xr[col].to_numpy()
+    return obs, pred
 
 
 def compute_loss(
@@ -370,15 +393,21 @@ def torch_single_train(
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
+        if torch.isnan(loss):
+            continue
         loss.backward()  # 反向传播计算当前梯度
         opt.step()  # 根据梯度更新网络参数
         model.zero_grad()  # 清空梯度
-        if torch.isnan(loss) or loss == float("inf"):
+        if loss == float("inf"):
             raise ValueError(
-                "Error infinite or NaN loss detected. Try normalizing data or performing interpolation"
+                "Error infinite loss detected. Try normalizing data or performing interpolation"
             )
         running_loss += loss.item()
         n_iter_ep += 1
+    if n_iter_ep == 0:
+        raise ValueError(
+            "All batch computations of loss result in NAN. Please check the data."
+        )
     total_loss = running_loss / float(n_iter_ep)
     return total_loss, n_iter_ep
 

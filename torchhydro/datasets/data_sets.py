@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-04-10 21:07:58
+LastEditTime: 2024-05-22 19:36:45
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -9,11 +9,12 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import logging
+import re
 import sys
 import torch
 import xarray as xr
 import numpy as np
-
+import pandas as pd
 from datetime import datetime, timedelta
 from typing import Optional
 from torch.utils.data import Dataset
@@ -107,6 +108,28 @@ class BaseDataset(Dataset):
         source_path = self.data_cfgs["source_cfgs"]["source_path"]
         return data_sources_dict[source_name](source_path)
 
+    @property
+    def ngrid(self):
+        """How many basins/grids in the dataset
+
+        Returns
+        -------
+        int
+            number of basins/grids
+        """
+        return self.y.basin.size
+
+    @property
+    def nt(self):
+        """how long is the time series
+
+        Returns
+        -------
+        int
+            number of time steps
+        """
+        return self.y.time.size
+
     def __len__(self):
         return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])
 
@@ -196,6 +219,36 @@ class BaseDataset(Dataset):
             data_attr = None
         return data_forcing, data_output, data_attr
 
+    def _check_ts_xrds_unit(self, data_forcing_ds, data_output_ds):
+        """Check timeseries xarray dataset unit and convert if necessary
+
+        Parameters
+        ----------
+        data_forcing_ds : _type_
+            _description_
+        data_output_ds : _type_
+            _description_
+        """
+
+        def standardize_unit(unit):
+            unit = unit.lower()  # convert to lower case
+            unit = re.sub(r"day", "d", unit)
+            unit = re.sub(r"hour", "h", unit)
+            return unit
+
+        streamflow_unit = data_output_ds["streamflow"].attrs["units"]
+        prcp_unit = data_forcing_ds["prcp"].attrs["units"]
+
+        standardized_streamflow_unit = standardize_unit(streamflow_unit)
+        standardized_prcp_unit = standardize_unit(prcp_unit)
+        if standardized_streamflow_unit != standardized_prcp_unit:
+            data_output_ds = streamflow_unit_conv(
+                data_output_ds,
+                self.data_source.read_area(self.t_s_dict["sites_id"]),
+                target_unit=prcp_unit,
+            )
+        return data_forcing_ds, data_output_ds
+
     def _read_xyc(self):
         """Read x, y, c data from data source
 
@@ -204,23 +257,20 @@ class BaseDataset(Dataset):
         tuple[xr.Dataset, xr.Dataset, xr.Dataset]
             x, y, c data
         """
-
+        # x
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.t_s_dict["t_final_range"],
+            self.data_cfgs["relevant_cols"],
+        )
         # y
-        data_output_ds = self.data_source.read_ts_xrdataset(
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             self.t_s_dict["t_final_range"],
             self.data_cfgs["target_cols"],
         )
-        if self.data_source.streamflow_unit != "mm/d":
-            data_output_ds = streamflow_unit_conv(
-                data_output_ds, self.data_source.read_area(self.t_s_dict["sites_id"])
-            )
-        # x
-        data_forcing_ds = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            self.t_s_dict["t_final_range"],
-            # 6 comes from here
-            self.data_cfgs["relevant_cols"],
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
         )
         # c
         data_attr_ds = self.data_source.read_attr_xrdataset(
@@ -621,7 +671,14 @@ class HydroMeanDataset(BaseDataset):
 
     def _prepare_target(self):
         gage_id_lst = self.t_s_dict["sites_id"]
-        t_range = self.t_s_dict["t_final_range"]
+        # t_range加一小时或三小时
+        t_range = [
+            (
+                datetime.fromisoformat(date_tuple[0]) + timedelta(hours=3),
+                datetime.fromisoformat(date_tuple[1]) + timedelta(hours=3),
+            )
+            for date_tuple in self.t_s_dict["t_final_range"]
+        ]
         var_lst = self.data_cfgs["target_cols"]
         path = self.data_cfgs["source_cfgs"]["source_path"]["target"]
 
@@ -636,8 +693,7 @@ class HydroMeanDataset(BaseDataset):
         subset_list = []
         for start_date, end_date in t_range:
             adjusted_end_date = (
-                datetime.strptime(end_date, "%Y-%m-%d")
-                + timedelta(hours=self.forecast_length)
+                end_date + timedelta(hours=self.forecast_length)
             ).strftime("%Y-%m-%d")
             subset = data.sel(time=slice(start_date, adjusted_end_date))
             subset_list.append(subset)
@@ -948,72 +1004,62 @@ class HydroMultiSourceDataset(HydroMeanDataset):
                 ),
             )
             .to_numpy()
-            .T.reshape(-1, 1)
+            .T.reshape(-1, len(variable))
         )
 
-    def get_y(self, basin, time, seq_length):
-        return (
+    def get_y(self, basin, time, forecast_length, prec_window):
+        slice_y = (
             self.y.sel(
                 basin=basin,
                 time=slice(
-                    time,
-                    time + np.timedelta64(seq_length - 1, "h"),
+                    time - np.timedelta64(prec_window, "3h"),
+                    time + np.timedelta64(int((forecast_length - 1) / 3), "3h"),
                 ),
             )
             .to_numpy()
             .T
         )
-
-    # Todo
-    def get_token(self, basin, time):
-        data = (
-            self.y.sel(
-                basin=basin,
-                time=slice(
-                    time - np.timedelta64(1, "h"), time - np.timedelta64(1, "h")
-                ),
-            )
-            .to_numpy()
-            .T
-        )
-
-        if data.shape[0] == 0:
-            data = self.y.sel(basin=basin, time=slice(time, time)).to_numpy().T
-
-        return data
+        return slice_y
 
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
         seq_length = self.rho
         sm_length = seq_length - self.data_cfgs["cnn_size"]
         x, y, s = None, None, None
-
         var_lst = self.data_cfgs["relevant_cols"]
-        station_tp_present = "station_tp" in var_lst
+        station_tp_present = "sta_tp" in var_lst
 
         if station_tp_present:
-            gpm_tp = self.get_x("gpm_tp", basin, time, seq_length, 0, -6)
-            station_tp = self.get_x("station_tp", basin, time, seq_length)
-            expanded_gpm_tp = np.vstack([gpm_tp, station_tp[-6:, :]])
+            delay = 6
+            gpm_tp = self.get_x("gpm_tp", basin, time, seq_length, 0, -delay)
+            station_tp = self.get_x("sta_tp", basin, time, seq_length)
+            expanded_gpm_tp = np.vstack([gpm_tp, station_tp[-delay:, :]])
             x = np.hstack([expanded_gpm_tp, station_tp])
             if "streamflow" in var_lst:
-                yy = self.get_y("streamflow", basin, time, seq_length)
+                yy = self.get_x("streamflow", basin, time, seq_length)
                 x = np.hstack([yy, x])
         else:
             x = self.get_x("gpm_tp", basin, time, seq_length)
-
         if self.c is not None and self.c.shape[-1] > 0:
             c = self.c.sel(basin=basin).values
-            c = np.tile(c, (seq_length, 1))
+            # TODO: WARNING: length of c has been divided by 3
+            c = np.tile(c, (int(seq_length / 3), 1))
             x = np.concatenate((x, c), axis=1)
 
         mode = self.data_cfgs["model_mode"]
         if mode == "dual":
-            s = self.get_x("gfs_tp", basin, time, seq_length, 0, -sm_length)
+            s = self.get_x(
+                ["sm_surface", "sm_rootzone"], basin, time, seq_length, sm_length, 0
+            )
         else:
             all_features = [
                 self.get_x(
-                    "gfs_tp", basin, time, seq_length, -offset, -sm_length - offset
+                    ["sm_surface", "sm_rootzone"],
+                    basin,
+                    time,
+                    seq_length,
+                    sm_length - offset,
+                    -offset,
                 )
                 for offset in range(seq_length)
             ]
@@ -1021,15 +1067,14 @@ class HydroMultiSourceDataset(HydroMeanDataset):
                 [
                     feat.squeeze()
                     for feat in all_features
-                    if feat.size == seq_length - sm_length
+                    if feat.shape[0] == seq_length - sm_length
                 ]
             )
-        start_token = self.get_token(basin, time)
-        y = self.get_y(basin, time, self.forecast_length)
+        y = self.get_y(basin, time, self.forecast_length, self.data_cfgs["prec_window"])
         return [
             torch.from_numpy(x).float(),
             torch.from_numpy(s).float(),
-            torch.from_numpy(start_token).float(),
+            torch.from_numpy(y).float(),
         ], torch.from_numpy(y).float()
 
     def _prepare_forcing(self):
@@ -1046,14 +1091,172 @@ class HydroMultiSourceDataset(HydroMeanDataset):
         var_subset_list = []
         for start_date, end_date in t_range:
             adjusted_start_date = (
-                datetime.strptime(start_date, "%Y-%m-%d")
-                - timedelta(hours=self.rho + self.data_cfgs["cnn_size"])
-            ).strftime("%Y-%m-%d")
-            adjusted_end_date = (
-                datetime.strptime(end_date, "%Y-%m-%d")
-                + timedelta(hours=self.forecast_length)
-            ).strftime("%Y-%m-%d")
-            subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
+                datetime.strptime(start_date, "%Y-%m-%d") - timedelta(hours=self.rho)
+            ).strftime("%Y-%m-%d-%H")
+            subset = data.sel(time=slice(adjusted_start_date, end_date))
             var_subset_list.append(subset)
 
         return xr.concat(var_subset_list, dim="time")
+
+    def _prepare_target(self):
+        gage_id_lst = self.t_s_dict["sites_id"]
+        t_range = [
+            (
+                datetime.fromisoformat(date_tuple[0]),
+                datetime.fromisoformat(date_tuple[1]),
+            )
+            for date_tuple in self.t_s_dict["t_final_range"]
+        ]
+        var_lst = self.data_cfgs["target_cols"]
+        path = self.data_cfgs["source_cfgs"]["source_path"]["target"]
+
+        if var_lst is None or not var_lst:
+            return None
+
+        data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
+
+        all_vars = data.data_vars
+        if any(var not in data.variables for var in var_lst):
+            raise ValueError(f"var_lst must all be in {all_vars}")
+        subset_list = []
+
+        for start_date, end_date in t_range:
+            adjusted_start_date = (
+                start_date
+                - timedelta(hours=(self.data_cfgs["prec_window"] * 3))  # ERROR!!
+            ).strftime("%Y-%m-%d-%H")
+
+            adjusted_end_date = (
+                end_date + timedelta(hours=self.forecast_length)
+            ).strftime("%Y-%m-%d-%H")
+            subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
+            subset_list.append(subset)
+        return xr.concat(subset_list, dim="time")
+
+    def _create_lookup_table(self):
+        is_tra_val_te = self.is_tra_val_te
+        if is_tra_val_te == "train":
+            date_ranges = self.data_cfgs["t_range_train"]
+        elif is_tra_val_te == "valid":
+            date_ranges = self.data_cfgs["t_range_valid"]
+        else:
+            date_ranges = self.data_cfgs["t_range_test"]
+        dates = []
+        for start, end in date_ranges:
+            date_range = pd.date_range(start=start, end=end, freq="3h")
+            dates.extend(date_range)
+        dates = np.array(dates, dtype="datetime64[ns]")
+        lookup = []
+        basins = self.t_s_dict["sites_id"]
+        forecast_length = self.forecast_length
+        warmup_length = self.warmup_length
+        time_num = len(self.t_s_dict["t_final_range"])
+        time_total_length = len(dates)
+        time_single_length = time_total_length // time_num
+
+        for basin in tqdm(
+            basins,
+            file=sys.stdout,
+            disable=False,
+            desc=f"Creating {is_tra_val_te} lookup table",
+        ):
+            for num in range(time_num):
+                lookup.extend(
+                    (basin, dates[f + num * time_single_length])
+                    for f in range(
+                        warmup_length,
+                        # time_single_length - (forecast_length // 3),  # ERROR!
+                        time_single_length,
+                    )
+                )
+        self.lookup_table = dict(enumerate(lookup))
+        self.num_samples = len(self.lookup_table)
+
+
+class Seq2SeqDataset(HydroMultiSourceDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(Seq2SeqDataset, self).__init__(data_cfgs, is_tra_val_te)
+        self.features = self.get_features()
+
+    def _read_xyc(self):
+        data_target_ds = self._prepare_target()
+        if data_target_ds is not None:
+            y_origin = self._trans2da_and_setunits(data_target_ds)
+        else:
+            y_origin = None
+
+        data_forcing_ds = self._prepare_forcing()
+        if data_forcing_ds is not None:
+            x_origin = self._trans2da_and_setunits(data_forcing_ds)
+            x_origin = xr.where(x_origin < 0, float("nan"), x_origin)
+        else:
+            x_origin = None
+
+        if self.data_cfgs["constant_cols"]:
+            data_attr_ds = self.data_source.read_BA_xrdataset(
+                self.t_s_dict["sites_id"],
+                self.data_cfgs["constant_cols"],
+                self.data_cfgs["source_cfgs"]["source_path"]["attributes"],
+            )
+            c_orgin = self._trans2da_and_setunits(data_attr_ds)
+        else:
+            c_orgin = None
+        self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin
+
+    def get_features(self):
+        raise NotImplementedError(
+            "Subclasses must implement this method to specify data features"
+        )
+
+    def __getitem__(self, item: int):
+        basin, time = self.lookup_table[item]
+        seq_length = self.rho
+        x = self.get_x(self.features, basin, time, seq_length)
+
+        if self.c is not None and self.c.shape[-1] > 0:
+            c = self.c.sel(basin=basin).values
+            c = np.tile(c, (seq_length // 3, 1))
+            x = np.concatenate((x, c), axis=1)
+
+        prec_window = self.data_cfgs["prec_window"]
+        y = self.get_y(basin, time, self.forecast_length, prec_window)
+
+        if self.is_tra_val_te == "train":
+            return [
+                torch.from_numpy(x).float(),
+                torch.from_numpy(y).float(),
+            ], torch.from_numpy(y).float()
+        return [torch.from_numpy(x).float()], torch.from_numpy(y).float()
+
+
+class ERA5LandDataset(Seq2SeqDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(ERA5LandDataset, self).__init__(data_cfgs, is_tra_val_te)
+        self.features = self.get_features()
+
+    def get_features(self):
+        return [
+            "total_precipitation_hourly",
+            "temperature_2m",
+            "dewpoint_temperature_2m",
+            "surface_net_solar_radiation",
+            "sm_surface",
+        ]
+
+
+class GPMDataset(Seq2SeqDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(GPMDataset, self).__init__(data_cfgs, is_tra_val_te)
+        self.features = self.get_features()
+
+    def get_features(self):
+        return ["gpm_tp", "sm_surface"]
+
+
+class GPMSTRDataset(Seq2SeqDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(GPMSTRDataset, self).__init__(data_cfgs, is_tra_val_te)
+        self.features = self.get_features()
+
+    def get_features(self):
+        return ["gpm_tp", "sm_surface", "streamflow"]
