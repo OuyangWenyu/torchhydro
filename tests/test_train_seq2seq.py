@@ -162,7 +162,7 @@ def config():
 
 
 def test_seq2seq(config):
-    world_size = torch.cuda.device_count()
+    world_size = len(config["training_cfgs"]["device"])
     mp.spawn(train_worker, args=(world_size, config), nprocs=world_size, join=True)
     # train_and_evaluate(config)
     # ensemble_train_and_evaluate(config)
