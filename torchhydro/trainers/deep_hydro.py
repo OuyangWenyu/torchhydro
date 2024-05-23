@@ -337,15 +337,12 @@ class DeepHydro(DeepHydroInterface):
             device=self.device,
             which_first_tensor=training_cfgs["which_first_tensor"],
         )
-        evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
-        fill_nan = self.cfgs["evaluation_cfgs"]["fill_nan"]
         target_col = self.cfgs["data_cfgs"]["target_cols"]
         valid_metrics = evaluate_validation(
             validation_data_loader,
             valid_preds_np,
             valid_obss_np,
-            evaluation_metrics,
-            fill_nan,
+            self.cfgs["evaluation_cfgs"],
             target_col,
         )
         valid_logs["valid_loss"] = valid_loss
@@ -437,7 +434,7 @@ class DeepHydro(DeepHydroInterface):
         if return_cell_state:
             return cellstates_when_inference(seq_first, data_cfgs, pred)
 
-        if not data_cfgs["static"]:
+        if not evaluation_cfgs["long_seq_pred"]:
             target_len = len(data_cfgs["target_cols"])
             prec_window = data_cfgs["prec_window"]
             batch_size = test_dataloader.batch_size

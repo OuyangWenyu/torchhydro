@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-04-09 15:48:08
+LastEditTime: 2024-05-23 15:51:17
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -76,14 +76,16 @@ def model_infer(seq_first, device, model, xs, ys):
     return ys, output
 
 
-def denormalize4eval(validation_data_loader, output, labels, length=0):
+def denormalize4eval(
+    validation_data_loader, output, labels, length=0, long_seq_pred=True
+):
     target_scaler = validation_data_loader.dataset.target_scaler
     target_data = target_scaler.data_target
     # the units are dimensionless for pure DL models
     units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
     if target_scaler.pbm_norm:
         units = {**units, **target_data.attrs["units"]}
-    if not target_scaler.data_cfgs["static"]:
+    if not long_seq_pred:
         target_data = validation_data_loader.dataset.y
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
@@ -191,8 +193,7 @@ def evaluate_validation(
     validation_data_loader,
     output,
     labels,
-    evaluation_metrics,
-    fill_nan,
+    evaluation_cfgs,
     target_col,
 ):
     """
@@ -204,10 +205,8 @@ def evaluate_validation(
         model output
     labels
         model target
-    evaluation_metrics
-        metrics to evaluate
-    fill_nan
-        how to fill nan
+    evaluation_cfgs
+        evaluation configs
     target_col
         target columns
 
@@ -221,8 +220,9 @@ def evaluate_validation(
 
     eval_log = {}
     batch_size = validation_data_loader.batch_size
-
-    if not validation_data_loader.dataset.data_cfgs["static"]:
+    evaluation_metrics = evaluation_cfgs["metrics"]
+    fill_nan = evaluation_cfgs["fill_nan"]
+    if not evaluation_cfgs["long_seq_pred"]:
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)
@@ -239,6 +239,7 @@ def evaluate_validation(
                     target_col,
                     validation_data_loader,
                     col,
+                    evaluation_cfgs["long_seq_pred"],
                 )
                 delayed_tasks.append(delayed_task)
 
@@ -284,10 +285,11 @@ def len_denormalize_delayed(
     target_col,
     validation_data_loader,
     col,
+    long_seq_pred,
 ):
     o = output[:, length, :].reshape(basin_num, batch_size, len(target_col))
     l = labels[:, length, :].reshape(basin_num, batch_size, len(target_col))
-    preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, length)
+    preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, length, long_seq_pred)
     obs = obss_xr[col].to_numpy()
     pred = preds_xr[col].to_numpy()
     return obs, pred

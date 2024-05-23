@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-05-22 19:37:28
+LastEditTime: 2024-05-23 15:45:36
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -204,7 +204,6 @@ def default_config_file():
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
-            "static": True,
         },
         "training_cfgs": {
             # if train_mode is False, don't train and evaluate
@@ -257,6 +256,7 @@ def default_config_file():
                 "seeds": None,
                 "patience": None,
                 "early_stopping": None,
+                "kfold_continuous": True,
             },
         },
         # For evaluation
@@ -274,6 +274,7 @@ def default_config_file():
             "fill_nan": "no",
             "explainer": None,
             "rolling": None,
+            "long_seq_pred": True
         },
     }
 
@@ -333,7 +334,7 @@ def cmd(
     fill_nan=None,
     explainer=None,
     rolling=None,
-    static=None,
+    long_seq_pred=None,
     warmup_length=0,
     start_epoch=1,
     stat_dict_file=None,
@@ -696,10 +697,10 @@ def cmd(
         type=int,
     )
     parser.add_argument(
-        "--static",
-        dest="static",
+        "--long_seq_pred",
+        dest="long_seq_pred",
         help="if True, direct, one-step, long-term sequence prediction",
-        default=static,
+        default=long_seq_pred,
         type=bool,
     )
     parser.add_argument(
@@ -918,8 +919,8 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["constant_only"] = True
     else:
         cfg_file["data_cfgs"]["target_as_input"] = True
-    if new_args.rolling is not None:
-        cfg_file["data_cfgs"]["static"] = new_args.static
+    if new_args.long_seq_pred is not None:
+        cfg_file["evaluation_cfgs"]["long_seq_pred"] = new_args.long_seq_pred
     if new_args.train_epoch is not None:
         cfg_file["training_cfgs"]["epochs"] = new_args.train_epoch
     if new_args.save_epoch is not None:

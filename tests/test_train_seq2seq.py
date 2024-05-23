@@ -142,7 +142,7 @@ def config():
         },
         which_first_tensor="batch",
         rolling=False,
-        static=False,
+        long_seq_pred=False,
         early_stopping=True,
         patience=5,
         ensemble=True,

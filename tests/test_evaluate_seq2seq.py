@@ -97,7 +97,7 @@ def config_data():
         test_period=[("2015-05-01", "2016-05-31")],
         which_first_tensor="batch",
         rolling=False,
-        static=False,
+        long_seq_pred=False,
         weight_path=os.path.join(train_path, "best_model.pth"),
         stat_dict_file=os.path.join(train_path, "dapengscaler_stat.json"),
         train_mode=False,
