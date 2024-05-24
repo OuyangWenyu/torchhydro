@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-02-12 19:09:33
+LastEditTime: 2024-05-24 14:52:00
 LastEditors: Wenyu Ouyang
 Description: A dict used for data source and data loader
 FilePath: \torchhydro\torchhydro\datasets\data_dict.py
@@ -16,9 +16,7 @@ from torchhydro.datasets.data_sets import (
     HydroGridDataset,
     HydroMeanDataset,
     HydroMultiSourceDataset,
-    ERA5LandDataset,
-    GPMDataset,
-    GPMSTRDataset,
+    Seq2SeqDataset,
 )
 
 
@@ -30,7 +28,5 @@ datasets_dict = {
     "MeanDataset": HydroMeanDataset,
     "FlexDataset": FlexibleDataset,
     "MultiSourceDataset": HydroMultiSourceDataset,
-    "ERA5LandDataset": ERA5LandDataset,
-    "GPMDataset": GPMDataset,
-    "GPMSTRDataset": GPMSTRDataset,
+    "Seq2SeqDataset": Seq2SeqDataset,
 }

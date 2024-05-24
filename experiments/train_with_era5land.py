@@ -1,4 +1,5 @@
 import logging
+import os
 import pandas as pd
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
@@ -25,7 +26,7 @@ def main():
 
 def create_config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = "train_with_era5land/ex20"
+    project_name = os.path.join("train_with_era5land", "ex20")
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -77,7 +78,7 @@ def create_config():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow", "sm_surface"],
-        dataset="ERA5LandDataset",
+        dataset="Seq2SeqDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
         train_epoch=100,

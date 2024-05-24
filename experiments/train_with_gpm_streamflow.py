@@ -1,14 +1,15 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-05-20 10:40:46
-LastEditTime: 2024-05-20 10:40:46
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-05-24 14:40:22
+LastEditors: Wenyu Ouyang
 Description: 
-FilePath: /torchhydro/tests/train_with_gpm_streamflow.py
+FilePath: \torchhydro\experiments\train_with_gpm_streamflow.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import logging
+import os
 import pandas as pd
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
@@ -35,7 +36,7 @@ def main():
 
 def create_config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = "train_with_gpm_streamflow/ex1"
+    project_name = os.path.join("train_with_gpm_streamflow", "ex1")
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -85,7 +86,7 @@ def create_config():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow", "sm_surface"],
-        dataset="GPMSTRDataset",
+        dataset="Seq2SeqDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
         train_epoch=100,

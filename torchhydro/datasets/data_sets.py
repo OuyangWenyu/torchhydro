@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-05-22 19:36:45
+LastEditTime: 2024-05-24 14:18:11
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -1176,7 +1176,7 @@ class HydroMultiSourceDataset(HydroMeanDataset):
 class Seq2SeqDataset(HydroMultiSourceDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         super(Seq2SeqDataset, self).__init__(data_cfgs, is_tra_val_te)
-        self.features = self.get_features()
+        self.input_features = self.data_cfgs["relevant_cols"]
 
     def _read_xyc(self):
         data_target_ds = self._prepare_target()
@@ -1203,15 +1203,10 @@ class Seq2SeqDataset(HydroMultiSourceDataset):
             c_orgin = None
         self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin
 
-    def get_features(self):
-        raise NotImplementedError(
-            "Subclasses must implement this method to specify data features"
-        )
-
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
         seq_length = self.rho
-        x = self.get_x(self.features, basin, time, seq_length)
+        x = self.get_x(self.input_features, basin, time, seq_length)
 
         if self.c is not None and self.c.shape[-1] > 0:
             c = self.c.sel(basin=basin).values
@@ -1227,36 +1222,3 @@ class Seq2SeqDataset(HydroMultiSourceDataset):
                 torch.from_numpy(y).float(),
             ], torch.from_numpy(y).float()
         return [torch.from_numpy(x).float()], torch.from_numpy(y).float()
-
-
-class ERA5LandDataset(Seq2SeqDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(ERA5LandDataset, self).__init__(data_cfgs, is_tra_val_te)
-        self.features = self.get_features()
-
-    def get_features(self):
-        return [
-            "total_precipitation_hourly",
-            "temperature_2m",
-            "dewpoint_temperature_2m",
-            "surface_net_solar_radiation",
-            "sm_surface",
-        ]
-
-
-class GPMDataset(Seq2SeqDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(GPMDataset, self).__init__(data_cfgs, is_tra_val_te)
-        self.features = self.get_features()
-
-    def get_features(self):
-        return ["gpm_tp", "sm_surface"]
-
-
-class GPMSTRDataset(Seq2SeqDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(GPMSTRDataset, self).__init__(data_cfgs, is_tra_val_te)
-        self.features = self.get_features()
-
-    def get_features(self):
-        return ["gpm_tp", "sm_surface", "streamflow"]

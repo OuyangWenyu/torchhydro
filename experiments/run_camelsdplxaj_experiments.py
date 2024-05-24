@@ -35,7 +35,7 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         test_period = ["2000-10-01", "2010-10-01"]
     config = default_config_file()
     args = cmd(
-        sub="test_camels/expdplxaj",
+        sub=os.path.join("test_camels", "expdplxaj"),
         source_cfgs={
             "source_name": "camels_us",
             "source_path": os.path.join(

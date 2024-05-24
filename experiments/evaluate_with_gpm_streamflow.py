@@ -28,7 +28,7 @@ gage_id = show["id"].values.tolist()
 
 
 def get_config_data():
-    project_name = "test_evaluate_seq2seq/ex28"
+    project_name = os.path.join("test_evaluate_seq2seq", "ex28")
     train_path = os.path.join(os.getcwd(), "results", "train_with_gpm_streamflow", "ex1")
     args = cmd(
         sub=project_name,
@@ -76,7 +76,7 @@ def get_config_data():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow", "sm_surface"],
-        dataset="GPMSTRDataset",
+        dataset="Seq2SeqDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
         loss_func="MultiOutLoss",

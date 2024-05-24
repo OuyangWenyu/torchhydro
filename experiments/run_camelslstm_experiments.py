@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-09-09 14:47:42
-LastEditTime: 2024-04-13 19:27:10
+LastEditTime: 2024-05-24 14:42:31
 LastEditors: Wenyu Ouyang
 Description: a script to run experiments for LSTM - CAMELS
 FilePath: \torchhydro\experiments\run_camelslstm_experiments.py
@@ -103,4 +103,4 @@ def run_normal_dl(
     print("All processes are finished!")
 
 
-run_normal_dl("ndl/explstm")
+run_normal_dl(os.path.join("ndl", "explstm"))
