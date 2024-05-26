@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-05-24 14:18:11
+LastEditTime: 2024-05-26 22:00:38
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -20,6 +20,7 @@ from typing import Optional
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from hydrodatasource.utils.utils import streamflow_unit_conv
+from hydroutils import hydro_time
 
 from torchhydro.datasets.data_scalers import (
     ScalerHub,
@@ -117,7 +118,7 @@ class BaseDataset(Dataset):
         int
             number of basins/grids
         """
-        return self.y.basin.size
+        return len(self.basins)
 
     @property
     def nt(self):
@@ -128,53 +129,45 @@ class BaseDataset(Dataset):
         int
             number of time steps
         """
-        return self.y.time.size
+        time_type = self.data_cfgs["min_time_type"]
+        start_date = pd.to_datetime(self.times[0])
+        end_date = pd.to_datetime(self.times[1])
+        time_series = pd.date_range(start=start_date, end=end_date, freq=time_type)
+        return len(time_series)
+
+    @property
+    def basins(self):
+        """Return the basins of the dataset"""
+        return self.t_s_dict["sites_id"]
+
+    @property
+    def times(self):
+        """Return the time range of the dataset"""
+        return self.t_s_dict["t_final_range"]
 
     def __len__(self):
         return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])
 
     def __getitem__(self, item: int):
         if not self.train_mode:
-            basin = self.t_s_dict["sites_id"][item]
-            # we don't need warmup_length for models yet
-            x = self.x.sel(basin=basin).to_numpy().T
-            y = self.y.sel(basin=basin).to_numpy().T
+            x = self.x[item, :, :]
+            y = self.y[item, :, :]
             if self.c is None or self.c.shape[-1] == 0:
                 return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-            # TODO: not CHECK attributes reading
-            c = self.c.sel(basin=basin).values
+            c = self.c[item, :]
             c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
             xc = np.concatenate((x, c), axis=1)
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-        basin, time = self.lookup_table[item]
-        seq_length = self.rho
+        basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length
-        x = (
-            self.x.sel(
-                basin=basin,
-                time=slice(
-                    time - np.timedelta64(warmup_length, "D"),
-                    time + np.timedelta64(seq_length - 1, "D"),
-                ),
-            ).to_numpy()
-        ).T
-        if self.c is not None and self.c.shape[-1] > 0:
-            c = self.c.sel(basin=basin).values
-            c = np.tile(c, (warmup_length + seq_length, 1))
-            x = np.concatenate((x, c), axis=1)
-        # for y, we don't need warmup as warmup are only used for get initial value for some state variables
-        y = (
-            self.y.sel(
-                basin=basin,
-                time=slice(
-                    time,
-                    time + np.timedelta64(seq_length - 1, "D"),
-                ),
-            )
-            .to_numpy()
-            .T
-        )
-        return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        x = self.x[basin, idx - warmup_length : idx + self.rho, :]
+        y = self.y[basin, idx : idx + self.rho, :]
+        if self.c is None or self.c.shape[-1] == 0:
+            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
 
     def _pre_load_data(self):
         self.train_mode = self.is_tra_val_te == "train"
@@ -188,7 +181,20 @@ class BaseDataset(Dataset):
         # normalization
         norm_x, norm_y, norm_c = self._normalize()
         self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)
+        self._trans2nparr()
         self._create_lookup_table()
+
+    def _trans2nparr(self):
+        """To make __getitem__ more efficient,
+        we transform x, y, c to numpy array with shape (nsample, nt, nvar)
+        """
+        self.x = self.x.to_numpy()
+        self.y = self.y.to_numpy()
+        if self.c is not None and self.c.shape[-1] > 0:
+            self.c = self.c.to_numpy()
+            self.c_origin = self.c_origin.to_numpy()
+        self.x_origin = self.x_origin.to_numpy()
+        self.y_origin = self.y_origin.to_numpy()
 
     def _normalize(self):
         scaler_hub = ScalerHub(
@@ -282,16 +288,6 @@ class BaseDataset(Dataset):
             data_forcing_ds, data_output_ds, data_attr_ds
         )
 
-    @property
-    def basins(self):
-        """Return the basins of the dataset"""
-        return self.t_s_dict["sites_id"]
-
-    @property
-    def times(self):
-        """Return the time range of the dataset"""
-        return self.t_s_dict["t_final_range"]
-
     def _trans2da_and_setunits(self, ds):
         """Set units for dataarray transfromed from dataset"""
         result = ds.to_array(dim="variable")
@@ -326,22 +322,15 @@ class BaseDataset(Dataset):
     def _create_lookup_table(self):
         lookup = []
         # list to collect basins ids of basins without a single training sample
-        basins = self.t_s_dict["sites_id"]
+        basin_coordinates = len(self.t_s_dict["sites_id"])
         rho = self.rho
         warmup_length = self.warmup_length
-        dates = self.y["time"].to_numpy()
-        time_length = len(dates)
-        is_tra_val_te = self.is_tra_val_te
-        for basin in tqdm(
-            basins,
-            file=sys.stdout,
-            disable=False,
-            desc=f"Creating {is_tra_val_te} lookup table",
-        ):
+        time_length = self.nt
+        for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
             # some dataloader load data with warmup period, so leave some periods for it
             # [warmup_len] -> time_start -> [rho]
             lookup.extend(
-                (basin, dates[f])
+                (basin, f)
                 for f in range(warmup_length, time_length)
                 if f < time_length - rho + 1
             )

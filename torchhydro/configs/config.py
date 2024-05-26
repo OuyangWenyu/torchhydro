@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-05-23 15:45:36
+LastEditTime: 2024-05-26 21:49:30
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -98,6 +98,8 @@ def default_config_file():
             # the rho in LSTM
             "forecast_history": 30,
             "forecast_length": 1,
+            # the min time step of the input data
+            "min_time_type": "H",
             # modeled objects
             "object_ids": "ALL",
             # modeling time range
@@ -274,7 +276,7 @@ def default_config_file():
             "fill_nan": "no",
             "explainer": None,
             "rolling": None,
-            "long_seq_pred": True
+            "long_seq_pred": True,
         },
     }
 
@@ -344,6 +346,7 @@ def cmd(
     ensemble_items=None,
     early_stopping=None,
     patience=None,
+    min_time_type=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -774,6 +777,13 @@ def cmd(
         default=patience,
         type=int,
     )
+    parser.add_argument(
+        "--min_time_type",
+        dest="min_time_type",
+        help="The min time type of the input data",
+        default=min_time_type,
+        type=str,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -897,10 +907,7 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["relevant_cols"] = new_args.var_t
     if new_args.var_t_type is not None:
         cfg_file["data_cfgs"]["relevant_types"] = new_args.var_t_type
-    if new_args.t_rm_nan == 0:
-        cfg_file["data_cfgs"]["relevant_rm_nan"] = False
-    else:
-        cfg_file["data_cfgs"]["relevant_rm_nan"] = True
+    cfg_file["data_cfgs"]["relevant_rm_nan"] = bool(new_args.t_rm_nan != 0)
     if new_args.var_o is not None:
         cfg_file["data_cfgs"]["other_cols"] = new_args.var_o
     if new_args.var_out is not None:
@@ -1043,6 +1050,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["early_stopping"] = new_args.early_stopping
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
+    if new_args.min_time_type is not None:
+        cfg_file["data_cfgs"]["min_time_type"] = new_args.min_time_type
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 
