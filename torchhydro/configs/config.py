@@ -940,7 +940,7 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["constant_only"] = True
     else:
         cfg_file["data_cfgs"]["target_as_input"] = True
-    if new_args.rolling is not None:
+    if new_args.static is not None:
         cfg_file["data_cfgs"]["static"] = new_args.static
     if new_args.train_epoch is not None:
         cfg_file["training_cfgs"]["epochs"] = new_args.train_epoch
@@ -1025,6 +1025,8 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam[
                 "prec_window"
             ]
+        if "interval" in new_args.model_hyperparam.keys():
+            cfg_file["data_cfgs"]["interval"] = new_args.model_hyperparam["interval"]
     if new_args.metrics is not None:
         cfg_file["evaluation_cfgs"]["metrics"] = new_args.metrics
     if new_args.fill_nan is not None:

@@ -88,9 +88,10 @@ def denormalize4eval(validation_data_loader, output, labels, length=0):
         target_data = validation_data_loader.dataset.y
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
-            length : -(forecast_length // 3)
+            length : -(forecast_length // target_scaler.data_cfgs["interval"])
             + length
-            - target_scaler.data_cfgs["prec_window"]
+            - (target_scaler.data_cfgs["prec_window"])
+            // target_scaler.data_cfgs["interval"]
         ]
     else:
         warmup_length = validation_data_loader.dataset.warmup_length
@@ -231,15 +232,29 @@ def evaluate_validation(
         for i, col in enumerate(target_col):
             delayed_tasks = []
             for length in range(validation_data_loader.dataset.forecast_length // 3):
-                delayed_task = len_denormalize_delayed(length, output, labels, basin_num, batch_size,
-                    target_col, validation_data_loader, col)
+                delayed_task = len_denormalize_delayed(
+                    length,
+                    output,
+                    labels,
+                    basin_num,
+                    batch_size,
+                    target_col,
+                    validation_data_loader,
+                    col,
+                )
                 delayed_tasks.append(delayed_task)
             obs_pred_results = dask.compute(*delayed_tasks)
             obs_list, pred_list = zip(*obs_pred_results)
             obs = np.concatenate(obs_list, axis=1)
             pred = np.concatenate(pred_list, axis=1)
-            eval_log = calculate_and_record_metrics(obs, pred, evaluation_metrics, col,
-                fill_nan[i] if isinstance(fill_nan, list) else fill_nan, eval_log)
+            eval_log = calculate_and_record_metrics(
+                obs,
+                pred,
+                evaluation_metrics,
+                col,
+                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
+                eval_log,
+            )
 
     else:
         preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels)

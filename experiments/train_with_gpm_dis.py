@@ -1,70 +1,66 @@
 """
 Author: Wenyu Ouyang
-Date: 2024-05-21 11:41:28
-LastEditTime: 2024-05-21 11:58:27
+Date: 2024-05-20 10:40:46
+LastEditTime: 2024-05-20 10:40:46
 LastEditors: Xinzhuo Wu
 Description: 
-FilePath: /torchhydro/tests/test_evaluate_seq2seq.py
+FilePath: /torchhydro/tests/train_with_gpm.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
-import os
-import pytest
-import warnings
 import logging
+import os.path
+import pathlib
 import pandas as pd
+import torch.multiprocessing as mp
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.trainers.deep_hydro import DeepHydro
-from torchhydro.trainers.trainer import set_random_seed
-from torchhydro.trainers.resulter import Resulter
+from torchhydro.trainers.trainer import train_and_evaluate
+from torchhydro.trainers.deep_hydro import train_worker
 
 logging.basicConfig(level=logging.INFO)
-
 for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
-warnings.filterwarnings("ignore")
-show = pd.read_csv("data/basin_id(46+1).csv", dtype={"id": str})
+
+show = pd.read_csv("data/basin_id(498+24).csv", dtype={"id": str})
 gage_id = show["id"].values.tolist()
 
 
-@pytest.fixture()
-def config_data():
-    project_name = "test_evaluate_seq2seq/ex13"
-    train_path = os.path.join(os.getcwd(), "results", "train_with_era5land", "ex20")
+def main():
+    config_data = create_config()
+    test_seq2seq(config_data)
+
+
+def create_config():
+    project_name = "train_with_gpm_dis/ex1"
+    config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source_cfgs={
             "source": "HydroMean",
             "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
+                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
+                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
         },
-        ctx=[0],
+        ctx=[0, 1, 2],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 20,
+            "input_size": 17,
             "output_size": 2,
             "hidden_size": 256,
-            "forecast_length": 24,
+            "forecast_length": 9,
             "prec_window": 3,
             "interval": 3,
         },
-        gage_id=gage_id,
-        # gage_id=["21401550"],
         model_loader={"load_way": "best"},
+        # gage_id=gage_id,
+        gage_id=["21400800", "21401550"],
         batch_size=1024,
         rho=720,
         var_t=[
-            # "gpm_tp",
-            # "sm_surface",
-            # "streamflow",
-            "total_precipitation_hourly",
-            "temperature_2m",
-            "dewpoint_temperature_2m",
-            "surface_net_solar_radiation",
+            "gpm_tp",
             "sm_surface",
         ],
         var_c=[
@@ -85,9 +81,14 @@ def config_data():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow", "sm_surface"],
-        dataset="ERA5LandDataset",
-        sampler="HydroSampler",
+        dataset="GPMDataset",
+        sampler="DistSampler",
         scaler="DapengScaler",
+        train_epoch=2,
+        save_epoch=1,
+        train_period=[("2016-06-01-01", "2023-12-01-01")],
+        test_period=[("2015-06-01-01", "2016-06-01-01")],
+        valid_period=[("2015-06-01-01", "2016-06-01-01")],
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
@@ -95,26 +96,28 @@ def config_data():
             "device": [1],
             "item_weight": [0.8, 0.2],
         },
-        test_period=[("2015-05-01", "2016-05-31")],
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.003,
+            "lr_factor": 0.96,
+        },
         which_first_tensor="batch",
         rolling=False,
         static=False,
-        weight_path=os.path.join(train_path, "best_model.pth"),
-        stat_dict_file=os.path.join(train_path, "dapengscaler_stat.json"),
-        train_mode=False,
+        early_stopping=True,
+        patience=8,
+        model_type="DDP_MTL",
     )
-    config_data = default_config_file()
+
     update_cfg(config_data, args)
+
     return config_data
 
 
-def test_evaluate_spp_lstm(config_data):
-    random_seed = config_data["training_cfgs"]["random_seed"]
-    set_random_seed(random_seed)
-    resulter = Resulter(config_data)
-    model = DeepHydro(config_data)
-    results = model.model_evaluate()
-    resulter.save_result(
-        results[0],
-        results[1],
-    )
+def test_seq2seq(config):
+    world_size = len(config["training_cfgs"]["device"])
+    mp.spawn(train_worker, args=(world_size, config), nprocs=world_size, join=True)
+
+
+if __name__ == "__main__":
+    main()

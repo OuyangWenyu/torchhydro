@@ -29,23 +29,35 @@ for logger_name in logging.root.manager.loggerDict:
     logger.setLevel(logging.INFO)
 
 show = pd.read_csv(
-    os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(46+1).csv"),
+    os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(all).csv"),
     dtype={"id": str},
 )
 gage_id = show["id"].values.tolist()
 
 
 def test_merge_forcing_and_streamflow():
-    data_name = "era5land"  #'gpm'
+    data_name = "era5land"
     for id in gage_id:
-        forcing_nc = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_{data_name}/data_forcing_{id}.nc"
-        stream_nc = f"s3://basins-origin/hour_data/1h/mean_data/streamflow_{data_name}/streamflow_{id}.nc"
-        forcing_df = xr.open_dataset(hdscc.FS.open(forcing_nc)).to_dataframe()
-        stream_df = xr.open_dataset(hdscc.FS.open(stream_nc)).to_dataframe()
-        stream_df = stream_df[stream_df.index >= "2015-04-01 04:00:00"]
-        concat_ds = xr.Dataset.from_dataframe(pd.concat([forcing_df, stream_df]))
         concat_ds_path = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_{data_name}_streamflow/data_forcing_streamflow_{id}.nc"
-        hdscc.FS.write_bytes(concat_ds_path, concat_ds.to_netcdf())
+        if not hdscc.FS.exists(concat_ds_path):
+            forcing_nc = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_{data_name}/data_forcing_{id}.nc"
+            stream_nc = f"s3://basins-origin/hour_data/1h/mean_data/streamflow_basin/streamflow_{id}.nc"
+            if hdscc.FS.exists(forcing_nc) and hdscc.FS.exists(stream_nc):
+                forcing = xr.open_dataset(hdscc.FS.open(forcing_nc))
+                stream = xr.open_dataset(hdscc.FS.open(stream_nc))
+                forcing_times = pd.to_datetime(forcing.time.values)
+                stream_times = pd.to_datetime(stream.time.values)
+                common_times = pd.Index(stream_times).intersection(
+                    pd.Index(forcing_times)
+                )
+                forcing_common = forcing.sel(time=common_times)
+                stream_common = stream.sel(time=common_times)
+                combined_dataset = xr.merge([forcing_common, stream_common])
+                hdscc.FS.write_bytes(concat_ds_path, combined_dataset.to_netcdf())
+            else:
+                print(f"File {id} dosen't exists. Skipping overwrite.")
+        else:
+            print(f"File {concat_ds_path} already exists. Skipping overwrite.")
 
 
 @pytest.fixture()
@@ -69,7 +81,8 @@ def config():
             "output_size": 2,
             "hidden_size": 128,
             "forecast_length": 168,
-            "prec_window": 1,  # 将前序径流一起作为输出，选择的时段数，该值需小于等于rho，建议置为1
+            "prec_window": 3,
+            "interval": 3,
         },
         model_loader={"load_way": "best"},
         gage_id=[

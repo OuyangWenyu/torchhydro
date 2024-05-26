@@ -112,11 +112,12 @@ class GeneralSeq2Seq(nn.Module):
         hidden_size,
         forecast_length,
         prec_window=0,
+        interval=3,
         teacher_forcing_ratio=0.5,
     ):
         super(GeneralSeq2Seq, self).__init__()
-        self.trg_len = forecast_length // 3
-        self.prec_window = prec_window
+        self.trg_len = forecast_length // interval
+        self.prec_window = prec_window // interval
         self.teacher_forcing_ratio = teacher_forcing_ratio
         self.encoder = Encoder(
             input_dim=input_size, hidden_dim=hidden_size, output_dim=output_size

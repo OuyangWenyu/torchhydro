@@ -433,10 +433,10 @@ class DeepHydro(DeepHydroInterface):
 
         if not data_cfgs["static"]:
             target_len = len(data_cfgs["target_cols"])
-            prec_window = data_cfgs["prec_window"]
+            prec_window = data_cfgs["prec_window"] // data_cfgs["interval"]
             batch_size = test_dataloader.batch_size
             if evaluation_cfgs["rolling"]:
-                forecast_length = data_cfgs["forecast_length"] // 3
+                forecast_length = data_cfgs["forecast_length"] // data_cfgs["interval"]
                 pred = pred[:, prec_window:, :].reshape(
                     ngrid, batch_size, forecast_length, target_len
                 )
@@ -883,8 +883,14 @@ class DistributedDeepHydro(MultiTaskHydro):
         for epoch in range(start_epoch, max_epochs + 1):
             data_loader.sampler.set_epoch(epoch)
             with logger.log_epoch_train(epoch) as train_logs:
-                total_loss, n_iter_ep = torch_single_train(self.model, opt, criterion, data_loader,
-                    device=self.device, which_first_tensor=training_cfgs["which_first_tensor"])
+                total_loss, n_iter_ep = torch_single_train(
+                    self.model,
+                    opt,
+                    criterion,
+                    data_loader,
+                    device=self.device,
+                    which_first_tensor=training_cfgs["which_first_tensor"],
+                )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
 
@@ -893,7 +899,8 @@ class DistributedDeepHydro(MultiTaskHydro):
             if data_cfgs["t_range_valid"] is not None:
                 with logger.log_epoch_valid(epoch) as valid_logs:
                     valid_loss, valid_metrics = self._1epoch_valid(
-                        training_cfgs, criterion, validation_data_loader, valid_logs)
+                        training_cfgs, criterion, validation_data_loader, valid_logs
+                    )
 
             self._scheduler_step(training_cfgs, scheduler, valid_loss)
             logger.save_session_param(

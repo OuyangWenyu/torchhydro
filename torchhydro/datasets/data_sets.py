@@ -980,18 +980,17 @@ class HydroMultiSourceDataset(HydroMeanDataset):
         )
 
     def get_y(self, basin, time, forecast_length, prec_window):
-        slice_y = (
+        return (
             self.y.sel(
                 basin=basin,
                 time=slice(
-                    time - np.timedelta64(prec_window, "3h"),
-                    time + np.timedelta64(int((forecast_length - 1) / 3), "3h"),
+                    time - np.timedelta64(prec_window, "h"),
+                    time + np.timedelta64((forecast_length - 1), "1h"),
                 ),
             )
             .to_numpy()
             .T
         )
-        return slice_y
 
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
@@ -1063,22 +1062,20 @@ class HydroMultiSourceDataset(HydroMeanDataset):
         var_subset_list = []
         for start_date, end_date in t_range:
             adjusted_start_date = (
-                datetime.strptime(start_date, "%Y-%m-%d") - timedelta(hours=self.rho)
+                datetime.strptime(start_date, "%Y-%m-%d-%H") - timedelta(hours=self.rho)
             ).strftime("%Y-%m-%d-%H")
-            subset = data.sel(time=slice(adjusted_start_date, end_date))
+            adjusted_end_date = (
+                datetime.strptime(end_date, "%Y-%m-%d-%H")
+                + timedelta(hours=self.data_cfgs["interval"])
+            ).strftime("%Y-%m-%d-%H")
+            subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
             var_subset_list.append(subset)
 
         return xr.concat(var_subset_list, dim="time")
 
     def _prepare_target(self):
         gage_id_lst = self.t_s_dict["sites_id"]
-        t_range = [
-            (
-                datetime.fromisoformat(date_tuple[0]),
-                datetime.fromisoformat(date_tuple[1]),
-            )
-            for date_tuple in self.t_s_dict["t_final_range"]
-        ]
+        t_range = self.t_s_dict["t_final_range"]
         var_lst = self.data_cfgs["target_cols"]
         path = self.data_cfgs["source_cfgs"]["source_path"]["target"]
 
@@ -1094,12 +1091,13 @@ class HydroMultiSourceDataset(HydroMeanDataset):
 
         for start_date, end_date in t_range:
             adjusted_start_date = (
-                start_date
-                - timedelta(hours=(self.data_cfgs["prec_window"] * 3))  # ERROR!!
+                datetime.strptime(start_date, "%Y-%m-%d-%H")
+                - timedelta(hours=(self.data_cfgs["prec_window"]))
             ).strftime("%Y-%m-%d-%H")
 
             adjusted_end_date = (
-                end_date + timedelta(hours=self.forecast_length)
+                datetime.strptime(end_date, "%Y-%m-%d-%H")
+                + timedelta(hours=self.forecast_length)
             ).strftime("%Y-%m-%d-%H")
             subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
             subset_list.append(subset)
@@ -1120,7 +1118,6 @@ class HydroMultiSourceDataset(HydroMeanDataset):
         dates = np.array(dates, dtype="datetime64[ns]")
         lookup = []
         basins = self.t_s_dict["sites_id"]
-        forecast_length = self.forecast_length
         warmup_length = self.warmup_length
         time_num = len(self.t_s_dict["t_final_range"])
         time_total_length = len(dates)
@@ -1133,14 +1130,30 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             desc=f"Creating {is_tra_val_te} lookup table",
         ):
             for num in range(time_num):
-                lookup.extend(
-                    (basin, dates[f + num * time_single_length])
-                    for f in range(
-                        warmup_length,
-                        # time_single_length - (forecast_length // 3),  # ERROR!
-                        time_single_length,
+                if is_tra_val_te != "train":
+                    lookup.extend(
+                        (basin, dates[f + num * time_single_length])
+                        for f in range(
+                            warmup_length,
+                            time_single_length,
+                        )
                     )
-                )
+                else:
+                    window_size = self.forecast_length // self.data_cfgs["interval"]
+                    f = 0
+                    streamflow_arr = self.y.sel(
+                        basin=basin, variable="streamflow"
+                    ).to_numpy()
+                    nan_array = np.isnan(streamflow_arr)
+                    while warmup_length <= f <= time_single_length - window_size:
+                        if np.all(nan_array[f : f + window_size]):
+                            f += 1
+                        else:
+                            lookup.extend(
+                                (basin, dates[j + num * time_single_length])
+                                for j in range(f, f + window_size)
+                            )
+                            f += window_size
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
 
@@ -1187,7 +1200,7 @@ class Seq2SeqDataset(HydroMultiSourceDataset):
 
         if self.c is not None and self.c.shape[-1] > 0:
             c = self.c.sel(basin=basin).values
-            c = np.tile(c, (seq_length // 3, 1))
+            c = np.tile(c, (seq_length // self.data_cfgs["interval"], 1))
             x = np.concatenate((x, c), axis=1)
 
         prec_window = self.data_cfgs["prec_window"]
@@ -1215,6 +1228,34 @@ class ERA5LandDataset(Seq2SeqDataset):
             "sm_surface",
         ]
 
+    def get_x(self, variable, basin, time, seq_length):
+        interval = self.data_cfgs["interval"]
+        x = (
+            self.x.sel(
+                variable=variable[:4],
+                basin=basin,
+                time=slice(
+                    time - np.timedelta64(seq_length - 2 * interval, "h"),
+                    time + np.timedelta64(interval, "h"),
+                ),
+            )
+            .to_numpy()
+            .T.reshape(-1, 4)
+        )
+        s = (
+            self.x.sel(
+                variable=variable[4],
+                basin=basin,
+                time=slice(
+                    time - np.timedelta64(seq_length - interval, "h"),
+                    time,
+                ),
+            )
+            .to_numpy()
+            .T.reshape(-1, 1)
+        )
+        return np.concatenate((x, s), axis=1)
+
 
 class GPMDataset(Seq2SeqDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
@@ -1224,6 +1265,34 @@ class GPMDataset(Seq2SeqDataset):
     def get_features(self):
         return ["gpm_tp", "sm_surface"]
 
+    def get_x(self, variable, basin, time, seq_length):
+        interval = self.data_cfgs["interval"]
+        x = (
+            self.x.sel(
+                variable=variable[0],
+                basin=basin,
+                time=slice(
+                    time - np.timedelta64(seq_length - 2 * interval, "h"),
+                    time + np.timedelta64(interval, "h"),
+                ),
+            )
+            .to_numpy()
+            .T.reshape(-1, 1)
+        )
+        s = (
+            self.x.sel(
+                variable=variable[1],
+                basin=basin,
+                time=slice(
+                    time - np.timedelta64(seq_length - interval, "h"),
+                    time,
+                ),
+            )
+            .to_numpy()
+            .T.reshape(-1, 1)
+        )
+        return np.concatenate((x, s), axis=1)
+
 
 class GPMSTRDataset(Seq2SeqDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
@@ -1231,4 +1300,32 @@ class GPMSTRDataset(Seq2SeqDataset):
         self.features = self.get_features()
 
     def get_features(self):
-        return ["gpm_tp", "sm_surface", "streamflow"]
+        return ["gpm_tp", "streamflow", "sm_surface"]
+
+    def get_x(self, variable, basin, time, seq_length):
+        interval = self.data_cfgs["interval"]
+        x = (
+            self.x.sel(
+                variable=variable[0],
+                basin=basin,
+                time=slice(
+                    time - np.timedelta64(seq_length - 2 * interval, "h"),
+                    time + np.timedelta64(interval, "h"),
+                ),
+            )
+            .to_numpy()
+            .T.reshape(-1, 1)
+        )
+        s = (
+            self.x.sel(
+                variable=variable[1:],
+                basin=basin,
+                time=slice(
+                    time - np.timedelta64(seq_length - interval, "h"),
+                    time,
+                ),
+            )
+            .to_numpy()
+            .T.reshape(-1, 2)
+        )
+        return np.concatenate((x, s), axis=1)
