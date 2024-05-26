@@ -1,21 +1,16 @@
 name: torchhydro
 channels:
-  - pyg
   - pytorch
   - conda-forge
   - defaults
 dependencies:
-  - python=3.10
+  - python
   - geopandas
   - scikit-learn
   - fsspec
   - intake
-  - pytorch=1.12
-  - pytorch-scatter
+  - pytorch
   - tensorboard
-  # have to specify pillow version because of an issue for pytorch<1.13
-  # https://github.com/Project-MONAI/MONAI/issues/6683
-  - pillow=9.5.0
   - torchvision
   - shap
   - pytest

@@ -215,13 +215,12 @@ def evaluate_validation(
     tuple
         metrics
     """
+    fill_nan = evaluation_cfgs["fill_nan"]
     if isinstance(fill_nan, list) and len(fill_nan) != len(target_col):
         raise ValueError("Length of fill_nan must be equal to length of target_col.")
-
     eval_log = {}
     batch_size = validation_data_loader.batch_size
     evaluation_metrics = evaluation_cfgs["metrics"]
-    fill_nan = evaluation_cfgs["fill_nan"]
     if not evaluation_cfgs["long_seq_pred"]:
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
@@ -289,7 +288,9 @@ def len_denormalize_delayed(
 ):
     o = output[:, length, :].reshape(basin_num, batch_size, len(target_col))
     l = labels[:, length, :].reshape(basin_num, batch_size, len(target_col))
-    preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, length, long_seq_pred)
+    preds_xr, obss_xr = denormalize4eval(
+        validation_data_loader, o, l, length, long_seq_pred
+    )
     obs = obss_xr[col].to_numpy()
     pred = preds_xr[col].to_numpy()
     return obs, pred
