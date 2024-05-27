@@ -276,9 +276,11 @@ class DapengScaler(object):
                 # we used a assigned stat file, typically for PUB exps
                 # shutil.copy(data_cfgs["stat_dict_file"], stat_file)
                 try:
-                    shutil.copy(src, dst)
+                    shutil.copy(data_cfgs["stat_dict_file"], stat_file)
                 except SameFileError:
-                    print(f"源文件和目标文件是同一个文件: {src}，跳过复制操作")
+                    print(
+                        f"源文件和目标文件是同一个文件: {data_cfgs['stat_dict_file']}，跳过复制操作"
+                    )
                 except Exception as e:
                     print(f"发生错误: {e}")
             assert os.path.isfile(stat_file)
