@@ -16,6 +16,7 @@ import shutil
 import pint_xarray  # noqa: F401
 import xarray as xr
 import numpy as np
+from shutil import SameFileError
 from sklearn.preprocessing import (
     StandardScaler,
     RobustScaler,
@@ -244,7 +245,13 @@ class DapengScaler(object):
             # for valid/test, we need to load stat_dict from train
             if data_cfgs["stat_dict_file"] is not None:
                 # we used a assigned stat file, typically for PUB exps
-                shutil.copy(data_cfgs["stat_dict_file"], stat_file)
+                # shutil.copy(data_cfgs["stat_dict_file"], stat_file)
+                try:
+                    shutil.copy(src, dst)
+                except SameFileError:
+                    print(f"源文件和目标文件是同一个文件: {src}，跳过复制操作")
+                except Exception as e:
+                    print(f"发生错误: {e}")
             assert os.path.isfile(stat_file)
             with open(stat_file, "r") as fp:
                 self.stat_dict = json.load(fp)

@@ -1,10 +1,10 @@
 '''
 Author: Wenyu Ouyang
 Date: 2024-05-21 20:08:43
-LastEditTime: 2024-05-22 09:36:53
+LastEditTime: 2024-05-26 14:11:57
 LastEditors: Xinzhuo Wu
 Description: 
-FilePath: /torchhydro/tests/evaluate_with_gpm.py
+FilePath: /torchhydro/experiments/evaluate_with_gpm.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 '''
 
@@ -47,7 +47,8 @@ def get_config_data():
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 168,
-            "prec_window": 1,
+            "prec_window": 3,
+            "interval": 3,
         },
         gage_id=gage_id,
         model_loader={"load_way": "best"},
@@ -85,7 +86,7 @@ def get_config_data():
             "device": [1],
             "item_weight": [0.8, 0.2],
         },
-        test_period=[("2015-05-01", "2016-05-31")],
+        test_period=[("2015-06-01-01", "2016-05-31-01")],
         which_first_tensor="batch",
         rolling=True,
         long_seq_pred=False,

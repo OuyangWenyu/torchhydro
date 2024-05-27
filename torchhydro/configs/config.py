@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-05-26 21:49:30
+LastEditTime: 2024-05-27 08:44:22
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -208,6 +208,8 @@ def default_config_file():
             "sampler": None,
         },
         "training_cfgs": {
+            "master_addr": "localhost",
+            "port": "12335",
             # if train_mode is False, don't train and evaluate
             "train_mode": True,
             "criterion": "RMSE",
@@ -294,6 +296,8 @@ def cmd(
     fl_local_ep=None,
     fl_local_bs=None,
     fl_frac=None,
+    master_addr=None,
+    port=None,
     ctx=None,
     rs=None,
     gage_id_file=None,
@@ -424,6 +428,20 @@ def cmd(
         help="the fraction of clients for federated learning",
         default=fl_frac,
         type=float,
+    )
+    parser.add_argument(
+        "--master_addr",
+        dest="master_addr",
+        help="Running Context --default is localhost if you only train model on your computer",
+        default=master_addr,
+        nargs="+",
+    )
+    parser.add_argument(
+        "--port",
+        dest="port",
+        help="Running Context -- which port do you want to use when using DistributedDataParallel",
+        default=port,
+        nargs="+",
     )
     parser.add_argument(
         "--ctx",
@@ -858,6 +876,10 @@ def update_cfg(cfg_file, new_args):
         cfg_file["model_cfgs"]["fl_hyperparam"]["fl_local_bs"] = new_args.fl_local_bs
     if new_args.fl_frac is not None:
         cfg_file["model_cfgs1"]["fl_hyperparam"]["fl_frac"] = new_args.fl_frac
+    if new_args.master_addr is not None:
+        cfg_file["training_cfgs"]["master_addr"] = new_args.master_addr
+    if new_args.port is not None:
+        cfg_file["training_cfgs"]["port"] = new_args.port
     if new_args.ctx is not None:
         cfg_file["training_cfgs"]["device"] = new_args.ctx
     if new_args.rs is not None:
@@ -1011,6 +1033,8 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam[
                 "prec_window"
             ]
+        if "interval" in new_args.model_hyperparam.keys():
+            cfg_file["data_cfgs"]["interval"] = new_args.model_hyperparam["interval"]
     if new_args.metrics is not None:
         cfg_file["evaluation_cfgs"]["metrics"] = new_args.metrics
     if new_args.fill_nan is not None:

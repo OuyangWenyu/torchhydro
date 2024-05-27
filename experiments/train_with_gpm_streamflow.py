@@ -22,7 +22,7 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-show = pd.read_csv("data/basin_id(46+1).csv", dtype={"id": str})
+show = pd.read_csv("data/basin_id(498+24).csv", dtype={"id": str})
 gage_id = show["id"].values.tolist()
 
 
@@ -36,7 +36,7 @@ def main():
 
 def create_config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_gpm_streamflow", "ex1")
+    project_name = os.path.join("train_with_gpm_streamflow", "ex20")
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -57,7 +57,8 @@ def create_config():
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 168,
-            "prec_window": 1,  # 将前序径流一起作为输出，选择的时段数，该值需小于等于rho，建议置为1
+            "prec_window": 3,
+            "interval": 3,
         },
         model_loader={"load_way": "best"},
         gage_id=gage_id,
@@ -91,9 +92,9 @@ def create_config():
         scaler="DapengScaler",
         train_epoch=100,
         save_epoch=1,
-        train_period=[("2016-06-01", "2023-12-31")],
-        test_period=[("2015-06-01", "2016-05-31")],
-        valid_period=[("2015-06-01", "2016-05-31")],
+        train_period=[("2016-06-01-01", "2023-12-01-01")],
+        test_period=[("2015-06-01-01", "2016-06-01-01")],
+        valid_period=[("2015-06-01-01", "2016-06-01-01")],
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",

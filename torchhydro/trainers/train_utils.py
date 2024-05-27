@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-05-23 15:51:17
+LastEditTime: 2024-05-27 09:03:10
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -89,11 +89,11 @@ def denormalize4eval(
         target_data = validation_data_loader.dataset.y
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
-            length : -(forecast_length // 3)
+            length : -(forecast_length // target_scaler.data_cfgs["interval"])
             + length
-            - target_scaler.data_cfgs["prec_window"]
+            - (target_scaler.data_cfgs["prec_window"])
+            // target_scaler.data_cfgs["interval"]
         ]
-
     else:
         warmup_length = validation_data_loader.dataset.warmup_length
         selected_time_points = target_data.coords["time"][warmup_length:]
@@ -219,13 +219,16 @@ def evaluate_validation(
     if isinstance(fill_nan, list) and len(fill_nan) != len(target_col):
         raise ValueError("Length of fill_nan must be equal to length of target_col.")
     eval_log = {}
+    # probably because of DistSampler
+    # batch_size = len(validation_data_loader.dataset) / len(validation_data_loader.dataset.basins)
     batch_size = validation_data_loader.batch_size
     evaluation_metrics = evaluation_cfgs["metrics"]
     if not evaluation_cfgs["long_seq_pred"]:
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)
-
+        # output, labels.dim = (time, forecast_length / 3+1, basin_num), not batch_size
+        # len(time) = basin_num * time on single basin
         for i, col in enumerate(target_col):
             delayed_tasks = []
             for length in range(validation_data_loader.dataset.forecast_length // 3):
@@ -241,12 +244,10 @@ def evaluate_validation(
                     evaluation_cfgs["long_seq_pred"],
                 )
                 delayed_tasks.append(delayed_task)
-
             obs_pred_results = dask.compute(*delayed_tasks)
             obs_list, pred_list = zip(*obs_pred_results)
             obs = np.concatenate(obs_list, axis=1)
             pred = np.concatenate(pred_list, axis=1)
-
             eval_log = calculate_and_record_metrics(
                 obs,
                 pred,
@@ -261,7 +262,6 @@ def evaluate_validation(
         for i, col in enumerate(target_col):
             obs = obss_xr[col].to_numpy()
             pred = preds_xr[col].to_numpy()
-
             eval_log = calculate_and_record_metrics(
                 obs,
                 pred,
@@ -270,7 +270,6 @@ def evaluate_validation(
                 fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
                 eval_log,
             )
-
     return eval_log
 
 
@@ -286,6 +285,7 @@ def len_denormalize_delayed(
     col,
     long_seq_pred,
 ):
+    # batch_size != output.shape[0]
     o = output[:, length, :].reshape(basin_num, batch_size, len(target_col))
     l = labels[:, length, :].reshape(basin_num, batch_size, len(target_col))
     preds_xr, obss_xr = denormalize4eval(

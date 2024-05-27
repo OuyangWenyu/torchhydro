@@ -47,7 +47,8 @@ def create_config():
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 168,
-            "prec_window": 1,  # 将前序径流一起作为输出，选择的时段数，该值需小于等于rho，建议置为1
+            "prec_window": 3,
+            "interval": 3,
         },
         model_loader={"load_way": "best"},
         gage_id=gage_id,
@@ -83,9 +84,9 @@ def create_config():
         scaler="DapengScaler",
         train_epoch=100,
         save_epoch=1,
-        train_period=[("2016-06-01", "2023-12-31")],
-        test_period=[("2015-06-01", "2016-05-31")],
-        valid_period=[("2015-06-01", "2016-05-31")],
+        train_period=[("2016-06-01-01", "2023-12-01-01")],
+        test_period=[("2015-06-01-01", "2016-06-01-01")],
+        valid_period=[("2015-06-01-01", "2016-06-01-01")],
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",

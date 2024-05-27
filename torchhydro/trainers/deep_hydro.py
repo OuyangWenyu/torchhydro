@@ -27,6 +27,7 @@ from tqdm import tqdm
 
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
+from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.sampler import (
     KuaiSampler,
     fl_sample_basin,
@@ -144,18 +145,12 @@ class DeepHydro(DeepHydroInterface):
         self.device_num = cfgs["training_cfgs"]["device"]
         self.device = get_the_device(self.device_num)
         self.pre_model = pre_model
+        self.model = self.load_model()
         if cfgs["training_cfgs"]["train_mode"]:
-            # if the mode is inference, we don't need to load train/valid data
-            # and we only need to load model in this mode
-            # otherwise,we load model both in this init function and evaluate function
-            # it will cause problem because self._get_trained_model() will change the weight path, and the second time we load model, it will cause an
-            self.model = self.load_model(mode="train")
             self.traindataset = self.make_dataset("train")
             if cfgs["data_cfgs"]["t_range_valid"] is not None:
                 self.validdataset = self.make_dataset("valid")
-        else:
-            self.model = self.load_model(mode="infer")
-        self.testdataset = self.make_dataset("test")
+        self.testdataset: BaseDataset = self.make_dataset("test")
         print(f"Torch is using {str(self.device)}")
 
     def load_model(self, mode="train"):
@@ -168,11 +163,7 @@ class DeepHydro(DeepHydroInterface):
             model in pytorch_model_dict in model_dict_function.py
         """
         if mode == "infer":
-            if self.weight_path is None:
-                # for continue training
-                self.weight_path = self._get_trained_model()
-            else:
-                pass
+            self.weight_path = self._get_trained_model()
         elif mode != "train":
             raise ValueError("Invalid mode; must be 'train' or 'infer'")
         model_cfgs = self.cfgs["model_cfgs"]
@@ -377,7 +368,7 @@ class DeepHydro(DeepHydroInterface):
         tuple[dict, np.array, np.array]
             eval_log, denormalized predictions and observations
         """
-        # self.model = self.load_model(mode="infer")
+        self.model = self.load_model(mode="infer")
         preds_xr, obss_xr = self.inference()
         return preds_xr, obss_xr
 
@@ -439,10 +430,10 @@ class DeepHydro(DeepHydroInterface):
 
         if not evaluation_cfgs["long_seq_pred"]:
             target_len = len(data_cfgs["target_cols"])
-            prec_window = data_cfgs["prec_window"]
+            prec_window = data_cfgs["prec_window"] // data_cfgs["interval"]
             batch_size = test_dataloader.batch_size
             if evaluation_cfgs["rolling"]:
-                forecast_length = data_cfgs["forecast_length"] // 3
+                forecast_length = data_cfgs["forecast_length"] // data_cfgs["interval"]
                 pred = pred[:, prec_window:, :].reshape(
                     ngrid, batch_size, forecast_length, target_len
                 )
@@ -495,7 +486,7 @@ class DeepHydro(DeepHydroInterface):
         if "pin_memory" in training_cfgs:
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
-        train_dataset = self.traindataset
+        train_dataset: BaseDataset = self.traindataset
         sampler = None
         if data_cfgs["sampler"] is not None:
             # now we only have one special sampler from Kuai Fang's Deep Learning papers
@@ -529,7 +520,7 @@ class DeepHydro(DeepHydroInterface):
             timeout=0,
         )
         if data_cfgs["t_range_valid"] is not None:
-            valid_dataset = self.validdataset
+            valid_dataset: BaseDataset = self.validdataset
             batch_size_valid = training_cfgs["batch_size"]
             if data_cfgs["sampler"] == "HydroSampler":
                 # for HydroSampler when evaluating, we need to set new batch size
@@ -887,6 +878,7 @@ class DistributedDeepHydro(MultiTaskHydro):
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
         for epoch in range(start_epoch, max_epochs + 1):
+            data_loader.sampler.set_epoch(epoch)
             with logger.log_epoch_train(epoch) as train_logs:
                 total_loss, n_iter_ep = torch_single_train(
                     self.model,

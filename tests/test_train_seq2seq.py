@@ -16,9 +16,12 @@ import pandas as pd
 import pytest
 import hydrodatasource.configs.config as hdscc
 import xarray as xr
+import torch.multiprocessing as mp
 
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
+from torchhydro.trainers.deep_hydro import train_worker
+
+# from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
@@ -26,22 +29,35 @@ for logger_name in logging.root.manager.loggerDict:
     logger.setLevel(logging.INFO)
 
 show = pd.read_csv(
-    os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(46+1).csv"),
+    os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(all).csv"),
     dtype={"id": str},
 )
 gage_id = show["id"].values.tolist()
 
 
 def test_merge_forcing_and_streamflow():
+    data_name = "era5land"
     for id in gage_id:
-        forcing_nc = f"/ftproot/data_240509/data_forcing_era5land_100/data_forcing_{id}.nc"
-        stream_nc = f"s3://basins-origin/hour_data/1h/mean_data/streamflow_basin/streamflow_{id}.nc"
-        forcing_df = xr.open_dataset(forcing_nc).to_dataframe()
-        stream_df = xr.open_dataset(hdscc.FS.open(stream_nc)).to_dataframe()
-        stream_df = stream_df[stream_df.index >= "2015-04-01 04:00:00"]
-        concat_ds = xr.Dataset.from_dataframe(pd.concat([forcing_df, stream_df]))
-        concat_ds_path = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow/data_forcing_streamflow_{id}.nc"
-        hdscc.FS.write_bytes(concat_ds_path, concat_ds.to_netcdf())
+        concat_ds_path = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_{data_name}_streamflow/data_forcing_streamflow_{id}.nc"
+        if not hdscc.FS.exists(concat_ds_path):
+            forcing_nc = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_{data_name}/data_forcing_{id}.nc"
+            stream_nc = f"s3://basins-origin/hour_data/1h/mean_data/streamflow_basin/streamflow_{id}.nc"
+            if hdscc.FS.exists(forcing_nc) and hdscc.FS.exists(stream_nc):
+                forcing = xr.open_dataset(hdscc.FS.open(forcing_nc))
+                stream = xr.open_dataset(hdscc.FS.open(stream_nc))
+                forcing_times = pd.to_datetime(forcing.time.values)
+                stream_times = pd.to_datetime(stream.time.values)
+                common_times = pd.Index(stream_times).intersection(
+                    pd.Index(forcing_times)
+                )
+                forcing_common = forcing.sel(time=common_times)
+                stream_common = stream.sel(time=common_times)
+                combined_dataset = xr.merge([forcing_common, stream_common])
+                hdscc.FS.write_bytes(concat_ds_path, combined_dataset.to_netcdf())
+            else:
+                print(f"File {id} dosen't exists. Skipping overwrite.")
+        else:
+            print(f"File {concat_ds_path} already exists. Skipping overwrite.")
 
 
 @pytest.fixture()
@@ -58,33 +74,35 @@ def config():
                 "attributes": "basins-origin/attributes.nc",
             },
         },
-        ctx=[1],
+        ctx=[0, 1, 2],
         model_name="Seq2Seq",
         model_hyperparam={
             "input_size": 20,
             "output_size": 2,
             "hidden_size": 128,
             "forecast_length": 168,
-            "prec_window": 1,  # 将前序径流一起作为输出，选择的时段数，该值需小于等于rho，建议置为1
+            "prec_window": 3,
+            "interval": 3,
         },
         model_loader={"load_way": "best"},
         gage_id=[
             "21401550",  # 碧流河
-            "01181000",
-            "01411300",
-            "01414500",
-            "02016000",
-            "02018000",
-            "02481510",
-            "03070500",
+            # "01181000",
+            # "01411300",
+            # "01414500",
+            # "02016000",
+            # "02018000",
+            # "02481510",
+            # "03070500",
             # "08324000",
-            "11266500",
+            # "11266500",
             # "11523200",
-            "12020000",
+            # "12020000",
             # "12167000",
-            "14185000",
+            # "14185000",
             "14306500",
         ],
+        port="10086",
         # gage_id=gage_id,
         batch_size=1024,
         rho=672,
@@ -114,7 +132,7 @@ def config():
         ],
         var_out=["streamflow", "sm_surface"],
         dataset="ERA5LandDataset",
-        sampler="HydroSampler",
+        sampler="DistSampler",  # 使用多卡训练时必须使用DistSampler
         scaler="DapengScaler",
         train_epoch=2,
         save_epoch=1,
@@ -137,7 +155,8 @@ def config():
         },
         opt="Adam",
         lr_scheduler={
-            "lr": 0.001,
+            # 多卡训练时，先验地将学习率设置成显卡数*单卡学习率
+            "lr": 0.003,
             "lr_factor": 0.96,
         },
         which_first_tensor="batch",
@@ -150,12 +169,15 @@ def config():
             "kfold": 9,
             "batch_sizes": [1024],
         },
-        model_type="MTL",
+        model_type="DDP_MTL",
+        fill_nan=["no", "no"],
     )
     update_cfg(config_data, args)
     return config_data
 
 
 def test_seq2seq(config):
-    train_and_evaluate(config)
+    world_size = len(config["training_cfgs"]["device"])
+    mp.spawn(train_worker, args=(world_size, config), nprocs=world_size, join=True)
+    # train_and_evaluate(config)
     # ensemble_train_and_evaluate(config)
