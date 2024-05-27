@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2023-12-17 16:18:16
+LastEditTime: 2024-05-27 16:22:15
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: \torchhydro\tests\test_caravan_train.py
@@ -63,7 +63,8 @@ def config(var_c, var_t):
             "hysets_06444000",
         ],
         batch_size=8,
-        rho=20,
+        forecast_history=0,
+        forecast_length=20,
         var_t=var_t,
         var_c=var_c,
         var_out=["streamflow"],

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:17:44
-LastEditTime: 2024-04-09 20:58:21
+LastEditTime: 2024-05-27 14:50:10
 LastEditors: Wenyu Ouyang
 Description: normalize the data
 FilePath: \torchhydro\torchhydro\datasets\data_scalers.py
@@ -112,7 +112,9 @@ class ScalerHub(object):
                 scaler = SCALER_DICT[scaler_type]()
                 if data_tmp.ndim == 3:
                     # for forcings and outputs
-                    num_instances, num_time_steps, num_features = data_tmp.shape
+                    num_instances, num_time_steps, num_features = data_tmp.transpose(
+                        "basin", "time", "variable"
+                    ).shape
                     data_tmp = data_tmp.to_numpy().reshape(-1, num_features)
                     save_file = os.path.join(
                         data_cfgs["test_path"], f"{norm_keys[i]}_scaler.pkl"
@@ -155,9 +157,36 @@ class ScalerHub(object):
                 norm_dict[norm_keys[i]] = data_norm
                 if i == 0:
                     self.target_scaler = scaler
-            x = norm_dict["relevant_vars"]
-            y = norm_dict["target_vars"]
-            c = norm_dict["constant_vars"]
+            x_ = norm_dict["relevant_vars"]
+            y_ = norm_dict["target_vars"]
+            c_ = norm_dict["constant_vars"]
+            # TODO: need more test for real data
+            x = xr.DataArray(
+                x_,
+                coords={
+                    "basin": target_vars.coords["basin"],
+                    "time": target_vars.coords["time"],
+                    "variable": target_vars.coords["variable"],
+                },
+                dims=["basin", "time", "variable"],
+            )
+            y = xr.DataArray(
+                y_,
+                coords={
+                    "basin": relevant_vars.coords["basin"],
+                    "time": relevant_vars.coords["time"],
+                    "variable": relevant_vars.coords["variable"],
+                },
+                dims=["basin", "time", "variable"],
+            )
+            c = xr.DataArray(
+                c_,
+                coords={
+                    "basin": constant_vars.coords["basin"],
+                    "variable": constant_vars.coords["variable"],
+                },
+                dims=["basin", "variable"],
+            )
         else:
             raise NotImplementedError(
                 "We don't provide this Scaler now!!! Please choose another one: DapengScaler or key in SCALER_DICT"

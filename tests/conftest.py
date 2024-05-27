@@ -59,8 +59,10 @@ def args():
             "01170100",
         ],
         batch_size=8,
-        rho=20,
-        min_time_type="D",
+        forecast_history=0,
+        forecast_length=20,
+        min_time_unit="D",
+        min_time_interval="1",
         var_t=["dayl", "prcp", "srad", "tmax", "tmin", "vp"],
         # var_c=["None"],
         var_out=["streamflow"],
@@ -132,7 +134,8 @@ def mtl_args():
             "01170100",
         ],
         batch_size=100,
-        rho=365,  # batch_size=100, rho=365,
+        forecast_history=0,
+        forecast_length=365,  # batch_size=100, forecast_history=365,
         var_t=[
             "temperature",
             "specific_humidity",
@@ -201,13 +204,19 @@ def s2s_args(basin4test):
             "input_size": 17,
             "output_size": 2,
             "hidden_size": 256,
-            "forecast_length": 168,
-            "prec_window": 1,  # 将前序径流一起作为输出，选择的时段数，该值需小于等于rho，建议置为1
+            # number of min-time-intervals to predict; horizon
+            "forecast_length": 56,
+            # 将前序径流一起作为输出，选择的时段数，该值需小于等于 forecast_history ，建议置为1
+            "prec_window": 1,
         },
         model_loader={"load_way": "best"},
         gage_id=basin4test,
         batch_size=512,
-        rho=720,
+        # historical number of min-time-intervals; 240 means 240 * 3H = 720H
+        forecast_history=240,
+        forecast_length=56,
+        min_time_unit="H",
+        min_time_interval="3",
         var_t=[
             "gpm_tp",
             "sm_surface",
@@ -235,9 +244,9 @@ def s2s_args(basin4test):
         scaler="DapengScaler",
         train_epoch=1,
         save_epoch=1,
-        train_period=[("2016-06-01", "2016-12-31")],
-        test_period=[("2015-06-01", "2015-10-31")],
-        valid_period=[("2015-06-01", "2015-10-31")],
+        train_period=[("2016-06-01-01", "2016-12-31-01")],
+        test_period=[("2015-06-01-01", "2015-10-31-01")],
+        valid_period=[("2015-06-01-01", "2015-10-31-01")],
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",

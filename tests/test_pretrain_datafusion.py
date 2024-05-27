@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-10-05 16:16:48
-LastEditTime: 2024-02-14 16:12:50
+LastEditTime: 2024-05-27 16:23:45
 LastEditors: Wenyu Ouyang
 Description: A test function for transfer learning
-FilePath: \torchhydro\tests\test_transfer_learning.py
+FilePath: \torchhydro\tests\test_pretrain_datafusion.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -42,8 +42,13 @@ def config():
         model_name="DataFusion",
         model_hyperparam={
             "original_model": DataEnhancedModel(
-                original_model=GeneralSeq2Seq(input_size=16, output_size=1, hidden_size=256, forecast_length=24,
-                                              model_mode="dual"),
+                original_model=GeneralSeq2Seq(
+                    input_size=16,
+                    output_size=1,
+                    hidden_size=256,
+                    forecast_length=24,
+                    model_mode="dual",
+                ),
                 hidden_length=256,
             ),
             "cnn_size": 120,  # todo 有冗余
@@ -58,7 +63,8 @@ def config():
         },
         loss_func="RMSESum",
         batch_size=256,
-        rho=168,
+        forecast_history=168,
+        forecast_length=24,
         train_period=[
             ("2022-07-08", "2022-09-29"),
         ],

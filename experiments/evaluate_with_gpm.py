@@ -1,4 +1,4 @@
-'''
+"""
 Author: Wenyu Ouyang
 Date: 2024-05-21 20:08:43
 LastEditTime: 2024-05-26 14:11:57
@@ -6,7 +6,7 @@ LastEditors: Xinzhuo Wu
 Description: 
 FilePath: /torchhydro/experiments/evaluate_with_gpm.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
-'''
+"""
 
 import os
 import warnings
@@ -46,14 +46,16 @@ def get_config_data():
             "input_size": 17,
             "output_size": 2,
             "hidden_size": 256,
-            "forecast_length": 168,
-            "prec_window": 3,
-            "interval": 3,
+            "forecast_length": 56,
+            "prec_window": 1,
         },
         gage_id=gage_id,
         model_loader={"load_way": "best"},
         batch_size=1024,
-        rho=720,
+        forecast_history=240,
+        forecast_length=56,
+        min_time_unit="H",
+        min_time_interval=3,
         var_t=[
             "gpm_tp",
             "sm_surface",

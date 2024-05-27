@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-20 20:05:10
-LastEditTime: 2024-04-13 19:32:48
+LastEditTime: 2024-05-27 16:21:16
 LastEditors: Wenyu Ouyang
 Description: A case for dPL-XAJ model
 FilePath: \torchhydro\experiments\run_camelsdplxaj_experiments.py
@@ -85,7 +85,8 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         valid_period=valid_period,
         test_period=test_period,
         batch_size=20,
-        rho=30,
+        forecast_history=0,
+        forecast_length=30,
         var_t=[
             "prcp",
             "PET",

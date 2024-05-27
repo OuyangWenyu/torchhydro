@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-05-27 09:03:10
+LastEditTime: 2024-05-27 10:13:25
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -89,10 +89,10 @@ def denormalize4eval(
         target_data = validation_data_loader.dataset.y
         forecast_length = validation_data_loader.dataset.forecast_length
         selected_time_points = target_data.coords["time"][
-            length : -(forecast_length // target_scaler.data_cfgs["interval"])
+            length : -(forecast_length // target_scaler.data_cfgs["min_time_interval"])
             + length
             - (target_scaler.data_cfgs["prec_window"])
-            // target_scaler.data_cfgs["interval"]
+            // target_scaler.data_cfgs["min_time_interval"]
         ]
     else:
         warmup_length = validation_data_loader.dataset.warmup_length

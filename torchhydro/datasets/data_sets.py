@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-05-27 08:45:01
+LastEditTime: 2024-05-27 17:05:14
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -20,8 +20,8 @@ from typing import Optional
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from hydrodatasource.utils.utils import streamflow_unit_conv
-from hydroutils import hydro_time
 
+from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import (
     ScalerHub,
     MutiBasinScaler,
@@ -80,6 +80,16 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
     return da
 
 
+def detect_date_format(date_str):
+    for date_format in DATE_FORMATS:
+        try:
+            datetime.strptime(date_str, date_format)
+            return date_format
+        except ValueError:
+            continue
+    raise ValueError(f"Unknown date format: {date_str}")
+
+
 class BaseDataset(Dataset):
     """Base data set class to load and preprocess data (batch-first) using PyTorch's Dataset"""
 
@@ -122,17 +132,44 @@ class BaseDataset(Dataset):
 
     @property
     def nt(self):
-        """how long is the time series
+        """length of longest time series in all basins
 
         Returns
         -------
         int
-            number of time steps
+            number of longest time steps
         """
-        time_type = self.data_cfgs["min_time_type"]
-        start_date = pd.to_datetime(self.times[0])
-        end_date = pd.to_datetime(self.times[1])
-        time_series = pd.date_range(start=start_date, end=end_date, freq=time_type)
+        if isinstance(self.t_s_dict["t_final_range"][0], tuple):
+            trange_type_num = len(self.t_s_dict["t_final_range"])
+            if trange_type_num != self.ngrid:
+                raise ValueError(
+                    "The number of time ranges should be equal to the number of basins "
+                    "if you choose different time ranges for different basins"
+                )
+            earliest_date = None
+            latest_date = None
+            for start_date_str, end_date_str in self.t_s_dict["t_final_range"]:
+                date_format = detect_date_format(start_date_str)
+
+                start_date = datetime.strptime(start_date_str, date_format)
+                end_date = datetime.strptime(end_date_str, date_format)
+
+                if earliest_date is None or start_date < earliest_date:
+                    earliest_date = start_date
+                if latest_date is None or end_date > latest_date:
+                    latest_date = end_date
+            earliest_date = earliest_date.strftime(date_format)
+            latest_date = latest_date.strftime(date_format)
+        else:
+            trange_type_num = 1
+            earliest_date = self.t_s_dict["t_final_range"][0]
+            latest_date = self.t_s_dict["t_final_range"][1]
+        min_time_unit = self.data_cfgs["min_time_unit"]
+        min_time_interval = self.data_cfgs["min_time_interval"]
+        time_step = f"{min_time_interval}{min_time_unit}"
+        s_date = pd.to_datetime(earliest_date)
+        e_date = pd.to_datetime(latest_date)
+        time_series = pd.date_range(start=s_date, end=e_date, freq=time_step)
         return len(time_series)
 
     @property
@@ -142,8 +179,36 @@ class BaseDataset(Dataset):
 
     @property
     def times(self):
-        """Return the time range of the dataset"""
-        return self.t_s_dict["t_final_range"]
+        """Return the times of all basins
+
+        TODO: Although we support get different time ranges for different basins,
+        we didn't implement the reading function for this case in _read_xyc method.
+        Hence, it's better to choose unified time range for all basins
+        """
+        min_time_unit = self.data_cfgs["min_time_unit"]
+        min_time_interval = self.data_cfgs["min_time_interval"]
+        time_step = f"{min_time_interval}{min_time_unit}"
+        if isinstance(self.t_s_dict["t_final_range"][0], tuple):
+            times_ = []
+            trange_type_num = len(self.t_s_dict["t_final_range"])
+            if trange_type_num != self.ngrid:
+                raise ValueError(
+                    "The number of time ranges should be equal to the number of basins "
+                    "if you choose different time ranges for different basins"
+                )
+            detect_date_format(self.t_s_dict["t_final_range"][0][0])
+            for start_date_str, end_date_str in self.t_s_dict["t_final_range"]:
+                s_date = pd.to_datetime(start_date_str)
+                e_date = pd.to_datetime(end_date_str)
+                time_series = pd.date_range(start=s_date, end=e_date, freq=time_step)
+                times_.append(time_series)
+        else:
+            detect_date_format(self.t_s_dict["t_final_range"][0])
+            trange_type_num = 1
+            s_date = pd.to_datetime(self.t_s_dict["t_final_range"][0])
+            e_date = pd.to_datetime(self.t_s_dict["t_final_range"][1])
+            times_ = pd.date_range(start=s_date, end=e_date, freq=time_step)
+        return times_
 
     def __len__(self):
         return self.num_samples if self.train_mode else self.ngrid
@@ -160,8 +225,8 @@ class BaseDataset(Dataset):
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
         basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length
-        x = self.x[basin, idx - warmup_length : idx + self.rho, :]
-        y = self.y[basin, idx : idx + self.rho, :]
+        x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float()
         c = self.c[basin, :]
@@ -174,6 +239,7 @@ class BaseDataset(Dataset):
         self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
         self.rho = self.data_cfgs["forecast_history"]
         self.warmup_length = self.data_cfgs["warmup_length"]
+        self.horizon = self.data_cfgs["forecast_length"]
 
     def _load_data(self):
         self._pre_load_data()
@@ -325,15 +391,20 @@ class BaseDataset(Dataset):
         basin_coordinates = len(self.t_s_dict["sites_id"])
         rho = self.rho
         warmup_length = self.warmup_length
-        time_length = self.nt
+        horizon = self.horizon
+        max_time_length = self.nt
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
-            # some dataloader load data with warmup period, so leave some periods for it
-            # [warmup_len] -> time_start -> [rho]
-            lookup.extend(
-                (basin, f)
-                for f in range(warmup_length, time_length)
-                if f < time_length - rho + 1
-            )
+            if self.is_tra_val_te != "train":
+                lookup.append((basin, warmup_length))
+            else:
+                # some dataloader load data with warmup period, so leave some periods for it
+                # [warmup_len] -> time_start -> [rho] -> [horizon]
+                nan_array = np.isnan(self.y[basin, :, :])
+                lookup.extend(
+                    (basin, f)
+                    for f in range(warmup_length, max_time_length - rho - horizon + 1)
+                    if not np.all(nan_array[f + rho : f + rho + horizon])
+                )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
 
@@ -584,41 +655,17 @@ class HydroMeanDataset(BaseDataset):
             c_orgin = None
         self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin
 
-    def _create_lookup_table(self):
-        lookup = []
-        basins = self.t_s_dict["sites_id"]
-        forecast_length = self.forecast_length
-        warmup_length = self.warmup_length
-        dates = self.y["time"].to_numpy()
-        time_num = len(self.t_s_dict["t_final_range"])
-        time_total_length = len(dates)
-        time_single_length = time_total_length // time_num
-        is_tra_val_te = self.is_tra_val_te
-        for basin in tqdm(
-            basins,
-            file=sys.stdout,
-            disable=False,
-            desc=f"Creating {is_tra_val_te} lookup table",
-        ):
-            for num in range(time_num):
-                lookup.extend(
-                    (basin, dates[f + num * time_single_length])
-                    for f in range(warmup_length, time_single_length - forecast_length)
-                )
-        self.lookup_table = dict(enumerate(lookup))
-        self.num_samples = len(self.lookup_table)
-
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
-        seq_length = self.rho
-        output_seq_len = self.forecast_length
+        forecast_history = self.rho
+        horizon = self.forecast_length
         warmup_length = self.warmup_length
         gpm_tp = (
             self.x.sel(
                 variable="gpm_tp",
                 basin=basin,
                 time=slice(
-                    time - np.timedelta64(warmup_length + seq_length - 1, "h"),
+                    time - np.timedelta64(warmup_length + forecast_history - 1, "h"),
                     time,
                 ),
             )
@@ -631,7 +678,7 @@ class HydroMeanDataset(BaseDataset):
                 basin=basin,
                 time=slice(
                     time + np.timedelta64(1, "h"),
-                    time + np.timedelta64(output_seq_len, "h"),
+                    time + np.timedelta64(horizon, "h"),
                 ),
             )
             .to_numpy()
@@ -640,14 +687,14 @@ class HydroMeanDataset(BaseDataset):
         x = np.concatenate((gpm_tp, gfs_tp), axis=0)
         if self.c is not None and self.c.shape[-1] > 0:
             c = self.c.sel(basin=basin).values
-            c = np.tile(c, (warmup_length + seq_length + output_seq_len, 1))
+            c = np.tile(c, (warmup_length + forecast_history + horizon, 1))
             x = np.concatenate((x, c), axis=1)
         y = (
             self.y.sel(
                 basin=basin,
                 time=slice(
                     time + np.timedelta64(1, "h"),
-                    time + np.timedelta64(output_seq_len, "h"),
+                    time + np.timedelta64(horizon, "h"),
                 ),
             )
             .to_numpy()
@@ -810,14 +857,14 @@ class HydroGridDataset(HydroMeanDataset):
 
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
-        seq_length = self.rho
-        output_seq_len = self.forecast_length
+        forecast_history = self.rho
+        horizon = self.forecast_length
         warmup_length = self.warmup_length
         gpm_tp = (
             self.x[basin]
             .sel(
                 time=slice(
-                    time - np.timedelta64(warmup_length + seq_length - 1, "h"),
+                    time - np.timedelta64(warmup_length + forecast_history - 1, "h"),
                     time,
                 )
             )
@@ -830,7 +877,7 @@ class HydroGridDataset(HydroMeanDataset):
             .sel(
                 time=slice(
                     time + np.timedelta64(1, "h"),
-                    time + np.timedelta64(output_seq_len, "h"),
+                    time + np.timedelta64(horizon, "h"),
                 )
             )
             .values
@@ -980,14 +1027,14 @@ class HydroMultiSourceDataset(HydroMeanDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         super(HydroMultiSourceDataset, self).__init__(data_cfgs, is_tra_val_te)
 
-    def get_x(self, variable, basin, time, seq_length, offset1=0, offset2=0):
+    def get_x(self, variable, basin, time, forecast_history, offset1=0, offset2=0):
         return (
             self.x.sel(
                 variable=variable,
                 basin=basin,
                 time=slice(
                     time
-                    - np.timedelta64(seq_length - 1, "h")
+                    - np.timedelta64(forecast_history - 1, "h")
                     + np.timedelta64(offset1, "h"),
                     (time if offset2 == 0 else time + np.timedelta64(offset2, "h")),
                 ),
@@ -1011,33 +1058,38 @@ class HydroMultiSourceDataset(HydroMeanDataset):
 
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
-        seq_length = self.rho
-        sm_length = seq_length - self.data_cfgs["cnn_size"]
+        forecast_history = self.rho
+        sm_length = forecast_history - self.data_cfgs["cnn_size"]
         x, y, s = None, None, None
         var_lst = self.data_cfgs["relevant_cols"]
         station_tp_present = "sta_tp" in var_lst
 
         if station_tp_present:
             delay = 6
-            gpm_tp = self.get_x("gpm_tp", basin, time, seq_length, 0, -delay)
-            station_tp = self.get_x("sta_tp", basin, time, seq_length)
+            gpm_tp = self.get_x("gpm_tp", basin, time, forecast_history, 0, -delay)
+            station_tp = self.get_x("sta_tp", basin, time, forecast_history)
             expanded_gpm_tp = np.vstack([gpm_tp, station_tp[-delay:, :]])
             x = np.hstack([expanded_gpm_tp, station_tp])
             if "streamflow" in var_lst:
-                yy = self.get_x("streamflow", basin, time, seq_length)
+                yy = self.get_x("streamflow", basin, time, forecast_history)
                 x = np.hstack([yy, x])
         else:
-            x = self.get_x("gpm_tp", basin, time, seq_length)
+            x = self.get_x("gpm_tp", basin, time, forecast_history)
         if self.c is not None and self.c.shape[-1] > 0:
             c = self.c.sel(basin=basin).values
             # TODO: WARNING: length of c has been divided by 3
-            c = np.tile(c, (int(seq_length / 3), 1))
+            c = np.tile(c, (int(forecast_history / 3), 1))
             x = np.concatenate((x, c), axis=1)
 
         mode = self.data_cfgs["model_mode"]
         if mode == "dual":
             s = self.get_x(
-                ["sm_surface", "sm_rootzone"], basin, time, seq_length, sm_length, 0
+                ["sm_surface", "sm_rootzone"],
+                basin,
+                time,
+                forecast_history,
+                sm_length,
+                0,
             )
         else:
             all_features = [
@@ -1045,17 +1097,17 @@ class HydroMultiSourceDataset(HydroMeanDataset):
                     ["sm_surface", "sm_rootzone"],
                     basin,
                     time,
-                    seq_length,
+                    forecast_history,
                     sm_length - offset,
                     -offset,
                 )
-                for offset in range(seq_length)
+                for offset in range(forecast_history)
             ]
             s = np.array(
                 [
                     feat.squeeze()
                     for feat in all_features
-                    if feat.shape[0] == seq_length - sm_length
+                    if feat.shape[0] == forecast_history - sm_length
                 ]
             )
         y = self.get_y(basin, time, self.forecast_length, self.data_cfgs["prec_window"])
@@ -1083,7 +1135,7 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             ).strftime("%Y-%m-%d-%H")
             adjusted_end_date = (
                 datetime.strptime(end_date, "%Y-%m-%d-%H")
-                + timedelta(hours=self.data_cfgs["interval"])
+                + timedelta(hours=self.data_cfgs["min_time_interval"])
             ).strftime("%Y-%m-%d-%H")
             subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
             var_subset_list.append(subset)
@@ -1120,60 +1172,6 @@ class HydroMultiSourceDataset(HydroMeanDataset):
             subset_list.append(subset)
         return xr.concat(subset_list, dim="time")
 
-    def _create_lookup_table(self):
-        is_tra_val_te = self.is_tra_val_te
-        if is_tra_val_te == "train":
-            date_ranges = self.data_cfgs["t_range_train"]
-        elif is_tra_val_te == "valid":
-            date_ranges = self.data_cfgs["t_range_valid"]
-        else:
-            date_ranges = self.data_cfgs["t_range_test"]
-        dates = []
-        for start, end in date_ranges:
-            date_range = pd.date_range(start=start, end=end, freq="3h")
-            dates.extend(date_range)
-        dates = np.array(dates, dtype="datetime64[ns]")
-        lookup = []
-        basins = self.t_s_dict["sites_id"]
-        warmup_length = self.warmup_length
-        time_num = len(self.t_s_dict["t_final_range"])
-        time_total_length = len(dates)
-        time_single_length = time_total_length // time_num
-
-        for basin in tqdm(
-            basins,
-            file=sys.stdout,
-            disable=False,
-            desc=f"Creating {is_tra_val_te} lookup table",
-        ):
-            for num in range(time_num):
-                if is_tra_val_te != "train":
-                    lookup.extend(
-                        (basin, dates[f + num * time_single_length])
-                        for f in range(
-                            warmup_length,
-                            time_single_length,
-                        )
-                    )
-                else:
-                    window_size = self.forecast_length // self.data_cfgs["interval"]
-                    f = 0
-                    streamflow_arr = self.y.sel(
-                        basin=basin, variable="streamflow"
-                    ).to_numpy()
-                    nan_array = np.isnan(streamflow_arr)
-                    while warmup_length <= f <= time_single_length - window_size:
-                        if np.all(nan_array[f : f + window_size]):
-                            f += 1
-                        else:
-                            lookup.extend(
-                                (basin, dates[j + num * time_single_length])
-                                for j in range(f, f + window_size)
-                            )
-                            f += window_size
-        self.lookup_table = dict(enumerate(lookup))
-        self.num_samples = len(self.lookup_table)
-
 
 class Seq2SeqDataset(HydroMultiSourceDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
@@ -1207,12 +1205,12 @@ class Seq2SeqDataset(HydroMultiSourceDataset):
 
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
-        seq_length = self.rho
-        x = self.get_x(self.input_features, basin, time, seq_length)
+        forecast_history = self.rho
+        x = self.get_x(self.input_features, basin, time, forecast_history)
 
         if self.c is not None and self.c.shape[-1] > 0:
             c = self.c.sel(basin=basin).values
-            c = np.tile(c, (seq_length // self.data_cfgs["interval"], 1))
+            c = np.tile(c, (forecast_history // self.data_cfgs["min_time_interval"], 1))
             x = np.concatenate((x, c), axis=1)
 
         prec_window = self.data_cfgs["prec_window"]

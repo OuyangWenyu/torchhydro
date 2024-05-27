@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:55:24
-LastEditTime: 2024-04-17 13:31:16
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-05-27 10:10:35
+LastEditors: Wenyu Ouyang
 Description:
-FilePath: /torchhydro/tests/test_train_seq2seq.py
+FilePath: \torchhydro\tests\test_train_seq2seq.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -80,9 +80,8 @@ def config():
             "input_size": 20,
             "output_size": 2,
             "hidden_size": 128,
-            "forecast_length": 168,
-            "prec_window": 3,
-            "interval": 3,
+            "forecast_length": 56,
+            "prec_window": 1,
         },
         model_loader={"load_way": "best"},
         gage_id=[
@@ -105,7 +104,10 @@ def config():
         port="10086",
         # gage_id=gage_id,
         batch_size=1024,
-        rho=672,
+        forecast_history=224,
+        forecast_length=56,
+        min_time_unit="H",
+        min_time_interval=3,
         var_t=[
             "total_precipitation_hourly",
             "temperature_2m",
@@ -131,7 +133,7 @@ def config():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow", "sm_surface"],
-        dataset="ERA5LandDataset",
+        dataset="Seq2SeqDataset",
         sampler="DistSampler",  # 使用多卡训练时必须使用DistSampler
         scaler="DapengScaler",
         train_epoch=2,

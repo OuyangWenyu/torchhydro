@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-09-09 14:47:42
-LastEditTime: 2024-05-24 14:42:31
+LastEditTime: 2024-05-27 15:49:03
 LastEditors: Wenyu Ouyang
 Description: a script to run experiments for LSTM - CAMELS
 FilePath: \torchhydro\experiments\run_camelslstm_experiments.py
@@ -80,7 +80,8 @@ def run_normal_dl(
         dataset="StreamflowDataset",
         scaler="DapengScaler",
         batch_size=512,
-        rho=366,
+        forecast_history=0,
+        forecast_length=366,
         var_t=var_t,
         var_c=var_c,
         var_out=["streamflow"],

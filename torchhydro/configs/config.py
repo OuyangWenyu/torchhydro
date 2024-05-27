@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-05-27 08:44:22
+LastEditTime: 2024-05-27 16:14:49
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -32,6 +32,7 @@ ET_ERA5LAND_NAME = "total_evaporation"
 PRCP_ERA5LAND_NAME = "total_precipitation"
 PET_DAYMET_NAME = "PET"
 PET_ERA5LAND_NAME = "potential_evaporation"
+DATE_FORMATS = ["%Y-%m-%d-%H", "%Y-%m-%d"]  # 带小时的日期格式  # 不带小时的日期格式
 
 
 def default_config_file():
@@ -52,8 +53,8 @@ def default_config_file():
             "model_name": "LSTM",
             # the details of model parameters for the "model_name" model
             "model_hyperparam": {
-                # the rho in LSTM
-                "seq_length": 30,
+                # <- warmup -><- forecast_history -><- forecast_length ->
+                "forecast_history": 30,
                 "forecast_length": 30,
                 # the size of input (feature number)
                 "input_size": 24,
@@ -95,19 +96,23 @@ def default_config_file():
             "validation_path": None,
             "test_path": None,
             "batch_size": 100,
-            # the rho in LSTM
+            # we generally have three times: [warmup, forecast_history, forecast_length]
+            # For physics-based models, we need warmup; default is 0 as DL models generally don't need it
+            "warmup_length": 0,
+            # the length of the history data for forecasting
             "forecast_history": 30,
+            # the length of the forecast data
             "forecast_length": 1,
             # the min time step of the input data
-            "min_time_type": "H",
+            "min_time_unit": "D",
+            # the min time interval of the input data
+            "min_time_interval": 1,
             # modeled objects
             "object_ids": "ALL",
             # modeling time range
             "t_range_train": ["1992-01-01", "1993-01-01"],
             "t_range_valid": None,
             "t_range_test": ["1993-01-01", "1994-01-01"],
-            # For physics-based models, we need warmup; default is 0 as DL models generally don't need it
-            "warmup_length": 0,
             # the output
             "target_cols": [Q_CAMELS_US_NAME],
             "target_rm_nan": True,
@@ -309,7 +314,9 @@ def cmd(
     lr_scheduler=None,
     opt_param=None,
     batch_size=None,
-    rho=None,
+    warmup_length=0,
+    forecast_history=None,
+    forecast_length=None,
     train_mode=None,
     train_epoch=None,
     save_epoch=None,
@@ -341,7 +348,6 @@ def cmd(
     explainer=None,
     rolling=None,
     long_seq_pred=None,
-    warmup_length=0,
     start_epoch=1,
     stat_dict_file=None,
     num_workers=None,
@@ -350,7 +356,8 @@ def cmd(
     ensemble_items=None,
     early_stopping=None,
     patience=None,
-    min_time_type=None,
+    min_time_unit=None,
+    min_time_interval=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -530,10 +537,24 @@ def cmd(
         type=float,
     )
     parser.add_argument(
-        "--rho",
-        dest="rho",
-        help="length of time sequence when training",
-        default=rho,
+        "--warmup_length",
+        dest="warmup_length",
+        help="Physical hydro models need warmup",
+        default=warmup_length,
+        type=int,
+    )
+    parser.add_argument(
+        "--forecast_history",
+        dest="forecast_history",
+        help="length of time sequence when training in encoder part, for decoder-only models, forecast_history=0",
+        default=forecast_history,
+        type=int,
+    )
+    parser.add_argument(
+        "--forecast_length",
+        dest="forecast_length",
+        help="length of time sequence when training in decoder part",
+        default=forecast_length,
         type=int,
     )
     parser.add_argument(
@@ -724,13 +745,7 @@ def cmd(
         default=long_seq_pred,
         type=bool,
     )
-    parser.add_argument(
-        "--warmup_length",
-        dest="warmup_length",
-        help="Physical hydro models need warmup",
-        default=warmup_length,
-        type=int,
-    )
+
     parser.add_argument(
         "--start_epoch",
         dest="start_epoch",
@@ -796,11 +811,18 @@ def cmd(
         type=int,
     )
     parser.add_argument(
-        "--min_time_type",
-        dest="min_time_type",
+        "--min_time_unit",
+        dest="min_time_unit",
         help="The min time type of the input data",
-        default=min_time_type,
+        default=min_time_unit,
         type=str,
+    )
+    parser.add_argument(
+        "--min_time_interval",
+        dest="min_time_interval",
+        help="The min time interval of the input data",
+        default=min_time_interval,
+        type=int,
     )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
@@ -936,10 +958,7 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["target_cols"] = new_args.var_out
     if new_args.var_to_source_map is not None:
         cfg_file["data_cfgs"]["var_to_source_map"] = new_args.var_to_source_map
-    if new_args.out_rm_nan == 0:
-        cfg_file["data_cfgs"]["target_rm_nan"] = False
-    else:
-        cfg_file["data_cfgs"]["target_rm_nan"] = True
+    cfg_file["data_cfgs"]["target_rm_nan"] = bool(new_args.out_rm_nan != 0)
     if new_args.target_as_input == 0:
         cfg_file["data_cfgs"]["target_as_input"] = False
         if new_args.constant_only == 0:
@@ -976,21 +995,7 @@ def update_cfg(cfg_file, new_args):
                 "Please make sure size of vars in data_cfgs/target_cols is same as n_output"
             )
     if new_args.model_hyperparam is None:
-        if new_args.batch_size is not None:
-            batch_size = new_args.batch_size
-            cfg_file["model_cfgs"]["model_hyperparam"]["batch_size"] = batch_size
-            cfg_file["data_cfgs"]["batch_size"] = batch_size
-            cfg_file["training_cfgs"]["batch_size"] = batch_size
-        if new_args.rho is not None:
-            rho = new_args.rho
-            cfg_file["model_cfgs"]["model_hyperparam"]["seq_length"] = rho
-            cfg_file["data_cfgs"]["forecast_history"] = rho
-        if new_args.n_output is not None:
-            cfg_file["model_cfgs"]["model_hyperparam"][
-                "output_seq_len"
-            ] = new_args.n_output
-        if new_args.dropout is not None:
-            cfg_file["model_cfgs"]["model_hyperparam"]["dropout"] = new_args.dropout
+        raise AttributeError("Please set the model_hyperparam!!!")
     else:
         cfg_file["model_cfgs"]["model_hyperparam"] = new_args.model_hyperparam
         if "batch_size" in new_args.model_hyperparam.keys():
@@ -1000,31 +1005,6 @@ def update_cfg(cfg_file, new_args):
             cfg_file["training_cfgs"]["batch_size"] = new_args.model_hyperparam[
                 "batch_size"
             ]
-        elif new_args.batch_size is not None:
-            batch_size = new_args.batch_size
-            cfg_file["data_cfgs"]["batch_size"] = batch_size
-            cfg_file["training_cfgs"]["batch_size"] = batch_size
-        else:
-            raise NotImplemented("Please set the batch_size!!!")
-        if "seq_length" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["forecast_history"] = new_args.model_hyperparam[
-                "seq_length"
-            ]
-        elif "forecast_history" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["forecast_history"] = new_args.model_hyperparam[
-                "forecast_history"
-            ]
-        elif new_args.rho is not None:
-            cfg_file["data_cfgs"]["forecast_history"] = new_args.rho
-        else:
-            raise NotImplemented(
-                "Please set the time_sequence length in a batch when training!!!"
-            )
-        if (
-            "output_seq_len" in new_args.model_hyperparam.keys()
-            and new_args.n_output is not None
-        ):
-            assert new_args.model_hyperparam["output_seq_len"] == new_args.n_output
         if "forecast_length" in new_args.model_hyperparam.keys():
             cfg_file["data_cfgs"]["forecast_length"] = new_args.model_hyperparam[
                 "forecast_length"
@@ -1033,8 +1013,18 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam[
                 "prec_window"
             ]
-        if "interval" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["interval"] = new_args.model_hyperparam["interval"]
+    if new_args.batch_size is None:
+        raise AttributeError("Please set the batch_size!!!")
+    if new_args.batch_size is not None:
+        batch_size = new_args.batch_size
+        cfg_file["data_cfgs"]["batch_size"] = batch_size
+        cfg_file["training_cfgs"]["batch_size"] = batch_size
+    if new_args.min_time_unit is not None:
+        if new_args.min_time_unit not in ["H", "D"]:
+            raise ValueError("min_time_unit must be 'H' (HOURLY) or 'D' (DAILY)")
+        cfg_file["data_cfgs"]["min_time_unit"] = new_args.min_time_unit
+    if new_args.min_time_interval is not None:
+        cfg_file["data_cfgs"]["min_time_interval"] = new_args.min_time_interval
     if new_args.metrics is not None:
         cfg_file["evaluation_cfgs"]["metrics"] = new_args.metrics
     if new_args.fill_nan is not None:
@@ -1054,6 +1044,10 @@ def update_cfg(cfg_file, new_args):
             raise RuntimeError(
                 "Please set same warmup_length in model_cfgs and data_cfgs"
             )
+    if new_args.forecast_history is not None:
+        cfg_file["data_cfgs"]["forecast_history"] = new_args.forecast_history
+    if new_args.forecast_length is not None:
+        cfg_file["data_cfgs"]["forecast_length"] = new_args.forecast_length
     if new_args.start_epoch > 1:
         cfg_file["training_cfgs"]["start_epoch"] = new_args.start_epoch
     if new_args.stat_dict_file is not None:
@@ -1074,10 +1068,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["early_stopping"] = new_args.early_stopping
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
-    if new_args.min_time_type is not None:
-        if new_args.min_time_type not in ["H", "D"]:
-            raise ValueError("min_time_type must be 'H' (HOURLY) or 'D' (DAILY)")
-        cfg_file["data_cfgs"]["min_time_type"] = new_args.min_time_type
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 

@@ -1,12 +1,13 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-09-30 1:20:18
-LastEditTime: 2023-01-11 14:50:00
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-05-27 16:26:06
+LastEditors: Wenyu Ouyang
 Description: spp lstm model
-FilePath: torchhydr\models\spplstm.py
+FilePath: \torchhydro\torchhydro\models\spplstm.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+
 import torch
 from torch import nn
 
@@ -65,7 +66,9 @@ class SppLayer(nn.Module):
 
 
 class SPP_LSTM_Model(nn.Module):
-    def __init__(self, seq_length, forecast_length, n_output, n_hidden_states, dropout):
+    def __init__(
+        self, forecast_history, forecast_length, n_output, n_hidden_states, dropout
+    ):
         super(SPP_LSTM_Model, self).__init__()
 
         self.conv1 = TimeDistributed(
@@ -155,7 +158,7 @@ class SPP_LSTM_Model(nn.Module):
 class SPP_LSTM_Model_2(nn.Module):
     def __init__(
         self,
-        seq_length,
+        forecast_history,
         forecast_length,
         p_n_output,
         p_n_hidden_states,
@@ -163,7 +166,7 @@ class SPP_LSTM_Model_2(nn.Module):
         p_in_channels,
         p_out_channels,
         len_c=None,
-        s_seq_length=None,
+        s_forecast_history=None,
         s_n_output=None,
         s_n_hidden_states=None,
         s_dropout=None,
@@ -175,7 +178,7 @@ class SPP_LSTM_Model_2(nn.Module):
         This model incorporates data from different sources: precipitation (p), soil (s), basin attributes (c), and Global Forecast System (g).
 
         Parameters:
-        - seq_length: The length of the input sequence for precipitation data.
+        - forecast_history: The length of the input sequence for precipitation data.
         - forecast_length: The length of the forecast period.
         - p_n_output: Output dimension for the precipitation (p) data path.
         - p_n_hidden_states: Number of hidden states in the LSTM for the precipitation path.
@@ -183,7 +186,7 @@ class SPP_LSTM_Model_2(nn.Module):
         - p_in_channels: Number of input channels for the convolutional layer in the precipitation path.
         - p_out_channels: Number of output channels for the convolutional layer in the precipitation path.
         - len_c: Optional, the number of basin attribute (c) features.
-        - s_seq_length, s_n_output, s_n_hidden_states, s_dropout, s_in_channels, s_out_channels: Similar parameters for the soil (s) data path.
+        - s_forecast_history, s_n_output, s_n_hidden_states, s_dropout, s_in_channels, s_out_channels: Similar parameters for the soil (s) data path.
 
         Methods:
         - forward(*x_lst): Processes the input data depending on its composition:
@@ -215,10 +218,10 @@ class SPP_LSTM_Model_2(nn.Module):
 
         self.spp_p = SppLayer([2, 1])
 
-        self.p_length = seq_length + forecast_length
+        self.p_length = forecast_history + forecast_length
         self.forecast_length = forecast_length
 
-        if s_seq_length is not None:
+        if s_forecast_history is not None:
             self.conv_s = nn.Conv2d(
                 in_channels=s_in_channels,
                 out_channels=s_out_channels,
@@ -241,7 +244,7 @@ class SPP_LSTM_Model_2(nn.Module):
 
             self.spp_s = SppLayer([2, 1])
 
-            self.s_length = s_seq_length
+            self.s_length = s_forecast_history
 
     def forward(self, *x_lst):
         # c and s must be None, g might be None

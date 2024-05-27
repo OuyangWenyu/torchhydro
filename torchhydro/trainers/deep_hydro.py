@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2024-05-04 11:10:46
+LastEditTime: 2024-05-27 09:40:00
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -430,10 +430,12 @@ class DeepHydro(DeepHydroInterface):
 
         if not evaluation_cfgs["long_seq_pred"]:
             target_len = len(data_cfgs["target_cols"])
-            prec_window = data_cfgs["prec_window"] // data_cfgs["interval"]
+            prec_window = data_cfgs["prec_window"] // data_cfgs["min_time_interval"]
             batch_size = test_dataloader.batch_size
             if evaluation_cfgs["rolling"]:
-                forecast_length = data_cfgs["forecast_length"] // data_cfgs["interval"]
+                forecast_length = (
+                    data_cfgs["forecast_length"] // data_cfgs["min_time_interval"]
+                )
                 pred = pred[:, prec_window:, :].reshape(
                     ngrid, batch_size, forecast_length, target_len
                 )
@@ -493,6 +495,7 @@ class DeepHydro(DeepHydroInterface):
             batch_size = data_cfgs["batch_size"]
             rho = data_cfgs["forecast_history"]
             warmup_length = data_cfgs["warmup_length"]
+            horizon = data_cfgs["forecast_length"]
             ngrid = train_dataset.ngrid
             nt = train_dataset.nt
             if data_cfgs["sampler"] == "HydroSampler":
@@ -502,7 +505,7 @@ class DeepHydro(DeepHydroInterface):
                     train_dataset,
                     batch_size=batch_size,
                     warmup_length=warmup_length,
-                    rho=rho,
+                    rho_horizon=rho + horizon,
                     ngrid=ngrid,
                     nt=nt,
                 )

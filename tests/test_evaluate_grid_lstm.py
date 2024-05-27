@@ -1,7 +1,7 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-12-29 14:20:18
-LastEditTime: 2024-04-24 19:40:03
+LastEditTime: 2024-05-27 10:17:54
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
 FilePath: \torchhydro\tests\test_evaluate_grid_lstm.py
@@ -38,7 +38,7 @@ def config_data():
         ctx=[2],
         model_name="SPPLSTM2",
         model_hyperparam={
-            "seq_length": 168,
+            "forecast_history": 168,
             "forecast_length": 24,
             "p_n_output": 1,
             "p_n_hidden_states": 60,
@@ -46,7 +46,7 @@ def config_data():
             "p_in_channels": 1,
             "p_out_channels": 8,
             "len_c": 15,
-            "s_seq_length": None,
+            "s_forecast_history": None,
             "s_n_output": 1,
             "s_n_hidden_states": 60,
             "s_dropout": 0.25,

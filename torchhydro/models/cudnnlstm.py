@@ -1,7 +1,7 @@
 """
 Author: MHPI group, Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-09 14:44:12
+LastEditTime: 2024-05-27 16:01:38
 LastEditors: Wenyu Ouyang
 Description: LSTM with dropout implemented by Kuai Fang and more LSTMs using it
 FilePath: \torchhydro\torchhydro\models\cudnnlstm.py
@@ -465,12 +465,12 @@ class CNN1dLCmodel(nn.Module):
         # z = z.t()
         n_grid, nobs, _ = z.shape
         z = z.reshape(n_grid * nobs, 1)
-        rho, bs, n_var = x.shape
+        n_t, bs, n_var = x.shape
         # add a channel dimension
         z = torch.unsqueeze(z, dim=1)
         z0 = self.features(z)
         # z0 = (n_grid) * n_kernel * sizeafterconv
-        z0 = z0.view(n_grid, self.N_cnn_out).repeat(rho, 1, 1)
+        z0 = z0.view(n_grid, self.N_cnn_out).repeat(n_t, 1, 1)
         if self.cat_first:
             x = torch.cat((x, z0), dim=2)
             x0 = F.relu(self.linearIn(x))

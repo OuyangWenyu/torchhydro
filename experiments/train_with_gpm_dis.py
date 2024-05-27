@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-05-20 10:40:46
-LastEditTime: 2024-05-20 10:40:46
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-05-27 15:49:30
+LastEditors: Wenyu Ouyang
 Description: 
-FilePath: /torchhydro/tests/train_with_gpm.py
+FilePath: \torchhydro\experiments\train_with_gpm_dis.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -50,15 +50,17 @@ def create_config():
             "input_size": 17,
             "output_size": 2,
             "hidden_size": 256,
-            "forecast_length": 9,
-            "prec_window": 3,
-            "interval": 3,
+            "forecast_length": 3,
+            "prec_window": 1,
         },
         model_loader={"load_way": "best"},
         # gage_id=gage_id,
         gage_id=["21400800", "21401550"],
         batch_size=1024,
-        rho=720,
+        forecast_history=240,
+        forecast_length=3,
+        min_time_unit="H",
+        min_time_interval=3,
         var_t=[
             "gpm_tp",
             "sm_surface",
@@ -81,7 +83,7 @@ def create_config():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow", "sm_surface"],
-        dataset="GPMDataset",
+        dataset="Seq2SeqDataset",
         sampler="DistSampler",
         scaler="DapengScaler",
         train_epoch=2,

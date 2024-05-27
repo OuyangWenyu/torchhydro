@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-05-21 11:41:28
-LastEditTime: 2024-05-21 11:58:27
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-05-27 09:45:01
+LastEditors: Wenyu Ouyang
 Description: 
-FilePath: /torchhydro/tests/test_evaluate_seq2seq.py
+FilePath: \torchhydro\tests\test_evaluate_seq2seq.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -48,15 +48,17 @@ def config_data():
             "input_size": 20,
             "output_size": 2,
             "hidden_size": 256,
-            "forecast_length": 24,
-            "prec_window": 3,
-            "interval": 3,
+            "forecast_length": 8,
+            "prec_window": 1,
         },
         gage_id=gage_id,
         # gage_id=["21401550"],
         model_loader={"load_way": "best"},
         batch_size=1024,
-        rho=720,
+        forecast_history=240,
+        forecast_length=8,
+        min_time_unit="H",
+        min_time_interval=3,
         var_t=[
             # "gpm_tp",
             # "sm_surface",
@@ -85,7 +87,7 @@ def config_data():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow", "sm_surface"],
-        dataset="ERA5LandDataset",
+        dataset="Seq2SeqDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
         loss_func="MultiOutLoss",

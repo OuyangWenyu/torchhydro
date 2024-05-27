@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2023-12-18 09:07:03
+LastEditTime: 2024-05-27 15:53:43
 LastEditors: Wenyu Ouyang
 Description: Test some functions for dataset
-FilePath: \torchhydro\tests\test_data.py
+FilePath: \torchhydro\tests\test_sampler.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -37,7 +37,7 @@ def sampler(dataset):
         dataset,
         batch_size=10,
         warmup_length=5,
-        rho=20,
+        rho_horizon=20,
         ngrid=10,
         nt=365,
     )
