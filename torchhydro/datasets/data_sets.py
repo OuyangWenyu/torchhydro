@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-05-26 22:00:38
+LastEditTime: 2024-05-27 08:36:51
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -146,7 +146,7 @@ class BaseDataset(Dataset):
         return self.t_s_dict["t_final_range"]
 
     def __len__(self):
-        return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])
+        return self.num_samples if self.train_mode else self.ngrid
 
     def __getitem__(self, item: int):
         if not self.train_mode:
@@ -188,13 +188,13 @@ class BaseDataset(Dataset):
         """To make __getitem__ more efficient,
         we transform x, y, c to numpy array with shape (nsample, nt, nvar)
         """
-        self.x = self.x.to_numpy()
-        self.y = self.y.to_numpy()
+        self.x = self.x.transpose("basin", "time", "variable").to_numpy()
+        self.y = self.y.transpose("basin", "time", "variable").to_numpy()
         if self.c is not None and self.c.shape[-1] > 0:
-            self.c = self.c.to_numpy()
-            self.c_origin = self.c_origin.to_numpy()
-        self.x_origin = self.x_origin.to_numpy()
-        self.y_origin = self.y_origin.to_numpy()
+            self.c = self.c.transpose("basin", "variable").to_numpy()
+            self.c_origin = self.c_origin.transpose("basin", "variable").to_numpy()
+        self.x_origin = self.x_origin.transpose("basin", "time", "variable").to_numpy()
+        self.y_origin = self.y_origin.transpose("basin", "time", "variable").to_numpy()
 
     def _normalize(self):
         scaler_hub = ScalerHub(

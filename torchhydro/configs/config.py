@@ -1051,6 +1051,8 @@ def update_cfg(cfg_file, new_args):
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
     if new_args.min_time_type is not None:
+        if new_args.min_time_type not in ["H", "D"]:
+            raise ValueError("min_time_type must be 'H' (HOURLY) or 'D' (DAILY)")
         cfg_file["data_cfgs"]["min_time_type"] = new_args.min_time_type
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 

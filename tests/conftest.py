@@ -60,6 +60,7 @@ def args():
         ],
         batch_size=8,
         rho=20,
+        min_time_type="D",
         var_t=["dayl", "prcp", "srad", "tmax", "tmin", "vp"],
         # var_c=["None"],
         var_out=["streamflow"],
