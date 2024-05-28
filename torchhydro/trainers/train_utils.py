@@ -86,13 +86,10 @@ def denormalize4eval(
     if target_scaler.pbm_norm:
         units = {**units, **target_data.attrs["units"]}
     if not long_seq_pred:
-        target_data = validation_data_loader.dataset.y
-        forecast_length = validation_data_loader.dataset.forecast_length
+        horizon = target_scaler.data_cfgs["forecast_length"]
+        rho = target_scaler.data_cfgs["forecast_history"]
         selected_time_points = target_data.coords["time"][
-            length : -(forecast_length // target_scaler.data_cfgs["min_time_interval"])
-            + length
-            - (target_scaler.data_cfgs["prec_window"])
-            // target_scaler.data_cfgs["min_time_interval"]
+            length + rho : length - horizon
         ]
     else:
         warmup_length = validation_data_loader.dataset.warmup_length
@@ -227,12 +224,13 @@ def evaluate_validation(
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)
-        # output, labels.dim = (time, forecast_length / 3+1, basin_num), not batch_size
-        # len(time) = basin_num * time on single basin
+        horizon = target_scaler.data_cfgs["forecast_length"]
+        prec = target_scaler.data_cfgs["prec_window"]
         for i, col in enumerate(target_col):
             delayed_tasks = []
-            for length in range(validation_data_loader.dataset.forecast_length // 3):
+            for length in range(horizon):
                 delayed_task = len_denormalize_delayed(
+                    prec,
                     length,
                     output,
                     labels,
@@ -275,6 +273,7 @@ def evaluate_validation(
 
 @dask.delayed
 def len_denormalize_delayed(
+    prec,
     length,
     output,
     labels,
@@ -286,8 +285,8 @@ def len_denormalize_delayed(
     long_seq_pred,
 ):
     # batch_size != output.shape[0]
-    o = output[:, length, :].reshape(basin_num, batch_size, len(target_col))
-    l = labels[:, length, :].reshape(basin_num, batch_size, len(target_col))
+    o = output[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
+    l = labels[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
     preds_xr, obss_xr = denormalize4eval(
         validation_data_loader, o, l, length, long_seq_pred
     )

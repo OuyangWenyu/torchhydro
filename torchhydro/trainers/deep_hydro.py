@@ -50,6 +50,7 @@ from torchhydro.trainers.train_utils import (
     model_infer,
     torch_single_train,
     cellstates_when_inference,
+    calculate_and_record_metrics,
 )
 
 
@@ -331,17 +332,19 @@ class DeepHydro(DeepHydroInterface):
             device=self.device,
             which_first_tensor=training_cfgs["which_first_tensor"],
         )
-        target_col = self.cfgs["data_cfgs"]["target_cols"]
-        valid_metrics = evaluate_validation(
-            validation_data_loader,
-            valid_preds_np,
-            valid_obss_np,
-            self.cfgs["evaluation_cfgs"],
-            target_col,
-        )
         valid_logs["valid_loss"] = valid_loss
-        valid_logs["valid_metrics"] = valid_metrics
-        return valid_loss, valid_metrics
+        if self.cfgs["evaluation_cfgs"]["calc_metrics"]:
+            target_col = self.cfgs["data_cfgs"]["target_cols"]
+            valid_metrics = evaluate_validation(
+                validation_data_loader,
+                valid_preds_np,
+                valid_obss_np,
+                self.cfgs["evaluation_cfgs"],
+                target_col,
+            )
+            valid_logs["valid_metrics"] = valid_metrics
+            return valid_loss, valid_metrics
+        return valid_loss, None
 
     def _get_trained_model(self):
         model_loader = self.cfgs["evaluation_cfgs"]["model_loader"]
@@ -379,8 +382,8 @@ class DeepHydro(DeepHydroInterface):
         evaluation_cfgs = self.cfgs["evaluation_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
 
+        ngrid = self.testdataset.ngrid
         if data_cfgs["sampler"] == "HydroSampler":
-            ngrid = self.testdataset.y.basin.size
             test_num_samples = self.testdataset.num_samples
             test_dataloader = DataLoader(
                 self.testdataset,
@@ -390,7 +393,6 @@ class DeepHydro(DeepHydroInterface):
                 timeout=0,
             )
         else:
-            ngrid = self.testdataset.ngrid
             test_dataloader = DataLoader(
                 self.testdataset,
                 batch_size=training_cfgs["batch_size"],
@@ -430,12 +432,10 @@ class DeepHydro(DeepHydroInterface):
 
         if not evaluation_cfgs["long_seq_pred"]:
             target_len = len(data_cfgs["target_cols"])
-            prec_window = data_cfgs["prec_window"] // data_cfgs["min_time_interval"]
+            prec_window = data_cfgs["prec_window"]
             batch_size = test_dataloader.batch_size
             if evaluation_cfgs["rolling"]:
-                forecast_length = (
-                    data_cfgs["forecast_length"] // data_cfgs["min_time_interval"]
-                )
+                forecast_length = data_cfgs["forecast_length"]
                 pred = pred[:, prec_window:, :].reshape(
                     ngrid, batch_size, forecast_length, target_len
                 )
@@ -454,7 +454,26 @@ class DeepHydro(DeepHydroInterface):
             else:
                 pred = pred[:, prec_window, :].reshape(ngrid, batch_size, target_len)
                 obs = obs[:, prec_window, :].reshape(ngrid, batch_size, target_len)
-        pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
+            pred_xr, obs_xr = denormalize4eval(
+                test_dataloader, pred, obs, long_seq_pred=False
+            )
+            fill_nan = evaluation_cfgs["fill_nan"]
+            eval_log = {}
+            for i, col in enumerate(data_cfgs["target_cols"]):
+                obs = obs_xr[col].to_numpy()
+                pred = pred_xr[col].to_numpy()
+                eval_log = calculate_and_record_metrics(
+                    obs,
+                    pred,
+                    evaluation_cfgs["metrics"],
+                    col,
+                    fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
+                    eval_log,
+                )
+            test_log = f" Best Metric {eval_log}"
+            print(test_log)
+        else:
+            pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
         return pred_xr, obs_xr
 
     def _get_optimizer(self, training_cfgs):

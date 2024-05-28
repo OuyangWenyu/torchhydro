@@ -36,7 +36,7 @@ def main():
 
 def create_config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_gpm", "ex20")
+    project_name = os.path.join("train_with_gpm", "ex16")
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -60,12 +60,12 @@ def create_config():
             "prec_window": 1,
         },
         model_loader={"load_way": "best"},
-        gage_id=gage_id,
-        # gage_id=["21400800", "21401550", "21401300", "21401900"],
-        batch_size=1024,
+        # gage_id=gage_id,
+        gage_id=["21400800", "21401550", "21401300", "21401900"],
+        batch_size=512,
         forecast_history=240,
         forecast_length=56,
-        min_time_unit="H",
+        min_time_unit="h",
         min_time_interval=3,
         var_t=[
             "gpm_tp",
@@ -92,7 +92,7 @@ def create_config():
         dataset="Seq2SeqDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
-        train_epoch=100,
+        train_epoch=5,
         save_epoch=1,
         train_period=[("2016-06-01-01", "2023-12-01-01")],
         test_period=[("2015-06-01-01", "2016-06-01-01")],
@@ -110,8 +110,9 @@ def create_config():
             "lr_factor": 0.96,
         },
         which_first_tensor="batch",
-        rolling=False,
+        rolling=True,
         long_seq_pred=False,
+        calc_metrics=False,
         early_stopping=True,
         patience=8,
         model_type="MTL",

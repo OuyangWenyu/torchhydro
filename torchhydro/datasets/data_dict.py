@@ -13,9 +13,7 @@ from torchhydro.datasets.data_sets import (
     BasinSingleFlowDataset,
     DplDataset,
     FlexibleDataset,
-    HydroGridDataset,
     HydroMeanDataset,
-    HydroMultiSourceDataset,
     Seq2SeqDataset,
 )
 
@@ -24,9 +22,7 @@ datasets_dict = {
     "StreamflowDataset": BaseDataset,
     "SingleflowDataset": BasinSingleFlowDataset,
     "DplDataset": DplDataset,
-    "GridDataset": HydroGridDataset,
     "MeanDataset": HydroMeanDataset,
     "FlexDataset": FlexibleDataset,
-    "MultiSourceDataset": HydroMultiSourceDataset,
     "Seq2SeqDataset": Seq2SeqDataset,
 }

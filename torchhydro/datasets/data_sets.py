@@ -22,10 +22,7 @@ from tqdm import tqdm
 from hydrodatasource.utils.utils import streamflow_unit_conv
 
 from torchhydro.configs.config import DATE_FORMATS
-from torchhydro.datasets.data_scalers import (
-    ScalerHub,
-    MutiBasinScaler,
-)
+from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
 
 from torchhydro.datasets.data_utils import (
@@ -395,7 +392,10 @@ class BaseDataset(Dataset):
         max_time_length = self.nt
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
             if self.is_tra_val_te != "train":
-                lookup.append((basin, warmup_length))
+                lookup.extend(
+                    (basin, f)
+                    for f in range(warmup_length, max_time_length - rho - horizon + 1)
+                )
             else:
                 # some dataloader load data with warmup period, so leave some periods for it
                 # [warmup_len] -> time_start -> [rho] -> [horizon]
@@ -426,6 +426,7 @@ class BasinSingleFlowDataset(BaseDataset):
 
 class DplDataset(BaseDataset):
     """pytorch dataset for Differential parameter learning"""
+
     # TODO: USE NUMPY ARRAY INSTEAD OF DATAARRAY FOR GET_ITEM
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         """
@@ -620,7 +621,6 @@ class FlexibleDataset(BaseDataset):
 
 class HydroMeanDataset(BaseDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        self.forecast_length = data_cfgs["forecast_length"]
         super(HydroMeanDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     @property
@@ -655,536 +655,39 @@ class HydroMeanDataset(BaseDataset):
             c_orgin = None
         self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin
 
-    def __getitem__(self, item: int):
-        basin, time = self.lookup_table[item]
-        forecast_history = self.rho
-        horizon = self.forecast_length
-        warmup_length = self.warmup_length
-        gpm_tp = (
-            self.x.sel(
-                variable="gpm_tp",
-                basin=basin,
-                time=slice(
-                    time - np.timedelta64(warmup_length + forecast_history - 1, "h"),
-                    time,
-                ),
-            )
-            .to_numpy()
-            .T
-        ).reshape(-1, 1)
-        gfs_tp = (
-            self.x.sel(
-                variable="gfs_tp",
-                basin=basin,
-                time=slice(
-                    time + np.timedelta64(1, "h"),
-                    time + np.timedelta64(horizon, "h"),
-                ),
-            )
-            .to_numpy()
-            .T
-        ).reshape(-1, 1)
-        x = np.concatenate((gpm_tp, gfs_tp), axis=0)
-        if self.c is not None and self.c.shape[-1] > 0:
-            c = self.c.sel(basin=basin).values
-            c = np.tile(c, (warmup_length + forecast_history + horizon, 1))
-            x = np.concatenate((x, c), axis=1)
-        y = (
-            self.y.sel(
-                basin=basin,
-                time=slice(
-                    time + np.timedelta64(1, "h"),
-                    time + np.timedelta64(horizon, "h"),
-                ),
-            )
-            .to_numpy()
-            .T
-        )
-        return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-
     def __len__(self):
         return self.num_samples
 
-    def _prepare_target(self):
-        gage_id_lst = self.t_s_dict["sites_id"]
-        # t_range加一小时或三小时
-        t_range = [
-            (
-                datetime.fromisoformat(date_tuple[0]) + timedelta(hours=3),
-                datetime.fromisoformat(date_tuple[1]) + timedelta(hours=3),
-            )
-            for date_tuple in self.t_s_dict["t_final_range"]
-        ]
-        var_lst = self.data_cfgs["target_cols"]
-        path = self.data_cfgs["source_cfgs"]["source_path"]["target"]
+    def _prepare_forcing(self):
+        return self._read_from_minio(self.data_cfgs["relevant_cols"])
 
-        if var_lst is None or not var_lst:
-            return None
+    def _prepare_target(self):
+        return self._read_from_minio(self.data_cfgs["target_cols"])
+
+    def _read_from_minio(self, var_lst):
+        gage_id_lst = self.t_s_dict["sites_id"]
+        t_range = self.t_s_dict["t_final_range"]
+        interval = self.data_cfgs["min_time_interval"]
+        path = self.data_cfgs["source_cfgs"]["source_path"]["forcing"]
 
         data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
-
         all_vars = data.data_vars
         if any(var not in data.variables for var in var_lst):
             raise ValueError(f"var_lst must all be in {all_vars}")
         subset_list = []
         for start_date, end_date in t_range:
+            subset = data.sel(time=slice(start_date, end_date))
             adjusted_end_date = (
-                end_date + timedelta(hours=self.forecast_length)
-            ).strftime("%Y-%m-%d")
+                datetime.strptime(end_date, "%Y-%m-%d-%H") + timedelta(hours=interval)
+            ).strftime("%Y-%m-%d-%H")
             subset = data.sel(time=slice(start_date, adjusted_end_date))
             subset_list.append(subset)
         return xr.concat(subset_list, dim="time")
 
-    def _prepare_forcing(self):
-        gage_id_lst = self.t_s_dict["sites_id"]
-        t_range = self.t_s_dict["t_final_range"]
-        var_lst = self.data_cfgs["relevant_cols"]
-        path = self.data_cfgs["source_cfgs"]["source_path"]["forcing"]
 
-        if var_lst is None:
-            return None
-
-        data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
-
-        var_subset_list = []
-        for start_date, end_date in t_range:
-            adjusted_start_date = (
-                datetime.strptime(start_date, "%Y-%m-%d") - timedelta(hours=self.rho)
-            ).strftime("%Y-%m-%d")
-            adjusted_end_date = (
-                datetime.strptime(end_date, "%Y-%m-%d")
-                + timedelta(hours=self.forecast_length)
-            ).strftime("%Y-%m-%d")
-            subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
-            var_subset_list.append(subset)
-
-        return xr.concat(var_subset_list, dim="time")
-
-
-class HydroGridDataset(HydroMeanDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(HydroGridDataset, self).__init__(data_cfgs, is_tra_val_te)
-
-    def _load_data(self):
-        self.data_source = HydroBasins(self.data_cfgs["data_path"])
-        self.forecast_length = self.data_cfgs["forecast_length"]
-        self._pre_load_data()
-
-        data_target_ds = self._prepare_target()
-        if data_target_ds is not None:
-            y_origin = self._trans2da_and_setunits(data_target_ds)
-        else:
-            y_origin = None
-
-        data_gpm = self._prepare_forcing(0)
-
-        if self.data_cfgs["relevant_cols"][1] != ["None"]:
-            data_gfs = self._prepare_forcing(1)
-        else:
-            data_gfs = None
-
-        if self.data_cfgs["relevant_cols"][2] != ["None"]:
-            data_smap = self._prepare_forcing(2)
-        else:
-            data_smap = None
-
-        if self.data_cfgs["constant_cols"]:
-            data_attr_ds = self.data_source.read_BA_xrdataset(
-                self.t_s_dict["sites_id"],
-                self.data_cfgs["constant_cols"],
-                self.data_cfgs["data_path"]["attributes"],
-            )
-            data_attr = self._trans2da_and_setunits(data_attr_ds)
-        else:
-            data_attr = None
-
-        scaler_hub = MutiBasinScaler(
-            y_origin,
-            data_gpm,
-            data_attr,
-            data_gfs,
-            data_smap,
-            self.data_cfgs,
-            self.is_tra_val_te,
-            self.data_source,
-        )
-
-        self.x, self.y, self.c, self.g, self.s = self.kill_nan(
-            scaler_hub.x, scaler_hub.y, scaler_hub.c, scaler_hub.g, scaler_hub.s
-        )
-
-        self.target_scaler = scaler_hub.target_scaler
-
-        self._create_lookup_table()
-
-    def kill_nan(self, x, y, c, g, s):
-        data_cfgs = self.data_cfgs
-        y_rm_nan = data_cfgs["target_rm_nan"]
-        x_rm_nan = data_cfgs["relevant_rm_nan"]
-        c_rm_nan = data_cfgs["constant_rm_nan"]
-
-        if x_rm_nan:
-            for xx in x.values():
-                for i in range(xx.shape[0]):
-                    xx[i] = xx[i].interpolate_na(
-                        dim="time_now", fill_value="extrapolate"
-                    )
-                warn_if_nan(xx)
-
-        if y_rm_nan:
-            _fill_gaps_da(y, fill_nan="interpolate")
-            warn_if_nan(y)
-
-        if c_rm_nan and c is not None:
-            _fill_gaps_da(c, fill_nan="mean")
-            warn_if_nan(c)
-
-        if x_rm_nan and g is not None:
-            for gg in g.values():
-                for i in range(gg.shape[0]):
-                    gg[i] = gg[i].interpolate_na(dim="time", fill_value="extrapolate")
-                warn_if_nan(gg)
-        if x_rm_nan and s is not None:
-            for ss in s.values():
-                for i in range(ss.shape[0]):
-                    ss[i] = ss[i].interpolate_na(dim="time", fill_value="extrapolate")
-                warn_if_nan(ss)
-
-        return x, y, c, g, s
-
-    def __len__(self):
-        return self.num_samples
-
-    def __getitem__(self, item: int):
-        basin, time = self.lookup_table[item]
-        forecast_history = self.rho
-        horizon = self.forecast_length
-        warmup_length = self.warmup_length
-        gpm_tp = (
-            self.x[basin]
-            .sel(
-                time=slice(
-                    time - np.timedelta64(warmup_length + forecast_history - 1, "h"),
-                    time,
-                )
-            )
-            .values
-        )
-        x = np.transpose(gpm_tp, (1, 0, 2, 3))
-
-        y = (
-            self.y.sel(basin=basin)
-            .sel(
-                time=slice(
-                    time + np.timedelta64(1, "h"),
-                    time + np.timedelta64(horizon, "h"),
-                )
-            )
-            .values
-        ).T
-
-        if self.c is not None and self.g is None and self.s is None:
-            c = self.get_c(basin, x.shape[0])
-            return (
-                [torch.from_numpy(x).float(), torch.from_numpy(c).float()],
-                torch.from_numpy(y).float(),
-            )
-
-        elif self.g is not None and self.c is None and self.s is None:
-            g = self.get_g(basin, time)
-            if x.shape[2] != g.shape[2]:
-                x = np.transpose(x, (0, 1, 3, 2))
-            x_g = np.concatenate((x, g), axis=1)
-            return (torch.from_numpy(x_g).float(), torch.from_numpy(y).float())
-
-        elif self.s is not None and self.c is None and self.g is None:
-            s = self.get_s(basin, time)
-            return (
-                [torch.from_numpy(x).float(), torch.from_numpy(s).float()],
-                torch.from_numpy(y).float(),
-            )
-
-        elif self.c is not None and self.g is not None and self.s is None:
-            c = self.get_c(basin, x.shape[0])
-            g = self.get_g(basin, time)
-            if x.shape[2] != g.shape[2]:
-                x = np.transpose(x, (0, 1, 3, 2))
-            x_g = np.concatenate((x, g), axis=1)
-            return (
-                [torch.from_numpy(x_g).float(), torch.from_numpy(c).float()],
-                torch.from_numpy(y).float(),
-            )
-
-        elif self.c is not None and self.s is not None and self.g is None:
-            c = self.get_c(basin, x.shape[0])
-            s = self.get_s(basin, time)
-            return (
-                [
-                    torch.from_numpy(x).float(),
-                    torch.from_numpy(c).float(),
-                    torch.from_numpy(s).float(),
-                ],
-                torch.from_numpy(y).float(),
-            )
-
-        elif self.s is not None and self.g is not None and self.c is None:
-            s = self.get_s(basin, time)
-            g = self.get_g(basin, time)
-            if x.shape[2] != g.shape[2]:
-                x = np.transpose(x, (0, 1, 3, 2))
-            x_g = np.concatenate((x, g), axis=1)
-            return (
-                [torch.from_numpy(x_g).float(), torch.from_numpy(s).float()],
-                torch.from_numpy(y).float(),
-            )
-
-        elif self.s is not None and self.g is not None and self.c is not None:
-            c = self.get_c(basin, x.shape[0])
-            g = self.get_g(basin, time)
-            s = self.get_s(basin, time)
-            if x.shape[2] != g.shape[2]:
-                x = np.transpose(x, (0, 1, 3, 2))
-            x_g = np.concatenate((x, g), axis=1)
-            return (
-                [
-                    torch.from_numpy(x_g).float(),
-                    torch.from_numpy(c).float(),
-                    torch.from_numpy(s).float(),
-                ],
-                torch.from_numpy(y).float(),
-            )
-        return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-
-    def get_c(self, basin, shape):
-        c = self.c.sel(basin=basin).values
-        c = np.tile(c, (shape, 1))
-        return c
-
-    def get_g(self, basin, time):
-        g = (
-            self.g[basin]
-            .sel(
-                time=slice(
-                    time - np.timedelta64(self.warmup_length + self.rho - 1, "h"),
-                    time + np.timedelta64(self.forecast_length, "h"),
-                )
-            )
-            .values
-        )
-        return np.transpose(g, (1, 0, 2, 3))
-
-    def get_s(self, basin, time):
-        length = int(self.forecast_length * 2.5)
-        s = (
-            self.s[basin]
-            .sel(
-                time=slice(
-                    time - np.timedelta64(self.warmup_length + self.rho - 1, "h"),
-                    time - np.timedelta64(length, "h"),
-                )
-            )
-            .values
-        )
-        return np.transpose(s, (1, 0, 2, 3))
-
-    def _prepare_forcing(self, data_type):
-        gage_id_lst = self.t_s_dict["sites_id"]
-        t_range = self.t_s_dict["t_final_range"]
-        var_lst = self.data_cfgs["relevant_cols"][data_type]
-        if var_lst is None:
-            return None
-
-        if data_type == 0:
-            path = self.data_cfgs["data_path"]["gpm"]
-        elif data_type == 1:
-            path = self.data_cfgs["data_path"]["gfs"]
-        elif data_type == 2:
-            path = self.data_cfgs["data_path"]["smap"]
-
-        file_lst = self.data_source.read_file_lst(path)
-        data_dict = {}
-        for basin in gage_id_lst:
-            data = self.data_source.read_grid_data(file_lst, basin)
-            subset_list = []
-            for start_date, end_date in t_range:
-                adjusted_start_date = (
-                    datetime.strptime(start_date, "%Y-%m-%d")
-                    - timedelta(hours=self.rho)
-                ).strftime("%Y-%m-%d")
-                adjusted_end_date = (
-                    datetime.strptime(end_date, "%Y-%m-%d")
-                    + timedelta(hours=self.forecast_length)
-                ).strftime("%Y-%m-%d")
-                subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
-                subset_list.append(subset)
-            merged_dataset = xr.concat(subset_list, dim="time")
-            data_dict[basin] = merged_dataset.to_array(dim="variable")
-
-        return data_dict
-
-
-class HydroMultiSourceDataset(HydroMeanDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(HydroMultiSourceDataset, self).__init__(data_cfgs, is_tra_val_te)
-
-    def get_x(self, variable, basin, time, forecast_history, offset1=0, offset2=0):
-        return (
-            self.x.sel(
-                variable=variable,
-                basin=basin,
-                time=slice(
-                    time
-                    - np.timedelta64(forecast_history - 1, "h")
-                    + np.timedelta64(offset1, "h"),
-                    (time if offset2 == 0 else time + np.timedelta64(offset2, "h")),
-                ),
-            )
-            .to_numpy()
-            .T.reshape(-1, len(variable))
-        )
-
-    def get_y(self, basin, time, forecast_length, prec_window):
-        return (
-            self.y.sel(
-                basin=basin,
-                time=slice(
-                    time - np.timedelta64(prec_window, "h"),
-                    time + np.timedelta64((forecast_length - 1), "1h"),
-                ),
-            )
-            .to_numpy()
-            .T
-        )
-
-    def __getitem__(self, item: int):
-        basin, time = self.lookup_table[item]
-        forecast_history = self.rho
-        sm_length = forecast_history - self.data_cfgs["cnn_size"]
-        x, y, s = None, None, None
-        var_lst = self.data_cfgs["relevant_cols"]
-        station_tp_present = "sta_tp" in var_lst
-
-        if station_tp_present:
-            delay = 6
-            gpm_tp = self.get_x("gpm_tp", basin, time, forecast_history, 0, -delay)
-            station_tp = self.get_x("sta_tp", basin, time, forecast_history)
-            expanded_gpm_tp = np.vstack([gpm_tp, station_tp[-delay:, :]])
-            x = np.hstack([expanded_gpm_tp, station_tp])
-            if "streamflow" in var_lst:
-                yy = self.get_x("streamflow", basin, time, forecast_history)
-                x = np.hstack([yy, x])
-        else:
-            x = self.get_x("gpm_tp", basin, time, forecast_history)
-        if self.c is not None and self.c.shape[-1] > 0:
-            c = self.c.sel(basin=basin).values
-            # TODO: WARNING: length of c has been divided by 3
-            c = np.tile(c, (int(forecast_history / 3), 1))
-            x = np.concatenate((x, c), axis=1)
-
-        mode = self.data_cfgs["model_mode"]
-        if mode == "dual":
-            s = self.get_x(
-                ["sm_surface", "sm_rootzone"],
-                basin,
-                time,
-                forecast_history,
-                sm_length,
-                0,
-            )
-        else:
-            all_features = [
-                self.get_x(
-                    ["sm_surface", "sm_rootzone"],
-                    basin,
-                    time,
-                    forecast_history,
-                    sm_length - offset,
-                    -offset,
-                )
-                for offset in range(forecast_history)
-            ]
-            s = np.array(
-                [
-                    feat.squeeze()
-                    for feat in all_features
-                    if feat.shape[0] == forecast_history - sm_length
-                ]
-            )
-        y = self.get_y(basin, time, self.forecast_length, self.data_cfgs["prec_window"])
-        return [
-            torch.from_numpy(x).float(),
-            torch.from_numpy(s).float(),
-            torch.from_numpy(y).float(),
-        ], torch.from_numpy(y).float()
-
-    def _prepare_forcing(self):
-        gage_id_lst = self.t_s_dict["sites_id"]
-        t_range = self.t_s_dict["t_final_range"]
-        var_lst = self.data_cfgs["relevant_cols"]
-        path = self.data_cfgs["source_cfgs"]["source_path"]["forcing"]
-
-        if var_lst is None:
-            return None
-
-        data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
-
-        var_subset_list = []
-        for start_date, end_date in t_range:
-            adjusted_start_date = (
-                datetime.strptime(start_date, "%Y-%m-%d-%H")
-                - timedelta(hours=self.rho * self.data_cfgs["min_time_interval"])
-            ).strftime("%Y-%m-%d-%H")
-            adjusted_end_date = (
-                datetime.strptime(end_date, "%Y-%m-%d-%H")
-                + timedelta(hours=self.data_cfgs["min_time_interval"])
-            ).strftime("%Y-%m-%d-%H")
-            subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
-            var_subset_list.append(subset)
-
-        return xr.concat(var_subset_list, dim="time")
-
-    def _prepare_target(self):
-        gage_id_lst = self.t_s_dict["sites_id"]
-        t_range = self.t_s_dict["t_final_range"]
-        var_lst = self.data_cfgs["target_cols"]
-        path = self.data_cfgs["source_cfgs"]["source_path"]["target"]
-
-        if var_lst is None or not var_lst:
-            return None
-
-        data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
-
-        all_vars = data.data_vars
-        if any(var not in data.variables for var in var_lst):
-            raise ValueError(f"var_lst must all be in {all_vars}")
-        subset_list = []
-
-        for start_date, end_date in t_range:
-            adjusted_start_date = (
-                datetime.strptime(start_date, "%Y-%m-%d-%H")
-                - timedelta(
-                    hours=(
-                        self.data_cfgs["prec_window"]
-                        * self.data_cfgs["min_time_interval"]
-                    )
-                )
-            ).strftime("%Y-%m-%d-%H")
-
-            adjusted_end_date = (
-                datetime.strptime(end_date, "%Y-%m-%d-%H")
-                + timedelta(
-                    hours=self.forecast_length * self.data_cfgs["min_time_interval"]
-                )
-            ).strftime("%Y-%m-%d-%H")
-            subset = data.sel(time=slice(adjusted_start_date, adjusted_end_date))
-            subset_list.append(subset)
-        return xr.concat(subset_list, dim="time")
-
-
-class Seq2SeqDataset(HydroMultiSourceDataset):
+class Seq2SeqDataset(HydroMeanDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         super(Seq2SeqDataset, self).__init__(data_cfgs, is_tra_val_te)
-        self.input_features = self.data_cfgs["relevant_cols"]
 
     def _read_xyc(self):
         data_target_ds = self._prepare_target()
@@ -1212,21 +715,28 @@ class Seq2SeqDataset(HydroMultiSourceDataset):
         self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin
 
     def __getitem__(self, item: int):
-        basin, time = self.lookup_table[item]
-        forecast_history = self.rho
-        x = self.get_x(self.input_features, basin, time, forecast_history)
+        basin, idx = self.lookup_table[item]
+        rho = self.rho
+        horizon = self.horizon
+        prec = self.data_cfgs["prec_window"]
 
-        if self.c is not None and self.c.shape[-1] > 0:
-            c = self.c.sel(basin=basin).values
-            c = np.tile(c, (forecast_history // self.data_cfgs["min_time_interval"], 1))
-            x = np.concatenate((x, c), axis=1)
+        p = self.x[basin, idx + 1 : idx + rho + horizon + 1, 0]
+        s = self.x[basin, idx : idx + rho, 1]
+        x = np.stack((p[:rho], s), axis=1)
 
-        prec_window = self.data_cfgs["prec_window"]
-        y = self.get_y(basin, time, self.forecast_length, prec_window)
+        c = self.c[basin, :]
+        c = np.tile(c, (rho, 1))
+        x = np.concatenate((x, c), axis=1)
+        p_h = p[rho:].reshape(-1, 1)
+        y = self.y[basin, idx + rho - prec + 1 : idx + rho + horizon + 1, :]
 
         if self.is_tra_val_te == "train":
             return [
                 torch.from_numpy(x).float(),
+                torch.from_numpy(p_h).float(),
                 torch.from_numpy(y).float(),
             ], torch.from_numpy(y).float()
-        return [torch.from_numpy(x).float()], torch.from_numpy(y).float()
+        return [
+            torch.from_numpy(x).float(),
+            torch.from_numpy(p_h).float(),
+        ], torch.from_numpy(y).float()

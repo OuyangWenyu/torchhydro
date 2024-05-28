@@ -284,6 +284,7 @@ def default_config_file():
             "explainer": None,
             "rolling": None,
             "long_seq_pred": True,
+            "calc_metrics": True,
         },
     }
 
@@ -348,6 +349,7 @@ def cmd(
     explainer=None,
     rolling=None,
     long_seq_pred=None,
+    calc_metrics=None,
     start_epoch=1,
     stat_dict_file=None,
     num_workers=None,
@@ -745,7 +747,13 @@ def cmd(
         default=long_seq_pred,
         type=bool,
     )
-
+    parser.add_argument(
+        "--calc_metrics",
+        dest="calc_metrics",
+        help="if False, calculate valid loss only",
+        default=calc_metrics,
+        type=bool,
+    )
     parser.add_argument(
         "--start_epoch",
         dest="start_epoch",
@@ -969,6 +977,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["target_as_input"] = True
     if new_args.long_seq_pred is not None:
         cfg_file["evaluation_cfgs"]["long_seq_pred"] = new_args.long_seq_pred
+    if new_args.calc_metrics is not None:
+        cfg_file["evaluation_cfgs"]["calc_metrics"] = new_args.calc_metrics
     if new_args.train_epoch is not None:
         cfg_file["training_cfgs"]["epochs"] = new_args.train_epoch
     if new_args.save_epoch is not None:
@@ -1020,8 +1030,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["batch_size"] = batch_size
         cfg_file["training_cfgs"]["batch_size"] = batch_size
     if new_args.min_time_unit is not None:
-        if new_args.min_time_unit not in ["H", "D"]:
-            raise ValueError("min_time_unit must be 'H' (HOURLY) or 'D' (DAILY)")
+        if new_args.min_time_unit not in ["h", "D"]:
+            raise ValueError("min_time_unit must be 'h' (HOURLY) or 'D' (DAILY)")
         cfg_file["data_cfgs"]["min_time_unit"] = new_args.min_time_unit
     if new_args.min_time_interval is not None:
         cfg_file["data_cfgs"]["min_time_interval"] = new_args.min_time_interval

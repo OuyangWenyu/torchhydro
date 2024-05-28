@@ -89,7 +89,7 @@ class Decoder(nn.Module):
     def __init__(self, output_dim, hidden_dim, num_layers=1, dropout=0.1):
         super(Decoder, self).__init__()
         self.hidden_dim = hidden_dim
-        self.pre_fc = nn.Linear(output_dim, hidden_dim)
+        self.pre_fc = nn.Linear(output_dim + 1, hidden_dim)
         self.pre_relu = nn.ReLU()
         self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=True)
         self.dropout = nn.Dropout(dropout)
@@ -112,12 +112,11 @@ class GeneralSeq2Seq(nn.Module):
         hidden_size,
         forecast_length,
         prec_window=0,
-        interval=3,
         teacher_forcing_ratio=0.5,
     ):
         super(GeneralSeq2Seq, self).__init__()
-        self.trg_len = forecast_length // interval
-        self.prec_window = prec_window // interval
+        self.trg_len = forecast_length
+        self.prec_window = prec_window
         self.teacher_forcing_ratio = teacher_forcing_ratio
         self.encoder = Encoder(
             input_dim=input_size, hidden_dim=hidden_size, output_dim=output_size
@@ -125,16 +124,18 @@ class GeneralSeq2Seq(nn.Module):
         self.decoder = Decoder(output_dim=output_size, hidden_dim=hidden_size)
 
     def forward(self, *src):
-        if len(src) != 1:
-            src1, trgs = src
+        if len(src) == 3:
+            src1, src2, trgs = src
         else:
-            src1 = src[0]
+            src1, src2 = src
             trgs = None
         encoder_outputs, hidden, cell = self.encoder(src1)
         outputs = []
         current_input = encoder_outputs[:, -1, :].unsqueeze(1)
 
         for t in range(self.trg_len):
+            p = src2[:, t, :].unsqueeze(1)
+            current_input = torch.cat((current_input, p), dim=2)
             output, hidden, cell = self.decoder(current_input, hidden, cell)
             outputs.append(output.squeeze(1))
             if trgs is None:

@@ -215,7 +215,7 @@ def s2s_args(basin4test):
         # historical number of min-time-intervals; 240 means 240 * 3H = 720H
         forecast_history=240,
         forecast_length=56,
-        min_time_unit="H",
+        min_time_unit="h",
         min_time_interval="3",
         var_t=[
             "gpm_tp",

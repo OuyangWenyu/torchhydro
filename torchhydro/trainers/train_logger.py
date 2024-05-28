@@ -94,26 +94,35 @@ class TrainLogger:
         logs = {}
         yield logs
         valid_loss = logs["valid_loss"]
-        valid_metrics = logs["valid_metrics"]
-        val_log = "Epoch {} Valid Loss {:.4f} Valid Metric {}".format(
-            epoch, valid_loss, valid_metrics
-        )
-        print(val_log)
-        self.tb.add_scalar("ValidLoss", valid_loss, epoch)
-        target_col = self.data_cfgs["target_cols"]
-        evaluation_metrics = self.evaluation_cfgs["metrics"]
-        for i in range(len(target_col)):
-            for evaluation_metric in evaluation_metrics:
-                self.tb.add_scalar(
-                    f"Valid{target_col[i]}{evaluation_metric}mean",
-                    np.mean(valid_metrics[f"{evaluation_metric} of {target_col[i]}"]),
-                    epoch,
-                )
-                self.tb.add_scalar(
-                    f"Valid{target_col[i]}{evaluation_metric}median",
-                    np.median(valid_metrics[f"{evaluation_metric} of {target_col[i]}"]),
-                    epoch,
-                )
+        if self.evaluation_cfgs["calc_metrics"]:
+            valid_metrics = logs["valid_metrics"]
+            val_log = "Epoch {} Valid Loss {:.4f} Valid Metric {}".format(
+                epoch, valid_loss, valid_metrics
+            )
+            print(val_log)
+            self.tb.add_scalar("ValidLoss", valid_loss, epoch)
+            target_col = self.data_cfgs["target_cols"]
+            evaluation_metrics = self.evaluation_cfgs["metrics"]
+            for i in range(len(target_col)):
+                for evaluation_metric in evaluation_metrics:
+                    self.tb.add_scalar(
+                        f"Valid{target_col[i]}{evaluation_metric}mean",
+                        np.mean(
+                            valid_metrics[f"{evaluation_metric} of {target_col[i]}"]
+                        ),
+                        epoch,
+                    )
+                    self.tb.add_scalar(
+                        f"Valid{target_col[i]}{evaluation_metric}median",
+                        np.median(
+                            valid_metrics[f"{evaluation_metric} of {target_col[i]}"]
+                        ),
+                        epoch,
+                    )
+        else:
+            val_log = "Epoch {} Valid Loss {:.4f} ".format(epoch, valid_loss)
+            print(val_log)
+            self.tb.add_scalar("ValidLoss", valid_loss, epoch)
 
     def save_model_and_params(self, model, epoch, params):
         final_epoch = params["training_cfgs"]["epochs"]
@@ -170,12 +179,12 @@ class TrainLogger:
         #     # self.model_cfgs["model_hyperparam"]["n_input_features"],
         #     self.model_cfgs["model_hyperparam"]["input_size"],
         # )
-        if self.data_cfgs["model_mode"] == 'single':
+        if self.data_cfgs["model_mode"] == "single":
             input4modelplot = [
                 torch.randn(
                     self.data_cfgs["batch_size"],
                     self.data_cfgs["forecast_history"],
-                    self.data_cfgs["input_features"] - 1
+                    self.data_cfgs["input_features"] - 1,
                 ),
                 torch.randn(
                     self.data_cfgs["batch_size"],
@@ -183,27 +192,23 @@ class TrainLogger:
                     self.data_cfgs["cnn_size"],
                 ),
                 torch.rand(
-                    self.data_cfgs["batch_size"], 
-                    1, 
-                    self.data_cfgs["output_features"]
-                )
+                    self.data_cfgs["batch_size"], 1, self.data_cfgs["output_features"]
+                ),
             ]
         else:
             input4modelplot = [
                 torch.randn(
                     self.data_cfgs["batch_size"],
                     self.data_cfgs["forecast_history"],
-                    self.data_cfgs["input_features"]
+                    self.data_cfgs["input_features"],
                 ),
                 torch.randn(
                     self.data_cfgs["batch_size"],
                     self.data_cfgs["forecast_history"],
-                    self.data_cfgs["input_size_encoder2"]
+                    self.data_cfgs["input_size_encoder2"],
                 ),
                 torch.rand(
-                    self.data_cfgs["batch_size"], 
-                    1, 
-                    self.data_cfgs["output_features"]
-                )
+                    self.data_cfgs["batch_size"], 1, self.data_cfgs["output_features"]
+                ),
             ]
         self.tb.add_graph(model, input4modelplot)

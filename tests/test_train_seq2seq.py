@@ -106,7 +106,7 @@ def config():
         batch_size=1024,
         forecast_history=224,
         forecast_length=56,
-        min_time_unit="H",
+        min_time_unit="h",
         min_time_interval=3,
         var_t=[
             "total_precipitation_hourly",
