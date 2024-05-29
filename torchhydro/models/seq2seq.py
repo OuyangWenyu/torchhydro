@@ -60,14 +60,7 @@ class DotProductAttention(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(
-        self,
-        input_dim,
-        hidden_dim,
-        output_dim,
-        num_layers=1,
-        dropout=0.3,
-    ):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers=1, dropout=0.3):
         super(Encoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.pre_fc = nn.Linear(input_dim, input_dim)
@@ -86,12 +79,12 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, output_dim, hidden_dim, num_layers=1, dropout=0.3):
+    def __init__(self, input_dim, output_dim, hidden_dim, num_layers=1, dropout=0.3):
         super(Decoder, self).__init__()
         self.hidden_dim = hidden_dim
-        self.pre_fc = nn.Linear(output_dim + 1, hidden_dim)
+        self.pre_fc = nn.Linear(input_dim, input_dim)
         self.pre_relu = nn.ReLU()
-        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=True)
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
         self.dropout = nn.Dropout(dropout)
         self.fc_out = nn.Linear(hidden_dim, output_dim)
 
@@ -121,7 +114,9 @@ class GeneralSeq2Seq(nn.Module):
         self.encoder = Encoder(
             input_dim=input_size, hidden_dim=hidden_size, output_dim=output_size
         )
-        self.decoder = Decoder(output_dim=output_size, hidden_dim=hidden_size)
+        self.decoder = Decoder(
+            input_dim=output_size + 1, hidden_dim=hidden_size, output_dim=output_size
+        )
 
     def forward(self, *src):
         if len(src) == 3:
