@@ -66,7 +66,7 @@ class Encoder(nn.Module):
         hidden_dim,
         output_dim,
         num_layers=1,
-        dropout=0.1,
+        dropout=0.3,
     ):
         super(Encoder, self).__init__()
         self.hidden_dim = hidden_dim
@@ -86,7 +86,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, output_dim, hidden_dim, num_layers=1, dropout=0.1):
+    def __init__(self, output_dim, hidden_dim, num_layers=1, dropout=0.3):
         super(Decoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.pre_fc = nn.Linear(output_dim + 1, hidden_dim)

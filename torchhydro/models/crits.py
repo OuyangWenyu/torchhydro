@@ -469,6 +469,8 @@ class MultiOutLoss(torch.nn.Module):
             else:
                 temp = self.item_weight[k] * self.loss_funcs(p, t)
             # sum of all k-th loss
+            if torch.isnan(temp).any():
+                continue
             loss = loss + temp
         return loss
 
