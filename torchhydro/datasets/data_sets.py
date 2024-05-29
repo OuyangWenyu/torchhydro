@@ -676,7 +676,6 @@ class HydroMeanDataset(BaseDataset):
             raise ValueError(f"var_lst must all be in {all_vars}")
         subset_list = []
         for start_date, end_date in t_range:
-            subset = data.sel(time=slice(start_date, end_date))
             adjusted_end_date = (
                 datetime.strptime(end_date, "%Y-%m-%d-%H") + timedelta(hours=interval)
             ).strftime("%Y-%m-%d-%H")
