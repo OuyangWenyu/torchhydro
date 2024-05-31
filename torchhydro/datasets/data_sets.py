@@ -724,18 +724,19 @@ class Seq2SeqDataset(HydroMeanDataset):
         x = np.stack((p[:rho], s), axis=1)
 
         c = self.c[basin, :]
-        c = np.tile(c, (rho, 1))
-        x = np.concatenate((x, c), axis=1)
-        p_h = p[rho:].reshape(-1, 1)
+        c = np.tile(c, (rho + horizon, 1))
+        x = np.concatenate((x, c[:rho]), axis=1)
+
+        x_h = np.concatenate((p[rho:].reshape(-1,1), c[rho:]), axis=1)
         y = self.y[basin, idx + rho - prec + 1 : idx + rho + horizon + 1, :]
 
         if self.is_tra_val_te == "train":
             return [
                 torch.from_numpy(x).float(),
-                torch.from_numpy(p_h).float(),
+                torch.from_numpy(x_h).float(),
                 torch.from_numpy(y).float(),
             ], torch.from_numpy(y).float()
         return [
             torch.from_numpy(x).float(),
-            torch.from_numpy(p_h).float(),
+            torch.from_numpy(x_h).float(),
         ], torch.from_numpy(y).float()
