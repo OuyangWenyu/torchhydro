@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-05-27 16:14:49
+LastEditTime: 2024-05-31 11:00:18
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -20,7 +20,7 @@ from hydroutils import hydro_file
 DAYMET_NAME = "daymet"
 SSM_SMAP_NAME = "ssm"
 ET_MODIS_NAME = "ET"
-Q_CAMELS_US_NAME = "usgsFlow"
+Q_CAMELS_US_NAME = "streamflow"
 Q_CAMELS_CC_NAME = "Q"
 PRCP_DAYMET_NAME = "prcp"
 PRCP_NLDAS_NAME = "total_precipitation"

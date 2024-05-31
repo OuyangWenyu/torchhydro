@@ -1,7 +1,7 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-12-29 14:20:18
-LastEditTime: 2024-05-27 10:17:54
+LastEditTime: 2024-05-31 11:00:01
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
 FilePath: \torchhydro\tests\test_evaluate_grid_lstm.py
@@ -106,8 +106,6 @@ def test_evaluate_spp_lstm(config_data):
     test_acc = model.model_evaluate()
     print("summary test_accuracy", test_acc[0])
     resulter.save_result(
-        config_data["data_cfgs"]["test_path"],
-        "0",
+        test_acc[0],
         test_acc[1],
-        test_acc[2],
     )

@@ -13,6 +13,7 @@ dependencies:
   - tensorboard
   - torchvision
   - shap
+  - kaggle
   - pytest
   - black
   - flake8

@@ -44,8 +44,7 @@ def test_evaluate_model(_config):
     random_seed = _config["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
     model = DeepHydro(_config)
-    eval_log, preds_xr, obss_xr = model.model_evaluate()
-    print(eval_log)
+    preds_xr, obss_xr = model.model_evaluate()
     plot_ts(
         [preds_xr["time"].values, obss_xr["time"].values],
         [
