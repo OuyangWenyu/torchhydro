@@ -3,10 +3,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2024-04-15 19:22:27
+LastEditTime: 2024-05-31 11:34:36
 LastEditors: Wenyu Ouyang
 Description: The setup script
-FilePath: /torchhydro/setup.py
+FilePath: \torchhydro\setup.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 import io
@@ -68,6 +68,6 @@ setup(
     test_suite="tests",
     tests_require=test_requirements,
     url="https://github.com/OuyangWenyu/torchhydro",
-    version="0.0.4",
+    version='0.0.4',
     zip_safe=False,
 )
