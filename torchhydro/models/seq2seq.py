@@ -147,7 +147,7 @@ class GeneralSeq2Seq(nn.Module):
             current_input = torch.cat((current_input, p), dim=2)
             output, hidden, cell = self.decoder(current_input, hidden, cell)
             outputs.append(output.squeeze(1))
-            if trgs is None:
+            if trgs is None or self.teacher_forcing_ratio <= 0:
                 current_input = output
             else:
                 sm_trg = trgs[:, (self.prec_window + t), 1].unsqueeze(1).unsqueeze(1)
@@ -206,3 +206,96 @@ class DataFusionModel(DataEnhancedModel):
             combined_input = torch.cat((processed_src1, src1[:, :, 2:]), dim=2)
 
         return super(DataFusionModel, self).forward(combined_input, src2, token)
+
+
+def gen_trg_mask(length, device):
+    mask = torch.tril(torch.ones(length, length, device=device)) == 1
+
+    mask = (
+        mask.float()
+        .masked_fill(mask == 0, float("-inf"))
+        .masked_fill(mask == 1, float(0.0))
+    )
+
+    return mask
+
+
+class Transformer(nn.Module):
+    def __init__(
+        self,
+        n_encoder_inputs,
+        n_decoder_inputs,
+        n_decoder_output,
+        channels=256,
+        num_embeddings=512,
+        nhead=8,
+        num_layers=8,
+        dropout=0.1,
+        prec_window=0,
+    ):
+        super().__init__()
+
+        self.input_pos_embedding = torch.nn.Embedding(num_embeddings, channels)
+        self.target_pos_embedding = torch.nn.Embedding(num_embeddings, channels)
+
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=channels,
+            nhead=nhead,
+            dropout=dropout,
+            dim_feedforward=4 * channels,
+        )
+        decoder_layer = nn.TransformerDecoderLayer(
+            d_model=channels,
+            nhead=nhead,
+            dropout=dropout,
+            dim_feedforward=4 * channels,
+        )
+
+        self.encoder = torch.nn.TransformerEncoder(encoder_layer, num_layers)
+        self.decoder = torch.nn.TransformerDecoder(decoder_layer, num_layers)
+
+        self.input_projection = nn.Linear(n_encoder_inputs, channels)
+        self.output_projection = nn.Linear(n_decoder_inputs, channels)
+
+        self.linear = nn.Linear(channels, n_decoder_output)
+
+        self.do = nn.Dropout(p=dropout)
+
+    def encode_src(self, src):
+        src_start = self.input_projection(src)
+
+        in_sequence_len, batch_size = src_start.size(0), src_start.size(1)
+        pos_encoder = (
+            torch.arange(0, in_sequence_len, device=src.device)
+            .unsqueeze(0)
+            .repeat(batch_size, 1)
+        )
+        pos_encoder = self.input_pos_embedding(pos_encoder).permute(1, 0, 2)
+
+        src = src_start + pos_encoder
+        src = self.encoder(src) + src_start
+        src = self.do(src)
+        return src
+
+    def decode_trg(self, trg, memory):
+        trg_start = self.output_projection(trg)
+
+        out_sequence_len, batch_size = trg_start.size(0), trg_start.size(1)
+        pos_decoder = (
+            torch.arange(0, out_sequence_len, device=trg.device)
+            .unsqueeze(0)
+            .repeat(batch_size, 1)
+        )
+        pos_decoder = self.target_pos_embedding(pos_decoder).permute(1, 0, 2)
+
+        trg = pos_decoder + trg_start
+        trg_mask = gen_trg_mask(out_sequence_len, trg.device)
+        out = self.decoder(tgt=trg, memory=memory, tgt_mask=trg_mask) + trg_start
+        out = self.do(out)
+        out = self.linear(out)
+        return out
+
+    def forward(self, *x):
+        src, trg = x
+        src = self.encode_src(src)
+        return self.decode_trg(trg=trg, memory=src)
