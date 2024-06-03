@@ -724,18 +724,44 @@ class Seq2SeqDataset(HydroMeanDataset):
         x = np.stack((p[:rho], s), axis=1)
 
         c = self.c[basin, :]
-        c = np.tile(c, (rho, 1))
-        x = np.concatenate((x, c), axis=1)
-        p_h = p[rho:].reshape(-1, 1)
+        c = np.tile(c, (rho + horizon, 1))
+        x = np.concatenate((x, c[:rho]), axis=1)
+
+        x_h = np.concatenate((p[rho:].reshape(-1,1), c[rho:]), axis=1)
         y = self.y[basin, idx + rho - prec + 1 : idx + rho + horizon + 1, :]
 
         if self.is_tra_val_te == "train":
             return [
                 torch.from_numpy(x).float(),
-                torch.from_numpy(p_h).float(),
+                torch.from_numpy(x_h).float(),
                 torch.from_numpy(y).float(),
             ], torch.from_numpy(y).float()
         return [
             torch.from_numpy(x).float(),
-            torch.from_numpy(p_h).float(),
+            torch.from_numpy(x_h).float(),
+        ], torch.from_numpy(y).float()
+
+class TransformerDataset(Seq2SeqDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(TransformerDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    def __getitem__(self, item: int):
+        basin, idx = self.lookup_table[item]
+        rho = self.rho
+        horizon = self.horizon
+
+        p = self.x[basin, idx + 1 : idx + rho + horizon + 1, 0]
+        s = self.x[basin, idx : idx + rho, 1]
+        x = np.stack((p[:rho], s), axis=1)
+
+        c = self.c[basin, :]
+        c = np.tile(c, (rho + horizon, 1))
+        x = np.concatenate((x, c[:rho]), axis=1)
+
+        x_h = np.concatenate((p[rho:].reshape(-1,1), c[rho:]), axis=1)
+        y = self.y[basin, idx + rho + 1 : idx + rho + horizon + 1, :]
+
+        return [
+            torch.from_numpy(x).float(),
+            torch.from_numpy(x_h).float(),
         ], torch.from_numpy(y).float()

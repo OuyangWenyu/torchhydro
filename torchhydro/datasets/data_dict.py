@@ -15,6 +15,7 @@ from torchhydro.datasets.data_sets import (
     FlexibleDataset,
     HydroMeanDataset,
     Seq2SeqDataset,
+    TransformerDataset,
 )
 
 
@@ -25,4 +26,5 @@ datasets_dict = {
     "MeanDataset": HydroMeanDataset,
     "FlexDataset": FlexibleDataset,
     "Seq2SeqDataset": Seq2SeqDataset,
+    "TransformerDataset":TransformerDataset,
 }

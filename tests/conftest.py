@@ -208,6 +208,7 @@ def s2s_args(basin4test):
             "forecast_length": 56,
             # 将前序径流一起作为输出，选择的时段数，该值需小于等于 forecast_history ，建议置为1
             "prec_window": 1,
+            "teacher_forcing_ratio": 0,
         },
         model_loader={"load_way": "best"},
         gage_id=basin4test,
@@ -262,6 +263,93 @@ def s2s_args(basin4test):
         which_first_tensor="batch",
         rolling=False,
         long_seq_pred=False,
+        calc_metrics=False,
+        early_stopping=True,
+        patience=8,
+        model_type="MTL",
+        fill_nan=["no", "no"],
+    )
+
+
+@pytest.fixture()
+def trans_args(basin4test):
+    project_name = os.path.join("test_trans", "gpmsmapexp1")
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source": "HydroMean",
+            "source_path": {
+                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
+                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
+                "attributes": "basins-origin/attributes.nc",
+            },
+        },
+        ctx=[0],
+        model_name="Transformer",
+        model_hyperparam={
+            "n_encoder_inputs": 17,
+            "n_decoder_inputs": 16,
+            "n_decoder_output": 2,
+            "channels": 256,
+            "num_embeddings": 512,
+            "nhead": 8,
+            "num_layers": 4,
+            "dropout": 0.1,
+            "prec_window": 0,
+        },
+        model_loader={"load_way": "best"},
+        gage_id=basin4test,
+        batch_size=128,
+        forecast_history=240,
+        forecast_length=56,
+        min_time_unit="h",
+        min_time_interval="3",
+        var_t=[
+            "gpm_tp",
+            "sm_surface",
+        ],
+        var_c=[
+            "area",  # 面积
+            "ele_mt_smn",  # 海拔(空间平均)
+            "slp_dg_sav",  # 地形坡度 (空间平均)
+            "sgr_dk_sav",  # 河流坡度 (平均)
+            "for_pc_sse",  # 森林覆盖率
+            "glc_cl_smj",  # 土地覆盖类型
+            "run_mm_syr",  # 陆面径流 (流域径流的空间平均值)
+            "inu_pc_slt",  # 淹没范围 (长期最大)
+            "cmi_ix_syr",  # 气候湿度指数
+            "aet_mm_syr",  # 实际蒸散发 (年平均)
+            "snw_pc_syr",  # 雪盖范围 (年平均)
+            "swc_pc_syr",  # 土壤水含量
+            "gwt_cm_sav",  # 地下水位深度
+            "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
+            "dor_pc_pva",  # 调节程度
+        ],
+        var_out=["streamflow", "sm_surface"],
+        dataset="TransformerDataset",
+        sampler="HydroSampler",
+        scaler="DapengScaler",
+        train_epoch=10,
+        save_epoch=1,
+        train_period=[("2016-06-01-01", "2016-12-31-01")],
+        test_period=[("2015-06-01-01", "2015-10-31-01")],
+        valid_period=[("2015-06-01-01", "2015-10-31-01")],
+        loss_func="MultiOutLoss",
+        loss_param={
+            "loss_funcs": "RMSESum",
+            "data_gap": [0, 0],
+            "device": [0],
+            "item_weight": [0.8, 0.2],
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.001,
+            "lr_factor": 0.96,
+        },
+        which_first_tensor="sequence",
+        rolling=False,
+        long_seq_pred=False,
+        calc_metrics=False,
         early_stopping=True,
         patience=8,
         model_type="MTL",

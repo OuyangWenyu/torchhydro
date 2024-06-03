@@ -23,13 +23,13 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 warnings.filterwarnings("ignore")
-show = pd.read_csv("data/basin_id(46+1).csv", dtype={"id": str})
+show = pd.read_csv("data/basin_id(498+41).csv", dtype={"id": str})
 gage_id = show["id"].values.tolist()
 
 
 def get_config_data():
-    project_name = os.path.join("test_evaluate_seq2seq", "ex27")
-    train_path = os.path.join(os.getcwd(), "results", "train_with_gpm", "ex1")
+    project_name = os.path.join("test_evaluate_seq2seq", "ex32")
+    train_path = os.path.join(os.getcwd(), "results", "train_with_gpm", "ex31")
     args = cmd(
         sub=project_name,
         source_cfgs={
@@ -46,14 +46,14 @@ def get_config_data():
             "input_size": 17,
             "output_size": 2,
             "hidden_size": 256,
-            "forecast_length": 56,
+            "forecast_length": 24,
             "prec_window": 1,
         },
         gage_id=gage_id,
         model_loader={"load_way": "best"},
         batch_size=1024,
         forecast_history=240,
-        forecast_length=56,
+        forecast_length=24,
         min_time_unit="h",
         min_time_interval=3,
         var_t=[
