@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:17:44
-LastEditTime: 2024-05-27 14:50:10
+LastEditTime: 2024-06-03 11:36:21
 LastEditors: Wenyu Ouyang
 Description: normalize the data
 FilePath: \torchhydro\torchhydro\datasets\data_scalers.py
@@ -487,4 +487,3 @@ class DapengScaler(object):
         y = self.get_data_obs()
         c = self.get_data_const()
         return x, y, c
-
