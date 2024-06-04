@@ -364,10 +364,10 @@ def trans_args(basin4test):
 def dpl_args():
     project_name = os.path.join("test_camels", "expdpl001")
     data_origin_dir = SETTING["local_data_path"]["datasets-origin"]
-    train_period = ["1985-10-01", "1995-10-01"]
+    train_period = ["1985-10-01", "1986-04-01"]
     # valid_period = ["1995-10-01", "2000-10-01"]
     valid_period = None
-    test_period = ["2000-10-01", "2010-10-01"]
+    test_period = ["2000-10-01", "2001-10-01"]
     return cmd(
         sub=project_name,
         source_cfgs={
@@ -375,13 +375,15 @@ def dpl_args():
             "source_path": os.path.join(data_origin_dir, "camels", "camels_us"),
         },
         ctx=[0],
-        model_name="DplLstmXaj",
+        # model_name="DplLstmXaj",
+        model_name="DplAttrXaj",
         model_hyperparam={
-            "n_input_features": 25,
+            # "n_input_features": 25,
+            "n_input_features": 17,
             "n_output_features": 15,
             "n_hidden_states": 256,
             "kernel_size": 15,
-            "warmup_length": 10,
+            "warmup_length": 30,
             "param_limit_func": "clamp",
         },
         loss_func="RMSESum",
@@ -416,9 +418,9 @@ def dpl_args():
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
-        batch_size=20,
+        batch_size=50,
         forecast_history=0,
-        forecast_length=30,
+        forecast_length=60,
         var_t=[
             "prcp",
             "PET",
@@ -431,13 +433,13 @@ def dpl_args():
         ],
         var_out=["streamflow"],
         target_as_input=0,
-        constant_only=0,
+        constant_only=1,
         train_epoch=2,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 2,
         },
-        warmup_length=10,
+        warmup_length=30,
         opt="Adadelta",
         which_first_tensor="sequence",
     )
