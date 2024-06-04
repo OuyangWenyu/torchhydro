@@ -31,6 +31,7 @@ from torchhydro.models.crits import (
     MAPELoss,
     MASELoss,
     MAELoss,
+    QuantileLoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj
 from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
@@ -67,6 +68,7 @@ pytorch_criterion_dict = {
     "MAPELoss": MAPELoss,
     "MASELoss": MASELoss,
     "MAELoss": MAELoss,
+    "QuantileLoss": QuantileLoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}

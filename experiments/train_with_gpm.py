@@ -51,7 +51,7 @@ def main():
 
 def create_config_Seq2Seq():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_gpm", "ex40")
+    project_name = os.path.join("train_with_gpm", "ex43")
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -68,17 +68,18 @@ def create_config_Seq2Seq():
         ctx=[2],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 17,
+            "en_input_size": 17,
+            "de_input_size": 18,
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 56,
             "prec_window": 1,
-            "teacher_forcing_ratio": 0,
+            "teacher_forcing_ratio": 0.5,
         },
         model_loader={"load_way": "best"},
         gage_id=gage_id,
         # gage_id=["21400800", "21401550", "21401300", "21401900"],
-        batch_size=512,
+        batch_size=256,
         forecast_history=240,
         forecast_length=56,
         min_time_unit="h",
@@ -122,18 +123,18 @@ def create_config_Seq2Seq():
         },
         opt="Adam",
         lr_scheduler={
-            "lr": 0.001,
-            "lr_factor": 0.96,
+            "lr": 0.0001,
+            "lr_factor": 0.9,
         },
         which_first_tensor="batch",
         rolling=False,
         long_seq_pred=False,
         calc_metrics=False,
         early_stopping=True,
-        ensemble=True,
-        ensemble_items={
-            "batch_sizes": [256, 512],
-        },
+        # ensemble=True,
+        # ensemble_items={
+        #     "batch_sizes": [256, 512],
+        # },
         patience=10,
         model_type="MTL",
     )

@@ -25,35 +25,38 @@ for logger_name in logging.root.manager.loggerDict:
 warnings.filterwarnings("ignore")
 show = pd.read_csv("data/basin_id(498+41).csv", dtype={"id": str})
 gage_id = show["id"].values.tolist()
-
+gage_id=["21401550"]
 
 def get_config_data():
-    project_name = os.path.join("test_evaluate_seq2seq", "ex32")
-    train_path = os.path.join(os.getcwd(), "results", "train_with_gpm", "ex31")
+    project_name = os.path.join("test_evaluate_seq2seq", "ex42")
+    train_path = os.path.join(os.getcwd(), "results", "train_with_gpm", "ex41")
     args = cmd(
         sub=project_name,
         source_cfgs={
             "source": "HydroMean",
             "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
-                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
+                # "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
+                # "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
+                "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_forcing",
+                "target": "basins-origin/hour_data/1h/mean_data/mean_data_forcing",
                 "attributes": "basins-origin/attributes.nc",
             },
         },
-        ctx=[0],
+        ctx=[1],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 17,
+            "en_input_size": 17,
+            "de_input_size": 17,
             "output_size": 2,
             "hidden_size": 256,
-            "forecast_length": 24,
+            "forecast_length": 56,
             "prec_window": 1,
         },
         gage_id=gage_id,
         model_loader={"load_way": "best"},
         batch_size=1024,
         forecast_history=240,
-        forecast_length=24,
+        forecast_length=56,
         min_time_unit="h",
         min_time_interval=3,
         var_t=[
@@ -88,7 +91,7 @@ def get_config_data():
             "device": [1],
             "item_weight": [0.8, 0.2],
         },
-        test_period=[("2015-06-01-01", "2016-05-31-01")],
+        test_period=[("2015-06-01-01", "2016-06-01-01")],
         which_first_tensor="batch",
         rolling=True,
         long_seq_pred=False,
