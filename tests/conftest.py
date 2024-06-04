@@ -201,14 +201,15 @@ def s2s_args(basin4test):
         ctx=[0],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 17,
+            "en_input_size": 17,
+            "de_input_size": 18,
             "output_size": 2,
             "hidden_size": 256,
             # number of min-time-intervals to predict; horizon
             "forecast_length": 56,
             # 将前序径流一起作为输出，选择的时段数，该值需小于等于 forecast_history ，建议置为1
             "prec_window": 1,
-            "teacher_forcing_ratio": 0,
+            "teacher_forcing_ratio": 0.5,
         },
         model_loader={"load_way": "best"},
         gage_id=basin4test,
@@ -248,6 +249,8 @@ def s2s_args(basin4test):
         train_period=[("2016-06-01-01", "2016-12-31-01")],
         test_period=[("2015-06-01-01", "2015-10-31-01")],
         valid_period=[("2015-06-01-01", "2015-10-31-01")],
+        # loss_func="QuantileLoss",
+        # loss_param={"quantiles":[0.2,0.8]},
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",

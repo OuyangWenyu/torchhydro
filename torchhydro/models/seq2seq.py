@@ -112,7 +112,8 @@ class StateTransferNetwork(nn.Module):
 class GeneralSeq2Seq(nn.Module):
     def __init__(
         self,
-        input_size,
+        en_input_size,
+        de_input_size,
         output_size,
         hidden_size,
         forecast_length,
@@ -124,10 +125,10 @@ class GeneralSeq2Seq(nn.Module):
         self.prec_window = prec_window
         self.teacher_forcing_ratio = teacher_forcing_ratio
         self.encoder = Encoder(
-            input_dim=input_size, hidden_dim=hidden_size, output_dim=output_size
+            input_dim=en_input_size, hidden_dim=hidden_size, output_dim=output_size
         )
         self.decoder = Decoder(
-            input_dim=input_size + 1, hidden_dim=hidden_size, output_dim=output_size
+            input_dim=de_input_size, hidden_dim=hidden_size, output_dim=output_size
         )
         self.transfer = StateTransferNetwork(hidden_dim=hidden_size)
 
