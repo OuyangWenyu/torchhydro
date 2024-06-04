@@ -25,28 +25,26 @@ for logger_name in logging.root.manager.loggerDict:
 warnings.filterwarnings("ignore")
 show = pd.read_csv("data/basin_id(498+41).csv", dtype={"id": str})
 gage_id = show["id"].values.tolist()
-gage_id=["21401550"]
+
 
 def get_config_data():
-    project_name = os.path.join("test_evaluate_seq2seq", "ex42")
-    train_path = os.path.join(os.getcwd(), "results", "train_with_gpm", "ex41")
+    project_name = os.path.join("test_evaluate_seq2seq", "ex32")
+    train_path = os.path.join(os.getcwd(), "results", "train_with_gpm", "ex31")
     args = cmd(
         sub=project_name,
         source_cfgs={
             "source": "HydroMean",
             "source_path": {
-                # "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
-                # "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
-                "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_forcing",
-                "target": "basins-origin/hour_data/1h/mean_data/mean_data_forcing",
+                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
+                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
         },
-        ctx=[1],
+        ctx=[0],
         model_name="Seq2Seq",
         model_hyperparam={
             "en_input_size": 17,
-            "de_input_size": 17,
+            "de_input_size": 18,
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 56,
