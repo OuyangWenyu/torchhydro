@@ -87,7 +87,7 @@ def create_config():
         scaler="DapengScaler",
         train_epoch=100,
         save_epoch=1,
-       train_period=[("2015-05-01-01", "2022-12-20-01")],
+        train_period=[("2015-05-01-01", "2022-12-20-01")],
         test_period=[("2023-01-01-01", "2023-11-20-01")],
         valid_period=[("2023-01-01-01", "2023-11-20-01")],
         loss_func="MultiOutLoss",
