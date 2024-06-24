@@ -18,7 +18,6 @@ def test_warn_if_nan_no_nan_values():
     # Create a dataarray without any NaN values
     data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
     da = xr.DataArray(data)
-
     # Call the function and assert that it returns False
     assert not warn_if_nan(da)
 
@@ -27,7 +26,6 @@ def test_warn_if_nan_with_nan_values():
     # Create a dataarray with NaN values
     data = np.array([[1, np.nan, 3], [4, 5, np.nan], [7, 8, 9]])
     da = xr.DataArray(data)
-
     # Call the function and assert that it returns True
     assert warn_if_nan(da)
 
@@ -38,7 +36,6 @@ def test_warn_if_nan_all_nan_values():
         [[np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan]]
     )
     da = xr.DataArray(data)
-
     # Call the function and assert that it raises a ValueError
     with pytest.raises(ValueError):
         warn_if_nan(da, nan_mode="all")
@@ -48,7 +45,6 @@ def test_warn_if_nan_max_display():
     # Create a dataarray with NaN values
     data = np.array([[1, np.nan, 3], [4, 5, np.nan], [7, np.nan, 9]])
     da = xr.DataArray(data)
-
     # Call the function with a max_display of 2
     # Assert that it raises a warning with the correct message
     with pytest.warns(
