@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-05-27 17:48:17
+LastEditTime: 2024-06-04 19:32:02
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -465,14 +465,16 @@ class DplDataset(BaseDataset):
             a mini-batch data;
             x_train (not normalized forcing), z_train (normalized data for DL model), y_train (not normalized output)
         """
+        warmup = self.warmup_length
+        rho = self.rho
+        horizon = self.horizon
         if self.train_mode:
             xc_norm, _ = super(DplDataset, self).__getitem__(item)
             basin, time = self.lookup_table[item]
-            warmup_length = self.warmup_length
             if self.target_as_input:
                 # y_morn and xc_norm are concatenated and used for DL model
                 y_norm = torch.from_numpy(
-                    self.y[basin, time - warmup_length : time + self.rho, :]
+                    self.y[basin, time - warmup : time + rho + horizon, :]
                 ).float()
                 # the order of xc_norm and y_norm matters, please be careful!
                 z_train = torch.cat((xc_norm, y_norm), -1)
@@ -481,48 +483,26 @@ class DplDataset(BaseDataset):
                 z_train = torch.from_numpy(self.c[basin, :]).float()
             else:
                 z_train = xc_norm.float()
-            x_train = (
-                self.x_origin.sel(
-                    basin=basin,
-                    time=slice(
-                        time - np.timedelta64(warmup_length, "D"),
-                        time + np.timedelta64(self.rho - 1, "D"),
-                    ),
-                )
-                .to_array()
-                .to_numpy()
-                .T
-            )
-            y_train = (
-                self.y_origin.sel(
-                    basin=basin,
-                    time=slice(
-                        time,
-                        time + np.timedelta64(self.rho - 1, "D"),
-                    ),
-                )
-                .to_array()
-                .to_numpy()
-                .T
-            )
+            x_train = self.x_origin[basin, time - warmup : time + rho + horizon, :]
+            y_train = self.y_origin[basin, time : time + rho + horizon, :]
         else:
-            basin = self.t_s_dict["sites_id"][item]
-            x_norm = self.x.sel(basin=basin).to_numpy().T
+            x_norm = self.x[item, :, :]
             if self.target_as_input:
                 # when target_as_input is True,
                 # we need to use training data to generate pbm params
-                x_norm = self.train_dataset.sel(basin=basin).to_numpy().T
+                x_norm = self.train_dataset.x[item, :, :]
             if self.c is None or self.c.shape[-1] == 0:
                 xc_norm = torch.from_numpy(x_norm).float()
             else:
-                c_norm = self.c.sel(basin=basin).values
+                c_norm = self.c[item, :]
                 c_norm = (
                     np.repeat(c_norm, x_norm.shape[0], axis=0)
                     .reshape(c_norm.shape[0], -1)
                     .T
                 )
-                xc_norm = np.concatenate((x_norm, c_norm), axis=1)
-            warmup_length = self.warmup_length
+                xc_norm = torch.from_numpy(
+                    np.concatenate((x_norm, c_norm), axis=1)
+                ).float()
             if self.target_as_input:
                 # when target_as_input is True,
                 # we need to use training data to generate pbm params
@@ -534,15 +514,9 @@ class DplDataset(BaseDataset):
                 # only use attributes data for DL model
                 z_train = torch.from_numpy(self.c[item, :]).float()
             else:
-                z_train = torch.from_numpy(xc_norm).float()
-            x_train = self.x_origin.sel(basin=basin).to_array().to_numpy().T
-            y_train = (
-                self.y_origin.sel(basin=basin)
-                .isel(time=slice(warmup_length, None))
-                .to_array()
-                .to_numpy()
-                .T
-            )
+                z_train = xc_norm
+            x_train = self.x_origin[item, :, :]
+            y_train = self.y_origin[item, warmup:, :]
         return (
             torch.from_numpy(x_train).float(),
             z_train,
@@ -719,23 +693,50 @@ class Seq2SeqDataset(HydroMeanDataset):
         horizon = self.horizon
         prec = self.data_cfgs["prec_window"]
 
-        p = self.x[basin, idx + 1 : idx + rho + horizon + 1, 0]
-        s = self.x[basin, idx : idx + rho, 1]
-        x = np.stack((p[:rho], s), axis=1)
+        p = self.x[basin, idx + 1 : idx + rho + horizon + 1, 0].reshape(-1, 1)
+        s = self.x[basin, idx : idx + rho, 1:]
+        x = np.concatenate((p[:rho], s), axis=1)
 
         c = self.c[basin, :]
-        c = np.tile(c, (rho, 1))
-        x = np.concatenate((x, c), axis=1)
-        p_h = p[rho:].reshape(-1, 1)
+        c = np.tile(c, (rho + horizon, 1))
+        x = np.concatenate((x, c[:rho]), axis=1)
+
+        x_h = np.concatenate((p[rho:], c[rho:]), axis=1)
         y = self.y[basin, idx + rho - prec + 1 : idx + rho + horizon + 1, :]
 
         if self.is_tra_val_te == "train":
             return [
                 torch.from_numpy(x).float(),
-                torch.from_numpy(p_h).float(),
+                torch.from_numpy(x_h).float(),
                 torch.from_numpy(y).float(),
             ], torch.from_numpy(y).float()
         return [
             torch.from_numpy(x).float(),
-            torch.from_numpy(p_h).float(),
+            torch.from_numpy(x_h).float(),
+        ], torch.from_numpy(y).float()
+
+
+class TransformerDataset(Seq2SeqDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(TransformerDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    def __getitem__(self, item: int):
+        basin, idx = self.lookup_table[item]
+        rho = self.rho
+        horizon = self.horizon
+
+        p = self.x[basin, idx + 1 : idx + rho + horizon + 1, 0]
+        s = self.x[basin, idx : idx + rho, 1]
+        x = np.stack((p[:rho], s), axis=1)
+
+        c = self.c[basin, :]
+        c = np.tile(c, (rho + horizon, 1))
+        x = np.concatenate((x, c[:rho]), axis=1)
+
+        x_h = np.concatenate((p[rho:].reshape(-1, 1), c[rho:]), axis=1)
+        y = self.y[basin, idx + rho + 1 : idx + rho + horizon + 1, :]
+
+        return [
+            torch.from_numpy(x).float(),
+            torch.from_numpy(x_h).float(),
         ], torch.from_numpy(y).float()

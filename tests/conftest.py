@@ -201,13 +201,15 @@ def s2s_args(basin4test):
         ctx=[0],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 17,
+            "en_input_size": 17,
+            "de_input_size": 18,
             "output_size": 2,
             "hidden_size": 256,
             # number of min-time-intervals to predict; horizon
             "forecast_length": 56,
             # 将前序径流一起作为输出，选择的时段数，该值需小于等于 forecast_history ，建议置为1
             "prec_window": 1,
+            "teacher_forcing_ratio": 0.5,
         },
         model_loader={"load_way": "best"},
         gage_id=basin4test,
@@ -247,6 +249,8 @@ def s2s_args(basin4test):
         train_period=[("2016-06-01-01", "2016-12-31-01")],
         test_period=[("2015-06-01-01", "2015-10-31-01")],
         valid_period=[("2015-06-01-01", "2015-10-31-01")],
+        # loss_func="QuantileLoss",
+        # loss_param={"quantiles":[0.2,0.8]},
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
@@ -262,8 +266,180 @@ def s2s_args(basin4test):
         which_first_tensor="batch",
         rolling=False,
         long_seq_pred=False,
+        calc_metrics=False,
         early_stopping=True,
         patience=8,
         model_type="MTL",
         fill_nan=["no", "no"],
+    )
+
+
+@pytest.fixture()
+def trans_args(basin4test):
+    project_name = os.path.join("test_trans", "gpmsmapexp1")
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source": "HydroMean",
+            "source_path": {
+                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
+                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
+                "attributes": "basins-origin/attributes.nc",
+            },
+        },
+        ctx=[0],
+        model_name="Transformer",
+        model_hyperparam={
+            "n_encoder_inputs": 17,
+            "n_decoder_inputs": 16,
+            "n_decoder_output": 2,
+            "channels": 256,
+            "num_embeddings": 512,
+            "nhead": 8,
+            "num_layers": 4,
+            "dropout": 0.1,
+            "prec_window": 0,
+        },
+        model_loader={"load_way": "best"},
+        gage_id=basin4test,
+        batch_size=128,
+        forecast_history=240,
+        forecast_length=56,
+        min_time_unit="h",
+        min_time_interval="3",
+        var_t=[
+            "gpm_tp",
+            "sm_surface",
+        ],
+        var_c=[
+            "area",  # 面积
+            "ele_mt_smn",  # 海拔(空间平均)
+            "slp_dg_sav",  # 地形坡度 (空间平均)
+            "sgr_dk_sav",  # 河流坡度 (平均)
+            "for_pc_sse",  # 森林覆盖率
+            "glc_cl_smj",  # 土地覆盖类型
+            "run_mm_syr",  # 陆面径流 (流域径流的空间平均值)
+            "inu_pc_slt",  # 淹没范围 (长期最大)
+            "cmi_ix_syr",  # 气候湿度指数
+            "aet_mm_syr",  # 实际蒸散发 (年平均)
+            "snw_pc_syr",  # 雪盖范围 (年平均)
+            "swc_pc_syr",  # 土壤水含量
+            "gwt_cm_sav",  # 地下水位深度
+            "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
+            "dor_pc_pva",  # 调节程度
+        ],
+        var_out=["streamflow", "sm_surface"],
+        dataset="TransformerDataset",
+        sampler="HydroSampler",
+        scaler="DapengScaler",
+        train_epoch=10,
+        save_epoch=1,
+        train_period=[("2016-06-01-01", "2016-12-31-01")],
+        test_period=[("2015-06-01-01", "2015-10-31-01")],
+        valid_period=[("2015-06-01-01", "2015-10-31-01")],
+        loss_func="MultiOutLoss",
+        loss_param={
+            "loss_funcs": "RMSESum",
+            "data_gap": [0, 0],
+            "device": [0],
+            "item_weight": [0.8, 0.2],
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.001,
+            "lr_factor": 0.96,
+        },
+        which_first_tensor="sequence",
+        rolling=False,
+        long_seq_pred=False,
+        calc_metrics=False,
+        early_stopping=True,
+        patience=8,
+        model_type="MTL",
+        fill_nan=["no", "no"],
+    )
+
+
+@pytest.fixture()
+def dpl_args():
+    project_name = os.path.join("test_camels", "expdpl001")
+    data_origin_dir = SETTING["local_data_path"]["datasets-origin"]
+    train_period = ["1985-10-01", "1986-04-01"]
+    # valid_period = ["1995-10-01", "2000-10-01"]
+    valid_period = None
+    test_period = ["2000-10-01", "2001-10-01"]
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "camels_us",
+            "source_path": os.path.join(data_origin_dir, "camels", "camels_us"),
+        },
+        ctx=[0],
+        # model_name="DplLstmXaj",
+        model_name="DplAttrXaj",
+        model_hyperparam={
+            # "n_input_features": 25,
+            "n_input_features": 17,
+            "n_output_features": 15,
+            "n_hidden_states": 256,
+            "kernel_size": 15,
+            "warmup_length": 30,
+            "param_limit_func": "clamp",
+        },
+        loss_func="RMSESum",
+        dataset="DplDataset",
+        scaler="DapengScaler",
+        scaler_params={
+            "prcp_norm_cols": ["streamflow"],
+            "gamma_norm_cols": [
+                "prcp",
+                "pr",
+                "total_precipitation",
+                "potential_evaporation",
+                "ET",
+                "PET",
+                "ET_sum",
+                "ssm",
+            ],
+            "pbm_norm": True,
+        },
+        gage_id=[
+            "01013500",
+            "01022500",
+            "01030500",
+            "01031500",
+            "01047000",
+            "01052500",
+            "01054200",
+            "01055000",
+            "01057000",
+            "01170100",
+        ],
+        train_period=train_period,
+        valid_period=valid_period,
+        test_period=test_period,
+        batch_size=50,
+        forecast_history=0,
+        forecast_length=60,
+        var_t=[
+            "prcp",
+            "PET",
+            "dayl",
+            "srad",
+            "swe",
+            "tmax",
+            "tmin",
+            "vp",
+        ],
+        var_out=["streamflow"],
+        target_as_input=0,
+        constant_only=1,
+        train_epoch=2,
+        model_loader={
+            "load_way": "specified",
+            "test_epoch": 2,
+        },
+        warmup_length=30,
+        opt="Adadelta",
+        which_first_tensor="sequence",
     )

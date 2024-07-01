@@ -301,9 +301,10 @@ class QuantileLoss(torch.nn.Module):
         assert preds.size(0) == target.size(0)
         losses = []
         for i, q in enumerate(self.quantiles):
-            errors = target - preds[:, i]
-            losses.append(torch.max((q - 1) * errors, q * errors).unsqueeze(1))
-        return torch.mean(torch.sum(torch.cat(losses, dim=1), dim=1))
+            mask = ~torch.isnan(target[:, :, i])
+            errors = target[:, :, i][mask] - preds[:, :, i][mask]
+            losses.append(torch.max((q - 1) * errors, q * errors))
+        return torch.mean(torch.cat(losses, dim=0), dim=0)
 
 
 class NegativeLogLikelihood(torch.nn.Module):

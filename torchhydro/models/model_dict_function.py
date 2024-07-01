@@ -18,7 +18,12 @@ from torchhydro.models.cudnnlstm import (
 )
 
 from torchhydro.models.simple_lstm import SimpleLSTMForecast
-from torchhydro.models.seq2seq import GeneralSeq2Seq, DataEnhancedModel, DataFusionModel
+from torchhydro.models.seq2seq import (
+    GeneralSeq2Seq,
+    DataEnhancedModel,
+    DataFusionModel,
+    Transformer,
+)
 from torch.optim import Adam, SGD, Adadelta
 from torchhydro.models.crits import (
     RMSELoss,
@@ -31,8 +36,9 @@ from torchhydro.models.crits import (
     MAPELoss,
     MASELoss,
     MAELoss,
+    QuantileLoss,
 )
-from torchhydro.models.dpl4xaj import DplLstmXaj
+from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
 
 """
@@ -46,12 +52,14 @@ pytorch_model_dict = {
     "LSTMKernel": CudnnLstmModelLstmKernel,
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
     "DplLstmXaj": DplLstmXaj,
+    "DplAttrXaj": DplAnnXaj,
     "SPPLSTM": SPP_LSTM_Model,
     "SimpleLSTMForecast": SimpleLSTMForecast,
     "SPPLSTM2": SPP_LSTM_Model_2,
     "Seq2Seq": GeneralSeq2Seq,
     "DataEnhanced": DataEnhancedModel,
     "DataFusion": DataFusionModel,
+    "Transformer": Transformer,
 }
 
 pytorch_criterion_dict = {
@@ -66,6 +74,7 @@ pytorch_criterion_dict = {
     "MAPELoss": MAPELoss,
     "MASELoss": MASELoss,
     "MAELoss": MAELoss,
+    "QuantileLoss": QuantileLoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}

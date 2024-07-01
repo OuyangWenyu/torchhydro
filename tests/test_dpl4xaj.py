@@ -3,6 +3,8 @@ import pytest
 
 import torch
 
+from torchhydro.configs.config import update_cfg
+from torchhydro.trainers.trainer import train_and_evaluate
 from torchhydro.models.dpl4xaj import DplLstmXaj
 from torchhydro.models.kernel_conv import uh_conv, uh_gamma
 
@@ -135,3 +137,8 @@ def test_uh():
         qs.numpy()[:, :, 0],
         decimal=3,
     )
+
+
+def test_train_evaluate_dpl(dpl_args, config_data):
+    update_cfg(config_data, dpl_args)
+    train_and_evaluate(config_data)

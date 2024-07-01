@@ -89,7 +89,7 @@ def denormalize4eval(
         horizon = target_scaler.data_cfgs["forecast_length"]
         rho = target_scaler.data_cfgs["forecast_history"]
         selected_time_points = target_data.coords["time"][
-            length + rho : length - horizon
+            length + rho: length - horizon
         ]
     else:
         warmup_length = validation_data_loader.dataset.warmup_length
