@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:17:44
-LastEditTime: 2024-06-03 11:36:21
+LastEditTime: 2024-07-10 19:41:48
 LastEditors: Wenyu Ouyang
 Description: normalize the data
-FilePath: \torchhydro\torchhydro\datasets\data_scalers.py
+FilePath: /torchhydro/torchhydro/datasets/data_scalers.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -279,10 +279,10 @@ class DapengScaler(object):
                     shutil.copy(data_cfgs["stat_dict_file"], stat_file)
                 except SameFileError:
                     print(
-                        f"源文件和目标文件是同一个文件: {data_cfgs['stat_dict_file']}，跳过复制操作"
+                        f"The source file and the target file are the same: {data_cfgs['stat_dict_file']}, skipping the copy operation."
                     )
                 except Exception as e:
-                    print(f"发生错误: {e}")
+                    print(f"Error: {e}")
             assert os.path.isfile(stat_file)
             with open(stat_file, "r") as fp:
                 self.stat_dict = json.load(fp)

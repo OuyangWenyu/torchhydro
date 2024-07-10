@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-06-04 19:32:02
+LastEditTime: 2024-07-10 20:03:03
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: \torchhydro\torchhydro\datasets\data_sets.py
+FilePath: /torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -115,6 +115,14 @@ class BaseDataset(Dataset):
         source_name = self.data_cfgs["source_cfgs"]["source_name"]
         source_path = self.data_cfgs["source_cfgs"]["source_path"]
         return data_sources_dict[source_name](source_path)
+
+    @property
+    def streamflow_name(self):
+        return self.data_cfgs["target_cols"][0]
+
+    @property
+    def precipitation_name(self):
+        return self.data_cfgs["relevant_cols"][0]
 
     @property
     def ngrid(self):
@@ -305,8 +313,8 @@ class BaseDataset(Dataset):
             unit = re.sub(r"hour", "h", unit)
             return unit
 
-        streamflow_unit = data_output_ds["streamflow"].attrs["units"]
-        prcp_unit = data_forcing_ds["prcp"].attrs["units"]
+        streamflow_unit = data_output_ds[self.streamflow_name].attrs["units"]
+        prcp_unit = data_forcing_ds[self.precipitation_name].attrs["units"]
 
         standardized_streamflow_unit = standardize_unit(streamflow_unit)
         standardized_prcp_unit = standardize_unit(prcp_unit)
@@ -427,7 +435,6 @@ class BasinSingleFlowDataset(BaseDataset):
 class DplDataset(BaseDataset):
     """pytorch dataset for Differential parameter learning"""
 
-    # TODO: USE NUMPY ARRAY INSTEAD OF DATAARRAY FOR GET_ITEM
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         """
         Parameters

@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-10-05 16:16:48
-LastEditTime: 2023-12-21 20:35:57
+LastEditTime: 2024-07-10 17:15:26
 LastEditors: Wenyu Ouyang
 Description: Transfer learning for local basins with hydro_opendata
-FilePath: \torchhydro\tests\test_tl_selfmadedata.py
+FilePath: /torchhydro/tests/test_tl_selfmadedata.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import os
 import pytest
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
@@ -118,5 +119,111 @@ def test_transfer_gages_lstm_model(
     )
     cfg = default_config_file()
     update_cfg(cfg, args)
+    train_and_evaluate(cfg)
+    print("All processes are finished!")
+
+
+@pytest.fixture()
+def dpl_selfmadehydrodataset_args():
+    project_name = os.path.join("test_camels", "expdpl002")
+    train_period = ["1985-10-01", "1986-04-01"]
+    # valid_period = ["1995-10-01", "2000-10-01"]
+    valid_period = None
+    test_period = ["2000-10-01", "2001-10-01"]
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "selfmadehydrodataset",
+            "source_path": "/mnt/c/Users/wenyu/OneDrive/Research/research_topic_advancement/research_progress_plan/data4dpl/dplARdata",
+        },
+        ctx=[0],
+        # model_name="DplLstmXaj",
+        model_name="DplAttrXaj",
+        model_hyperparam={
+            # "n_input_features": 25,
+            "n_input_features": 19,
+            "n_output_features": 15,
+            "n_hidden_states": 256,
+            "kernel_size": 15,
+            "warmup_length": 30,
+            "param_limit_func": "clamp",
+        },
+        loss_func="RMSESum",
+        dataset="DplDataset",
+        scaler="DapengScaler",
+        scaler_params={
+            "prcp_norm_cols": [
+                "streamflow",
+            ],
+            "gamma_norm_cols": [
+                "total_precipitation_sum",
+                "potential_evaporation_sum",
+            ],
+            "pbm_norm": True,
+        },
+        gage_id=[
+            "01013500",
+            "01022500",
+            "01030500",
+            "01031500",
+            "01047000",
+            "01052500",
+            "01054200",
+            "01055000",
+            "01057000",
+            "01170100",
+        ],
+        train_period=train_period,
+        valid_period=valid_period,
+        test_period=test_period,
+        batch_size=50,
+        forecast_history=0,
+        forecast_length=60,
+        var_t=[
+            "total_precipitation_sum",
+            "potential_evaporation_sum",
+            "snow_depth_water_equivalent",
+            "surface_net_solar_radiation_sum",
+            "surface_pressure",
+            "temperature_2m",
+        ],
+        var_c=[
+            "sgr_dk_sav",
+            "pet_mm_syr",
+            "slp_dg_sav",
+            "for_pc_sse",
+            "pre_mm_syr",
+            "slt_pc_sav",
+            "swc_pc_syr",
+            "soc_th_sav",
+            "cly_pc_sav",
+            "ari_ix_sav",
+            "snd_pc_sav",
+            "ele_mt_sav",
+            "area",
+            "tmp_dc_syr",
+            "crp_pc_sse",
+            "lit_cl_smj",
+            "wet_cl_smj",
+            "snw_pc_syr",
+            "glc_cl_smj",
+        ],
+        var_out=["streamflow"],
+        target_as_input=0,
+        constant_only=1,
+        train_epoch=2,
+        model_loader={
+            "load_way": "specified",
+            "test_epoch": 2,
+        },
+        warmup_length=30,
+        opt="Adadelta",
+        which_first_tensor="sequence",
+    )
+
+
+def test_dpl_selfmadehydrodataset(dpl_selfmadehydrodataset_args):
+    cfg = default_config_file()
+    update_cfg(cfg, dpl_selfmadehydrodataset_args)
     train_and_evaluate(cfg)
     print("All processes are finished!")
