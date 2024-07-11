@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-05-31 11:00:18
+LastEditTime: 2024-07-10 10:59:08
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: \torchhydro\torchhydro\configs\config.py
+FilePath: /torchhydro/torchhydro/configs/config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -957,6 +957,10 @@ def update_cfg(cfg_file, new_args):
     cfg_file["data_cfgs"]["constant_rm_nan"] = bool(new_args.c_rm_nan != 0)
     if new_args.var_t is not None:
         cfg_file["data_cfgs"]["relevant_cols"] = new_args.var_t
+        print(
+            "!!!!!!NOTE!!!!!!!!\n-------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------"
+        )
+        print("If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-")
     if new_args.var_t_type is not None:
         cfg_file["data_cfgs"]["relevant_types"] = new_args.var_t_type
     cfg_file["data_cfgs"]["relevant_rm_nan"] = bool(new_args.t_rm_nan != 0)
@@ -964,15 +968,15 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["other_cols"] = new_args.var_o
     if new_args.var_out is not None:
         cfg_file["data_cfgs"]["target_cols"] = new_args.var_out
+        print(
+            "!!!!!!NOTE!!!!!!!!\n-------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------"
+        )
     if new_args.var_to_source_map is not None:
         cfg_file["data_cfgs"]["var_to_source_map"] = new_args.var_to_source_map
     cfg_file["data_cfgs"]["target_rm_nan"] = bool(new_args.out_rm_nan != 0)
     if new_args.target_as_input == 0:
         cfg_file["data_cfgs"]["target_as_input"] = False
-        if new_args.constant_only == 0:
-            cfg_file["data_cfgs"]["constant_only"] = False
-        else:
-            cfg_file["data_cfgs"]["constant_only"] = True
+        cfg_file["data_cfgs"]["constant_only"] = bool(new_args.constant_only != 0)
     else:
         cfg_file["data_cfgs"]["target_as_input"] = True
     if new_args.long_seq_pred is not None:
@@ -991,10 +995,9 @@ def update_cfg(cfg_file, new_args):
         cfg_file["model_cfgs"]["model_name"] = new_args.model_name
     if new_args.weight_path is not None:
         cfg_file["model_cfgs"]["weight_path"] = new_args.weight_path
-        if new_args.continue_train is None or new_args.continue_train == 0:
-            continue_train = False
-        else:
-            continue_train = True
+        continue_train = bool(
+            new_args.continue_train is not None and new_args.continue_train != 0
+        )
         cfg_file["model_cfgs"]["continue_train"] = continue_train
     if new_args.weight_path_add is not None:
         cfg_file["model_cfgs"]["weight_path_add"] = new_args.weight_path_add
@@ -1025,10 +1028,9 @@ def update_cfg(cfg_file, new_args):
             ]
     if new_args.batch_size is None:
         raise AttributeError("Please set the batch_size!!!")
-    if new_args.batch_size is not None:
-        batch_size = new_args.batch_size
-        cfg_file["data_cfgs"]["batch_size"] = batch_size
-        cfg_file["training_cfgs"]["batch_size"] = batch_size
+    batch_size = new_args.batch_size
+    cfg_file["data_cfgs"]["batch_size"] = batch_size
+    cfg_file["training_cfgs"]["batch_size"] = batch_size
     if new_args.min_time_unit is not None:
         if new_args.min_time_unit not in ["h", "D"]:
             raise ValueError("min_time_unit must be 'h' (HOURLY) or 'D' (DAILY)")

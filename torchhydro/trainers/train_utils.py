@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-05-31 11:11:26
+LastEditTime: 2024-07-10 19:48:58
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
-FilePath: \torchhydro\torchhydro\trainers\train_utils.py
+FilePath: /torchhydro/torchhydro/trainers/train_utils.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -89,7 +89,7 @@ def denormalize4eval(
         horizon = target_scaler.data_cfgs["forecast_length"]
         rho = target_scaler.data_cfgs["forecast_history"]
         selected_time_points = target_data.coords["time"][
-            length + rho: length - horizon
+            length + rho : length - horizon
         ]
     else:
         warmup_length = validation_data_loader.dataset.warmup_length
@@ -395,9 +395,9 @@ def torch_single_train(
             print("Warning: high loss detected")
         if torch.isnan(loss):
             continue
-        loss.backward()  # 反向传播计算当前梯度
-        opt.step()  # 根据梯度更新网络参数
-        model.zero_grad()  # 清空梯度
+        loss.backward()  # Backpropagate to compute the current gradient
+        opt.step()  # Update network parameters based on gradients
+        model.zero_grad()  # clear gradient
         if loss == float("inf"):
             raise ValueError(
                 "Error infinite loss detected. Try normalizing data or performing interpolation"
