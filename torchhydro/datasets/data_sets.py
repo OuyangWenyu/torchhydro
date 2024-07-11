@@ -11,6 +11,10 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 import logging
 import re
 import sys
+from itertools import chain
+
+import geopandas as gpd
+import hydrotopo.ig_path as htip
 import torch
 import xarray as xr
 import numpy as np
@@ -230,8 +234,8 @@ class BaseDataset(Dataset):
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
         basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length
-        x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
-        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx: idx + self.rho + self.horizon, :]
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float()
         c = self.c[basin, :]
@@ -411,7 +415,7 @@ class BaseDataset(Dataset):
                 lookup.extend(
                     (basin, f)
                     for f in range(warmup_length, max_time_length - rho - horizon + 1)
-                    if not np.all(nan_array[f + rho : f + rho + horizon])
+                    if not np.all(nan_array[f + rho: f + rho + horizon])
                 )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
@@ -481,7 +485,7 @@ class DplDataset(BaseDataset):
             if self.target_as_input:
                 # y_morn and xc_norm are concatenated and used for DL model
                 y_norm = torch.from_numpy(
-                    self.y[basin, time - warmup : time + rho + horizon, :]
+                    self.y[basin, time - warmup: time + rho + horizon, :]
                 ).float()
                 # the order of xc_norm and y_norm matters, please be careful!
                 z_train = torch.cat((xc_norm, y_norm), -1)
@@ -490,8 +494,8 @@ class DplDataset(BaseDataset):
                 z_train = torch.from_numpy(self.c[basin, :]).float()
             else:
                 z_train = xc_norm.float()
-            x_train = self.x_origin[basin, time - warmup : time + rho + horizon, :]
-            y_train = self.y_origin[basin, time : time + rho + horizon, :]
+            x_train = self.x_origin[basin, time - warmup: time + rho + horizon, :]
+            y_train = self.y_origin[basin, time: time + rho + horizon, :]
         else:
             x_norm = self.x[item, :, :]
             if self.target_as_input:
@@ -700,8 +704,8 @@ class Seq2SeqDataset(HydroMeanDataset):
         horizon = self.horizon
         prec = self.data_cfgs["prec_window"]
 
-        p = self.x[basin, idx + 1 : idx + rho + horizon + 1, 0].reshape(-1, 1)
-        s = self.x[basin, idx : idx + rho, 1:]
+        p = self.x[basin, idx + 1: idx + rho + horizon + 1, 0].reshape(-1, 1)
+        s = self.x[basin, idx: idx + rho, 1:]
         x = np.concatenate((p[:rho], s), axis=1)
 
         c = self.c[basin, :]
@@ -709,7 +713,7 @@ class Seq2SeqDataset(HydroMeanDataset):
         x = np.concatenate((x, c[:rho]), axis=1)
 
         x_h = np.concatenate((p[rho:], c[rho:]), axis=1)
-        y = self.y[basin, idx + rho - prec + 1 : idx + rho + horizon + 1, :]
+        y = self.y[basin, idx + rho - prec + 1: idx + rho + horizon + 1, :]
 
         if self.is_tra_val_te == "train":
             return [
@@ -732,8 +736,8 @@ class TransformerDataset(Seq2SeqDataset):
         rho = self.rho
         horizon = self.horizon
 
-        p = self.x[basin, idx + 1 : idx + rho + horizon + 1, 0]
-        s = self.x[basin, idx : idx + rho, 1]
+        p = self.x[basin, idx + 1: idx + rho + horizon + 1, 0]
+        s = self.x[basin, idx: idx + rho, 1]
         x = np.stack((p[:rho], s), axis=1)
 
         c = self.c[basin, :]
@@ -741,9 +745,87 @@ class TransformerDataset(Seq2SeqDataset):
         x = np.concatenate((x, c[:rho]), axis=1)
 
         x_h = np.concatenate((p[rho:].reshape(-1, 1), c[rho:]), axis=1)
-        y = self.y[basin, idx + rho + 1 : idx + rho + horizon + 1, :]
+        y = self.y[basin, idx + rho + 1: idx + rho + horizon + 1, :]
 
         return [
             torch.from_numpy(x).float(),
             torch.from_numpy(x_h).float(),
         ], torch.from_numpy(y).float()
+
+
+class GNNDataset(Seq2SeqDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(GNNDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    def __getitem__(self, item: int):
+        basin, idx = self.lookup_table[item]
+        rho = self.rho
+        horizon = self.horizon
+        p = self.x[basin, idx + 1: idx + rho + horizon + 1, 0]
+        s = self.x[basin, idx: idx + rho, 1]
+        x = np.stack((p[:rho], s), axis=1)
+        c = self.c[basin, :]
+        c = np.tile(c, (rho + horizon, 1))
+        x = np.concatenate((x, c[:rho]), axis=1)
+        # x_h = np.concatenate((p[rho:].reshape(-1, 1), c[rho:]), axis=1)
+        y = self.y[basin, idx + rho + 1: idx + rho + horizon + 1, :]
+        return [
+            torch.from_numpy(x).float(),
+            # torch.from_numpy(x_h).float(),
+        ], torch.from_numpy(y).float()
+
+    def get_upstream_stations(self):
+        import igraph as ig
+        # 按照流域点循环生成上游图
+        network_features = gpd.read_file(self.data_cfgs['network_shp'])
+        node_features = gpd.read_file(self.data_cfgs['node_shp'])
+        total_graph = ig.Graph()
+        for basin in self.data_cfgs["object_ids"]:
+            upstream_graph = self.prepare_graph(network_features, node_features, basin)
+            total_graph = ig.Graph.disjoint_union(total_graph, upstream_graph)
+        # ig_graph展成list之后，节点序号也是从小到大排列，与dgl_graph.nodes()排号形成对应，不需要再排序添加数据
+        nodes_arr = np.unique(list(chain.from_iterable(total_graph)))
+        total_df = pd.DataFrame(columns=['streamflow'])
+        for up_node in nodes_arr:
+            # 应有一个up_nodes到Sequence[Path]的方法
+            if 'STCD' in node_features.columns:
+                up_node_name = node_features['STCD'][node_features.index == up_node].to_list()[0]
+            else:
+                up_node_name = node_features['ID'][node_features.index == up_node].to_list()[0]
+            upper_origin_df = self.read_data_with_stcd_from_minio(up_node_name)
+            total_df = pd.concat([total_df, upper_origin_df], axis=0)
+
+    def prepare_graph(self, network_features: gpd.GeoDataFrame, node_features: gpd.GeoDataFrame, node: int | str,
+                      cutoff=2147483647):
+        # test_df_path = 's3://stations-origin/zq_stations/hour_data/1h/zq_CHN_songliao_10800300.csv'
+        if isinstance(node, int):
+            node_idx = node
+        else:
+            if 'STCD' in node_features.columns:
+                node_idx = node_features.index[node_features['STCD'] == node]
+            else:
+                node_idx = node_features.index[node_features['ID'] == node]
+        ig_graph = htip.find_edge_nodes(node_features, network_features, node_idx, 'up', cutoff)
+        return ig_graph
+
+    def read_data_with_stcd_from_minio(self, stcd: str):
+        import hydrodatasource.configs.config as hdscc
+        minio_path_zq_chn = f's3://stations-origin/zq_stations/hour_data/1h/zq_CHN_songliao_{stcd}.csv'
+        minio_path_zz_chn = f's3://stations-origin/zz_stations/hour_data/1h/zz_CHN_songliao_{stcd}.csv'
+        minio_path_zq_usa = f's3://stations-origin/zq_stations/hour_data/1h/zq_USA_usgs_{stcd}.csv'
+        minio_path_zz_usa = f's3://stations-origin/zz_stations/hour_data/1h/zz_USA_usgs_{stcd}.csv'
+        minio_path_zq_usa_new = f's3://stations-origin/zq_stations/hour_data/1h/usgs_datas_462_basins_after_2019/zz_USA_usgs_{stcd}.csv'
+        camels_hourly_files = f's3://datasets-origin/camels-hourly/data/usgs_streamflow_csv/{stcd}-usgs-hourly.csv'
+        minio_data_paths = [minio_path_zq_chn, minio_path_zz_chn, minio_path_zq_usa, minio_path_zz_usa,
+                            minio_path_zq_usa_new, camels_hourly_files]
+        hydro_df = None
+        for data_path in minio_data_paths:
+            if hdscc.FS.exists(data_path):
+                hydro_df = pd.read_csv(data_path, engine='c', storage_options=hdscc.MINIO_PARAM)
+                break
+        if hydro_df is None:
+            interim_df = pd.read_sql(f"SELECT * FROM ST_RIVER_R WHERE stcd = '{stcd}'", hdscc.PS)
+            if len(interim_df) == 0:
+                interim_df = pd.read_sql(f"SELECT * FROM ST_RSVR_R WHERE stcd = '{stcd}'", hdscc.PS)
+            hydro_df = interim_df
+        return hydro_df

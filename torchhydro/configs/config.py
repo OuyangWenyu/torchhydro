@@ -211,6 +211,8 @@ def default_config_file():
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
+            "network_shp": None,
+            "node_shp": None,
         },
         "training_cfgs": {
             "master_addr": "localhost",
@@ -360,6 +362,8 @@ def cmd(
     patience=None,
     min_time_unit=None,
     min_time_interval=None,
+    network_shp=None,
+    node_shp=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -832,6 +836,20 @@ def cmd(
         default=min_time_interval,
         type=int,
     )
+    parser.add_argument(
+        "--network_shp",
+        dest="network_shp",
+        help="Shapefile path which contains river networks",
+        default=network_shp,
+        type=str,
+    )
+    parser.add_argument(
+        "--node_shp",
+        dest="node_shp",
+        help="Shapefile path which contains station points",
+        default=node_shp,
+        type=str,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -979,6 +997,10 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["constant_only"] = bool(new_args.constant_only != 0)
     else:
         cfg_file["data_cfgs"]["target_as_input"] = True
+    if new_args.network_shp is not None:
+        cfg_file["data_cfgs"]["network_shp"] = new_args.network_shp
+    if new_args.node_shp is not None:
+        cfg_file["data_cfgs"]["node_shp"] = new_args.node_shp
     if new_args.long_seq_pred is not None:
         cfg_file["evaluation_cfgs"]["long_seq_pred"] = new_args.long_seq_pred
     if new_args.calc_metrics is not None:

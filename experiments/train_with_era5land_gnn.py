@@ -235,6 +235,8 @@ def create_config_Transformer():
         early_stopping=True,
         patience=10,
         model_type="MTL",
+        network_shp='/home/wangyang1/songliao_cut_single.shp',
+        node_shp='/home/jiaxuwu/463_nodes.shp'
     )
     update_cfg(config_data, args)
     return config_data

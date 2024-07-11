@@ -13,6 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 import random
+from dgl.nn.pytorch.conv import gatv2conv
 
 
 class Attention(nn.Module):
