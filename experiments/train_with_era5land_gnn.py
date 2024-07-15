@@ -141,6 +141,8 @@ def create_config_Seq2Seq():
         patience=10,
         model_type="MTL",
         # continue_train=True,
+        network_shp='/home/wangyang1/songliao_cut_single.shp',
+        node_shp='/home/jiaxuwu/463_nodes.shp'
     )
 
     # 更新默认配置

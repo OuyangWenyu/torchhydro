@@ -9,6 +9,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import logging
+import math
 import re
 import sys
 from itertools import chain
@@ -28,6 +29,8 @@ from hydrodatasource.utils.utils import streamflow_unit_conv
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
+from dateutil.parser import parse
+from datetime import timedelta
 
 from torchhydro.datasets.data_utils import (
     warn_if_nan,
@@ -761,39 +764,54 @@ class GNNDataset(Seq2SeqDataset):
         basin, idx = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
-        p = self.x[basin, idx + 1: idx + rho + horizon + 1, 0]
-        s = self.x[basin, idx: idx + rho, 1]
-        x = np.stack((p[:rho], s), axis=1)
+        x_up = xr.Dataset.from_dataframe(self.get_upstream_stations()[0])
+        # 在这里p和s的间隔应该是1吗？
+        p_up = x_up[basin, idx + 1: idx + rho + horizon + 1, 0]
+        s_up = x_up[basin, idx: idx + rho, 1]
+        x_ps_up = np.stack((p_up[:rho], s_up), axis=1)
         c = self.c[basin, :]
         c = np.tile(c, (rho + horizon, 1))
-        x = np.concatenate((x, c[:rho]), axis=1)
-        # x_h = np.concatenate((p[rho:].reshape(-1, 1), c[rho:]), axis=1)
+        x = np.concatenate((self.x, x_ps_up, c[:rho]), axis=1)
         y = self.y[basin, idx + rho + 1: idx + rho + horizon + 1, :]
-        return [
-            torch.from_numpy(x).float(),
-            # torch.from_numpy(x_h).float(),
-        ], torch.from_numpy(y).float()
+        return torch.from_numpy(x).float(), torch.from_numpy(y).float()
 
     def get_upstream_stations(self):
+        # 训练时所有流域内所有站点在给定时间段内的水位径流数据
         import igraph as ig
+        import networkx as nx
         # 按照流域点循环生成上游图
         network_features = gpd.read_file(self.data_cfgs['network_shp'])
         node_features = gpd.read_file(self.data_cfgs['node_shp'])
         total_graph = ig.Graph()
+        basin_station_dict = {}
         for basin in self.data_cfgs["object_ids"]:
             upstream_graph = self.prepare_graph(network_features, node_features, basin)
-            total_graph = ig.Graph.disjoint_union(total_graph, upstream_graph)
+            nodes_arr = np.unique(list(chain.from_iterable(upstream_graph)))
+            for node in nodes_arr:
+                basin_station_dict[node] = basin
+            nx_graph = nx.DiGraph()
+            for path in upstream_graph:
+                nx.add_path(nx_graph, path)
+            ig_upstream_graph = ig.Graph.from_networkx(nx_graph)
+            total_graph = ig.Graph.disjoint_union(total_graph, ig_upstream_graph)
         # ig_graph展成list之后，节点序号也是从小到大排列，与dgl_graph.nodes()排号形成对应，不需要再排序添加数据
         nodes_arr = np.unique(list(chain.from_iterable(total_graph)))
-        total_df = pd.DataFrame(columns=['streamflow'])
+        total_df = pd.DataFrame()
         for up_node in nodes_arr:
-            # 应有一个up_nodes到Sequence[Path]的方法
             if 'STCD' in node_features.columns:
                 up_node_name = node_features['STCD'][node_features.index == up_node].to_list()[0]
             else:
                 up_node_name = node_features['ID'][node_features.index == up_node].to_list()[0]
-            upper_origin_df = self.read_data_with_stcd_from_minio(up_node_name)
-            total_df = pd.concat([total_df, upper_origin_df], axis=0)
+            station_df = pd.DataFrame()
+            for date_tuple in self.data_cfgs[f"t_range_{self.is_tra_val_te}"]:
+                data_table = self.read_data_with_stcd_from_minio(up_node_name)
+                date_times = pd.date_range(date_tuple[0], date_tuple[1], freq='1H')
+                level_str_df = self.gen_level_stream(data_table, date_times=date_times)
+                station_df = pd.concat([station_df, level_str_df])
+            basin_column = pd.DataFrame({'basin_id': np.repeat(basin_station_dict[up_node], len(station_df))})
+            station_df = pd.concat([basin_column, station_df], axis=1)
+            total_df = pd.concat([total_df, station_df], axis=0)
+        return total_df, total_graph
 
     def prepare_graph(self, network_features: gpd.GeoDataFrame, node_features: gpd.GeoDataFrame, node: int | str,
                       cutoff=2147483647):
@@ -805,8 +823,8 @@ class GNNDataset(Seq2SeqDataset):
                 node_idx = node_features.index[node_features['STCD'] == node]
             else:
                 node_idx = node_features.index[node_features['ID'] == node]
-        ig_graph = htip.find_edge_nodes(node_features, network_features, node_idx, 'up', cutoff)
-        return ig_graph
+        graph_lists = htip.find_edge_nodes(node_features, network_features, node_idx, 'up', cutoff)
+        return graph_lists
 
     def read_data_with_stcd_from_minio(self, stcd: str):
         import hydrodatasource.configs.config as hdscc
@@ -829,3 +847,37 @@ class GNNDataset(Seq2SeqDataset):
                 interim_df = pd.read_sql(f"SELECT * FROM ST_RSVR_R WHERE stcd = '{stcd}'", hdscc.PS)
             hydro_df = interim_df
         return hydro_df
+
+    def gen_level_stream(self, data_table: pd.DataFrame, date_times: pd.DatetimeIndex):
+        table, freq = self.df_resample_cut(data_table)
+        # 以后除了水位以外，还可以有流量等变量
+        if 'Z' in table.columns:
+            level_array = table['Z'][table.index.isin(date_times)].to_numpy()
+        else:
+            level_array = table['00060_cd'][table.index.isin(date_times)].to_numpy()
+        if 'streamflow' in table.columns:
+            streamflow_array = table['streamflow'][table.index.isin(date_times)].to_numpy()
+        else:
+            streamflow_array = table['Q'][table.index.isin(date_times)].to_numpy()
+        level_df = pd.DataFrame({'streamflow': streamflow_array, 'level': level_array})
+        return level_df
+
+    def df_resample_cut(self, cut_df: pd.DataFrame):
+        time_str = self.step_mode(cut_df)
+        if '0 days' in time_str:
+            time_only_str = time_str.split(' ')[1]
+            time_obj = parse(time_only_str).time()
+            time_delta = timedelta(hours=time_obj.hour, minutes=time_obj.minute, seconds=time_obj.second)
+            total_minutes = round(time_delta.total_seconds() / 60)
+            freq = f'{math.ceil(total_minutes/60)}h'
+            cut_df['TM'] = pd.to_datetime(cut_df['TM'])
+            cut_df = cut_df.set_index('TM').resample(freq).interpolate().dropna(how='all')
+        else:
+            freq = 'D'
+            cut_df['TM'] = pd.to_datetime(cut_df['TM'])
+            cut_df = cut_df.set_index('TM').resample(freq, origin='start').interpolate().dropna(how='all')
+        return cut_df, freq
+
+    def step_mode(self, csv_df):
+        diffs = pd.to_datetime(csv_df['TM']).diff()
+        return str(diffs.mode()[0])

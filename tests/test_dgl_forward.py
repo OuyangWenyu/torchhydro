@@ -11,7 +11,6 @@ from hydrotopo import ig_path as dig
 from torch import nn
 from torch.nn import Transformer
 from itertools import chain
-#  hydrotopo import ig_path_test as ipt
 from torch.utils.data import DataLoader, TensorDataset
 
 from tests.test_gen_train_dataset_from_csv import gen_train_test_xy
@@ -120,6 +119,7 @@ def prepare_features(node_features: gpd.GeoDataFrame, nodes_graph):
     graph_features = np.concatenate([node_x, node_y]).reshape(len(nodes_graph), -1).transpose()
     return torch.Tensor(graph_features)
 
+
 def read_data_with_stcd_from_minio(stcd: str):
     minio_path_zq_chn = f's3://stations-origin/zq_stations/hour_data/1h/zq_CHN_songliao_{stcd}.csv'
     minio_path_zz_chn = f's3://stations-origin/zz_stations/hour_data/1h/zz_CHN_songliao_{stcd}.csv'
@@ -139,6 +139,7 @@ def read_data_with_stcd_from_minio(stcd: str):
             interim_df = pd.read_sql(f"SELECT * FROM ST_RSVR_R WHERE stcd = '{stcd}'", hdscc.PS)
         hydro_df = interim_df
     return hydro_df
+
 
 class TestModel(nn.Module):
     def __init__(self, in_feats, hid_feats, out_feats):
