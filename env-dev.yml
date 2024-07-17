@@ -1,6 +1,7 @@
 name: torchhydro
 channels:
   - pytorch
+  - nvidia
   - conda-forge
   - defaults
 dependencies:
@@ -10,8 +11,10 @@ dependencies:
   - fsspec
   - intake
   - pytorch
-  - tensorboard
   - torchvision
+  - torchaudio
+  - pytorch-cuda=11.8
+  - tensorboard
   - shap
   - kaggle
   - pytest
