@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:37:58
-LastEditTime: 2024-04-14 15:10:02
+LastEditTime: 2024-07-17 19:13:41
 LastEditors: Wenyu Ouyang
 Description: Some basic funtions for dealing with data
 FilePath: \torchhydro\torchhydro\datasets\data_utils.py
@@ -29,6 +29,8 @@ def warn_if_nan(dataarray, max_display=5, nan_mode="any"):
     nan_mode: str
         Mode of NaN checking: 'any' for any NaNs, 'all' for all values being NaNs.
     """
+    if dataarray is None:
+        return
     if nan_mode not in ["any", "all"]:
         raise ValueError("nan_mode must be 'any' or 'all'")
 
