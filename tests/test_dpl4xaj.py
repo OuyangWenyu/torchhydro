@@ -158,6 +158,7 @@ def dpl_selfmadehydrodataset_args():
         source_cfgs={
             "source_name": "selfmadehydrodataset",
             "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {"time_unit": ["1D"]},
         },
         ctx=[0],
         model_name="DplLstmXaj",
@@ -239,11 +240,13 @@ def dpl_selfmadehydrodataset_args():
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,
-        train_epoch=100,
+        # train_epoch=100,
+        train_epoch=2,
         save_epoch=10,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 100,
+            # "test_epoch": 100,
+            "test_epoch": 2,
         },
         warmup_length=365,
         opt="Adadelta",

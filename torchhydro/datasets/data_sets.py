@@ -114,7 +114,8 @@ class BaseDataset(Dataset):
     def data_source(self):
         source_name = self.data_cfgs["source_cfgs"]["source_name"]
         source_path = self.data_cfgs["source_cfgs"]["source_path"]
-        return data_sources_dict[source_name](source_path)
+        other_settings = self.data_cfgs["source_cfgs"].get("other_settings", {})
+        return data_sources_dict[source_name](source_path, **other_settings)
 
     @property
     def streamflow_name(self):
