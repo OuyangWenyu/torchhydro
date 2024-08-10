@@ -4,6 +4,7 @@ import pytest
 
 import torch
 
+from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 from torchhydro.models.dpl4xaj import DplLstmXaj
@@ -156,7 +157,7 @@ def dpl_selfmadehydrodataset_args():
         sub=project_name,
         source_cfgs={
             "source_name": "selfmadehydrodataset",
-            "source_path": "C:\\Users\\wenyu\\OneDrive\\Research\\research_topic_advancement\\research_progress_plan\\data4dpl\\dplARdata",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
         },
         ctx=[0],
         model_name="DplLstmXaj",
@@ -206,11 +207,12 @@ def dpl_selfmadehydrodataset_args():
         forecast_history=0,
         forecast_length=365,
         var_t=[
-            "total_precipitation_sum",
-            "potential_evaporation_sum",
+            # although the name is hourly, it might be daily according to your choice
+            "total_precipitation_hourly",
+            "potential_evaporation_hourly",
             "snow_depth_water_equivalent",
-            "surface_net_solar_radiation_sum",
-            "surface_pressure",
+            "snowfall_hourly",
+            "dewpoint_temperature_2m",
             "temperature_2m",
         ],
         var_c=[
