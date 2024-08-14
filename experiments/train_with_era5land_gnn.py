@@ -7,11 +7,12 @@ Description:
 FilePath: \torchhydro\experiments\train_with_era5land.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
-
 import logging
 import os
-import argparse
+import pathlib
+
 import pandas as pd
+
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -23,11 +24,12 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-show = pd.read_csv("data/basin_id(46+1).csv", dtype={"id": str})
+show = pd.read_csv(os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(97+24).csv"), dtype={"id": str})
 gage_id = show["id"].values.tolist()
 
 
-def main():
+def test_run_model():
+    '''
     parser = argparse.ArgumentParser(
         description="Train a Seq2Seq or Transformer model."
     )
@@ -45,7 +47,8 @@ def main():
         config_data = create_config_Seq2Seq()
     elif args.m_name == "Transformer":
         config_data = create_config_Transformer()
-
+    '''
+    config_data = create_config_Seq2Seq()
     train_and_evaluate(config_data)
 
 
@@ -60,9 +63,12 @@ def create_config_Seq2Seq():
         source_cfgs={
             "source": "HydroMean",
             "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "attributes": "basins-origin/attributes.nc",
+                "forcing": "/ftproot/local_data_forcing_era5land_streamflow/local_data_forcing_era5land_zarr/",
+                "target": "/ftproot/local_data_forcing_era5land_streamflow/local_data_forcing_era5land_zarr/",
+                "attributes": "/ftproot/attributes.zarr",
+                # "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
+                # "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
+                # "attributes": "basins-origin/attributes.nc",
             },
         },
         ctx=[2],
@@ -109,7 +115,7 @@ def create_config_Seq2Seq():
             "dor_pc_pva",  # 调节程度
         ],
         var_out=["streamflow", "sm_surface"],
-        dataset="Seq2SeqDataset",
+        dataset="GNNDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
         train_epoch=100,
@@ -142,12 +148,11 @@ def create_config_Seq2Seq():
         model_type="MTL",
         # continue_train=True,
         network_shp='/home/wangyang1/songliao_cut_single.shp',
-        node_shp='/home/jiaxuwu/463_nodes.shp'
+        node_shp="/home/wangyang1/463_nodes_sl/463_nodes_sl.shp"
     )
 
     # 更新默认配置
     update_cfg(config_data, args)
-
     return config_data
 
 
@@ -244,5 +249,18 @@ def create_config_Transformer():
     return config_data
 
 
+def test_convert_nc_zarr():
+    import xarray as xr
+    '''
+    ncfiles = glob.glob("/ftproot/local_data_forcing_era5land_streamflow/*.nc", recursive=True)
+    for ncfile in ncfiles:
+        zarr_fname = ncfile.split('/')[-1].replace(".nc", ".zarr")
+        zarr_path = f'/ftproot/local_data_forcing_era5land_streamflow/local_data_forcing_era5land_zarr/'
+        nc_ds = xr.open_dataset(ncfile)
+        nc_ds.to_zarr(f'{zarr_path}{zarr_fname}', mode="w")
+        '''
+    attr_nc = xr.open_dataset("/ftproot/attributes.nc")
+    attr_nc.to_zarr("/ftproot/attributes.zarr", mode="w")
+
 if __name__ == "__main__":
-    main()
+    test_run_model()

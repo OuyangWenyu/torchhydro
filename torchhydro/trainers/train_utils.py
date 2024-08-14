@@ -389,7 +389,6 @@ def torch_single_train(
     for _, (src, trg) in enumerate(pbar):
         # iEpoch starts from 1, iIter starts from 0, we hope both start from 1
         trg, output = model_infer(seq_first, device, model, src, trg)
-
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")

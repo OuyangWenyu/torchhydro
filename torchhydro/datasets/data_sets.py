@@ -16,6 +16,7 @@ from itertools import chain
 
 import geopandas as gpd
 import hydrotopo.ig_path as htip
+import loguru
 import torch
 import xarray as xr
 import numpy as np
@@ -759,15 +760,19 @@ class TransformerDataset(Seq2SeqDataset):
 class GNNDataset(Seq2SeqDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         super(GNNDataset, self).__init__(data_cfgs, is_tra_val_te)
+        self.total_graph = None
+        self.x_up = None
+        self.network_features = gpd.read_file(self.data_cfgs['network_shp'])
+        self.node_features = gpd.read_file(self.data_cfgs['node_shp'])
+        self.load_data()
 
     def __getitem__(self, item: int):
         basin, idx = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
-        x_up = xr.Dataset.from_dataframe(self.get_upstream_stations()[0])
         # 在这里p和s的间隔应该是1吗？
-        p_up = x_up[basin, idx + 1: idx + rho + horizon + 1, 0]
-        s_up = x_up[basin, idx: idx + rho, 1]
+        p_up = self.x_up[basin, idx + 1: idx + rho + horizon + 1, 0]
+        s_up = self.x_up[basin, idx: idx + rho, 1]
         x_ps_up = np.stack((p_up[:rho], s_up), axis=1)
         c = self.c[basin, :]
         c = np.tile(c, (rho + horizon, 1))
@@ -775,33 +780,59 @@ class GNNDataset(Seq2SeqDataset):
         y = self.y[basin, idx + rho + 1: idx + rho + horizon + 1, :]
         return torch.from_numpy(x).float(), torch.from_numpy(y).float()
 
-    def get_upstream_stations(self):
+    def load_data(self):
+        self.x_up = xr.Dataset.from_dataframe(self.get_upstream_df()[0])
+        self.total_graph = self.get_upstream_graph()[0]
+
+    def get_upstream_graph(self):
         # 训练时所有流域内所有站点在给定时间段内的水位径流数据
         import igraph as ig
         import networkx as nx
-        # 按照流域点循环生成上游图
-        network_features = gpd.read_file(self.data_cfgs['network_shp'])
-        node_features = gpd.read_file(self.data_cfgs['node_shp'])
-        total_graph = ig.Graph()
+        total_graph = ig.Graph(directed=True)
+        total_node_list = []
         basin_station_dict = {}
         for basin in self.data_cfgs["object_ids"]:
-            upstream_graph = self.prepare_graph(network_features, node_features, basin)
-            nodes_arr = np.unique(list(chain.from_iterable(upstream_graph)))
-            for node in nodes_arr:
-                basin_station_dict[node] = basin
-            nx_graph = nx.DiGraph()
-            for path in upstream_graph:
-                nx.add_path(nx_graph, path)
-            ig_upstream_graph = ig.Graph.from_networkx(nx_graph)
-            total_graph = ig.Graph.disjoint_union(total_graph, ig_upstream_graph)
+            upstream_graph = self.prepare_graph(self.network_features, self.node_features, basin)
+            if len(upstream_graph) != 0:
+                if upstream_graph.dtype == 'O':
+                    # upstream_graph = array(list1, list2, list3)
+                    if upstream_graph.shape[0] > 1:
+                        nodes_arr = np.unique(list(chain.from_iterable(upstream_graph)))
+                    else:
+                        # upstream_graph = array(list1)
+                        nodes_arr = upstream_graph
+                else:
+                    # upstream_graph = array(list1, list2) and dtype is not object
+                    nodes_arr = np.unique(upstream_graph)
+                total_node_list.extend(nodes_arr.tolist())
+                for node in nodes_arr:
+                    basin_station_dict[node] = basin
+                nx_graph = nx.DiGraph()
+                for path in upstream_graph:
+                    if isinstance(path, int | np.int64):
+                        nx.add_path(nx_graph, [path])
+                    else:
+                        nx.add_path(nx_graph, path)
+                ig_upstream_graph = ig.Graph.from_networkx(nx_graph)
+                total_graph = ig.Graph.disjoint_union(total_graph, ig_upstream_graph)
+            else:
+                continue
         # ig_graph展成list之后，节点序号也是从小到大排列，与dgl_graph.nodes()排号形成对应，不需要再排序添加数据
-        nodes_arr = np.unique(list(chain.from_iterable(total_graph)))
+        return total_graph, total_node_list, basin_station_dict
+
+    def get_upstream_df(self):
+        total_node_list = self.get_upstream_graph()[1]
+        basin_station_dict = self.get_upstream_graph()[2]
+        if get_list_dimensions(total_node_list) != 1:
+            nodes_arr = np.unique(list(chain.from_iterable(total_node_list)))
+        else:
+            nodes_arr = np.unique(total_node_list)
         total_df = pd.DataFrame()
         for up_node in nodes_arr:
-            if 'STCD' in node_features.columns:
-                up_node_name = node_features['STCD'][node_features.index == up_node].to_list()[0]
+            if 'STCD' in self.node_features.columns:
+                up_node_name = self.node_features['STCD'][self.node_features.index == up_node].to_list()[0]
             else:
-                up_node_name = node_features['ID'][node_features.index == up_node].to_list()[0]
+                up_node_name = self.node_features['ID'][self.node_features.index == up_node].to_list()[0]
             station_df = pd.DataFrame()
             for date_tuple in self.data_cfgs[f"t_range_{self.is_tra_val_te}"]:
                 data_table = self.read_data_with_stcd_from_minio(up_node_name)
@@ -811,7 +842,7 @@ class GNNDataset(Seq2SeqDataset):
             basin_column = pd.DataFrame({'basin_id': np.repeat(basin_station_dict[up_node], len(station_df))})
             station_df = pd.concat([basin_column, station_df], axis=1)
             total_df = pd.concat([total_df, station_df], axis=0)
-        return total_df, total_graph
+        return total_df
 
     def prepare_graph(self, network_features: gpd.GeoDataFrame, node_features: gpd.GeoDataFrame, node: int | str,
                       cutoff=2147483647):
@@ -820,10 +851,15 @@ class GNNDataset(Seq2SeqDataset):
             node_idx = node
         else:
             if 'STCD' in node_features.columns:
+                node_features['STCD'] = node_features['STCD'].astype(str)
                 node_idx = node_features.index[node_features['STCD'] == node]
             else:
+                node_features['ID'] = node_features['ID'].astype(str)
                 node_idx = node_features.index[node_features['ID'] == node]
-        graph_lists = htip.find_edge_nodes(node_features, network_features, node_idx, 'up', cutoff)
+        if len(node_idx) != 0:
+            graph_lists = htip.find_edge_nodes(node_features, network_features, node_idx, 'up', cutoff)
+        else:
+            graph_lists = []
         return graph_lists
 
     def read_data_with_stcd_from_minio(self, stcd: str):
@@ -869,7 +905,7 @@ class GNNDataset(Seq2SeqDataset):
             time_obj = parse(time_only_str).time()
             time_delta = timedelta(hours=time_obj.hour, minutes=time_obj.minute, seconds=time_obj.second)
             total_minutes = round(time_delta.total_seconds() / 60)
-            freq = f'{math.ceil(total_minutes/60)}h'
+            freq = f'{math.ceil(total_minutes / 60)}h'
             cut_df['TM'] = pd.to_datetime(cut_df['TM'])
             cut_df = cut_df.set_index('TM').resample(freq).interpolate().dropna(how='all')
         else:
@@ -881,3 +917,11 @@ class GNNDataset(Seq2SeqDataset):
     def step_mode(self, csv_df):
         diffs = pd.to_datetime(csv_df['TM']).diff()
         return str(diffs.mode()[0])
+
+
+def get_list_dimensions(lst):
+    # 如果列表为空，则其维度为1
+    if not lst:
+        return 1
+    # 获取最大的维度，递归调用函数获取内层列表的维度
+    return 1 + max(get_list_dimensions(item) for item in lst) if isinstance(lst, list) else 1

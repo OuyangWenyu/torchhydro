@@ -19,6 +19,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from dgl.dataloading import GraphDataLoader
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import *
@@ -532,31 +533,36 @@ class DeepHydro(DeepHydroInterface):
                 sampler = DistributedSampler(train_dataset)
             else:
                 raise NotImplementedError("This sampler not implemented yet")
-        data_loader = DataLoader(
-            train_dataset,
-            batch_size=training_cfgs["batch_size"],
-            shuffle=(sampler is None),
-            sampler=sampler,
-            num_workers=worker_num,
-            pin_memory=pin_memory,
-            timeout=0,
-        )
+        if (data_cfgs["network_shp"] is None) & (data_cfgs["node_shp"] is None):
+            data_loader = DataLoader(
+                train_dataset,
+                batch_size=training_cfgs["batch_size"],
+                shuffle=(sampler is None),
+                sampler=sampler,
+                num_workers=worker_num,
+                pin_memory=pin_memory,
+                timeout=0,
+            )
+        else:
+            data_loader = GraphDataLoader(train_dataset)
         if data_cfgs["t_range_valid"] is not None:
             valid_dataset: BaseDataset = self.validdataset
             batch_size_valid = training_cfgs["batch_size"]
             if data_cfgs["sampler"] == "HydroSampler":
                 # for HydroSampler when evaluating, we need to set new batch size
                 batch_size_valid = valid_dataset.num_samples // ngrid
-            validation_data_loader = DataLoader(
-                valid_dataset,
-                batch_size=batch_size_valid,
-                shuffle=False,
-                num_workers=worker_num,
-                pin_memory=pin_memory,
-                timeout=0,
-            )
+            if (data_cfgs["network_shp"] is None) & (data_cfgs["node_shp"] is None):
+                validation_data_loader = DataLoader(
+                    valid_dataset,
+                    batch_size=batch_size_valid,
+                    shuffle=False,
+                    num_workers=worker_num,
+                    pin_memory=pin_memory,
+                    timeout=0,
+                )
+            else:
+                validation_data_loader = GraphDataLoader(train_dataset)
             return data_loader, validation_data_loader
-
         return data_loader, None
 
 
