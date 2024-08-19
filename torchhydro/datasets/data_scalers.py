@@ -30,7 +30,6 @@ from hydroutils.hydro_stat import (
     cal_stat,
     cal_4_stat_inds,
 )
-from hydrodatasource.reader.data_source import HydroBasins
 
 from torchhydro.datasets.data_utils import (
     _trans_norm,
@@ -236,11 +235,11 @@ class DapengScaler(object):
         pbm_norm
             if true, use pbm_norm method to normalize; the output of pbms is not normalized data, so its inverse is different.
         """
-        if prcp_norm_cols is None or isinstance(data_source, HydroBasins):
+        if prcp_norm_cols is None:
             prcp_norm_cols = [
                 "streamflow",
             ]
-        if gamma_norm_cols is None or isinstance(data_source, HydroBasins):
+        if gamma_norm_cols is None:
             gamma_norm_cols = [
                 "gpm_tp",
                 "sta_tp",
@@ -290,12 +289,7 @@ class DapengScaler(object):
     @property
     def mean_prcp(self):
         return (
-            self.data_source.read_MP(
-                self.t_s_dict["sites_id"],
-                self.data_cfgs["source_cfgs"]["source_path"]["attributes"],
-            ).values.reshape(-1, 1)
-            if isinstance(self.data_source, HydroBasins)
-            else self.data_source.read_mean_prcp(self.t_s_dict["sites_id"])
+            self.data_source.read_mean_prcp(self.t_s_dict["sites_id"])
             .to_array()
             .to_numpy()
             .T  # TODO: check why T is needed

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-07-10 20:03:03
+LastEditTime: 2024-08-10 15:10:27
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /torchhydro/torchhydro/datasets/data_sets.py
+FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -36,7 +36,7 @@ from torchhydro.datasets.data_utils import (
     warn_if_nan,
     wrap_t_s_dict,
 )
-from hydrodatasource.reader.data_source import HydroBasins
+from hydrodatasource.reader.data_source import SelfMadeHydroDataset
 
 LOGGER = logging.getLogger(__name__)
 
@@ -121,7 +121,8 @@ class BaseDataset(Dataset):
     def data_source(self):
         source_name = self.data_cfgs["source_cfgs"]["source_name"]
         source_path = self.data_cfgs["source_cfgs"]["source_path"]
-        return data_sources_dict[source_name](source_path)
+        other_settings = self.data_cfgs["source_cfgs"].get("other_settings", {})
+        return data_sources_dict[source_name](source_path, **other_settings)
 
     @property
     def streamflow_name(self):
@@ -353,6 +354,12 @@ class BaseDataset(Dataset):
             self.t_s_dict["t_final_range"],
             self.data_cfgs["target_cols"],
         )
+        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
+            # this means the data source return a dict with key as time_unit
+            # in this BaseDataset, we only support unified time range for all basins, so we chose the first key
+            # TODO: maybe this could be refactored better
+            data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
+            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
             data_forcing_ds_, data_output_ds_
         )
@@ -613,7 +620,13 @@ class HydroMeanDataset(BaseDataset):
 
     @property
     def data_source(self):
-        return HydroBasins(self.data_cfgs["source_cfgs"]["source_path"])
+        time_unit = (
+            str(self.data_cfgs["min_time_interval"]) + self.data_cfgs["min_time_unit"]
+        )
+        return SelfMadeHydroDataset(
+            self.data_cfgs["source_cfgs"]["source_path"],
+            time_unit=[time_unit],
+        )
 
     def _normalize(self):
         x, y, c = super()._normalize()
@@ -656,19 +669,22 @@ class HydroMeanDataset(BaseDataset):
         gage_id_lst = self.t_s_dict["sites_id"]
         t_range = self.t_s_dict["t_final_range"]
         interval = self.data_cfgs["min_time_interval"]
-        path = self.data_cfgs["source_cfgs"]["source_path"]["forcing"]
+        time_unit = (
+            str(self.data_cfgs["min_time_interval"]) + self.data_cfgs["min_time_unit"]
+        )
 
-        data = self.data_source.merge_nc_minio_datasets(path, gage_id_lst, var_lst)
-        all_vars = data.data_vars
-        if any(var not in data.variables for var in var_lst):
-            raise ValueError(f"var_lst must all be in {all_vars}")
         subset_list = []
         for start_date, end_date in t_range:
             adjusted_end_date = (
                 datetime.strptime(end_date, "%Y-%m-%d-%H") + timedelta(hours=interval)
             ).strftime("%Y-%m-%d-%H")
-            subset = data.sel(time=slice(start_date, adjusted_end_date))
-            subset_list.append(subset)
+            subset = self.data_source.read_ts_xrdataset(
+                gage_id_lst,
+                t_range=[start_date, adjusted_end_date],
+                var_lst=var_lst,
+                time_units=[time_unit],
+            )
+            subset_list.append(subset[time_unit])
         return xr.concat(subset_list, dim="time")
 
 
@@ -691,10 +707,9 @@ class Seq2SeqDataset(HydroMeanDataset):
             x_origin = None
 
         if self.data_cfgs["constant_cols"]:
-            data_attr_ds = self.data_source.read_BA_xrdataset(
+            data_attr_ds = self.data_source.read_attr_xrdataset(
                 self.t_s_dict["sites_id"],
                 self.data_cfgs["constant_cols"],
-                self.data_cfgs["source_cfgs"]["source_path"]["attributes"],
             )
             c_orgin = self._trans2da_and_setunits(data_attr_ds)
         else:

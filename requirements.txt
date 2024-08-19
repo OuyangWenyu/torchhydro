@@ -6,6 +6,7 @@ intake
 
 torch
 torchvision
+torchaudio
 tensorboard
 shap
 kaggle

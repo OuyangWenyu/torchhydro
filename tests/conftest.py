@@ -63,7 +63,7 @@ def args():
         forecast_length=20,
         min_time_unit="D",
         min_time_interval="1",
-        var_t=["dayl", "prcp", "srad", "tmax", "tmin", "vp"],
+        var_t=["prcp", "dayl", "srad", "tmax", "tmin", "vp"],
         # var_c=["None"],
         var_out=["streamflow"],
         dataset="StreamflowDataset",

@@ -20,6 +20,7 @@ import torch.multiprocessing as mp
 
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.deep_hydro import train_worker
+from torchhydro.trainers.trainer import train_and_evaluate
 
 # from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
 
@@ -32,87 +33,44 @@ show = pd.read_csv(
     os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(all).csv"),
     dtype={"id": str},
 )
-gage_id = show["id"].values.tolist()
-
-
-def test_merge_forcing_and_streamflow():
-    data_name = "era5land"
-    for id in gage_id:
-        concat_ds_path = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_{data_name}_streamflow/data_forcing_streamflow_{id}.nc"
-        if not hdscc.FS.exists(concat_ds_path):
-            forcing_nc = f"s3://basins-origin/hour_data/1h/mean_data/data_forcing_{data_name}/data_forcing_{id}.nc"
-            stream_nc = f"s3://basins-origin/hour_data/1h/mean_data/streamflow_basin/streamflow_{id}.nc"
-            if hdscc.FS.exists(forcing_nc) and hdscc.FS.exists(stream_nc):
-                forcing = xr.open_dataset(hdscc.FS.open(forcing_nc))
-                stream = xr.open_dataset(hdscc.FS.open(stream_nc))
-                forcing_times = pd.to_datetime(forcing.time.values)
-                stream_times = pd.to_datetime(stream.time.values)
-                common_times = pd.Index(stream_times).intersection(
-                    pd.Index(forcing_times)
-                )
-                forcing_common = forcing.sel(time=common_times)
-                stream_common = stream.sel(time=common_times)
-                combined_dataset = xr.merge([forcing_common, stream_common])
-                hdscc.FS.write_bytes(concat_ds_path, combined_dataset.to_netcdf())
-            else:
-                print(f"File {id} dosen't exists. Skipping overwrite.")
-        else:
-            print(f"File {concat_ds_path} already exists. Skipping overwrite.")
+# gage_id = show["id"].values.tolist()
+gage_id = ["songliao_21401550"]
 
 
 @pytest.fixture()
 def config():
-    project_name = "test_mean_seq2seq/ex26"
+    # 设置测试所需的项目名称和默认配置文件
+    project_name = os.path.join("train_with_gpm", "ex1")
     config_data = default_config_file()
+
+    # 填充测试所需的命令行参数
     args = cmd(
         sub=project_name,
         source_cfgs={
             "source": "HydroMean",
-            "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "attributes": "basins-origin/attributes.nc",
-            },
+            "source_path": "/ftproot/basins-interim/",
         },
-        ctx=[0, 1, 2],
+        ctx=[2],
         model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 20,
+            "en_input_size": 17,
+            "de_input_size": 18,
             "output_size": 2,
-            "hidden_size": 128,
+            "hidden_size": 256,
             "forecast_length": 56,
             "prec_window": 1,
+            "teacher_forcing_ratio": 0.5,
         },
         model_loader={"load_way": "best"},
-        gage_id=[
-            "21401550",  # 碧流河
-            # "01181000",
-            # "01411300",
-            # "01414500",
-            # "02016000",
-            # "02018000",
-            # "02481510",
-            # "03070500",
-            # "08324000",
-            # "11266500",
-            # "11523200",
-            # "12020000",
-            # "12167000",
-            # "14185000",
-            "14306500",
-        ],
-        port="10086",
-        # gage_id=gage_id,
-        batch_size=1024,
-        forecast_history=224,
+        gage_id=gage_id,
+        # gage_id=["21400800", "21401550", "21401300", "21401900"],
+        batch_size=256,
+        forecast_history=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval=3,
         var_t=[
-            "total_precipitation_hourly",
-            "temperature_2m",
-            "dewpoint_temperature_2m",
-            "surface_net_solar_radiation",
+            "precipitationCal",
             "sm_surface",
         ],
         var_c=[
@@ -134,52 +92,46 @@ def config():
         ],
         var_out=["streamflow", "sm_surface"],
         dataset="Seq2SeqDataset",
-        sampler="DistSampler",  # 使用多卡训练时必须使用DistSampler
+        sampler="HydroSampler",
         scaler="DapengScaler",
-        train_epoch=2,
+        train_epoch=100,
         save_epoch=1,
-        train_period=[
-            ("2015-06-01", "2022-12-20"),
-        ],
-        test_period=[
-            ("2023-02-01", "2023-11-30"),
-        ],
-        valid_period=[
-            ("2023-02-01", "2023-11-30"),  # 目前只支持一个时段
-        ],
+        train_period=[("2016-06-01-01", "2023-11-01-01")],
+        test_period=[("2015-06-01-01", "2016-06-01-01")],
+        valid_period=[("2015-06-01-01", "2016-06-01-01")],
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
             "data_gap": [0, 0],
             "device": [1],
             "item_weight": [0.8, 0.2],
-            # "limit_part": [1],
         },
         opt="Adam",
         lr_scheduler={
-            # 多卡训练时，先验地将学习率设置成显卡数*单卡学习率
-            "lr": 0.003,
-            "lr_factor": 0.96,
+            "lr": 0.0001,
+            "lr_factor": 0.9,
         },
         which_first_tensor="batch",
         rolling=False,
         long_seq_pred=False,
+        calc_metrics=False,
         early_stopping=True,
-        patience=5,
-        ensemble=True,
-        ensemble_items={
-            "kfold": 9,
-            "batch_sizes": [1024],
-        },
-        model_type="DDP_MTL",
-        fill_nan=["no", "no"],
+        # ensemble=True,
+        # ensemble_items={
+        #     "batch_sizes": [256, 512],
+        # },
+        patience=10,
+        model_type="MTL",
     )
+
+    # 更新默认配置
     update_cfg(config_data, args)
+
     return config_data
 
 
 def test_seq2seq(config):
-    world_size = len(config["training_cfgs"]["device"])
-    mp.spawn(train_worker, args=(world_size, config), nprocs=world_size, join=True)
-    # train_and_evaluate(config)
+    # world_size = len(config["training_cfgs"]["device"])
+    # mp.spawn(train_worker, args=(world_size, config), nprocs=world_size, join=True)
+    train_and_evaluate(config)
     # ensemble_train_and_evaluate(config)
