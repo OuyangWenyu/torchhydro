@@ -6,13 +6,13 @@ channels:
     - nvidia
     - defaults
 dependencies:
-    - python
-    - dgl # dgl==2.2.1.th22.cu121
+    - python==3.11.9
+    - dgl==2.2.1.th22.cu121
     - geopandas
     - scikit-learn
     - fsspec
     - intake
-    - pytorch # pytorch==2.2.2
+    - pytorch==2.2.2
     - tensorboard
     - torchvision
     - shap
@@ -28,3 +28,5 @@ dependencies:
           - twine
           - bump2version
           - hydrodatasource
+          - torchdata
+          - pydantic

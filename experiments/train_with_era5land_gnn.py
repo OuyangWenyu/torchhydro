@@ -24,7 +24,7 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-show = pd.read_csv(os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(97+24).csv"), dtype={"id": str})
+show = pd.read_csv(os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(0+20).csv"), dtype={"id": str})
 gage_id = show["id"].values.tolist()
 
 
@@ -54,7 +54,7 @@ def test_run_model():
 
 def create_config_Seq2Seq():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_ear5land", "ex1_539_basins")
+    project_name = os.path.join("train_with_era5land", "ex1_539_basins")
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数

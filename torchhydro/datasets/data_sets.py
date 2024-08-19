@@ -16,7 +16,6 @@ from itertools import chain
 
 import geopandas as gpd
 import hydrotopo.ig_path as htip
-import loguru
 import torch
 import xarray as xr
 import numpy as np
@@ -804,6 +803,7 @@ class GNNDataset(Seq2SeqDataset):
                 else:
                     # upstream_graph = array(list1, list2) and dtype is not object
                     nodes_arr = np.unique(upstream_graph)
+                # total_node_list is 1-dim list
                 total_node_list.extend(nodes_arr.tolist())
                 for node in nodes_arr:
                     basin_station_dict[node] = basin
@@ -823,10 +823,7 @@ class GNNDataset(Seq2SeqDataset):
     def get_upstream_df(self):
         total_node_list = self.get_upstream_graph()[1]
         basin_station_dict = self.get_upstream_graph()[2]
-        if get_list_dimensions(total_node_list) != 1:
-            nodes_arr = np.unique(list(chain.from_iterable(total_node_list)))
-        else:
-            nodes_arr = np.unique(total_node_list)
+        nodes_arr = np.unique(total_node_list)
         total_df = pd.DataFrame()
         for up_node in nodes_arr:
             if 'STCD' in self.node_features.columns:
@@ -901,7 +898,7 @@ class GNNDataset(Seq2SeqDataset):
     def df_resample_cut(self, cut_df: pd.DataFrame):
         time_str = self.step_mode(cut_df)
         if '0 days' in time_str:
-            time_only_str = time_str.split(' ')[1]
+            time_only_str = time_str.split(' ')[2]
             time_obj = parse(time_only_str).time()
             time_delta = timedelta(hours=time_obj.hour, minutes=time_obj.minute, seconds=time_obj.second)
             total_minutes = round(time_delta.total_seconds() / 60)
@@ -915,13 +912,8 @@ class GNNDataset(Seq2SeqDataset):
         return cut_df, freq
 
     def step_mode(self, csv_df):
-        diffs = pd.to_datetime(csv_df['TM']).diff()
+        if 'TM' in csv_df.columns:
+            diffs = pd.to_datetime(csv_df['TM']).diff()
+        else:
+            diffs = pd.to_datetime(csv_df['tm']).diff()
         return str(diffs.mode()[0])
-
-
-def get_list_dimensions(lst):
-    # 如果列表为空，则其维度为1
-    if not lst:
-        return 1
-    # 获取最大的维度，递归调用函数获取内层列表的维度
-    return 1 + max(get_list_dimensions(item) for item in lst) if isinstance(lst, list) else 1
