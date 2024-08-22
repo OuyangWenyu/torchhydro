@@ -639,10 +639,10 @@ class HydroMeanDataset(BaseDataset):
             x_origin = None
 
         if self.data_cfgs["constant_cols"]:
-            data_attr_ds = self.data_source.read_BA_xrdataset(
+            data_attr_ds = self.data_source.read_attr_xrdataset(
                 self.t_s_dict["sites_id"],
                 self.data_cfgs["constant_cols"],
-                self.data_cfgs["source_cfgs"]["source_path"]["attributes"],
+                # self.data_cfgs["source_cfgs"]["source_path"]["attributes"],
             )
             c_orgin = self._trans2da_and_setunits(data_attr_ds)
         else:
