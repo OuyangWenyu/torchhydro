@@ -7,11 +7,9 @@ Description:
 FilePath: \torchhydro\experiments\train_with_era5land.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
+import glob
 import logging
 import os
-import pathlib
-
-import pandas as pd
 
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
@@ -24,8 +22,8 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-show = pd.read_csv(os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(0+20).csv"), dtype={"id": str})
-gage_id = show["id"].values.tolist()
+chn_gage_id = [gage_id.split('/')[-1].split('.')[0] for gage_id in glob.glob('/ftproot/basins-interim/timeseries/3h/*.csv')
+               if 'songliao' in gage_id]
 
 
 def test_run_model():
@@ -62,14 +60,7 @@ def create_config_Seq2Seq():
         sub=project_name,
         source_cfgs={
             "source": "HydroMean",
-            "source_path": {
-                "forcing": "/ftproot/local_data_forcing_era5land_streamflow/local_data_forcing_era5land_zarr/",
-                "target": "/ftproot/local_data_forcing_era5land_streamflow/local_data_forcing_era5land_zarr/",
-                "attributes": "/ftproot/attributes.zarr",
-                # "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                # "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                # "attributes": "basins-origin/attributes.nc",
-            },
+            "source_path": "/ftproot/basins-interim/",
         },
         ctx=[2],
         model_name="Seq2Seq",
@@ -83,8 +74,7 @@ def create_config_Seq2Seq():
             "teacher_forcing_ratio": 0.5,
         },
         model_loader={"load_way": "best"},
-        gage_id=gage_id,
-        # gage_id=["21400800", "21401550", "21401300", "21401900"],
+        gage_id=chn_gage_id,
         batch_size=256,
         forecast_history=240,
         forecast_length=56,
@@ -147,7 +137,7 @@ def create_config_Seq2Seq():
         patience=10,
         model_type="MTL",
         # continue_train=True,
-        network_shp='/home/wangyang1/songliao_cut_single.shp',
+        network_shp='/home/wangyang1/songliao_cut_single_new.shp',
         node_shp="/home/wangyang1/463_nodes_sl/463_nodes_sl.shp"
     )
 
@@ -184,7 +174,7 @@ def create_config_Transformer():
             "prec_window": 0,
         },
         model_loader={"load_way": "best"},
-        gage_id=gage_id,
+        gage_id=chn_gage_id,
         batch_size=128,
         forecast_history=240,
         forecast_length=56,

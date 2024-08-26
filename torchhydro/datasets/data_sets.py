@@ -12,31 +12,30 @@ import logging
 import math
 import re
 import sys
+from datetime import datetime
+from datetime import timedelta
 from itertools import chain
+from typing import Optional
 
 import geopandas as gpd
 import hydrotopo.ig_path as htip
-import torch
-import xarray as xr
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import Optional
+import torch
+import xarray as xr
+from dateutil.parser import parse
+from hydrodatasource.reader.data_source import SelfMadeHydroDataset
+from hydrodatasource.utils.utils import streamflow_unit_conv
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from hydrodatasource.utils.utils import streamflow_unit_conv
 
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
-from dateutil.parser import parse
-from datetime import timedelta
-
 from torchhydro.datasets.data_utils import (
     warn_if_nan,
     wrap_t_s_dict,
 )
-from hydrodatasource.reader.data_source import SelfMadeHydroDataset
 
 LOGGER = logging.getLogger(__name__)
 
@@ -781,6 +780,8 @@ class GNNDataset(Seq2SeqDataset):
         self.load_data()
 
     def __getitem__(self, item: int):
+        # 从lookup_table中获取的idx和basin是整数，但是total_df的basin是字符串，所以需要转换一下
+        # 同时需要注意范围，basin在不在103之内，idx又在哪里
         basin, idx = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
@@ -795,8 +796,9 @@ class GNNDataset(Seq2SeqDataset):
         return torch.from_numpy(x).float(), torch.from_numpy(y).float()
 
     def load_data(self):
-        self.x_up = xr.Dataset.from_dataframe(self.get_upstream_df()[0])
-        self.total_graph = self.get_upstream_graph()[0]
+        upstream_df, total_graph = self.get_upstream_df()
+        self.x_up = xr.Dataset.from_dataframe(upstream_df)
+        self.total_graph = total_graph
 
     def get_upstream_graph(self):
         # 训练时所有流域内所有站点在给定时间段内的水位径流数据
@@ -806,7 +808,8 @@ class GNNDataset(Seq2SeqDataset):
         total_node_list = []
         basin_station_dict = {}
         for basin in self.data_cfgs["object_ids"]:
-            upstream_graph = self.prepare_graph(self.network_features, self.node_features, basin)
+            basin_num = basin.split('_')[1]
+            upstream_graph = self.prepare_graph(self.network_features, self.node_features, basin_num)
             if len(upstream_graph) != 0:
                 if upstream_graph.dtype == 'O':
                     # upstream_graph = array(list1, list2, list3)
@@ -836,8 +839,7 @@ class GNNDataset(Seq2SeqDataset):
         return total_graph, total_node_list, basin_station_dict
 
     def get_upstream_df(self):
-        total_node_list = self.get_upstream_graph()[1]
-        basin_station_dict = self.get_upstream_graph()[2]
+        total_graph, total_node_list, basin_station_dict = self.get_upstream_graph()
         nodes_arr = np.unique(total_node_list)
         total_df = pd.DataFrame()
         for up_node in nodes_arr:
@@ -854,7 +856,8 @@ class GNNDataset(Seq2SeqDataset):
             basin_column = pd.DataFrame({'basin_id': np.repeat(basin_station_dict[up_node], len(station_df))})
             station_df = pd.concat([basin_column, station_df], axis=1)
             total_df = pd.concat([total_df, station_df], axis=0)
-        return total_df
+        total_df = total_df.set_index('basin_id')
+        return total_df, total_graph
 
     def prepare_graph(self, network_features: gpd.GeoDataFrame, node_features: gpd.GeoDataFrame, node: int | str,
                       cutoff=2147483647):
@@ -869,7 +872,12 @@ class GNNDataset(Seq2SeqDataset):
                 node_features['ID'] = node_features['ID'].astype(str)
                 node_idx = node_features.index[node_features['ID'] == node]
         if len(node_idx) != 0:
-            graph_lists = htip.find_edge_nodes(node_features, network_features, node_idx, 'up', cutoff)
+            node_idx = node_idx.tolist()[0]
+            try:
+                graph_lists = htip.find_edge_nodes(node_features, network_features, node_idx, 'up', cutoff)
+            except IndexError:
+                # 部分点所对应的LineString为空，导致报错
+                graph_lists = []
         else:
             graph_lists = []
         return graph_lists
@@ -898,37 +906,50 @@ class GNNDataset(Seq2SeqDataset):
 
     def gen_level_stream(self, data_table: pd.DataFrame, date_times: pd.DatetimeIndex):
         table, freq = self.df_resample_cut(data_table)
-        # 以后除了水位以外，还可以有流量等变量
-        if 'Z' in table.columns:
-            level_array = table['Z'][table.index.isin(date_times)].to_numpy()
+        if len(table) != 0:
+            if 'rz' in table.columns:
+                table = table.rename(columns={'rz': 'Z', 'inq': 'Q'})
+            # 水位(00065)，流量(00060), https://waterservices.usgs.gov/docs/site-service/site-service-details/
+            lev_col_name = 'Z' if 'Z' in table.columns else ('z' if 'z' in table.columns else '00065')
+            level_array = table[lev_col_name][table.index.isin(date_times)].to_numpy()
+            stream_col_name = 'streamflow' if 'streamflow' in table.columns else \
+                ('Q' if 'Q' in table.columns else ('q' if 'q' in table.columns else '00060'))
+            streamflow_array = table[stream_col_name][table.index.isin(date_times)].to_numpy()
+            level_stream_df = pd.DataFrame({'streamflow': streamflow_array, 'level': level_array})
         else:
-            level_array = table['00060_cd'][table.index.isin(date_times)].to_numpy()
-        if 'streamflow' in table.columns:
-            streamflow_array = table['streamflow'][table.index.isin(date_times)].to_numpy()
-        else:
-            streamflow_array = table['Q'][table.index.isin(date_times)].to_numpy()
-        level_df = pd.DataFrame({'streamflow': streamflow_array, 'level': level_array})
-        return level_df
+            level_stream_df = pd.DataFrame()
+        return level_stream_df
 
     def df_resample_cut(self, cut_df: pd.DataFrame):
         time_str = self.step_mode(cut_df)
+        tm_col = 'TM' if 'TM' in cut_df.columns else 'tm'
         if '0 days' in time_str:
             time_only_str = time_str.split(' ')[2]
             time_obj = parse(time_only_str).time()
             time_delta = timedelta(hours=time_obj.hour, minutes=time_obj.minute, seconds=time_obj.second)
             total_minutes = round(time_delta.total_seconds() / 60)
             freq = f'{math.ceil(total_minutes / 60)}h'
-            cut_df['TM'] = pd.to_datetime(cut_df['TM'])
-            cut_df = cut_df.set_index('TM').resample(freq).interpolate().dropna(how='all')
+            cut_df[tm_col] = pd.to_datetime(cut_df[tm_col])
+            try:
+                cut_df = cut_df.set_index(tm_col).resample(freq).interpolate().dropna(how='all')
+            except ValueError:
+                # such as STCD 11210118, quality of data is very bad, pass it
+                cut_df = pd.DataFrame()
         else:
             freq = 'D'
-            cut_df['TM'] = pd.to_datetime(cut_df['TM'])
-            cut_df = cut_df.set_index('TM').resample(freq, origin='start').interpolate().dropna(how='all')
+            cut_df[tm_col] = pd.to_datetime(cut_df[tm_col])
+            try:
+                cut_df = cut_df.set_index(tm_col).resample(freq, origin='start').interpolate().dropna(how='all')
+            except ValueError:
+                cut_df = pd.DataFrame()
         return cut_df, freq
 
     def step_mode(self, csv_df):
-        if 'TM' in csv_df.columns:
-            diffs = pd.to_datetime(csv_df['TM']).diff()
+        tm_col = 'TM' if 'TM' in csv_df.columns else 'tm'
+        diffs = pd.to_datetime(csv_df[tm_col]).diff()
+        # 数据过少，没有众数，当作1天间隔
+        if diffs.shape[0] <= 1:
+            return '1 days 00:00:00'
         else:
-            diffs = pd.to_datetime(csv_df['tm']).diff()
-        return str(diffs.mode()[0])
+            time_diff = diffs.mode()[0]
+            return str(time_diff)
