@@ -14,11 +14,7 @@ import re
 import sys
 from datetime import datetime
 from datetime import timedelta
-from itertools import chain
 from typing import Optional
-
-import geopandas as gpd
-import hydrotopo.ig_path as htip
 import numpy as np
 import pandas as pd
 import torch
@@ -173,7 +169,7 @@ class BaseDataset(Dataset):
             earliest_date = earliest_date.strftime(date_format)
             latest_date = latest_date.strftime(date_format)
         else:
-            trange_type_num = 1
+            # trange_type_num = 1
             earliest_date = self.t_s_dict["t_final_range"][0]
             latest_date = self.t_s_dict["t_final_range"][1]
         min_time_unit = self.data_cfgs["min_time_unit"]
@@ -771,116 +767,57 @@ class TransformerDataset(Seq2SeqDataset):
 
 
 class GNNDataset(Seq2SeqDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str, graph_tuple):
         super(GNNDataset, self).__init__(data_cfgs, is_tra_val_te)
-        self.total_graph = None
-        self.x_up = None
-        self.network_features = gpd.read_file(self.data_cfgs['network_shp'])
-        self.node_features = gpd.read_file(self.data_cfgs['node_shp'])
-        self.load_data()
+        self.total_graph, self.total_node_list, self.basin_station_dict = graph_tuple
+        self.x_up = xr.Dataset.from_dataframe(self.get_upstream_df())
 
     def __getitem__(self, item: int):
+        from experiments.train_with_era5land_gnn import chn_gage_id
         # 从lookup_table中获取的idx和basin是整数，但是total_df的basin是字符串，所以需要转换一下
-        # 同时需要注意范围，basin在不在103之内，idx又在哪里
-        basin, idx = self.lookup_table[item]
+        _, idx = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
+        prec = self.data_cfgs["prec_window"]
         # 在这里p和s的间隔应该是1吗？
-        p_up = self.x_up[basin, idx + 1: idx + rho + horizon + 1, 0]
-        s_up = self.x_up[basin, idx: idx + rho, 1]
-        x_ps_up = np.stack((p_up[:rho], s_up), axis=1)
-        c = self.c[basin, :]
+        str_lev_array = self.x_up.sel(basin_id=chn_gage_id).to_array()
+        stream_up_p = str_lev_array[0][idx + 1: idx + rho + horizon + 1]
+        stream_up_s = str_lev_array[0][idx: idx + rho]
+        level_up_p = str_lev_array[1][idx + 1: idx + rho + horizon + 1]
+        level_up_s = str_lev_array[1][idx: idx + rho]
+        x_ps_up = np.stack((stream_up_p[:rho], stream_up_s, level_up_p[:rho], level_up_s), axis=1)
+        c = self.c
         c = np.tile(c, (rho + horizon, 1))
-        x = np.concatenate((self.x, x_ps_up, c[:rho]), axis=1)
-        y = self.y[basin, idx + rho + 1: idx + rho + horizon + 1, :]
-        return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-
-    def load_data(self):
-        upstream_df, total_graph = self.get_upstream_df()
-        self.x_up = xr.Dataset.from_dataframe(upstream_df)
-        self.total_graph = total_graph
-
-    def get_upstream_graph(self):
-        # 训练时所有流域内所有站点在给定时间段内的水位径流数据
-        import igraph as ig
-        import networkx as nx
-        total_graph = ig.Graph(directed=True)
-        total_node_list = []
-        basin_station_dict = {}
-        for basin in self.data_cfgs["object_ids"]:
-            basin_num = basin.split('_')[1]
-            upstream_graph = self.prepare_graph(self.network_features, self.node_features, basin_num)
-            if len(upstream_graph) != 0:
-                if upstream_graph.dtype == 'O':
-                    # upstream_graph = array(list1, list2, list3)
-                    if upstream_graph.shape[0] > 1:
-                        nodes_arr = np.unique(list(chain.from_iterable(upstream_graph)))
-                    else:
-                        # upstream_graph = array(list1)
-                        nodes_arr = upstream_graph
-                else:
-                    # upstream_graph = array(list1, list2) and dtype is not object
-                    nodes_arr = np.unique(upstream_graph)
-                # total_node_list is 1-dim list
-                total_node_list.extend(nodes_arr.tolist())
-                for node in nodes_arr:
-                    basin_station_dict[node] = basin
-                nx_graph = nx.DiGraph()
-                for path in upstream_graph:
-                    if isinstance(path, int | np.int64):
-                        nx.add_path(nx_graph, [path])
-                    else:
-                        nx.add_path(nx_graph, path)
-                ig_upstream_graph = ig.Graph.from_networkx(nx_graph)
-                total_graph = ig.Graph.disjoint_union(total_graph, ig_upstream_graph)
-            else:
-                continue
-        # ig_graph展成list之后，节点序号也是从小到大排列，与dgl_graph.nodes()排号形成对应，不需要再排序添加数据
-        return total_graph, total_node_list, basin_station_dict
+        x = np.concatenate((self.x[:, :rho, :], x_ps_up, c[:rho]), axis=1)
+        x_ps_h = np.stack((stream_up_p[rho:], level_up_p[rho:]), axis=1)
+        x_h = np.concatenate((x_ps_h, c[rho:]), axis=1)
+        y = self.y[:, idx + rho - prec + 1: idx + rho + horizon + 1, :]
+        result = (([torch.from_numpy(x).float(), torch.from_numpy(x_h).float(), torch.from_numpy(y).float()],
+                   torch.from_numpy(y).float())
+                  if self.is_tra_val_te == "train" else ([torch.from_numpy(x).float(), torch.from_numpy(x_h).float()],
+                                                         torch.from_numpy(y).float()))
+        return result
 
     def get_upstream_df(self):
-        total_graph, total_node_list, basin_station_dict = self.get_upstream_graph()
-        nodes_arr = np.unique(total_node_list)
+        nodes_arr = np.unique(self.total_node_list)
         total_df = pd.DataFrame()
+        node_features = self.data_cfgs['node_features']
         for up_node in nodes_arr:
-            if 'STCD' in self.node_features.columns:
-                up_node_name = self.node_features['STCD'][self.node_features.index == up_node].to_list()[0]
+            if 'STCD' in node_features.columns:
+                up_node_name = node_features['STCD'][node_features.index == up_node].to_list()[0]
             else:
-                up_node_name = self.node_features['ID'][self.node_features.index == up_node].to_list()[0]
+                up_node_name = node_features['ID'][node_features.index == up_node].to_list()[0]
             station_df = pd.DataFrame()
             for date_tuple in self.data_cfgs[f"t_range_{self.is_tra_val_te}"]:
                 data_table = self.read_data_with_stcd_from_minio(up_node_name)
                 date_times = pd.date_range(date_tuple[0], date_tuple[1], freq='1H')
                 level_str_df = self.gen_level_stream(data_table, date_times=date_times)
                 station_df = pd.concat([station_df, level_str_df])
-            basin_column = pd.DataFrame({'basin_id': np.repeat(basin_station_dict[up_node], len(station_df))})
+            basin_column = pd.DataFrame({'basin_id': np.repeat(self.basin_station_dict[up_node], len(station_df))})
             station_df = pd.concat([basin_column, station_df], axis=1)
             total_df = pd.concat([total_df, station_df], axis=0)
         total_df = total_df.set_index('basin_id')
-        return total_df, total_graph
-
-    def prepare_graph(self, network_features: gpd.GeoDataFrame, node_features: gpd.GeoDataFrame, node: int | str,
-                      cutoff=2147483647):
-        # test_df_path = 's3://stations-origin/zq_stations/hour_data/1h/zq_CHN_songliao_10800300.csv'
-        if isinstance(node, int):
-            node_idx = node
-        else:
-            if 'STCD' in node_features.columns:
-                node_features['STCD'] = node_features['STCD'].astype(str)
-                node_idx = node_features.index[node_features['STCD'] == node]
-            else:
-                node_features['ID'] = node_features['ID'].astype(str)
-                node_idx = node_features.index[node_features['ID'] == node]
-        if len(node_idx) != 0:
-            node_idx = node_idx.tolist()[0]
-            try:
-                graph_lists = htip.find_edge_nodes(node_features, network_features, node_idx, 'up', cutoff)
-            except IndexError:
-                # 部分点所对应的LineString为空，导致报错
-                graph_lists = []
-        else:
-            graph_lists = []
-        return graph_lists
+        return total_df
 
     def read_data_with_stcd_from_minio(self, stcd: str):
         import hydrodatasource.configs.config as hdscc

@@ -163,7 +163,6 @@ class GeneralSeq2Seq(nn.Module):
                     )
                 else:
                     current_input = output
-
         outputs = torch.stack(outputs, dim=1)
         prec_outputs = encoder_outputs[:, -self.prec_window, :].unsqueeze(1)
         outputs = torch.cat((prec_outputs, outputs), dim=1)
@@ -301,3 +300,109 @@ class Transformer(nn.Module):
         src, trg = x
         src = self.encode_src(src)
         return self.decode_trg(trg=trg, memory=src)
+
+
+class EncoderGNN(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, graph, num_layers=1, dropout=0.3, num_heads=8):
+        super(EncoderGNN, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.pre_fc = nn.Linear(input_dim, hidden_dim)
+        self.pre_relu = nn.ReLU()
+        self.graph = graph
+        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=False)
+        # (fc_src): Linear(in_features=256, out_features=2048, bias=True), 2048=8*256
+        self.gnn = gatv2conv.GATv2Conv(hidden_dim, hidden_dim, num_heads=num_heads)
+        self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        # x: (batch_size=256, seq_length=240, features=24)
+        x = self.pre_fc(x)
+        x = self.pre_relu(x)
+        outputs, (hidden, cell) = self.lstm(x)
+        outputs, hidden, cell = [tensor.unsqueeze(0) for tensor in [outputs, hidden, cell]]
+        # 错误，需要改掉
+        outputs, (hidden, cell) = self.gnn(graph=self.graph, feat=(outputs, (hidden, cell)))
+        outputs = self.dropout(outputs)
+        outputs = self.fc(outputs)
+        return outputs, hidden, cell
+
+
+class DecoderGNN(nn.Module):
+    def __init__(self, input_dim, output_dim, hidden_dim, graph, num_layers=1, dropout=0.3, num_heads=8):
+        super(DecoderGNN, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.pre_fc = nn.Linear(input_dim, hidden_dim)
+        self.pre_relu = nn.ReLU()
+        self.graph = graph
+        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=False)
+        self.gnn = gatv2conv.GATv2Conv(hidden_dim, hidden_dim*num_heads, num_heads=num_heads)
+        self.dropout = nn.Dropout(dropout)
+        self.fc_out = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, input, hidden, cell):
+        x = self.pre_fc(input)
+        x = self.pre_relu(x)
+        output, (hidden, cell) = self.lstm(x, (hidden, cell))
+        output, hidden, cell = [tensor.unsqueeze(0) for tensor in [output, hidden, cell]]
+        output, (hidden, cell) = self.gnn(graph=self.graph, feat=(output, (hidden, cell)))
+        output = self.dropout(output)
+        output = self.fc_out(output)
+        return output, hidden, cell
+
+
+class Seq2SeqGNN(nn.Module):
+    def __init__(
+        self,
+        en_input_size,
+        de_input_size,
+        output_size,
+        hidden_size,
+        forecast_length,
+        graph,
+        prec_window=0,
+        teacher_forcing_ratio=0.5,
+    ):
+        super(Seq2SeqGNN, self).__init__()
+        self.trg_len = forecast_length
+        self.prec_window = prec_window
+        self.teacher_forcing_ratio = teacher_forcing_ratio
+        self.encoder = EncoderGNN(
+            input_dim=en_input_size, hidden_dim=hidden_size, output_dim=output_size, graph=graph)
+        self.decoder = DecoderGNN(
+            input_dim=de_input_size, hidden_dim=hidden_size, output_dim=output_size, graph=graph)
+        # self.transfer = StateTransferNetwork(hidden_dim=hidden_size)
+        self.graph = graph
+
+    def forward(self, *src):
+        if len(src) == 3:
+            src1, src2, trgs = src
+        else:
+            src1, src2 = src
+            trgs = None
+        encoder_outputs, hidden, cell = self.encoder(src1)
+        # hidden, cell = self.transfer(hidden, cell)
+        outputs = []
+        current_input = encoder_outputs[:, -1, :].unsqueeze(1)
+        for t in range(self.trg_len):
+            p = src2[:, t, :].unsqueeze(1)
+            current_input = torch.cat((current_input, p), dim=2)
+            output, hidden, cell = self.decoder(current_input, hidden, cell)
+            outputs.append(output.squeeze(1))
+            if trgs is None or self.teacher_forcing_ratio <= 0:
+                current_input = output
+            else:
+                sm_trg = trgs[:, (self.prec_window + t), 1].unsqueeze(1).unsqueeze(1)
+                if not torch.any(torch.isnan(sm_trg)).item():
+                    use_teacher_forcing = random.random() < self.teacher_forcing_ratio
+                    str_trg = output[:, :, 0].unsqueeze(2)
+                    current_input = (
+                        torch.cat((str_trg, sm_trg), dim=2)
+                        if use_teacher_forcing
+                        else output)
+                else:
+                    current_input = output
+        outputs = torch.stack(outputs, dim=1)
+        prec_outputs = encoder_outputs[:, -self.prec_window, :].unsqueeze(1)
+        outputs = torch.cat((prec_outputs, outputs), dim=1)
+        return outputs

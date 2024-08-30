@@ -63,9 +63,9 @@ def create_config_Seq2Seq():
             "source_path": "/ftproot/basins-interim/",
         },
         ctx=[2],
-        model_name="Seq2Seq",
+        model_name="Seq2SeqGNN",
         model_hyperparam={
-            "en_input_size": 20,
+            "en_input_size": 24,
             "de_input_size": 18,
             "output_size": 2,
             "hidden_size": 256,
@@ -231,7 +231,7 @@ def create_config_Transformer():
         calc_metrics=False,
         early_stopping=True,
         patience=10,
-        model_type="MTL",
+        model_type="GNN_MTL",
         network_shp='/home/wangyang1/songliao_cut_single.shp',
         node_shp='/home/jiaxuwu/463_nodes.shp'
     )
@@ -251,6 +251,7 @@ def test_convert_nc_zarr():
         '''
     attr_nc = xr.open_dataset("/ftproot/attributes.nc")
     attr_nc.to_zarr("/ftproot/attributes.zarr", mode="w")
+
 
 if __name__ == "__main__":
     test_run_model()

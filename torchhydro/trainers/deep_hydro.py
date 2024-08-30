@@ -13,12 +13,15 @@ import os
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from functools import reduce
+from itertools import chain
 from typing import Dict, Tuple
 
+import dgl
 import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+import geopandas as gpd
 from dgl.dataloading import GraphDataLoader
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -28,7 +31,7 @@ from tqdm import tqdm
 
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
-from torchhydro.datasets.data_sets import BaseDataset
+from torchhydro.datasets.data_sets import BaseDataset, GNNDataset
 from torchhydro.datasets.sampler import (
     KuaiSampler,
     fl_sample_basin,
@@ -41,6 +44,7 @@ from torchhydro.models.model_dict_function import (
     pytorch_opt_dict,
 )
 from torchhydro.models.model_utils import get_the_device
+from torchhydro.models.seq2seq import Seq2SeqGNN
 from torchhydro.trainers.train_logger import TrainLogger
 from torchhydro.trainers.train_utils import (
     EarlyStopper,
@@ -544,7 +548,8 @@ class DeepHydro(DeepHydroInterface):
                 timeout=0,
             )
         else:
-            data_loader = GraphDataLoader(train_dataset)
+            data_loader = GraphDataLoader(train_dataset, batch_size=training_cfgs["batch_size"],
+                                          shuffle=(sampler is None))
         if data_cfgs["t_range_valid"] is not None:
             valid_dataset: BaseDataset = self.validdataset
             batch_size_valid = training_cfgs["batch_size"]
@@ -561,7 +566,8 @@ class DeepHydro(DeepHydroInterface):
                     timeout=0,
                 )
             else:
-                validation_data_loader = GraphDataLoader(train_dataset)
+                validation_data_loader = GraphDataLoader(valid_dataset, batch_size=training_cfgs["batch_size"],
+                                                         shuffle=False)
             return data_loader, validation_data_loader
         return data_loader, None
 
@@ -955,10 +961,88 @@ def train_worker(rank, world_size, cfgs):
     trainer.run()
 
 
+class GNNMultiTaskHydro(MultiTaskHydro):
+    def __init__(self, cfgs: Dict):
+        super().__init__(cfgs)
+        self.network_features = gpd.read_file(self.cfgs['data_cfgs']['network_shp'])
+        self.node_features = gpd.read_file(self.cfgs['data_cfgs']['node_shp'])
+        self.graph_tuple = self.get_upstream_graph()
+        self.cfgs["model_cfgs"]["graph"] = self.graph_tuple[0]
+
+    def make_dataset(self, is_tra_val_te: str):
+        data_cfgs = self.cfgs["data_cfgs"]
+        dataset = GNNDataset(data_cfgs, is_tra_val_te, self.graph_tuple)
+        return dataset
+
+    def get_upstream_graph(self):
+        # 训练时所有流域内所有站点在给定时间段内的水位径流数据
+        import igraph as ig
+        import networkx as nx
+        total_graph = ig.Graph(directed=True)
+        total_node_list = []
+        basin_station_dict = {}
+        for basin in self.cfgs["data_cfgs"]["object_ids"]:
+            basin_num = basin.split('_')[1]
+            upstream_graph = self.prepare_graph(self.network_features, self.node_features, basin_num)
+            if len(upstream_graph) != 0:
+                if upstream_graph.dtype == 'O':
+                    # upstream_graph = array(list1, list2, list3)
+                    if upstream_graph.shape[0] > 1:
+                        nodes_arr = np.unique(list(chain.from_iterable(upstream_graph)))
+                    else:
+                        # upstream_graph = array(list1)
+                        nodes_arr = upstream_graph
+                else:
+                    # upstream_graph = array(list1, list2) and dtype is not object
+                    nodes_arr = np.unique(upstream_graph)
+                # total_node_list is 1-dim list
+                total_node_list.extend(nodes_arr.tolist())
+                for node in nodes_arr:
+                    basin_station_dict[node] = basin
+                nx_graph = nx.DiGraph()
+                for path in upstream_graph:
+                    if isinstance(path, int | np.int64):
+                        nx.add_path(nx_graph, [path])
+                    else:
+                        nx.add_path(nx_graph, path)
+                ig_upstream_graph = ig.Graph.from_networkx(nx_graph)
+                total_graph = ig.Graph.disjoint_union(total_graph, ig_upstream_graph)
+            else:
+                continue
+        # ig_graph展成list之后，节点序号也是从小到大排列，与dgl_graph.nodes()排号形成对应，不需要再排序添加数据
+        total_graph = dgl.from_networkx(total_graph.to_networkx())
+        return total_graph, total_node_list, basin_station_dict
+
+    def prepare_graph(self, network_features: gpd.GeoDataFrame, node_features: gpd.GeoDataFrame, node: int | str,
+                      cutoff=2147483647):
+        import hydrotopo.ig_path as htip
+        # test_df_path = 's3://stations-origin/zq_stations/hour_data/1h/zq_CHN_songliao_10800300.csv'
+        if isinstance(node, int):
+            node_idx = node
+        else:
+            if 'STCD' in node_features.columns:
+                node_features['STCD'] = node_features['STCD'].astype(str)
+                node_idx = node_features.index[node_features['STCD'] == node]
+            else:
+                node_features['ID'] = node_features['ID'].astype(str)
+                node_idx = node_features.index[node_features['ID'] == node]
+        if len(node_idx) != 0:
+            node_idx = node_idx.tolist()[0]
+            try:
+                graph_lists = htip.find_edge_nodes(node_features, network_features, node_idx, 'up', cutoff)
+            except IndexError:
+                # 部分点所对应的LineString为空，导致报错
+                graph_lists = []
+        else:
+            graph_lists = []
+        return graph_lists
+
+
 model_type_dict = {
     "Normal": DeepHydro,
     "FedLearn": FedLearnHydro,
     "TransLearn": TransLearnHydro,
     "MTL": MultiTaskHydro,
     "DDP_MTL": DistributedDeepHydro,
+    "GNN_MTL": GNNMultiTaskHydro,
 }
