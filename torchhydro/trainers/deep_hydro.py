@@ -298,7 +298,7 @@ class DeepHydro(DeepHydroInterface):
             isinstance(epoch, int) for epoch in lr_scheduler_cfg
         ):
             scheduler = LambdaLR(
-                opt, lr_lambda=lambda epoch: lr_scheduler_cfg.get(epoch, 1.0)
+                opt, lr_lambda=lambda epoch: lr_scheduler_cfg.get(epoch, 0.5)# 初始从1开始(强制)，10epoch之后再从0.1开始
             )
         elif "lr_factor" in lr_scheduler_cfg and "lr_patience" not in lr_scheduler_cfg:
             scheduler = ExponentialLR(opt, gamma=lr_scheduler_cfg["lr_factor"])
