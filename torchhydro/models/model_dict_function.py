@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-04-09 14:47:21
+LastEditTime: 2024-09-10 10:56:55
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \torchhydro\torchhydro\models\model_dict_function.py
@@ -39,6 +39,7 @@ from torchhydro.models.crits import (
     QuantileLoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
+from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
 from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
 
 """
@@ -60,6 +61,7 @@ pytorch_model_dict = {
     "DataEnhanced": DataEnhancedModel,
     "DataFusion": DataFusionModel,
     "Transformer": Transformer,
+    "DplNnModuleXaj": DplLstmNnModuleXaj,
 }
 
 pytorch_criterion_dict = {

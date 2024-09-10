@@ -9,6 +9,7 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 from torchhydro.models.dpl4xaj import DplLstmXaj
 from torchhydro.models.kernel_conv import uh_conv, uh_gamma
+from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
 
 
 @pytest.fixture()
@@ -50,37 +51,45 @@ def dpl_eh5mm(device):
     return dpl_.to(device)
 
 
+@pytest.fixture()
+def dpl_nnmodule(device):
+    dpl_ = DplLstmNnModuleXaj(
+        5, 15, 64, kernel_size=15, warmup_length=5, et_output=1, param_var_index=[]
+    )
+    return dpl_.to(device)
+
+
 def test_dpl_lstm_xaj(device, dpl):
     # sequence-first tensor: time_sequence, batch, feature_size (assume that they are p, pet, srad, tmax, tmin)
     x = torch.rand(20, 10, 5).to(device)
     z = torch.rand(20, 10, 5).to(device)
-    q = dpl(x, z)
-    assert len(q.shape) == 3
-    assert q.shape == (15, 10, 1)
-    q.backward(torch.ones_like(q))
-    assert type(q) == torch.Tensor
+    qe = dpl(x, z)
+    assert len(qe.shape) == 3
+    assert qe.shape == (15, 10, 2)
+    qe.backward(torch.ones_like(qe))
+    assert isinstance(qe, torch.Tensor)
 
 
 def test_dpl_lstm_xaj_eh(device, dpl_eh):
     # sequence-first tensor: time_sequence, batch, feature_size (assume that they are p, pet, srad, tmax, tmin)
     x = torch.rand(20, 10, 5).to(device)
     z = torch.rand(20, 10, 5).to(device)
-    q = dpl_eh(x, z)
-    assert len(q.shape) == 3
-    assert q.shape == (15, 10, 1)
-    q.backward(torch.ones_like(q))
-    assert type(q) == torch.Tensor
+    qe = dpl_eh(x, z)
+    assert len(qe.shape) == 3
+    assert qe.shape == (15, 10, 2)
+    qe.backward(torch.ones_like(qe))
+    assert isinstance(qe, torch.Tensor)
 
 
 def test_dpl_lstm_xaj_eh5mm(device, dpl_eh5mm):
     # sequence-first tensor: time_sequence, batch, feature_size (assume that they are p, pet, srad, tmax, tmin)
     x = torch.rand(20, 10, 5).to(device)
     z = torch.rand(20, 10, 5).to(device)
-    q = dpl_eh5mm(x, z)
-    assert len(q.shape) == 3
-    assert q.shape == (15, 10, 1)
-    q.backward(torch.ones_like(q))
-    assert type(q) == torch.Tensor
+    qe = dpl_eh5mm(x, z)
+    assert len(qe.shape) == 3
+    assert qe.shape == (15, 10, 2)
+    qe.backward(torch.ones_like(qe))
+    assert isinstance(qe, torch.Tensor)
 
 
 def test_uh_gamma():
@@ -141,6 +150,16 @@ def test_uh():
     )
 
 
+def test_dpl_lstm_xaj_nnmodule(device, dpl_nnmodule):
+    # sequence-first tensor: time_sequence, batch, feature_size (assume that they are p, pet, srad, tmax, tmin)
+    x = torch.rand(20, 10, 5).to(device)
+    z = torch.rand(20, 10, 5).to(device)
+    qe = dpl_nnmodule(x, z)
+    assert len(qe.shape) == 3
+    assert qe.shape == (15, 10, 2)
+    assert isinstance(qe, torch.Tensor)
+
+
 def test_train_evaluate_dpl(dpl_args, config_data):
     update_cfg(config_data, dpl_args)
     train_and_evaluate(config_data)
@@ -160,9 +179,11 @@ def dpl_selfmadehydrodataset_args():
             "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {"time_unit": ["1D"]},
         },
+        model_type="MTL",
         ctx=[0],
-        model_name="DplLstmXaj",
+        # model_name="DplLstmXaj",
         # model_name="DplAttrXaj",
+        model_name="DplNnModuleXaj",
         model_hyperparam={
             "n_input_features": 6,
             # "n_input_features": 19,
@@ -174,8 +195,18 @@ def dpl_selfmadehydrodataset_args():
             "param_test_way": "final",
             "source_book": "HF",
             "source_type": "sources",
+            "et_output": 1,
+            "param_var_index": [],
         },
-        loss_func="RMSESum",
+        # loss_func="RMSESum",
+        loss_func="MultiOutLoss",
+        loss_param={
+            "loss_funcs": "RMSESum",
+            "data_gap": [0, 0],
+            "device": [0],
+            "item_weight": [1, 0],
+            "limit_part": [1],
+        },
         dataset="DplDataset",
         scaler="DapengScaler",
         scaler_params={
@@ -183,8 +214,8 @@ def dpl_selfmadehydrodataset_args():
                 "streamflow",
             ],
             "gamma_norm_cols": [
-                "total_precipitation_sum",
-                "potential_evaporation_sum",
+                "total_precipitation_hourly",
+                "potential_evaporation_hourly",
             ],
             "pbm_norm": True,
         },
@@ -237,7 +268,11 @@ def dpl_selfmadehydrodataset_args():
             # "snw_pc_syr",
             # "glc_cl_smj",
         ],
-        var_out=["streamflow"],
+        # NOTE: although we set total_evaporation_hourly as output, it is not used in the training process
+        var_out=["streamflow", "total_evaporation_hourly"],
+        n_output=2,
+        # TODO: if chose "mean", metric results' format is different, this should be refactored
+        fill_nan=["no", "no"],
         target_as_input=0,
         constant_only=0,
         # train_epoch=100,

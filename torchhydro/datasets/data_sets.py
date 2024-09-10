@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-08-10 15:10:27
+LastEditTime: 2024-09-10 19:45:46
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -320,11 +320,15 @@ class BaseDataset(Dataset):
         standardized_streamflow_unit = standardize_unit(streamflow_unit)
         standardized_prcp_unit = standardize_unit(prcp_unit)
         if standardized_streamflow_unit != standardized_prcp_unit:
-            data_output_ds = streamflow_unit_conv(
-                data_output_ds,
+            streamflow_dataset = data_output_ds[[self.streamflow_name]]
+            converted_streamflow_dataset = streamflow_unit_conv(
+                streamflow_dataset,
                 self.data_source.read_area(self.t_s_dict["sites_id"]),
                 target_unit=prcp_unit,
             )
+            data_output_ds[self.streamflow_name] = converted_streamflow_dataset[
+                self.streamflow_name
+            ]
         return data_forcing_ds, data_output_ds
 
     def _read_xyc(self):
