@@ -286,6 +286,9 @@ def dpl_selfmadehydrodataset_args():
         warmup_length=365,
         opt="Adadelta",
         which_first_tensor="sequence",
+        # train_mode=0,
+        # weight_path="C:\\Users\\wenyu\\code\\torchhydro\\results\\test_camels\\expdpl61561201\\10_September_202402_32PM_model.pth",
+        # continue_train=0,
     )
 
 
