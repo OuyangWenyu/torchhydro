@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-10-25 21:16:22
-LastEditTime: 2023-09-19 20:33:31
+LastEditTime: 2024-09-10 10:44:23
 LastEditors: Wenyu Ouyang
 Description: some basic config for hydrological models
-FilePath: /torchhydro/torchhydro/configs/model_config.py
+FilePath: \torchhydro\torchhydro\configs\model_config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+
 from collections import OrderedDict
 
 # NOTE: Don't change the parameter settings
@@ -119,4 +120,19 @@ MODEL_PARAM_DICT = {
             }
         ),
     },
+}
+
+
+MODEL_PARAM_TEST_WAY = {
+    # 0. "train_final" -- use the final training period's parameter for each test period
+    "final_train_period": "train_final",
+    # 1. "final" -- use the final testing period's parameter for each test period
+    "final_period": "final",
+    # 2. "mean_time" -- Mean values of all training periods' parameters are used
+    "mean_all_period": "mean_time",
+    # 3. "mean_basin" -- Mean values of all basins' final training periods' parameters is used
+    "mean_all_basin": "mean_basin",
+    # 4. "var" -- use time series parameters and constant parameters in testing period
+    "time_varying": "var",
+    "time_scroll": "dynamic",
 }

@@ -375,6 +375,7 @@ def dpl_args():
             "source_path": os.path.join(data_origin_dir, "camels", "camels_us"),
         },
         ctx=[0],
+        model_type="MTL",
         # model_name="DplLstmXaj",
         model_name="DplAttrXaj",
         model_hyperparam={
@@ -386,7 +387,14 @@ def dpl_args():
             "warmup_length": 30,
             "param_limit_func": "clamp",
         },
-        loss_func="RMSESum",
+        loss_func="MultiOutLoss",
+        loss_param={
+            "loss_funcs": "RMSESum",
+            "data_gap": [0, 0],
+            "device": [0],
+            "item_weight": [1, 0],
+            "limit_part": [1],
+        },
         dataset="DplDataset",
         scaler="DapengScaler",
         scaler_params={
@@ -431,7 +439,10 @@ def dpl_args():
             "tmin",
             "vp",
         ],
-        var_out=["streamflow"],
+        # NOTE: The second variable is not necessary, or not used in the model. But to keep the same length with model output, we add a dummy variable.
+        var_out=["streamflow", "ET"],
+        n_output=2,
+        fill_nan=["no", "no"],
         target_as_input=0,
         constant_only=1,
         train_epoch=2,

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-07-10 19:48:58
+LastEditTime: 2024-09-10 16:17:09
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
-FilePath: /torchhydro/torchhydro/trainers/train_utils.py
+FilePath: \torchhydro\torchhydro\trainers\train_utils.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -387,7 +387,6 @@ def torch_single_train(
     pbar = tqdm(data_loader)
 
     for _, (src, trg) in enumerate(pbar):
-        # iEpoch starts from 1, iIter starts from 0, we hope both start from 1
         trg, output = model_infer(seq_first, device, model, src, trg)
 
         loss = compute_loss(trg, output, criterion, **kwargs)
