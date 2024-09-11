@@ -66,7 +66,7 @@ def create_config_Seq2Seq():
         model_name="Seq2SeqGNN",
         model_hyperparam={
             "en_input_size": 24,
-            "de_input_size": 18,
+            "de_input_size": 19,
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 56,
@@ -135,7 +135,7 @@ def create_config_Seq2Seq():
         #     "batch_sizes": [256, 512],
         # },
         patience=10,
-        model_type="MTL",
+        model_type="GNN_MTL",
         # continue_train=True,
         network_shp='/home/wangyang1/songliao_cut_single_new.shp',
         node_shp="/home/wangyang1/463_nodes_sl/463_nodes_sl.shp"
@@ -231,7 +231,7 @@ def create_config_Transformer():
         calc_metrics=False,
         early_stopping=True,
         patience=10,
-        model_type="GNN_MTL",
+        model_type="MTL",
         network_shp='/home/wangyang1/songliao_cut_single.shp',
         node_shp='/home/jiaxuwu/463_nodes.shp'
     )

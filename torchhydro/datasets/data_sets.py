@@ -10,6 +10,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 
 import logging
 import math
+import os.path
 import re
 import sys
 from datetime import datetime
@@ -769,29 +770,50 @@ class TransformerDataset(Seq2SeqDataset):
 class GNNDataset(Seq2SeqDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str, graph_tuple):
         super(GNNDataset, self).__init__(data_cfgs, is_tra_val_te)
-        self.total_graph, self.total_node_list, self.basin_station_dict = graph_tuple
-        self.x_up = xr.Dataset.from_dataframe(self.get_upstream_df())
+        # self.total_graph: num_nodes=317, num_edges=280
+        # self.basin_station_dict: {dict: 317}
+        self.graph_tuple = graph_tuple
+        upstream_df = self.get_upstream_df()
+        if 'basin_id' in upstream_df.columns:
+            self.x_up = xr.Dataset.from_dataframe(self.get_upstream_df().set_index('basin_id'))
 
     def __getitem__(self, item: int):
         from experiments.train_with_era5land_gnn import chn_gage_id
         # 从lookup_table中获取的idx和basin是整数，但是total_df的basin是字符串，所以需要转换一下
-        _, idx = self.lookup_table[item]
+        basin, idx = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
         prec = self.data_cfgs["prec_window"]
         # 在这里p和s的间隔应该是1吗？
-        str_lev_array = self.x_up.sel(basin_id=chn_gage_id).to_array()
+        basin_id = chn_gage_id[basin]
+        str_lev_array = self.x_up.sel(basin_id=basin_id).to_array()
         stream_up_p = str_lev_array[0][idx + 1: idx + rho + horizon + 1]
         stream_up_s = str_lev_array[0][idx: idx + rho]
         level_up_p = str_lev_array[1][idx + 1: idx + rho + horizon + 1]
         level_up_s = str_lev_array[1][idx: idx + rho]
+        if stream_up_p[:rho].shape[0] < stream_up_s.shape[0]:
+            if stream_up_p[:rho].shape[0] == 0:
+                stream_up_p, level_up_p = np.array([np.nan]), np.array([np.nan])
+            else:
+                stream_up_p = np.pad(stream_up_p, (0, 1), 'edge')
+                level_up_p = np.pad(level_up_p, (0, 1), 'edge')
         x_ps_up = np.stack((stream_up_p[:rho], stream_up_s, level_up_p[:rho], level_up_s), axis=1)
-        c = self.c
+        c = self.c[basin, :]
         c = np.tile(c, (rho + horizon, 1))
-        x = np.concatenate((self.x[:, :rho, :], x_ps_up, c[:rho]), axis=1)
+        if x_ps_up.shape[0] < c[:rho].shape[0]:
+            x_ps_up = np.full((c[:rho].shape[0], 4), np.nan)
+        x = np.concatenate((self.x[basin, :rho, :], x_ps_up, c[:rho]), axis=1)
         x_ps_h = np.stack((stream_up_p[rho:], level_up_p[rho:]), axis=1)
+        if x_ps_h.shape[0] < c[rho:].shape[0]:
+            diff = c[rho:].shape[0] - x_ps_h.shape[0]
+            if diff <= 2:
+                x_ps_h = np.pad(x_ps_h, ((0, diff), (0, 0)), 'edge')
+            else:
+                x_ps_h = np.full((c[rho:].shape[0], x_ps_h.shape[1]), np.nan)
         x_h = np.concatenate((x_ps_h, c[rho:]), axis=1)
-        y = self.y[:, idx + rho - prec + 1: idx + rho + horizon + 1, :]
+        y = self.y[basin, idx + rho - prec + 1: idx + rho + horizon + 1, :]
+        if y.shape[0] < horizon + prec:
+           y = np.pad(y, ((0, horizon + prec - y.shape[0]), (0, 0)), 'edge')
         result = (([torch.from_numpy(x).float(), torch.from_numpy(x_h).float(), torch.from_numpy(y).float()],
                    torch.from_numpy(y).float())
                   if self.is_tra_val_te == "train" else ([torch.from_numpy(x).float(), torch.from_numpy(x_h).float()],
@@ -799,27 +821,37 @@ class GNNDataset(Seq2SeqDataset):
         return result
 
     def get_upstream_df(self):
-        nodes_arr = np.unique(self.total_node_list)
-        total_df = pd.DataFrame()
-        node_features = self.data_cfgs['node_features']
-        for up_node in nodes_arr:
-            if 'STCD' in node_features.columns:
-                up_node_name = node_features['STCD'][node_features.index == up_node].to_list()[0]
-            else:
-                up_node_name = node_features['ID'][node_features.index == up_node].to_list()[0]
-            station_df = pd.DataFrame()
-            for date_tuple in self.data_cfgs[f"t_range_{self.is_tra_val_te}"]:
-                data_table = self.read_data_with_stcd_from_minio(up_node_name)
-                date_times = pd.date_range(date_tuple[0], date_tuple[1], freq='1H')
-                level_str_df = self.gen_level_stream(data_table, date_times=date_times)
-                station_df = pd.concat([station_df, level_str_df])
-            basin_column = pd.DataFrame({'basin_id': np.repeat(self.basin_station_dict[up_node], len(station_df))})
-            station_df = pd.concat([basin_column, station_df], axis=1)
-            total_df = pd.concat([total_df, station_df], axis=0)
-        total_df = total_df.set_index('basin_id')
+        import geopandas as gpd
+        res_dir = self.data_cfgs["test_path"]
+        if os.path.exists(os.path.join(res_dir, 'upstream_df.csv')):
+            total_df = pd.read_csv(os.path.join(res_dir, 'upstream_df.csv'), engine='c')
+        else:
+            nodes_arr = np.int32(np.unique(list(self.graph_tuple[1].keys())))
+            basin_up_dict = {}
+            for node in nodes_arr:
+                basin_up_dict[node] = self.graph_tuple[1][str(node)]
+            total_df = pd.DataFrame()
+            node_features = gpd.read_file(self.data_cfgs['node_shp'])
+            for up_node in nodes_arr:
+                if 'STCD' in node_features.columns:
+                    up_node_name = node_features['STCD'][node_features.index == up_node].to_list()[0]
+                else:
+                    up_node_name = node_features['ID'][node_features.index == up_node].to_list()[0]
+                station_df = pd.DataFrame()
+                for date_tuple in self.data_cfgs[f"t_range_{self.is_tra_val_te}"]:
+                    data_table = self.read_data_with_stcd_from_minio(up_node_name)
+                    date_times = pd.date_range(date_tuple[0], date_tuple[1], freq='1h')
+                    level_str_df = self.gen_level_stream(data_table, date_times=date_times)
+                    station_df = pd.concat([station_df, level_str_df])
+                basin_column = pd.DataFrame({'basin_id': np.repeat(basin_up_dict[up_node], len(station_df))})
+                station_df = pd.concat([basin_column, station_df], axis=1)
+                total_df = pd.concat([total_df, station_df], axis=0)
+            total_df = total_df.set_index('basin_id')
+            total_df.to_csv(os.path.join(res_dir, 'upstream_df.csv'))
         return total_df
 
     def read_data_with_stcd_from_minio(self, stcd: str):
+        # 考虑换掉minio
         import hydrodatasource.configs.config as hdscc
         minio_path_zq_chn = f's3://stations-origin/zq_stations/hour_data/1h/zq_CHN_songliao_{stcd}.csv'
         minio_path_zz_chn = f's3://stations-origin/zz_stations/hour_data/1h/zz_CHN_songliao_{stcd}.csv'

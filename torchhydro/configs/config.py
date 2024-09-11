@@ -65,7 +65,6 @@ def default_config_file():
                 "bias": True,
                 "batch_size": 100,
                 "dropout": 0.2,
-                "graph": None,
             },
             "weight_path": None,
             "continue_train": True,

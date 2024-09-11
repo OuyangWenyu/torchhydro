@@ -9,6 +9,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import copy
+import json
 import os
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -17,6 +18,7 @@ from itertools import chain
 from typing import Dict, Tuple
 
 import dgl
+import networkx as nx
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -44,7 +46,6 @@ from torchhydro.models.model_dict_function import (
     pytorch_opt_dict,
 )
 from torchhydro.models.model_utils import get_the_device
-from torchhydro.models.seq2seq import Seq2SeqGNN
 from torchhydro.trainers.train_logger import TrainLogger
 from torchhydro.trainers.train_utils import (
     EarlyStopper,
@@ -161,7 +162,7 @@ class DeepHydro(DeepHydroInterface):
 
     def load_model(self, mode="train"):
         """
-        Load a time series forecast model in pytorch_model_dict in model_dict_function.py
+        Load a time series fseorecast model in pytorch_model_dict in model_dict_function.py
 
         Returns
         -------
@@ -549,7 +550,7 @@ class DeepHydro(DeepHydroInterface):
             )
         else:
             data_loader = GraphDataLoader(train_dataset, batch_size=training_cfgs["batch_size"],
-                                          shuffle=(sampler is None))
+                                          shuffle=(sampler is None), drop_last=True)
         if data_cfgs["t_range_valid"] is not None:
             valid_dataset: BaseDataset = self.validdataset
             batch_size_valid = training_cfgs["batch_size"]
@@ -567,7 +568,7 @@ class DeepHydro(DeepHydroInterface):
                 )
             else:
                 validation_data_loader = GraphDataLoader(valid_dataset, batch_size=training_cfgs["batch_size"],
-                                                         shuffle=False)
+                                                         shuffle=False, drop_last=True)
             return data_loader, validation_data_loader
         return data_loader, None
 
@@ -964,54 +965,87 @@ def train_worker(rank, world_size, cfgs):
 class GNNMultiTaskHydro(MultiTaskHydro):
     def __init__(self, cfgs: Dict):
         super().__init__(cfgs)
-        self.network_features = gpd.read_file(self.cfgs['data_cfgs']['network_shp'])
-        self.node_features = gpd.read_file(self.cfgs['data_cfgs']['node_shp'])
-        self.graph_tuple = self.get_upstream_graph()
-        self.cfgs["model_cfgs"]["graph"] = self.graph_tuple[0]
+
+    def load_model(self, mode="train"):
+        if mode == "infer":
+            self.weight_path = self._get_trained_model()
+        elif mode != "train":
+            raise ValueError("Invalid mode; must be 'train' or 'infer'")
+        model_cfgs = self.cfgs["model_cfgs"]
+        model_name = model_cfgs["model_name"]
+        if model_name not in pytorch_model_dict:
+            raise NotImplementedError(
+                f"Error the model {model_name} was not found in the model dict. Please add it."
+            )
+        graph = self.get_upstream_graph()[0]
+        if self.pre_model is not None:
+            model = self._load_pretrain_model()
+        elif self.weight_path is not None:
+            # load model from pth file (saved weights and biases)
+            model = self._load_model_from_pth()
+        else:
+            model_cfgs['model_hyperparam']['graph'] = graph
+            model_cfgs['model_hyperparam']['device'] = self.device
+            model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
+        model.to(self.device)
+        return model
 
     def make_dataset(self, is_tra_val_te: str):
         data_cfgs = self.cfgs["data_cfgs"]
-        dataset = GNNDataset(data_cfgs, is_tra_val_te, self.graph_tuple)
+        graph_tuple = self.get_upstream_graph()
+        dataset = GNNDataset(data_cfgs, is_tra_val_te, graph_tuple)
         return dataset
 
     def get_upstream_graph(self):
         # 训练时所有流域内所有站点在给定时间段内的水位径流数据
         import igraph as ig
-        import networkx as nx
-        total_graph = ig.Graph(directed=True)
-        total_node_list = []
-        basin_station_dict = {}
-        for basin in self.cfgs["data_cfgs"]["object_ids"]:
-            basin_num = basin.split('_')[1]
-            upstream_graph = self.prepare_graph(self.network_features, self.node_features, basin_num)
-            if len(upstream_graph) != 0:
-                if upstream_graph.dtype == 'O':
-                    # upstream_graph = array(list1, list2, list3)
-                    if upstream_graph.shape[0] > 1:
-                        nodes_arr = np.unique(list(chain.from_iterable(upstream_graph)))
+        res_dir = self.cfgs["data_cfgs"]["test_path"]
+        nx_graph_path = os.path.join(res_dir, 'total_graph.edgelist')
+        basin_station_path = os.path.join(res_dir, 'basin_station.json')
+        if (os.path.exists(nx_graph_path)) & (os.path.exists(basin_station_path)):
+            total_graph = dgl.from_networkx(nx.read_edgelist(nx_graph_path, nodetype=int, delimiter='|'))
+            basin_station_dict = json.load(open(basin_station_path))
+            graph_tuple = (total_graph, basin_station_dict)
+        else:
+            total_graph = ig.Graph(directed=True)
+            basin_station_dict = {}
+            network_features = gpd.read_file(self.cfgs['data_cfgs']['network_shp'])
+            node_features = gpd.read_file(self.cfgs['data_cfgs']['node_shp'])
+            for basin in self.cfgs["data_cfgs"]["object_ids"]:
+                basin_num = basin.split('_')[1]
+                upstream_graph = self.prepare_graph(network_features, node_features, basin_num)
+                if len(upstream_graph) != 0:
+                    if upstream_graph.dtype == 'O':
+                        # upstream_graph = array(list1, list2, list3)
+                        if upstream_graph.shape[0] > 1:
+                            nodes_arr = np.unique(list(chain.from_iterable(upstream_graph)))
+                        else:
+                            # upstream_graph = array(list1)
+                            nodes_arr = upstream_graph
                     else:
-                        # upstream_graph = array(list1)
-                        nodes_arr = upstream_graph
+                        # upstream_graph = array(list1, list2) and dtype is not object
+                        nodes_arr = np.unique(upstream_graph)
+                    for node in nodes_arr:
+                        basin_station_dict[int(node)] = basin
+                    nx_graph = nx.DiGraph()
+                    for path in upstream_graph:
+                        if isinstance(path, int | np.int64):
+                            nx.add_path(nx_graph, [path])
+                        else:
+                            nx.add_path(nx_graph, path)
+                    ig_upstream_graph = ig.Graph.from_networkx(nx_graph)
+                    total_graph = ig.Graph.disjoint_union(total_graph, ig_upstream_graph)
                 else:
-                    # upstream_graph = array(list1, list2) and dtype is not object
-                    nodes_arr = np.unique(upstream_graph)
-                # total_node_list is 1-dim list
-                total_node_list.extend(nodes_arr.tolist())
-                for node in nodes_arr:
-                    basin_station_dict[node] = basin
-                nx_graph = nx.DiGraph()
-                for path in upstream_graph:
-                    if isinstance(path, int | np.int64):
-                        nx.add_path(nx_graph, [path])
-                    else:
-                        nx.add_path(nx_graph, path)
-                ig_upstream_graph = ig.Graph.from_networkx(nx_graph)
-                total_graph = ig.Graph.disjoint_union(total_graph, ig_upstream_graph)
-            else:
-                continue
-        # ig_graph展成list之后，节点序号也是从小到大排列，与dgl_graph.nodes()排号形成对应，不需要再排序添加数据
-        total_graph = dgl.from_networkx(total_graph.to_networkx())
-        return total_graph, total_node_list, basin_station_dict
+                    continue
+            # ig_graph展成list之后，节点序号也是从小到大排列，与dgl_graph.nodes()排号形成对应，不需要再排序添加数据
+            nx_tgraph = total_graph.to_networkx()
+            total_graph = dgl.from_networkx(nx_tgraph)
+            graph_tuple = (total_graph, basin_station_dict)
+            nx.write_edgelist(nx_tgraph, os.path.join(self.cfgs["data_cfgs"]["test_path"], 'total_graph.edgelist'),
+                              delimiter='|')
+            with open(os.path.join(self.cfgs["data_cfgs"]["test_path"], 'basin_station.json'), 'w') as fp:
+                json.dump(basin_station_dict, fp)
+        return graph_tuple
 
     def prepare_graph(self, network_features: gpd.GeoDataFrame, node_features: gpd.GeoDataFrame, node: int | str,
                       cutoff=2147483647):
