@@ -105,6 +105,9 @@ class Resulter:
         # types of observations
         target_col = self.cfgs["data_cfgs"]["target_cols"]
         evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
+        basin_ids = self.cfgs["data_cfgs"]["object_ids"]
+        test_path = self.cfgs["data_cfgs"]["test_path"]
+        # Assume object_ids like ['changdian_61561']
         # fill_nan: "no" means ignoring the NaN value;
         #           "sum" means calculate the sum of the following values in the NaN locations.
         #           For example, observations are [1, nan, nan, 2], and predictions are [0.3, 0.3, 0.3, 1.5].
@@ -115,8 +118,8 @@ class Resulter:
         #  Then evaluate the model metrics
         if type(fill_nan) is list and len(fill_nan) != len(target_col):
             raise ValueError("length of fill_nan must be equal to target_col's")
-        eval_log = {}
         for i, col in enumerate(target_col):
+            eval_log = {}
             obs = obss_xr[col].to_numpy()
             pred = preds_xr[col].to_numpy()
 
@@ -128,6 +131,25 @@ class Resulter:
                 fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
                 eval_log,
             )
+            # Create pandas DataFrames from eval_log for each target variable (e.g., streamflow)
+            # Create a dictionary to hold the data for the DataFrame
+            data = {}
+            # Iterate over metrics in eval_log
+            for metric, values in eval_log.items():
+                # Remove 'of streamflow' (or similar) from the metric name
+                clean_metric = metric.replace(f"of {col}", "").strip()
+
+                # Add the cleaned metric to the data dictionary
+                data[clean_metric] = values
+
+            # Create a DataFrame using object_ids as the index and metrics as columns
+            df = pd.DataFrame(data, index=basin_ids)
+
+            # Define the output file name based on the target variable
+            output_file = os.path.join(test_path, f"metric_{col}.csv")
+
+            # Save the DataFrame to a CSV file
+            df.to_csv(output_file, index_label="basin_id")
 
         # Finally, try to explain model behaviour using shap
         is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
@@ -135,8 +157,6 @@ class Resulter:
             shap_summary_plot(self.model, self.traindataset, self.testdataset)
             # deep_explain_model_summary_plot(self.model, test_data)
             # deep_explain_model_heatmap(self.model, test_data)
-
-        return eval_log
 
     def load_result(self) -> Tuple[np.array, np.array]:
         """load the pred value of testing period and obs value"""
@@ -148,70 +168,6 @@ class Resulter:
         return pred, obs
 
     # TODO: the following code is not finished yet
-    def stat_result_for1out(self, pred, obs, fill_nan):
-        """
-        show the statistics result for 1 output
-        """
-        inds = stat_error(obs, pred, fill_nan=fill_nan)
-        inds_df = pd.DataFrame(inds)
-        return inds_df, obs, pred
-
-    def stat_result(
-        self,
-        save_dirs: str,
-        test_epoch: int,
-        return_value: bool = False,
-        fill_nan: Union[str, list, tuple] = "no",
-        unit="m3/s",
-        basin_area=None,
-        var_name=None,
-    ) -> Tuple[pd.DataFrame, np.array, np.array]:
-        """
-        Show the statistics result
-
-        Parameters
-        ----------
-        save_dirs : str
-            where we read results
-        test_epoch : int
-            the epoch of test
-        return_value : bool, optional
-            if True, returen pred and obs data, by default False
-        fill_nan : Union[str, list, tuple], optional
-            how to deal with nan in obs, by default "no"
-        unit : str, optional
-            unit of flow, by default "m3/s"
-            if m3/s, then didn't transform; else transform to m3/s
-
-        Returns
-        -------
-        Tuple[pd.DataFrame, np.array, np.array]
-            statistics results, 3-dim predicitons, 3-dim observations
-        """
-        pred, obs = self.load_result(save_dirs, test_epoch)
-        if type(unit) is list:
-            inds_df_lst = []
-            pred_lst = []
-            obs_lst = []
-            for i in range(len(unit)):
-                inds_df_, pred_, obs_ = self.stat_result_for1out(
-                    var_name[i],
-                    unit[i],
-                    pred[:, :, i],
-                    obs[:, :, i],
-                    fill_nan[i],
-                    basin_area=basin_area,
-                )
-                inds_df_lst.append(inds_df_)
-                pred_lst.append(pred_)
-                obs_lst.append(obs_)
-            return inds_df_lst, pred_lst, obs_lst if return_value else inds_df_lst
-        else:
-            inds_df_, pred_, obs_ = self.stat_result_for1out(
-                var_name, unit, pred, obs, fill_nan, basin_area=basin_area
-            )
-            return (inds_df_, pred_, obs_) if return_value else inds_df_
-
     def load_ensemble_result(
         self, save_dirs, test_epoch, flow_unit="m3/s", basin_areas=None
     ) -> Tuple[np.array, np.array]:
@@ -259,7 +215,7 @@ class Resulter:
             pred_mean = pred_mean / 35.314666721489
         return pred_mean, obs_mean
 
-    def stat_ensemble_result(
+    def eval_ensemble_result(
         self,
         save_dirs,
         test_epoch,
