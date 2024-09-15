@@ -1,10 +1,10 @@
+import os
 import numpy as np
 import pandas as pd
-import os
-from typing import Tuple, Union
+import xarray as xr
 import fnmatch
+from typing import Tuple, Union
 
-from hydroutils.hydro_file import unserialize_numpy
 from hydroutils.hydro_stat import stat_error
 
 from torchhydro.trainers.train_logger import save_model_params_log
@@ -138,35 +138,16 @@ class Resulter:
 
         return eval_log
 
-    def load_result(self, not_only_1out=False) -> Tuple[np.array, np.array]:
-        """load the pred value of testing period and obs value
-
-        Parameters
-        ----------
-        not_only_1out : bool, optional
-            Sometimes our model give multiple output and we will load all of them,
-            then we set this parameter True, by default False
-
-        Returns
-        -------
-        Tuple[np.array, np.array]
-            _description_
-        """
+    def load_result(self) -> Tuple[np.array, np.array]:
+        """load the pred value of testing period and obs value"""
         save_dir = self.result_dir
-        flow_pred_file = os.path.join(save_dir, self.pred_name)
-        flow_obs_file = os.path.join(save_dir, self.obs_name)
-        pred = unserialize_numpy(flow_pred_file)
-        obs = unserialize_numpy(flow_obs_file)
-        if not_only_1out:
-            return pred, obs
-        if obs.ndim == 3 and obs.shape[-1] == 1:
-            if pred.shape[-1] != obs.shape[-1]:
-                # TODO: for convenient, now we didn't process this special case for MTL
-                pred = pred[:, :, 0]
-            pred = pred.reshape(pred.shape[0], pred.shape[1])
-            obs = obs.reshape(obs.shape[0], obs.shape[1])
+        pred_file = os.path.join(save_dir, self.pred_name + ".nc")
+        obs_file = os.path.join(save_dir, self.obs_name + ".nc")
+        pred = xr.open_dataset(pred_file)
+        obs = xr.open_dataset(obs_file)
         return pred, obs
 
+    # TODO: the following code is not finished yet
     def stat_result_for1out(self, pred, obs, fill_nan):
         """
         show the statistics result for 1 output
