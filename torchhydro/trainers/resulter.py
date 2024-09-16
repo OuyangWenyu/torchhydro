@@ -1,7 +1,9 @@
 import os
+from pathlib import Path
 import time
 import numpy as np
 import pandas as pd
+from tbparse import SummaryReader
 import torch
 import xarray as xr
 import fnmatch
@@ -247,6 +249,34 @@ class Resulter:
         )
         params_df.to_csv(save_param_file, index_label="GAGE_ID")
 
+    def read_tensorboard_log(self, **kwargs):
+        """read tensorboard log files"""
+        is_scalar = kwargs.get("is_scalar", False)
+        is_histogram = kwargs.get("is_histogram", False)
+        log_dir = self.cfgs["data_cfgs"]["test_path"]
+        if is_scalar:
+            scalar_file = os.path.join(log_dir, "tb_scalars.csv")
+            if not os.path.exists(scalar_file):
+                reader = SummaryReader(log_dir)
+                df_scalar = reader.scalars
+                df_scalar.to_csv(scalar_file, index=False)
+            else:
+                df_scalar = pd.read_csv(scalar_file)
+        if is_histogram:
+            histogram_file = os.path.join(log_dir, "tb_histograms.csv")
+            if not os.path.exists(histogram_file):
+                reader = SummaryReader(log_dir)
+                df_histogram = reader.histograms
+                df_histogram.to_csv(histogram_file, index=False)
+            else:
+                df_histogram = pd.read_csv(histogram_file)
+        if is_scalar and is_histogram:
+            return df_scalar, df_histogram
+        elif is_scalar:
+            return df_scalar
+        elif is_histogram:
+            return df_histogram
+
     # TODO: the following code is not finished yet
     def load_ensemble_result(
         self, save_dirs, test_epoch, flow_unit="m3/s", basin_areas=None
@@ -329,3 +359,55 @@ class Resulter:
         inds = stat_error(obs_mean, pred_mean)
         inds_df = pd.DataFrame(inds)
         return (inds_df, pred_mean, obs_mean) if return_value else inds_df
+
+
+def get_latest_pbm_param_file(param_dir):
+    """Get the latest parameter file of physics-based models in the current directory.
+
+    Parameters
+    ----------
+    param_dir : str
+        The directory of parameter files.
+
+    Returns
+    -------
+    str
+        The latest parameter file.
+    """
+    param_file_lst = [
+        os.path.join(param_dir, f)
+        for f in os.listdir(param_dir)
+        if f.startswith("pb_params") and f.endswith(".csv")
+    ]
+    param_files = [Path(f) for f in param_file_lst]
+    param_file_names_lst = [param_file.stem.split("_") for param_file in param_files]
+    ctimes = [
+        int(param_file_names[param_file_names.index("params") + 1])
+        for param_file_names in param_file_names_lst
+    ]
+    return param_files[ctimes.index(max(ctimes))] if ctimes else None
+
+
+def get_latest_tensorboard_event_file(log_dir):
+    """Get the latest event file in the log_dir directory.
+
+    Parameters
+    ----------
+    log_dir : str
+        The directory where the event files are stored.
+
+    Returns
+    -------
+    str
+        The latest event file.
+    """
+    event_file_lst = [
+        os.path.join(log_dir, f) for f in os.listdir(log_dir) if f.startswith("events")
+    ]
+    event_files = [Path(f) for f in event_file_lst]
+    event_file_names_lst = [event_file.stem.split(".") for event_file in event_files]
+    ctimes = [
+        int(event_file_names[event_file_names.index("tfevents") + 1])
+        for event_file_names in event_file_names_lst
+    ]
+    return event_files[ctimes.index(max(ctimes))]
