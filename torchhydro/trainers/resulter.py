@@ -1,19 +1,31 @@
 import os
+import time
 import numpy as np
 import pandas as pd
+import torch
 import xarray as xr
 import fnmatch
-from typing import Tuple, Union
+from typing import Tuple
+from functools import reduce
 
+from torch.utils.data import DataLoader
+from torch.nn import functional as F
 from hydroutils.hydro_stat import stat_error
 
+from torchhydro.configs.model_config import MODEL_PARAM_TEST_WAY
 from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.explainers.shap import (
     deep_explain_model_heatmap,
     deep_explain_model_summary_plot,
     shap_summary_plot,
 )
-from torchhydro.trainers.train_utils import calculate_and_record_metrics
+from torchhydro.trainers.train_utils import (
+    calculate_and_record_metrics,
+    cellstates_when_inference,
+    read_pth_from_model_loader,
+    model_infer,
+)
+from torchhydro.trainers.deep_hydro import DeepHydro
 
 
 def set_unit_to_var(ds):
@@ -166,6 +178,74 @@ class Resulter:
         pred = xr.open_dataset(pred_file)
         obs = xr.open_dataset(obs_file)
         return pred, obs
+
+    def save_intermediate_results(self, **kwargs):
+        """Load model weights and deal with some intermediate results"""
+        is_cell_states = kwargs.get("is_cell_states", False)
+        is_pbm_params = kwargs.get("is_pbm_params", False)
+        cfgs = self.cfgs
+        cfgs["training_cfgs"]["train_mode"] = False
+        training_cfgs = cfgs["training_cfgs"]
+        seq_first = training_cfgs["which_first_tensor"] == "sequence"
+        if is_cell_states:
+            # TODO: not support return_cell_states yet
+            return cellstates_when_inference(seq_first, data_cfgs, pred)
+        if is_pbm_params:
+            self._save_pbm_params(cfgs, seq_first)
+
+    def _save_pbm_params(self, cfgs, seq_first):
+        training_cfgs = cfgs["training_cfgs"]
+        model_loader = cfgs["evaluation_cfgs"]["model_loader"]
+        model_pth_dir = cfgs["data_cfgs"]["test_path"]
+        weight_path = read_pth_from_model_loader(model_loader, model_pth_dir)
+        cfgs["model_cfgs"]["weight_path"] = weight_path
+        cfgs["training_cfgs"]["device"] = [0] if torch.cuda.is_available() else [-1]
+        deephydro = DeepHydro(cfgs)
+        device = deephydro.device
+        dl_model = deephydro.model.dl_model
+        pb_model = deephydro.model.pb_model
+        param_func = deephydro.model.param_func
+        # TODO: check for dplnnmodule model
+        param_test_way = deephydro.model.param_test_way
+        test_dataloader = DataLoader(
+            deephydro.testdataset,
+            batch_size=training_cfgs["batch_size"],
+            shuffle=False,
+            sampler=None,
+            batch_sampler=None,
+            drop_last=False,
+            timeout=0,
+            worker_init_fn=None,
+        )
+        deephydro.model.eval()
+        # here the batch is just an index of lookup table, so any batch size could be chosen
+        params_lst = []
+        with torch.no_grad():
+            for xs, ys in test_dataloader:
+                ys, gen = model_infer(seq_first, device, dl_model, xs[1], ys)
+                # we set all params' values in [0, 1] and will scale them when forwarding
+                if param_func == "clamp":
+                    params_ = torch.clamp(gen, min=0.0, max=1.0)
+                elif param_func == "sigmoid":
+                    params_ = F.sigmoid(gen)
+                else:
+                    raise NotImplementedError(
+                        "We don't provide this way to limit parameters' range!! Please choose sigmoid or clamp"
+                    )
+                # just get one-period values, here we use the final period's values
+                params = params_[:, -1, :]
+                params_lst.append(params)
+        pb_params = reduce(lambda a, b: torch.cat((a, b), dim=0), params_lst)
+        # trans tensor to pandas dataframe
+        sites = deephydro.cfgs["data_cfgs"]["object_ids"]
+        params_names = pb_model.params_names
+        params_df = pd.DataFrame(
+            pb_params.cpu().numpy(), columns=params_names, index=sites
+        )
+        save_param_file = os.path.join(
+            model_pth_dir, f"pb_params_{int(time.time())}.csv"
+        )
+        params_df.to_csv(save_param_file, index_label="GAGE_ID")
 
     # TODO: the following code is not finished yet
     def load_ensemble_result(

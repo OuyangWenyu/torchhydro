@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2024-09-15 09:49:34
+LastEditTime: 2024-09-16 10:19:34
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -49,7 +49,6 @@ from torchhydro.trainers.train_utils import (
     model_infer,
     read_pth_from_model_loader,
     torch_single_train,
-    cellstates_when_inference,
     calculate_and_record_metrics,
 )
 
@@ -414,10 +413,6 @@ class DeepHydro(DeepHydroInterface):
             # params of reshape should be (basin size, time length)
             pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
             obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
-        # TODO: not support return_cell_states yet
-        return_cell_state = False
-        if return_cell_state:
-            return cellstates_when_inference(seq_first, data_cfgs, pred)
 
         if not evaluation_cfgs["long_seq_pred"]:
             target_len = len(data_cfgs["target_cols"])
