@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-07-10 10:59:08
+LastEditTime: 2024-09-15 10:04:38
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: /torchhydro/torchhydro/configs/config.py
+FilePath: \torchhydro\torchhydro\configs\config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -1007,11 +1007,11 @@ def update_cfg(cfg_file, new_args):
             raise AttributeError(
                 "Please make sure size of vars in data_cfgs/target_cols is same as n_output"
             )
-    if new_args.model_hyperparam is None:
-        raise AttributeError("Please set the model_hyperparam!!!")
-    else:
+    if new_args.model_hyperparam is not None:
+        # raise AttributeError("Please set the model_hyperparam!!!")
         cfg_file["model_cfgs"]["model_hyperparam"] = new_args.model_hyperparam
         if "batch_size" in new_args.model_hyperparam.keys():
+            # TODO: batch_size's setting may conflict with batch_size's direct setting
             cfg_file["data_cfgs"]["batch_size"] = new_args.model_hyperparam[
                 "batch_size"
             ]
@@ -1026,11 +1026,11 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam[
                 "prec_window"
             ]
-    if new_args.batch_size is None:
-        raise AttributeError("Please set the batch_size!!!")
-    batch_size = new_args.batch_size
-    cfg_file["data_cfgs"]["batch_size"] = batch_size
-    cfg_file["training_cfgs"]["batch_size"] = batch_size
+    if new_args.batch_size is not None:
+        # raise AttributeError("Please set the batch_size!!!")
+        batch_size = new_args.batch_size
+        cfg_file["data_cfgs"]["batch_size"] = batch_size
+        cfg_file["training_cfgs"]["batch_size"] = batch_size
     if new_args.min_time_unit is not None:
         if new_args.min_time_unit not in ["h", "D"]:
             raise ValueError("min_time_unit must be 'h' (HOURLY) or 'D' (DAILY)")

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-09-10 16:17:09
+LastEditTime: 2024-09-15 09:34:33
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -17,6 +17,7 @@ import torch
 import torch.optim as optim
 import xarray as xr
 from hydroutils.hydro_stat import stat_error
+from hydroutils.hydro_file import get_lastest_file_in_a_dir
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import dask
@@ -466,6 +467,21 @@ def average_weights(w):
             w_avg[key] += w[i][key]
         w_avg[key] = torch.div(w_avg[key], len(w))
     return w_avg
+
+
+def read_pth_from_model_loader(model_loader, model_pth_dir):
+    if model_loader["load_way"] == "specified":
+        test_epoch = model_loader["test_epoch"]
+        weight_path = os.path.join(model_pth_dir, f"model_Ep{str(test_epoch)}.pth")
+    elif model_loader["load_way"] == "best":
+        weight_path = os.path.join(model_pth_dir, "best_model.pth")
+    elif model_loader["load_way"] == "latest":
+        weight_path = get_lastest_file_in_a_dir(model_pth_dir)
+    elif model_loader["load_way"] == "pth":
+        weight_path = model_loader["pth_path"]
+    else:
+        raise ValueError("Invalid load_way")
+    return weight_path
 
 
 def cellstates_when_inference(seq_first, data_cfgs, pred):
