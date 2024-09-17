@@ -3,18 +3,20 @@ from pathlib import Path
 import time
 import numpy as np
 import pandas as pd
-from tbparse import SummaryReader
 import torch
 import xarray as xr
 import fnmatch
 from typing import Tuple
 from functools import reduce
-
 from torch.utils.data import DataLoader
 from torch.nn import functional as F
+from tbparse import SummaryReader
+
 from hydroutils.hydro_stat import stat_error
+from hydrodatasource.utils.utils import streamflow_unit_conv
 
 from torchhydro.configs.model_config import MODEL_PARAM_TEST_WAY
+from torchhydro.datasets.data_sources import data_sources_dict
 from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.explainers.shap import (
     deep_explain_model_heatmap,
@@ -172,13 +174,46 @@ class Resulter:
             # deep_explain_model_summary_plot(self.model, test_data)
             # deep_explain_model_heatmap(self.model, test_data)
 
-    def load_result(self) -> Tuple[np.array, np.array]:
+    def _convert_streamflow_units(self, ds):
+        """convert the streamflow units to m^3/s
+
+        Parameters
+        ----------
+        pred : np.array
+            predictions
+
+        Returns
+        -------
+        """
+        data_cfgs = self.cfgs["data_cfgs"]
+        source_name = data_cfgs["source_cfgs"]["source_name"]
+        source_path = data_cfgs["source_cfgs"]["source_path"]
+        other_settings = data_cfgs["source_cfgs"].get("other_settings", {})
+        data_source = data_sources_dict[source_name](source_path, **other_settings)
+        basin_id = data_cfgs["object_ids"]
+        # NOTE: all datasource should have read_area method
+        basin_area = data_source.read_area(basin_id)
+        target_unit = "m^3/s"
+        # NOTE: the name of var flow should be streamflow
+        var_flow = "streamflow"
+        streamflow_ds = ds[[var_flow]]
+        ds_ = streamflow_unit_conv(
+            streamflow_ds, basin_area, target_unit=target_unit, inverse=True
+        )
+        new_ds = ds.copy(deep=True)
+        new_ds[var_flow] = ds_[var_flow]
+        return new_ds
+
+    def load_result(self, convert_flow_unit=False) -> Tuple[np.array, np.array]:
         """load the pred value of testing period and obs value"""
         save_dir = self.result_dir
         pred_file = os.path.join(save_dir, self.pred_name + ".nc")
         obs_file = os.path.join(save_dir, self.obs_name + ".nc")
         pred = xr.open_dataset(pred_file)
         obs = xr.open_dataset(obs_file)
+        if convert_flow_unit:
+            pred = self._convert_streamflow_units(pred)
+            obs = self._convert_streamflow_units(obs)
         return pred, obs
 
     def save_intermediate_results(self, **kwargs):
