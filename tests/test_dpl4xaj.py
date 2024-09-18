@@ -180,7 +180,7 @@ def dpl_selfmadehydrodataset_args():
             "other_settings": {"time_unit": ["1D"]},
         },
         model_type="MTL",
-        ctx=[0],
+        ctx=[1],
         # model_name="DplLstmXaj",
         # model_name="DplAttrXaj",
         model_name="DplNnModuleXaj",
