@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-09-15 09:34:33
+LastEditTime: 2024-09-18 10:22:54
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -9,18 +9,24 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import copy
+import fnmatch
 import os
+import re
+import shutil
+import dask
 from functools import reduce
-
+from pathlib import Path
+import pandas as pd
+from tqdm import tqdm
 import numpy as np
+import xarray as xr
 import torch
 import torch.optim as optim
-import xarray as xr
-from hydroutils.hydro_stat import stat_error
-from hydroutils.hydro_file import get_lastest_file_in_a_dir
 from torch.utils.data import DataLoader
-from tqdm import tqdm
-import dask
+
+from hydroutils.hydro_stat import stat_error
+from hydroutils.hydro_file import get_lastest_file_in_a_dir, unserialize_json
+
 from torchhydro.models.crits import GaussianLoss
 
 
@@ -469,18 +475,104 @@ def average_weights(w):
     return w_avg
 
 
+def _find_min_validation_loss_epoch(data):
+    """
+    Find the epoch with the minimum validation loss from the training log data.
+
+    Parameters
+    ----------
+    data : list of dict
+        A list of dictionaries containing training information, where each dictionary corresponds to an epoch.
+
+    Returns
+    -------
+    tuple
+        (min_epoch, min_val_loss) The epoch number with the minimum validation loss and its corresponding loss value.
+        If the data is empty or no valid validation loss can be found, returns (None, None).
+    """
+    if not data:
+        print("Input data is empty.")
+        return None, None
+
+    df = pd.DataFrame(data)
+
+    if "epoch" not in df.columns or "validation_loss" not in df.columns:
+        print("Input data is missing 'epoch' or 'validation_loss' fields.")
+        return None, None
+
+    # Define a function to extract the numerical value from `validation_loss`
+    def extract_val_loss(val_loss_str):
+        """
+        Extract the numerical part of the validation loss from the string.
+
+        Parameters
+        ----------
+        val_loss_str : str
+            A string in the form "tensor(4.1230, device='cuda:2')".
+
+        Returns
+        -------
+        float
+            The extracted validation loss value. If extraction fails, returns positive infinity.
+        """
+        match = re.search(r"tensor\(([\d\.]+)", val_loss_str)
+        if match:
+            try:
+                return float(match[1])
+            except ValueError:
+                return float("inf")
+        return float("inf")
+
+    # Apply function to extract the numerical part
+    df["validation_loss_value"] = df["validation_loss"].apply(extract_val_loss)
+
+    # Check if there are valid validation losses
+    if df["validation_loss_value"].isnull().all():
+        print("All 'validation_loss' values cannot be parsed.")
+        return None, None
+
+    # Find the minimum validation loss and the corresponding epoch
+    min_idx = df["validation_loss_value"].idxmin()
+    min_row = df.loc[min_idx]
+
+    min_epoch = min_row["epoch"]
+    min_val_loss = min_row["validation_loss_value"]
+
+    return min_epoch, min_val_loss
+
+
 def read_pth_from_model_loader(model_loader, model_pth_dir):
     if model_loader["load_way"] == "specified":
         test_epoch = model_loader["test_epoch"]
         weight_path = os.path.join(model_pth_dir, f"model_Ep{str(test_epoch)}.pth")
     elif model_loader["load_way"] == "best":
         weight_path = os.path.join(model_pth_dir, "best_model.pth")
+        if not os.path.exists(weight_path):
+            # read log file and find the best model
+            log_json = read_torchhydro_log_json_file(model_pth_dir)
+            if "run" not in log_json:
+                raise ValueError(
+                    "No best model found. You have to train the model first."
+                )
+            min_epoch, min_val_loss = _find_min_validation_loss_epoch(log_json["run"])
+            try:
+                shutil.copy2(
+                    os.path.join(model_pth_dir, f"model_Ep{str(min_epoch)}.pth"),
+                    os.path.join(model_pth_dir, "best_model.pth"),
+                )
+            except FileNotFoundError:
+                # TODO: add a recursive call to find the saved best model
+                raise FileNotFoundError(
+                    f"The best model's weight file {os.path.join(model_pth_dir, f'model_Ep{str(min_epoch)}.pth')} does not exist."
+                )
     elif model_loader["load_way"] == "latest":
         weight_path = get_lastest_file_in_a_dir(model_pth_dir)
     elif model_loader["load_way"] == "pth":
         weight_path = model_loader["pth_path"]
     else:
         raise ValueError("Invalid load_way")
+    if not os.path.exists(weight_path):
+        raise ValueError(f"Model file {weight_path} does not exist.")
     return weight_path
 
 
@@ -497,3 +589,71 @@ def cellstates_when_inference(seq_first, data_cfgs, pred):
     # model.zero_grad()
     torch.cuda.empty_cache()
     return pred, cell_state
+
+
+def read_torchhydro_log_json_file(cfg_dir):
+    json_files_lst = []
+    json_files_ctime = []
+    for file in os.listdir(cfg_dir):
+        if (
+            fnmatch.fnmatch(file, "*.json")
+            and "_stat" not in file  # statistics json file
+            and "_dict" not in file  # data cache json file
+        ):
+            json_files_lst.append(os.path.join(cfg_dir, file))
+            json_files_ctime.append(os.path.getctime(os.path.join(cfg_dir, file)))
+    sort_idx = np.argsort(json_files_ctime)
+    cfg_file = json_files_lst[sort_idx[-1]]
+    return unserialize_json(cfg_file)
+
+
+def get_latest_pbm_param_file(param_dir):
+    """Get the latest parameter file of physics-based models in the current directory.
+
+    Parameters
+    ----------
+    param_dir : str
+        The directory of parameter files.
+
+    Returns
+    -------
+    str
+        The latest parameter file.
+    """
+    param_file_lst = [
+        os.path.join(param_dir, f)
+        for f in os.listdir(param_dir)
+        if f.startswith("pb_params") and f.endswith(".csv")
+    ]
+    param_files = [Path(f) for f in param_file_lst]
+    param_file_names_lst = [param_file.stem.split("_") for param_file in param_files]
+    ctimes = [
+        int(param_file_names[param_file_names.index("params") + 1])
+        for param_file_names in param_file_names_lst
+    ]
+    return param_files[ctimes.index(max(ctimes))] if ctimes else None
+
+
+def get_latest_tensorboard_event_file(log_dir):
+    """Get the latest event file in the log_dir directory.
+
+    Parameters
+    ----------
+    log_dir : str
+        The directory where the event files are stored.
+
+    Returns
+    -------
+    str
+        The latest event file.
+    """
+    event_file_lst = [
+        os.path.join(log_dir, f) for f in os.listdir(log_dir) if f.startswith("events")
+    ]
+    event_files = [Path(f) for f in event_file_lst]
+    event_file_names_lst = [event_file.stem.split(".") for event_file in event_files]
+    ctimes = [
+        int(event_file_names[event_file_names.index("tfevents") + 1])
+        for event_file_names in event_file_names_lst
+    ]
+    return event_files[ctimes.index(max(ctimes))]
