@@ -62,7 +62,8 @@ class Resulter:
         if model_loader["load_way"] == "specified":
             epoch_name = str(model_loader["test_epoch"])
         elif model_loader["load_way"] == "best":
-            epoch_name = "best"
+            # NOTE: TO make it consistent with the name in case of model_loader["load_way"] == "pth", the name have to be "best_model.pth"
+            epoch_name = "best_model.pth"
         elif model_loader["load_way"] == "latest":
             epoch_name = str(self.cfgs["training_cfgs"]["epochs"])
         elif model_loader["load_way"] == "pth":
