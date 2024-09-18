@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-05-04 11:30:00
+LastEditTime: 2024-09-18 15:40:10
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
 FilePath: \torchhydro\torchhydro\trainers\train_logger.py
@@ -73,7 +73,7 @@ class TrainLogger:
     def log_epoch_train(self, epoch):
         start_time = time.time()
         logs = {}
-        # here content in the with block will be performed
+        # here content in the 'with' block will be performed after yeild
         yield logs
         total_loss = logs["train_loss"]
         elapsed_time = time.time() - start_time

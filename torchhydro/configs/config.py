@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-09-15 10:04:38
+LastEditTime: 2024-09-18 16:50:16
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -221,16 +221,20 @@ def default_config_file():
             "criterion_params": None,
             # "weight_decay": None, a regularization term in loss func
             "optimizer": "Adam",
+            # "optim_params": {"lr": 0.001} means the initial learning rate is 0.001
             "optim_params": {},
             "lr_scheduler": {
-                # 1st opt config, all epochs use this lr
+                # 1st opt config, all epochs use this lr,
+                # this setting will cover the lr setting in "optim_params"
                 "lr": 0.001,
                 # 2nd opt config, diff epoch uses diff lr, key is epoch,
                 # start from 0, each value means the decay rate
+                # if initial lr is 0.001, then 0: 0.5 neans the lr of 0 epoch is 0.001*0.5=0.0005
                 # "lr_scheduler": {0: 1, 1: 0.5, 2: 0.2},
-                # 3rd opt config, lr as a initial value, and lr_factor as an exponential decay factor
+                # 3rd opt config, lr as a initial value (will cover the lr setting in "optim_params")
+                # lr_factor as an exponential decay factor
                 # "lr": 0.001, "lr_factor": 0.1,
-                # 4th opt config, lr as a initial value,
+                # 4th opt config, lr as a initial value, it will cover the lr setting in "optim_params"
                 # lr_patience represent how many epochs without opt (we watch val_loss) could be tolerated
                 # if lr_patience is satisfied, then lr will be decayed by lr_factor by a linear way
                 # "lr": 0.001, "lr_factor": 0.1, "lr_patience": 1,
