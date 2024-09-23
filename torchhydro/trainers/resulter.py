@@ -1,19 +1,34 @@
+import os
+import time
 import numpy as np
 import pandas as pd
-import os
-from typing import Tuple, Union
+import torch
+import xarray as xr
 import fnmatch
+from typing import Tuple
+from functools import reduce
+from torch.utils.data import DataLoader
+from torch.nn import functional as F
+from tbparse import SummaryReader
 
-from hydroutils.hydro_file import unserialize_numpy
 from hydroutils.hydro_stat import stat_error
+from hydrodatasource.utils.utils import streamflow_unit_conv
 
+from torchhydro.configs.model_config import MODEL_PARAM_TEST_WAY
+from torchhydro.datasets.data_sources import data_sources_dict
 from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.explainers.shap import (
     deep_explain_model_heatmap,
     deep_explain_model_summary_plot,
     shap_summary_plot,
 )
-from torchhydro.trainers.train_utils import calculate_and_record_metrics
+from torchhydro.trainers.train_utils import (
+    calculate_and_record_metrics,
+    cellstates_when_inference,
+    read_pth_from_model_loader,
+    model_infer,
+)
+from torchhydro.trainers.deep_hydro import DeepHydro
 
 
 def set_unit_to_var(ds):
@@ -47,7 +62,8 @@ class Resulter:
         if model_loader["load_way"] == "specified":
             epoch_name = str(model_loader["test_epoch"])
         elif model_loader["load_way"] == "best":
-            epoch_name = "best"
+            # NOTE: TO make it consistent with the name in case of model_loader["load_way"] == "pth", the name have to be "best_model.pth"
+            epoch_name = "best_model.pth"
         elif model_loader["load_way"] == "latest":
             epoch_name = str(self.cfgs["training_cfgs"]["epochs"])
         elif model_loader["load_way"] == "pth":
@@ -105,6 +121,9 @@ class Resulter:
         # types of observations
         target_col = self.cfgs["data_cfgs"]["target_cols"]
         evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
+        basin_ids = self.cfgs["data_cfgs"]["object_ids"]
+        test_path = self.cfgs["data_cfgs"]["test_path"]
+        # Assume object_ids like ['changdian_61561']
         # fill_nan: "no" means ignoring the NaN value;
         #           "sum" means calculate the sum of the following values in the NaN locations.
         #           For example, observations are [1, nan, nan, 2], and predictions are [0.3, 0.3, 0.3, 1.5].
@@ -115,8 +134,8 @@ class Resulter:
         #  Then evaluate the model metrics
         if type(fill_nan) is list and len(fill_nan) != len(target_col):
             raise ValueError("length of fill_nan must be equal to target_col's")
-        eval_log = {}
         for i, col in enumerate(target_col):
+            eval_log = {}
             obs = obss_xr[col].to_numpy()
             pred = preds_xr[col].to_numpy()
 
@@ -128,6 +147,25 @@ class Resulter:
                 fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
                 eval_log,
             )
+            # Create pandas DataFrames from eval_log for each target variable (e.g., streamflow)
+            # Create a dictionary to hold the data for the DataFrame
+            data = {}
+            # Iterate over metrics in eval_log
+            for metric, values in eval_log.items():
+                # Remove 'of streamflow' (or similar) from the metric name
+                clean_metric = metric.replace(f"of {col}", "").strip()
+
+                # Add the cleaned metric to the data dictionary
+                data[clean_metric] = values
+
+            # Create a DataFrame using object_ids as the index and metrics as columns
+            df = pd.DataFrame(data, index=basin_ids)
+
+            # Define the output file name based on the target variable
+            output_file = os.path.join(test_path, f"metric_{col}.csv")
+
+            # Save the DataFrame to a CSV file
+            df.to_csv(output_file, index_label="basin_id")
 
         # Finally, try to explain model behaviour using shap
         is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
@@ -136,101 +174,145 @@ class Resulter:
             # deep_explain_model_summary_plot(self.model, test_data)
             # deep_explain_model_heatmap(self.model, test_data)
 
-        return eval_log
-
-    def load_result(self, not_only_1out=False) -> Tuple[np.array, np.array]:
-        """load the pred value of testing period and obs value
+    def _convert_streamflow_units(self, ds):
+        """convert the streamflow units to m^3/s
 
         Parameters
         ----------
-        not_only_1out : bool, optional
-            Sometimes our model give multiple output and we will load all of them,
-            then we set this parameter True, by default False
+        pred : np.array
+            predictions
 
         Returns
         -------
-        Tuple[np.array, np.array]
-            _description_
         """
+        data_cfgs = self.cfgs["data_cfgs"]
+        source_name = data_cfgs["source_cfgs"]["source_name"]
+        source_path = data_cfgs["source_cfgs"]["source_path"]
+        other_settings = data_cfgs["source_cfgs"].get("other_settings", {})
+        data_source = data_sources_dict[source_name](source_path, **other_settings)
+        basin_id = data_cfgs["object_ids"]
+        # NOTE: all datasource should have read_area method
+        basin_area = data_source.read_area(basin_id)
+        target_unit = "m^3/s"
+        # NOTE: the name of var flow should be streamflow
+        var_flow = "streamflow"
+        streamflow_ds = ds[[var_flow]]
+        ds_ = streamflow_unit_conv(
+            streamflow_ds, basin_area, target_unit=target_unit, inverse=True
+        )
+        new_ds = ds.copy(deep=True)
+        new_ds[var_flow] = ds_[var_flow]
+        return new_ds
+
+    def load_result(self, convert_flow_unit=False) -> Tuple[np.array, np.array]:
+        """load the pred value of testing period and obs value"""
         save_dir = self.result_dir
-        flow_pred_file = os.path.join(save_dir, self.pred_name)
-        flow_obs_file = os.path.join(save_dir, self.obs_name)
-        pred = unserialize_numpy(flow_pred_file)
-        obs = unserialize_numpy(flow_obs_file)
-        if not_only_1out:
-            return pred, obs
-        if obs.ndim == 3 and obs.shape[-1] == 1:
-            if pred.shape[-1] != obs.shape[-1]:
-                # TODO: for convenient, now we didn't process this special case for MTL
-                pred = pred[:, :, 0]
-            pred = pred.reshape(pred.shape[0], pred.shape[1])
-            obs = obs.reshape(obs.shape[0], obs.shape[1])
+        pred_file = os.path.join(save_dir, self.pred_name + ".nc")
+        obs_file = os.path.join(save_dir, self.obs_name + ".nc")
+        pred = xr.open_dataset(pred_file)
+        obs = xr.open_dataset(obs_file)
+        if convert_flow_unit:
+            pred = self._convert_streamflow_units(pred)
+            obs = self._convert_streamflow_units(obs)
         return pred, obs
 
-    def stat_result_for1out(self, pred, obs, fill_nan):
-        """
-        show the statistics result for 1 output
-        """
-        inds = stat_error(obs, pred, fill_nan=fill_nan)
-        inds_df = pd.DataFrame(inds)
-        return inds_df, obs, pred
+    def save_intermediate_results(self, **kwargs):
+        """Load model weights and deal with some intermediate results"""
+        is_cell_states = kwargs.get("is_cell_states", False)
+        is_pbm_params = kwargs.get("is_pbm_params", False)
+        cfgs = self.cfgs
+        cfgs["training_cfgs"]["train_mode"] = False
+        training_cfgs = cfgs["training_cfgs"]
+        seq_first = training_cfgs["which_first_tensor"] == "sequence"
+        if is_cell_states:
+            # TODO: not support return_cell_states yet
+            return cellstates_when_inference(seq_first, data_cfgs, pred)
+        if is_pbm_params:
+            self._save_pbm_params(cfgs, seq_first)
 
-    def stat_result(
-        self,
-        save_dirs: str,
-        test_epoch: int,
-        return_value: bool = False,
-        fill_nan: Union[str, list, tuple] = "no",
-        unit="m3/s",
-        basin_area=None,
-        var_name=None,
-    ) -> Tuple[pd.DataFrame, np.array, np.array]:
-        """
-        Show the statistics result
+    def _save_pbm_params(self, cfgs, seq_first):
+        training_cfgs = cfgs["training_cfgs"]
+        model_loader = cfgs["evaluation_cfgs"]["model_loader"]
+        model_pth_dir = cfgs["data_cfgs"]["test_path"]
+        weight_path = read_pth_from_model_loader(model_loader, model_pth_dir)
+        cfgs["model_cfgs"]["weight_path"] = weight_path
+        cfgs["training_cfgs"]["device"] = [0] if torch.cuda.is_available() else [-1]
+        deephydro = DeepHydro(cfgs)
+        device = deephydro.device
+        dl_model = deephydro.model.dl_model
+        pb_model = deephydro.model.pb_model
+        param_func = deephydro.model.param_func
+        # TODO: check for dplnnmodule model
+        param_test_way = deephydro.model.param_test_way
+        test_dataloader = DataLoader(
+            deephydro.testdataset,
+            batch_size=training_cfgs["batch_size"],
+            shuffle=False,
+            sampler=None,
+            batch_sampler=None,
+            drop_last=False,
+            timeout=0,
+            worker_init_fn=None,
+        )
+        deephydro.model.eval()
+        # here the batch is just an index of lookup table, so any batch size could be chosen
+        params_lst = []
+        with torch.no_grad():
+            for xs, ys in test_dataloader:
+                ys, gen = model_infer(seq_first, device, dl_model, xs[1], ys)
+                # we set all params' values in [0, 1] and will scale them when forwarding
+                if param_func == "clamp":
+                    params_ = torch.clamp(gen, min=0.0, max=1.0)
+                elif param_func == "sigmoid":
+                    params_ = F.sigmoid(gen)
+                else:
+                    raise NotImplementedError(
+                        "We don't provide this way to limit parameters' range!! Please choose sigmoid or clamp"
+                    )
+                # just get one-period values, here we use the final period's values
+                params = params_[:, -1, :]
+                params_lst.append(params)
+        pb_params = reduce(lambda a, b: torch.cat((a, b), dim=0), params_lst)
+        # trans tensor to pandas dataframe
+        sites = deephydro.cfgs["data_cfgs"]["object_ids"]
+        params_names = pb_model.params_names
+        params_df = pd.DataFrame(
+            pb_params.cpu().numpy(), columns=params_names, index=sites
+        )
+        save_param_file = os.path.join(
+            model_pth_dir, f"pb_params_{int(time.time())}.csv"
+        )
+        params_df.to_csv(save_param_file, index_label="GAGE_ID")
 
-        Parameters
-        ----------
-        save_dirs : str
-            where we read results
-        test_epoch : int
-            the epoch of test
-        return_value : bool, optional
-            if True, returen pred and obs data, by default False
-        fill_nan : Union[str, list, tuple], optional
-            how to deal with nan in obs, by default "no"
-        unit : str, optional
-            unit of flow, by default "m3/s"
-            if m3/s, then didn't transform; else transform to m3/s
+    def read_tensorboard_log(self, **kwargs):
+        """read tensorboard log files"""
+        is_scalar = kwargs.get("is_scalar", False)
+        is_histogram = kwargs.get("is_histogram", False)
+        log_dir = self.cfgs["data_cfgs"]["test_path"]
+        if is_scalar:
+            scalar_file = os.path.join(log_dir, "tb_scalars.csv")
+            if not os.path.exists(scalar_file):
+                reader = SummaryReader(log_dir)
+                df_scalar = reader.scalars
+                df_scalar.to_csv(scalar_file, index=False)
+            else:
+                df_scalar = pd.read_csv(scalar_file)
+        if is_histogram:
+            histogram_file = os.path.join(log_dir, "tb_histograms.csv")
+            if not os.path.exists(histogram_file):
+                reader = SummaryReader(log_dir)
+                df_histogram = reader.histograms
+                df_histogram.to_csv(histogram_file, index=False)
+            else:
+                df_histogram = pd.read_csv(histogram_file)
+        if is_scalar and is_histogram:
+            return df_scalar, df_histogram
+        elif is_scalar:
+            return df_scalar
+        elif is_histogram:
+            return df_histogram
 
-        Returns
-        -------
-        Tuple[pd.DataFrame, np.array, np.array]
-            statistics results, 3-dim predicitons, 3-dim observations
-        """
-        pred, obs = self.load_result(save_dirs, test_epoch)
-        if type(unit) is list:
-            inds_df_lst = []
-            pred_lst = []
-            obs_lst = []
-            for i in range(len(unit)):
-                inds_df_, pred_, obs_ = self.stat_result_for1out(
-                    var_name[i],
-                    unit[i],
-                    pred[:, :, i],
-                    obs[:, :, i],
-                    fill_nan[i],
-                    basin_area=basin_area,
-                )
-                inds_df_lst.append(inds_df_)
-                pred_lst.append(pred_)
-                obs_lst.append(obs_)
-            return inds_df_lst, pred_lst, obs_lst if return_value else inds_df_lst
-        else:
-            inds_df_, pred_, obs_ = self.stat_result_for1out(
-                var_name, unit, pred, obs, fill_nan, basin_area=basin_area
-            )
-            return (inds_df_, pred_, obs_) if return_value else inds_df_
-
+    # TODO: the following code is not finished yet
     def load_ensemble_result(
         self, save_dirs, test_epoch, flow_unit="m3/s", basin_areas=None
     ) -> Tuple[np.array, np.array]:
@@ -278,7 +360,7 @@ class Resulter:
             pred_mean = pred_mean / 35.314666721489
         return pred_mean, obs_mean
 
-    def stat_ensemble_result(
+    def eval_ensemble_result(
         self,
         save_dirs,
         test_epoch,

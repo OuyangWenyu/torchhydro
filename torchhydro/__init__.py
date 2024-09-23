@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2024-06-04 18:41:37
+LastEditTime: 2024-09-10 20:10:25
 LastEditors: Wenyu Ouyang
 Description: Top-level package for torchhydro
 FilePath: \torchhydro\torchhydro\__init__.py
@@ -12,7 +12,7 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 
 __author__ = """Wenyu Ouyang"""
 __email__ = "wenyuouyang@outlook.com"
-__version__ = "0.0.5"
+__version__ = '0.0.8'
 
 from pathlib import Path
 import yaml

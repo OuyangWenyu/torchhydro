@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-19 09:36:25
-LastEditTime: 2024-07-15 16:20:19
+LastEditTime: 2024-09-10 16:21:18
 LastEditors: Wenyu Ouyang
 Description: The method comes from this paper: https://doi.org/10.1038/s41467-021-26107-z It use Deep Learning (DL) methods to Learn the Parameters of physics-based models (PBM), which is called "differentiable parameter learning" (dPL).
-FilePath: /torchhydro/torchhydro/models/dpl4xaj.py
+FilePath: \torchhydro\torchhydro\models\dpl4xaj.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -920,7 +920,7 @@ class DplLstmXaj(nn.Module):
             one time forward result
         """
         q, e = lstm_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
-        return q
+        return torch.cat([q, e], dim=-1)
 
 
 class DplAnnXaj(nn.Module):
@@ -994,7 +994,7 @@ class DplAnnXaj(nn.Module):
             one time forward result
         """
         q, e = ann_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
-        return q
+        return torch.cat([q, e], dim=-1)
 
 
 def lstm_pbm(dl_model, pb_model, param_func, x, z):

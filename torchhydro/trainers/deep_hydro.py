@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2024-05-27 09:40:00
+LastEditTime: 2024-09-18 11:18:15
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -19,7 +19,6 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-from hydroutils.hydro_file import get_lastest_file_in_a_dir
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import *
 from torch.utils.data import DataLoader, DistributedSampler
@@ -48,8 +47,8 @@ from torchhydro.trainers.train_utils import (
     evaluate_validation,
     compute_validation,
     model_infer,
+    read_pth_from_model_loader,
     torch_single_train,
-    cellstates_when_inference,
     calculate_and_record_metrics,
 )
 
@@ -349,18 +348,7 @@ class DeepHydro(DeepHydroInterface):
     def _get_trained_model(self):
         model_loader = self.cfgs["evaluation_cfgs"]["model_loader"]
         model_pth_dir = self.cfgs["data_cfgs"]["test_path"]
-        if model_loader["load_way"] == "specified":
-            test_epoch = model_loader["test_epoch"]
-            weight_path = os.path.join(model_pth_dir, f"model_Ep{str(test_epoch)}.pth")
-        elif model_loader["load_way"] == "best":
-            weight_path = os.path.join(model_pth_dir, "best_model.pth")
-        elif model_loader["load_way"] == "latest":
-            weight_path = get_lastest_file_in_a_dir(model_pth_dir)
-        elif model_loader["load_way"] == "pth":
-            weight_path = model_loader["pth_path"]
-        else:
-            raise ValueError("Invalid load_way")
-        return weight_path
+        return read_pth_from_model_loader(model_loader, model_pth_dir)
 
     def model_evaluate(self) -> Tuple[Dict, np.array, np.array]:
         """
@@ -425,10 +413,6 @@ class DeepHydro(DeepHydroInterface):
             # params of reshape should be (basin size, time length)
             pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
             obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
-        # TODO: not support return_cell_states yet
-        return_cell_state = False
-        if return_cell_state:
-            return cellstates_when_inference(seq_first, data_cfgs, pred)
 
         if not evaluation_cfgs["long_seq_pred"]:
             target_len = len(data_cfgs["target_cols"])

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-07-10 10:59:08
+LastEditTime: 2024-09-18 16:50:16
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: /torchhydro/torchhydro/configs/config.py
+FilePath: \torchhydro\torchhydro\configs\config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -221,16 +221,20 @@ def default_config_file():
             "criterion_params": None,
             # "weight_decay": None, a regularization term in loss func
             "optimizer": "Adam",
+            # "optim_params": {"lr": 0.001} means the initial learning rate is 0.001
             "optim_params": {},
             "lr_scheduler": {
-                # 1st opt config, all epochs use this lr
+                # 1st opt config, all epochs use this lr,
+                # this setting will cover the lr setting in "optim_params"
                 "lr": 0.001,
                 # 2nd opt config, diff epoch uses diff lr, key is epoch,
                 # start from 0, each value means the decay rate
+                # if initial lr is 0.001, then 0: 0.5 neans the lr of 0 epoch is 0.001*0.5=0.0005
                 # "lr_scheduler": {0: 1, 1: 0.5, 2: 0.2},
-                # 3rd opt config, lr as a initial value, and lr_factor as an exponential decay factor
+                # 3rd opt config, lr as a initial value (will cover the lr setting in "optim_params")
+                # lr_factor as an exponential decay factor
                 # "lr": 0.001, "lr_factor": 0.1,
-                # 4th opt config, lr as a initial value,
+                # 4th opt config, lr as a initial value, it will cover the lr setting in "optim_params"
                 # lr_patience represent how many epochs without opt (we watch val_loss) could be tolerated
                 # if lr_patience is satisfied, then lr will be decayed by lr_factor by a linear way
                 # "lr": 0.001, "lr_factor": 0.1, "lr_patience": 1,
@@ -1007,11 +1011,11 @@ def update_cfg(cfg_file, new_args):
             raise AttributeError(
                 "Please make sure size of vars in data_cfgs/target_cols is same as n_output"
             )
-    if new_args.model_hyperparam is None:
-        raise AttributeError("Please set the model_hyperparam!!!")
-    else:
+    if new_args.model_hyperparam is not None:
+        # raise AttributeError("Please set the model_hyperparam!!!")
         cfg_file["model_cfgs"]["model_hyperparam"] = new_args.model_hyperparam
         if "batch_size" in new_args.model_hyperparam.keys():
+            # TODO: batch_size's setting may conflict with batch_size's direct setting
             cfg_file["data_cfgs"]["batch_size"] = new_args.model_hyperparam[
                 "batch_size"
             ]
@@ -1026,11 +1030,11 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam[
                 "prec_window"
             ]
-    if new_args.batch_size is None:
-        raise AttributeError("Please set the batch_size!!!")
-    batch_size = new_args.batch_size
-    cfg_file["data_cfgs"]["batch_size"] = batch_size
-    cfg_file["training_cfgs"]["batch_size"] = batch_size
+    if new_args.batch_size is not None:
+        # raise AttributeError("Please set the batch_size!!!")
+        batch_size = new_args.batch_size
+        cfg_file["data_cfgs"]["batch_size"] = batch_size
+        cfg_file["training_cfgs"]["batch_size"] = batch_size
     if new_args.min_time_unit is not None:
         if new_args.min_time_unit not in ["h", "D"]:
             raise ValueError("min_time_unit must be 'h' (HOURLY) or 'D' (DAILY)")
