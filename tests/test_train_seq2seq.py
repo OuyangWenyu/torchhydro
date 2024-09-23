@@ -34,13 +34,16 @@ show = pd.read_csv(
     dtype={"id": str},
 )
 # gage_id = show["id"].values.tolist()
-gage_id = ["songliao_21401550"]
+gage_id = [
+    "songliao_21401050",
+    "songliao_21401550",
+]
 
 
 @pytest.fixture()
 def config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_gpm", "ex1")
+    project_name = os.path.join("train_with_gpm", "ex_test")
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -50,7 +53,7 @@ def config():
             "source": "HydroMean",
             "source_path": "/ftproot/basins-interim/",
         },
-        ctx=[2],
+        ctx=[0],
         model_name="Seq2Seq",
         model_hyperparam={
             "en_input_size": 17,
@@ -64,7 +67,7 @@ def config():
         model_loader={"load_way": "best"},
         gage_id=gage_id,
         # gage_id=["21400800", "21401550", "21401300", "21401900"],
-        batch_size=256,
+        batch_size=128,
         forecast_history=240,
         forecast_length=56,
         min_time_unit="h",
@@ -94,16 +97,17 @@ def config():
         dataset="Seq2SeqDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
-        train_epoch=100,
+        train_epoch=2,
         save_epoch=1,
-        train_period=[("2016-06-01-01", "2023-11-01-01")],
-        test_period=[("2015-06-01-01", "2016-06-01-01")],
-        valid_period=[("2015-06-01-01", "2016-06-01-01")],
+        train_mode=False,
+        train_period=[("2016-06-01-01", "2016-08-01-01")],
+        test_period=[("2015-06-01-01", "2015-08-01-01")],
+        valid_period=[("2015-06-01-01", "2015-08-01-01")],
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
             "data_gap": [0, 0],
-            "device": [1],
+            "device": [0],
             "item_weight": [0.8, 0.2],
         },
         opt="Adam",
