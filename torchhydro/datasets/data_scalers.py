@@ -324,11 +324,14 @@ class DapengScaler(object):
             )
             for i in range(len(self.data_cfgs["target_cols"])):
                 var = self.data_cfgs["target_cols"][i]
-                pred.loc[dict(variable=var)] = _prcp_norm(
-                    pred.sel(variable=var).to_numpy(),
-                    self.mean_prcp,
-                    to_norm=False,
-                )
+                if var in self.prcp_norm_cols:
+                    pred.loc[dict(variable=var)] = _prcp_norm(
+                        pred.sel(variable=var).to_numpy(),
+                        self.mean_prcp,
+                        to_norm=False,
+                    )
+                else:
+                    pred.loc[dict(variable=var)] = pred.sel(variable=var)
         # add attrs for units
         pred.attrs.update(self.data_target.attrs)
         return pred.to_dataset(dim="variable")
@@ -400,6 +403,9 @@ class DapengScaler(object):
         # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
         out.attrs = copy.deepcopy(data.attrs)
         target_cols = self.data_cfgs["target_cols"]
+        if "units" not in out.attrs:
+            Warning("The attrs of output data does not contain units")
+            out.attrs["units"] = {}
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
