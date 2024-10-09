@@ -1,7 +1,7 @@
 """
 Author: MHPI group, Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-05-27 16:01:38
+LastEditTime: 2024-10-09 16:36:34
 LastEditors: Wenyu Ouyang
 Description: LSTM with dropout implemented by Kuai Fang and more LSTMs using it
 FilePath: \torchhydro\torchhydro\models\cudnnlstm.py
@@ -192,15 +192,37 @@ class CudnnLstm(nn.Module):
         self.b_hh = Parameter(torch.Tensor(hidden_size * 4))
         self._all_weights = [["w_ih", "w_hh", "b_ih", "b_hh"]]
         # self.cuda()
-
+        # set the mask
         self.reset_mask()
+        # initialize the weights and bias of the model
         self.reset_parameters()
 
     def _apply(self, fn):
+        """just use the default _apply function
+
+        Parameters
+        ----------
+        fn : function
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        # _apply is always recursively applied to all submodules and the module itself such as move all to GPU
         return super()._apply(fn)
 
-    def __setstate__(self, d):  # this func will be called when loading the model
+    def __setstate__(self, d):
+        """a python magic function to set the state of the object used for deserialization
+
+        Parameters
+        ----------
+        d : _type_
+            _description_
+        """
         super().__setstate__(d)
+        # set a default value for _data_ptrs
         self.__dict__.setdefault("_data_ptrs", [])
         if "all_weights" in d:
             self._all_weights = d["all_weights"]
@@ -209,12 +231,15 @@ class CudnnLstm(nn.Module):
         self._all_weights = [["w_ih", "w_hh", "b_ih", "b_hh"]]
 
     def reset_mask(self):
+        """generate mask for dropout"""
         self.mask_w_ih = create_mask(self.w_ih, self.dr)
         self.mask_w_hh = create_mask(self.w_hh, self.dr)
 
     def reset_parameters(self):
+        """initialize the weights and bias of the model using Xavier initialization"""
         stdv = 1.0 / math.sqrt(self.hidden_size)
         for weight in self.parameters():
+            # uniform distribution between -stdv and stdv for the weights and bias initialization
             weight.data.uniform_(-stdv, stdv)
 
     def forward(self, input, hx=None, cx=None, do_drop_mc=False, dropout_false=False):
@@ -222,10 +247,12 @@ class CudnnLstm(nn.Module):
         if dropout_false and (not do_drop_mc):
             do_drop = False
         elif self.dr > 0 and (do_drop_mc is True or self.training is True):
+            # if train mode and set self.dr > 0, then do_drop is true
+            # so each time the model forward function is called, the dropout is applied
             do_drop = True
         else:
             do_drop = False
-
+        # input must be a tensor with shape (seq_len, batch, input_size)
         batch_size = input.size(1)
 
         if hx is None:
@@ -236,9 +263,9 @@ class CudnnLstm(nn.Module):
         # handle = torch.backends.cudnn.get_handle()
         if do_drop is True:
             # cuDNN backend - disabled flat weight
-            freeze_mask = False
-            if not freeze_mask:
-                self.reset_mask()
+            # NOTE: each time the mask is newly generated, so for each batch the mask is different
+            self.reset_mask()
+            # apply the mask to the weights
             weight = [
                 DropMask.apply(self.w_ih, self.mask_w_ih, True),
                 DropMask.apply(self.w_hh, self.mask_w_hh, True),
@@ -288,6 +315,8 @@ class CudnnLstm(nn.Module):
 
     @property
     def all_weights(self):
+        """return all weights and bias of the model as a list"""
+        # getattr() is used to get the value of an object's attribute
         return [
             [getattr(self, weight) for weight in weights]
             for weights in self._all_weights
