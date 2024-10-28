@@ -32,6 +32,11 @@ def save_model(model, model_file, gpu_num=1):
 def save_model_params_log(params, params_log_path):
     time_stamp = datetime.now().strftime("%d_%B_%Y%I_%M%p")
     params_log_file = os.path.join(params_log_path, f"{time_stamp}.json")
+    if 'graph' in params['model_cfgs']['model_hyperparam'].keys():
+        params['model_cfgs']['model_hyperparam']['graph'] = str(params['model_cfgs']['model_hyperparam']['graph'])
+        device = params['model_cfgs']['model_hyperparam']['device']
+        if not isinstance(device, int):
+            params['model_cfgs']['model_hyperparam']['device'] = params['model_cfgs']['model_hyperparam']['device'].index
     hydro_file.serialize_json(params, params_log_file)
 
 

@@ -387,34 +387,41 @@ class DeepHydro(DeepHydroInterface):
         training_cfgs = self.cfgs["training_cfgs"]
         evaluation_cfgs = self.cfgs["evaluation_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
-
         ngrid = self.testdataset.ngrid
         if data_cfgs["sampler"] == "HydroSampler":
             test_num_samples = self.testdataset.num_samples
-            test_dataloader = DataLoader(
-                self.testdataset,
-                batch_size=test_num_samples // ngrid,
-                shuffle=False,
-                drop_last=False,
-                timeout=0,
-            )
+            if (data_cfgs["network_shp"] is None) & (data_cfgs["node_shp"] is None):
+                test_dataloader = DataLoader(
+                    self.testdataset,
+                    batch_size=test_num_samples // ngrid,
+                    shuffle=False,
+                    drop_last=False,
+                    timeout=0,
+                )
+            else:
+                test_dataloader = GraphDataLoader(self.testdataset, batch_size=test_num_samples // ngrid, shuffle=False, drop_last=True)
         else:
-            test_dataloader = DataLoader(
-                self.testdataset,
-                batch_size=training_cfgs["batch_size"],
-                shuffle=False,
-                sampler=None,
-                batch_sampler=None,
-                drop_last=False,
-                timeout=0,
-                worker_init_fn=None,
-            )
+            if (data_cfgs["network_shp"] is None) & (data_cfgs["node_shp"] is None):
+                test_dataloader = DataLoader(
+                    self.testdataset,
+                    batch_size=training_cfgs["batch_size"],
+                    shuffle=False,
+                    sampler=None,
+                    batch_sampler=None,
+                    drop_last=False,
+                    timeout=0,
+                    worker_init_fn=None,
+                )
+            else:
+                test_dataloader = GraphDataLoader(self.testdataset, batch_size=training_cfgs["batch_size"], shuffle=False, drop_last=True)
         seq_first = training_cfgs["which_first_tensor"] == "sequence"
         self.model.eval()
         # here the batch is just an index of lookup table, so any batch size could be chosen
         test_preds = []
         obss = []
         with torch.no_grad():
+            # 不应该使用drop_duplicated的方式去重，因为出口站点和分支站点在合并时索引就是重复的
+            # 也不应该强行将分支站点号对齐成流域号
             for xs, ys in test_dataloader:
                 # here the a batch doesn't mean a basin; it is only an index in lookup table
                 # for NtoN mode, only basin is index in lookup table, so the batch is same as basin
@@ -977,11 +984,13 @@ class GNNMultiTaskHydro(MultiTaskHydro):
             raise NotImplementedError(
                 f"Error the model {model_name} was not found in the model dict. Please add it."
             )
-        graph = self.get_upstream_graph()[0]
+        graph = dgl.from_networkx(self.get_upstream_graph()[0])
         if self.pre_model is not None:
             model = self._load_pretrain_model()
         elif self.weight_path is not None:
             # load model from pth file (saved weights and biases)
+            model_cfgs['model_hyperparam']['graph'] = graph
+            model_cfgs['model_hyperparam']['device'] = self.device
             model = self._load_model_from_pth()
         else:
             model_cfgs['model_hyperparam']['graph'] = graph
@@ -997,23 +1006,28 @@ class GNNMultiTaskHydro(MultiTaskHydro):
         return dataset
 
     def get_upstream_graph(self):
-        # 训练时所有流域内所有站点在给定时间段内的水位径流数据
-        import igraph as ig
+        import pandas as pd
         res_dir = self.cfgs["data_cfgs"]["test_path"]
-        nx_graph_path = os.path.join(res_dir, 'total_graph.edgelist')
-        basin_station_path = os.path.join(res_dir, 'basin_station.json')
+        nx_graph_path = os.path.join(res_dir, 'total_graph.gexf')
+        basin_station_path = os.path.join(res_dir, 'basin_stations.csv')
         if (os.path.exists(nx_graph_path)) & (os.path.exists(basin_station_path)):
-            total_graph = dgl.from_networkx(nx.read_edgelist(nx_graph_path, nodetype=int, delimiter='|'))
-            basin_station_dict = json.load(open(basin_station_path))
-            graph_tuple = (total_graph, basin_station_dict)
+            total_graph = nx.read_gexf(nx_graph_path)
+            basin_station_df = pd.read_csv(basin_station_path, engine='c')
+            graph_tuple = (total_graph, basin_station_df)
         else:
-            total_graph = ig.Graph(directed=True)
-            basin_station_dict = {}
+            # 保存成csv文件，存储节点所对应的站名、流域、上游几个点
+            total_graph = nx.DiGraph()
+            index_station_dict = {}
+            index_basin_dict = {}
+            up_len_dict = {}
             network_features = gpd.read_file(self.cfgs['data_cfgs']['network_shp'])
             node_features = gpd.read_file(self.cfgs['data_cfgs']['node_shp'])
-            for basin in self.cfgs["data_cfgs"]["object_ids"]:
-                basin_num = basin.split('_')[1]
-                upstream_graph = self.prepare_graph(network_features, node_features, basin_num)
+            basins = [sta_id.split('_')[-1] for sta_id in self.cfgs["data_cfgs"]["object_ids"]]
+            upstream_graphs = self.prepare_graph(network_features, node_features, basins)
+            for key in upstream_graphs.keys():
+                upstream_graph = upstream_graphs[key]
+                id_col = 'ID' if 'ID' in node_features.columns else 'STCD'
+                # basin_id = node_features[id_col][node_features.index == key].values[0]
                 if len(upstream_graph) != 0:
                     if upstream_graph.dtype == 'O':
                         # upstream_graph = array(list1, list2, list3)
@@ -1025,51 +1039,44 @@ class GNNMultiTaskHydro(MultiTaskHydro):
                     else:
                         # upstream_graph = array(list1, list2) and dtype is not object
                         nodes_arr = np.unique(upstream_graph)
-                    for node in nodes_arr:
-                        basin_station_dict[int(node)] = basin
-                    nx_graph = nx.DiGraph()
-                    for path in upstream_graph:
-                        if isinstance(path, int | np.int64):
-                            nx.add_path(nx_graph, [path])
-                        else:
-                            nx.add_path(nx_graph, path)
-                    ig_upstream_graph = ig.Graph.from_networkx(nx_graph)
-                    total_graph = ig.Graph.disjoint_union(total_graph, ig_upstream_graph)
                 else:
-                    continue
-            # ig_graph展成list之后，节点序号也是从小到大排列，与dgl_graph.nodes()排号形成对应，不需要再排序添加数据
-            nx_tgraph = total_graph.to_networkx()
-            total_graph = dgl.from_networkx(nx_tgraph)
-            graph_tuple = (total_graph, basin_station_dict)
-            nx.write_edgelist(nx_tgraph, os.path.join(self.cfgs["data_cfgs"]["test_path"], 'total_graph.edgelist'),
-                              delimiter='|')
-            with open(os.path.join(self.cfgs["data_cfgs"]["test_path"], 'basin_station.json'), 'w') as fp:
-                json.dump(basin_station_dict, fp)
+                    upstream_graph = nodes_arr = [key]
+                for node in nodes_arr:
+                    node_id = node_features[id_col][node_features.index == node].values[0]
+                    basin = node_id if node_id in basins else node_features[id_col][node_features.index == key].values[0]
+                    index_station_dict[int(node)] = node_id
+                    index_basin_dict[int(node)] = basin
+                up_len_dict[int(key)] = len(nodes_arr)
+                for path in upstream_graph:
+                    if isinstance(path, int | np.int64):
+                        nx.add_path(total_graph, [path])
+                    else:
+                        nx.add_path(total_graph, path)
+            basin_station_df = pd.DataFrame([index_station_dict, index_basin_dict, up_len_dict]).T
+            basin_station_df = basin_station_df[~basin_station_df[0].isna()].rename(columns={0: 'station_id', 1: 'basin_id', 2: 'upstream_len'})
+            basin_station_df = basin_station_df.reset_index().rename(columns={'index': 'node_id'})
+            graph_tuple = (total_graph, basin_station_df)
+            # 有孤立点的情况不适用于edgelist, int点不适合gml
+            nx.write_gexf(total_graph, nx_graph_path)
+            basin_station_df.to_csv(basin_station_path)
         return graph_tuple
 
-    def prepare_graph(self, network_features: gpd.GeoDataFrame, node_features: gpd.GeoDataFrame, node: int | str,
-                      cutoff=2147483647):
+    def prepare_graph(self, network_features: gpd.GeoDataFrame, node_features: gpd.GeoDataFrame, nodes: list[int] | list[str],
+                      cutoff=4):
         import hydrotopo.ig_path as htip
         # test_df_path = 's3://stations-origin/zq_stations/hour_data/1h/zq_CHN_songliao_10800300.csv'
-        if isinstance(node, int):
-            node_idx = node
+        if isinstance(nodes[0], int):
+            node_idx = nodes
         else:
-            if 'STCD' in node_features.columns:
-                node_features['STCD'] = node_features['STCD'].astype(str)
-                node_idx = node_features.index[node_features['STCD'] == node]
-            else:
-                node_features['ID'] = node_features['ID'].astype(str)
-                node_idx = node_features.index[node_features['ID'] == node]
+            id_col = 'ID' if 'ID' in node_features.columns else 'STCD'
+            node_features[id_col] = node_features[id_col].astype(str)
+            node_idx = node_features.index[node_features[id_col].isin(nodes)]
         if len(node_idx) != 0:
-            node_idx = node_idx.tolist()[0]
-            try:
-                graph_lists = htip.find_edge_nodes(node_features, network_features, node_idx, 'up', cutoff)
-            except IndexError:
-                # 部分点所对应的LineString为空，导致报错
-                graph_lists = []
+            graph_dict = htip.find_edge_nodes_bulk_up(node_features, network_features, node_idx, cutoff)
+            # 部分点所对应的LineString为空，导致报错
         else:
-            graph_lists = []
-        return graph_lists
+            graph_dict = {}
+        return graph_dict
 
 
 model_type_dict = {

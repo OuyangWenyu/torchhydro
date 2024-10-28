@@ -88,13 +88,13 @@ def denormalize4eval(
     if not long_seq_pred:
         horizon = target_scaler.data_cfgs["forecast_length"]
         rho = target_scaler.data_cfgs["forecast_history"]
+        # TODO: 2626!=2625, so add prec_window at the end, but is it correct?
         selected_time_points = target_data.coords["time"][
-            length + rho : length - horizon
+            length + rho : length - horizon + target_scaler.data_cfgs['prec_window']
         ]
     else:
         warmup_length = validation_data_loader.dataset.warmup_length
         selected_time_points = target_data.coords["time"][warmup_length:]
-
     selected_data = target_data.sel(time=selected_time_points)
     preds_xr = target_scaler.inverse_transform(
         xr.DataArray(

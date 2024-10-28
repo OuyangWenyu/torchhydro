@@ -213,6 +213,7 @@ def default_config_file():
             "sampler": None,
             "network_shp": None,
             "node_shp": None,
+            "basins_shp": None,
         },
         "training_cfgs": {
             "master_addr": "localhost",
@@ -364,6 +365,7 @@ def cmd(
     min_time_interval=None,
     network_shp=None,
     node_shp=None,
+    basins_shp=None
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -850,6 +852,13 @@ def cmd(
         default=node_shp,
         type=str,
     )
+    parser.add_argument(
+        "--basins_shp",
+        dest="basins_shp",
+        help="Shapefile path which contains basins' polygons",
+        default=basins_shp,
+        type=str,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -1001,6 +1010,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["network_shp"] = new_args.network_shp
     if new_args.node_shp is not None:
         cfg_file["data_cfgs"]["node_shp"] = new_args.node_shp
+    if new_args.basins_shp is not None:
+        cfg_file["data_cfgs"]["basins_shp"] = new_args.basins_shp
     if new_args.long_seq_pred is not None:
         cfg_file["evaluation_cfgs"]["long_seq_pred"] = new_args.long_seq_pred
     if new_args.calc_metrics is not None:

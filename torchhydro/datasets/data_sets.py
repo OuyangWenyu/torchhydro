@@ -16,10 +16,13 @@ import sys
 from datetime import datetime
 from datetime import timedelta
 from typing import Optional
+
+import networkx as nx
 import numpy as np
 import pandas as pd
 import torch
 import xarray as xr
+from black.mode import Deprecated
 from dateutil.parser import parse
 from hydrodatasource.reader.data_source import SelfMadeHydroDataset
 from hydrodatasource.utils.utils import streamflow_unit_conv
@@ -770,47 +773,27 @@ class TransformerDataset(Seq2SeqDataset):
 class GNNDataset(Seq2SeqDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str, graph_tuple):
         super(GNNDataset, self).__init__(data_cfgs, is_tra_val_te)
-        # self.total_graph: num_nodes=317, num_edges=280
-        # self.basin_station_dict: {dict: 317}
         self.graph_tuple = graph_tuple
-        upstream_df = self.get_upstream_df()
-        if 'basin_id' in upstream_df.columns:
-            self.x_up = xr.Dataset.from_dataframe(self.get_upstream_df().set_index('basin_id'))
+        upstream_ds = self.get_upstream_ds()
+        upstream_ds['basin_id'] = upstream_ds['basin_id'].astype(str).str.zfill(8)
+        self.x_up = upstream_ds
 
     def __getitem__(self, item: int):
-        from experiments.train_with_era5land_gnn import chn_gage_id
         # 从lookup_table中获取的idx和basin是整数，但是total_df的basin是字符串，所以需要转换一下
         basin, idx = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
         prec = self.data_cfgs["prec_window"]
-        # 在这里p和s的间隔应该是1吗？
-        basin_id = chn_gage_id[basin]
+        basin_id = self.basins[basin].split('_')[-1]
         str_lev_array = self.x_up.sel(basin_id=basin_id).to_array()
+        # 在这里p和s的间隔应该是1吗?
         stream_up_p = str_lev_array[0][idx + 1: idx + rho + horizon + 1]
         stream_up_s = str_lev_array[0][idx: idx + rho]
-        level_up_p = str_lev_array[1][idx + 1: idx + rho + horizon + 1]
-        level_up_s = str_lev_array[1][idx: idx + rho]
-        if stream_up_p[:rho].shape[0] < stream_up_s.shape[0]:
-            if stream_up_p[:rho].shape[0] == 0:
-                stream_up_p, level_up_p = np.array([np.nan]), np.array([np.nan])
-            else:
-                stream_up_p = np.pad(stream_up_p, (0, 1), 'edge')
-                level_up_p = np.pad(level_up_p, (0, 1), 'edge')
-        x_ps_up = np.stack((stream_up_p[:rho], stream_up_s, level_up_p[:rho], level_up_s), axis=1)
+        x_ps_up = np.stack((stream_up_p[:rho], stream_up_s), axis=1)
         c = self.c[basin, :]
         c = np.tile(c, (rho + horizon, 1))
-        if x_ps_up.shape[0] < c[:rho].shape[0]:
-            x_ps_up = np.full((c[:rho].shape[0], 4), np.nan)
         x = np.concatenate((self.x[basin, :rho, :], x_ps_up, c[:rho]), axis=1)
-        x_ps_h = np.stack((stream_up_p[rho:], level_up_p[rho:]), axis=1)
-        if x_ps_h.shape[0] < c[rho:].shape[0]:
-            diff = c[rho:].shape[0] - x_ps_h.shape[0]
-            if diff <= 2:
-                x_ps_h = np.pad(x_ps_h, ((0, diff), (0, 0)), 'edge')
-            else:
-                x_ps_h = np.full((c[rho:].shape[0], x_ps_h.shape[1]), np.nan)
-        x_h = np.concatenate((x_ps_h, c[rho:]), axis=1)
+        x_h = np.concatenate((np.expand_dims(stream_up_p[rho:], -1), c[rho:]), axis=1)
         y = self.y[basin, idx + rho - prec + 1: idx + rho + horizon + 1, :]
         if y.shape[0] < horizon + prec:
            y = np.pad(y, ((0, horizon + prec - y.shape[0]), (0, 0)), 'edge')
@@ -820,105 +803,99 @@ class GNNDataset(Seq2SeqDataset):
                                                          torch.from_numpy(y).float()))
         return result
 
-    def get_upstream_df(self):
-        import geopandas as gpd
+    def __len__(self):
+        # 15118/train, 2626/test
+        '''
+        if (self.is_tra_val_te == "train") | (self.is_tra_val_te == "valid"):
+            return self.num_samples // self.data_cfgs['batch_size']
+        else:
+            return self.num_samples
+        '''
+        return self.num_samples
+
+    @property
+    def basins(self):
+        """Return the basins of the dataset"""
+        return ([site.split('_')[-1] for site in self.t_s_dict["sites_id"] if len(site.split('_')) == 2] +
+                [site for site in self.t_s_dict["sites_id"] if len(site.split('_')) == 3])
+
+    def get_upstream_ds(self):
+        # GNNMultiTaskHydro.get_upstream_graph方法，如果遇到iowa的站必须除以流域面积做平均，否则误差会极大
         res_dir = self.data_cfgs["test_path"]
-        if os.path.exists(os.path.join(res_dir, 'upstream_df.csv')):
-            total_df = pd.read_csv(os.path.join(res_dir, 'upstream_df.csv'), engine='c')
+        tra_val_te_ds = os.path.join(res_dir, f'upstream_ds_{self.is_tra_val_te}.nc')
+        if os.path.exists(tra_val_te_ds):
+            total_ds = xr.open_dataset(tra_val_te_ds)
         else:
-            nodes_arr = np.int32(np.unique(list(self.graph_tuple[1].keys())))
-            basin_up_dict = {}
-            for node in nodes_arr:
-                basin_up_dict[node] = self.graph_tuple[1][str(node)]
+            nodes_df = self.graph_tuple[1]
+            nodes_df['basin_id'] = nodes_df['basin_id'].astype(str).str.zfill(8)
+            nodes_df['node_id'] = nodes_df['node_id'].astype(str)
+            max_app_cols = int(nodes_df['upstream_len'].max()) - 1
             total_df = pd.DataFrame()
-            node_features = gpd.read_file(self.data_cfgs['node_shp'])
-            for up_node in nodes_arr:
-                if 'STCD' in node_features.columns:
-                    up_node_name = node_features['STCD'][node_features.index == up_node].to_list()[0]
-                else:
-                    up_node_name = node_features['ID'][node_features.index == up_node].to_list()[0]
+            for node_name in self.basins:
                 station_df = pd.DataFrame()
-                for date_tuple in self.data_cfgs[f"t_range_{self.is_tra_val_te}"]:
-                    data_table = self.read_data_with_stcd_from_minio(up_node_name)
-                    date_times = pd.date_range(date_tuple[0], date_tuple[1], freq='1h')
-                    level_str_df = self.gen_level_stream(data_table, date_times=date_times)
-                    station_df = pd.concat([station_df, level_str_df])
-                basin_column = pd.DataFrame({'basin_id': np.repeat(basin_up_dict[up_node], len(station_df))})
-                station_df = pd.concat([basin_column, station_df], axis=1)
-                total_df = pd.concat([total_df, station_df], axis=0)
-            total_df = total_df.set_index('basin_id')
-            total_df.to_csv(os.path.join(res_dir, 'upstream_df.csv'))
-        return total_df
+                # basin_id = nodes_df[nodes_df['station_id'] == node_name]['basin_id'].to_list()[0]
+                node_id = nodes_df['node_id'][nodes_df['station_id'] == node_name].to_list()[0]
+                up_set = nx.ancestors(self.graph_tuple[0], node_id)
+                if len(up_set) > 0:
+                    up_node_names = nodes_df['station_id'][nodes_df['node_id'].isin(up_set)]
+                    # read_data_with_id放在if下方减少读盘次数
+                    streamflow_dfs = [self.read_data_with_id(up_node_name) for up_node_name in up_node_names]
+                    for date_tuple in self.data_cfgs[f"t_range_{self.is_tra_val_te}"]:
+                        date_times = pd.date_range(date_tuple[0], date_tuple[1], freq='1h')
+                        up_col_dict = {f'streamflow_up_{i}': np.repeat(np.nan, len(date_times)) for i in range(max_app_cols)}
+                        up_str_df = pd.DataFrame(up_col_dict)
+                        for i in range(len(streamflow_dfs)):
+                            data_table = streamflow_dfs[i]
+                            # 有的time列是object，和datetime64[ns]不等，所以这里先转成datetime再比较
+                            data_table['time'] = pd.to_datetime(data_table['time'])
+                            up_str_col = data_table['streamflow'][data_table['time'].isin(date_times)]
+                            up_str_df[f'streamflow_up_{i}'] = up_str_col.fillna(0)
+                        up_str_df = up_str_df.fillna(0)
+                        station_df['basin_id'] = np.repeat(node_name, len(date_times))
+                        station_df['time'] = date_times
+                        station_df = pd.concat([station_df, up_str_df], axis=1)
+                        total_df = pd.concat([total_df, station_df], axis=0)
+                else:
+                    for date_tuple in self.data_cfgs[f"t_range_{self.is_tra_val_te}"]:
+                        date_times = pd.date_range(date_tuple[0], date_tuple[1], freq='1h')
+                        up_col_dict = {f'streamflow_up_{i}': np.repeat(np.nan, len(date_times)) for i in range(max_app_cols)}
+                        up_str_df = pd.DataFrame(up_col_dict).fillna(0)
+                        station_df['basin_id'] = np.repeat(node_name, len(date_times))
+                        station_df['time'] = date_times
+                        station_df = pd.concat([station_df, up_str_df], axis=1)
+                        total_df = pd.concat([total_df, station_df], axis=0)
+            total_df = total_df.set_index(['basin_id', 'time'])
+            total_ds = xr.Dataset.from_dataframe(total_df[~total_df.index.duplicated()])
+            total_ds.to_netcdf(tra_val_te_ds)
+        return total_ds
 
-    def read_data_with_stcd_from_minio(self, stcd: str):
-        # 考虑换掉minio
-        import hydrodatasource.configs.config as hdscc
-        minio_path_zq_chn = f's3://stations-origin/zq_stations/hour_data/1h/zq_CHN_songliao_{stcd}.csv'
-        minio_path_zz_chn = f's3://stations-origin/zz_stations/hour_data/1h/zz_CHN_songliao_{stcd}.csv'
-        minio_path_zq_usa = f's3://stations-origin/zq_stations/hour_data/1h/zq_USA_usgs_{stcd}.csv'
-        minio_path_zz_usa = f's3://stations-origin/zz_stations/hour_data/1h/zz_USA_usgs_{stcd}.csv'
-        minio_path_zq_usa_new = f's3://stations-origin/zq_stations/hour_data/1h/usgs_datas_462_basins_after_2019/zz_USA_usgs_{stcd}.csv'
-        camels_hourly_files = f's3://datasets-origin/camels-hourly/data/usgs_streamflow_csv/{stcd}-usgs-hourly.csv'
-        minio_data_paths = [minio_path_zq_chn, minio_path_zz_chn, minio_path_zq_usa, minio_path_zz_usa,
-                            minio_path_zq_usa_new, camels_hourly_files]
-        hydro_df = None
-        for data_path in minio_data_paths:
-            if hdscc.FS.exists(data_path):
-                hydro_df = pd.read_csv(data_path, engine='c', storage_options=hdscc.MINIO_PARAM)
-                break
-        if hydro_df is None:
-            interim_df = pd.read_sql(f"SELECT * FROM ST_RIVER_R WHERE stcd = '{stcd}'", hdscc.PS)
-            if len(interim_df) == 0:
-                interim_df = pd.read_sql(f"SELECT * FROM ST_RSVR_R WHERE stcd = '{stcd}'", hdscc.PS)
-            hydro_df = interim_df
-        return hydro_df
-
-    def gen_level_stream(self, data_table: pd.DataFrame, date_times: pd.DatetimeIndex):
-        table, freq = self.df_resample_cut(data_table)
-        if len(table) != 0:
-            if 'rz' in table.columns:
-                table = table.rename(columns={'rz': 'Z', 'inq': 'Q'})
-            # 水位(00065)，流量(00060), https://waterservices.usgs.gov/docs/site-service/site-service-details/
-            lev_col_name = 'Z' if 'Z' in table.columns else ('z' if 'z' in table.columns else '00065')
-            level_array = table[lev_col_name][table.index.isin(date_times)].to_numpy()
-            stream_col_name = 'streamflow' if 'streamflow' in table.columns else \
-                ('Q' if 'Q' in table.columns else ('q' if 'q' in table.columns else '00060'))
-            streamflow_array = table[stream_col_name][table.index.isin(date_times)].to_numpy()
-            level_stream_df = pd.DataFrame({'streamflow': streamflow_array, 'level': level_array})
+    def read_data_with_id(self, node_name: str):
+        import geopandas as gpd
+        # node_name: IOWA, WY_DCP_XXXXX
+        # iowa流量站有653个，但是数据足够多的只有222个被整编到nc文件中
+        if ('_' in node_name) & (len(node_name.split('_'))==3):
+            iowa_stream_ds = xr.open_dataset("/ftproot/iowa_streamflow_stas.nc")
+            if node_name in iowa_stream_ds.station.values:
+                node_df = iowa_stream_ds.sel(station=node_name).to_dataframe().reset_index()
+                node_df = node_df.rename(columns={'utc_valid': 'time'})
+                node_df = node_df[['time', 'streamflow']]
+                sta_basin_df = self.graph_tuple[1]
+                sta_basin_df['basin_id'] = sta_basin_df['basin_id'].astype(str).str.zfill(8)
+                basin_id = sta_basin_df[sta_basin_df['station_id'] == node_name]['basin_id'].to_list()[0]
+                area_gdf = gpd.read_file(self.data_cfgs['basins_shp'])
+                area = area_gdf[area_gdf['BASIN_ID'].str.contains(basin_id)]['AREA'].to_list()[0]
+                # iowa流量站单位是KCFS(1000 ft3/s)，这里除以流域面积，并变成m3/s
+                node_df['streamflow'] = node_df['streamflow'] / (35.31 * area) * 3600
+            else:
+                node_df = pd.DataFrame()
+        # node_name: songliao_21401550
+        elif ('_' in node_name) & (len(node_name.split('_'))==2):
+            node_df = pd.read_csv(f'/ftproot/basins-interim/timeseries/1h/{node_name}.csv', engine='c')[['time', 'streamflow']]
+        # node_name: str(21401550)
+        elif '_' not in node_name:
+            csv_path = f'/ftproot/basins-interim/timeseries/1h/camels_{node_name}.csv'
+            node_csv_path = csv_path if os.path.exists(csv_path) else csv_path.replace('camels', 'songliao')
+            node_df = pd.read_csv(node_csv_path, engine='c')[['time', 'streamflow']]
         else:
-            level_stream_df = pd.DataFrame()
-        return level_stream_df
-
-    def df_resample_cut(self, cut_df: pd.DataFrame):
-        time_str = self.step_mode(cut_df)
-        tm_col = 'TM' if 'TM' in cut_df.columns else 'tm'
-        if '0 days' in time_str:
-            time_only_str = time_str.split(' ')[2]
-            time_obj = parse(time_only_str).time()
-            time_delta = timedelta(hours=time_obj.hour, minutes=time_obj.minute, seconds=time_obj.second)
-            total_minutes = round(time_delta.total_seconds() / 60)
-            freq = f'{math.ceil(total_minutes / 60)}h'
-            cut_df[tm_col] = pd.to_datetime(cut_df[tm_col])
-            try:
-                cut_df = cut_df.set_index(tm_col).resample(freq).interpolate().dropna(how='all')
-            except ValueError:
-                # such as STCD 11210118, quality of data is very bad, pass it
-                cut_df = pd.DataFrame()
-        else:
-            freq = 'D'
-            cut_df[tm_col] = pd.to_datetime(cut_df[tm_col])
-            try:
-                cut_df = cut_df.set_index(tm_col).resample(freq, origin='start').interpolate().dropna(how='all')
-            except ValueError:
-                cut_df = pd.DataFrame()
-        return cut_df, freq
-
-    def step_mode(self, csv_df):
-        tm_col = 'TM' if 'TM' in csv_df.columns else 'tm'
-        diffs = pd.to_datetime(csv_df[tm_col]).diff()
-        # 数据过少，没有众数，当作1天间隔
-        if diffs.shape[0] <= 1:
-            return '1 days 00:00:00'
-        else:
-            time_diff = diffs.mode()[0]
-            return str(time_diff)
+            node_df = pd.DataFrame()
+        return node_df

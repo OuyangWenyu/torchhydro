@@ -22,9 +22,10 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-chn_gage_id = [gage_id.split('/')[-1].split('.')[0] for gage_id in glob.glob('/ftproot/basins-interim/timeseries/3h/*.csv')
-               if 'songliao' in gage_id]
-
+prechn_gage_id = [gage_id.split('/')[-1].split('.')[0] for gage_id in glob.glob('/ftproot/basins-interim/timeseries/1h/*.csv', recursive=True)]
+camels_hourly_usgs = [file.split('/')[-1].split('-')[0] for file in glob.glob('/ftproot/camels_hourly/data/usgs_streamflow_csv/*.csv', recursive=True)]
+chn_gage_id = [gage_id for gage_id in prechn_gage_id if (gage_id.split('_')[-1] in camels_hourly_usgs) | ('songliao' in gage_id)]
+# ['11001300', '10805180', '08171300', '06879650', '06746095', '05413500', '01022500', '02056900']
 
 def test_run_model():
     '''
@@ -46,13 +47,15 @@ def test_run_model():
     elif args.m_name == "Transformer":
         config_data = create_config_Transformer()
     '''
+    # !set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     config_data = create_config_Seq2Seq()
     train_and_evaluate(config_data)
 
 
 def create_config_Seq2Seq():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_era5land", "ex1_539_basins")
+    project_name = os.path.join("train_with_era5land", "ex1_540_basins")
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -65,17 +68,17 @@ def create_config_Seq2Seq():
         ctx=[2],
         model_name="Seq2SeqGNN",
         model_hyperparam={
-            "en_input_size": 24,
-            "de_input_size": 19,
+            "en_input_size": 50,
+            "de_input_size": 18,
             "output_size": 2,
-            "hidden_size": 256,
+            "hidden_size": 640,
             "forecast_length": 56,
             "prec_window": 1,
             "teacher_forcing_ratio": 0.5,
         },
         model_loader={"load_way": "best"},
         gage_id=chn_gage_id,
-        batch_size=256,
+        batch_size=647,
         forecast_history=240,
         forecast_length=56,
         min_time_unit="h",
@@ -108,7 +111,7 @@ def create_config_Seq2Seq():
         dataset="GNNDataset",
         sampler="HydroSampler",
         scaler="DapengScaler",
-        train_epoch=100,
+        train_epoch=2,
         save_epoch=1,
         train_period=[("2016-01-01-01", "2023-11-30-01")],
         test_period=[("2015-01-01-01", "2016-01-01-01")],
@@ -117,7 +120,7 @@ def create_config_Seq2Seq():
         loss_param={
             "loss_funcs": "RMSESum",
             "data_gap": [0, 0],
-            "device": [1],
+            "device": [2],
             "item_weight": [0.8, 0.2],
         },
         opt="Adam",
@@ -137,8 +140,9 @@ def create_config_Seq2Seq():
         patience=10,
         model_type="GNN_MTL",
         # continue_train=True,
-        network_shp='/home/wangyang1/songliao_cut_single_new.shp',
-        node_shp="/home/wangyang1/463_nodes_sl/463_nodes_sl.shp"
+        network_shp="/home/wangyang1/sl_sx_usa_shps/SL_USA_HydroRiver_single.shp",
+        node_shp="/home/wangyang1/sl_sx_usa_shps/sl_stcd_locs/iowa_usgs_sl_stations.shp",
+        basins_shp="/ftproot/basins-interim/shapes/basins.shp",
     )
 
     # 更新默认配置

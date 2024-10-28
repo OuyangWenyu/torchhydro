@@ -362,6 +362,9 @@ class DecoderGNN(nn.Module):
         if dim_diff >= 0:
             out_res_matrix = torch.zeros(dim_diff, x.size(1), x.size(2)).to(x.device)
             x = torch.cat([x, out_res_matrix], dim=0)
+        else:
+            self.graph = dgl.add_nodes(self.graph, abs(dim_diff))
+            self.graph = dgl.add_self_loop(self.graph)
         for i in range(x.shape[1]):
             output, (hidden, cell) = self.lstm(x, (hidden[:, i, :].unsqueeze(1), cell[:, i, :].unsqueeze(1)))
             output = self.gnn(graph=self.graph, feat=output[:, i, :])
@@ -412,7 +415,7 @@ class Seq2SeqGNN(nn.Module):
             output, hidden, cell = self.decoder(current_input, hidden, cell)
             outputs.append(output.squeeze(1))
             if trgs is None or self.teacher_forcing_ratio <= 0:
-                current_input = output[:src2.size(0), :, 0]
+                current_input = output[:src2.size(0), :, :]
             else:
                 sm_trg = trgs[:src2.size(0), (self.prec_window + t), 1].unsqueeze(1).unsqueeze(1)
                 if not torch.any(torch.isnan(sm_trg)).item():
