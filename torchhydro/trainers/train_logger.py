@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-09-18 15:40:10
+LastEditTime: 2024-10-29 16:07:08
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
 FilePath: \torchhydro\torchhydro\trainers\train_logger.py
@@ -17,6 +17,8 @@ from hydroutils import hydro_file
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
+
+from torchhydro.trainers.train_utils import get_lastest_logger_file_in_a_dir
 
 
 def save_model(model, model_file, gpu_num=1):
@@ -48,6 +50,22 @@ class TrainLogger:
         self.train_time = []
         # log loss for each epoch
         self.epoch_loss = []
+        # reload previous logs if continue_train is True and weight_path is not None
+        if (
+            self.model_cfgs["continue_train"]
+            and self.model_cfgs["weight_path"] is not None
+        ):
+            the_logger_file = get_lastest_logger_file_in_a_dir(self.training_save_dir)
+            if the_logger_file is not None:
+                with open(the_logger_file, "r") as f:
+                    logs = json.load(f)
+            start_epoch = self.training_cfgs["start_epoch"]
+            # read the logs before start_epoch and load them to session_params, train_time, epoch_loss
+            for log in logs["run"]:
+                if log["epoch"] < start_epoch:
+                    self.session_params.append(log)
+                    self.train_time.append(log["train_time"])
+                    self.epoch_loss.append(float(log["train_loss"]))
 
     def save_session_param(
         self, epoch, total_loss, n_iter_ep, valid_loss=None, valid_metrics=None

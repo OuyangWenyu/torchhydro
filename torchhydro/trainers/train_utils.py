@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-09-18 10:22:54
+LastEditTime: 2024-10-29 15:47:51
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -25,7 +25,11 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from hydroutils.hydro_stat import stat_error
-from hydroutils.hydro_file import get_lastest_file_in_a_dir, unserialize_json
+from hydroutils.hydro_file import (
+    get_lastest_file_in_a_dir,
+    unserialize_json,
+    get_latest_file_in_a_lst,
+)
 
 from torchhydro.models.crits import GaussianLoss
 
@@ -574,6 +578,28 @@ def read_pth_from_model_loader(model_loader, model_pth_dir):
     if not os.path.exists(weight_path):
         raise ValueError(f"Model file {weight_path} does not exist.")
     return weight_path
+
+
+def get_lastest_logger_file_in_a_dir(dir_path):
+    """Get the last logger file in a directory
+
+    Parameters
+    ----------
+    dir_path : str
+        the directory
+
+    Returns
+    -------
+    str
+        the path of the logger file
+    """
+    pattern = r"^\d{1,2}_[A-Za-z]+_\d{6}_\d{2}(AM|PM)\.json$"
+    pth_files_lst = [
+        os.path.join(dir_path, file)
+        for file in os.listdir(dir_path)
+        if re.match(pattern, file)
+    ]
+    return get_latest_file_in_a_lst(pth_files_lst)
 
 
 def cellstates_when_inference(seq_first, data_cfgs, pred):
