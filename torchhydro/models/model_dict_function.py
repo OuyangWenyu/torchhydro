@@ -1,13 +1,14 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-09-10 10:56:55
+LastEditTime: 2024-10-29 11:43:09
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \torchhydro\torchhydro\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
+from torchhydro.models.dpl4hbv import DplLstmHbv, DplAnnHbv
 from torchhydro.models.cudnnlstm import (
     CudnnLstmModel,
     LinearCudnnLstmModel,
@@ -62,6 +63,8 @@ pytorch_model_dict = {
     "DataFusion": DataFusionModel,
     "Transformer": Transformer,
     "DplNnModuleXaj": DplLstmNnModuleXaj,
+    "DplLstmHbv": DplLstmHbv,
+    "DplAnnXaj": DplAnnHbv,
 }
 
 pytorch_criterion_dict = {
