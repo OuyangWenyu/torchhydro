@@ -282,10 +282,7 @@ class Hbv4Dpl(torch.nn.Module):
 
         else:
             qs = torch.unsqueeze(q_sim, -1)  # add a dimension
-        if out_state is True:
-            return qs, snowpack, meltwater, sm, suz, slz
-        else:
-            return qs
+        return (qs, snowpack, meltwater, sm, suz, slz) if out_state is True else qs
 
 
 class DplLstmHbv(nn.Module):
@@ -349,8 +346,7 @@ class DplLstmHbv(nn.Module):
         torch.Tensor
             one time forward result
         """
-        q = lstm_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
-        return q
+        return lstm_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
 
 
 class DplAnnHbv(nn.Module):
@@ -413,5 +409,4 @@ class DplAnnHbv(nn.Module):
         torch.Tensor
             one time forward result
         """
-        q = ann_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
-        return q
+        return ann_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
