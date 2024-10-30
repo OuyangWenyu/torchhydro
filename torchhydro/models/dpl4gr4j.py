@@ -9,7 +9,7 @@ from torch import nn
 from torch import Tensor
 from torch.nn import functional as F
 
-from models.simple_lstm import SimpleLSTM
+from torchhydro.models.simple_lstm import SimpleLSTM # type: ignore
 from torchhydro.models.ann import SimpleAnn
 from torchhydro.models.dpl4xaj import ann_pbm, lstm_pbm
 from torchhydro.models.kernel_conv import uh_conv
