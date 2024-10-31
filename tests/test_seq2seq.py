@@ -1,19 +1,22 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:55:24
-LastEditTime: 2024-05-27 10:10:35
+LastEditTime: 2024-10-31 10:17:40
 LastEditors: Wenyu Ouyang
-Description:
-FilePath: \torchhydro\tests\test_train_seq2seq.py
-Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
+Description: Test funcs for seq2seq model
+FilePath: \torchhydro\tests\test_seq2seq.py
+Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
+import pytest
+import torch
+from torchhydro.models.seq2seq import GeneralSeq2Seq
 
 import logging
 import os.path
 import pathlib
 
 import pandas as pd
-import pytest
 import hydrodatasource.configs.config as hdscc
 import xarray as xr
 import torch.multiprocessing as mp
@@ -139,3 +142,40 @@ def test_seq2seq(config):
     # mp.spawn(train_worker, args=(world_size, config), nprocs=world_size, join=True)
     train_and_evaluate(config)
     # ensemble_train_and_evaluate(config)
+
+
+@pytest.fixture
+def model():
+    return GeneralSeq2Seq(
+        en_input_size=10,
+        de_input_size=10,
+        output_size=5,
+        hidden_size=20,
+        forecast_length=5,
+        prec_window=2,
+        teacher_forcing_ratio=0.5,
+    )
+
+
+def test_forward_no_teacher_forcing(model):
+    src1 = torch.randn(3, 10, 10)
+    src2 = torch.randn(3, 5, 10)
+    outputs = model(src1, src2)
+    assert outputs.shape == (3, 6, 5)
+
+
+def test_forward_with_teacher_forcing(model):
+    src1 = torch.randn(3, 10, 10)
+    src2 = torch.randn(3, 5, 10)
+    trgs = torch.randn(3, 7, 5)
+    outputs = model(src1, src2, trgs)
+    assert outputs.shape == (3, 6, 5)
+
+
+def test_forward_with_nan_in_trgs(model):
+    src1 = torch.randn(3, 10, 10)
+    src2 = torch.randn(3, 5, 10)
+    trgs = torch.randn(3, 7, 5)
+    trgs[0, 3, 1] = float("nan")
+    outputs = model(src1, src2, trgs)
+    assert outputs.shape == (3, 6, 5)
