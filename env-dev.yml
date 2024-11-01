@@ -6,6 +6,7 @@ channels:
   - defaults
 dependencies:
   - python
+  - numpy=1.26
   - geopandas
   - scikit-learn
   - fsspec
@@ -15,13 +16,13 @@ dependencies:
   - torchaudio
   - pytorch-cuda=11.8
   - tensorboard
-  - shap
   - kaggle
   - pytest
   - black
   - flake8
   - pip
   - pip:
+    - shap
     - tbparse
     - setuptools
     - wheel
