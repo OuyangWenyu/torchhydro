@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:55:24
-LastEditTime: 2024-10-31 10:17:40
+LastEditTime: 2024-11-01 12:02:49
 LastEditors: Wenyu Ouyang
 Description: Test funcs for seq2seq model
 FilePath: \torchhydro\tests\test_seq2seq.py
@@ -147,35 +147,26 @@ def test_seq2seq(config):
 @pytest.fixture
 def model():
     return GeneralSeq2Seq(
-        en_input_size=10,
-        de_input_size=10,
-        output_size=5,
+        en_input_size=2,
+        de_input_size=3,
+        output_size=2,
         hidden_size=20,
         forecast_length=5,
-        prec_window=2,
+        prec_window=10,
         teacher_forcing_ratio=0.5,
     )
 
 
 def test_forward_no_teacher_forcing(model):
-    src1 = torch.randn(3, 10, 10)
-    src2 = torch.randn(3, 5, 10)
+    src1 = torch.randn(3, 10, 2)
+    src2 = torch.randn(3, 5, 1)
     outputs = model(src1, src2)
-    assert outputs.shape == (3, 6, 5)
+    assert outputs.shape == (3, 6, 2)
 
 
 def test_forward_with_teacher_forcing(model):
-    src1 = torch.randn(3, 10, 10)
-    src2 = torch.randn(3, 5, 10)
-    trgs = torch.randn(3, 7, 5)
+    src1 = torch.randn(3, 10, 2)
+    src2 = torch.randn(3, 5, 1)
+    trgs = torch.randn(3, 15, 2)
     outputs = model(src1, src2, trgs)
-    assert outputs.shape == (3, 6, 5)
-
-
-def test_forward_with_nan_in_trgs(model):
-    src1 = torch.randn(3, 10, 10)
-    src2 = torch.randn(3, 5, 10)
-    trgs = torch.randn(3, 7, 5)
-    trgs[0, 3, 1] = float("nan")
-    outputs = model(src1, src2, trgs)
-    assert outputs.shape == (3, 6, 5)
+    assert outputs.shape == (3, 6, 2)

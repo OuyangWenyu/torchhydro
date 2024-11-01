@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:32:26
-LastEditTime: 2024-04-17 12:33:34
-LastEditors: Xinzhuo Wu
+LastEditTime: 2024-11-01 12:01:16
+LastEditors: Wenyu Ouyang
 Description:
-FilePath: /torchhydro/torchhydro/models/seq2seq.py
+FilePath: \torchhydro\torchhydro\models\seq2seq.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -70,11 +70,15 @@ class Encoder(nn.Module):
         self.fc = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x):
-        x = self.pre_fc(x)
-        x = self.pre_relu(x)
-        outputs, (hidden, cell) = self.lstm(x)
-        outputs = self.dropout(outputs)
-        outputs = self.fc(outputs)
+        # a nonlinear layer to transform the input
+        x0 = self.pre_fc(x)
+        x1 = self.pre_relu(x0)
+        # the LSTM layer
+        outputs_, (hidden, cell) = self.lstm(x1)
+        # a dropout layer
+        dr_outputs = self.dropout(outputs_)
+        # final linear layer
+        outputs = self.fc(dr_outputs)
         return outputs, hidden, cell
 
 
@@ -89,12 +93,12 @@ class Decoder(nn.Module):
         self.fc_out = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, input, hidden, cell):
-        x = self.pre_fc(input)
-        x = self.pre_relu(x)
-        output, (hidden, cell) = self.lstm(x, (hidden, cell))
-        output = self.dropout(output)
-        output = self.fc_out(output)
-        return output, hidden, cell
+        x0 = self.pre_fc(input)
+        x1 = self.pre_relu(x0)
+        output_, (hidden_, cell_) = self.lstm(x1, (hidden, cell))
+        output_dr = self.dropout(output_)
+        output = self.fc_out(output_dr)
+        return output, hidden_, cell_
 
 
 class StateTransferNetwork(nn.Module):
@@ -119,11 +123,35 @@ class GeneralSeq2Seq(nn.Module):
         forecast_length,
         prec_window=0,
         teacher_forcing_ratio=0.5,
+        en_output_size=1,
     ):
+        """General Seq2Seq model
+
+        Parameters
+        ----------
+        en_input_size : _type_
+            the size of the input of the encoder
+        de_input_size : _type_
+            the size of the input of the decoder
+        output_size : _type_
+            the size of the output, same for encoder and decoder
+        hidden_size : _type_
+            the size of the hidden state of LSTMs
+        forecast_length : _type_
+            the length of the forecast, i.e., the periods of decoder outputs
+        prec_window : int, optional
+            starting index of decoder output for teacher forcing; default is 0
+        teacher_forcing_ratio : float, optional
+            the probability of using teacher forcing
+        en_output_size : int, optional
+            the encoder's final several outputs in the final output;
+            default is 1 which means the final encoder output is included in the final output
+        """
         super(GeneralSeq2Seq, self).__init__()
         self.trg_len = forecast_length
         self.prec_window = prec_window
         self.teacher_forcing_ratio = teacher_forcing_ratio
+        self.en_output_size = en_output_size
         self.encoder = Encoder(
             input_dim=en_input_size, hidden_dim=hidden_size, output_dim=output_size
         )
@@ -134,17 +162,17 @@ class GeneralSeq2Seq(nn.Module):
 
     def forward(self, *src):
         if len(src) == 3:
-            src1, src2, trgs = src
+            encoder_input, decoder_input, trgs = src
         else:
-            src1, src2 = src
+            encoder_input, decoder_input = src
             trgs = None
-        encoder_outputs, hidden, cell = self.encoder(src1)
-        hidden, cell = self.transfer(hidden, cell)
+        encoder_outputs, hidden_, cell_ = self.encoder(encoder_input)
+        hidden, cell = self.transfer(hidden_, cell_)
         outputs = []
         current_input = encoder_outputs[:, -1, :].unsqueeze(1)
 
         for t in range(self.trg_len):
-            p = src2[:, t, :].unsqueeze(1)
+            p = decoder_input[:, t, :].unsqueeze(1)
             current_input = torch.cat((current_input, p), dim=2)
             output, hidden, cell = self.decoder(current_input, hidden, cell)
             outputs.append(output.squeeze(1))
@@ -152,7 +180,12 @@ class GeneralSeq2Seq(nn.Module):
                 current_input = output
             else:
                 sm_trg = trgs[:, (self.prec_window + t), 1].unsqueeze(1).unsqueeze(1)
+                # most of soil moisture from remote sensing are not nan,
+                # so if we meet nan values, we just ignore the teacher forcing
+                # for streamflow, there are always some ungauged stations,
+                # so we just use ssm to choose if we use teacher forcing
                 if not torch.any(torch.isnan(sm_trg)).item():
+                    # random choice of using teacher forcing with probability of teacher_forcing_ratio
                     use_teacher_forcing = random.random() < self.teacher_forcing_ratio
                     str_trg = output[:, :, 0].unsqueeze(2)
                     current_input = (
@@ -164,8 +197,9 @@ class GeneralSeq2Seq(nn.Module):
                     current_input = output
 
         outputs = torch.stack(outputs, dim=1)
-        prec_outputs = encoder_outputs[:, -self.prec_window, :].unsqueeze(1)
-        outputs = torch.cat((prec_outputs, outputs), dim=1)
+        if self.en_output_size > 0:
+            prec_outputs = encoder_outputs[:, -self.en_output_size :, :]
+            outputs = torch.cat((prec_outputs, outputs), dim=1)
         return outputs
 
 
