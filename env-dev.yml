@@ -11,7 +11,7 @@ dependencies:
   - scikit-learn
   - fsspec
   - intake
-  - pytorch
+  - pytorch<2.5
   - torchvision
   - torchaudio
   - pytorch-cuda=11.8
