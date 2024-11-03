@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-09-10 19:45:46
+LastEditTime: 2024-11-02 21:59:06
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: \torchhydro\torchhydro\datasets\data_sets.py
+FilePath: /torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -611,9 +611,9 @@ class FlexibleDataset(BaseDataset):
         return scaler_hub.x, scaler_hub.y, scaler_hub.c
 
 
-class HydroMeanDataset(BaseDataset):
+class Seq2SeqDataset(BaseDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(HydroMeanDataset, self).__init__(data_cfgs, is_tra_val_te)
+        super(Seq2SeqDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     @property
     def data_source(self):
@@ -627,91 +627,11 @@ class HydroMeanDataset(BaseDataset):
 
     def _normalize(self):
         x, y, c = super()._normalize()
+        # TODO: this work for minio? maybe better to move to basedataset
         return x.compute(), y.compute(), c.compute()
-
-    def _read_xyc(self):
-        data_target_ds = self._prepare_target()
-        if data_target_ds is not None:
-            y_origin = self._trans2da_and_setunits(data_target_ds)
-        else:
-            y_origin = None
-
-        data_forcing_ds = self._prepare_forcing()
-        if data_forcing_ds is not None:
-            x_origin = self._trans2da_and_setunits(data_forcing_ds)
-        else:
-            x_origin = None
-
-        if self.data_cfgs["constant_cols"]:
-            data_attr_ds = self.data_source.read_attr_xrdataset(
-                self.t_s_dict["sites_id"],
-                self.data_cfgs["constant_cols"],
-                # self.data_cfgs["source_cfgs"]["source_path"]["attributes"],
-            )
-            c_orgin = self._trans2da_and_setunits(data_attr_ds)
-        else:
-            c_orgin = None
-        self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin
 
     def __len__(self):
         return self.num_samples
-
-    def _prepare_forcing(self):
-        return self._read_from_minio(self.data_cfgs["relevant_cols"])
-
-    def _prepare_target(self):
-        return self._read_from_minio(self.data_cfgs["target_cols"])
-
-    def _read_from_minio(self, var_lst):
-        gage_id_lst = self.t_s_dict["sites_id"]
-        t_range = self.t_s_dict["t_final_range"]
-        interval = self.data_cfgs["min_time_interval"]
-        time_unit = (
-            str(self.data_cfgs["min_time_interval"]) + self.data_cfgs["min_time_unit"]
-        )
-
-        subset_list = []
-        for start_date, end_date in t_range:
-            adjusted_end_date = (
-                datetime.strptime(end_date, "%Y-%m-%d-%H") + timedelta(hours=interval)
-            ).strftime("%Y-%m-%d-%H")
-            subset = self.data_source.read_ts_xrdataset(
-                gage_id_lst,
-                t_range=[start_date, adjusted_end_date],
-                var_lst=var_lst,
-                time_units=[time_unit],
-            )
-            subset_list.append(subset[time_unit])
-        return xr.concat(subset_list, dim="time")
-
-
-class Seq2SeqDataset(HydroMeanDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(Seq2SeqDataset, self).__init__(data_cfgs, is_tra_val_te)
-
-    def _read_xyc(self):
-        data_target_ds = self._prepare_target()
-        if data_target_ds is not None:
-            y_origin = self._trans2da_and_setunits(data_target_ds)
-        else:
-            y_origin = None
-
-        data_forcing_ds = self._prepare_forcing()
-        if data_forcing_ds is not None:
-            x_origin = self._trans2da_and_setunits(data_forcing_ds)
-            x_origin = xr.where(x_origin < 0, float("nan"), x_origin)
-        else:
-            x_origin = None
-
-        if self.data_cfgs["constant_cols"]:
-            data_attr_ds = self.data_source.read_attr_xrdataset(
-                self.t_s_dict["sites_id"],
-                self.data_cfgs["constant_cols"],
-            )
-            c_orgin = self._trans2da_and_setunits(data_attr_ds)
-        else:
-            c_orgin = None
-        self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_orgin
 
     def __getitem__(self, item: int):
         basin, idx = self.lookup_table[item]

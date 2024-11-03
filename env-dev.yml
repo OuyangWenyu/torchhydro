@@ -14,6 +14,7 @@ dependencies:
   - pytorch<2.5
   - torchvision
   - torchaudio
+  # - cpuonly # cpu version for pcs without cuda
   - pytorch-cuda=11.8
   - tensorboard
   - kaggle

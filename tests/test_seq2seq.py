@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:55:24
-LastEditTime: 2024-11-01 18:02:29
+LastEditTime: 2024-11-02 21:47:38
 LastEditors: Wenyu Ouyang
 Description: Test funcs for seq2seq model
-FilePath: \torchhydro\tests\test_seq2seq.py
+FilePath: /torchhydro/tests/test_seq2seq.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -40,7 +40,7 @@ gage_id = [
 
 
 @pytest.fixture()
-def config():
+def seq2seq_config():
     project_name = os.path.join("train_with_gpm", "ex_test")
     config_data = default_config_file()
     args = cmd(
@@ -96,9 +96,9 @@ def config():
         train_epoch=2,
         save_epoch=1,
         train_mode=True,
-        train_period=[("2016-06-01-01", "2016-08-01-01")],
-        test_period=[("2015-06-01-01", "2015-08-01-01")],
-        valid_period=[("2015-06-01-01", "2015-08-01-01")],
+        train_period=["2016-06-01-01", "2016-08-01-01"],
+        test_period=["2015-06-01-01", "2015-08-01-01"],
+        valid_period=["2015-06-01-01", "2015-08-01-01"],
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
@@ -130,10 +130,10 @@ def config():
     return config_data
 
 
-def test_seq2seq(config):
+def test_seq2seq(seq2seq_config):
     # world_size = len(config["training_cfgs"]["device"])
     # mp.spawn(train_worker, args=(world_size, config), nprocs=world_size, join=True)
-    train_and_evaluate(config)
+    train_and_evaluate(seq2seq_config)
     # ensemble_train_and_evaluate(config)
 
 
