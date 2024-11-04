@@ -207,7 +207,7 @@ def test_get_scheduler_lambda_lr_with_epochs_show_lr(deep_hydro, dummy_train_cfg
 
 
 def test_get_sampler_basin_batch_sampler(deep_hydro, dummy_train_cfgs):
-    dummy_train_cfgs["data_cfgs"]["sampler"] = {"name": "BasinBatchSampler"}
+    dummy_train_cfgs["data_cfgs"]["sampler"] = "BasinBatchSampler"
     sampler = deep_hydro._get_sampler(
         dummy_train_cfgs["data_cfgs"], deep_hydro.traindataset
     )
@@ -215,7 +215,7 @@ def test_get_sampler_basin_batch_sampler(deep_hydro, dummy_train_cfgs):
 
 
 def test_get_sampler_kuai_sampler(deep_hydro, dummy_train_cfgs):
-    dummy_train_cfgs["data_cfgs"]["sampler"] = {"name": "KuaiSampler"}
+    dummy_train_cfgs["data_cfgs"]["sampler"] = "KuaiSampler"
     sampler = deep_hydro._get_sampler(
         dummy_train_cfgs["data_cfgs"], deep_hydro.traindataset
     )
@@ -223,7 +223,7 @@ def test_get_sampler_kuai_sampler(deep_hydro, dummy_train_cfgs):
 
 
 def test_get_sampler_invalid_sampler(deep_hydro, dummy_train_cfgs):
-    dummy_train_cfgs["data_cfgs"]["sampler"] = {"name": "InvalidSampler"}
+    dummy_train_cfgs["data_cfgs"]["sampler"] = "InvalidSampler"
     with pytest.raises(
         NotImplementedError, match="Sampler InvalidSampler not implemented yet"
     ):

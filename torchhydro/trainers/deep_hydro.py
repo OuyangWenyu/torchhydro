@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2024-11-04 17:52:16
+LastEditTime: 2024-11-04 18:40:05
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -494,9 +494,9 @@ class DeepHydro(DeepHydroInterface):
             print(f"Pin memory set to {str(pin_memory)}")
         sampler = None
         if data_cfgs["sampler"] is not None:
-            sampler = self._get_sampler(data_cfgs, self.train_dataset)
+            sampler = self._get_sampler(data_cfgs, self.traindataset)
         data_loader = DataLoader(
-            self.train_dataset,
+            self.traindataset,
             batch_size=training_cfgs["batch_size"],
             shuffle=(sampler is None),
             sampler=sampler,
@@ -505,10 +505,9 @@ class DeepHydro(DeepHydroInterface):
             timeout=0,
         )
         if data_cfgs["t_range_valid"] is not None:
-            batch_size_valid = training_cfgs["batch_size"]
             validation_data_loader = DataLoader(
-                self.valid_dataset,
-                batch_size=batch_size_valid,
+                self.validdataset,
+                batch_size=training_cfgs["batch_size"],
                 shuffle=False,
                 num_workers=worker_num,
                 pin_memory=pin_memory,
@@ -554,21 +553,19 @@ class DeepHydro(DeepHydroInterface):
         horizon = data_cfgs["forecast_length"]
         ngrid = train_dataset.ngrid
         nt = train_dataset.nt
-        sampler_name = data_cfgs["sampler"]["name"]
+        sampler_name = data_cfgs["sampler"]
         if sampler_name not in data_sampler_dict:
             raise NotImplementedError(f"Sampler {sampler_name} not implemented yet")
         sampler_class = data_sampler_dict[sampler_name]
-        sampler_hyperparam = data_cfgs["sampler"].get("sampler_hyperparam", {})
+        sampler_hyperparam = {}
         if sampler_name == "KuaiSampler":
-            sampler_hyperparam.update(
-                {
-                    "batch_size": batch_size,
-                    "warmup_length": warmup_length,
-                    "rho_horizon": rho + horizon,
-                    "ngrid": ngrid,
-                    "nt": nt,
-                }
-            )
+            sampler_hyperparam |= {
+                "batch_size": batch_size,
+                "warmup_length": warmup_length,
+                "rho_horizon": rho + horizon,
+                "ngrid": ngrid,
+                "nt": nt,
+            }
         return sampler_class(train_dataset, **sampler_hyperparam)
 
 
