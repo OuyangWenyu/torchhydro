@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-05-01 10:34:15
-LastEditTime: 2024-09-18 16:47:26
+LastEditTime: 2024-11-04 18:26:24
 LastEditors: Wenyu Ouyang
 Description: Unit tests for the DeepHydro class
 FilePath: \torchhydro\tests\test_deep_hydro.py
@@ -12,12 +12,14 @@ import pytest
 import os
 import torch
 from torch.utils.data import Dataset
+from torchhydro.datasets.sampler import BasinBatchSampler, KuaiSampler
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.trainers.train_logger import TrainLogger
 import torch
 from torch.optim import Adam
 from torch.optim.lr_scheduler import LambdaLR, ExponentialLR, ReduceLROnPlateau
+from torch.utils.data import DistributedSampler
 
 
 # Mock dataset class using random data
@@ -63,6 +65,7 @@ def dummy_data_cfgs():
         "forecast_history": 0,
         "forecast_length": 30,
         "warmup_length": 0,
+        "object_ids": ["02051500", "21401550"],
     }
 
 
@@ -98,7 +101,7 @@ def dummy_train_cfgs(dummy_data_cfgs):
             "epochs": 12,
             "start_epoch": 1,
             "which_first_tensor": "batch",
-            "device": -1,  # Assuming CPU device
+            "device": [-1],  # Assuming CPU device
             "train_mode": True,
             "criterion": "RMSE",
             "optimizer": "Adam",
@@ -201,3 +204,27 @@ def test_get_scheduler_lambda_lr_with_epochs_show_lr(deep_hydro, dummy_train_cfg
         print(f"epoch:{epoch}, lr:{opt.param_groups[0]['lr']}")
         scheduler.step()
     assert isinstance(scheduler, LambdaLR)
+
+
+def test_get_sampler_basin_batch_sampler(deep_hydro, dummy_train_cfgs):
+    dummy_train_cfgs["data_cfgs"]["sampler"] = {"name": "BasinBatchSampler"}
+    sampler = deep_hydro._get_sampler(
+        dummy_train_cfgs["data_cfgs"], deep_hydro.traindataset
+    )
+    assert isinstance(sampler, BasinBatchSampler)
+
+
+def test_get_sampler_kuai_sampler(deep_hydro, dummy_train_cfgs):
+    dummy_train_cfgs["data_cfgs"]["sampler"] = {"name": "KuaiSampler"}
+    sampler = deep_hydro._get_sampler(
+        dummy_train_cfgs["data_cfgs"], deep_hydro.traindataset
+    )
+    assert isinstance(sampler, KuaiSampler)
+
+
+def test_get_sampler_invalid_sampler(deep_hydro, dummy_train_cfgs):
+    dummy_train_cfgs["data_cfgs"]["sampler"] = {"name": "InvalidSampler"}
+    with pytest.raises(
+        NotImplementedError, match="Sampler InvalidSampler not implemented yet"
+    ):
+        deep_hydro._get_sampler(dummy_train_cfgs["data_cfgs"], deep_hydro.traindataset)

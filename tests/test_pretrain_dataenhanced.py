@@ -80,7 +80,7 @@ def config():
             ("2023-06-01", "2023-09-30"),  # 目前只支持一个时段
         ],
         dataset="MultiSourceDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="DapengScaler",
         weight_path=weight_path,
         weight_path_add={

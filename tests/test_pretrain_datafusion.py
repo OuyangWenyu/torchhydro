@@ -75,7 +75,7 @@ def config():
             ("2023-07-08", "2023-09-29"),
         ],
         dataset="MultiSourceDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="DapengScaler",
         weight_path=weight_path,
         weight_path_add={

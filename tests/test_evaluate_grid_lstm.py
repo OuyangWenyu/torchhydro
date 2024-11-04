@@ -83,7 +83,7 @@ def config_data():
             "dor_pc_pva",  # 调节程度
         ],
         dataset="GridDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="MutiBasinScaler",
         test_period=[
             ("2017-07-01", "2017-09-29"),

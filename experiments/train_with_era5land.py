@@ -95,7 +95,7 @@ def config():
         ],
         var_out=["streamflow", "sm_surface"],
         dataset="Seq2SeqDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="DapengScaler",
         train_epoch=100,
         save_epoch=1,

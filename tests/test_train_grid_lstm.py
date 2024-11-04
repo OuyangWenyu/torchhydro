@@ -89,7 +89,7 @@ def config():
         ],
         var_out=["streamflow"],
         dataset="GridDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="MutiBasinScaler",
         train_epoch=1,
         save_epoch=1,

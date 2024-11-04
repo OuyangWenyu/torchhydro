@@ -82,7 +82,7 @@ def get_config_data():
         ],
         var_out=["streamflow", "sm_surface"],
         dataset="Seq2SeqDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="DapengScaler",
         loss_func="MultiOutLoss",
         loss_param={

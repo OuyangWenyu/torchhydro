@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-10-29 15:47:51
+LastEditTime: 2024-11-04 18:25:10
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -227,8 +227,6 @@ def evaluate_validation(
     if isinstance(fill_nan, list) and len(fill_nan) != len(target_col):
         raise ValueError("Length of fill_nan must be equal to length of target_col.")
     eval_log = {}
-    # probably because of DistSampler
-    # batch_size = len(validation_data_loader.dataset) / len(validation_data_loader.dataset.basins)
     batch_size = validation_data_loader.batch_size
     evaluation_metrics = evaluation_cfgs["metrics"]
     if not evaluation_cfgs["long_seq_pred"]:

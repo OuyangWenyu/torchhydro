@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2024-09-18 11:18:15
+LastEditTime: 2024-11-04 17:52:16
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -21,7 +21,7 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import *
-from torch.utils.data import DataLoader, DistributedSampler
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from torchhydro.configs.config import update_nested_dict
@@ -31,7 +31,8 @@ from torchhydro.datasets.sampler import (
     KuaiSampler,
     fl_sample_basin,
     fl_sample_region,
-    HydroSampler,
+    BasinBatchSampler,
+    data_sampler_dict,
 )
 from torchhydro.models.model_dict_function import (
     pytorch_criterion_dict,
@@ -371,7 +372,7 @@ class DeepHydro(DeepHydroInterface):
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
 
         ngrid = self.testdataset.ngrid
-        if data_cfgs["sampler"] == "HydroSampler":
+        if data_cfgs["sampler"] == "BasinBatchSampler":
             test_num_samples = self.testdataset.num_samples
             test_dataloader = DataLoader(
                 self.testdataset,
@@ -491,33 +492,11 @@ class DeepHydro(DeepHydroInterface):
         if "pin_memory" in training_cfgs:
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
-        train_dataset: BaseDataset = self.traindataset
         sampler = None
         if data_cfgs["sampler"] is not None:
-            # now we only have one special sampler from Kuai Fang's Deep Learning papers
-            batch_size = data_cfgs["batch_size"]
-            rho = data_cfgs["forecast_history"]
-            warmup_length = data_cfgs["warmup_length"]
-            horizon = data_cfgs["forecast_length"]
-            ngrid = train_dataset.ngrid
-            nt = train_dataset.nt
-            if data_cfgs["sampler"] == "HydroSampler":
-                sampler = HydroSampler(train_dataset)
-            elif data_cfgs["sampler"] == "KuaiSampler":
-                sampler = KuaiSampler(
-                    train_dataset,
-                    batch_size=batch_size,
-                    warmup_length=warmup_length,
-                    rho_horizon=rho + horizon,
-                    ngrid=ngrid,
-                    nt=nt,
-                )
-            elif data_cfgs["sampler"] == "DistSampler":
-                sampler = DistributedSampler(train_dataset)
-            else:
-                raise NotImplementedError("This sampler not implemented yet")
+            sampler = self._get_sampler(data_cfgs, self.train_dataset)
         data_loader = DataLoader(
-            train_dataset,
+            self.train_dataset,
             batch_size=training_cfgs["batch_size"],
             shuffle=(sampler is None),
             sampler=sampler,
@@ -526,13 +505,9 @@ class DeepHydro(DeepHydroInterface):
             timeout=0,
         )
         if data_cfgs["t_range_valid"] is not None:
-            valid_dataset: BaseDataset = self.validdataset
             batch_size_valid = training_cfgs["batch_size"]
-            if data_cfgs["sampler"] == "HydroSampler":
-                # for HydroSampler when evaluating, we need to set new batch size
-                batch_size_valid = valid_dataset.num_samples // ngrid
             validation_data_loader = DataLoader(
-                valid_dataset,
+                self.valid_dataset,
                 batch_size=batch_size_valid,
                 shuffle=False,
                 num_workers=worker_num,
@@ -542,6 +517,59 @@ class DeepHydro(DeepHydroInterface):
             return data_loader, validation_data_loader
 
         return data_loader, None
+
+    def _get_sampler(self, data_cfgs, train_dataset):
+        """
+        return data sampler based on the provided configuration and training dataset.
+
+        Parameters
+        ----------
+        data_cfgs : dict
+            Configuration dictionary containing parameters for data sampling. Expected keys are:
+            - "batch_size": int, size of each batch.
+            - "forecast_history": int, number of past time steps to consider.
+            - "warmup_length": int, length of the warmup period.
+            - "forecast_length": int, number of future time steps to predict.
+            - "sampler": dict, containing:
+            - "name": str, name of the sampler to use.
+            - "sampler_hyperparam": dict, optional hyperparameters for the sampler.
+        train_dataset : Dataset
+            The training dataset object which contains the data to be sampled. Expected attributes are:
+            - ngrid: int, number of grids in the dataset.
+            - nt: int, number of time steps in the dataset.
+
+        Returns
+        -------
+        sampler_class
+            An instance of the specified sampler class, initialized with the provided dataset and hyperparameters.
+
+        Raises
+        ------
+        NotImplementedError
+            If the specified sampler name is not found in the `data_sampler_dict`.
+        """
+        batch_size = data_cfgs["batch_size"]
+        rho = data_cfgs["forecast_history"]
+        warmup_length = data_cfgs["warmup_length"]
+        horizon = data_cfgs["forecast_length"]
+        ngrid = train_dataset.ngrid
+        nt = train_dataset.nt
+        sampler_name = data_cfgs["sampler"]["name"]
+        if sampler_name not in data_sampler_dict:
+            raise NotImplementedError(f"Sampler {sampler_name} not implemented yet")
+        sampler_class = data_sampler_dict[sampler_name]
+        sampler_hyperparam = data_cfgs["sampler"].get("sampler_hyperparam", {})
+        if sampler_name == "KuaiSampler":
+            sampler_hyperparam.update(
+                {
+                    "batch_size": batch_size,
+                    "warmup_length": warmup_length,
+                    "rho_horizon": rho + horizon,
+                    "ngrid": ngrid,
+                    "nt": nt,
+                }
+            )
+        return sampler_class(train_dataset, **sampler_hyperparam)
 
 
 class FedLearnHydro(DeepHydro):
