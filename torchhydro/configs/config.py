@@ -1031,10 +1031,6 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam[
                 "prec_window"
             ]
-        if "en_output_size" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["en_output_size"] = new_args.model_hyperparam[
-                "en_output_size"
-            ]
     if new_args.batch_size is not None:
         # raise AttributeError("Please set the batch_size!!!")
         batch_size = new_args.batch_size

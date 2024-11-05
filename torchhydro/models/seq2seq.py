@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:32:26
-LastEditTime: 2024-11-01 12:01:16
+LastEditTime: 2024-11-05 19:10:02
 LastEditors: Wenyu Ouyang
 Description:
 FilePath: \torchhydro\torchhydro\models\seq2seq.py
@@ -123,7 +123,6 @@ class GeneralSeq2Seq(nn.Module):
         forecast_length,
         prec_window=0,
         teacher_forcing_ratio=0.5,
-        en_output_size=1,
     ):
         """General Seq2Seq model
 
@@ -140,18 +139,15 @@ class GeneralSeq2Seq(nn.Module):
         forecast_length : _type_
             the length of the forecast, i.e., the periods of decoder outputs
         prec_window : int, optional
-            starting index of decoder output for teacher forcing; default is 0
+            the encoder's final several outputs in the final output;
+            default is 0 which means no encoder output is included in the final output;
         teacher_forcing_ratio : float, optional
             the probability of using teacher forcing
-        en_output_size : int, optional
-            the encoder's final several outputs in the final output;
-            default is 1 which means the final encoder output is included in the final output
         """
         super(GeneralSeq2Seq, self).__init__()
         self.trg_len = forecast_length
         self.prec_window = prec_window
         self.teacher_forcing_ratio = teacher_forcing_ratio
-        self.en_output_size = en_output_size
         self.encoder = Encoder(
             input_dim=en_input_size, hidden_dim=hidden_size, output_dim=output_size
         )
@@ -179,6 +175,9 @@ class GeneralSeq2Seq(nn.Module):
             if trgs is None or self.teacher_forcing_ratio <= 0:
                 current_input = output
             else:
+                # TODO: teacher forcing has no streamflow now? maybe need a mask to choose streamflow
+                # trgs is retrieved from the seq2seqdataset, and its time-length is prec_window(encoder) + all decoder steps
+                # hence for decoder step t, the target variable is trgs[:, prec_window + t, :]
                 sm_trg = trgs[:, (self.prec_window + t), 1].unsqueeze(1).unsqueeze(1)
                 # most of soil moisture from remote sensing are not nan,
                 # so if we meet nan values, we just ignore the teacher forcing
@@ -197,8 +196,8 @@ class GeneralSeq2Seq(nn.Module):
                     current_input = output
 
         outputs = torch.stack(outputs, dim=1)
-        if self.en_output_size > 0:
-            prec_outputs = encoder_outputs[:, -self.en_output_size :, :]
+        if self.prec_window > 0:
+            prec_outputs = encoder_outputs[:, -self.prec_window :, :]
             outputs = torch.cat((prec_outputs, outputs), dim=1)
         return outputs
 

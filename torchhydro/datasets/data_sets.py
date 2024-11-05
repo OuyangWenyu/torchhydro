@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-11-05 11:29:27
+LastEditTime: 2024-11-05 20:02:49
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -340,15 +340,31 @@ class BaseDataset(Dataset):
             x, y, c data
         """
         # x
+        start_date = self.t_s_dict["t_final_range"][0]
+        end_date = self.t_s_dict["t_final_range"][1]
+        self._read_xyc_specified_time(start_date, end_date)
+
+    def _read_xyc_specified_time(self, start_date, end_date):
+        """Read x, y, c data from data source with specified time range
+        We set this function as sometimes we need adjust the time range for some specific dataset,
+        such as seq2seq dataset (it needs one more period for the end of the time range)
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+        """
         data_forcing_ds_ = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
-            self.t_s_dict["t_final_range"],
+            [start_date, end_date],
             self.data_cfgs["relevant_cols"],
         )
         # y
         data_output_ds_ = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
-            self.t_s_dict["t_final_range"],
+            [start_date, end_date],
             self.data_cfgs["target_cols"],
         )
         if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
@@ -615,6 +631,26 @@ class Seq2SeqDataset(BaseDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         super(Seq2SeqDataset, self).__init__(data_cfgs, is_tra_val_te)
 
+    def _read_xyc(self):
+        """
+        NOTE: the lookup table is same as BaseDataset,
+        but the data retrieved from datasource should has one more period,
+        because we include the concepts of start and end moment of the period
+
+        Returns
+        -------
+        tuple[xr.Dataset, xr.Dataset, xr.Dataset]
+            x, y, c data
+        """
+        start_date = self.t_s_dict["t_final_range"][0]
+        end_date = self.t_s_dict["t_final_range"][1]
+        interval = self.data_cfgs["min_time_interval"]
+        # TODO: Now only support hour, need to better handle different time units, such as Month, Day
+        adjusted_end_date = (
+            datetime.strptime(end_date, "%Y-%m-%d-%H") + timedelta(hours=interval)
+        ).strftime("%Y-%m-%d-%H")
+        self._read_xyc_specified_time(start_date, adjusted_end_date)
+
     def _normalize(self):
         x, y, c = super()._normalize()
         # TODO: this work for minio? maybe better to move to basedataset
@@ -627,29 +663,38 @@ class Seq2SeqDataset(BaseDataset):
         basin, time = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
-        prec = self.data_cfgs["prec_window"]
-        en_output_size = self.data_cfgs["en_output_size"]
-
+        prec = self.data_cfgs.get("prec_window", 0)
+        # p cover all encoder-decoder periods; +1 means the period while +0 means start of the current period
         p = self.x[basin, time + 1 : time + rho + horizon + 1, 0].reshape(-1, 1)
+        # s only cover encoder periods
         s = self.x[basin, time : time + rho, 1:]
         x = np.concatenate((p[:rho], s), axis=1)
 
-        c = self.c[basin, :]
-        c = np.tile(c, (rho + horizon, 1))
-        x = np.concatenate((x, c[:rho]), axis=1)
-
-        x_h = np.concatenate((p[rho:], c[rho:]), axis=1)
+        if self.c is None or self.c.shape[-1] == 0:
+            xc = x
+        else:
+            c = self.c[basin, :]
+            c = np.tile(c, (rho + horizon, 1))
+            xc = np.concatenate((x, c[:rho]), axis=1)
+        # xh cover decoder periods
+        try:
+            xh = np.concatenate((p[rho:], c[rho:]), axis=1)
+        except ValueError as e:
+            print(f"Error in np.concatenate: {e}")
+            print(f"p[rho:].shape: {p[rho:].shape}, c[rho:].shape: {c[rho:].shape}")
+            raise
+        # y cover specified encoder size (prec_window) and all decoder periods
         y = self.y[basin, time + rho - prec + 1 : time + rho + horizon + 1, :]
 
         if self.is_tra_val_te == "train":
             return [
-                torch.from_numpy(x).float(),
-                torch.from_numpy(x_h).float(),
+                torch.from_numpy(xc).float(),
+                torch.from_numpy(xh).float(),
                 torch.from_numpy(y).float(),
             ], torch.from_numpy(y).float()
         return [
-            torch.from_numpy(x).float(),
-            torch.from_numpy(x_h).float(),
+            torch.from_numpy(xc).float(),
+            torch.from_numpy(xh).float(),
         ], torch.from_numpy(y).float()
 
 
