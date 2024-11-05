@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-09-18 16:50:16
+LastEditTime: 2024-11-05 10:46:09
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -1026,9 +1026,14 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["forecast_length"] = new_args.model_hyperparam[
                 "forecast_length"
             ]
+        # The following two configurations are for encoder-decoder models' seq2seqdataset
         if "prec_window" in new_args.model_hyperparam.keys():
             cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam[
                 "prec_window"
+            ]
+        if "en_output_size" in new_args.model_hyperparam.keys():
+            cfg_file["data_cfgs"]["en_output_size"] = new_args.model_hyperparam[
+                "en_output_size"
             ]
     if new_args.batch_size is not None:
         # raise AttributeError("Please set the batch_size!!!")

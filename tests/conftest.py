@@ -191,13 +191,15 @@ def s2s_args(basin4test):
     project_name = os.path.join("test_seq2seq", "gpmsmapexp1")
     return cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": {
                 "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[0],
         model_name="Seq2Seq",
@@ -280,13 +282,15 @@ def trans_args(basin4test):
     project_name = os.path.join("test_trans", "gpmsmapexp1")
     return cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": {
                 "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[0],
         model_name="Transformer",
@@ -464,8 +468,11 @@ def seq2seq_config():
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {
+                "time_unit": ["3h"],
+            },
         },
         ctx=[0],
         model_name="Seq2Seq",

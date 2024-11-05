@@ -32,13 +32,15 @@ def config():
     project_name = "test_pretrain_enhanced/ex1"
     args = cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": {
                 "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm",
                 "target": "basins-origin/hour_data/1h/mean_data/streamflow_basin",
                 "attributes": "basins-origin/attributes.nc",
             },
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[1],
         model_type="TransLearn",

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:55:24
-LastEditTime: 2024-05-27 10:10:35
+LastEditTime: 2024-11-05 11:40:28
 LastEditors: Wenyu Ouyang
 Description:
-FilePath: \torchhydro\tests\test_train_seq2seq.py
+FilePath: \torchhydro\experiments\train_with_era5land.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -48,9 +48,11 @@ def config():
     # 填充测试所需的命令行参数
     args = cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": "/ftproot/basins-interim/",
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[2],
         model_name="Seq2Seq",

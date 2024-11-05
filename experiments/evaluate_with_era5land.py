@@ -1,9 +1,9 @@
 """
-Author: Wenyu Ouyang
+Author: Xinzhuo Wu
 Date: 2024-05-22 09:36:49
-LastEditTime: 2024-05-27 15:47:53
+LastEditTime: 2024-11-05 11:37:48
 LastEditors: Wenyu Ouyang
-Description: 
+Description: evaluate with era5land
 FilePath: \torchhydro\experiments\evaluate_with_era5land.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
@@ -32,13 +32,15 @@ def get_config_data():
     train_path = os.path.join(os.getcwd(), "results", "train_with_era5land", "ex20")
     args = cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": {
                 "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
                 "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[0],
         model_name="Seq2Seq",

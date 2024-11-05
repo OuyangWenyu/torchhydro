@@ -29,13 +29,15 @@ def config():
     project_name = "test_pretrain_fusion/exp1"
     args = cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": {
                 "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_merged",
                 "target": "basins-origin/hour_data/1h/mean_data/mean_data_merged",
                 "attributes": "basins-origin/attributes.nc",
             },
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[1],
         model_type="TransLearn",

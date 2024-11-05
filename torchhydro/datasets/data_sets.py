@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-11-02 21:59:06
+LastEditTime: 2024-11-05 11:29:27
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /torchhydro/torchhydro/datasets/data_sets.py
+FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -615,16 +615,6 @@ class Seq2SeqDataset(BaseDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         super(Seq2SeqDataset, self).__init__(data_cfgs, is_tra_val_te)
 
-    @property
-    def data_source(self):
-        time_unit = (
-            str(self.data_cfgs["min_time_interval"]) + self.data_cfgs["min_time_unit"]
-        )
-        return SelfMadeHydroDataset(
-            self.data_cfgs["source_cfgs"]["source_path"],
-            time_unit=[time_unit],
-        )
-
     def _normalize(self):
         x, y, c = super()._normalize()
         # TODO: this work for minio? maybe better to move to basedataset
@@ -634,13 +624,14 @@ class Seq2SeqDataset(BaseDataset):
         return self.num_samples
 
     def __getitem__(self, item: int):
-        basin, idx = self.lookup_table[item]
+        basin, time = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
         prec = self.data_cfgs["prec_window"]
+        en_output_size = self.data_cfgs["en_output_size"]
 
-        p = self.x[basin, idx + 1 : idx + rho + horizon + 1, 0].reshape(-1, 1)
-        s = self.x[basin, idx : idx + rho, 1:]
+        p = self.x[basin, time + 1 : time + rho + horizon + 1, 0].reshape(-1, 1)
+        s = self.x[basin, time : time + rho, 1:]
         x = np.concatenate((p[:rho], s), axis=1)
 
         c = self.c[basin, :]
@@ -648,7 +639,7 @@ class Seq2SeqDataset(BaseDataset):
         x = np.concatenate((x, c[:rho]), axis=1)
 
         x_h = np.concatenate((p[rho:], c[rho:]), axis=1)
-        y = self.y[basin, idx + rho - prec + 1 : idx + rho + horizon + 1, :]
+        y = self.y[basin, time + rho - prec + 1 : time + rho + horizon + 1, :]
 
         if self.is_tra_val_te == "train":
             return [

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:55:24
-LastEditTime: 2024-11-04 18:33:00
+LastEditTime: 2024-11-05 10:40:35
 LastEditors: Wenyu Ouyang
 Description: Test funcs for seq2seq model
 FilePath: \torchhydro\tests\test_seq2seq.py
@@ -13,17 +13,7 @@ import torch
 from torchhydro.models.seq2seq import GeneralSeq2Seq
 
 import logging
-import pathlib
-
-import pandas as pd
-import hydrodatasource.configs.config as hdscc
-import xarray as xr
-import torch.multiprocessing as mp
-
-from torchhydro.trainers.deep_hydro import train_worker
 from torchhydro.trainers.trainer import train_and_evaluate
-
-# from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:

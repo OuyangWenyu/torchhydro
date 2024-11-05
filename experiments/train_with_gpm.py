@@ -43,9 +43,11 @@ def config():
     # 填充测试所需的命令行参数
     args = cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": "/ftproot/basins-interim/",
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[0],
         model_name="Seq2Seq",
