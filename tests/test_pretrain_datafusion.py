@@ -143,8 +143,6 @@ def config():
             "01414500",
         ],
         which_first_tensor="batch",
-        rolling=False,
-        long_seq_pred=False,
         early_stopping=True,
         patience=4,
     )

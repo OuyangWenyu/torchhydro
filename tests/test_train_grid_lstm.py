@@ -115,7 +115,6 @@ def config():
         which_first_tensor="sequence",
         early_stopping=True,
         patience=4,  # 连续n次valid loss不下降，则停止训练，与early_stopping配合使用
-        rolling=False,  # evaluate 不采用滚动预测
         ensemble=True,  # 交叉验证
         ensemble_items={
             "kfold": 5,  # exi_0即17年验证,...exi_4即21年验证

@@ -105,7 +105,6 @@ def create_config():
             "lr_factor": 0.96,
         },
         which_first_tensor="batch",
-        rolling=False,
         static=False,
         early_stopping=True,
         patience=8,

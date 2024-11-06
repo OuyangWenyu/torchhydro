@@ -88,7 +88,6 @@ def config_data():
         test_period=[
             ("2017-07-01", "2017-09-29"),
         ],
-        rolling=False,
         weight_path=os.path.join(train_path, "best_model.pth"),
         stat_dict_file=os.path.join(train_path, "MutiBasinScaler_stat.json"),
         continue_train=False,

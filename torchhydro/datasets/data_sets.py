@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-11-05 20:02:49
+LastEditTime: 2024-11-06 08:11:13
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -645,10 +645,23 @@ class Seq2SeqDataset(BaseDataset):
         start_date = self.t_s_dict["t_final_range"][0]
         end_date = self.t_s_dict["t_final_range"][1]
         interval = self.data_cfgs["min_time_interval"]
-        # TODO: Now only support hour, need to better handle different time units, such as Month, Day
-        adjusted_end_date = (
-            datetime.strptime(end_date, "%Y-%m-%d-%H") + timedelta(hours=interval)
-        ).strftime("%Y-%m-%d-%H")
+        time_unit = self.data_cfgs["min_time_unit"]
+
+        # Determine the date format
+        date_format = detect_date_format(end_date)
+
+        # Adjust the end date based on the time unit
+        end_date_dt = datetime.strptime(end_date, date_format)
+        if time_unit == "h":
+            adjusted_end_date = (end_date_dt + timedelta(hours=interval)).strftime(
+                date_format
+            )
+        elif time_unit == "D":
+            adjusted_end_date = (end_date_dt + timedelta(days=interval)).strftime(
+                date_format
+            )
+        else:
+            raise ValueError(f"Unsupported time unit: {time_unit}")
         self._read_xyc_specified_time(start_date, adjusted_end_date)
 
     def _normalize(self):

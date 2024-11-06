@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-11-04 18:25:10
+LastEditTime: 2024-11-06 12:08:00
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -39,21 +39,22 @@ def model_infer(seq_first, device, model, xs, ys):
 
     Parameters
     ----------
-    seq_first : _type_
-        _description_
-    device : _type_
-        _description_
-    model : _type_
-        _description_
+    seq_first : bool
+        if True, the input data is sequence first
+    device : torch.device
+        cpu or gpu
+    model : torch.nn.Module
+        the model
     xs : list or tensor
         xs is always batch first
     ys : tensor
-        _description_
+        observed data
 
     Returns
     -------
-    _type_
-        _description_
+    tuple[torch.Tensor, torch.Tensor]
+        first is the observed data, second is the predicted data;
+        both tensors are batch first
     """
     if type(xs) is list:
         xs = [
@@ -87,23 +88,39 @@ def model_infer(seq_first, device, model, xs, ys):
     return ys, output
 
 
-def denormalize4eval(
-    validation_data_loader, output, labels, length=0, long_seq_pred=True
-):
-    target_scaler = validation_data_loader.dataset.target_scaler
+def denormalize4eval(eval_dataloader, output, labels, rolling=False):
+    """_summary_
+
+    Parameters
+    ----------
+    eval_dataloader : _type_
+        dataloader for validation or test
+    output : np.ndarray
+        batch-first model output
+    labels : np.ndarray
+        batch-first observed data
+    rolling: bool
+        if True, to guarantee each time has only one value for one variable of a sample
+        we just cut the data.
+
+    Returns
+    -------
+    tuple[xr.Dataset, xr.Dataset]
+        predicted data and observed data
+    """
+    target_scaler = eval_dataloader.dataset.target_scaler
     target_data = target_scaler.data_target
     # the units are dimensionless for pure DL models
     units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
     if target_scaler.pbm_norm:
         units = {**units, **target_data.attrs["units"]}
-    if not long_seq_pred:
-        horizon = target_scaler.data_cfgs["forecast_length"]
+    if rolling:
+        prec_window = target_scaler.data_cfgs["prec_window"]
         rho = target_scaler.data_cfgs["forecast_history"]
-        selected_time_points = target_data.coords["time"][
-            length + rho : length - horizon
-        ]
+        # TODO: -1 because seq2seqdataset has one more time, hence we need to cut it, as rolling will be deprecated, we don't modify it yet
+        selected_time_points = target_data.coords["time"][rho - prec_window : -1]
     else:
-        warmup_length = validation_data_loader.dataset.warmup_length
+        warmup_length = eval_dataloader.dataset.warmup_length
         selected_time_points = target_data.coords["time"][warmup_length:]
 
     selected_data = target_data.sel(time=selected_time_points)
@@ -229,7 +246,7 @@ def evaluate_validation(
     eval_log = {}
     batch_size = validation_data_loader.batch_size
     evaluation_metrics = evaluation_cfgs["metrics"]
-    if not evaluation_cfgs["long_seq_pred"]:
+    if evaluation_cfgs["rolling"]:
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)
@@ -248,7 +265,7 @@ def evaluate_validation(
                     target_col,
                     validation_data_loader,
                     col,
-                    evaluation_cfgs["long_seq_pred"],
+                    evaluation_cfgs["rolling"],
                 )
                 delayed_tasks.append(delayed_task)
             obs_pred_results = dask.compute(*delayed_tasks)
@@ -291,14 +308,12 @@ def len_denormalize_delayed(
     target_col,
     validation_data_loader,
     col,
-    long_seq_pred,
+    rolling,
 ):
     # batch_size != output.shape[0]
     o = output[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
     l = labels[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
-    preds_xr, obss_xr = denormalize4eval(
-        validation_data_loader, o, l, length, long_seq_pred
-    )
+    preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, rolling)
     obs = obss_xr[col].to_numpy()
     pred = preds_xr[col].to_numpy()
     return obs, pred

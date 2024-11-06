@@ -113,8 +113,6 @@ def config():
             "lr_factor": 0.9,
         },
         which_first_tensor="batch",
-        rolling=False,
-        long_seq_pred=False,
         calc_metrics=False,
         early_stopping=True,
         # ensemble=True,

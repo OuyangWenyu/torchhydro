@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2024-11-04 18:40:05
+LastEditTime: 2024-11-06 12:05:49
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -16,6 +16,7 @@ from functools import reduce
 from typing import Dict, Tuple
 
 import numpy as np
+import xarray as xr
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -28,10 +29,8 @@ from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.sampler import (
-    KuaiSampler,
     fl_sample_basin,
     fl_sample_region,
-    BasinBatchSampler,
     data_sampler_dict,
 )
 from torchhydro.models.model_dict_function import (
@@ -50,7 +49,6 @@ from torchhydro.trainers.train_utils import (
     model_infer,
     read_pth_from_model_loader,
     torch_single_train,
-    calculate_and_record_metrics,
 )
 
 
@@ -364,34 +362,13 @@ class DeepHydro(DeepHydroInterface):
         preds_xr, obss_xr = self.inference()
         return preds_xr, obss_xr
 
-    def inference(self) -> Tuple[torch.Tensor, torch.Tensor]:
+    def inference(self) -> Tuple[xr.Dataset, xr.Dataset]:
         """infer using trained model and unnormalized results"""
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
         evaluation_cfgs = self.cfgs["evaluation_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
-
-        ngrid = self.testdataset.ngrid
-        if data_cfgs["sampler"] == "BasinBatchSampler":
-            test_num_samples = self.testdataset.num_samples
-            test_dataloader = DataLoader(
-                self.testdataset,
-                batch_size=test_num_samples // ngrid,
-                shuffle=False,
-                drop_last=False,
-                timeout=0,
-            )
-        else:
-            test_dataloader = DataLoader(
-                self.testdataset,
-                batch_size=training_cfgs["batch_size"],
-                shuffle=False,
-                sampler=None,
-                batch_sampler=None,
-                drop_last=False,
-                timeout=0,
-                worker_init_fn=None,
-            )
+        test_dataloader = self._get_dataloader(training_cfgs, data_cfgs, mode="infer")
         seq_first = training_cfgs["which_first_tensor"] == "sequence"
         self.model.eval()
         # here the batch is just an index of lookup table, so any batch size could be chosen
@@ -415,50 +392,34 @@ class DeepHydro(DeepHydroInterface):
             pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
             obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
 
-        if not evaluation_cfgs["long_seq_pred"]:
+        if evaluation_cfgs["rolling"]:
+            # TODO: now we only guarantee each time has only one value,
+            # so we directly reshape the data rather than a real rolling
+            ngrid = self.testdataset.ngrid
+            nt = self.testdataset.nt
             target_len = len(data_cfgs["target_cols"])
             prec_window = data_cfgs["prec_window"]
-            batch_size = test_dataloader.batch_size
-            if evaluation_cfgs["rolling"]:
-                forecast_length = data_cfgs["forecast_length"]
-                pred = pred[:, prec_window:, :].reshape(
-                    ngrid, batch_size, forecast_length, target_len
-                )
-                obs = obs[:, prec_window:, :].reshape(
-                    ngrid, batch_size, forecast_length, target_len
-                )
-
-                pred = pred[:, ::forecast_length, :, :]
-                obs = obs[:, ::forecast_length, :, :]
-
-                pred = np.concatenate(pred, axis=0).reshape(ngrid, -1, target_len)
-                obs = np.concatenate(obs, axis=0).reshape(ngrid, -1, target_len)
-
-                pred = pred[:, :batch_size, :]
-                obs = obs[:, :batch_size, :]
-            else:
-                pred = pred[:, prec_window, :].reshape(ngrid, batch_size, target_len)
-                obs = obs[:, prec_window, :].reshape(ngrid, batch_size, target_len)
-            pred_xr, obs_xr = denormalize4eval(
-                test_dataloader, pred, obs, long_seq_pred=False
-            )
-            fill_nan = evaluation_cfgs["fill_nan"]
-            eval_log = {}
-            for i, col in enumerate(data_cfgs["target_cols"]):
-                obs = obs_xr[col].to_numpy()
-                pred = pred_xr[col].to_numpy()
-                eval_log = calculate_and_record_metrics(
-                    obs,
-                    pred,
-                    evaluation_cfgs["metrics"],
-                    col,
-                    fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
-                    eval_log,
-                )
-            test_log = f" Best Metric {eval_log}"
-            print(test_log)
-        else:
-            pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
+            forecast_length = data_cfgs["forecast_length"]
+            window_size = prec_window + forecast_length
+            rho = data_cfgs["forecast_history"]
+            recover_len = nt - rho + prec_window
+            samples = int(pred.shape[0] / ngrid)
+            pred_ = np.full((ngrid, recover_len, target_len), np.nan)
+            obs_ = np.full((ngrid, recover_len, target_len), np.nan)
+            # recover pred to pred_ and obs to obs_
+            pred_4d = pred.reshape(ngrid, samples, window_size, target_len)
+            obs_4d = obs.reshape(ngrid, samples, window_size, target_len)
+            for i in range(ngrid):
+                for j in range(recover_len - window_size + 1):
+                    pred_[i, j : j + window_size, :] = pred_4d[i, j, :, :]
+            for i in range(ngrid):
+                for j in range(recover_len - window_size + 1):
+                    obs_[i, j : j + window_size, :] = obs_4d[i, j, :, :]
+            pred = pred_.reshape(ngrid, recover_len, target_len)
+            obs = obs_.reshape(ngrid, recover_len, target_len)
+        pred_xr, obs_xr = denormalize4eval(
+            test_dataloader, pred, obs, rolling=evaluation_cfgs["rolling"]
+        )
         return pred_xr, obs_xr
 
     def _get_optimizer(self, training_cfgs):
@@ -483,7 +444,29 @@ class DeepHydro(DeepHydroInterface):
             **criterion_init_params
         )
 
-    def _get_dataloader(self, training_cfgs, data_cfgs):
+    def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
+        if mode == "infer":
+            ngrid = self.testdataset.ngrid
+            if data_cfgs["sampler"] != "BasinBatchSampler":
+                # TODO: this case should be tested more
+                return DataLoader(
+                    self.testdataset,
+                    batch_size=training_cfgs["batch_size"],
+                    shuffle=False,
+                    sampler=None,
+                    batch_sampler=None,
+                    drop_last=False,
+                    timeout=0,
+                    worker_init_fn=None,
+                )
+            test_num_samples = self.testdataset.num_samples
+            return DataLoader(
+                self.testdataset,
+                batch_size=test_num_samples // ngrid,
+                shuffle=False,
+                drop_last=False,
+                timeout=0,
+            )
         worker_num = 0
         pin_memory = False
         if "num_workers" in training_cfgs:
@@ -492,9 +475,7 @@ class DeepHydro(DeepHydroInterface):
         if "pin_memory" in training_cfgs:
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
-        sampler = None
-        if data_cfgs["sampler"] is not None:
-            sampler = self._get_sampler(data_cfgs, self.traindataset)
+        sampler = self._get_sampler(data_cfgs, self.traindataset)
         data_loader = DataLoader(
             self.traindataset,
             batch_size=training_cfgs["batch_size"],
@@ -547,6 +528,8 @@ class DeepHydro(DeepHydroInterface):
         NotImplementedError
             If the specified sampler name is not found in the `data_sampler_dict`.
         """
+        if data_cfgs["sampler"] is None:
+            return None
         batch_size = data_cfgs["batch_size"]
         rho = data_cfgs["forecast_history"]
         warmup_length = data_cfgs["warmup_length"]
@@ -850,6 +833,7 @@ class MultiTaskHydro(DeepHydro):
 
 
 class DistributedDeepHydro(MultiTaskHydro):
+    # TODO: not finished yet
     def __init__(self, world_size, cfgs: Dict):
         super().__init__(cfgs, cfgs["model_cfgs"]["weight_path"])
         self.world_size = world_size
