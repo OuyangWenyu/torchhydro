@@ -12,6 +12,7 @@ import os
 import warnings
 import logging
 import pandas as pd
+from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed
@@ -34,15 +35,12 @@ def get_config_data():
     )
     args = cmd(
         sub=project_name,
-        # TODO: Update the source_path to the correct path
         source_cfgs={
             "source_name": "selfmadehydrodataset",
-            "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
-                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
-                "attributes": "basins-origin/attributes.nc",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {
+                "time_unit": ["3h"],
             },
-            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[0],
         model_name="Seq2Seq",

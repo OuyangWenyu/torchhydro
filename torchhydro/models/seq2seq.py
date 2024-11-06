@@ -148,6 +148,7 @@ class GeneralSeq2Seq(nn.Module):
         self.trg_len = forecast_length
         self.prec_window = prec_window
         self.teacher_forcing_ratio = teacher_forcing_ratio
+        self.output_size = output_size
         self.encoder = Encoder(
             input_dim=en_input_size, hidden_dim=hidden_size, output_dim=output_size
         )
@@ -161,7 +162,15 @@ class GeneralSeq2Seq(nn.Module):
             encoder_input, decoder_input, trgs = src
         else:
             encoder_input, decoder_input = src
-            trgs = None
+            device = decoder_input.device
+            trgs = torch.full(
+                (
+                    decoder_input.shape[0],  # batch_size
+                    self.prec_window + self.trg_len,  # seq
+                    self.output_size,  # features
+                ),
+                float("nan"),
+            ).to(device)
         encoder_outputs, hidden_, cell_ = self.encoder(encoder_input)
         hidden, cell = self.transfer(hidden_, cell_)
         outputs = []
@@ -172,28 +181,13 @@ class GeneralSeq2Seq(nn.Module):
             current_input = torch.cat((current_input, p), dim=2)
             output, hidden, cell = self.decoder(current_input, hidden, cell)
             outputs.append(output.squeeze(1))
-            if trgs is None or self.teacher_forcing_ratio <= 0:
-                current_input = output
-            else:
-                # TODO: teacher forcing has no streamflow now? maybe need a mask to choose streamflow
-                # trgs is retrieved from the seq2seqdataset, and its time-length is prec_window(encoder) + all decoder steps
-                # hence for decoder step t, the target variable is trgs[:, prec_window + t, :]
-                sm_trg = trgs[:, (self.prec_window + t), 1].unsqueeze(1).unsqueeze(1)
-                # most of soil moisture from remote sensing are not nan,
-                # so if we meet nan values, we just ignore the teacher forcing
-                # for streamflow, there are always some ungauged stations,
-                # so we just use ssm to choose if we use teacher forcing
-                if not torch.any(torch.isnan(sm_trg)).item():
-                    # random choice of using teacher forcing with probability of teacher_forcing_ratio
-                    use_teacher_forcing = random.random() < self.teacher_forcing_ratio
-                    str_trg = output[:, :, 0].unsqueeze(2)
-                    current_input = (
-                        torch.cat((str_trg, sm_trg), dim=2)
-                        if use_teacher_forcing
-                        else output
-                    )
-                else:
-                    current_input = output
+            trg = trgs[:, (self.prec_window + t), :].unsqueeze(1)
+            valid_mask = ~torch.isnan(trg)
+            random_vals = torch.rand_like(valid_mask, dtype=torch.float)
+            use_teacher_forcing = (
+                random_vals < self.teacher_forcing_ratio
+            ) * valid_mask
+            current_input = trg * use_teacher_forcing + output * (~use_teacher_forcing)
 
         outputs = torch.stack(outputs, dim=1)
         if self.prec_window > 0:

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:55:24
-LastEditTime: 2024-11-05 11:40:28
+LastEditTime: 2024-05-27 10:10:35
 LastEditors: Wenyu Ouyang
 Description:
-FilePath: \torchhydro\experiments\train_with_era5land.py
+FilePath: \torchhydro\tests\test_train_seq2seq.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -18,7 +18,6 @@ import hydrodatasource.configs.config as hdscc
 import xarray as xr
 import torch.multiprocessing as mp
 
-from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.deep_hydro import train_worker
 from torchhydro.trainers.trainer import train_and_evaluate
@@ -40,20 +39,21 @@ gage_id = show["id"].values.tolist()
 
 def config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_era5land", "ex7_us_basins_new_torchhydro")
+    project_name = os.path.join(
+        # "train_with_era5land", "ex4_0826_819basins_era5lad_fix_streamflow"
+        "train_with_gpm",
+        "ex6_1031_us_basins_gpm_update_time",
+    )
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "selfmadehydrodataset",
-            "source_path": SETTING["local_data_path"]["datasets-interim"],
-            "other_settings": {
-                "time_unit": ["3h"],
-            },
+            "source": "HydroMean",
+            "source_path": "/ftproot/basins-interim/",
         },
-        ctx=[2],
+        ctx=[1],
         model_name="Seq2Seq",
         model_hyperparam={
             "en_input_size": 17,
@@ -73,8 +73,8 @@ def config():
         min_time_unit="h",
         min_time_interval=3,
         var_t=[
-            # "precipitationCal",
-            "total_precipitation_hourly",
+            "precipitationCal",
+            # "total_precipitation_hourly",  # ear5-land tp
             "sm_surface",
         ],
         var_c=[
@@ -96,18 +96,18 @@ def config():
         ],
         var_out=["streamflow", "sm_surface"],
         dataset="Seq2SeqDataset",
-        sampler="BasinBatchSampler",
+        sampler="HydroSampler",
         scaler="DapengScaler",
         train_epoch=100,
         save_epoch=1,
-        train_period=["2015-06-01-01", "2022-11-01-01"],
-        test_period=["2022-11-01-01", "2023-12-01-01"],
-        valid_period=["2023-11-01-01", "2023-12-01-01"],
+        train_period=[("2015-06-01-01", "2022-11-01-01")],
+        test_period=[("2022-11-01-01", "2023-11-01-01")],
+        valid_period=[("2022-11-01-01", "2023-11-01-01")],
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
             "data_gap": [0, 0],
-            "device": [2],
+            "device": [1],
             "item_weight": [0.8, 0.2],
         },
         opt="Adam",
@@ -116,6 +116,8 @@ def config():
             "lr_factor": 0.9,
         },
         which_first_tensor="batch",
+        rolling=False,
+        long_seq_pred=False,
         calc_metrics=False,
         early_stopping=True,
         # ensemble=True,

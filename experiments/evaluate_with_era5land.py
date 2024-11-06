@@ -16,6 +16,7 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed
 from torchhydro.trainers.resulter import Resulter
+from torchhydro import SETTING
 
 logging.basicConfig(level=logging.INFO)
 
@@ -32,15 +33,12 @@ def get_config_data():
     train_path = os.path.join(os.getcwd(), "results", "train_with_era5land", "ex20")
     args = cmd(
         sub=project_name,
-        # TODO: Update the source_path to the correct path
         source_cfgs={
             "source_name": "selfmadehydrodataset",
-            "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "attributes": "basins-origin/attributes.nc",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {
+                "time_unit": ["3h"],
             },
-            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[0],
         model_name="Seq2Seq",

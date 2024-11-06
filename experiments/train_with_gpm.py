@@ -29,7 +29,7 @@ for logger_name in logging.root.manager.loggerDict:
     logger.setLevel(logging.INFO)
 
 show = pd.read_csv(
-    os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(819).csv"),
+    os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_us.csv"),
     dtype={"id": str},
 )
 gage_id = show["id"].values.tolist()
@@ -37,7 +37,7 @@ gage_id = show["id"].values.tolist()
 
 def config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_era5land", "ex_test")
+    project_name = os.path.join("train_with_era5land", "ex7_us_basins_new_torchhydro")
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -49,7 +49,7 @@ def config():
             "source_path": "/ftproot/basins-interim/",
             "other_settings": {"time_unit": ["3h"]},
         },
-        ctx=[0],
+        ctx=[2],
         model_name="Seq2Seq",
         model_hyperparam={
             "en_input_size": 17,
@@ -97,14 +97,14 @@ def config():
         train_epoch=100,
         # train_mode=False,
         save_epoch=1,
-        train_period=[("2018-06-01-01", "2018-08-01-01")],
-        test_period=[("2018-06-01-01", "2018-08-01-01")],
-        valid_period=[("2018-06-01-01", "2018-08-01-01")],
+        train_period=["2015-06-01-01", "2022-11-01-01"],
+        test_period=["2022-11-01-01", "2023-12-01-01"],
+        valid_period=["2023-11-01-01", "2023-12-01-01"],
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
             "data_gap": [0, 0],
-            "device": [0],
+            "device": [2],
             "item_weight": [0.8, 0.2],
         },
         opt="Adam",
