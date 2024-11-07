@@ -187,7 +187,13 @@ class GeneralSeq2Seq(nn.Module):
             use_teacher_forcing = (
                 random_vals < self.teacher_forcing_ratio
             ) * valid_mask
-            current_input = trg * use_teacher_forcing + output * (~use_teacher_forcing)
+            current_input = torch.where(
+                torch.isnan(trg),  # if trg is nan
+                output,  # then use output
+                trg * use_teacher_forcing
+                + output
+                * (~use_teacher_forcing),  # else calculate with teacher forcing
+            )
 
         outputs = torch.stack(outputs, dim=1)
         if self.prec_window > 0:
