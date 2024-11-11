@@ -52,7 +52,6 @@ def warn_if_nan(dataarray, max_display=5, nan_mode="any"):
         else f" Here are the indices of the NaNs: {display_indices}"
     )
     warnings.warn(message)
-
     return True
 
 

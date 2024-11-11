@@ -3,18 +3,15 @@ Author: Wenyu Ouyang
 Date: 2024-05-20 10:40:46
 LastEditTime: 2024-05-27 15:49:30
 LastEditors: Wenyu Ouyang
-Description: 
+Description:
 FilePath: \torchhydro\experiments\train_with_gpm_dis.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import logging
-import os.path
-import pathlib
 import pandas as pd
 import torch.multiprocessing as mp
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-from torchhydro.trainers.trainer import train_and_evaluate
 from torchhydro.trainers.deep_hydro import train_worker
 
 logging.basicConfig(level=logging.INFO)

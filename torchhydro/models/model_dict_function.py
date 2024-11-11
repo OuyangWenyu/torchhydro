@@ -23,6 +23,7 @@ from torchhydro.models.seq2seq import (
     DataEnhancedModel,
     DataFusionModel,
     Transformer, Seq2SeqGNN,
+    Seq2Seq_Min_LSTM_GNN
 )
 from torch.optim import Adam, SGD, Adadelta
 from torchhydro.models.crits import (
@@ -61,6 +62,7 @@ pytorch_model_dict = {
     "DataFusion": DataFusionModel,
     "Transformer": Transformer,
     "Seq2SeqGNN": Seq2SeqGNN,
+    "Seq2SeqMinGNN": Seq2Seq_Min_LSTM_GNN
 }
 
 pytorch_criterion_dict = {

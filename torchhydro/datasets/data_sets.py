@@ -9,7 +9,6 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import logging
-import math
 import os.path
 import re
 import sys
@@ -22,8 +21,6 @@ import numpy as np
 import pandas as pd
 import torch
 import xarray as xr
-from black.mode import Deprecated
-from dateutil.parser import parse
 from hydrodatasource.reader.data_source import SelfMadeHydroDataset
 from hydrodatasource.utils.utils import streamflow_unit_conv
 from torch.utils.data import Dataset
@@ -781,19 +778,24 @@ class GNNDataset(Seq2SeqDataset):
     def __getitem__(self, item: int):
         # 从lookup_table中获取的idx和basin是整数，但是total_df的basin是字符串，所以需要转换一下
         basin, idx = self.lookup_table[item]
-        rho = self.rho
-        horizon = self.horizon
+        rho, horizon = self.rho, self.horizon
         prec = self.data_cfgs["prec_window"]
-        basin_id = self.basins[basin].split('_')[-1]
-        str_lev_array = self.x_up.sel(basin_id=basin_id).to_array()
-        # 在这里p和s的间隔应该是1吗?
-        stream_up_p = str_lev_array[0][idx + 1: idx + rho + horizon + 1]
-        stream_up_s = str_lev_array[0][idx: idx + rho]
-        x_ps_up = np.stack((stream_up_p[:rho], stream_up_s), axis=1)
+        # basin_id = self.basins[basin].split('_')[-1]
+        p = self.x[basin, idx + 1: idx + rho + horizon + 1, 0].reshape(-1, 1)
+        s = self.x[basin, idx: idx + rho, 1:]
+        x = np.concatenate((p[:rho], s), axis=1)
+        str_lev_array = self.x_up.sel(basin_id=self.basins[basin]).to_array()
+        # 在这里stream_up_p和s的间隔应该是1吗?
+        # stream_up_p = str_lev_array[:, idx + 1: idx + rho + horizon + 1]
+        stream_up = str_lev_array[:, idx: idx + rho]
+        # x_ps_up = np.stack((stream_up_p[:rho], stream_up_s), axis=1)
         c = self.c[basin, :]
         c = np.tile(c, (rho + horizon, 1))
-        x = np.concatenate((self.x[basin, :rho, :], x_ps_up, c[:rho]), axis=1)
-        x_h = np.concatenate((np.expand_dims(stream_up_p[rho:], -1), c[rho:]), axis=1)
+        x = np.concatenate((x, stream_up.T, c[:rho]), axis=1)
+        # x_h = np.concatenate((np.expand_dims(stream_up_p[rho:], -1), c[rho:]), axis=1)
+        pad_p = np.pad(p[rho:], ((0, c[rho:].shape[0] - p[rho:].shape[0]), (0, 0)), 'edge') \
+                if p[rho:].shape[0] < c[rho:].shape[0] else p[rho:]
+        x_h = np.concatenate((pad_p, c[rho:]), axis=1)
         y = self.y[basin, idx + rho - prec + 1: idx + rho + horizon + 1, :]
         if y.shape[0] < horizon + prec:
            y = np.pad(y, ((0, horizon + prec - y.shape[0]), (0, 0)), 'edge')

@@ -47,7 +47,6 @@ def test_run_model():
     elif args.m_name == "Transformer":
         config_data = create_config_Transformer()
     '''
-    # !set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     config_data = create_config_Seq2Seq()
     train_and_evaluate(config_data)
@@ -68,7 +67,7 @@ def create_config_Seq2Seq():
         ctx=[2],
         model_name="Seq2SeqGNN",
         model_hyperparam={
-            "en_input_size": 50,
+            "en_input_size": 54,
             "de_input_size": 18,
             "output_size": 2,
             "hidden_size": 640,
