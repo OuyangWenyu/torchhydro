@@ -311,8 +311,8 @@ def len_denormalize_delayed(
     rolling,
 ):
     # batch_size != output.shape[0]
-    o = output[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
-    l = labels[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
+    o = output[:, length + prec, :].reshape(basin_num, -1, len(target_col))
+    l = labels[:, length + prec, :].reshape(basin_num, -1, len(target_col))
     preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, rolling)
     obs = obss_xr[col].to_numpy()
     pred = preds_xr[col].to_numpy()
