@@ -615,6 +615,7 @@ class FlexibleDataset(BaseDataset):
             source_name = var_to_source_map[var_name]
             data_source_ = self.data_source[source_name]
             break
+        # TODO: only support CAMELS for now
         scaler_hub = ScalerHub(
             self.y_origin,
             self.x_origin,

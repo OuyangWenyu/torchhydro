@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:37:58
-LastEditTime: 2024-07-17 19:13:41
+LastEditTime: 2024-11-11 18:35:29
 LastEditors: Wenyu Ouyang
 Description: Some basic funtions for dealing with data
 FilePath: \torchhydro\torchhydro\datasets\data_utils.py
@@ -95,7 +95,6 @@ def wrap_t_s_dict(data_cfgs: dict, is_tra_val_te: str) -> OrderedDict:
 
     Parameters
     ----------
-
     data_cfgs
         configs for reading from data source
     is_tra_val_te
@@ -107,15 +106,15 @@ def wrap_t_s_dict(data_cfgs: dict, is_tra_val_te: str) -> OrderedDict:
         OrderedDict(sites_id=basins_id, t_final_range=t_range_list)
     """
     basins_id = data_cfgs["object_ids"]
-    # if type(basins_id) is str and basins_id == "ALL":
-    #     basins_id = data_source.read_object_ids().tolist()
-    # assert all(x < y for x, y in zip(basins_id, basins_id[1:]))
+    if type(basins_id) is str and basins_id == "ALL":
+        raise ValueError("Please specify the basins_id in configs!")
+    if any(x >= y for x, y in zip(basins_id, basins_id[1:])):
+        # raise a warning if the basins_id is not sorted
+        warnings.warn("The basins_id is not sorted!")
     if f"t_range_{is_tra_val_te}" in data_cfgs:
         t_range_list = data_cfgs[f"t_range_{is_tra_val_te}"]
     else:
-        raise Exception(
-            f"Error! The mode {is_tra_val_te} was not found. Please add it."
-        )
+        raise KeyError(f"Error! The mode {is_tra_val_te} was not found. Please add it.")
     return OrderedDict(sites_id=basins_id, t_final_range=t_range_list)
 
 

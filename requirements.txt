@@ -13,4 +13,4 @@ kaggle
 
 pytest
 
-hydrodatasource
+hydrodatasource==0.0.8
