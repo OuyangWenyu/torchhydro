@@ -711,6 +711,42 @@ class Seq2SeqDataset(BaseDataset):
             torch.from_numpy(xh).float(),
         ], torch.from_numpy(y).float()
 
+class SeqForecastDataset(Seq2SeqDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(SeqForecastDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    def __getitem__(self, item: int):
+        basin, time = self.lookup_table[item]
+        rho = self.rho # forecast history
+        horizon = self.horizon # forecast length
+        # p cover all encoder-decoder periods; +1 means the period while +0 means start of the current period
+        p = self.x[basin, time + 1 : time + rho + horizon + 1, 0].reshape(-1, 1)
+        # se only cover encoder periods
+        se = self.x[basin, time : time + rho, 1:]
+        # se only cover decoder periods
+        sd = self.x[basin, time + rho : time + rho + horizon, 1:]
+        # encoder dynamic features
+        xe = np.concatenate((p[:rho], se), axis=1)
+        # encoder static features
+        if self.c is None or self.c.shape[-1] == 0:
+            xec = xe
+        else:
+            c = self.c[basin, :]
+            c = np.tile(c, (rho + horizon, 1))
+            xec = c[:rho]
+        # xh cover decoder periods
+        xd = np.concatenate((p[rho:], sd), axis=1)
+        # decoder static features
+        xdc = c[rho:]
+        # y cover specified all decoder periods
+        y = self.y[basin, time + rho + 1 : time + rho + horizon + 1, :]
+
+        return [
+            torch.from_numpy(xe).float(),
+            torch.from_numpy(xec).float(),
+            torch.from_numpy(xd).float(),
+            torch.from_numpy(xdc).float(),
+        ], torch.from_numpy(y).float()
 
 class TransformerDataset(Seq2SeqDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):

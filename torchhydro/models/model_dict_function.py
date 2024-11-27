@@ -19,6 +19,7 @@ from torchhydro.models.cudnnlstm import (
 )
 
 from torchhydro.models.simple_lstm import SimpleLSTMForecast
+from torchhydro.models.seqforecast import SequentialForecastLSTM
 from torchhydro.models.seq2seq import (
     GeneralSeq2Seq,
     DataEnhancedModel,
@@ -60,6 +61,7 @@ pytorch_model_dict = {
     "SPPLSTM": SPP_LSTM_Model,
     "SimpleLSTMForecast": SimpleLSTMForecast,
     "SPPLSTM2": SPP_LSTM_Model_2,
+    "SeqForecastLSTM": SequentialForecastLSTM,
     "Seq2Seq": GeneralSeq2Seq,
     "DataEnhanced": DataEnhancedModel,
     "DataFusion": DataFusionModel,
