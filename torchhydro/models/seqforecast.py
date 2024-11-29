@@ -7,9 +7,9 @@ import torch.nn as nn
 # self.dynamics_embedding, self.dynamics_output_size = 
 #   self._get_embedding_net(cfg.dynamics_embedding, dynamics_input_size, 'dynamics')
  
-class StaticFeatureEmbedding(nn.Module):
-    def __init__(self, input_dim, embedding_dim, dropout):
-        super(StaticFeatureEmbedding, self).__init__()
+class FeatureEmbedding(nn.Module):
+    def __init__(self, input_dim, embedding_dim, dropout=0):
+        super(FeatureEmbedding, self).__init__()
         self.embedding = nn.Sequential(
             nn.Linear(input_dim, embedding_dim),
             nn.Tanh(),
@@ -68,33 +68,43 @@ class SequentialForecastLSTM(nn.Module):
             self, 
             static_input_dim, 
             dynamic_input_dim, 
-            embedding_dim, 
+            embedding_dim,
             hidden_dim, 
             output_dim,
+            use_paper_model=True # choose paper_model or neuralhydrology_repository_model
         ):
         super(SequentialForecastLSTM, self).__init__()
         self.output_dim = output_dim
-        self.static_embedding = StaticFeatureEmbedding(static_input_dim, embedding_dim)
-        self.hindcast_lstm = HindcastLSTM(dynamic_input_dim + embedding_dim, hidden_dim)
-        self.forecast_lstm = ForecastLSTM(dynamic_input_dim + embedding_dim, hidden_dim)
+        self.use_paper_model = use_paper_model
+        self.static_embedding = FeatureEmbedding(static_input_dim, embedding_dim)
+        self.dynamic_embedding = FeatureEmbedding(dynamic_input_dim, embedding_dim)
+        hindcast_input_dim = 2 * embedding_dim if use_paper_model else dynamic_input_dim + embedding_dim
+        forecast_input_dim = 2 * embedding_dim if use_paper_model else dynamic_input_dim + embedding_dim
+        self.hindcast_lstm = HindcastLSTM(hindcast_input_dim, hidden_dim)
+        self.forecast_lstm = ForecastLSTM(forecast_input_dim, hidden_dim)
         self.hiddenstatetransfer = HiddenStateTransferNet(hidden_dim=hidden_dim)
         self.output_head = ModelOutputHead(hidden_dim, output_dim)
 
+    def _prepare_input(self, static_features, dynamic_features):
+        static_embedded = self.static_embedding(static_features)
+        dynamic_embedded = dynamic_features if self.use_paper_model else self.dynamic_embedding(dynamic_features)
+        static_embedded = static_embedded.unsqueeze(1).expand(-1, dynamic_embedded.size(1), -1)
+        return torch.cat([dynamic_embedded, static_embedded], dim=-1)
+
     def forward(self, *src):
         hindcast_features, static_features_hindcast, forecast_features, static_features_forecast = src
+        
         # Hindcast LSTM
-        static_embedded = self.static_embedding(static_features_hindcast)
-        static_embedded = static_embedded.unsqueeze(1).expand(-1, hindcast_features.size(1), -1)
-        hindcast_input = torch.cat([hindcast_features, static_embedded], dim=-1)
+        hindcast_input = self._prepare_input(static_features_hindcast, hindcast_features)
         _, h, c = self.hindcast_lstm(hindcast_input)
-        # HiddenStateTransfer
-        h, c = self.hiddenstatetransfer(h, c)
+
+        if self.use_paper_model:
+            # HiddenStateTransfer
+            h, c = self.hiddenstatetransfer(h, c)
+
         # Forecast LSTM
-        static_embedded = self.static_embedding(static_features_forecast)
-        static_embedded = static_embedded.unsqueeze(1).expand(-1, forecast_features.size(1), -1)
-        forecast_input = torch.cat([forecast_features, static_embedded], dim=-1)
+        forecast_input, _ = self._prepare_input(static_features_forecast, forecast_features)
         forecast_output = self.forecast_lstm(forecast_input, h.unsqueeze(0), c.unsqueeze(0))
 
-        # 输出头
         output = self.output_head(forecast_output)
         return output
