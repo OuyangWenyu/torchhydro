@@ -4,9 +4,11 @@ import torch
 import numpy as np
 from torch import nn
 
+from torchhydro.configs.model_config import MODEL_PARAM_DICT
 from torchhydro.models.ann import SimpleAnn
 from torchhydro.models.dpl4xaj import ann_pbm, lstm_pbm, SimpleLSTM
 from torchhydro.models.kernel_conv import uh_conv, uh_gamma
+
 
 class Hbv4Dpl(torch.nn.Module):
     """HBV Model Pytorch version"""
@@ -23,22 +25,22 @@ class Hbv4Dpl(torch.nn.Module):
         """
         super(Hbv4Dpl, self).__init__()
         self.name = "HBV"
-        self.params_names = [
-            "BETA",
-            "FC",
-            "K0",
-            "K1",
-            "K2",
-            "LP",
-            "PERC",
-            "UZL",
-            "TT",
-            "CFMAX",
-            "CFR",
-            "CWH",
-            "A",
-            "THETA",
-        ]
+        self.params_names = MODEL_PARAM_DICT["hbv"]["param_name"]
+        parasca_lst = MODEL_PARAM_DICT["hbv"]["param_range"]
+        self.beta_scale = parasca_lst["BETA"]
+        self.fc_scale = parasca_lst["FC"]
+        self.k0_scale = parasca_lst["K0"]
+        self.k1_scale = parasca_lst["K1"]
+        self.k2_scale = parasca_lst["K2"]
+        self.lp_scale = parasca_lst["LP"]
+        self.perc_scale = parasca_lst["PERC"]
+        self.uzl_scale = parasca_lst["UZL"]
+        self.tt_scale = parasca_lst["TT"]
+        self.cfmax_scale = parasca_lst["CFMAX"]
+        self.cfr_scale = parasca_lst["CFR"]
+        self.cwh_scale = parasca_lst["CWH"]
+        self.a_scale = parasca_lst["A"]
+        self.theta_scale = parasca_lst["THETA"]
         self.warmup_length = warmup_length
         self.kernel_size = kernel_size
         # there are 3 input vars in HBV: P, PET and TEMPERATURE
@@ -61,18 +63,20 @@ class Hbv4Dpl(torch.nn.Module):
             t_all = array with daily values of air temperature (deg C)
         parameters
             array with parameter values having the following structure and scales
-            BETA[1,6]: parameter in soil routine
-            FC[50,1000]: maximum soil moisture content
-            K0[0.05,0.9]: recession coefficient
-            K1[0.01,0.5]: recession coefficient
-            K2[0.001,0.2]: recession coefficient
-            LP[0.2,1]: limit for potential evapotranspiration
-            PERC[0,10]: percolation from upper to lower response box
-            UZL[0,100]
-            TT[-2.5,2.5]: temperature limit for snow/rain; distinguish rainfall from snowfall
-            CFMAX[0.5,10]: degree day factor; used for melting calculation
-            CFR[0,0.1]: refreezing factor
-            CWH[0,0.2]:
+            BETA: parameter in soil routine
+            FC: maximum soil moisture content
+            K0: recession coefficient
+            K1: recession coefficient
+            K2: recession coefficient
+            LP: limit for potential evapotranspiration
+            PERC: percolation from upper to lower response box
+            UZL: upper zone limit
+            TT: temperature limit for snow/rain; distinguish rainfall from snowfall
+            CFMAX: degree day factor; used for melting calculation
+            CFR: refreezing factor
+            CWH: liquid water holding capacity of the snowpack
+            A: parameter of mizuRoute
+            THETA: parameter of mizuRoute
         out_state
             if True, the state variables' value will be output
         rout_opt
@@ -96,7 +100,7 @@ class Hbv4Dpl(torch.nn.Module):
             with torch.no_grad():
                 x_init = x[0:buffer_time, :, :]
                 warmup_length = 0
-                init_model = Hbv4Dpl(warmup_length)
+                init_model = Hbv4Dpl(warmup_length, kernel_size=self.kernel_size)
                 if init_model.warmup_length > 0:
                     raise RuntimeError(
                         "Please set warmup_length as 0 when initializing HBV model"
@@ -122,62 +126,45 @@ class Hbv4Dpl(torch.nn.Module):
         t_all = x[buffer_time:, :, 2]
 
         # scale the parameters
-        parasca_lst = [
-            [1, 6],
-            [50, 1000],
-            [0.05, 0.9],
-            [0.01, 0.5],
-            [0.001, 0.2],
-            [0.2, 1],
-            [0, 10],
-            [0, 100],
-            [-2.5, 2.5],
-            [0.5, 10],
-            [0, 0.1],
-            [0, 0.2],
-            [0, 2.9],
-            [0, 6.5],
-        ]
-
-        par_beta = parasca_lst[0][0] + parameters[:, 0] * (
-            parasca_lst[0][1] - parasca_lst[0][0]
+        par_beta = self.beta_scale[0] + parameters[:, 0] * (
+            self.beta_scale[1] - self.beta_scale[0]
         )
         # parCET = parameters[:,1]
-        par_fc = parasca_lst[1][0] + parameters[:, 1] * (
-            parasca_lst[1][1] - parasca_lst[1][0]
+        par_fc = self.fc_scale[0] + parameters[:, 1] * (
+            self.fc_scale[1] - self.fc_scale[0]
         )
-        par_k0 = parasca_lst[2][0] + parameters[:, 2] * (
-            parasca_lst[2][1] - parasca_lst[2][0]
+        par_k0 = self.k0_scale[0] + parameters[:, 2] * (
+            self.k0_scale[1] - self.k0_scale[0]
         )
-        par_k1 = parasca_lst[3][0] + parameters[:, 3] * (
-            parasca_lst[3][1] - parasca_lst[3][0]
+        par_k1 = self.k1_scale[0] + parameters[:, 3] * (
+            self.k1_scale[1] - self.k1_scale[0]
         )
-        par_k2 = parasca_lst[4][0] + parameters[:, 4] * (
-            parasca_lst[4][1] - parasca_lst[4][0]
+        par_k2 = self.k2_scale[0] + parameters[:, 4] * (
+            self.k2_scale[1] - self.k2_scale[0]
         )
-        par_lp = parasca_lst[5][0] + parameters[:, 5] * (
-            parasca_lst[5][1] - parasca_lst[5][0]
+        par_lp = self.lp_scale[0] + parameters[:, 5] * (
+            self.lp_scale[1] - self.lp_scale[0]
         )
         # parMAXBAS = parameters[:,7]
-        par_perc = parasca_lst[6][0] + parameters[:, 6] * (
-            parasca_lst[6][1] - parasca_lst[6][0]
+        par_perc = self.perc_scale[0] + parameters[:, 6] * (
+            self.perc_scale[1] - self.perc_scale[0]
         )
-        par_uzl = parasca_lst[7][0] + parameters[:, 7] * (
-            parasca_lst[7][1] - parasca_lst[7][0]
+        par_uzl = self.uzl_scale[0] + parameters[:, 7] * (
+            self.uzl_scale[1] - self.uzl_scale[0]
         )
         # parPCORR = parameters[:,10]
-        par_tt = parasca_lst[8][0] + parameters[:, 8] * (
-            parasca_lst[8][1] - parasca_lst[8][0]
+        par_tt = self.tt_scale[0] + parameters[:, 8] * (
+            self.tt_scale[1] - self.tt_scale[0]
         )
-        par_cfmax = parasca_lst[9][0] + parameters[:, 9] * (
-            parasca_lst[9][1] - parasca_lst[9][0]
+        par_cfmax = self.cfmax_scale[0] + parameters[:, 9] * (
+            self.cfmax_scale[1] - self.cfmax_scale[0]
         )
         # parSFCF = parameters[:,13]
-        par_cfr = parasca_lst[10][0] + parameters[:, 10] * (
-            parasca_lst[10][1] - parasca_lst[10][0]
+        par_cfr = self.cfr_scale[0] + parameters[:, 10] * (
+            self.cfr_scale[1] - self.cfr_scale[0]
         )
-        par_cwh = parasca_lst[11][0] + parameters[:, 11] * (
-            parasca_lst[11][1] - parasca_lst[11][0]
+        par_cwh = self.cwh_scale[0] + parameters[:, 11] * (
+            self.cwh_scale[1] - self.cwh_scale[0]
         )
 
         n_step, n_grid = p_all.size()
@@ -268,11 +255,11 @@ class Hbv4Dpl(torch.nn.Module):
             # SMlog[t,:] = sm.detach().cpu().numpy()
 
         if rout_opt is True:  # routing
-            temp_a = parasca_lst[-2][0] + parameters[:, -2] * (
-                parasca_lst[-2][1] - parasca_lst[-2][0]
+            temp_a = self.a_scale[0] + parameters[:, -2] * (
+                self.a_scale[1] - self.a_scale[0]
             )
-            temp_b = parasca_lst[-1][0] + parameters[:, -1] * (
-                parasca_lst[-1][1] - parasca_lst[-1][0]
+            temp_b = self.theta_scale[0] + parameters[:, -1] * (
+                self.theta_scale[1] - self.theta_scale[0]
             )
             rout_a = temp_a.repeat(n_step, 1).unsqueeze(-1)
             rout_b = temp_b.repeat(n_step, 1).unsqueeze(-1)
@@ -291,6 +278,7 @@ class DplLstmHbv(nn.Module):
         n_input_features,
         n_output_features,
         n_hidden_states,
+        kernel_size,
         warmup_length,
         param_limit_func="sigmoid",
         param_test_way="final",
@@ -308,6 +296,8 @@ class DplLstmHbv(nn.Module):
             the number of output features of LSTM, and it should be equal to the number of learning parameters in XAJ
         n_hidden_states
             the number of hidden features of LSTM
+        kernel_size
+            size for unit hydrograph
         warmup_length
             the time length of warmup period
         param_limit_func
@@ -320,10 +310,8 @@ class DplLstmHbv(nn.Module):
             3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
         """
         super(DplLstmHbv, self).__init__()
-        self.dl_model = SimpleLSTM(
-            n_input_features, n_output_features, n_hidden_states
-        )
-        self.pb_model = Hbv4Dpl(warmup_length)
+        self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)
+        self.pb_model = Hbv4Dpl(warmup_length, kernel_size)
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
 
@@ -355,6 +343,7 @@ class DplAnnHbv(nn.Module):
         n_input_features: int,
         n_output_features: int,
         n_hidden_states: Union[int, tuple, list],
+        kernel_size,
         warmup_length: int,
         param_limit_func="sigmoid",
         param_test_way="final",
@@ -372,6 +361,8 @@ class DplAnnHbv(nn.Module):
             the number of output features of ANN, and it should be equal to the number of learning parameters in XAJ
         n_hidden_states
             the number of hidden features of ANN; it could be Union[int, tuple, list]
+        kernel_size
+            size for unit hydrograph
         warmup_length
             the length of warmup periods;
             hydrologic models need a warmup period to generate reasonable initial state values
@@ -386,7 +377,7 @@ class DplAnnHbv(nn.Module):
         """
         super(DplAnnHbv, self).__init__()
         self.dl_model = SimpleAnn(n_input_features, n_output_features, n_hidden_states)
-        self.pb_model = Hbv4Dpl(warmup_length)
+        self.pb_model = Hbv4Dpl(warmup_length, kernel_size)
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
 

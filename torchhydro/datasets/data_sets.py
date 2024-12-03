@@ -302,10 +302,10 @@ class BaseDataset(Dataset):
 
         Parameters
         ----------
-        data_forcing_ds : _type_
-            _description_
-        data_output_ds : _type_
-            _description_
+        data_forcing_ds : xr.Dataset
+            the forcing data
+        data_output_ds : xr.Dataset
+            outputs including streamflow data
         """
 
         def standardize_unit(unit):
