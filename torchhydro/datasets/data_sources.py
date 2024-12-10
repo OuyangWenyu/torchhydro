@@ -18,8 +18,7 @@ from tqdm import tqdm
 
 from hydroutils import hydro_time
 from hydrodataset import Camels
-from hydrodatasource.reader.data_source import SelfMadeHydroDataset
-
+from hydrodatasource.reader.data_source import SelfMadeHydroDataset, SelfMadeHydroDataset_PQ
 
 from torchhydro import CACHE_DIR, SETTING
 
@@ -722,6 +721,7 @@ class Smap4Camels(SupData4Camels):
 data_sources_dict = {
     "camels_us": Camels,
     "selfmadehydrodataset": SelfMadeHydroDataset,
+    "selfmadehydrodataset_pq": SelfMadeHydroDataset_PQ,
     "usgs4camels": SupData4Camels,
     "modiset4camels": ModisEt4Camels,
     "nldas4camels": Nldas4Camels,

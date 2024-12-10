@@ -77,42 +77,62 @@ def model_infer(seq_first, device, model, xs, ys):
 
 
 def denormalize4eval(
-    validation_data_loader, output, labels, length=0, long_seq_pred=True
+    validation_data_loader, output, labels, length=0, long_seq_pred=True, layer_norm=False
 ):
-    target_scaler = validation_data_loader.dataset.target_scaler
-    target_data = target_scaler.data_target
-    # the units are dimensionless for pure DL models
-    units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
-    if target_scaler.pbm_norm:
-        units = {**units, **target_data.attrs["units"]}
-    if not long_seq_pred:
-        horizon = target_scaler.data_cfgs["forecast_length"]
-        rho = target_scaler.data_cfgs["forecast_history"]
-        # TODO: 2626!=2625, so add prec_window at the end, but is it correct?
-        selected_time_points = target_data.coords["time"][
-            length + rho : length - horizon + target_scaler.data_cfgs['prec_window']
-        ]
+    if not layer_norm:
+        target_scaler = validation_data_loader.dataset.target_scaler
+        target_data = target_scaler.data_target
+        # the units are dimensionless for pure DL models
+        units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
+        if target_scaler.pbm_norm:
+            units = {**units, **target_data.attrs["units"]}
+        if not long_seq_pred:
+            horizon = target_scaler.data_cfgs["forecast_length"]
+            rho = target_scaler.data_cfgs["forecast_history"]
+            # TODO: 2626!=2625, so add prec_window at the end, but is it correct?
+            selected_time_points = target_data.coords["time"][
+                                   length + rho : length - horizon + target_scaler.data_cfgs['prec_window']]
+        else:
+            warmup_length = validation_data_loader.dataset.warmup_length
+            selected_time_points = target_data.coords["time"][warmup_length:]
+        selected_data = target_data.sel(time=selected_time_points)
+        preds_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                output.transpose(2, 0, 1),
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
+        )
+        obss_xr = target_scaler.inverse_transform(
+            xr.DataArray(
+                labels.transpose(2, 0, 1),
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
+        )
     else:
-        warmup_length = validation_data_loader.dataset.warmup_length
-        selected_time_points = target_data.coords["time"][warmup_length:]
-    selected_data = target_data.sel(time=selected_time_points)
-    preds_xr = target_scaler.inverse_transform(
-        xr.DataArray(
+        valid_ds = validation_data_loader.dataset
+        horizon = valid_ds.data_cfgs["forecast_length"]
+        rho = valid_ds.data_cfgs["forecast_history"]
+        # TODO: 2626!=2625, so add prec_window at the end, but is it correct?
+        y_time_points = valid_ds.y_origin.coords["time"][
+                               length + rho : length - horizon + valid_ds.data_cfgs['prec_window']]
+        y_selected = valid_ds.y_origin.sel(time=y_time_points)
+        units = {k: "dimensionless" for k in valid_ds.y_origin.attrs["units"].keys()}
+        preds_xr = xr.DataArray(
             output.transpose(2, 0, 1),
-            dims=selected_data.dims,
-            coords=selected_data.coords,
+            dims=valid_ds.y_origin.dims,
+            coords=y_selected.coords,
             attrs={"units": units},
-        )
-    )
-    obss_xr = target_scaler.inverse_transform(
-        xr.DataArray(
+        ).to_dataset(dim='variable')
+        obss_xr =xr.DataArray(
             labels.transpose(2, 0, 1),
-            dims=selected_data.dims,
-            coords=selected_data.coords,
+            dims=valid_ds.y_origin.dims,
+            coords=y_selected.coords,
             attrs={"units": units},
-        )
-    )
-
+        ).to_dataset(dim='variable')
     return preds_xr, obss_xr
 
 

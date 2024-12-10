@@ -10,9 +10,15 @@ Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 import glob
 import logging
 import os
-import torch.multiprocessing as mp
+
+import dgl
+
+from experiments.train_with_era5land_gnn import get_upstream_graph
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
+import torch.multiprocessing as mp
+
 from torchhydro.trainers.deep_hydro import gnn_train_worker
+
 # 设置日志记录器的级别为 INFO
 logging.basicConfig(level=logging.INFO)
 
@@ -23,42 +29,65 @@ for logger_name in logging.root.manager.loggerDict:
 
 prechn_gage_id = [gage_id.split('/')[-1].split('.')[0] for gage_id in glob.glob('/ftproot/basins-interim/timeseries/1h/*.csv', recursive=True)]
 camels_hourly_usgs = [file.split('/')[-1].split('-')[0] for file in glob.glob('/ftproot/camels_hourly/data/usgs_streamflow_csv/*.csv', recursive=True)]
-chn_gage_id = [gage_id for gage_id in prechn_gage_id if (gage_id.split('_')[-1] in camels_hourly_usgs) | ('songliao' in gage_id)]
-# ['11001300', '10805180', '08171300', '06879650', '06746095', '05413500', '01022500', '02056900']
+pre_gage_ids = [gage_id for gage_id in prechn_gage_id if (gage_id.split('_')[-1] in camels_hourly_usgs) | ('songliao' in gage_id)]
+'''
+# basin_stations.csv, L100-148, L150-156
+remove_list = ['02018000','02027000','02027500','02028500','02038850','02046000','02051500','02053200','02053800',
+               '02055100','02056900','02059500','02064000','02065500','02069700','02070000','02074500','02077200',
+               '02081500','02082950','02092500','02096846','02102908','02108000','02111180','02111500','02118500',
+               '02128000','02137727','02140991','02143000','02143040','02149000','02152100','02177000','02178400',
+               '02193340','02196000','02198100','02202600','02212600','02215100','02216180','02221525','02231000',
+               '02245500','02246000','02296500','02297155','02298123','02298608','02299950','02300700','02349900',
+               '02350900','02361000']
+'''
+remove_list = ['03604000']
+pre_gage_ids = [gage_id for gage_id in pre_gage_ids if gage_id.split('_')[1] not in remove_list]
+
 
 def test_run_model():
-    # !set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-    config_data = create_config_Seq2Seq()
+    config_data, graph_tuple = create_config_Seq2Seq()
+    config_data['data_cfgs']['graph'] = graph_tuple[0]
+    config_data['model_cfgs']['model_hyperparam']['graph'] = dgl.from_networkx(graph_tuple[0])
+    config_data['data_cfgs']['basins_stations_df'] = graph_tuple[1]
     world_size = len(config_data["training_cfgs"]["device"])
-    mp.spawn(gnn_train_worker, args=(world_size, config_data), nprocs=world_size, join=True)
+    # glock = mp.Manager().Lock()
+    mp.spawn(gnn_train_worker, args=(world_size, config_data, None), nprocs=world_size, join=True)
+
 
 def create_config_Seq2Seq():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_era5land", "ex1_541")
+    project_name = os.path.join("train_with_era5land", "ex1_642")
     config_data = default_config_file()
+    network_shp_path = "/home/wangyang1/sl_sx_usa_shps/SL_USA_HydroRiver_single.shp"
+    node_shp_path = "/home/wangyang1/hydrodatasource/tests/sl_stcd_locs/iowa_usgs_hml_sl_stations.shp"
+    graph_tuple = get_upstream_graph(pre_gage_ids, os.path.join(os.getcwd(), 'results', project_name),
+                                     network_shp_path, node_shp_path)
+    train_stas_basins = (graph_tuple[1])['station_id'].to_list()
 
     # 填充测试所需的命令行参数
     args = cmd(
         sub=project_name,
         source_cfgs={
+            "source_name": "selfmadehydrodataset_pq",
             "source": "HydroMean",
             "source_path": "/ftproot/basins-interim/",
         },
-        ctx=[0],
+        ctx=[1],
         model_name="Seq2SeqMinGNN",
         model_hyperparam={
-            "en_input_size": 54,
+            "en_input_size": 50,
             "de_input_size": 18,
             "output_size": 2,
-            "hidden_size": 640,
+            "hidden_size": len(train_stas_basins),
             "forecast_length": 56,
             "prec_window": 1,
             "teacher_forcing_ratio": 0.5,
+            # "dropout": 0.1,
         },
         model_loader={"load_way": "best"},
-        gage_id=chn_gage_id,
-        batch_size=640,
+        gage_id=train_stas_basins,
+        batch_size=len(train_stas_basins),
         forecast_history=240,
         forecast_length=56,
         min_time_unit="h",
@@ -100,12 +129,12 @@ def create_config_Seq2Seq():
         loss_param={
             "loss_funcs": "RMSESum",
             "data_gap": [0, 0],
-            "device": [0],
+            "device": [1],
             "item_weight": [0.8, 0.2],
         },
         opt="Adam",
         lr_scheduler={
-            "lr": 0.0001,
+            "lr": 0.001,
             "lr_factor": 0.9,
         },
         which_first_tensor="batch",
@@ -119,16 +148,20 @@ def create_config_Seq2Seq():
         # },
         patience=10,
         model_type="GNN_DDP_MTL",
-        # continue_train=True,
-        network_shp="/home/wangyang1/sl_sx_usa_shps/SL_USA_HydroRiver_single.shp",
-        node_shp="/home/wangyang1/sl_sx_usa_shps/sl_stcd_locs/iowa_usgs_sl_stations.shp",
+        continue_train=False,
+        network_shp=network_shp_path,
+        node_shp=node_shp_path,
         basins_shp="/ftproot/basins-interim/shapes/basins.shp",
         master_addr="localhost",
         port="12345",
+        num_workers=8,
+        pin_memory=True,
+        layer_norm=True,
+        # weight_path="/home/wangyang1/torchhydro/experiments/results/train_with_era5land/ex1_541/04_December_202408_36PM_model.pth"
     )
     # 更新默认配置
     update_cfg(config_data, args)
-    return config_data
+    return config_data, graph_tuple
 
 if __name__ == "__main__":
     test_run_model()

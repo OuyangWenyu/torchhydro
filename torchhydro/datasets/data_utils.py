@@ -14,6 +14,7 @@ import numpy as np
 import xarray as xr
 import pint_xarray  # noqa: F401
 import warnings
+import polars as pl
 
 
 def warn_if_nan(dataarray, max_display=5, nan_mode="any"):
@@ -44,6 +45,41 @@ def warn_if_nan(dataarray, max_display=5, nan_mode="any"):
         return False
     message = f"The dataarray contains {total_nans} NaN values!"
 
+    # Displaying only the first few NaN locations if there are too many
+    display_indices = nan_indices[:max_display].tolist()
+    message += (
+        f" Here are the indices of the first {max_display} NaNs: {display_indices}..."
+        if total_nans > max_display
+        else f" Here are the indices of the NaNs: {display_indices}"
+    )
+    warnings.warn(message)
+    return True
+
+def warn_if_nan_pq(dataarray: pl.DataFrame, max_display=5, nan_mode="any"):
+    """
+    Issue a warning if the dataarray contains any NaN values and display their locations.
+
+    Parameters
+    -----------
+    dataarray: pl.DataFrame
+        Input dataarray to check for NaN values.
+    max_display: int
+        Maximum number of NaN locations to display in the warning.
+    nan_mode: str
+        Mode of NaN checking: 'any' for any NaNs, 'all' for all values being NaNs.
+    """
+    if dataarray is None:
+        return
+    if nan_mode not in ["any", "all"]:
+        raise ValueError("nan_mode must be 'any' or 'all'")
+    if nan_mode == "all" and np.all(np.isnan(np.float32(dataarray[dataarray.columns[:-2]].to_numpy()))):
+        raise ValueError("The dataarray contains only NaN values!")
+    # 去掉basin_id和time两列，所以只取到-2
+    nan_indices = np.argwhere(np.isnan(np.float32(dataarray[dataarray.columns[:-2]].to_numpy())))
+    total_nans = len(nan_indices)
+    if total_nans <= 0:
+        return False
+    message = f"The dataarray contains {total_nans} NaN values!"
     # Displaying only the first few NaN locations if there are too many
     display_indices = nan_indices[:max_display].tolist()
     message += (

@@ -9,7 +9,6 @@ import hydrodatasource.configs.config as hdscc
 from dgl.nn.pytorch import GATv2Conv
 from hydrotopo import ig_path as dig
 from torch import nn
-from torch.nn import Transformer
 from itertools import chain
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -153,7 +152,6 @@ class TestModel(nn.Module):
         # d_model should be max(amount of patches/stations on upstream)
         # however amount of stations in actual graph is different from max
         # probably need to add some nodes which in/out degree are both 0 and add self.loop
-        self.trans = Transformer(d_model=256, nhead=4)
 
     def forward(self, graph, inputs):
         # inputs are features of nodes

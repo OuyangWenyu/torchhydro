@@ -214,6 +214,7 @@ def default_config_file():
             "network_shp": None,
             "node_shp": None,
             "basins_shp": None,
+            "layer_norm": False,
         },
         "training_cfgs": {
             "master_addr": "localhost",
@@ -253,6 +254,7 @@ def default_config_file():
             "device": [0, 1, 2],
             "multi_targets": 1,
             "num_workers": 0,
+            "pin_memory":False,
             "which_first_tensor": "sequence",
             # for ensemble exp:
             # basically we set kfold/seeds/hyper_params for trianing such as batch_sizes
@@ -356,6 +358,7 @@ def cmd(
     start_epoch=1,
     stat_dict_file=None,
     num_workers=None,
+    pin_memory=None,
     which_first_tensor=None,
     ensemble=0,
     ensemble_items=None,
@@ -365,7 +368,8 @@ def cmd(
     min_time_interval=None,
     network_shp=None,
     node_shp=None,
-    basins_shp=None
+    basins_shp=None,
+    layer_norm=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -783,6 +787,20 @@ def cmd(
         type=int,
     )
     parser.add_argument(
+        "--pin_memory",
+        dest="pin_memory",
+        help="use pin_memory parameter in Pytorch DataLoader of not",
+        default=pin_memory,
+        type=bool,
+    )
+    parser.add_argument(
+        "--layer_norm",
+        dest="layer_norm",
+        help="use LayerNorm instead of pre normalization",
+        default=layer_norm,
+        type=bool,
+    )
+    parser.add_argument(
         "--which_first_tensor",
         dest="which_first_tensor",
         help="sequence_first or batch_first",
@@ -920,6 +938,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["dataset"] = new_args.dataset
     if new_args.sampler is not None:
         cfg_file["data_cfgs"]["sampler"] = new_args.sampler
+    if new_args.layer_norm is not None:
+        cfg_file["data_cfgs"]["layer_norm"] = new_args.layer_norm
     if new_args.fl_sample is not None:
         if new_args.fl_sample not in ["basin", "region"]:
             # basin means each client is a basin
@@ -1099,6 +1119,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["stat_dict_file"] = new_args.stat_dict_file
     if new_args.num_workers is not None and new_args.num_workers > 0:
         cfg_file["training_cfgs"]["num_workers"] = new_args.num_workers
+    if new_args.pin_memory is not None:
+        cfg_file["training_cfgs"]["pin_memory"] = new_args.pin_memory
     if new_args.which_first_tensor is not None:
         cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
     if new_args.ensemble == 0:

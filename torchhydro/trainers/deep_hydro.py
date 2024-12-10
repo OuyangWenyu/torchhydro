@@ -13,16 +13,12 @@ import os
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from functools import reduce
-from itertools import chain
 from typing import Dict, Tuple
 
-import dgl
-import networkx as nx
 import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-import geopandas as gpd
 from dgl.dataloading import GraphDataLoader
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -32,7 +28,7 @@ from tqdm import tqdm
 
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
-from torchhydro.datasets.data_sets import BaseDataset, GNNDataset
+from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.sampler import (
     KuaiSampler,
     fl_sample_basin,
@@ -136,6 +132,7 @@ class DeepHydro(DeepHydroInterface):
         self,
         cfgs: Dict,
         pre_model=None,
+        lock=None
     ):
         """
         Parameters
@@ -152,16 +149,24 @@ class DeepHydro(DeepHydroInterface):
         self.device = get_the_device(self.device_num)
         self.pre_model = pre_model
         self.model = self.load_model()
-        if cfgs["training_cfgs"]["train_mode"]:
-            self.traindataset = self.make_dataset("train")
-            if cfgs["data_cfgs"]["t_range_valid"] is not None:
-                self.validdataset = self.make_dataset("valid")
-        self.testdataset: BaseDataset = self.make_dataset("test")
+        if lock is not None:
+            with lock:
+                if cfgs["training_cfgs"]["train_mode"]:
+                    self.traindataset = self.make_dataset("train")
+                    if cfgs["data_cfgs"]["t_range_valid"] is not None:
+                        self.validdataset = self.make_dataset("valid")
+                self.testdataset: BaseDataset = self.make_dataset("test")
+        else:
+            if cfgs["training_cfgs"]["train_mode"]:
+                self.traindataset = self.make_dataset("train")
+                if cfgs["data_cfgs"]["t_range_valid"] is not None:
+                    self.validdataset = self.make_dataset("valid")
+            self.testdataset: BaseDataset = self.make_dataset("test")
         print(f"Torch is using {str(self.device)}")
 
     def load_model(self, mode="train"):
         """
-        Load a time series fseorecast model in pytorch_model_dict in model_dict_function.py
+        Load a time series forecast model in pytorch_model_dict in model_dict_function.py
 
         Returns
         -------
@@ -385,7 +390,11 @@ class DeepHydro(DeepHydroInterface):
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
         evaluation_cfgs = self.cfgs["evaluation_cfgs"]
-        device = get_the_device(self.cfgs["training_cfgs"]["device"])
+        if len(self.cfgs["training_cfgs"]["device"])<=1:
+            device = get_the_device(self.cfgs["training_cfgs"]["device"])
+        else:
+            # 并行时，self.device是被分配的rank
+            device = self.device
         ngrid = self.testdataset.ngrid
         if data_cfgs["sampler"] == "HydroSampler":
             test_num_samples = self.testdataset.num_samples
@@ -398,7 +407,7 @@ class DeepHydro(DeepHydroInterface):
                     timeout=0,
                 )
             else:
-                test_dataloader = GraphDataLoader(self.testdataset, batch_size=test_num_samples // ngrid, shuffle=False, drop_last=True)
+                test_dataloader = GraphDataLoader(self.testdataset, batch_size=training_cfgs["batch_size"], shuffle=False, drop_last=True)
         else:
             if (data_cfgs["network_shp"] is None) & (data_cfgs["node_shp"] is None):
                 test_dataloader = DataLoader(
@@ -412,15 +421,14 @@ class DeepHydro(DeepHydroInterface):
                     worker_init_fn=None,
                 )
             else:
-                test_dataloader = GraphDataLoader(self.testdataset, batch_size=training_cfgs["batch_size"], shuffle=False, drop_last=True)
+                test_dataloader = GraphDataLoader(self.testdataset, batch_size=training_cfgs["batch_size"],
+                                                    shuffle=False, drop_last=True)
         seq_first = training_cfgs["which_first_tensor"] == "sequence"
         self.model.eval()
         # here the batch is just an index of lookup table, so any batch size could be chosen
         test_preds = []
         obss = []
         with torch.no_grad():
-            # 不应该使用drop_duplicated的方式去重，因为出口站点和分支站点在合并时索引就是重复的
-            # 也不应该强行将分支站点号对齐成流域号
             for xs, ys in test_dataloader:
                 # here the a batch doesn't mean a basin; it is only an index in lookup table
                 # for NtoN mode, only basin is index in lookup table, so the batch is same as basin
@@ -428,64 +436,66 @@ class DeepHydro(DeepHydroInterface):
                 ys, pred = model_infer(seq_first, device, self.model, xs, ys)
                 test_preds.append(pred.cpu().numpy())
                 obss.append(ys.cpu().numpy())
-            pred = reduce(lambda x, y: np.vstack((x, y)), test_preds)
-            obs = reduce(lambda x, y: np.vstack((x, y)), obss)
-        if pred.ndim == 2:
-            # TODO: check
-            # the ndim is 2 meaning we use an Nto1 mode
-            # as lookup table is (basin 1's all time length, basin 2's all time length, ...)
-            # params of reshape should be (basin size, time length)
-            pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
-            obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
-        # TODO: not support return_cell_states yet
-        return_cell_state = False
-        if return_cell_state:
-            return cellstates_when_inference(seq_first, data_cfgs, pred)
-
-        if not evaluation_cfgs["long_seq_pred"]:
-            target_len = len(data_cfgs["target_cols"])
-            prec_window = data_cfgs["prec_window"]
-            batch_size = test_dataloader.batch_size
-            if evaluation_cfgs["rolling"]:
-                forecast_length = data_cfgs["forecast_length"]
-                pred = pred[:, prec_window:, :].reshape(
-                    ngrid, batch_size, forecast_length, target_len
-                )
-                obs = obs[:, prec_window:, :].reshape(
-                    ngrid, batch_size, forecast_length, target_len
-                )
-
-                pred = pred[:, ::forecast_length, :, :]
-                obs = obs[:, ::forecast_length, :, :]
-
-                pred = np.concatenate(pred, axis=0).reshape(ngrid, -1, target_len)
-                obs = np.concatenate(obs, axis=0).reshape(ngrid, -1, target_len)
-
-                pred = pred[:, :batch_size, :]
-                obs = obs[:, :batch_size, :]
+            if (data_cfgs['network_shp'] is not None) & (data_cfgs['node_shp'] is not None):
+                pred = np.swapaxes(np.array(test_preds), 0, 1)
+                obs = np.swapaxes(np.array(obss), 0, 1)
             else:
-                pred = pred[:, prec_window, :].reshape(ngrid, batch_size, target_len)
-                obs = obs[:, prec_window, :].reshape(ngrid, batch_size, target_len)
-            pred_xr, obs_xr = denormalize4eval(
-                test_dataloader, pred, obs, long_seq_pred=False
-            )
-            fill_nan = evaluation_cfgs["fill_nan"]
-            eval_log = {}
-            for i, col in enumerate(data_cfgs["target_cols"]):
-                obs = obs_xr[col].to_numpy()
-                pred = pred_xr[col].to_numpy()
-                eval_log = calculate_and_record_metrics(
-                    obs,
-                    pred,
-                    evaluation_cfgs["metrics"],
-                    col,
-                    fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
-                    eval_log,
-                )
-            test_log = f" Best Metric {eval_log}"
-            print(test_log)
+                pred = reduce(lambda x, y: np.vstack((x, y)), test_preds)
+                obs = reduce(lambda x, y: np.vstack((x, y)), obss)
+        if pred.ndim == 4:
+            pred = pred[:, :, data_cfgs["prec_window"], :]
+            obs = obs[:, :, data_cfgs["prec_window"], :]
+            pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs, long_seq_pred=False, layer_norm=data_cfgs["layer_norm"])
         else:
-            pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
+            if pred.ndim == 2:
+                # TODO: check
+                # the ndim is 2 meaning we use an Nto1 mode
+                # as lookup table is (basin 1's all time length, basin 2's all time length, ...)
+                # params of reshape should be (basin size, time length)
+                pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
+                obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
+            if not evaluation_cfgs["long_seq_pred"]:
+                target_len = len(data_cfgs["target_cols"])
+                prec_window = data_cfgs["prec_window"]
+                batch_size = test_dataloader.batch_size
+                if evaluation_cfgs["rolling"]:
+                    forecast_length = data_cfgs["forecast_length"]
+                    pred = pred[:, prec_window:, :].reshape(
+                        ngrid, batch_size, forecast_length, target_len
+                    )
+                    obs = obs[:, prec_window:, :].reshape(
+                        ngrid, batch_size, forecast_length, target_len
+                    )
+
+                    pred = pred[:, ::forecast_length, :, :]
+                    obs = obs[:, ::forecast_length, :, :]
+
+                    pred = np.concatenate(pred, axis=0).reshape(ngrid, -1, target_len)
+                    obs = np.concatenate(obs, axis=0).reshape(ngrid, -1, target_len)
+
+                    pred = pred[:, :batch_size, :]
+                    obs = obs[:, :batch_size, :]
+                else:
+                    pred = pred[:, prec_window, :].reshape(ngrid, batch_size, target_len)
+                    obs = obs[:, prec_window, :].reshape(ngrid, batch_size, target_len)
+                pred_xr, obs_xr = denormalize4eval(
+                    test_dataloader, pred, obs, long_seq_pred=False
+                )
+            else:
+                pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
+            # TODO: not support return_cell_states yet
+            return_cell_state = False
+            if return_cell_state:
+                return cellstates_when_inference(seq_first, data_cfgs, pred)
+        fill_nan = evaluation_cfgs["fill_nan"]
+        eval_log = {}
+        for i, col in enumerate(data_cfgs["target_cols"]):
+            obs = obs_xr[col].to_numpy()
+            pred = pred_xr[col].to_numpy()
+            eval_log = calculate_and_record_metrics(obs, pred, evaluation_cfgs["metrics"], col,
+                                                    fill_nan[i] if isinstance(fill_nan, list) else fill_nan, eval_log,)
+        test_log = f" Best Metric {eval_log}"
+        print(test_log)
         return pred_xr, obs_xr
 
     def _get_optimizer(self, training_cfgs):
@@ -527,6 +537,7 @@ class DeepHydro(DeepHydroInterface):
             rho = data_cfgs["forecast_history"]
             warmup_length = data_cfgs["warmup_length"]
             horizon = data_cfgs["forecast_length"]
+            # rank!=0,train_dataset=None
             ngrid = train_dataset.ngrid
             nt = train_dataset.nt
             if data_cfgs["sampler"] == "HydroSampler":
@@ -548,7 +559,7 @@ class DeepHydro(DeepHydroInterface):
             data_loader = DataLoader(
                 train_dataset,
                 batch_size=training_cfgs["batch_size"],
-                shuffle=(sampler is None),
+                shuffle=(sampler is None) & (training_cfgs["batch_size"]!='DistSampler'),
                 sampler=sampler,
                 num_workers=worker_num,
                 pin_memory=pin_memory,
@@ -556,7 +567,8 @@ class DeepHydro(DeepHydroInterface):
             )
         else:
             data_loader = GraphDataLoader(train_dataset, batch_size=training_cfgs["batch_size"],
-                                          shuffle=(sampler is None), drop_last=True)
+                                          shuffle=(sampler is None) & (training_cfgs["batch_size"]!='DistSampler'),
+                                          drop_last=True, num_workers=worker_num)
         if data_cfgs["t_range_valid"] is not None:
             valid_dataset: BaseDataset = self.validdataset
             batch_size_valid = training_cfgs["batch_size"]
@@ -574,7 +586,7 @@ class DeepHydro(DeepHydroInterface):
                 )
             else:
                 validation_data_loader = GraphDataLoader(valid_dataset, batch_size=training_cfgs["batch_size"],
-                                                         shuffle=False, drop_last=True)
+                                                         shuffle=False, drop_last=True, num_workers=worker_num)
             return data_loader, validation_data_loader
         return data_loader, None
 
@@ -791,8 +803,8 @@ class TransLearnHydro(DeepHydro):
 
 
 class MultiTaskHydro(DeepHydro):
-    def __init__(self, cfgs: Dict, pre_model=None):
-        super().__init__(cfgs, pre_model)
+    def __init__(self, cfgs: Dict, pre_model=None, lock=None):
+        super().__init__(cfgs, pre_model, lock)
 
     def _get_optimizer(self, training_cfgs):
         params_in_opt = self.model.parameters()
@@ -860,19 +872,22 @@ class MultiTaskHydro(DeepHydro):
 
 
 class DistributedDeepHydro(MultiTaskHydro):
-    def __init__(self, world_size, cfgs: Dict):
-        super().__init__(cfgs, cfgs["model_cfgs"]["weight_path"])
+    def __init__(self, rank, world_size, cfgs: Dict, lock=None):
         self.world_size = world_size
+        self.lock = lock
+        self.rank = rank
+        super().__init__(cfgs, cfgs["model_cfgs"]["weight_path"], lock)
 
     def setup(self, rank):
+        from datetime import timedelta
         os.environ["MASTER_ADDR"] = self.cfgs["training_cfgs"]["master_addr"]
         os.environ["MASTER_PORT"] = self.cfgs["training_cfgs"]["port"]
         dist.init_process_group(
-            backend="nccl", init_method="env://", world_size=self.world_size, rank=rank
+            backend="nccl", init_method="env://", world_size=self.world_size, rank=rank, timeout=timedelta(seconds=7200)
         )
         torch.cuda.set_device(rank)
         self.device = torch.device(rank)
-        self.rank = rank
+        # self.rank = rank
 
     def cleanup(self):
         dist.destroy_process_group()
@@ -962,7 +977,7 @@ class DistributedDeepHydro(MultiTaskHydro):
 
 
 def train_worker(rank, world_size, cfgs):
-    trainer = DistributedDeepHydro(world_size, cfgs)
+    trainer = DistributedDeepHydro(rank,world_size, cfgs)
     trainer.rank = rank
     trainer.run()
 
@@ -982,100 +997,17 @@ class GNNMultiTaskHydro(MultiTaskHydro):
             raise NotImplementedError(
                 f"Error the model {model_name} was not found in the model dict. Please add it."
             )
-        graph = dgl.from_networkx(self.get_upstream_graph()[0])
         if self.pre_model is not None:
             model = self._load_pretrain_model()
         elif self.weight_path is not None:
             # load model from pth file (saved weights and biases)
-            model_cfgs['model_hyperparam']['graph'] = graph
             model_cfgs['model_hyperparam']['device'] = self.device
             model = self._load_model_from_pth()
         else:
-            model_cfgs['model_hyperparam']['graph'] = graph
             model_cfgs['model_hyperparam']['device'] = self.device
             model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
         model.to(self.device)
         return model
-
-    def make_dataset(self, is_tra_val_te: str):
-        data_cfgs = self.cfgs["data_cfgs"]
-        graph_tuple = self.get_upstream_graph()
-        # 多进程情况下，该Dataset会被建构多次
-        dataset = GNNDataset(data_cfgs, is_tra_val_te, graph_tuple)
-        return dataset
-
-    def get_upstream_graph(self):
-        import pandas as pd
-        res_dir = self.cfgs["data_cfgs"]["test_path"]
-        nx_graph_path = os.path.join(res_dir, 'total_graph.gexf')
-        basin_station_path = os.path.join(res_dir, 'basin_stations.csv')
-        if (os.path.exists(nx_graph_path)) & (os.path.exists(basin_station_path)):
-            total_graph = nx.read_gexf(nx_graph_path)
-            basin_station_df = pd.read_csv(basin_station_path, engine='c')
-            graph_tuple = (total_graph, basin_station_df)
-        else:
-            # 保存成csv文件，存储节点所对应的站名、流域、上游几个点
-            total_graph = nx.DiGraph()
-            index_station_dict = {}
-            index_basin_dict = {}
-            up_len_dict = {}
-            network_features = gpd.read_file(self.cfgs['data_cfgs']['network_shp'])
-            node_features = gpd.read_file(self.cfgs['data_cfgs']['node_shp'])
-            basins = [sta_id.split('_')[-1] for sta_id in self.cfgs["data_cfgs"]["object_ids"]]
-            upstream_graphs = self.prepare_graph(network_features, node_features, basins)
-            for key in upstream_graphs.keys():
-                upstream_graph = upstream_graphs[key]
-                id_col = 'ID' if 'ID' in node_features.columns else 'STCD'
-                # basin_id = node_features[id_col][node_features.index == key].values[0]
-                if len(upstream_graph) != 0:
-                    if upstream_graph.dtype == 'O':
-                        # upstream_graph = array(list1, list2, list3)
-                        if upstream_graph.shape[0] > 1:
-                            nodes_arr = np.unique(list(chain.from_iterable(upstream_graph)))
-                        else:
-                            # upstream_graph = array(list1)
-                            nodes_arr = upstream_graph
-                    else:
-                        # upstream_graph = array(list1, list2) and dtype is not object
-                        nodes_arr = np.unique(upstream_graph)
-                else:
-                    upstream_graph = nodes_arr = [key]
-                nodes_arr = np.append(nodes_arr, key) if key not in nodes_arr else nodes_arr
-                for node in nodes_arr:
-                    node_id = node_features[id_col][node_features.index == node].values[0]
-                    basin = node_id if node_id in basins else node_features[id_col][node_features.index == key].values[0]
-                    index_station_dict[int(node)] = node_id
-                    index_basin_dict[int(node)] = basin
-                up_len_dict[int(key)] = len(nodes_arr)
-                for path in upstream_graph:
-                    path = [path] if isinstance(path, int | np.int64) else path
-                    path = np.append(path, key) if key not in path else path
-                    nx.add_path(total_graph, path)
-            basin_station_df = pd.DataFrame([index_station_dict, index_basin_dict, up_len_dict]).T
-            basin_station_df = basin_station_df[~basin_station_df[0].isna()].rename(columns={0: 'station_id', 1: 'basin_id', 2: 'upstream_len'})
-            basin_station_df = basin_station_df.reset_index().rename(columns={'index': 'node_id'})
-            graph_tuple = (total_graph, basin_station_df)
-            # 有孤立点的情况不适用于edgelist, int点不适合gml
-            nx.write_gexf(total_graph, nx_graph_path)
-            basin_station_df.to_csv(basin_station_path)
-        return graph_tuple
-
-    def prepare_graph(self, network_features: gpd.GeoDataFrame, node_features: gpd.GeoDataFrame, nodes: list[int] | list[str],
-                      cutoff=4):
-        import hydrotopo.ig_path as htip
-        # test_df_path = 's3://stations-origin/zq_stations/hour_data/1h/zq_CHN_songliao_10800300.csv'
-        if isinstance(nodes[0], int):
-            node_idx = nodes
-        else:
-            id_col = 'ID' if 'ID' in node_features.columns else 'STCD'
-            node_features[id_col] = node_features[id_col].astype(str)
-            node_idx = node_features.index[node_features[id_col].isin(nodes)]
-        if len(node_idx) != 0:
-            graph_dict = htip.find_edge_nodes_bulk_up(node_features, network_features, node_idx, cutoff)
-            # 部分点所对应的LineString为空，导致报错
-        else:
-            graph_dict = {}
-        return graph_dict
 
 
 class GNNDistributedDeepHydro(DistributedDeepHydro):
@@ -1090,103 +1022,37 @@ class GNNDistributedDeepHydro(DistributedDeepHydro):
             raise NotImplementedError(
                 f"Error the model {model_name} was not found in the model dict. Please add it."
             )
-        graph = dgl.from_networkx(self.get_upstream_graph()[0])
-        if self.pre_model is not None:
-            model = self._load_pretrain_model()
-        elif self.weight_path is not None:
+        if self.weight_path is not None:
             # load model from pth file (saved weights and biases)
-            model_cfgs['model_hyperparam']['graph'] = graph
             model_cfgs['model_hyperparam']['device'] = self.device
             model = self._load_model_from_pth()
         else:
-            model_cfgs['model_hyperparam']['graph'] = graph
             model_cfgs['model_hyperparam']['device'] = self.device
             model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
         model.to(self.device)
         return model
 
+    def _load_model_from_pth(self):
+        weight_path = self.weight_path
+        model_cfgs = self.cfgs["model_cfgs"]
+        model_name = model_cfgs["model_name"]
+        model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
+        checkpoint = torch.load(weight_path, map_location=self.device)
+        model.load_state_dict({k.lstrip('module').lstrip('.'):v for k,v in checkpoint.items()})
+        print("Weights sucessfully loaded")
+        return model
+
+    '''
     def make_dataset(self, is_tra_val_te: str):
-        data_cfgs = self.cfgs["data_cfgs"]
-        graph_tuple = self.get_upstream_graph()
-        dataset = GNNDataset(data_cfgs, is_tra_val_te, graph_tuple)
-        return dataset
+        if self.rank == 0:
+            data_cfgs = self.cfgs["data_cfgs"]
+            dataset = GNNDataset(data_cfgs, is_tra_val_te)
+            return dataset
+    '''
 
-    def get_upstream_graph(self):
-        import pandas as pd
-        res_dir = self.cfgs["data_cfgs"]["test_path"]
-        nx_graph_path = os.path.join(res_dir, 'total_graph.gexf')
-        basin_station_path = os.path.join(res_dir, 'basin_stations.csv')
-        if (os.path.exists(nx_graph_path)) & (os.path.exists(basin_station_path)):
-            total_graph = nx.read_gexf(nx_graph_path)
-            basin_station_df = pd.read_csv(basin_station_path, engine='c')
-            graph_tuple = (total_graph, basin_station_df)
-        else:
-            # 保存成csv文件，存储节点所对应的站名、流域、上游几个点
-            total_graph = nx.DiGraph()
-            index_station_dict = {}
-            index_basin_dict = {}
-            up_len_dict = {}
-            network_features = gpd.read_file(self.cfgs['data_cfgs']['network_shp'])
-            node_features = gpd.read_file(self.cfgs['data_cfgs']['node_shp'])
-            basins = [sta_id.split('_')[-1] for sta_id in self.cfgs["data_cfgs"]["object_ids"]]
-            upstream_graphs = self.prepare_graph(network_features, node_features, basins)
-            for key in upstream_graphs.keys():
-                upstream_graph = upstream_graphs[key]
-                id_col = 'ID' if 'ID' in node_features.columns else 'STCD'
-                # basin_id = node_features[id_col][node_features.index == key].values[0]
-                if len(upstream_graph) != 0:
-                    if upstream_graph.dtype == 'O':
-                        # upstream_graph = array(list1, list2, list3)
-                        if upstream_graph.shape[0] > 1:
-                            nodes_arr = np.unique(list(chain.from_iterable(upstream_graph)))
-                        else:
-                            # upstream_graph = array(list1)
-                            nodes_arr = upstream_graph
-                    else:
-                        # upstream_graph = array(list1, list2) and dtype is not object
-                        nodes_arr = np.unique(upstream_graph)
-                else:
-                    upstream_graph = nodes_arr = [key]
-                nodes_arr = np.append(nodes_arr, key) if key not in nodes_arr else nodes_arr
-                for node in nodes_arr:
-                    node_id = node_features[id_col][node_features.index == node].values[0]
-                    basin = node_id if node_id in basins else node_features[id_col][node_features.index == key].values[0]
-                    index_station_dict[int(node)] = node_id
-                    index_basin_dict[int(node)] = basin
-                up_len_dict[int(key)] = len(nodes_arr)
-                for path in upstream_graph:
-                    path = [path] if isinstance(path, int | np.int64) else path
-                    path = np.append(path, key) if key not in path else path
-                    nx.add_path(total_graph, path)
-            basin_station_df = pd.DataFrame([index_station_dict, index_basin_dict, up_len_dict]).T
-            basin_station_df = basin_station_df[~basin_station_df[0].isna()].rename(columns={0: 'station_id', 1: 'basin_id', 2: 'upstream_len'})
-            basin_station_df = basin_station_df.reset_index().rename(columns={'index': 'node_id'})
-            graph_tuple = (total_graph, basin_station_df)
-            # 有孤立点的情况不适用于edgelist, int点不适合gml
-            nx.write_gexf(total_graph, nx_graph_path)
-            basin_station_df.to_csv(basin_station_path)
-        return graph_tuple
-
-    def prepare_graph(self, network_features: gpd.GeoDataFrame, node_features: gpd.GeoDataFrame, nodes: list[int] | list[str],
-                      cutoff=4):
-        import hydrotopo.ig_path as htip
-        # test_df_path = 's3://stations-origin/zq_stations/hour_data/1h/zq_CHN_songliao_10800300.csv'
-        if isinstance(nodes[0], int):
-            node_idx = nodes
-        else:
-            id_col = 'ID' if 'ID' in node_features.columns else 'STCD'
-            node_features[id_col] = node_features[id_col].astype(str)
-            node_idx = node_features.index[node_features[id_col].isin(nodes)]
-        if len(node_idx) != 0:
-            graph_dict = htip.find_edge_nodes_bulk_up(node_features, network_features, node_idx, cutoff)
-            # 部分点所对应的LineString为空，导致报错
-        else:
-            graph_dict = {}
-        return graph_dict
-
-def gnn_train_worker(rank, world_size, cfgs):
-    trainer = GNNDistributedDeepHydro(world_size, cfgs)
-    trainer.rank = rank
+def gnn_train_worker(rank, world_size, cfgs, glock):
+    trainer = GNNDistributedDeepHydro(rank, world_size, cfgs, glock)
+    # trainer.rank = rank
     trainer.run()
 
 model_type_dict = {

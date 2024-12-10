@@ -288,12 +288,25 @@ class DapengScaler(object):
 
     @property
     def mean_prcp(self):
-        return (
-            self.data_source.read_mean_prcp(self.t_s_dict["sites_id"])
-            .to_array()
-            .to_numpy()
-            .T  # TODO: check why T is needed
-        )
+        if (self.data_cfgs['network_shp'] is None) and (self.data_cfgs['node_shp'] is None):
+            return (
+                self.data_source.read_mean_prcp(self.t_s_dict["sites_id"])
+                .to_array()
+                .to_numpy()
+                .T  # TODO: check why T is needed
+            )
+        else:
+            gages = self.t_s_dict["sites_id"]
+            basins = [gage for gage in gages if len(gage.split('_')) == 2]
+            stations = [gage for gage in gages if len(gage.split('_')) == 3]
+            basins_array = self.data_source.read_mean_prcp(basins).to_array().to_numpy().T
+            station_basins_df = self.data_cfgs['basins_stations_df']
+            name_dict = {site: station_basins_df[station_basins_df['station_id']==site]['basin_id'].values[0] for site in stations}
+            station_array = np.array([])
+            for name in name_dict.keys():
+                zone_attr_ds = self.data_source.read_mean_prcp(name_dict[name]).to_array().to_numpy().T
+                station_array = np.append(station_array, zone_attr_ds)
+            return np.expand_dims(np.append(basins_array, station_array), -1)
 
     def inverse_transform(self, target_values):
         """
