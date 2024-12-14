@@ -386,6 +386,8 @@ class DeepHydro(DeepHydroInterface):
                 ys, pred = model_infer(seq_first, device, self.model, xs, ys)
                 test_preds.append(pred.cpu().numpy())
                 obss.append(ys.cpu().numpy())
+                # clear GPU cache -- this will not impact results
+                torch.cuda.empty_cache()
             pred = reduce(lambda x, y: np.vstack((x, y)), test_preds)
             obs = reduce(lambda x, y: np.vstack((x, y)), obss)
         if pred.ndim == 2:
