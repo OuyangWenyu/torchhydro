@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2024-11-06 12:05:49
+LastEditTime: 2024-12-14 11:23:08
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -162,7 +162,11 @@ class DeepHydro(DeepHydroInterface):
             model in pytorch_model_dict in model_dict_function.py
         """
         if mode == "infer":
-            self.weight_path = self._get_trained_model()
+            if self.weight_path is None or self.cfgs["model_cfgs"]["continue_train"]:
+                # if no weight path is provided
+                # or weight file is provided but continue train again,
+                # we will use the trained model in the new test_path directory
+                self.weight_path = self._get_trained_model()
         elif mode != "train":
             raise ValueError("Invalid mode; must be 'train' or 'infer'")
         model_cfgs = self.cfgs["model_cfgs"]
