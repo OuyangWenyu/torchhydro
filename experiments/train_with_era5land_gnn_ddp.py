@@ -15,9 +15,9 @@ import dgl
 
 from experiments.train_with_era5land_gnn import get_upstream_graph
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-import torch.multiprocessing as mp
-
-from torchhydro.trainers.deep_hydro import gnn_train_worker
+# import torch.multiprocessing as mp
+# from torchhydro.trainers.deep_hydro import gnn_train_worker
+from torchhydro.trainers.trainer import train_and_evaluate
 
 # 设置日志记录器的级别为 INFO
 logging.basicConfig(level=logging.INFO)
@@ -42,17 +42,22 @@ remove_list = ['02018000','02027000','02027500','02028500','02038850','02046000'
 '''
 remove_list = ['03604000']
 pre_gage_ids = [gage_id for gage_id in pre_gage_ids if gage_id.split('_')[1] not in remove_list]
-
+# fab = lightning.Fabric(devices=[1, 2], num_nodes=1, strategy='ddp_spawn')
 
 def test_run_model():
+    # os.environ['CUDA_VISIBLE_DEVICES'] = '1,2'
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+    os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'DETAIL'
+    os.environ['POLARS_VERBOSE'] = '1'
     config_data, graph_tuple = create_config_Seq2Seq()
     config_data['data_cfgs']['graph'] = graph_tuple[0]
     config_data['model_cfgs']['model_hyperparam']['graph'] = dgl.from_networkx(graph_tuple[0])
     config_data['data_cfgs']['basins_stations_df'] = graph_tuple[1]
-    world_size = len(config_data["training_cfgs"]["device"])
+    # world_size = len(config_data["training_cfgs"]["device"])
     # glock = mp.Manager().Lock()
-    mp.spawn(gnn_train_worker, args=(world_size, config_data, None), nprocs=world_size, join=True)
+    # mp.spawn(gnn_train_worker, args=(world_size, config_data, None), nprocs=world_size, join=True)
+    # RuntimeWarning: Using fork() can cause Polars to deadlock in the child process.
+    train_and_evaluate(config_data)
 
 
 def create_config_Seq2Seq():
@@ -73,10 +78,10 @@ def create_config_Seq2Seq():
             "source": "HydroMean",
             "source_path": "/ftproot/basins-interim/",
         },
-        ctx=[1],
+        ctx=[2],
         model_name="Seq2SeqMinGNN",
         model_hyperparam={
-            "en_input_size": 50,
+            "en_input_size": 30,
             "de_input_size": 18,
             "output_size": 2,
             "hidden_size": len(train_stas_basins),
@@ -88,7 +93,7 @@ def create_config_Seq2Seq():
         model_loader={"load_way": "best"},
         gage_id=train_stas_basins,
         batch_size=len(train_stas_basins),
-        forecast_history=240,
+        forecast_history=168,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval=3,
@@ -118,9 +123,9 @@ def create_config_Seq2Seq():
         ],
         var_out=["streamflow", "sm_surface"],
         dataset="GNNDataset",
-        sampler="DistSampler",
+        sampler="FullNeighborSampler",
         scaler="DapengScaler",
-        train_epoch=3,
+        train_epoch=0,
         save_epoch=1,
         train_period=[("2016-01-01-01", "2023-11-30-01")],
         test_period=[("2015-01-01-01", "2016-01-01-01")],
@@ -129,7 +134,7 @@ def create_config_Seq2Seq():
         loss_param={
             "loss_funcs": "RMSESum",
             "data_gap": [0, 0],
-            "device": [1],
+            "device": [2],
             "item_weight": [0.8, 0.2],
         },
         opt="Adam",
@@ -154,10 +159,12 @@ def create_config_Seq2Seq():
         basins_shp="/ftproot/basins-interim/shapes/basins.shp",
         master_addr="localhost",
         port="12345",
-        num_workers=8,
+        num_workers=6,
         pin_memory=True,
         layer_norm=True,
-        # weight_path="/home/wangyang1/torchhydro/experiments/results/train_with_era5land/ex1_541/04_December_202408_36PM_model.pth"
+        weight_path='/home/wangyang1/torchhydro/experiments/results/train_with_era5land/ex1_642/model_Ep10.pth',
+        upstream_cut=10,
+        strategy='ddp',
     )
     # 更新默认配置
     update_cfg(config_data, args)

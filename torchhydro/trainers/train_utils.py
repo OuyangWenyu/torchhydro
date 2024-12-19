@@ -11,7 +11,8 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 import copy
 import os
 from functools import reduce
-
+import polars as pl
+import lightning
 import numpy as np
 import torch
 import torch.optim as optim
@@ -116,9 +117,20 @@ def denormalize4eval(
         valid_ds = validation_data_loader.dataset
         horizon = valid_ds.data_cfgs["forecast_length"]
         rho = valid_ds.data_cfgs["forecast_history"]
-        # TODO: 2626!=2625, so add prec_window at the end, but is it correct?
-        y_time_points = valid_ds.y_origin.coords["time"][
-                               length + rho : length - horizon + valid_ds.data_cfgs['prec_window']]
+        '''
+        y_selected = valid_ds.y_origin.group_by('basin_id').agg(pl.col('time').is_in(
+            pl.from_pandas(valid_ds.times[0]).cast(pl.Datetime)), pl.col(pl.Float32).name.keep()).explode(pl.exclude('basin_id'))
+        '''
+        y_selected = (valid_ds.y_origin.group_by('basin_id', maintain_order=True).
+               agg(pl.all().slice(rho, len(valid_ds.times[0]) - horizon - rho + valid_ds.data_cfgs['prec_window'])).explode(pl.exclude('basin_id')))
+        preds_xr = pl.from_numpy(output.reshape(-1, 2), schema=['streamflow', 'sm_surface'])
+        preds_xr = preds_xr.with_columns(y_selected['basin_id'], y_selected['time'])
+        obss_xr = pl.from_numpy(labels.reshape(-1, 2), schema=['streamflow', 'sm_surface'])
+        obss_xr = obss_xr.with_columns(y_selected['basin_id'], y_selected['time'])
+        # output_slice = output[:, length+rho: length - horizon, :]
+        '''
+        # 2626!=2625, so add prec_window at the end, but is it correct?
+        y_time_points = valid_ds.times[length + rho : length - horizon + valid_ds.data_cfgs['prec_window']]
         y_selected = valid_ds.y_origin.sel(time=y_time_points)
         units = {k: "dimensionless" for k in valid_ds.y_origin.attrs["units"].keys()}
         preds_xr = xr.DataArray(
@@ -133,6 +145,7 @@ def denormalize4eval(
             coords=y_selected.coords,
             attrs={"units": units},
         ).to_dataset(dim='variable')
+        '''
     return preds_xr, obss_xr
 
 
@@ -197,12 +210,8 @@ def calculate_and_record_metrics(
 ):
     fill_nan_value = fill_nan
     inds = stat_error(obs, pred, fill_nan_value)
-
     for evaluation_metric in evaluation_metrics:
-        eval_log[f"{evaluation_metric} of {target_col}"] = inds[
-            evaluation_metric
-        ].tolist()
-
+        eval_log[f"{evaluation_metric} of {target_col}"] = inds[evaluation_metric].tolist()
     return eval_log
 
 
@@ -365,6 +374,7 @@ def compute_loss(
 
 
 def torch_single_train(
+    fab: lightning.Fabric,
     model,
     opt: optim.Optimizer,
     criterion,
@@ -416,13 +426,18 @@ def torch_single_train(
             print("Warning: high loss detected")
         if torch.isnan(loss):
             continue
-        loss.backward()  # Backpropagate to compute the current gradient
-        opt.step()  # Update network parameters based on gradients
+        fab.backward(loss)  # Back propagate to compute the current gradient
+        params_list = [param for param in model.parameters()]
+        opt_step = True
+        for param in params_list:
+            if (param.grad is not None) and (not torch.isfinite(param.grad).all()):
+                opt_step &= False
+                break
+        if opt_step:
+            opt.step()  # Update network parameters based on gradients
         model.zero_grad()  # clear gradient
         if loss == float("inf"):
-            raise ValueError(
-                "Error infinite loss detected. Try normalizing data or performing interpolation"
-            )
+            raise ValueError("Error infinite loss detected. Try normalizing data or performing interpolation")
         running_loss += loss.item()
         n_iter_ep += 1
     if n_iter_ep == 0:

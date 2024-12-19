@@ -13,10 +13,16 @@ import json
 import os
 import pickle as pkl
 import shutil
+from shutil import SameFileError
+
+import numpy as np
 import pint_xarray  # noqa: F401
 import xarray as xr
-import numpy as np
-from shutil import SameFileError
+from hydroutils.hydro_stat import (
+    cal_stat_prcp_norm,
+    cal_stat_gamma,
+    cal_stat,
+)
 from sklearn.preprocessing import (
     StandardScaler,
     RobustScaler,
@@ -24,18 +30,10 @@ from sklearn.preprocessing import (
     MaxAbsScaler,
 )
 
-from hydroutils.hydro_stat import (
-    cal_stat_prcp_norm,
-    cal_stat_gamma,
-    cal_stat,
-    cal_4_stat_inds,
-)
-
 from torchhydro.datasets.data_utils import (
     _trans_norm,
     _prcp_norm,
     wrap_t_s_dict,
-    unify_streamflow_unit,
 )
 
 SCALER_DICT = {

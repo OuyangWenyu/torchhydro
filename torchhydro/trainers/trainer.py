@@ -9,16 +9,15 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
 import copy
-from datetime import datetime
 import os
-from pathlib import Path
 import random
-
-import numpy as np
+from datetime import datetime
+from pathlib import Path
 from typing import Dict
+import numpy as np
 import pandas as pd
-from sklearn.model_selection import KFold, TimeSeriesSplit
 import torch
+from sklearn.model_selection import TimeSeriesSplit
 from torchhydro.trainers.deep_hydro import model_type_dict
 from torchhydro.trainers.resulter import Resulter
 
@@ -70,7 +69,7 @@ def train_and_evaluate(cfgs: Dict):
     ):
         deephydro.model_train()
     preds, obss = deephydro.model_evaluate()
-    resulter.save_cfg(deephydro.cfgs)
+    # resulter.save_cfg(deephydro.cfgs)
     resulter.save_result(preds, obss)
     resulter.eval_result(preds, obss)
 

@@ -161,8 +161,7 @@ class GeneralSeq2Seq(nn.Module):
                     current_input = (
                         torch.cat((str_trg, sm_trg), dim=2)
                         if use_teacher_forcing
-                        else output
-                    )
+                        else output)
                 else:
                     current_input = output
         outputs = torch.stack(outputs, dim=1)
@@ -437,29 +436,37 @@ class Seq2SeqGNN(nn.Module):
         return outputs
 
 class EncoderMinLSTMGNN(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, graph, device, dropout=0.1, num_heads=1):
+    def __init__(self, input_dim, hidden_dim, output_dim, graph, seq_length, dropout=0.1, num_heads=4):
         super(EncoderMinLSTMGNN, self).__init__()
+        self.input_dim = input_dim
         self.hidden_dim = hidden_dim
-        self.pre_fc = nn.Linear(input_dim, hidden_dim)
-        # self.pre_relu = nn.ReLU()
-        self.graph = graph.to(device)
+        self.output_dim = output_dim
+        self.seq_length = seq_length
         self.ln0 = LayerNorm(input_dim)
-        self.gnn0 = gatv2conv.GATv2Conv(hidden_dim, hidden_dim, num_heads=num_heads)
-        self.gnn1 = gatv2conv.GATv2Conv(hidden_dim, hidden_dim, num_heads=num_heads)
+        # self.pre_fc = nn.Linear(input_dim, hidden_dim)
+        # self.pre_relu = nn.ReLU()
+        self.graph = dgl.batch([graph] * seq_length)
+        self.gnn0 = gatv2conv.GATv2Conv(input_dim, input_dim, num_heads=num_heads)
+        self.gnn1 = gatv2conv.GATv2Conv(input_dim * num_heads, input_dim, num_heads=1)
         self.dropout = nn.Dropout(dropout)
-        self.ln1 = LayerNorm(hidden_dim)
-        self.fc = nn.Linear(hidden_dim, output_dim)
+        self.ln1 = LayerNorm(input_dim)
+        self.fc = nn.Linear(input_dim, output_dim)
 
     def forward(self, x):
-        x = self.ln0(x)
-        x = self.pre_fc(x)
-        gnn_outputs0 = torch.hstack([self.gnn0(graph=self.graph, feat=x[:, i, :]) for i in range(x.shape[1])])
-        # gnn_outputs0.shape = [601, 960, 601]
-        gnn_outputs1 = torch.hstack([self.gnn1(graph=self.graph, feat=gnn_outputs0[:, i, :]) for i in range(gnn_outputs0.shape[1])])
-        gnn_outputs1 = x + gnn_outputs1
-        gnn_outputs = self.ln1(gnn_outputs1)
+        x = torch.concat([x[:, :, 0].unsqueeze(-1), torch.log10(x[:, :, 1:]+1)], dim=-1)
+        self.graph = self.graph.to(x.device)
+        # lnx = self.ln0(x)
+        # x = self.pre_fc(x)
+        # 将nan预处理为0是否正确？
+        x = torch.where(x.isnan(), 0, x)
+        gnn_outputs0 = self.gnn0(self.graph, feat=x)
+        gnn_outputs1 = self.gnn1(self.graph, feat=gnn_outputs0.reshape(gnn_outputs0.shape[0], -1))
+        gnn_outputs1 = gnn_outputs1.reshape(self.hidden_dim, self.seq_length, self.input_dim)
+        # PreNorm, https://kexue.fm/archives/9009
+        gnn_outputs = torch.where(torch.isnan(gnn_outputs1), x, gnn_outputs1)
+        gnn_outputs = x + gnn_outputs
         gnn_outputs = self.dropout(gnn_outputs)
-        gnn_outputs = self.fc(gnn_outputs)
+        gnn_outputs = self.fc(self.ln0(gnn_outputs))
         return gnn_outputs
 
 
@@ -467,15 +474,18 @@ class DecoderMinLSTMGNN(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dim, device, dropout=0.1):
         super(DecoderMinLSTMGNN, self).__init__()
         self.hidden_dim = hidden_dim
-        self.lstm = MinLSTM(input_dim, hidden_dim, device=device)
+        self.lstm = MinLSTM(input_dim, input_dim, device=device)
+        self.lstm1 = MinLSTM(input_dim, input_dim, device=device)
         self.dropout = nn.Dropout(dropout)
-        # self.ln1 = torch.nn.LayerNorm(hidden_dim)
-        self.fc_out = nn.Linear(hidden_dim, output_dim)
+        self.ln1 = torch.nn.LayerNorm(input_dim)
+        self.fc_out = nn.Linear(input_dim, output_dim)
 
     def forward(self, input):
-        outputs = self.lstm(input)
+        # input = torch.where(torch.isnan(input), 0, input)
+        outputs = self.lstm1(self.lstm(input))
+        outputs = torch.where(torch.isnan(outputs), input, outputs)
         outputs = input + outputs
-        gnn_output = self.fc_out(outputs)
+        gnn_output = self.fc_out(self.ln1(outputs))
         return gnn_output #, hiddens, cells
 
 
@@ -486,23 +496,24 @@ class Seq2Seq_Min_LSTM_GNN(nn.Module):
         de_input_size,
         output_size,
         hidden_size,
+        forecast_history,
         forecast_length,
         graph,
         device="cpu",
         prec_window=0,
-        teacher_forcing_ratio=0.5,
+        teacher_forcing_ratio=0,
     ):
         # 考虑采取mixup和swish激活函数改善指标
         super(Seq2Seq_Min_LSTM_GNN, self).__init__()
         self.trg_len = forecast_length
         self.prec_window = prec_window
         self.teacher_forcing_ratio = teacher_forcing_ratio
-        self.graph = dgl.add_self_loop(graph).to(device)
+        self.forecast_history = forecast_history
+        self.graph = dgl.add_self_loop(graph)
         self.encoder = EncoderMinLSTMGNN(input_dim=en_input_size, hidden_dim=hidden_size, output_dim=output_size,
-                                         graph=self.graph, device=device)
+                                         graph=self.graph, seq_length=forecast_history)
         self.decoder = DecoderMinLSTMGNN(
             input_dim=de_input_size, hidden_dim=hidden_size, output_dim=output_size, device=device)
-        self.ln2 = LayerNorm(de_input_size - output_size)
 
     def forward(self, *src):
         if len(src) == 3:
@@ -514,7 +525,7 @@ class Seq2Seq_Min_LSTM_GNN(nn.Module):
         outputs = []
         current_input = encoder_outputs[:src2.size(0), -1, :].unsqueeze(1)
         for t in range(self.trg_len):
-            p = self.ln2(src2[:, t, :].unsqueeze(1))
+            p = torch.log(src2[:, t, :].unsqueeze(1)+1)
             current_input = torch.cat((current_input[:src2.size(0), :, :], p), dim=2)
             output = self.decoder(current_input)
             outputs.append(output.squeeze(1))

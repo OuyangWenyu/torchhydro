@@ -215,8 +215,10 @@ def default_config_file():
             "node_shp": None,
             "basins_shp": None,
             "layer_norm": False,
+            "upstream_cut": 5
         },
         "training_cfgs": {
+            'strategy': 'ddp',
             "master_addr": "localhost",
             "port": "12335",
             # if train_mode is False, don't train and evaluate
@@ -370,6 +372,8 @@ def cmd(
     node_shp=None,
     basins_shp=None,
     layer_norm=None,
+    upstream_cut=5,
+    strategy='ddp'
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -877,6 +881,20 @@ def cmd(
         default=basins_shp,
         type=str,
     )
+    parser.add_argument(
+        "--upstream_cut",
+        dest="upstream_cut",
+        help="amount of stations should be retained in GNNDataset",
+        default=upstream_cut,
+        type=int,
+    )
+    parser.add_argument(
+        "--strategy",
+        dest="strategy",
+        help="Strategy of dataloading in lighning fabric",
+        default=strategy,
+        type=str,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -1032,6 +1050,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["node_shp"] = new_args.node_shp
     if new_args.basins_shp is not None:
         cfg_file["data_cfgs"]["basins_shp"] = new_args.basins_shp
+    if new_args.upstream_cut is not None:
+        cfg_file["data_cfgs"]["upstream_cut"] = new_args.upstream_cut
     if new_args.long_seq_pred is not None:
         cfg_file["evaluation_cfgs"]["long_seq_pred"] = new_args.long_seq_pred
     if new_args.calc_metrics is not None:
@@ -1042,6 +1062,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["save_epoch"] = new_args.save_epoch
     if new_args.save_iter is not None:
         cfg_file["training_cfgs"]["save_iter"] = new_args.save_iter
+    if new_args.strategy is not None:
+        cfg_file["training_cfgs"]["strategy"] = new_args.strategy
     if new_args.model_type is not None:
         cfg_file["model_cfgs"]["model_type"] = new_args.model_type
     if new_args.model_name is not None:
@@ -1111,6 +1133,8 @@ def update_cfg(cfg_file, new_args):
             )
     if new_args.forecast_history is not None:
         cfg_file["data_cfgs"]["forecast_history"] = new_args.forecast_history
+    if new_args.forecast_history is not None:
+        cfg_file["model_cfgs"]["model_hyperparam"]["forecast_history"] = new_args.forecast_history
     if new_args.forecast_length is not None:
         cfg_file["data_cfgs"]["forecast_length"] = new_args.forecast_length
     if new_args.start_epoch > 1:

@@ -1,9 +1,11 @@
+from functools import partial
+
 import numpy as np
 import pandas as pd
 import os
 from typing import Tuple, Union
 import fnmatch
-
+import polars as pl
 from hydroutils.hydro_file import unserialize_numpy
 from hydroutils.hydro_stat import stat_error
 
@@ -96,10 +98,10 @@ class Resulter:
         save_dir = self.result_dir
         flow_pred_file = os.path.join(save_dir, self.pred_name)
         flow_obs_file = os.path.join(save_dir, self.obs_name)
-        pred = set_unit_to_var(pred)
-        obs = set_unit_to_var(obs)
-        pred.to_netcdf(flow_pred_file + ".nc")
-        obs.to_netcdf(flow_obs_file + ".nc")
+        # pred = set_unit_to_var(pred)
+        # obs = set_unit_to_var(obs)
+        pred.write_parquet(flow_pred_file + ".parquet")
+        obs.write_parquet(flow_obs_file + ".parquet")
 
     def eval_result(self, preds_xr, obss_xr):
         # types of observations
@@ -116,19 +118,14 @@ class Resulter:
         if type(fill_nan) is list and len(fill_nan) != len(target_col):
             raise ValueError("length of fill_nan must be equal to target_col's")
         eval_log = {}
-        for i, col in enumerate(target_col):
-            obs = obss_xr[col].to_numpy()
-            pred = preds_xr[col].to_numpy()
-
-            eval_log = calculate_and_record_metrics(
-                obs,
-                pred,
-                evaluation_metrics,
-                col,
-                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
-                eval_log,
-            )
-
+        compare_df = preds_xr.join(obss_xr, on=['basin_id', 'time'], suffix='_obs')
+        for i, col in enumerate(target_col[:-2]):
+            ngrid = len(compare_df['basin_id'].unique())
+            # 对于polars DataFrame而言，obs_xr[col].to_numpy()是所有流域所有时间的数值
+            obs = compare_df[f'{col}_obs'].to_numpy().reshape(ngrid, -1)
+            pred = compare_df[f'{col}'].to_numpy().reshape(ngrid, -1)
+            eval_log = calculate_and_record_metrics(obs, pred, evaluation_metrics, col,
+                                                    fill_nan[i] if isinstance(fill_nan, list) else fill_nan, eval_log,)
         # Finally, try to explain model behaviour using shap
         is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
         if is_shap:

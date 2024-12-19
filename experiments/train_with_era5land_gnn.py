@@ -20,6 +20,8 @@ import networkx as nx
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
+# from torchhydro.trainers.trainer import train_and_evaluate
+
 # 设置日志记录器的级别为 INFO
 logging.basicConfig(level=logging.INFO)
 
@@ -69,7 +71,7 @@ def create_config_Seq2Seq():
             "source": "HydroMean",
             "source_path": "/ftproot/basins-interim/",
         },
-        ctx=[1],
+        ctx=[1, 2],
         model_name="Seq2SeqGNN",
         model_hyperparam={
             "en_input_size": 50,

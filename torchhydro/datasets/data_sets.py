@@ -450,12 +450,12 @@ class BaseDataset(Dataset):
             else:
                 # some dataloader load data with warmup period, so leave some periods for it
                 # [warmup_len] -> time_start -> [rho] -> [horizon]
-                basin_df = self.y.filter(self.y['basin_id']==self.basins[basin])
-                nan_array = np.isnan(basin_df[basin_df.columns[:-2]].to_numpy())
+                nan_array = torch.isnan(self.y[basin])
+                # TODO: 这里的流程有待优化，速度太慢
                 lookup.extend(
                     (basin, f)
                     for f in range(warmup_length, max_time_length - rho - horizon + 1)
-                    if not np.all(nan_array[f + rho: f + rho + horizon])
+                    if not torch.all(nan_array[f + rho: f + rho + horizon])
                 )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
@@ -815,26 +815,23 @@ class GNNDataset(Seq2SeqDataset):
             basin, idx = self.lookup_table[item]
             rho, horizon = self.rho, self.horizon
             prec = self.data_cfgs["prec_window"]
-            basin_df = self.x.filter(self.x['basin_id'] == self.basins[basin])
-            p = basin_df[idx + 1: idx + rho + horizon + 1, 0].to_torch()
-            s = basin_df[idx: idx + rho, 1:-2].to_torch()
+            p = self.x[basin, idx + 1: idx + rho + horizon + 1, 0]
+            s = self.x[basin, idx: idx + rho, 1:]
             x = torch.concatenate([p[:rho].unsqueeze(1), s], dim=1)
-            str_lev_array = self.x_up.filter(self.x_up['basin_id'] == self.basins[basin])
+            stream_up = self.x_up[basin, idx: idx + rho, :]
             # stream_up_p = str_lev_array[:, idx + 1: idx + rho + horizon + 1]
-            stream_up = str_lev_array[idx: idx + rho, 2:].to_torch()
             # x_ps_up = np.stack((stream_up_p[:rho], stream_up_s), axis=1)
             c = self.c[basin, :]
             c = torch.tensor(np.tile(c, (rho + horizon, 1)))
             x = torch.concatenate((x, stream_up, c[:rho]), dim=1)
             # x_h = np.concatenate((np.expand_dims(stream_up_p[rho:], -1), c[rho:]), axis=1)
             p_rho = p[rho:].unsqueeze(1)
-            pad_p = torch.nn.functional.pad(p_rho, ((0, c[rho:].shape[0] - p_rho.shape[0]), (0, 0)), 'replicate') \
+            pad_p = torch.nn.functional.pad(p_rho, (0, 0, 0, c[rho:].shape[0] - p_rho.shape[0]), 'constant', 0) \
                     if p_rho.shape[0] < c[rho:].shape[0] else p_rho
             x_h = torch.concatenate((pad_p, c[rho:]), dim=1)
-            y_df = self.y.filter(self.y['basin_id'] == self.basins[basin])
-            y = y_df[idx + rho - prec + 1: idx + rho + horizon + 1, :-2].to_torch()
+            y = self.y[basin, idx + rho - prec + 1: idx + rho + horizon + 1, :]
             if y.shape[0] < horizon + prec:
-               y = torch.nn.functional.pad(y, ((0, horizon + prec - y.shape[0]), (0, 0)), 'replicate')
+               y = torch.nn.functional.pad(y, (0, 0, 0, horizon + prec - y.shape[0]), 'constant', 0)
             result = (([x.float(), x_h.float(), y.float()], y.float()) if self.is_tra_val_te == "train"
                       else ([x.float(), x_h.float()], y.float()))
             return result
@@ -907,6 +904,10 @@ class GNNDataset(Seq2SeqDataset):
                 zt_origin.write_parquet(zt_origin_path)
             else:
                 zt_origin = pl.read_parquet(zt_origin_path)
+                tm_range = pd.date_range(start_date, adjusted_end_date, freq=time_unit)
+                zt_part = (zt_origin.group_by('basin_id', maintain_order=True).agg(pl.all().slice(0, len(tm_range))).
+                            explode(pl.exclude('basin_id')))
+                zt_origin = pl.concat([zt_part[:, 1:-1], zt_part[['basin_id', 'time']]], how='horizontal')
             zt_origin = zt_origin.with_columns(pl.col(pl.Float64).cast(pl.Float32))
             subsets = pl.concat([subset[time_unit], zt_origin])
             subset_list.append(subsets)
@@ -959,6 +960,15 @@ class GNNDataset(Seq2SeqDataset):
         """To make __getitem__ more efficient,
         we transform x, y, c to numpy array with shape (nsample, nt, nvar)
         """
+        station_len = len(self.x['basin_id'].unique())
+        x_truncated = (self.x.group_by('basin_id', maintain_order=True).agg(pl.all().slice(0, len(self.x) // station_len)).
+                       explode(pl.exclude("basin_id")))
+        y_trucnated = (self.y.group_by('basin_id', maintain_order=True).agg(pl.all().slice(0, len(self.x) // station_len)).
+                       explode(pl.exclude("basin_id")))
+        self.x = x_truncated[:, 1:-1].to_torch().reshape(station_len, len(self.x) // station_len, self.x.width-2)
+        self.y = y_trucnated[:, 1:-1].to_torch().reshape(station_len, len(self.y) // station_len, self.y.width-2)
+        basins_len = len(self.x_up['basin_id'].unique())
+        self.x_up = self.x_up[:, 2:].to_torch().reshape(basins_len, len(self.x_up) // basins_len, self.x_up.width-2)
         if self.c is not None and self.c.shape[-1] > 0:
             self.c = self.c.transpose("basin", "variable").to_numpy()
             self.c_origin = self.c_origin.transpose("basin", "variable").to_numpy()
@@ -968,17 +978,20 @@ class GNNDataset(Seq2SeqDataset):
         res_dir = self.data_cfgs["test_path"]
         min_time_interval = self.data_cfgs['min_time_interval']
         obj_len = len(self.data_cfgs['object_ids'])
+        cut_len = self.data_cfgs['upstream_cut']
         tra_val_te_ds = os.path.join(res_dir, f'upstream_ds_{self.is_tra_val_te}_{obj_len}_{min_time_interval}h.parquet')
         if os.path.exists(tra_val_te_ds):
             total_df = pl.read_parquet(tra_val_te_ds)
+            save_cols = min(cut_len+2, len(total_df.columns)-2)
         else:
             nodes_df = self.data_cfgs['basins_stations_df']
             nodes_df['basin_id'] = nodes_df['basin_id'].astype(str).str.zfill(8)
             nodes_df['node_id'] = nodes_df['node_id'].astype(str)
             max_app_cols = int(nodes_df['upstream_len'].max()) - 1
+            save_cols = min(cut_len+2, max_app_cols)
             total_df = pl.DataFrame()
             freq = f'{min_time_interval}h'
-            for node_name in np.unique(nodes_df['basin_id'].to_numpy()):
+            for node_name in np.unique(nodes_df['station_id'].to_numpy()):
                 station_df = pl.DataFrame()
                 # basin_id = nodes_df[nodes_df['station_id'] == node_name]['basin_id'].to_list()[0]
                 node_id = nodes_df['node_id'][nodes_df['station_id'] == node_name].to_list()[0]
@@ -987,6 +1000,7 @@ class GNNDataset(Seq2SeqDataset):
                     up_node_names = nodes_df['station_id'][nodes_df['node_id'].isin(up_set)]
                     # read_data_with_id放在if下方减少读盘次数
                     # 上游站点最多的10701300站，在成图阶段上游有30个站，但是basin_stations里以其为下游的站却有34个，原因暂不明确
+                    # 与流域相交的站点，和上游能找到的站点数量不等，后者比前者少得多，可能是因为USGS的站点也有“三岔口问题”
                     streamflow_dfs = [self.read_data_with_id(up_node_name) for up_node_name in up_node_names]
                     if len(streamflow_dfs) > max_app_cols:
                         streamflow_dfs = streamflow_dfs[:max_app_cols]
@@ -1025,6 +1039,7 @@ class GNNDataset(Seq2SeqDataset):
                         station_df = pl.concat([station_df, up_str_df],  how='horizontal')
                         total_df = pl.concat([total_df, station_df])
             total_df.write_parquet(tra_val_te_ds)
+        total_df = total_df[total_df.columns[:save_cols]]
         return total_df
 
     def read_data_with_id(self, node_name: str):
