@@ -11,8 +11,12 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 import copy
 import os
 from functools import reduce
-import polars as pl
 import lightning
+from experiments.fabric_launcher_config import create_config_fabric
+# Important: for multi-processing safe, Fabric.launch() should start before `import polars`
+config_data = create_config_fabric()
+total_fab = lightning.Fabric(devices=config_data['training_cfgs']['device'], num_nodes=1, strategy=config_data['training_cfgs']['strategy'])
+total_fab.launch()
 import numpy as np
 import torch
 import torch.optim as optim
@@ -80,6 +84,7 @@ def model_infer(seq_first, device, model, xs, ys):
 def denormalize4eval(
     validation_data_loader, output, labels, length=0, long_seq_pred=True, layer_norm=False
 ):
+    import polars as pl
     if not layer_norm:
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
@@ -127,25 +132,6 @@ def denormalize4eval(
         preds_xr = preds_xr.with_columns(y_selected['basin_id'], y_selected['time'])
         obss_xr = pl.from_numpy(labels.reshape(-1, 2), schema=['streamflow', 'sm_surface'])
         obss_xr = obss_xr.with_columns(y_selected['basin_id'], y_selected['time'])
-        # output_slice = output[:, length+rho: length - horizon, :]
-        '''
-        # 2626!=2625, so add prec_window at the end, but is it correct?
-        y_time_points = valid_ds.times[length + rho : length - horizon + valid_ds.data_cfgs['prec_window']]
-        y_selected = valid_ds.y_origin.sel(time=y_time_points)
-        units = {k: "dimensionless" for k in valid_ds.y_origin.attrs["units"].keys()}
-        preds_xr = xr.DataArray(
-            output.transpose(2, 0, 1),
-            dims=valid_ds.y_origin.dims,
-            coords=y_selected.coords,
-            attrs={"units": units},
-        ).to_dataset(dim='variable')
-        obss_xr =xr.DataArray(
-            labels.transpose(2, 0, 1),
-            dims=valid_ds.y_origin.dims,
-            coords=y_selected.coords,
-            attrs={"units": units},
-        ).to_dataset(dim='variable')
-        '''
     return preds_xr, obss_xr
 
 
@@ -202,7 +188,7 @@ class EarlyStopper(object):
         return True
 
     def save_model_checkpoint(self, model, save_dir):
-        torch.save(model.state_dict(), os.path.join(save_dir, "best_model.pth"))
+        total_fab.save(os.path.join(save_dir, "best_model.pth"), model.state_dict())
 
 
 def calculate_and_record_metrics(

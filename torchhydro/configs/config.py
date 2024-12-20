@@ -1083,7 +1083,7 @@ def update_cfg(cfg_file, new_args):
                 "Please make sure size of vars in data_cfgs/target_cols is same as n_output"
             )
     if new_args.model_hyperparam is None:
-        raise AttributeError("Please set the model_hyperparam!!!")
+        print('Notice, you have not set model_hyperparams!')
     else:
         cfg_file["model_cfgs"]["model_hyperparam"] = new_args.model_hyperparam
         if "batch_size" in new_args.model_hyperparam.keys():
@@ -1102,7 +1102,7 @@ def update_cfg(cfg_file, new_args):
                 "prec_window"
             ]
     if new_args.batch_size is None:
-        raise AttributeError("Please set the batch_size!!!")
+        print('Notice, you have not set batch_size!')
     batch_size = new_args.batch_size
     cfg_file["data_cfgs"]["batch_size"] = batch_size
     cfg_file["training_cfgs"]["batch_size"] = batch_size
@@ -1126,8 +1126,7 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
         if "warmup_length" in new_args.model_hyperparam.keys() and (
             not cfg_file["data_cfgs"]["warmup_length"]
-            == new_args.model_hyperparam["warmup_length"]
-        ):
+            == new_args.model_hyperparam["warmup_length"]):
             raise RuntimeError(
                 "Please set same warmup_length in model_cfgs and data_cfgs"
             )

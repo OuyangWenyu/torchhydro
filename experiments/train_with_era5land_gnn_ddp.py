@@ -13,10 +13,9 @@ import os
 
 import dgl
 
-from experiments.train_with_era5land_gnn import get_upstream_graph
-from torchhydro.configs.config import cmd, default_config_file, update_cfg
-# import torch.multiprocessing as mp
-# from torchhydro.trainers.deep_hydro import gnn_train_worker
+from experiments.fabric_launcher_config import create_config_fabric
+from torchhydro.datasets.create_graph import get_upstream_graph
+from torchhydro.configs.config import cmd, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
 # 设置日志记录器的级别为 INFO
@@ -30,19 +29,8 @@ for logger_name in logging.root.manager.loggerDict:
 prechn_gage_id = [gage_id.split('/')[-1].split('.')[0] for gage_id in glob.glob('/ftproot/basins-interim/timeseries/1h/*.csv', recursive=True)]
 camels_hourly_usgs = [file.split('/')[-1].split('-')[0] for file in glob.glob('/ftproot/camels_hourly/data/usgs_streamflow_csv/*.csv', recursive=True)]
 pre_gage_ids = [gage_id for gage_id in prechn_gage_id if (gage_id.split('_')[-1] in camels_hourly_usgs) | ('songliao' in gage_id)]
-'''
-# basin_stations.csv, L100-148, L150-156
-remove_list = ['02018000','02027000','02027500','02028500','02038850','02046000','02051500','02053200','02053800',
-               '02055100','02056900','02059500','02064000','02065500','02069700','02070000','02074500','02077200',
-               '02081500','02082950','02092500','02096846','02102908','02108000','02111180','02111500','02118500',
-               '02128000','02137727','02140991','02143000','02143040','02149000','02152100','02177000','02178400',
-               '02193340','02196000','02198100','02202600','02212600','02215100','02216180','02221525','02231000',
-               '02245500','02246000','02296500','02297155','02298123','02298608','02299950','02300700','02349900',
-               '02350900','02361000']
-'''
 remove_list = ['03604000']
 pre_gage_ids = [gage_id for gage_id in pre_gage_ids if gage_id.split('_')[1] not in remove_list]
-# fab = lightning.Fabric(devices=[1, 2], num_nodes=1, strategy='ddp_spawn')
 
 def test_run_model():
     # os.environ['CUDA_VISIBLE_DEVICES'] = '1,2'
@@ -53,17 +41,13 @@ def test_run_model():
     config_data['data_cfgs']['graph'] = graph_tuple[0]
     config_data['model_cfgs']['model_hyperparam']['graph'] = dgl.from_networkx(graph_tuple[0])
     config_data['data_cfgs']['basins_stations_df'] = graph_tuple[1]
-    # world_size = len(config_data["training_cfgs"]["device"])
-    # glock = mp.Manager().Lock()
-    # mp.spawn(gnn_train_worker, args=(world_size, config_data, None), nprocs=world_size, join=True)
-    # RuntimeWarning: Using fork() can cause Polars to deadlock in the child process.
     train_and_evaluate(config_data)
 
 
 def create_config_Seq2Seq():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_era5land", "ex1_642")
-    config_data = default_config_file()
+    project_name = os.path.join("train_with_era5land", "ex1_643")
+    config_data = create_config_fabric()
     network_shp_path = "/home/wangyang1/sl_sx_usa_shps/SL_USA_HydroRiver_single.shp"
     node_shp_path = "/home/wangyang1/hydrodatasource/tests/sl_stcd_locs/iowa_usgs_hml_sl_stations.shp"
     graph_tuple = get_upstream_graph(pre_gage_ids, os.path.join(os.getcwd(), 'results', project_name),
@@ -78,7 +62,6 @@ def create_config_Seq2Seq():
             "source": "HydroMean",
             "source_path": "/ftproot/basins-interim/",
         },
-        ctx=[2],
         model_name="Seq2SeqMinGNN",
         model_hyperparam={
             "en_input_size": 30,
@@ -125,7 +108,7 @@ def create_config_Seq2Seq():
         dataset="GNNDataset",
         sampler="FullNeighborSampler",
         scaler="DapengScaler",
-        train_epoch=0,
+        train_epoch=20,
         save_epoch=1,
         train_period=[("2016-01-01-01", "2023-11-30-01")],
         test_period=[("2015-01-01-01", "2016-01-01-01")],
@@ -134,7 +117,7 @@ def create_config_Seq2Seq():
         loss_param={
             "loss_funcs": "RMSESum",
             "data_gap": [0, 0],
-            "device": [2],
+            "device": [1, 2],
             "item_weight": [0.8, 0.2],
         },
         opt="Adam",
@@ -162,9 +145,8 @@ def create_config_Seq2Seq():
         num_workers=6,
         pin_memory=True,
         layer_norm=True,
-        weight_path='/home/wangyang1/torchhydro/experiments/results/train_with_era5land/ex1_642/model_Ep10.pth',
+        # weight_path='results/train_with_era5land/ex1_643/model_Ep10.pth',
         upstream_cut=10,
-        strategy='ddp',
     )
     # 更新默认配置
     update_cfg(config_data, args)

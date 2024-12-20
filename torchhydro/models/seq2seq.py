@@ -449,7 +449,7 @@ class EncoderMinLSTMGNN(nn.Module):
         self.gnn0 = gatv2conv.GATv2Conv(input_dim, input_dim, num_heads=num_heads)
         self.gnn1 = gatv2conv.GATv2Conv(input_dim * num_heads, input_dim, num_heads=1)
         self.dropout = nn.Dropout(dropout)
-        self.ln1 = LayerNorm(input_dim)
+        # self.ln1 = LayerNorm(input_dim)
         self.fc = nn.Linear(input_dim, output_dim)
 
     def forward(self, x):
@@ -481,7 +481,7 @@ class DecoderMinLSTMGNN(nn.Module):
         self.fc_out = nn.Linear(input_dim, output_dim)
 
     def forward(self, input):
-        # input = torch.where(torch.isnan(input), 0, input)
+        input = torch.where(torch.isnan(input), 0, input)
         outputs = self.lstm1(self.lstm(input))
         outputs = torch.where(torch.isnan(outputs), input, outputs)
         outputs = input + outputs

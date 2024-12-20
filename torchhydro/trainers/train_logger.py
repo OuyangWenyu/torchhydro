@@ -10,23 +10,23 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 
 from contextlib import contextmanager
 from datetime import datetime
-import json
 import os
 import time
 from hydroutils import hydro_file
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
+from torchhydro.trainers.train_utils import total_fab
 
 
 def save_model(model, model_file, gpu_num=1):
     try:
         if torch.cuda.device_count() > 1 and gpu_num > 1:
-            torch.save(model.module.state_dict(), model_file)
+            total_fab.save(model.module.state_dict(), model_file)
         else:
-            torch.save(model.state_dict(), model_file)
+            total_fab.save(model.state_dict(), model_file)
     except RuntimeError:
-        torch.save(model.module.state_dict(), model_file)
+        total_fab.save(model.module.state_dict(), model_file)
 
 
 def save_model_params_log(params, params_log_path):
