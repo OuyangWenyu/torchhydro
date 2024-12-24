@@ -1036,7 +1036,8 @@ def lstm_pbm(dl_model, pb_model, param_func, x, z):
         )
     # just get one-period values, here we use the final period's values
     params = params_[-1, :, :]
-    return pb_model(x[:, :, : pb_model.feature_size], params)
+    result = pb_model(x[:, :, : pb_model.feature_size], params)
+    return result
 
 
 def ann_pbm(dl_model, pb_model, param_func, x, z):
