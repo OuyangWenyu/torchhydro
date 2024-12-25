@@ -16,10 +16,8 @@ from functools import reduce
 from typing import Dict, Tuple
 import numpy as np
 import torch
-import torch.distributed as dist
 from dgl.dataloading import GraphDataLoader, MultiLayerFullNeighborSampler
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
-from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import *
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
@@ -49,7 +47,6 @@ from torchhydro.trainers.train_utils import (
     compute_validation,
     model_infer,
     torch_single_train,
-    cellstates_when_inference,
     calculate_and_record_metrics
 )
 
@@ -184,15 +181,6 @@ class DeepHydro(DeepHydroInterface):
             model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
             # model_data = torch.load(weight_path)
             # model.load_state_dict(model_data)
-        '''
-        if torch.cuda.device_count() > 1 and len(self.device_num) > 1:
-            print("Let's use", torch.cuda.device_count(), "GPUs!")
-            which_first_tensor = self.cfgs["training_cfgs"]["which_first_tensor"]
-            sequece_first = which_first_tensor == "sequence"
-            parallel_dim = 1 if sequece_first else 0
-            model = nn.DataParallel(model, device_ids=self.device_num, dim=parallel_dim)
-        model.to(self.device)
-        '''
         return model
 
     def _load_pretrain_model(self):
@@ -275,9 +263,7 @@ class DeepHydro(DeepHydroInterface):
                     )
 
             self._scheduler_step(training_cfgs, scheduler, valid_loss)
-            logger.save_session_param(
-                epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
-            )
+            logger.save_session_param(epoch, total_loss, n_iter_ep, valid_loss, valid_metrics)
             logger.save_model_and_params(self.model, epoch, self.cfgs)
             if es and not es.check_loss(
                 self.model,
@@ -439,7 +425,7 @@ class DeepHydro(DeepHydroInterface):
         if pred.ndim == 4:
             pred = pred[:, :, data_cfgs["prec_window"], :]
             obs = obs[:, :, data_cfgs["prec_window"], :]
-            pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs, long_seq_pred=False, layer_norm=data_cfgs["layer_norm"])
+            pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs, long_seq_pred=False, pre_norm=data_cfgs["pre_norm"])
         else:
             if pred.ndim == 2:
                 # TODO: check
@@ -477,10 +463,11 @@ class DeepHydro(DeepHydroInterface):
                 )
             else:
                 pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
-            # TODO: not support return_cell_states yet
+            '''
             return_cell_state = False
             if return_cell_state:
                 return cellstates_when_inference(seq_first, data_cfgs, pred)
+            '''
         fill_nan = evaluation_cfgs["fill_nan"]
         eval_log = {}
         compare_df = pred_xr.join(obs_xr, on=['basin_id', 'time'], suffix='_obs')
@@ -557,9 +544,9 @@ class DeepHydro(DeepHydroInterface):
                 timeout=0,
             )
         else:
-            data_loader = GraphDataLoader(train_dataset, batch_size=training_cfgs["batch_size"],
+            data_loader = GraphDataLoader(train_dataset, use_ddp=True, batch_size=training_cfgs["batch_size"],
                                           shuffle=(sampler is None) & (data_cfgs["sampler"]!='DistSampler'),
-                                          drop_last=True, num_workers=worker_num)
+                                          drop_last=True, num_workers=worker_num) #, multiprocessing_context='spawn')
         data_loader = self.fab.setup_dataloaders(data_loader)
         if data_cfgs["t_range_valid"] is not None:
             valid_dataset: BaseDataset = self.validdataset

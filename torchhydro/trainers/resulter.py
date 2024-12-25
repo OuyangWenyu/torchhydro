@@ -1,20 +1,16 @@
-from functools import partial
+import fnmatch
+import os
+from typing import Tuple, Union
 
 import numpy as np
 import pandas as pd
-import os
-from typing import Tuple, Union
-import fnmatch
-import polars as pl
 from hydroutils.hydro_file import unserialize_numpy
 from hydroutils.hydro_stat import stat_error
 
-from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.explainers.shap import (
-    deep_explain_model_heatmap,
-    deep_explain_model_summary_plot,
     shap_summary_plot,
 )
+from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.trainers.train_utils import calculate_and_record_metrics
 
 
@@ -86,10 +82,6 @@ class Resulter:
             predictions
         obs
             observations
-        pred_name
-            the file name of predictions
-        obs_name
-            the file name of observations
 
         Returns
         -------

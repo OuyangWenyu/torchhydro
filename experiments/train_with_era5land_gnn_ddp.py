@@ -46,7 +46,7 @@ def test_run_model():
 
 def create_config_Seq2Seq():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_era5land", "ex1_643")
+    project_name = os.path.join("train_with_era5land", "ex1_644")
     config_data = create_config_fabric()
     network_shp_path = "/home/wangyang1/sl_sx_usa_shps/SL_USA_HydroRiver_single.shp"
     node_shp_path = "/home/wangyang1/hydrodatasource/tests/sl_stcd_locs/iowa_usgs_hml_sl_stations.shp"
@@ -71,7 +71,9 @@ def create_config_Seq2Seq():
             "forecast_length": 56,
             "prec_window": 1,
             "teacher_forcing_ratio": 0.5,
+            "pre_norm": True, # 是否启用预归一化，True则使用DapengScaler等预归一化手段，False则不启用
             # "dropout": 0.1,
+            "upstream_cut": 10
         },
         model_loader={"load_way": "best"},
         gage_id=train_stas_basins,
@@ -108,7 +110,7 @@ def create_config_Seq2Seq():
         dataset="GNNDataset",
         sampler="FullNeighborSampler",
         scaler="DapengScaler",
-        train_epoch=20,
+        train_epoch=4,
         save_epoch=1,
         train_period=[("2016-01-01-01", "2023-11-30-01")],
         test_period=[("2015-01-01-01", "2016-01-01-01")],
@@ -117,7 +119,7 @@ def create_config_Seq2Seq():
         loss_param={
             "loss_funcs": "RMSESum",
             "data_gap": [0, 0],
-            "device": [1, 2],
+            "device": [1],
             "item_weight": [0.8, 0.2],
         },
         opt="Adam",
@@ -136,17 +138,15 @@ def create_config_Seq2Seq():
         # },
         patience=10,
         model_type="GNN_DDP_MTL",
-        continue_train=False,
+        continue_train=True,
         network_shp=network_shp_path,
         node_shp=node_shp_path,
         basins_shp="/ftproot/basins-interim/shapes/basins.shp",
         master_addr="localhost",
         port="12345",
-        num_workers=6,
+        num_workers=1,
         pin_memory=True,
-        layer_norm=True,
-        # weight_path='results/train_with_era5land/ex1_643/model_Ep10.pth',
-        upstream_cut=10,
+        weight_path='results/train_with_era5land/ex1_644/model_Ep6.pth',
     )
     # 更新默认配置
     update_cfg(config_data, args)

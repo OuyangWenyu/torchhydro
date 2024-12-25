@@ -22,11 +22,11 @@ from torchhydro.trainers.train_utils import total_fab
 def save_model(model, model_file, gpu_num=1):
     try:
         if torch.cuda.device_count() > 1 and gpu_num > 1:
-            total_fab.save(model.module.state_dict(), model_file)
+            total_fab.save(model_file, model.module.state_dict())
         else:
-            total_fab.save(model.state_dict(), model_file)
+            total_fab.save(model_file, model.state_dict())
     except RuntimeError:
-        total_fab.save(model.module.state_dict(), model_file)
+        total_fab.save(model_file, model.module.state_dict())
 
 
 def save_model_params_log(params, params_log_path):
@@ -112,9 +112,7 @@ class TrainLogger:
                 for evaluation_metric in evaluation_metrics:
                     self.tb.add_scalar(
                         f"Valid{target_col[i]}{evaluation_metric}mean",
-                        np.mean(
-                            valid_metrics[f"{evaluation_metric} of {target_col[i]}"]
-                        ),
+                        np.mean(valid_metrics[f"{evaluation_metric} of {target_col[i]}"]),
                         epoch,
                     )
                     self.tb.add_scalar(
@@ -136,9 +134,12 @@ class TrainLogger:
             return
         if (save_epoch > 0 and epoch % save_epoch == 0) or epoch == final_epoch:
             # save for save_epoch
-            model_file = os.path.join(
-                self.training_save_dir, f"model_Ep{str(epoch)}.pth"
-            )
+            if (self.model_cfgs['continue_train']) & (self.model_cfgs['weight_path'] is not None):
+                # 假设预训练权重文件名为xxxEp{epoch}.pth
+                pre_model = self.model_cfgs["weight_path"]
+                past_epoch = int(pre_model.split('.')[0].split('Ep')[-1])
+                epoch += past_epoch
+            model_file = os.path.join(self.training_save_dir, f"model_Ep{str(epoch)}.pth")
             save_model(model, model_file)
         if epoch == final_epoch:
             self._save_final_epoch(params, model)

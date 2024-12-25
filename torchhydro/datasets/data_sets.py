@@ -811,32 +811,26 @@ class GNNDataset(Seq2SeqDataset):
         super(GNNDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     def __getitem__(self, item: int):
-        if self.data_cfgs['layer_norm']:
-            basin, idx = self.lookup_table[item]
-            rho, horizon = self.rho, self.horizon
-            prec = self.data_cfgs["prec_window"]
-            p = self.x[basin, idx + 1: idx + rho + horizon + 1, 0]
-            s = self.x[basin, idx: idx + rho, 1:]
-            x = torch.concatenate([p[:rho].unsqueeze(1), s], dim=1)
-            stream_up = self.x_up[basin, idx: idx + rho, :]
-            # stream_up_p = str_lev_array[:, idx + 1: idx + rho + horizon + 1]
-            # x_ps_up = np.stack((stream_up_p[:rho], stream_up_s), axis=1)
-            c = self.c[basin, :]
-            c = torch.tensor(np.tile(c, (rho + horizon, 1)))
-            x = torch.concatenate((x, stream_up, c[:rho]), dim=1)
-            # x_h = np.concatenate((np.expand_dims(stream_up_p[rho:], -1), c[rho:]), axis=1)
-            p_rho = p[rho:].unsqueeze(1)
-            pad_p = torch.nn.functional.pad(p_rho, (0, 0, 0, c[rho:].shape[0] - p_rho.shape[0]), 'constant', 0) \
-                    if p_rho.shape[0] < c[rho:].shape[0] else p_rho
-            x_h = torch.concatenate((pad_p, c[rho:]), dim=1)
-            y = self.y[basin, idx + rho - prec + 1: idx + rho + horizon + 1, :]
-            if y.shape[0] < horizon + prec:
-               y = torch.nn.functional.pad(y, (0, 0, 0, horizon + prec - y.shape[0]), 'constant', 0)
-            result = (([x.float(), x_h.float(), y.float()], y.float()) if self.is_tra_val_te == "train"
-                      else ([x.float(), x_h.float()], y.float()))
-            return result
-        else:
-            return super().__getitem__(item)
+        basin, idx = self.lookup_table[item]
+        rho, horizon = self.rho, self.horizon
+        prec = self.data_cfgs["prec_window"]
+        p = self.x[basin, idx + 1: idx + rho + horizon + 1, 0]
+        s = self.x[basin, idx: idx + rho, 1:]
+        x = torch.concatenate([p[:rho].unsqueeze(1), s], dim=1)
+        stream_up = self.x_up[basin, idx: idx + rho, :]
+        c = self.c[basin, :]
+        c = torch.tensor(np.tile(c, (rho + horizon, 1)))
+        x = torch.concatenate((x, c[:rho], stream_up), dim=1)
+        p_rho = p[rho:].unsqueeze(1)
+        pad_p = torch.nn.functional.pad(p_rho, (0, 0, 0, c[rho:].shape[0] - p_rho.shape[0]), 'constant', 0) \
+                if p_rho.shape[0] < c[rho:].shape[0] else p_rho
+        x_h = torch.concatenate((pad_p, c[rho:]), dim=1)
+        y = self.y[basin, idx + rho - prec + 1: idx + rho + horizon + 1, :]
+        if y.shape[0] < horizon + prec:
+           y = torch.nn.functional.pad(y, (0, 0, 0, horizon + prec - y.shape[0]), 'constant', 0)
+        result = (([x.float(), x_h.float(), y.float()], y.float()) if self.is_tra_val_te == "train"
+                  else ([x.float(), x_h.float()], y.float()))
+        return result
 
     def __len__(self):
         # 15118/train, 2626/test
@@ -914,24 +908,17 @@ class GNNDataset(Seq2SeqDataset):
         return pl.concat(subset_list)
 
     def _normalize(self):
-        if not self.data_cfgs["layer_norm"]:
+        if self.data_cfgs["pre_norm"]:
             scaler_hub = ScalerHub(
                 self.y_origin,
-                # TODO: 需要整体归一化, 目前仍有bug
-                np.concatenate([self.x_origin, self.x_up.to_array()]),
-                # self.x_origin,
+                self.x_origin,
                 self.c_origin,
                 data_cfgs=self.data_cfgs,
                 is_tra_val_te=self.is_tra_val_te,
-                data_source=self.data_source,
-            )
+                data_source=self.data_source)
             self.target_scaler = scaler_hub.target_scaler
-            return scaler_hub.x.compute(), scaler_hub.y.compute(), scaler_hub.c.compute()
+            return scaler_hub.x, scaler_hub.y, scaler_hub.c.compute()
         else:
-            '''
-            x_origin = xr.concat([self.x_origin.rename({'basin':'basin_id'}), upstream_ds.to_array(dim='variable')],
-                                 dim=['basin_id', 'time', 'variable'])
-            '''
             return self.x_origin, self.y_origin, self.c_origin.compute()
 
 

@@ -10,12 +10,8 @@ Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 import glob
 import logging
 import os
-from itertools import chain
 
 import dgl
-import numpy as np
-import geopandas as gpd
-import networkx as nx
 
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.datasets.create_graph import get_upstream_graph
@@ -153,7 +149,6 @@ def create_config_Seq2Seq():
         num_workers=4,
         pin_memory=True,
         weight_path='/home/wangyang1/torchhydro/experiments/results/train_with_era5land/ex1_540_basins/model_Ep2.pth',
-        layer_norm=True
     )
     # ['songliao_11205200', 'songliao_11200400', 'songliao_11007700', 'songliao_10811000', 'songliao_10541278', 'camels_03604000']
     # 更新默认配置

@@ -65,6 +65,8 @@ def default_config_file():
                 "bias": True,
                 "batch_size": 100,
                 "dropout": 0.2,
+                "pre_norm": False,
+                "upstream_cut": 5
             },
             "weight_path": None,
             "continue_train": True,
@@ -214,7 +216,7 @@ def default_config_file():
             "network_shp": None,
             "node_shp": None,
             "basins_shp": None,
-            "layer_norm": False,
+            "pre_norm": False,
             "upstream_cut": 5
         },
         "training_cfgs": {
@@ -371,8 +373,6 @@ def cmd(
     network_shp=None,
     node_shp=None,
     basins_shp=None,
-    layer_norm=None,
-    upstream_cut=5,
     strategy='ddp'
 ):
     """input args from cmd"""
@@ -798,13 +798,6 @@ def cmd(
         type=bool,
     )
     parser.add_argument(
-        "--layer_norm",
-        dest="layer_norm",
-        help="use LayerNorm instead of pre normalization",
-        default=layer_norm,
-        type=bool,
-    )
-    parser.add_argument(
         "--which_first_tensor",
         dest="which_first_tensor",
         help="sequence_first or batch_first",
@@ -882,13 +875,6 @@ def cmd(
         type=str,
     )
     parser.add_argument(
-        "--upstream_cut",
-        dest="upstream_cut",
-        help="amount of stations should be retained in GNNDataset",
-        default=upstream_cut,
-        type=int,
-    )
-    parser.add_argument(
         "--strategy",
         dest="strategy",
         help="Strategy of dataloading in lighning fabric",
@@ -956,8 +942,11 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["dataset"] = new_args.dataset
     if new_args.sampler is not None:
         cfg_file["data_cfgs"]["sampler"] = new_args.sampler
-    if new_args.layer_norm is not None:
-        cfg_file["data_cfgs"]["layer_norm"] = new_args.layer_norm
+    if new_args.model_hyperparam is not None:
+        if new_args.model_hyperparam["pre_norm"] is not None:
+            cfg_file["data_cfgs"]["pre_norm"] = new_args.model_hyperparam["pre_norm"]
+        if new_args.model_hyperparam["upstream_cut"] is not None:
+            cfg_file["data_cfgs"]["upstream_cut"] = new_args.model_hyperparam["upstream_cut"]
     if new_args.fl_sample is not None:
         if new_args.fl_sample not in ["basin", "region"]:
             # basin means each client is a basin
@@ -1050,8 +1039,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["node_shp"] = new_args.node_shp
     if new_args.basins_shp is not None:
         cfg_file["data_cfgs"]["basins_shp"] = new_args.basins_shp
-    if new_args.upstream_cut is not None:
-        cfg_file["data_cfgs"]["upstream_cut"] = new_args.upstream_cut
     if new_args.long_seq_pred is not None:
         cfg_file["evaluation_cfgs"]["long_seq_pred"] = new_args.long_seq_pred
     if new_args.calc_metrics is not None:
@@ -1087,20 +1074,12 @@ def update_cfg(cfg_file, new_args):
     else:
         cfg_file["model_cfgs"]["model_hyperparam"] = new_args.model_hyperparam
         if "batch_size" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["batch_size"] = new_args.model_hyperparam[
-                "batch_size"
-            ]
-            cfg_file["training_cfgs"]["batch_size"] = new_args.model_hyperparam[
-                "batch_size"
-            ]
+            cfg_file["data_cfgs"]["batch_size"] = new_args.model_hyperparam["batch_size"]
+            cfg_file["training_cfgs"]["batch_size"] = new_args.model_hyperparam["batch_size"]
         if "forecast_length" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["forecast_length"] = new_args.model_hyperparam[
-                "forecast_length"
-            ]
+            cfg_file["data_cfgs"]["forecast_length"] = new_args.model_hyperparam["forecast_length"]
         if "prec_window" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam[
-                "prec_window"
-            ]
+            cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam["prec_window"]
     if new_args.batch_size is None:
         print('Notice, you have not set batch_size!')
     batch_size = new_args.batch_size
@@ -1127,9 +1106,7 @@ def update_cfg(cfg_file, new_args):
         if "warmup_length" in new_args.model_hyperparam.keys() and (
             not cfg_file["data_cfgs"]["warmup_length"]
             == new_args.model_hyperparam["warmup_length"]):
-            raise RuntimeError(
-                "Please set same warmup_length in model_cfgs and data_cfgs"
-            )
+            raise RuntimeError("Please set same warmup_length in model_cfgs and data_cfgs")
     if new_args.forecast_history is not None:
         cfg_file["data_cfgs"]["forecast_history"] = new_args.forecast_history
     if new_args.forecast_history is not None:

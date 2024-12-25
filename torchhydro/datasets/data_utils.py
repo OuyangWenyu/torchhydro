@@ -155,6 +155,65 @@ def wrap_t_s_dict(data_cfgs: dict, is_tra_val_te: str) -> OrderedDict:
 
 
 def _trans_norm(
+    x: pl.DataFrame,
+    var_lst: list,
+    stat_dict: dict,
+    log_norm_cols: list = None,
+    to_norm: bool = True,
+    **kwargs,
+) -> np.array:
+    """
+    Normalization or inverse normalization
+
+    There are two normalization formulas:
+
+    .. math:: normalized_x = (x - mean) / std
+
+    and
+
+     .. math:: normalized_x = [log_{10}(\sqrt{x} + 0.1) - mean] / std
+
+     The later is only for vars in log_norm_cols; mean is mean value; std means standard deviation
+
+    Parameters
+    ----------
+    x
+        data to be normalized or denormalized
+    var_lst
+        the type of variables
+    stat_dict
+        statistics of all variables
+    log_norm_cols
+        which cols use the second norm method
+    to_norm
+        if true, normalize; else denormalize
+
+    Returns
+    -------
+    np.array
+        normalized or denormalized data
+    """
+    if x is None:
+        return None
+    if log_norm_cols is None:
+        log_norm_cols = []
+    if type(var_lst) is str:
+        var_lst = [var_lst]
+    out = pl.from_numpy(np.full_like(x, 0), schema=x.schema)
+    for item in var_lst:
+        stat = stat_dict[item]
+        if to_norm:
+            item_arr = (np.log10(np.sqrt(np.abs(x[item])) + 0.1) - stat[2]) / stat[3] if item in log_norm_cols else (x[item] - stat[2]) / stat[3]
+            out = out.with_columns(pl.Series(item_arr).cast(pl.Float32).alias(item))
+        elif item in log_norm_cols:
+            item_arr = (np.power(10, x[item] * stat[3] + stat[2]) - 0.1) ** 2
+            out = out.with_columns(pl.Series(item_arr).cast(pl.Float32).alias(item))
+        else:
+            out = out.with_columns((x[item] * stat[3] + stat[2]).alias(item))
+    return out
+
+
+def _trans_norm_xr(
     x: xr.DataArray,
     var_lst: list,
     stat_dict: dict,
@@ -211,8 +270,8 @@ def _trans_norm(
             )
         elif item in log_norm_cols:
             out.loc[dict(variable=item)] = (
-                np.power(10, x.sel(variable=item) * stat[3] + stat[2]) - 0.1
-            ) ** 2
+                                               np.power(10, x.sel(variable=item) * stat[3] + stat[2]) - 0.1
+                                           ) ** 2
         else:
             out.loc[dict(variable=item)] = x.sel(variable=item) * stat[3] + stat[2]
     if to_norm:
@@ -225,7 +284,6 @@ def _trans_norm(
             for item in var_lst:
                 out.attrs["units"][item] = recover_units[item]
     return out
-
 
 def _prcp_norm(x: np.array, mean_prep: np.array, to_norm: bool) -> np.array:
     """
@@ -252,13 +310,11 @@ def _prcp_norm(x: np.array, mean_prep: np.array, to_norm: bool) -> np.array:
     tempprep = np.tile(mean_prep, (1, x.shape[1]))
     return x / tempprep if to_norm else x * tempprep
 
-
+'''
 def dor_reservoirs_chosen(gages, usgs_id, dor_chosen) -> list:
     """
     choose basins of small DOR(calculated by NOR_STORAGE/RUNAVE7100)
-
     """
-
     dors = get_dor_values(gages, usgs_id)
     if type(dor_chosen) in [list, tuple]:
         # right half-open range
@@ -274,7 +330,7 @@ def dor_reservoirs_chosen(gages, usgs_id, dor_chosen) -> list:
 
     assert all(x < y for x, y in zip(chosen_id, chosen_id[1:]))
     return chosen_id
-
+'''
 
 def choose_sites_in_ecoregion(
     gages, site_ids: list, ecoregion: Union[list, tuple]
@@ -382,7 +438,7 @@ def choose_basins_with_area(
             sites_chosen[sites_index[i]] = 1
     return [usgs_ids[i] for i in range(len(sites_chosen)) if sites_chosen[i] > 0]
 
-
+'''
 def diversion_chosen(gages, usgs_id):
     diversion_strs = ["diversion", "divert"]
     assert all(x < y for x, y in zip(usgs_id, usgs_id[1:]))
@@ -401,7 +457,7 @@ def diversion_chosen(gages, usgs_id):
         for i in range(len(usgs_id))
         if is_any_elem_in_a_lst(diversion_strs_lower, data_attr_lower[i], include=True)
     ]
-
+'''
 
 def dam_num_chosen(gages, usgs_id, dam_num):
     """choose basins of dams"""

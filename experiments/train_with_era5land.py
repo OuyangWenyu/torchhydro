@@ -145,7 +145,6 @@ def create_config_Seq2Seq():
 
     # 更新默认配置
     update_cfg(config_data, args)
-
     return config_data
 
 

@@ -8,7 +8,7 @@ FilePath: /torchhydro/torchhydro/datasets/data_scalers.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
-import copy
+import polars as pl
 import json
 import os
 import pickle as pkl
@@ -33,7 +33,7 @@ from sklearn.preprocessing import (
 from torchhydro.datasets.data_utils import (
     _trans_norm,
     _prcp_norm,
-    wrap_t_s_dict,
+    wrap_t_s_dict, _trans_norm_xr,
 )
 
 SCALER_DICT = {
@@ -288,15 +288,12 @@ class DapengScaler(object):
     def mean_prcp(self):
         if (self.data_cfgs['network_shp'] is None) and (self.data_cfgs['node_shp'] is None):
             return (
-                self.data_source.read_mean_prcp(self.t_s_dict["sites_id"])
-                .to_array()
-                .to_numpy()
-                .T  # TODO: check why T is needed
+                self.data_source.read_mean_prcp(self.t_s_dict["sites_id"]).to_array().to_numpy().T
             )
         else:
             gages = self.t_s_dict["sites_id"]
-            basins = [gage for gage in gages if len(gage.split('_')) == 2]
-            stations = [gage for gage in gages if len(gage.split('_')) == 3]
+            basins = [gage for gage in gages if (len(gage.split('_')) == 2) & ('HML' not in gage)]
+            stations = [gage for gage in gages if (len(gage.split('_')) == 3) | ('HML' in gage)]
             basins_array = self.data_source.read_mean_prcp(basins).to_array().to_numpy().T
             station_basins_df = self.data_cfgs['basins_stations_df']
             name_dict = {site: station_basins_df[station_basins_df['station_id']==site]['basin_id'].values[0] for site in stations}
@@ -321,28 +318,18 @@ class DapengScaler(object):
             denormalized predictions
         """
         stat_dict = self.stat_dict
-        target_cols = self.data_cfgs["target_cols"]
+        target_cols = self.data_cfgs["target_cols"][:-2]
         if self.pbm_norm:
             # for pbm's output, its unit is mm/day, so we don't need to recover its unit
             pred = target_values
         else:
-            pred = _trans_norm(
-                target_values,
-                target_cols,
-                stat_dict,
-                log_norm_cols=self.log_norm_cols,
-                to_norm=False,
-            )
+            pred = _trans_norm(target_values, target_cols, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=False)
             for i in range(len(self.data_cfgs["target_cols"])):
                 var = self.data_cfgs["target_cols"][i]
-                pred.loc[dict(variable=var)] = _prcp_norm(
-                    pred.sel(variable=var).to_numpy(),
-                    self.mean_prcp,
-                    to_norm=False,
-                )
+                pred[var] = _prcp_norm(pred[var].to_numpy(), self.mean_prcp, to_norm=False)
         # add attrs for units
-        pred.attrs.update(self.data_target.attrs)
-        return pred.to_dataset(dim="variable")
+        # pred.attrs.update(self.data_target.attrs)
+        return pred #.to_dataset(dim="variable")
 
     def cal_stat_all(self):
         """
@@ -354,31 +341,30 @@ class DapengScaler(object):
             a dict with statistic values
         """
         # streamflow, et, ssm, etc
-        target_cols = self.data_cfgs["target_cols"]
+        target_cols = self.data_cfgs["target_cols"][:-2]
         stat_dict = {}
+        time_len = self.data_target.shape[0] // len(self.t_s_dict['sites_id'])
+        data_target = (self.data_target.group_by('basin_id', maintain_order=True).agg(pl.all().slice(0, time_len)).
+                       explode(pl.exclude('basin_id')))
         for i in range(len(target_cols)):
             var = target_cols[i]
+            var_arr = data_target[var].to_numpy().reshape(len(self.t_s_dict["sites_id"]), -1)
             if var in self.prcp_norm_cols:
-                stat_dict[var] = cal_stat_prcp_norm(
-                    self.data_target.sel(variable=var).to_numpy(),
-                    self.mean_prcp,
-                )
+                stat_dict[var] = cal_stat_prcp_norm(var_arr, self.mean_prcp)
             elif var in self.gamma_norm_cols:
-                stat_dict[var] = cal_stat_gamma(
-                    self.data_target.sel(variable=var).to_numpy()
-                )
+                stat_dict[var] = cal_stat_gamma(var_arr)
             else:
-                stat_dict[var] = cal_stat(self.data_target.sel(variable=var).to_numpy())
+                stat_dict[var] = cal_stat(var_arr)
 
         # forcing
-        forcing_lst = self.data_cfgs["relevant_cols"]
+        forcing_lst = self.data_cfgs["relevant_cols"][:-2]
         x = self.data_forcing
         for k in range(len(forcing_lst)):
             var = forcing_lst[k]
             if var in self.gamma_norm_cols:
-                stat_dict[var] = cal_stat_gamma(x.sel(variable=var).to_numpy())
+                stat_dict[var] = cal_stat_gamma(x[var].to_numpy())
             else:
-                stat_dict[var] = cal_stat(x.sel(variable=var).to_numpy())
+                stat_dict[var] = cal_stat(x[var].to_numpy())
 
         # const attribute
         attr_data = self.data_attr
@@ -406,29 +392,23 @@ class DapengScaler(object):
             the output value for modeling
         """
         stat_dict = self.stat_dict
-        data = self.data_target
-        out = xr.full_like(data, np.nan)
+        time_len = self.data_target.shape[0] // len(self.t_s_dict['sites_id'])
+        data = self.data_target.group_by('basin_id', maintain_order=True).agg(pl.all().slice(0, time_len)).explode(pl.exclude('basin_id'))
+        fdata = data.drop(['basin_id', 'time'])
+        out = pl.from_numpy(data=np.full_like(fdata, fill_value=0), schema=fdata.schema)
         # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
-        out.attrs = copy.deepcopy(data.attrs)
-        target_cols = self.data_cfgs["target_cols"]
+        # out.attrs = copy.deepcopy(data.attrs)
+        target_cols = self.data_cfgs["target_cols"][:-2]
         for i in range(len(target_cols)):
             var = target_cols[i]
             if var in self.prcp_norm_cols:
-                out.loc[dict(variable=var)] = _prcp_norm(
-                    data.sel(variable=var).to_numpy(),
-                    self.mean_prcp,
-                    to_norm=True,
-                )
+                var_arr = fdata[var].to_numpy().reshape(len(self.t_s_dict["sites_id"]), -1)
+                out = out.with_columns(pl.Series(_prcp_norm(var_arr, self.mean_prcp, to_norm=True).flatten()).cast(pl.Float32).alias(var))
             else:
-                out.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()
-            out.attrs["units"][var] = "dimensionless"
-        out = _trans_norm(
-            out,
-            target_cols,
-            stat_dict,
-            log_norm_cols=self.log_norm_cols,
-            to_norm=to_norm,
-        )
+                out = out.with_columns(pl.Series(fdata[var].to_numpy()).cast(pl.Float32).alias(var))
+            # out.attrs["units"][var] = "dimensionless"
+        out = _trans_norm(out, target_cols, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=to_norm)
+        out = pl.concat([out, data[['basin_id', 'time']]], how='horizontal')
         return out
 
     def get_data_ts(self, to_norm=True) -> np.array:
@@ -448,11 +428,10 @@ class DapengScaler(object):
             the dynamic inputs for modeling
         """
         stat_dict = self.stat_dict
-        var_lst = self.data_cfgs["relevant_cols"]
-        data = self.data_forcing
-        data = _trans_norm(
-            data, var_lst, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=to_norm
-        )
+        var_lst = self.data_cfgs["relevant_cols"][:-2]
+        data = self.data_forcing[self.data_forcing.columns[:-2]]
+        data = _trans_norm(data, var_lst, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=to_norm)
+        data = pl.concat([data, self.data_forcing[self.data_forcing.columns[-2:]]], how='horizontal')
         return data
 
     def get_data_const(self, to_norm=True) -> np.array:
@@ -474,7 +453,7 @@ class DapengScaler(object):
         stat_dict = self.stat_dict
         var_lst = self.data_cfgs["constant_cols"]
         data = self.data_attr
-        data = _trans_norm(data, var_lst, stat_dict, to_norm=to_norm)
+        data = _trans_norm_xr(data, var_lst, stat_dict, to_norm=to_norm)
         return data
 
     def load_data(self):
