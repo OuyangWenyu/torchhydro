@@ -721,7 +721,7 @@ class SeqForecastDataset(Seq2SeqDataset):
         rho = self.rho  # forecast history
         horizon = self.horizon  # forecast length
         # p cover all encoder-decoder periods; +1 means the period while +0 means start of the current period
-        p = self.x[basin, time + 1 : time + rho + horizon + 1, 0].reshape(-1, 1)
+        p = self.x[basin, time : time + rho + horizon, 0].reshape(-1, 1)
         # se only cover encoder periods
         se = self.x[basin, time : time + rho, 1:]
         # se only cover decoder periods
