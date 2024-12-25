@@ -742,7 +742,7 @@ class SeqForecastDataset(Seq2SeqDataset):
         xec = c
         xdc = c
         # y cover specified all decoder periods
-        y = self.y[basin, time + rho + 1 : time + rho + horizon + 1, :]
+        y = self.y[basin, time + rho : time + rho + horizon, :]
 
         return [
             torch.from_numpy(xe).float(),
