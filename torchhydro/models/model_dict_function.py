@@ -18,7 +18,7 @@ from torchhydro.models.cudnnlstm import (
     CpuLstmModel,
 )
 
-from torchhydro.models.simple_lstm import SimpleLSTMForecast
+from torchhydro.models.simple_lstm import SimpleLSTM, SimpleLSTMForecast
 from torchhydro.models.seqforecast import SequentialForecastLSTM
 from torchhydro.models.seq2seq import (
     GeneralSeq2Seq,
@@ -71,6 +71,7 @@ pytorch_model_dict = {
     "DplAnnHbv": DplAnnHbv,
     "DplLstmGr4j": DplLstmGr4j,
     "DplAnnGr4j": DplAnnGr4j,
+    "SimpleLSTM": SimpleLSTM,
 }
 
 pytorch_criterion_dict = {

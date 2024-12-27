@@ -720,29 +720,16 @@ class SeqForecastDataset(Seq2SeqDataset):
         basin, time = self.lookup_table[item]
         rho = self.rho  # forecast history
         horizon = self.horizon  # forecast length
-        # p cover all encoder-decoder periods; +1 means the period while +0 means start of the current period
-        p = self.x[basin, time : time + rho + horizon, 0].reshape(-1, 1)
-        # se only cover encoder periods
-        se = self.x[basin, time : time + rho, 1:]
-        # se only cover decoder periods
-        sd = self.x[basin, time + rho : time + rho + horizon, 1:]
-        # encoder dynamic features
-        xe = np.concatenate((p[:rho], se), axis=1)
+        prec_window = self.data_cfgs.get("prec_window", 0)
+        xe = self.x[basin, time : time + rho + horizon, :]
+        xd = self.x[basin, time + rho : time + rho + horizon, :]
         # encoder static features
-        if self.c is None or self.c.shape[-1] == 0:
-            xec = xe
-        else:
-            c = self.c[basin, :]
-            # c = np.tile(c, (rho + horizon, 1))
-            # xec = c[:rho]
-            xec = c
-        # xh cover decoder periods
-        xd = np.concatenate((p[rho:], sd), axis=1)
+        c = self.c[basin, :]
         # decoder static features
         xec = c
         xdc = c
         # y cover specified all decoder periods
-        y = self.y[basin, time + rho : time + rho + horizon, :]
+        y = self.y[basin, time + rho - prec_window : time + rho + horizon, :]
 
         return [
             torch.from_numpy(xe).float(),

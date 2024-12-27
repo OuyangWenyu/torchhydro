@@ -73,10 +73,12 @@ class SequentialForecastLSTM(nn.Module):
         embedding_dim,
         hidden_dim,
         output_dim,
+        prec_window=0,
         use_paper_model=True,  # choose paper_model or neuralhydrology_repository_model
     ):
         super(SequentialForecastLSTM, self).__init__()
         self.output_dim = output_dim
+        self.prec_window = prec_window
         self.use_paper_model = use_paper_model
         self.static_embedding = FeatureEmbedding(static_input_dim, embedding_dim)
         self.dynamic_embedding = FeatureEmbedding(dynamic_input_dim, embedding_dim)
@@ -115,8 +117,11 @@ class SequentialForecastLSTM(nn.Module):
         hindcast_input = self._prepare_input(
             static_features_hindcast, hindcast_features
         )
-        _, h, c = self.hindcast_lstm(hindcast_input)
+        hincast_output, h, c = self.hindcast_lstm(hindcast_input)
 
+        if self.prec_window > 0:
+            # prec window
+            hincast_output = hincast_output[:, -self.prec_window :, :]
         if self.use_paper_model:
             # HiddenStateTransfer
             h, c = self.hiddenstatetransfer(h, c)
@@ -127,5 +132,7 @@ class SequentialForecastLSTM(nn.Module):
         )
         forecast_output = self.forecast_lstm(forecast_input, h, c)
 
-        output = self.output_head(forecast_output)
-        return output
+        if self.prec_window > 0:
+            forecast_output = torch.cat([hincast_output, forecast_output], dim=1)
+
+        return self.output_head(forecast_output)

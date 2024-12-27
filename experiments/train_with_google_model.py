@@ -30,17 +30,17 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-# show = pd.read_csv(
-#     os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_us.csv"),
-#     dtype={"id": str},
-# )
-# gage_id = show["id"].values.tolist()
-gage_id = ["grdc_1159310", "grdc_1159300"]
+show = pd.read_csv(
+    os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_5819.csv"),
+    dtype={"id": str},
+)
+gage_id = show["id"].values.tolist()
+# gage_id = ["grdc_1159310", "grdc_1159300"]
 
 
 def config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_era5land", "ex18_1D_camels_no_sampler_test")
+    project_name = os.path.join("train_with_google", "ex_test2")
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -48,7 +48,7 @@ def config():
         sub=project_name,
         source_cfgs={
             "source_name": "selfmadehydrodataset",
-            "source_path": r"C:\data",
+            "source_path": "/ftproot/google_flood",
             "other_settings": {
                 "time_unit": ["1D"],
             },
@@ -61,13 +61,14 @@ def config():
             "embedding_dim": 1,
             "hidden_dim": 256,
             "output_dim": 1,
+            "prec_window": 1,
             "use_paper_model": True,
         },
         model_loader={"load_way": "best"},
         gage_id=gage_id,
         # gage_id=["21400800", "21401550", "21401300", "21401900"],
         batch_size=256,
-        forecast_history=365,
+        forecast_history=180,
         forecast_length=5,
         min_time_unit="D",
         min_time_interval=1,
@@ -101,18 +102,18 @@ def config():
         dataset="SeqForecastDataset",
         # sampler="BasinBatchSampler",
         scaler="DapengScaler",
-        train_epoch=100,
+        train_epoch=2,
         save_epoch=1,
         train_period=["2019-06-01", "2021-11-01"],
-        test_period=["2019-11-01", "2021-12-01"],
+        test_period=["2021-11-01", "2022-12-01"],
         valid_period=["2021-11-01", "2022-12-01"],
-        loss_func="MultiOutLoss",
-        loss_param={
-            "loss_funcs": "RMSESum",
-            "data_gap": [0],
-            "device": [2],
-            "item_weight": [1],
-        },
+        loss_func="RMSESum",
+        # loss_param={
+        #     "loss_funcs": "RMSESum",
+        #     "data_gap": [0],
+        #     "device": [2],
+        #     "item_weight": [1],
+        # },
         opt="Adam",
         # lr_scheduler={
         #     "lr": 0.0001,
@@ -144,7 +145,7 @@ def config():
         #     "batch_sizes": [256, 512],
         # },
         patience=10,
-        model_type="MTL",
+        # model_type="Normal",
     )
 
     # 更新默认配置
