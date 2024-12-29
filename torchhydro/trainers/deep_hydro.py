@@ -425,7 +425,8 @@ class DeepHydro(DeepHydroInterface):
         if pred.ndim == 4:
             pred = pred[:, :, data_cfgs["prec_window"], :]
             obs = obs[:, :, data_cfgs["prec_window"], :]
-            pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs, long_seq_pred=False, pre_norm=data_cfgs["pre_norm"])
+            pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs, data_cfgs['target_cols'][:-2],
+                                               long_seq_pred=False, pre_norm=data_cfgs["pre_norm"])
         else:
             if pred.ndim == 2:
                 # TODO: check
@@ -459,10 +460,10 @@ class DeepHydro(DeepHydroInterface):
                     pred = pred[:, prec_window, :].reshape(ngrid, batch_size, target_len)
                     obs = obs[:, prec_window, :].reshape(ngrid, batch_size, target_len)
                 pred_xr, obs_xr = denormalize4eval(
-                    test_dataloader, pred, obs, long_seq_pred=False
+                    test_dataloader, pred, obs, data_cfgs['target_cols'][:-2], long_seq_pred=False
                 )
             else:
-                pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs)
+                pred_xr, obs_xr = denormalize4eval(test_dataloader, pred, obs, data_cfgs['target_cols'][:-2])
             '''
             return_cell_state = False
             if return_cell_state:

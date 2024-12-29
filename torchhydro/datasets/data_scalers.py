@@ -324,9 +324,11 @@ class DapengScaler(object):
             pred = target_values
         else:
             pred = _trans_norm(target_values, target_cols, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=False)
-            for i in range(len(self.data_cfgs["target_cols"])):
-                var = self.data_cfgs["target_cols"][i]
-                pred[var] = _prcp_norm(pred[var].to_numpy(), self.mean_prcp, to_norm=False)
+            for i in range(len(target_cols)):
+                var = target_cols[i]
+                var_norm = _prcp_norm(pred[var].to_numpy().reshape(len(self.t_s_dict["sites_id"]), -1),
+                           self.mean_prcp, to_norm=False)
+                pred = pred.with_columns(pl.Series(var_norm.flatten()).cast(pl.Float32).alias(var))
         # add attrs for units
         # pred.attrs.update(self.data_target.attrs)
         return pred #.to_dataset(dim="variable")

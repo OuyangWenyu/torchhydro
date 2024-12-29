@@ -80,38 +80,34 @@ def model_infer(seq_first, device, model, xs, ys):
 
 
 def denormalize4eval(
-    validation_data_loader, output, labels, length=0, long_seq_pred=True, pre_norm=False
+    validation_data_loader, output, labels, target_cols, length=0, long_seq_pred=True, pre_norm=False
 ):
     import polars as pl
+    valid_ds = validation_data_loader.dataset
     if pre_norm:
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         if not long_seq_pred:
             horizon = target_scaler.data_cfgs["forecast_length"]
             rho = target_scaler.data_cfgs["forecast_history"]
-            # selected_time_points = target_data.coords["time"][length + rho : length - horizon + target_scaler.data_cfgs['prec_window']]
         else:
             rho = validation_data_loader.dataset.warmup_length
             horizon = 0
-            # selected_time_points = target_data.coords["time"][warmup_length:]
-        # output.transpose(2, 0, 1)
-        output_df = pl.from_numpy(output, schema=target_data.schema)
-        preds_xr = target_scaler.inverse_transform(output_df.group_by("basin_id").agg(pl.all().slice(length + rho,
-                   len(target_data) - horizon - rho + target_scaler.data_cfgs['prec_window'])).explode(pl.exclude('basin_id')))
-        # labels.transpose(2, 0, 1)
-        labels_df = pl.from_numpy(labels, schema=target_data.schema)
-        obss_xr = target_scaler.inverse_transform(labels_df.group_by("basin_id").agg(pl.all().slice(length + rho,
-                  len(target_data) - horizon - rho + target_scaler.data_cfgs['prec_window'])).explode(pl.exclude('basin_id')))
+        output_index = target_data[['basin_id', 'time']].group_by("basin_id", maintain_order=True).agg(pl.all().slice(length + rho,
+                                   len(valid_ds.times[0]) - horizon - rho + valid_ds.data_cfgs['prec_window'])).explode(pl.exclude('basin_id'))
+        output_df = pl.from_numpy(output.reshape(-1, 2), schema=target_cols)
+        preds_xr = pl.concat([output_index, target_scaler.inverse_transform(output_df)], how='horizontal')
+        labels_df = pl.from_numpy(labels.reshape(-1, 2), schema=target_cols)
+        obss_xr = pl.concat([output_index, target_scaler.inverse_transform(labels_df)], how='horizontal')
     else:
-        valid_ds = validation_data_loader.dataset
         horizon = valid_ds.data_cfgs["forecast_length"]
         rho = valid_ds.data_cfgs["forecast_history"]
         y_selected = (valid_ds.y_origin.group_by('basin_id', maintain_order=True).
                agg(pl.all().slice(length + rho, len(valid_ds.times[0]) - horizon - rho + valid_ds.data_cfgs['prec_window']))
                 .explode(pl.exclude('basin_id')))
-        preds_xr = pl.from_numpy(output.reshape(-1, 2), schema=['streamflow', 'sm_surface'])
+        preds_xr = pl.from_numpy(output.reshape(-1, 2), schema=target_cols)
         preds_xr = preds_xr.with_columns(y_selected['basin_id'], y_selected['time'])
-        obss_xr = pl.from_numpy(labels.reshape(-1, 2), schema=['streamflow', 'sm_surface'])
+        obss_xr = pl.from_numpy(labels.reshape(-1, 2), schema=target_cols)
         obss_xr = obss_xr.with_columns(y_selected['basin_id'], y_selected['time'])
     return preds_xr, obss_xr
 
