@@ -723,19 +723,14 @@ class SeqForecastDataset(Seq2SeqDataset):
         prec_window = self.data_cfgs.get("prec_window", 0)
         xe = self.x[basin, time : time + rho + horizon, :]
         xd = self.x[basin, time + rho : time + rho + horizon, :]
-        # encoder static features
         c = self.c[basin, :]
-        # decoder static features
-        xec = c
-        xdc = c
         # y cover specified all decoder periods
         y = self.y[basin, time + rho - prec_window : time + rho + horizon, :]
 
         return [
             torch.from_numpy(xe).float(),
-            torch.from_numpy(xec).float(),
             torch.from_numpy(xd).float(),
-            torch.from_numpy(xdc).float(),
+            torch.from_numpy(c).float(),
         ], torch.from_numpy(y).float()
 
 
