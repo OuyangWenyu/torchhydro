@@ -677,7 +677,7 @@ class Seq2SeqDataset(BaseDataset):
         basin, time = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
-        prec = self.data_cfgs.get("prec_window", 0)
+        hindcast_output_window = self.data_cfgs.get("hindcast_output_window", 0)
         # p cover all encoder-decoder periods; +1 means the period while +0 means start of the current period
         p = self.x[basin, time + 1 : time + rho + horizon + 1, 0].reshape(-1, 1)
         # s only cover encoder periods
@@ -697,8 +697,10 @@ class Seq2SeqDataset(BaseDataset):
             print(f"Error in np.concatenate: {e}")
             print(f"p[rho:].shape: {p[rho:].shape}, c[rho:].shape: {c[rho:].shape}")
             raise
-        # y cover specified encoder size (prec_window) and all decoder periods
-        y = self.y[basin, time + rho - prec + 1 : time + rho + horizon + 1, :]
+        # y cover specified encoder size (hindcast_output_window) and all decoder periods
+        y = self.y[
+            basin, time + rho - hindcast_output_window + 1 : time + rho + horizon + 1, :
+        ]
 
         if self.is_tra_val_te == "train":
             return [
@@ -720,12 +722,12 @@ class SeqForecastDataset(Seq2SeqDataset):
         basin, time = self.lookup_table[item]
         rho = self.rho  # forecast history
         horizon = self.horizon  # forecast length
-        prec_window = self.data_cfgs.get("prec_window", 0)
+        hindcast_output_window = self.data_cfgs.get("hindcast_output_window", 0)
         xe = self.x[basin, time : time + rho + horizon, :]
         xd = self.x[basin, time + rho : time + rho + horizon, :]
         c = self.c[basin, :]
         # y cover specified all decoder periods
-        y = self.y[basin, time + rho - prec_window : time + rho + horizon, :]
+        y = self.y[basin, time + rho - hindcast_output_window : time + rho + horizon, :]
 
         return [
             torch.from_numpy(xe).float(),

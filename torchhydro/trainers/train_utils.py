@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2024-11-06 12:08:00
+LastEditTime: 2025-01-01 15:53:15
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -114,10 +114,12 @@ def denormalize4eval(eval_dataloader, output, labels, rolling=0):
     if target_scaler.pbm_norm:
         units = {**units, **target_data.attrs["units"]}
     if rolling > 0:
-        prec_window = target_scaler.data_cfgs["prec_window"]
+        hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
         rho = target_scaler.data_cfgs["forecast_history"]
-        # TODO: -1 because seq2seqdataset has one more time, hence we need to cut it, as rolling will be deprecated, we don't modify it yet
-        selected_time_points = target_data.coords["time"][rho - prec_window : -1]
+        # TODO: -1 because seq2seqdataset has one more time, hence we need to cut it, as rolling will be refactored, we will modify it later
+        selected_time_points = target_data.coords["time"][
+            rho - hindcast_output_window : -1
+        ]
     else:
         warmup_length = eval_dataloader.dataset.warmup_length
         selected_time_points = target_data.coords["time"][warmup_length:]
@@ -251,12 +253,12 @@ def evaluate_validation(
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)
         horizon = target_scaler.data_cfgs["forecast_length"]
-        prec = target_scaler.data_cfgs["prec_window"]
+        hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
         for i, col in enumerate(target_col):
             delayed_tasks = []
             for length in range(horizon):
                 delayed_task = len_denormalize_delayed(
-                    prec,
+                    hindcast_output_window,
                     length,
                     output,
                     labels,

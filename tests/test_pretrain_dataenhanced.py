@@ -53,7 +53,7 @@ def config():
             "cnn_size": 120,
             "forecast_length": 24,
             "model_mode": "dual",
-            "prec_window": 1,
+            "hindcast_output_window": 1,
         },
         model_loader={"load_way": "best"},
         opt="Adam",

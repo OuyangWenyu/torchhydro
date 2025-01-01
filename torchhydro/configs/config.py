@@ -1020,12 +1020,12 @@ def update_cfg(cfg_file, new_args):
                 "forecast_length"
             ]
         # The following two configurations are for encoder-decoder models' seq2seqdataset
-        if "prec_window" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["prec_window"] = new_args.model_hyperparam[
-                "prec_window"
+        if "hindcast_output_window" in new_args.model_hyperparam.keys():
+            cfg_file["data_cfgs"]["hindcast_output_window"] = new_args.model_hyperparam[
+                "hindcast_output_window"
             ]
         else:
-            cfg_file["data_cfgs"]["prec_window"] = 0
+            cfg_file["data_cfgs"]["hindcast_output_window"] = 0
     if new_args.batch_size is not None:
         # raise AttributeError("Please set the batch_size!!!")
         batch_size = new_args.batch_size

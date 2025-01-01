@@ -121,7 +121,7 @@ class GeneralSeq2Seq(nn.Module):
         output_size,
         hidden_size,
         forecast_length,
-        prec_window=0,
+        hindcast_output_window=0,
         teacher_forcing_ratio=0.5,
     ):
         """General Seq2Seq model
@@ -138,7 +138,7 @@ class GeneralSeq2Seq(nn.Module):
             the size of the hidden state of LSTMs
         forecast_length : _type_
             the length of the forecast, i.e., the periods of decoder outputs
-        prec_window : int, optional
+        hindcast_output_window : int, optional
             the encoder's final several outputs in the final output;
             default is 0 which means no encoder output is included in the final output;
         teacher_forcing_ratio : float, optional
@@ -146,7 +146,7 @@ class GeneralSeq2Seq(nn.Module):
         """
         super(GeneralSeq2Seq, self).__init__()
         self.trg_len = forecast_length
-        self.prec_window = prec_window
+        self.hindcast_output_window = hindcast_output_window
         self.teacher_forcing_ratio = teacher_forcing_ratio
         self.output_size = output_size
         self.encoder = Encoder(
@@ -166,7 +166,7 @@ class GeneralSeq2Seq(nn.Module):
             trgs = torch.full(
                 (
                     decoder_input.shape[0],  # batch_size
-                    self.prec_window + self.trg_len,  # seq
+                    self.hindcast_output_window + self.trg_len,  # seq
                     self.output_size,  # features
                 ),
                 float("nan"),
@@ -181,7 +181,7 @@ class GeneralSeq2Seq(nn.Module):
             current_input = torch.cat((current_input, p), dim=2)
             output, hidden, cell = self.decoder(current_input, hidden, cell)
             outputs.append(output.squeeze(1))
-            trg = trgs[:, (self.prec_window + t), :].unsqueeze(1)
+            trg = trgs[:, (self.hindcast_output_window + t), :].unsqueeze(1)
             valid_mask = ~torch.isnan(trg)
             random_vals = torch.rand_like(valid_mask, dtype=torch.float)
             use_teacher_forcing = (
@@ -196,8 +196,8 @@ class GeneralSeq2Seq(nn.Module):
             )
 
         outputs = torch.stack(outputs, dim=1)
-        if self.prec_window > 0:
-            prec_outputs = encoder_outputs[:, -self.prec_window :, :]
+        if self.hindcast_output_window > 0:
+            prec_outputs = encoder_outputs[:, -self.hindcast_output_window :, :]
             outputs = torch.cat((prec_outputs, outputs), dim=1)
         return outputs
 
@@ -265,8 +265,31 @@ class Transformer(nn.Module):
         nhead=8,
         num_layers=8,
         dropout=0.1,
-        prec_window=0,
+        hindcast_output_window=0,
     ):
+        """TODO: hindcast_output_window seems not used
+
+        Parameters
+        ----------
+        n_encoder_inputs : _type_
+            _description_
+        n_decoder_inputs : _type_
+            _description_
+        n_decoder_output : _type_
+            _description_
+        channels : int, optional
+            _description_, by default 256
+        num_embeddings : int, optional
+            _description_, by default 512
+        nhead : int, optional
+            _description_, by default 8
+        num_layers : int, optional
+            _description_, by default 8
+        dropout : float, optional
+            _description_, by default 0.1
+        hindcast_output_window : int, optional
+            _description_, by default 0
+        """
         super().__init__()
 
         self.input_pos_embedding = torch.nn.Embedding(num_embeddings, channels)

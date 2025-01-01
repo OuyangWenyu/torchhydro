@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2024-12-14 11:23:08
+LastEditTime: 2025-01-01 15:52:39
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -408,11 +408,11 @@ class DeepHydro(DeepHydroInterface):
             ngrid = self.testdataset.ngrid
             nt = self.testdataset.nt
             target_len = len(data_cfgs["target_cols"])
-            prec_window = data_cfgs["prec_window"]
+            hindcast_output_window = data_cfgs["hindcast_output_window"]
             forecast_length = data_cfgs["forecast_length"]
-            window_size = prec_window + forecast_length
+            window_size = hindcast_output_window + forecast_length
             rho = data_cfgs["forecast_history"]
-            recover_len = nt - rho + prec_window
+            recover_len = nt - rho + hindcast_output_window
             samples = int(pred.shape[0] / ngrid)
             pred_ = np.full((ngrid, recover_len, target_len), np.nan)
             obs_ = np.full((ngrid, recover_len, target_len), np.nan)

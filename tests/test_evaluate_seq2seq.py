@@ -51,7 +51,7 @@ def config_data():
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 8,
-            "prec_window": 1,
+            "hindcast_output_window": 1,
         },
         gage_id=gage_id,
         # gage_id=["21401550"],

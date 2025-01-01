@@ -41,7 +41,7 @@ def model():
         output_size=2,
         hidden_size=20,
         forecast_length=5,
-        prec_window=10,
+        hindcast_output_window=10,
         teacher_forcing_ratio=0.5,
     )
 

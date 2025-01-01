@@ -211,8 +211,9 @@ def s2s_args(basin4test):
             "hidden_size": 256,
             # number of min-time-intervals to predict; horizon
             "forecast_length": 56,
-            # 将前序径流一起作为输出，选择的时段数，该值需小于等于 forecast_history ，建议置为1
-            "prec_window": 1,
+            # Number of preceding streamflow time steps included in the output,
+            # which must be less than or equal to forecast_history, and is recommended to be set to 1
+            "hindcast_output_window": 1,
             "teacher_forcing_ratio": 0.5,
         },
         model_loader={"load_way": "best"},
@@ -302,7 +303,7 @@ def trans_args(basin4test):
             "nhead": 8,
             "num_layers": 4,
             "dropout": 0.1,
-            "prec_window": 0,
+            "hindcast_output_window": 0,
         },
         model_loader={"load_way": "best"},
         gage_id=basin4test,
@@ -479,7 +480,7 @@ def seq2seq_config():
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 56,
-            "prec_window": 1,
+            "hindcast_output_window": 1,
             "teacher_forcing_ratio": 0.5,
         },
         model_loader={"load_way": "best"},
