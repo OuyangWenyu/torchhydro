@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2024-11-06 08:11:13
+LastEditTime: 2025-01-01 16:13:58
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -723,7 +723,7 @@ class SeqForecastDataset(Seq2SeqDataset):
         rho = self.rho  # forecast history
         horizon = self.horizon  # forecast length
         hindcast_output_window = self.data_cfgs.get("hindcast_output_window", 0)
-        xe = self.x[basin, time : time + rho + horizon, :]
+        xe = self.x[basin, time : time + rho, :]
         xd = self.x[basin, time + rho : time + rho + horizon, :]
         c = self.c[basin, :]
         # y cover specified all decoder periods

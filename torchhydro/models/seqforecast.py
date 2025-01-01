@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from torchhydro.models.ann import SimpleAnn
+from torchhydro.models.ann import Mlp
 
 
 class FeatureEmbedding(nn.Module):
@@ -9,7 +9,7 @@ class FeatureEmbedding(nn.Module):
         self, input_dim, embedding_dim, hidden_size=0, dropout=0.0, activation="relu"
     ):
         super(FeatureEmbedding, self).__init__()
-        self.embedding = SimpleAnn(
+        self.embedding = Mlp(
             input_dim,
             embedding_dim,
             hidden_size=hidden_size,
@@ -47,7 +47,7 @@ class HiddenStateTransferNet(nn.Module):
     ):
         super(HiddenStateTransferNet, self).__init__()
         self.linear_transfer = nn.Linear(hindcast_hidden_dim, forecast_hidden_dim)
-        self.nonlinear_transfer = SimpleAnn(
+        self.nonlinear_transfer = Mlp(
             hindcast_hidden_dim,
             forecast_hidden_dim,
             hidden_size=0,
@@ -82,7 +82,7 @@ class SequentialForecastLSTM(nn.Module):
         hindcast_hidden_dim,
         forecast_hidden_dim,
         output_dim,
-        hindcast_len,
+        hindcast_output_window,
         embedding_dropout,
         handoff_dropout,
         lstm_dropout,
@@ -108,12 +108,12 @@ class SequentialForecastLSTM(nn.Module):
             _description_
         output_dim : _type_
             _description_
-        hindcast_len : int, optional
-            length of hindcast output to calculate loss, by default 0
+        hindcast_output_window : int
+            length of hindcast output to calculate loss
         """
         super(SequentialForecastLSTM, self).__init__()
         self.output_dim = output_dim
-        self.hindcast_len = hindcast_len
+        self.hindcast_output_window = hindcast_output_window
         self.dynamic_embedding_dim = dynamic_embedding_dim
         if static_embedding_dim > 0:
             self.static_embedding = FeatureEmbedding(
@@ -179,9 +179,9 @@ class SequentialForecastLSTM(nn.Module):
         hindcast_input = self._perform_embedding(static_features, hindcast_features)
         hincast_output, h, c = self.hindcast_lstm(hindcast_input)
 
-        if self.hindcast_len > 0:
+        if self.hindcast_output_window > 0:
             hincast_output = self.hindcast_output_head(
-                hincast_output[:, -self.hindcast_len :, :]
+                hincast_output[:, -self.hindcast_output_window :, :]
             )
 
         h, c = self.hiddenstatetransfer(h, c)
@@ -190,6 +190,6 @@ class SequentialForecastLSTM(nn.Module):
         forecast_input = self._perform_embedding(static_features, forecast_features)
         forecast_output = self.forecast_lstm(forecast_input, h, c)
         forecast_output = self.forecast_output_head(forecast_output)
-        if self.hindcast_len > 0:
+        if self.hindcast_output_window > 0:
             forecast_output = torch.cat([hincast_output, forecast_output], dim=1)
         return forecast_output

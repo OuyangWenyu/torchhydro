@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-12-31 18:20:31
-LastEditTime: 2025-01-01 11:08:29
+LastEditTime: 2025-01-01 18:12:08
 LastEditors: Wenyu Ouyang
 Description: 
 FilePath: \torchhydro\tests\test_seqforecast.py
@@ -105,11 +105,13 @@ def test_sequential_forecast_lstm_forward():
     static_input_dim = 10
     dynamic_input_dim = 15
     static_embedding_dim = 5
+    sta_embed_hidden_dim = 5
     dynamic_embedding_dim = 7
+    dyn_embed_hidden_dim = 7
     hindcast_hidden_dim = 20
     forecast_hidden_dim = 25
     output_dim = 1
-    hindcast_len = 3
+    hindcast_output_window = 3
     embedding_dropout = 0.1
     handoff_dropout = 0.1
     lstm_dropout = 0.1
@@ -122,11 +124,13 @@ def test_sequential_forecast_lstm_forward():
         static_input_dim,
         dynamic_input_dim,
         static_embedding_dim,
+        sta_embed_hidden_dim,
         dynamic_embedding_dim,
+        dyn_embed_hidden_dim,
         hindcast_hidden_dim,
         forecast_hidden_dim,
         output_dim,
-        hindcast_len,
+        hindcast_output_window,
         embedding_dropout,
         handoff_dropout,
         lstm_dropout,
@@ -139,7 +143,9 @@ def test_sequential_forecast_lstm_forward():
     output = model.forward(hindcast_features, forecast_features, static_features)
 
     expected_output_len = (
-        hindcast_len + forecast_len if hindcast_len > 0 else forecast_len
+        hindcast_output_window + forecast_len
+        if hindcast_output_window > 0
+        else forecast_len
     )
     assert output.shape == (batch_size, expected_output_len, output_dim)
     assert isinstance(output, torch.Tensor)

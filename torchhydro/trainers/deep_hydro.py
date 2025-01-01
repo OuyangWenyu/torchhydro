@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-01-01 15:52:39
+LastEditTime: 2025-01-01 18:46:49
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -399,7 +399,7 @@ class DeepHydro(DeepHydroInterface):
             obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
 
         if evaluation_cfgs["rolling"] > 0:
-            if evaluation_cfgs["rolling"] != data_cfgs["horizon"]:
+            if evaluation_cfgs["rolling"] != data_cfgs["forecast_length"]:
                 raise NotImplementedError(
                     "rolling should be equal to forecast_length in data_cfgs now, others are not supported yet"
                 )
