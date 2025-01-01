@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-11-05 10:46:09
+LastEditTime: 2025-01-01 09:21:21
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -286,11 +286,11 @@ def default_config_file():
             "metrics": ["NSE", "RMSE", "R2", "KGE", "FHV", "FLV"],
             "fill_nan": "no",
             "explainer": None,
-            # rolling means testdataloader will sample data with overlap time
-            # rolling is False meaning each time has only one output for one basin one variable
-            # rolling is True and the time_window must be prec_window+horizon now!
-            # for example, data is |1|2|3|4|  time_window=2 then the samples are |1|2|, |2|3| and |3|4|
-            "rolling": False,
+            # rolling is 0 means decoder-only model's prediction -- each period has one prediction
+            # when rolling>0, such as 1, means perform forecasting each step after 1 period.
+            # For example, at 8:00am we perform one forecasting and our time-step is 3h,
+            # rolling=1 means 11:00, 14:00, 17:00 ..., we will perform forecasting
+            "rolling": 0,
             "calc_metrics": True,
         },
     }
@@ -735,9 +735,9 @@ def cmd(
     parser.add_argument(
         "--rolling",
         dest="rolling",
-        help="if False, evaluate 1-period output with a rolling window",
+        help="0 means no rolling; rolling>0, such as 1, means perform forecasting once after 1 period. For example, at 8:00am we perform one forecasting and our time-step is 3h, rolling=1 means 11:00, 14:00, 17:00 ..., we will perform forecasting",
         default=rolling,
-        type=bool,
+        type=int,
     )
     parser.add_argument(
         "--model_loader",

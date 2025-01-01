@@ -88,7 +88,7 @@ def model_infer(seq_first, device, model, xs, ys):
     return ys, output
 
 
-def denormalize4eval(eval_dataloader, output, labels, rolling=False):
+def denormalize4eval(eval_dataloader, output, labels, rolling=0):
     """_summary_
 
     Parameters
@@ -99,9 +99,8 @@ def denormalize4eval(eval_dataloader, output, labels, rolling=False):
         batch-first model output
     labels : np.ndarray
         batch-first observed data
-    rolling: bool
-        if True, to guarantee each time has only one value for one variable of a sample
-        we just cut the data.
+    rolling: int
+        default 0, if rolling is used, perform forecasting using rolling window size
 
     Returns
     -------
@@ -114,7 +113,7 @@ def denormalize4eval(eval_dataloader, output, labels, rolling=False):
     units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
     if target_scaler.pbm_norm:
         units = {**units, **target_data.attrs["units"]}
-    if rolling:
+    if rolling > 0:
         prec_window = target_scaler.data_cfgs["prec_window"]
         rho = target_scaler.data_cfgs["forecast_history"]
         # TODO: -1 because seq2seqdataset has one more time, hence we need to cut it, as rolling will be deprecated, we don't modify it yet
@@ -246,7 +245,8 @@ def evaluate_validation(
     eval_log = {}
     batch_size = validation_data_loader.batch_size
     evaluation_metrics = evaluation_cfgs["metrics"]
-    if evaluation_cfgs["rolling"]:
+    if evaluation_cfgs["rolling"] > 0:
+        # TODO: For rolling case, we need to calculate the metrics for each time step, need more check
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)
@@ -311,7 +311,7 @@ def len_denormalize_delayed(
     rolling,
 ):
     # batch_size != output.shape[0]
-    # if you meet an error here, it probably means that you are using forecast_length > 1 and rolling = True
+    # TODO: if you meet an error here, it probably means that you are using forecast_length > 1 and rolling = True
     # in this case, you should set calc_metrics = False in the evaluation config or use BasinBatchSampler in your data config
     # baceuse we need to calculate the metrics for each time step
     # but we have multi-outputs for each time step in this case

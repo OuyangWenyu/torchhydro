@@ -533,7 +533,7 @@ def seq2seq_config():
             "lr_factor": 0.9,
         },
         which_first_tensor="batch",
-        rolling=True,
+        rolling=56,
         calc_metrics=False,
         early_stopping=True,
         # ensemble=True,

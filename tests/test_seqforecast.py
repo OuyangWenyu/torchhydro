@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-12-31 18:20:31
-LastEditTime: 2024-12-31 19:11:26
+LastEditTime: 2025-01-01 11:08:29
 LastEditors: Wenyu Ouyang
 Description: 
 FilePath: \torchhydro\tests\test_seqforecast.py

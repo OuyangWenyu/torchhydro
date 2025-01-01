@@ -1,21 +1,20 @@
 import torch
 import torch.nn as nn
 
-
-# Figure 4 shows that only static features need embedding
-# However neuralhydrology/neuralhydrology/modelzoo/inputlayer.py shows the opposite
-# self.dynamics_embedding, self.dynamics_output_size =
-#   self._get_embedding_net(cfg.dynamics_embedding, dynamics_input_size, 'dynamics')
+from torchhydro.models.ann import SimpleAnn
 
 
 class FeatureEmbedding(nn.Module):
-    def __init__(self, input_dim, embedding_dim, dropout=0):
+    def __init__(
+        self, input_dim, embedding_dim, hidden_size=0, dropout=0.0, activation="relu"
+    ):
         super(FeatureEmbedding, self).__init__()
-        self.embedding = nn.Sequential(
-            nn.Linear(input_dim, embedding_dim),
-            nn.Tanh(),
-            nn.Linear(embedding_dim, embedding_dim),
-            nn.Dropout(p=dropout),
+        self.embedding = SimpleAnn(
+            input_dim,
+            embedding_dim,
+            hidden_size=hidden_size,
+            dr=dropout,
+            activation=activation,
         )
 
     def forward(self, static_features):
@@ -43,13 +42,17 @@ class ForecastLSTM(nn.Module):
 
 
 class HiddenStateTransferNet(nn.Module):
-    def __init__(self, hindcast_hidden_dim, forecast_hidden_dim, dropout=0):
+    def __init__(
+        self, hindcast_hidden_dim, forecast_hidden_dim, dropout=0.0, activation="relu"
+    ):
         super(HiddenStateTransferNet, self).__init__()
         self.linear_transfer = nn.Linear(hindcast_hidden_dim, forecast_hidden_dim)
-        self.nonlinear_transfer = nn.Sequential(
-            nn.Linear(hindcast_hidden_dim, forecast_hidden_dim),
-            nn.Tanh(),
-            nn.Dropout(dropout),
+        self.nonlinear_transfer = SimpleAnn(
+            hindcast_hidden_dim,
+            forecast_hidden_dim,
+            hidden_size=0,
+            dr=dropout,
+            activation=activation,
         )
 
     def forward(self, hidden, cell):
@@ -73,7 +76,9 @@ class SequentialForecastLSTM(nn.Module):
         static_input_dim,
         dynamic_input_dim,
         static_embedding_dim,
+        sta_embed_hidden_dim,
         dynamic_embedding_dim,
+        dyn_embed_hidden_dim,
         hindcast_hidden_dim,
         forecast_hidden_dim,
         output_dim,
@@ -81,19 +86,24 @@ class SequentialForecastLSTM(nn.Module):
         embedding_dropout,
         handoff_dropout,
         lstm_dropout,
+        activation="relu",
     ):
         """_summary_
 
         Parameters
         ----------
-        static_input_dim : _type_
+        static_input_dim : int
             _description_
-        dynamic_input_dim : _type_
+        dynamic_input_dim : int
             _description_
-        static_embedding_dim : _type_
-            _description_
-        dynamic_embedding_dim : _type_
-            _description_
+        static_embedding_dim : int
+            output size of static embedding
+        sta_embed_hidden_dim: int
+            hidden size of static embedding
+        dynamic_embedding_dim : int
+            output size of dynamic embedding
+        dyn_embed_hidden_dim: int
+            hidden size of dynamic embedding
         hidden_dim : _type_
             _description_
         output_dim : _type_
@@ -107,11 +117,19 @@ class SequentialForecastLSTM(nn.Module):
         self.dynamic_embedding_dim = dynamic_embedding_dim
         if static_embedding_dim > 0:
             self.static_embedding = FeatureEmbedding(
-                static_input_dim, static_embedding_dim, embedding_dropout
+                static_input_dim,
+                static_embedding_dim,
+                sta_embed_hidden_dim,
+                embedding_dropout,
+                activation,
             )
         if dynamic_embedding_dim > 0:
             self.dynamic_embedding = FeatureEmbedding(
-                dynamic_input_dim, dynamic_embedding_dim, embedding_dropout
+                dynamic_input_dim,
+                dynamic_embedding_dim,
+                dyn_embed_hidden_dim,
+                embedding_dropout,
+                activation,
             )
         self.static_embedding_dim = static_embedding_dim
         self.dynamic_embedding_dim = dynamic_embedding_dim
@@ -128,7 +146,10 @@ class SequentialForecastLSTM(nn.Module):
             forecast_input_dim, forecast_hidden_dim, lstm_dropout
         )
         self.hiddenstatetransfer = HiddenStateTransferNet(
-            hindcast_hidden_dim, forecast_hidden_dim, dropout=handoff_dropout
+            hindcast_hidden_dim,
+            forecast_hidden_dim,
+            dropout=handoff_dropout,
+            activation=activation,
         )
         self.hindcast_output_head = ModelOutputHead(hindcast_hidden_dim, output_dim)
         self.forecast_output_head = ModelOutputHead(forecast_hidden_dim, output_dim)
