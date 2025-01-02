@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-01-01 16:13:58
+LastEditTime: 2025-01-02 14:34:59
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: \torchhydro\torchhydro\datasets\data_sets.py
+FilePath: /torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -29,7 +29,6 @@ from torchhydro.datasets.data_utils import (
     warn_if_nan,
     wrap_t_s_dict,
 )
-from hydrodatasource.reader.data_source import SelfMadeHydroDataset
 
 LOGGER = logging.getLogger(__name__)
 
@@ -59,7 +58,7 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
             mean_val = var_data.mean(
                 dim="basin"
             )  # calculate the mean across all basins
-            if warn_if_nan(mean_val):
+            if warn_if_nan(mean_val, nan_mode="all"):
                 # when all value are NaN, mean_val will be NaN, we set mean_val to -1
                 mean_val = -1
             filled_data = var_data.fillna(
@@ -403,19 +402,33 @@ class BaseDataset(Dataset):
         x_rm_nan = data_cfgs["relevant_rm_nan"]
         c_rm_nan = data_cfgs["constant_rm_nan"]
         if x_rm_nan:
-            # As input, we cannot have NaN values
-            _fill_gaps_da(x, fill_nan="interpolate")
-            warn_if_nan(x)
+            x = self._kill_1type_nan(
+                x,
+                "interpolate",
+                "original forcing data",
+                "nan_filled forcing data",
+            )
         if y_rm_nan:
-            _fill_gaps_da(y, fill_nan="interpolate")
-            warn_if_nan(y)
+            y = self._kill_1type_nan(
+                y, "interpolate", "original output data", "nan_filled output data"
+            )
         if c_rm_nan:
-            _fill_gaps_da(c, fill_nan="mean")
-            warn_if_nan(c)
-        warn_if_nan(x, nan_mode="all")
-        warn_if_nan(y, nan_mode="all")
-        warn_if_nan(c, nan_mode="all")
+            c = self._kill_1type_nan(
+                c, "mean", "original attribute data", "nan_filled attribute data"
+            )
+        warn_if_nan(x, nan_mode="any", data_name="nan_filled forcing data")
+        warn_if_nan(y, nan_mode="all", data_name="output data")
+        warn_if_nan(c, nan_mode="any", data_name="nan_filled attribute data")
         return x, y, c
+
+    def _kill_1type_nan(self, the_data, fill_nan, data_name_before, data_name_after):
+        is_any_nan = warn_if_nan(the_data, data_name=data_name_before)
+        if not is_any_nan:
+            return the_data
+        # As input, we cannot have NaN values
+        the_filled_data = _fill_gaps_da(the_data, fill_nan=fill_nan)
+        warn_if_nan(the_filled_data, data_name=data_name_after)
+        return the_filled_data
 
     def _create_lookup_table(self):
         lookup = []

@@ -14,7 +14,7 @@ kaggle
 pytest
 pytest-mock
 
-hydrodatasource==0.0.8
+hydrodatasource
 
 setuptools
 bump2version

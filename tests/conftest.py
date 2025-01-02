@@ -1,8 +1,6 @@
 import os
 import pytest
 
-from configs.config import cmd
-from tests.test_seq2seq import gage_id
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 import logging

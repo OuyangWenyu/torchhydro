@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-01-01 09:21:21
+LastEditTime: 2025-01-02 13:43:10
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: \torchhydro\torchhydro\configs\config.py
+FilePath: /torchhydro/torchhydro/configs/config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -297,6 +297,7 @@ def default_config_file():
 
 
 def cmd(
+    project_dir=None,
     sub=None,
     source_cfgs=None,
     scaler=None,
@@ -370,6 +371,13 @@ def cmd(
     """input args from cmd"""
     parser = argparse.ArgumentParser(
         description="Train a Time-Series Deep Learning Model for Basins"
+    )
+    parser.add_argument(
+        "--project_dir",
+        dest="project_dir",
+        help="the project directory where you put your results in",
+        default=project_dir,
+        type=str,
     )
     parser.add_argument(
         "--sub", dest="sub", help="subset and sub experiment", default=sub, type=str
@@ -872,7 +880,10 @@ def update_cfg(cfg_file, new_args):
         in-place operation for cfg_file
     """
     print("update config file")
-    project_dir = os.getcwd()
+    if new_args.project_dir is not None:
+        project_dir = new_args.project_dir
+    else:
+        project_dir = os.getcwd()
     result_dir = os.path.join(project_dir, "results")
     if os.path.exists(result_dir) is False:
         os.makedirs(result_dir)

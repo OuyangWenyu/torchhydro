@@ -5,8 +5,8 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python
-  - numpy=1.26
+  - python=3.11
+  - numpy
   - geopandas
   - scikit-learn
   - fsspec
@@ -15,7 +15,7 @@ dependencies:
   - torchvision
   - torchaudio
   # - cpuonly # cpu version for pcs without cuda
-  - pytorch-cuda=11.8
+  - pytorch-cuda<12.2
   - tensorboard
   - kaggle
   - pytest

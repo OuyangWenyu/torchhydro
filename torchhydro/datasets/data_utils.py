@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:37:58
-LastEditTime: 2024-11-11 18:35:29
+LastEditTime: 2025-01-02 14:06:24
 LastEditors: Wenyu Ouyang
 Description: Some basic funtions for dealing with data
-FilePath: \torchhydro\torchhydro\datasets\data_utils.py
+FilePath: /torchhydro/torchhydro/datasets/data_utils.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -16,7 +16,7 @@ import pint_xarray  # noqa: F401
 import warnings
 
 
-def warn_if_nan(dataarray, max_display=5, nan_mode="any"):
+def warn_if_nan(dataarray, max_display=5, nan_mode="any", data_name=""):
     """
     Issue a warning if the dataarray contains any NaN values and display their locations.
 
@@ -27,22 +27,29 @@ def warn_if_nan(dataarray, max_display=5, nan_mode="any"):
     max_display: int
         Maximum number of NaN locations to display in the warning.
     nan_mode: str
-        Mode of NaN checking: 'any' for any NaNs, 'all' for all values being NaNs.
+        Mode of NaN checking:
+        'any' means if any NaNs exist return True, if all values are NaNs raise ValueError
+        'all' means if all values are NaNs return True
+    data_name: str
+        Name of the dataarray to be displayed in the warning message.
     """
     if dataarray is None:
-        return
+        raise ValueError("The dataarray is None!")
     if nan_mode not in ["any", "all"]:
         raise ValueError("nan_mode must be 'any' or 'all'")
 
-    if nan_mode == "all" and np.all(np.isnan(dataarray.values)):
-        raise ValueError("The dataarray contains only NaN values!")
+    if np.all(np.isnan(dataarray.values)):
+        if nan_mode == "any":
+            raise ValueError("The dataarray contains only NaN values!")
+        else:
+            return True
 
     nan_indices = np.argwhere(np.isnan(dataarray.values))
     total_nans = len(nan_indices)
 
     if total_nans <= 0:
         return False
-    message = f"The dataarray contains {total_nans} NaN values!"
+    message = f"The {data_name} dataarray contains {total_nans} NaN values!"
 
     # Displaying only the first few NaN locations if there are too many
     display_indices = nan_indices[:max_display].tolist()
