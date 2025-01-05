@@ -10,7 +10,7 @@ from hydroutils.hydro_stat import stat_error
 from torchhydro.explainers.shap import (
     shap_summary_plot,
 )
-from torchhydro.trainers.train_logger import save_model_params_log
+# from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.trainers.train_utils import calculate_and_record_metrics
 
 
@@ -54,6 +54,7 @@ class Resulter:
             raise ValueError("Invalid load_way")
         return epoch_name
 
+    '''
     def save_cfg(self, cfgs):
         # save the cfgs after training
         # update the cfgs with the latest one
@@ -71,6 +72,7 @@ class Resulter:
             # so here we still save params log if param file does not exist
             # no param file was saved yet, here we save data and params setting
             save_model_params_log(cfgs, self.result_dir)
+        '''
 
     def save_result(self, pred, obs):
         """

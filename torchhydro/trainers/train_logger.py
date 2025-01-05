@@ -151,9 +151,9 @@ class TrainLogger:
         time_stamp = datetime.now().strftime("%d_%B_%Y%I_%M%p")
         model_save_path = os.path.join(final_path, f"{time_stamp}_model.pth")
         save_model(model, model_save_path)
-        save_model_params_log(params, final_path)
+        # save_model_params_log(params, final_path)
         # also save one for a training directory for one hyperparameter setting
-        save_model_params_log(params, self.training_save_dir)
+        # save_model_params_log(params, self.training_save_dir)
 
     def plot_hist_img(self, model, global_step):
         for tag, parm in model.named_parameters():

@@ -387,6 +387,7 @@ def torch_single_train(
             continue
         if loss > 100:
             print("Warning: high loss detected")
+            continue
         if torch.isnan(loss):
             continue
         fab.backward(loss)  # Back propagate to compute the current gradient
@@ -449,7 +450,6 @@ def compute_validation(
         # first dim is batch
         obs_final = torch.cat(obs, dim=0)
         pred_final = torch.cat(preds, dim=0)
-
         valid_loss = compute_loss(obs_final, pred_final, criterion)
     y_obs = obs_final.detach().cpu().numpy()
     y_pred = pred_final.detach().cpu().numpy()
