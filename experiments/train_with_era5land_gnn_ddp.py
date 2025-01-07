@@ -46,7 +46,7 @@ def test_run_model():
 
 def create_config_Seq2Seq():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_era5land", "ex1_645")
+    project_name = os.path.join("train_with_era5land", "ex1_648")
     config_data = create_config_fabric()
     network_shp_path = "gnn_data/SL_USA_HydroRiver_single.shp"
     node_shp_path = "gnn_data/iowa_usgs_hml_sl_stations.shp"
@@ -109,7 +109,7 @@ def create_config_Seq2Seq():
         dataset="GNNDataset",
         sampler="FullNeighborSampler",
         scaler="DapengScaler",
-        train_epoch=0,
+        train_epoch=3,
         save_epoch=1,
         train_period=[("2016-01-01-01", "2023-11-30-01")],
         test_period=[("2015-01-01-01", "2016-01-01-01")],
@@ -137,7 +137,7 @@ def create_config_Seq2Seq():
         # },
         patience=5,
         model_type="GNN_DDP_MTL",
-        continue_train=False,
+        continue_train=True,
         network_shp=network_shp_path,
         node_shp=node_shp_path,
         basins_shp="/ftproot/basins-interim/shapes/basins.shp",
@@ -145,7 +145,7 @@ def create_config_Seq2Seq():
         port="12345",
         num_workers=1,
         pin_memory=True,
-        # weight_path='results/train_with_era5land/ex1_643/model_Ep10.pth',
+        weight_path='results/train_with_era5land/ex1_648/model_Ep5.pth',
     )
     # 更新默认配置
     update_cfg(config_data, args)

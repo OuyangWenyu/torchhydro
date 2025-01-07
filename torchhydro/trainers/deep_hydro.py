@@ -141,11 +141,9 @@ class DeepHydro(DeepHydroInterface):
         """
         super().__init__(cfgs)
         self.device_num = cfgs["training_cfgs"]["device"]
-        self.fab = total_fab
-        # self.fab.launch()
+        total_fab.launch()
         self.device = get_the_device(self.device_num)
         self.pre_model = pre_model
-        self.model = self.load_model()
         if cfgs["training_cfgs"]["train_mode"]:
             self.traindataset = self.make_dataset("train")
             if cfgs["data_cfgs"]["t_range_valid"] is not None:
@@ -163,39 +161,27 @@ class DeepHydro(DeepHydroInterface):
             model in pytorch_model_dict in model_dict_function.py
         """
         if mode == "infer":
-            self.weight_path = self._get_trained_model()
+            if self.weight_path is None:
+                self.weight_path = self._get_trained_model()
         elif mode != "train":
             raise ValueError("Invalid mode; must be 'train' or 'infer'")
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
         if model_name not in pytorch_model_dict:
-            raise NotImplementedError(
-                f"Error the model {model_name} was not found in the model dict. Please add it."
-            )
+            raise NotImplementedError(f"Error the model {model_name} was not found in the model dict. Please add it.")
         if self.pre_model is not None:
             model = self._load_pretrain_model()
         elif self.weight_path is not None:
             # load model from pth file (saved weights and biases)
-            model = self._load_model_from_pth()
+            model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
+            total_fab.load_raw(self.weight_path, model)
         else:
             model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
-            # model_data = torch.load(weight_path)
-            # model.load_state_dict(model_data)
         return model
 
     def _load_pretrain_model(self):
         """load a pretrained model as the initial model"""
         return self.pre_model
-
-    def _load_model_from_pth(self):
-        weight_path = self.weight_path
-        model_cfgs = self.cfgs["model_cfgs"]
-        model_name = model_cfgs["model_name"]
-        model = self.fab.setup(pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"]))
-        checkpoint = self.fab.load(weight_path)
-        model.load_state_dict(checkpoint)
-        print("Weights sucessfully loaded")
-        return model
 
     def make_dataset(self, is_tra_val_te: str):
         """
@@ -233,7 +219,8 @@ class DeepHydro(DeepHydroInterface):
         if training_cfgs["early_stopping"]:
             es = EarlyStopper(training_cfgs["patience"])
         criterion = self._get_loss_func(training_cfgs)
-        opt = self.fab.setup_optimizers(self._get_optimizer(training_cfgs))
+        model = total_fab.setup_module(self.load_model('train'))
+        opt = total_fab.setup_optimizers(self._get_optimizer(model, training_cfgs))
         scheduler = self._get_scheduler(training_cfgs, opt)
         max_epochs = training_cfgs["epochs"]
         start_epoch = training_cfgs["start_epoch"]
@@ -243,8 +230,8 @@ class DeepHydro(DeepHydroInterface):
         for epoch in range(start_epoch, max_epochs + 1):
             with logger.log_epoch_train(epoch) as train_logs:
                 total_loss, n_iter_ep = torch_single_train(
-                    self.fab,
-                    self.model,
+                    total_fab,
+                    model,
                     opt,
                     criterion,
                     data_loader,
@@ -252,7 +239,7 @@ class DeepHydro(DeepHydroInterface):
                     which_first_tensor=training_cfgs["which_first_tensor"],
                 )
                 train_logs["train_loss"] = total_loss
-                train_logs["model"] = self.model
+                train_logs["model"] = model
 
             valid_loss = None
             valid_metrics = None
@@ -264,19 +251,19 @@ class DeepHydro(DeepHydroInterface):
 
             self._scheduler_step(training_cfgs, scheduler, valid_loss)
             logger.save_session_param(epoch, total_loss, n_iter_ep, valid_loss, valid_metrics)
-            logger.save_model_and_params(self.model, epoch, self.cfgs)
+            logger.save_model_and_params(model, epoch, self.cfgs)
             if es and not es.check_loss(
-                self.model,
+                model,
                 valid_loss,
                 self.cfgs["data_cfgs"]["test_path"],
             ):
                 print("Stopping model now")
                 break
-        # logger.plot_model_structure(self.model)
+        # logger.plot_model_structure(model)
         logger.tb.close()
 
         # return the trained model weights and bias and the epoch loss
-        return self.model.state_dict(), sum(logger.epoch_loss) / len(logger.epoch_loss), self.fab
+        return model.state_dict(), sum(logger.epoch_loss) / len(logger.epoch_loss), total_fab
 
     def _get_scheduler(self, training_cfgs, opt):
         lr_scheduler_cfg = training_cfgs["lr_scheduler"]
@@ -314,8 +301,9 @@ class DeepHydro(DeepHydroInterface):
     def _1epoch_valid(
         self, training_cfgs, criterion, validation_data_loader, valid_logs
     ):
+        model = self.load_model()
         valid_obss_np, valid_preds_np, valid_loss = compute_validation(
-            self.model,
+            model,
             criterion,
             validation_data_loader,
             device=self.device,
@@ -360,11 +348,12 @@ class DeepHydro(DeepHydroInterface):
         tuple[dict, np.array, np.array]
             eval_log, denormalized predictions and observations
         """
-        self.model = self.load_model(mode="infer")
-        preds_xr, obss_xr = self.inference()
+        model = self.load_model(mode="infer")
+        model = total_fab.setup_module(module=model)
+        preds_xr, obss_xr = self.inference(model)
         return preds_xr, obss_xr
 
-    def inference(self) -> Tuple[torch.Tensor, torch.Tensor]:
+    def inference(self, model) -> Tuple[torch.Tensor, torch.Tensor]:
         """infer using trained model and unnormalized results"""
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
@@ -386,7 +375,8 @@ class DeepHydro(DeepHydroInterface):
                     timeout=0,
                 )
             else:
-                test_dataloader = GraphDataLoader(self.testdataset, batch_size=training_cfgs["batch_size"], shuffle=False, drop_last=True)
+                test_dataloader = GraphDataLoader(self.testdataset, batch_size=training_cfgs["batch_size"],
+                                                  shuffle=False, drop_last=True)
         else:
             if (data_cfgs["network_shp"] is None) & (data_cfgs["node_shp"] is None):
                 test_dataloader = DataLoader(
@@ -402,9 +392,9 @@ class DeepHydro(DeepHydroInterface):
             else:
                 test_dataloader = GraphDataLoader(self.testdataset, batch_size=training_cfgs["batch_size"],
                                                     shuffle=False, drop_last=True)
-        test_dataloader = self.fab.setup_dataloaders(test_dataloader)
+        test_dataloader = total_fab.setup_dataloaders(test_dataloader)
         seq_first = training_cfgs["which_first_tensor"] == "sequence"
-        self.model.eval()
+        model.eval()
         # here the batch is just an index of lookup table, so any batch size could be chosen
         test_preds = []
         obss = []
@@ -413,7 +403,7 @@ class DeepHydro(DeepHydroInterface):
                 # here the a batch doesn't mean a basin; it is only an index in lookup table
                 # for NtoN mode, only basin is index in lookup table, so the batch is same as basin
                 # for Nto1 mode, batch is only an index
-                ys, pred = model_infer(seq_first, device, self.model, xs, ys)
+                ys, pred = model_infer(seq_first, device, model, xs, ys)
                 test_preds.append(pred.cpu().numpy())
                 obss.append(ys.cpu().numpy())
             if (data_cfgs['network_shp'] is not None) & (data_cfgs['node_shp'] is not None):
@@ -482,8 +472,8 @@ class DeepHydro(DeepHydroInterface):
         print(test_log)
         return pred_xr, obs_xr
 
-    def _get_optimizer(self, training_cfgs):
-        params_in_opt = self.model.parameters()
+    def _get_optimizer(self, model, training_cfgs):
+        params_in_opt = model.parameters()
         return pytorch_opt_dict[training_cfgs["optimizer"]](params_in_opt, **training_cfgs["optim_params"])
 
     def _get_loss_func(self, training_cfgs):
@@ -543,12 +533,13 @@ class DeepHydro(DeepHydroInterface):
                 num_workers=worker_num,
                 pin_memory=pin_memory,
                 timeout=0,
+                multiprocessing_context='spawn'
             )
         else:
             data_loader = GraphDataLoader(train_dataset, use_ddp=True, batch_size=training_cfgs["batch_size"],
                                           shuffle=(sampler is None) & (data_cfgs["sampler"]!='DistSampler'),
-                                          drop_last=True, num_workers=worker_num) #, multiprocessing_context='spawn')
-        data_loader = self.fab.setup_dataloaders(data_loader)
+                                          drop_last=True, num_workers=worker_num, multiprocessing_context='spawn')
+        data_loader = total_fab.setup_dataloaders(data_loader)
         if data_cfgs["t_range_valid"] is not None:
             valid_dataset: BaseDataset = self.validdataset
             batch_size_valid = training_cfgs["batch_size"]
@@ -563,11 +554,13 @@ class DeepHydro(DeepHydroInterface):
                     num_workers=worker_num,
                     pin_memory=pin_memory,
                     timeout=0,
+                    multiprocessing_context='spawn'
                 )
             else:
                 validation_data_loader = GraphDataLoader(valid_dataset, batch_size=training_cfgs["batch_size"],
-                                                         shuffle=False, drop_last=True, num_workers=worker_num)
-            validation_data_loader = self.fab.setup_dataloaders(validation_data_loader)
+                                                         shuffle=False, drop_last=True, num_workers=worker_num,
+                                                         multiprocessing_context='spawn')
+            validation_data_loader = total_fab.setup_dataloaders(validation_data_loader)
             return data_loader, validation_data_loader
         return data_loader, None
 
@@ -599,10 +592,10 @@ class FedLearnHydro(DeepHydro):
 
     def model_train(self) -> None:
         # BUILD MODEL
-        global_model = self.model
+        global_model = self.load_model('train')
 
         # copy weights
-        global_weights = global_model.state_dict()
+        # global_weights = global_model.state_dict()
 
         # Training
         train_loss, train_accuracy = [], []
@@ -787,15 +780,15 @@ class MultiTaskHydro(DeepHydro):
     def __init__(self, cfgs: Dict, pre_model=None):
         super().__init__(cfgs, pre_model)
 
-    def _get_optimizer(self, training_cfgs):
-        params_in_opt = self.model.parameters()
+    def _get_optimizer(self, model, training_cfgs):
+        params_in_opt = model.parameters()
         if training_cfgs["criterion"] == "UncertaintyWeights":
             # log_var = torch.zeros((1,), requires_grad=True)
             log_vars = [
                 torch.zeros((1,), requires_grad=True, device=self.device)
                 for _ in range(training_cfgs["multi_targets"])
             ]
-            params_in_opt = list(self.model.parameters()) + log_vars
+            params_in_opt = list(model.parameters()) + log_vars
         return pytorch_opt_dict[training_cfgs["optimizer"]](
             params_in_opt, **training_cfgs["optim_params"]
         )
@@ -852,6 +845,7 @@ class MultiTaskHydro(DeepHydro):
         )
 
 class GNNDistributedDeepHydro(MultiTaskHydro):
+    '''
     def load_model(self, mode="train"):
         if mode == "infer":
             self.weight_path = self._get_trained_model()
@@ -869,7 +863,7 @@ class GNNDistributedDeepHydro(MultiTaskHydro):
             model = self._load_model_from_pth()
         else:
             model_cfgs['model_hyperparam']['device'] = self.device
-            model = self.fab.setup(pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"]))
+            model = total_fab.setup(pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"]))
         # model.to(self.device)
         return model
 
@@ -877,19 +871,19 @@ class GNNDistributedDeepHydro(MultiTaskHydro):
         weight_path = self.weight_path
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
-        model = self.fab.setup(pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"]))
-        checkpoint = self.fab.load(weight_path)
+        model = total_fab.setup(pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"]))
+        checkpoint = total_fab.load(weight_path)
         model.load_state_dict(checkpoint)
         # model.load_state_dict({k.lstrip('module').lstrip('.'):v for k,v in checkpoint.items()})
         print("Weights sucessfully loaded")
         return model
-
+    '''
     def make_dataset(self, is_tra_val_te: str):
-        if self.fab.global_rank == 0:
+        if total_fab.global_rank == 0:
             data_cfgs = self.cfgs["data_cfgs"]
             dataset = GNNDataset(data_cfgs, is_tra_val_te)
             return dataset
-        self.fab.barrier()
+        total_fab.barrier()
 
 
 model_type_dict = {

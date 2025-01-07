@@ -12,10 +12,6 @@ import copy
 import os
 import lightning
 from experiments.fabric_launcher_config import create_config_fabric
-# Important: for multi-processing safe, Fabric.launch() should start before `import polars`
-config_data = create_config_fabric()
-total_fab = lightning.Fabric(devices=config_data['training_cfgs']['device'], num_nodes=1, strategy=config_data['training_cfgs']['strategy'])
-total_fab.launch()
 import numpy as np
 import torch
 import torch.optim as optim
@@ -24,6 +20,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import dask
 from torchhydro.models.crits import GaussianLoss
+
+config_data = create_config_fabric()
+total_fab = lightning.Fabric(devices=config_data['training_cfgs']['device'], num_nodes=1, strategy=config_data['training_cfgs']['strategy'])
 
 
 def model_infer(seq_first, device, model, xs, ys):
@@ -385,7 +384,7 @@ def torch_single_train(
         loss = compute_loss(trg, output, criterion, **kwargs)
         if not isinstance(loss, torch.Tensor):
             continue
-        if loss > 100:
+        if loss > 10:
             print("Warning: high loss detected")
             continue
         if torch.isnan(loss):

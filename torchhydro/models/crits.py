@@ -216,7 +216,6 @@ class RMSELoss(torch.nn.Module):
         diff = torch.sub(target, output)
         std_dev = torch.std(diff)
         var_penalty = self.variance_penalty * std_dev
-
         return torch.sqrt(self.mse(target, output)) + var_penalty
 
 
