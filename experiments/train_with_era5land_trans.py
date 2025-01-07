@@ -1,6 +1,19 @@
 import os
+import glob
 
-from experiments.train_with_era5land_gnn import pre_gage_ids
+
+prechn_gage_id = [gage_id.split('/')[-1].split('.')[0] for gage_id in glob.glob('/ftproot/basins-interim/timeseries/1h/*.csv', recursive=True)]
+camels_hourly_usgs = [file.split('/')[-1].split('-')[0] for file in glob.glob('/ftproot/camels_hourly/data/usgs_streamflow_csv/*.csv', recursive=True)]
+pre_gage_ids = [gage_id for gage_id in prechn_gage_id if (gage_id.split('_')[-1] in camels_hourly_usgs) | ('songliao' in gage_id)]
+# basin_stations.csv, L100-148, L150-156
+remove_list = ['02018000','02027000','02027500','02028500','02038850','02046000','02051500','02053200','02053800',
+               '02055100','02056900','02059500','02064000','02065500','02069700','02070000','02074500','02077200',
+               '02081500','02082950','02092500','02096846','02102908','02108000','02111180','02111500','02118500',
+               '02128000','02137727','02140991','02143000','02143040','02149000','02152100','02177000','02178400',
+               '02193340','02196000','02198100','02202600','02212600','02215100','02216180','02221525','02231000',
+               '02245500','02246000','02296500','02297155','02298123','02298608','02299950','02300700','02349900',
+               '02350900','02361000']
+pre_gage_ids = [gage_id for gage_id in pre_gage_ids if gage_id.split('_')[1] not in remove_list]
 from torchhydro.configs.config import default_config_file, cmd, update_cfg
 
 
