@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-01-01 18:46:49
+LastEditTime: 2025-01-09 12:17:20
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
+FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -420,10 +420,10 @@ class DeepHydro(DeepHydroInterface):
             pred_4d = pred.reshape(ngrid, samples, window_size, target_len)
             obs_4d = obs.reshape(ngrid, samples, window_size, target_len)
             for i in range(ngrid):
-                for j in range(recover_len - window_size + 1):
+                for j in range(0, recover_len - window_size + 1, window_size):
                     pred_[i, j : j + window_size, :] = pred_4d[i, j, :, :]
             for i in range(ngrid):
-                for j in range(recover_len - window_size + 1):
+                for j in range(0, recover_len - window_size + 1, window_size):
                     obs_[i, j : j + window_size, :] = obs_4d[i, j, :, :]
             pred = pred_.reshape(ngrid, recover_len, target_len)
             obs = obs_.reshape(ngrid, recover_len, target_len)
