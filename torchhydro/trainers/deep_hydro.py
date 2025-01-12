@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-01-09 12:17:20
+LastEditTime: 2025-01-12 14:57:18
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
+FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -42,8 +42,8 @@ from torchhydro.models.model_utils import get_the_device
 from torchhydro.trainers.train_logger import TrainLogger
 from torchhydro.trainers.train_utils import (
     EarlyStopper,
+    rolling_evaluate,
     average_weights,
-    denormalize4eval,
     evaluate_validation,
     compute_validation,
     model_infer,
@@ -399,37 +399,31 @@ class DeepHydro(DeepHydroInterface):
             obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
 
         if evaluation_cfgs["rolling"] > 0:
-            if evaluation_cfgs["rolling"] != data_cfgs["forecast_length"]:
-                raise NotImplementedError(
-                    "rolling should be equal to forecast_length in data_cfgs now, others are not supported yet"
-                )
-            # TODO: now we only guarantee each time has only one value,
-            # so we directly reshape the data rather than a real rolling
             ngrid = self.testdataset.ngrid
             nt = self.testdataset.nt
-            target_len = len(data_cfgs["target_cols"])
-            hindcast_output_window = data_cfgs["hindcast_output_window"]
+            nf = len(data_cfgs["target_cols"])
+            rolling = evaluation_cfgs["rolling"]
             forecast_length = data_cfgs["forecast_length"]
-            window_size = hindcast_output_window + forecast_length
+            hindcast_output_window = data_cfgs["hindcast_output_window"]
             rho = data_cfgs["hindcast_length"]
-            recover_len = nt - rho + hindcast_output_window
-            samples = int(pred.shape[0] / ngrid)
-            pred_ = np.full((ngrid, recover_len, target_len), np.nan)
-            obs_ = np.full((ngrid, recover_len, target_len), np.nan)
-            # recover pred to pred_ and obs to obs_
-            pred_4d = pred.reshape(ngrid, samples, window_size, target_len)
-            obs_4d = obs.reshape(ngrid, samples, window_size, target_len)
-            for i in range(ngrid):
-                for j in range(0, recover_len - window_size + 1, window_size):
-                    pred_[i, j : j + window_size, :] = pred_4d[i, j, :, :]
-            for i in range(ngrid):
-                for j in range(0, recover_len - window_size + 1, window_size):
-                    obs_[i, j : j + window_size, :] = obs_4d[i, j, :, :]
-            pred = pred_.reshape(ngrid, recover_len, target_len)
-            obs = obs_.reshape(ngrid, recover_len, target_len)
-        pred_xr, obs_xr = denormalize4eval(
-            test_dataloader, pred, obs, rolling=evaluation_cfgs["rolling"]
-        )
+            pred = rolling_evaluate(
+                (ngrid, nt, nf),
+                rho,
+                forecast_length,
+                rolling,
+                hindcast_output_window,
+                pred,
+            )
+            obs = rolling_evaluate(
+                (ngrid, nt, nf),
+                rho,
+                forecast_length,
+                rolling,
+                hindcast_output_window,
+                obs,
+            )
+        pred_xr = self.testdataset.denormalize(pred, rolling=evaluation_cfgs["rolling"])
+        obs_xr = self.testdataset.denormalize(obs, rolling=evaluation_cfgs["rolling"])
         return pred_xr, obs_xr
 
     def _get_optimizer(self, training_cfgs):

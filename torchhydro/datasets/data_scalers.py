@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:17:44
-LastEditTime: 2024-11-05 09:21:24
+LastEditTime: 2025-01-12 15:23:28
 LastEditors: Wenyu Ouyang
 Description: normalize the data
 FilePath: \torchhydro\torchhydro\datasets\data_scalers.py

@@ -31,16 +31,6 @@ from torchhydro.trainers.train_utils import (
 from torchhydro.trainers.deep_hydro import DeepHydro
 
 
-def set_unit_to_var(ds):
-    units_dict = ds.attrs["units"]
-    for var_name, units in units_dict.items():
-        if var_name in ds:
-            ds[var_name].attrs["units"] = units
-    if "units" in ds.attrs:
-        del ds.attrs["units"]
-    return ds
-
-
 class Resulter:
     def __init__(self, cfgs) -> None:
         self.cfgs = cfgs
@@ -112,8 +102,6 @@ class Resulter:
         save_dir = self.result_dir
         flow_pred_file = os.path.join(save_dir, self.pred_name)
         flow_obs_file = os.path.join(save_dir, self.obs_name)
-        pred = set_unit_to_var(pred)
-        obs = set_unit_to_var(obs)
         pred.to_netcdf(flow_pred_file + ".nc")
         obs.to_netcdf(flow_obs_file + ".nc")
 
