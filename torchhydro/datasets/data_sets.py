@@ -242,7 +242,7 @@ class BaseDataset(Dataset):
     def _pre_load_data(self):
         self.train_mode = self.is_tra_val_te == "train"
         self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
-        self.rho = self.data_cfgs["forecast_history"]
+        self.rho = self.data_cfgs["hindcast_length"]
         self.warmup_length = self.data_cfgs["warmup_length"]
         self.horizon = self.data_cfgs["forecast_length"]
 

@@ -81,7 +81,7 @@ def run_normal_dl(
         dataset="StreamflowDataset",
         scaler="DapengScaler",
         batch_size=512,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=366,
         var_t=var_t,
         var_c=var_c,

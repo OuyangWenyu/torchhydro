@@ -115,7 +115,7 @@ def denormalize4eval(eval_dataloader, output, labels, rolling=0):
         units = {**units, **target_data.attrs["units"]}
     if rolling > 0:
         hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
-        rho = target_scaler.data_cfgs["forecast_history"]
+        rho = target_scaler.data_cfgs["hindcast_length"]
         # TODO: -1 because seq2seqdataset has one more time, hence we need to cut it, as rolling will be refactored, we will modify it later
         selected_time_points = target_data.coords["time"][
             rho - hindcast_output_window : -1
@@ -632,7 +632,7 @@ def cellstates_when_inference(seq_first, data_cfgs, pred):
     )
     cs_out_lst = [cs_out]
     cell_state = reduce(lambda a, b: np.vstack((a, b)), cs_out_lst)
-    np.save(os.path.join(data_cfgs["test_path"], "cell_states.npy"), cell_state)
+    np.save(os.path.join(data_cfgs["case_dir"], "cell_states.npy"), cell_state)
     # model.zero_grad()
     torch.cuda.empty_cache()
     return pred, cell_state

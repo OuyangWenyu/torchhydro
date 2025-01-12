@@ -19,7 +19,7 @@ from torchhydro.trainers.resulter import Resulter
 def mock_cfgs(tmpdir):
     return {
         "data_cfgs": {
-            "test_path": str(tmpdir),
+            "case_dir": str(tmpdir),
             "target_cols": ["streamflow", "total_evaporation_hourly"],
         },
         "evaluation_cfgs": {

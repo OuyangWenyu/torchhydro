@@ -59,10 +59,10 @@ def dummy_data_cfgs():
         "output_features": 1,
         # "t_range_valid": ["2010-01-01", "2010-12-31"],
         "t_range_valid": None,
-        "test_path": test_path,
+        "case_dir": test_path,
         "sampler": "KuaiSampler",
         "batch_size": 5,
-        "forecast_history": 0,
+        "hindcast_length": 0,
         "forecast_length": 30,
         "warmup_length": 0,
         "object_ids": ["02051500", "21401550"],
@@ -147,7 +147,7 @@ def test_model_train(deep_hydro):
 
 def test_plot_model_structure(deep_hydro, dummy_train_cfgs):
     opt = torch.optim.SGD(deep_hydro.model.parameters(), lr=0.01)
-    model_filepath = dummy_train_cfgs["data_cfgs"]["test_path"]
+    model_filepath = dummy_train_cfgs["data_cfgs"]["case_dir"]
     train_logger = TrainLogger(model_filepath, dummy_train_cfgs, opt)
     train_logger.plot_model_structure(deep_hydro.model)
 

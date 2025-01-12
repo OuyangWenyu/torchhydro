@@ -76,11 +76,13 @@ def test_transfer_gages_lstm_model(
     project_name = "test_camels/exptl4cc"
     args = cmd(
         sub=project_name,
-        source="SelfMadeCAMELS",
-        # cc means China continent
-        source_path=os.path.join(
-            SETTING["local_data_path"]["datasets-interim"], "camels_cc_v2"
-        ),
+        source_cfgs={
+            "source_name": "SelfMadeCAMELS",
+            # cc means China continent
+            "source_path": os.path.join(
+                SETTING["local_data_path"]["datasets-interim"], "camels_cc_v2"
+            ),
+        },
         ctx=[0],
         model_type="TransLearn",
         model_name="KaiLSTM",
@@ -93,7 +95,7 @@ def test_transfer_gages_lstm_model(
         opt="Adadelta",
         loss_func="RMSESum",
         batch_size=5,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=20,
         rs=1234,
         train_period=["2014-10-01", "2019-10-01"],

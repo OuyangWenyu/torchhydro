@@ -1,16 +1,17 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-01-02 13:43:10
+LastEditTime: 2025-01-12 10:12:48
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: /torchhydro/torchhydro/configs/config.py
+FilePath: \torchhydro\torchhydro\configs\config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
 import argparse
 import fnmatch
 import json
+from logging import warning
 import os
 
 import numpy as np
@@ -53,8 +54,8 @@ def default_config_file():
             "model_name": "LSTM",
             # the details of model parameters for the "model_name" model
             "model_hyperparam": {
-                # <- warmup -><- forecast_history -><- forecast_length ->
-                "forecast_history": 30,
+                # <- warmup -><- hindcast_length -><- forecast_length ->
+                "hindcast_length": 30,
                 "forecast_length": 30,
                 # the size of input (feature number)
                 "input_size": 24,
@@ -93,14 +94,13 @@ def default_config_file():
                 "source_names": ["CAMELS"],
                 "source_paths": ["../../example/camels_us"],
             },
-            "validation_path": None,
-            "test_path": None,
+            "case_dir": None,
             "batch_size": 100,
-            # we generally have three times: [warmup, forecast_history, forecast_length]
+            # we generally have three times: [warmup, hindcast_length, forecast_length]
             # For physics-based models, we need warmup; default is 0 as DL models generally don't need it
             "warmup_length": 0,
             # the length of the history data for forecasting
-            "forecast_history": 30,
+            "hindcast_length": 30,
             # the length of the forecast data
             "forecast_length": 1,
             # the min time step of the input data
@@ -324,7 +324,9 @@ def cmd(
     opt_param=None,
     batch_size=None,
     warmup_length=0,
+    # forecast_history will be deprecated in the future
     forecast_history=None,
+    hindcast_length=None,
     forecast_length=None,
     train_mode=None,
     train_epoch=None,
@@ -560,9 +562,16 @@ def cmd(
         type=int,
     )
     parser.add_argument(
+        "--hindcast_length",
+        dest="hindcast_length",
+        help="length of time sequence when training in encoder part, for decoder-only models, hindcast_length=0",
+        default=hindcast_length,
+        type=int,
+    )
+    parser.add_argument(
         "--forecast_history",
         dest="forecast_history",
-        help="length of time sequence when training in encoder part, for decoder-only models, forecast_history=0",
+        help="length of time sequence when training in encoder part, for decoder-only models, hindcast_length=0",
         default=forecast_history,
         type=int,
     )
@@ -889,10 +898,7 @@ def update_cfg(cfg_file, new_args):
         os.makedirs(result_dir)
     if new_args.sub is not None:
         subset, subexp = new_args.sub.split(os.sep)
-        cfg_file["data_cfgs"]["validation_path"] = os.path.join(
-            project_dir, "results", subset, subexp
-        )
-        cfg_file["data_cfgs"]["test_path"] = os.path.join(result_dir, subset, subexp)
+        cfg_file["data_cfgs"]["case_dir"] = os.path.join(result_dir, subset, subexp)
     if new_args.source_cfgs is not None:
         cfg_file["data_cfgs"]["source_cfgs"] = new_args.source_cfgs
     if new_args.scaler is not None:
@@ -1067,8 +1073,14 @@ def update_cfg(cfg_file, new_args):
             raise RuntimeError(
                 "Please set same warmup_length in model_cfgs and data_cfgs"
             )
-    if new_args.forecast_history is not None:
-        cfg_file["data_cfgs"]["forecast_history"] = new_args.forecast_history
+    if new_args.hindcast_length is not None:
+        cfg_file["data_cfgs"]["hindcast_length"] = new_args.hindcast_length
+    if new_args.hindcast_length is None and new_args.forecast_history is not None:
+        # forecast_history will be deprecated in the future
+        warning.warn(
+            "forecast_history will be deprecated in the future, please use hindcast_length instead"
+        )
+        cfg_file["data_cfgs"]["hindcast_length"] = new_args.forecast_history
     if new_args.forecast_length is not None:
         cfg_file["data_cfgs"]["forecast_length"] = new_args.forecast_length
     if new_args.start_epoch > 1:

@@ -105,11 +105,11 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
     elif key == "seeds":
         new_cfg["training_cfgs"]["random_seed"] = value
     elif key == "expdir":
-        project_dir = new_cfg["data_cfgs"]["test_path"]
+        project_dir = new_cfg["data_cfgs"]["case_dir"]
         project_path = Path(project_dir)
         subset = project_path.parent.name
         subexp = f"{project_path.name}_{value}"
-        new_cfg["data_cfgs"]["test_path"] = os.path.join(
+        new_cfg["data_cfgs"]["case_dir"] = os.path.join(
             project_path.parent.parent, subset, subexp
         )
     else:

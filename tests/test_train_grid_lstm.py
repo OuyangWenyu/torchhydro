@@ -22,20 +22,22 @@ def config():
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
-        source="HydroGrid",
-        source_path=[
-            {
-                "gpm": "basins-origin/hour_data/1h/grid_data/grid_gpm_data",
-                "gfs": "basins-origin/hour_data/1h/grid_data/grid_gfs_data",
-                "smap": "basins-origin/hour_data/1h/grid_data/grid_smap_data",
-                "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
-                "attributes": "basins-origin/attributes.nc",
-            }
-        ],
+        source_cfgs={
+            "source_name": "HydroGrid",
+            "source_path": [
+                {
+                    "gpm": "basins-origin/hour_data/1h/grid_data/grid_gpm_data",
+                    "gfs": "basins-origin/hour_data/1h/grid_data/grid_gfs_data",
+                    "smap": "basins-origin/hour_data/1h/grid_data/grid_smap_data",
+                    "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
+                    "attributes": "basins-origin/attributes.nc",
+                }
+            ],
+        },
         ctx=[2],
         model_name="SPPLSTM2",
         model_hyperparam={  # p代表降水+GFS气象网络分支，S代表土壤属性网络分支
-            "forecast_history": 168,
+            "hindcast_length": 168,
             "forecast_length": 24,
             "p_n_output": 1,
             "p_n_hidden_states": 60,
@@ -43,7 +45,7 @@ def config():
             "p_in_channels": 1,  # 1 or 9 卷积层输入通道数，等于len(var_t[0]+len(var_t[1]))，即降水与GFS气象属性的数量
             "p_out_channels": 8,  # 输出通道数，值越大，模型越复杂，建议比in_channels大
             "len_c": 15,  # 需要与len(var_c)相等,即如果不用流域属性，则设置为0
-            "s_forecast_history": None,  # 土壤属性所用历史时段，比如只能获取两天半前的数据，则为108,目前只支持108
+            "s_hindcast_length": None,  # 土壤属性所用历史时段，比如只能获取两天半前的数据，则为108,目前只支持108
             "s_n_output": 1,
             "s_n_hidden_states": 60,
             "s_dropout": 0.25,

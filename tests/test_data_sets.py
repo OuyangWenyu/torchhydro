@@ -82,7 +82,7 @@ def test_create_lookup_table(tmp_path):
             "source_name": "mockdatasource",
             "source_path": str(temp_test_path),
         },
-        "test_path": str(temp_test_path),
+        "case_dir": str(temp_test_path),
         "object_ids": [
             "01013500",
             "01013501",
@@ -113,7 +113,7 @@ def test_create_lookup_table(tmp_path):
             "geol_2nd_class",
             # ... other constant columns ...
         ],
-        "forecast_history": 7,
+        "hindcast_length": 7,
         "warmup_length": 14,
         "forecast_length": 1,
         "min_time_unit": "D",

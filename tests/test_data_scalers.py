@@ -42,7 +42,7 @@ def sample_data():
     os.makedirs(test_path, exist_ok=True)
     data_cfgs = {
         "scaler": "DapengScaler",
-        "test_path": test_path,  # Specify the path to save the json file if needed
+        "case_dir": test_path,  # Specify the path to save the json file if needed
         "stat_dict_file": None,
         "target_cols": ["precipitationCal", "sm_surface"],
         "relevant_cols": ["precipitationCal", "sm_surface"],
