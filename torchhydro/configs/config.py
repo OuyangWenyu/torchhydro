@@ -11,7 +11,7 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 import argparse
 import fnmatch
 import json
-from logging import warning
+import warnings
 import os
 
 import numpy as np
@@ -1077,7 +1077,7 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["hindcast_length"] = new_args.hindcast_length
     if new_args.hindcast_length is None and new_args.forecast_history is not None:
         # forecast_history will be deprecated in the future
-        warning.warn(
+        warnings.warn(
             "forecast_history will be deprecated in the future, please use hindcast_length instead"
         )
         cfg_file["data_cfgs"]["hindcast_length"] = new_args.forecast_history
