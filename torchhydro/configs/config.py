@@ -204,6 +204,7 @@ def default_config_file():
                     "ssma",
                     "susma",
                 ],
+                # NOTE: pbm_norm is True means norm and denorm for differentiable models; if you use pure data-driven models, you should set it as False
                 "pbm_norm": False,
             },
             "stat_dict_file": None,
