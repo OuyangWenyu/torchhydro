@@ -34,6 +34,29 @@ class SimpleLSTM(nn.Module):
         return self.linearOut(out_lstm)
 
 
+class LinearSimpleLSTMModel(SimpleLSTM):
+    """
+    This model is nonlinear layer + SimpleLSTM.
+    """
+
+    def __init__(self, linear_size, **kwargs):
+        """
+
+        Parameters
+        ----------
+        linear_size
+            the number of input features for the first input linear layer
+        """
+        super(LinearSimpleLSTMModel, self).__init__(**kwargs)
+        self.former_linear = nn.Linear(linear_size, kwargs["input_size"])
+
+    def forward(self, x, do_drop_mc=False, dropout_false=False):
+        x0 = F.relu(self.former_linear(x))
+        return super(LinearSimpleLSTMModel, self).forward(
+            x0, do_drop_mc=do_drop_mc, dropout_false=dropout_false
+        )
+
+
 class SimpleLSTMForecast(SimpleLSTM):
     def __init__(self, input_size, output_size, hidden_size, forecast_length, dr=0.0):
         super(SimpleLSTMForecast, self).__init__(
