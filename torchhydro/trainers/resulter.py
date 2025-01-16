@@ -102,8 +102,10 @@ class Resulter:
         save_dir = self.result_dir
         flow_pred_file = os.path.join(save_dir, self.pred_name)
         flow_obs_file = os.path.join(save_dir, self.obs_name)
-        pred.to_netcdf(flow_pred_file + ".nc")
-        obs.to_netcdf(flow_obs_file + ".nc")
+        max_len = max(len(basin) for basin in pred.basin.values)
+        encoding = {"basin": {"dtype": f"U{max_len}"}}
+        pred.to_netcdf(flow_pred_file + ".nc", encoding=encoding)
+        obs.to_netcdf(flow_obs_file + ".nc", encoding=encoding)
 
     def eval_result(self, preds_xr, obss_xr):
         # types of observations

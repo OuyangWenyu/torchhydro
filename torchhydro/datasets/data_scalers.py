@@ -320,7 +320,7 @@ class DapengScaler(object):
         stat_dict = self.stat_dict
         target_cols = self.data_cfgs["target_cols"]
         if self.pbm_norm:
-            # for pbm's output, its unit is mm/day, so we don't need to recover its unit
+            # for (differentiable models) pbm's output, its unit is mm/day, so we don't need to recover its unit
             pred = target_values
         else:
             pred = _trans_norm(
