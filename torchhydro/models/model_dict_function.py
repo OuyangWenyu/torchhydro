@@ -20,6 +20,7 @@ from torchhydro.models.cudnnlstm import (
 
 from torchhydro.models.simple_lstm import (
     LinearSimpleLSTMModel,
+    MultiLayerLSTM,
     SimpleLSTM,
     SimpleLSTMForecast,
 )
@@ -77,6 +78,7 @@ pytorch_model_dict = {
     "DplAnnGr4j": DplAnnGr4j,
     "SimpleLSTM": SimpleLSTM,
     "LinearSimpleLSTMModel": LinearSimpleLSTMModel,
+    "MultiLayerLSTM": MultiLayerLSTM,
 }
 
 pytorch_criterion_dict = {
