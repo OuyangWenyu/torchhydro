@@ -737,7 +737,12 @@ class TransLearnHydro(DeepHydro):
             raise NotImplementedError(
                 "For transfer learning, we need a pre-trained model"
             )
-        model = super().load_model(mode)
+        if mode == "train":
+            model = super().load_model(mode)
+        elif mode == "infer":
+            self.weight_path = self._get_trained_model()
+            model = self._load_model_from_pth()
+            model.to(self.device)
         if (
             "weight_path_add" in model_cfgs
             and "freeze_params" in model_cfgs["weight_path_add"]
