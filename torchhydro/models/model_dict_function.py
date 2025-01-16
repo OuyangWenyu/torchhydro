@@ -19,6 +19,7 @@ from torchhydro.models.cudnnlstm import (
 )
 
 from torchhydro.models.simple_lstm import (
+    LinearMultiLayerLSTMModel,
     LinearSimpleLSTMModel,
     MultiLayerLSTM,
     SimpleLSTM,
@@ -79,6 +80,7 @@ pytorch_model_dict = {
     "SimpleLSTM": SimpleLSTM,
     "LinearSimpleLSTMModel": LinearSimpleLSTMModel,
     "MultiLayerLSTM": MultiLayerLSTM,
+    "LinearMultiLayerLSTMModel": LinearMultiLayerLSTMModel,
 }
 
 pytorch_criterion_dict = {

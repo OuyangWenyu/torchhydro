@@ -72,6 +72,25 @@ class LinearSimpleLSTMModel(SimpleLSTM):
         x0 = F.relu(self.former_linear(x))
         return super(LinearSimpleLSTMModel, self).forward(x0)
 
+class LinearMultiLayerLSTMModel(MultiLayerLSTM):
+    """
+    This model is nonlinear layer + MultiLayerLSTM.
+    """
+
+    def __init__(self, linear_size, **kwargs):
+        """
+
+        Parameters
+        ----------
+        linear_size
+            the number of input features for the first input linear layer
+        """
+        super(LinearMultiLayerLSTMModel, self).__init__(**kwargs)
+        self.former_linear = nn.Linear(linear_size, kwargs["input_size"])
+
+    def forward(self, x):
+        x0 = F.relu(self.former_linear(x))
+        return super(LinearMultiLayerLSTMModel, self).forward(x0)
 
 class SimpleLSTMForecast(SimpleLSTM):
     def __init__(self, input_size, output_size, hidden_size, forecast_length, dr=0.0):
