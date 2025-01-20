@@ -25,7 +25,7 @@ from tqdm import tqdm
 
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
-from torchhydro.datasets.data_sets import BaseDataset, GNNDataset
+from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.sampler import (
     KuaiSampler,
     fl_sample_basin,

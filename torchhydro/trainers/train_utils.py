@@ -247,7 +247,7 @@ def evaluate_validation(
             )
 
     else:
-        preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels)
+        preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels, target_col)
         for i, col in enumerate(target_col):
             obs = obss_xr[col].to_numpy()
             pred = preds_xr[col].to_numpy()
