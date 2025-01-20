@@ -1,4 +1,3 @@
-import fnmatch
 import os
 from typing import Tuple, Union
 
@@ -7,9 +6,7 @@ import pandas as pd
 from hydroutils.hydro_file import unserialize_numpy
 from hydroutils.hydro_stat import stat_error
 
-from torchhydro.explainers.shap import (
-    shap_summary_plot,
-)
+# from torchhydro.explainers.shap import shap_summary_plot
 # from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.trainers.train_utils import calculate_and_record_metrics
 
@@ -121,9 +118,9 @@ class Resulter:
             eval_log = calculate_and_record_metrics(obs, pred, evaluation_metrics, col,
                                                     fill_nan[i] if isinstance(fill_nan, list) else fill_nan, eval_log,)
         # Finally, try to explain model behaviour using shap
-        is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
-        if is_shap:
-            shap_summary_plot(self.model, self.traindataset, self.testdataset)
+        # is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
+        # if is_shap:
+            # shap_summary_plot(self.model, self.traindataset, self.testdataset)
             # deep_explain_model_summary_plot(self.model, test_data)
             # deep_explain_model_heatmap(self.model, test_data)
 

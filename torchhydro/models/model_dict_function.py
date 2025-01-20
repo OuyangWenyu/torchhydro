@@ -37,7 +37,7 @@ from torchhydro.models.crits import (
     MAPELoss,
     MASELoss,
     MAELoss,
-    QuantileLoss,
+    QuantileLoss, NSELoss1D, RmseLossWeighted,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
@@ -68,11 +68,13 @@ pytorch_criterion_dict = {
     "RMSE": RMSELoss,
     # xxxSum means that calculate the criterion for each "feature"(the final dim of output), then sum them up
     "RMSESum": RmseLoss,
+    "RMSEWeightedSum": RmseLossWeighted,
     "MultiOutLoss": MultiOutLoss,
     "UncertaintyWeights": UncertaintyWeights,
     "DynamicTaskPrior": DynamicTaskPrior,
     "MultiOutWaterBalanceLoss": MultiOutWaterBalanceLoss,
     "NSELoss": NSELoss,
+    "NSELoss1D": NSELoss1D,
     "MAPELoss": MAPELoss,
     "MASELoss": MASELoss,
     "MAELoss": MAELoss,

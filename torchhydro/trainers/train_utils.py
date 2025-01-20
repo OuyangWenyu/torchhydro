@@ -11,13 +11,15 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 import copy
 import os
 import lightning
+from tqdm.asyncio import tqdm
+
 from experiments.fabric_launcher_config import create_config_fabric
 import numpy as np
 import torch
 import torch.optim as optim
 from hydroutils.hydro_stat import stat_error
 from torch.utils.data import DataLoader
-from tqdm import tqdm
+
 import dask
 from torchhydro.models.crits import GaussianLoss
 
@@ -25,14 +27,12 @@ config_data = create_config_fabric()
 total_fab = lightning.Fabric(devices=config_data['training_cfgs']['device'], num_nodes=1, strategy=config_data['training_cfgs']['strategy'])
 
 
-def model_infer(seq_first, device, model, xs, ys):
+def model_infer(seq_first, model, xs, ys):
     """_summary_
 
     Parameters
     ----------
     seq_first : _type_
-        _description_
-    device : _type_
         _description_
     model : _type_
         _description_
@@ -49,24 +49,24 @@ def model_infer(seq_first, device, model, xs, ys):
     if type(xs) is list:
         xs = [
             (
-                data_tmp.permute([1, 0, 2]).to(device)
+                data_tmp.permute([1, 0, 2])
                 if seq_first and data_tmp.ndim == 3
-                else data_tmp.to(device)
+                else data_tmp
             )
             for data_tmp in xs
         ]
     else:
         xs = [
             (
-                xs.permute([1, 0, 2]).to(device)
+                xs.permute([1, 0, 2])
                 if seq_first and xs.ndim == 3
-                else xs.to(device)
+                else xs
             )
         ]
     ys = (
-        ys.permute([1, 0, 2]).to(device)
+        ys.permute([1, 0, 2])
         if seq_first and ys.ndim == 3
-        else ys.to(device)
+        else ys
     )
     output = model(*xs)
     if type(output) is tuple:
@@ -173,7 +173,7 @@ def calculate_and_record_metrics(
     fill_nan_value = fill_nan
     inds = stat_error(obs, pred, fill_nan_value)
     for evaluation_metric in evaluation_metrics:
-        eval_log[f"{evaluation_metric} of {target_col}"] = inds[evaluation_metric].tolist()
+        eval_log[f"{evaluation_metric} of {target_col}"] = np.round(inds[evaluation_metric], 3).tolist()
     return eval_log
 
 
@@ -310,12 +310,6 @@ def compute_loss(
     float
         the computed loss
     """
-    # a = np.sum(output.cpu().detach().numpy(),axis=1)/len(output)
-    # b=[]
-    # for i in a:
-    #     b.append([i.tolist()])
-    # output = torch.tensor(b, requires_grad=True).to(torch.device("cuda"))
-
     if isinstance(criterion, GaussianLoss):
         if len(output[0].shape) > 2:
             g_loss = GaussianLoss(output[0][:, :, 0], output[1][:, :, 0])
@@ -336,12 +330,10 @@ def compute_loss(
 
 
 def torch_single_train(
-    fab: lightning.Fabric,
     model,
     opt: optim.Optimizer,
     criterion,
     data_loader: DataLoader,
-    device=None,
     **kwargs,
 ) -> float:
     """
@@ -357,8 +349,6 @@ def torch_single_train(
         loss function
     data_loader
         object for loading data to the model
-    device
-        where we put the tensors and models
 
     Returns
     -------
@@ -380,23 +370,18 @@ def torch_single_train(
 
     for _, (src, trg) in enumerate(pbar):
         # iEpoch starts from 1, iIter starts from 0, we hope both start from 1
-        trg, output = model_infer(seq_first, device, model, src, trg)
+        trg, output = model_infer(seq_first, model, src, trg)
         loss = compute_loss(trg, output, criterion, **kwargs)
         if not isinstance(loss, torch.Tensor):
             continue
-        if loss > 10:
+        if loss > 1000:
             print("Warning: high loss detected")
             continue
         if torch.isnan(loss):
             continue
-        fab.backward(loss)  # Back propagate to compute the current gradient
+        total_fab.backward(loss)  # Back propagate to compute the current gradient
         params_list = [param for param in model.parameters()]
-        opt_step = True
-        for param in params_list:
-            if (param.grad is not None) and (not torch.isfinite(param.grad).all()):
-                opt_step &= False
-                break
-        if opt_step:
+        if all(torch.isfinite(param.grad).all() for param in params_list if param.grad is not None):
             opt.step()  # Update network parameters based on gradients
         model.zero_grad()  # clear gradient
         if loss == float("inf"):
@@ -415,7 +400,6 @@ def compute_validation(
     model,
     criterion,
     data_loader: DataLoader,
-    device: torch.device = None,
     **kwargs,
 ) -> float:
     """
@@ -429,8 +413,6 @@ def compute_validation(
         torch.nn.modules.loss
     dataloader
         The data-loader of either validation or test-data
-    device
-        torch.device
 
     Returns
     -------
@@ -443,7 +425,7 @@ def compute_validation(
     preds = []
     with torch.no_grad():
         for src, trg in data_loader:
-            trg, output = model_infer(seq_first, device, model, src, trg)
+            trg, output = model_infer(seq_first, model, src, trg)
             obs.append(trg)
             preds.append(output)
         # first dim is batch

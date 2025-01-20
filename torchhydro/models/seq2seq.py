@@ -16,6 +16,8 @@ import math
 import random
 import dgl
 from dgl.nn.pytorch.conv import gatv2conv
+
+# from torchhydro.models.fds import FDS
 from torchhydro.models.minlstm import MinLSTM
 
 class Attention(nn.Module):
@@ -303,7 +305,7 @@ class Transformer(nn.Module):
 
 
 class EncoderMinLSTMGNN(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, graph, seq_length, dropout=0.1, num_heads=4, pre_norm=False, upstream_cut=5):
+    def __init__(self, input_dim, hidden_dim, output_dim, graph, seq_length, num_heads=4, pre_norm=False, upstream_cut=5):
         super(EncoderMinLSTMGNN, self).__init__()
         self.pre_norm = pre_norm
         self.upstream_cut = upstream_cut
@@ -315,12 +317,11 @@ class EncoderMinLSTMGNN(nn.Module):
         self.graph = dgl.batch([graph] * seq_length)
         self.gnn0 = gatv2conv.GATv2Conv(input_dim, input_dim, num_heads=num_heads)
         self.gnn1 = gatv2conv.GATv2Conv(input_dim * num_heads, input_dim, num_heads=1)
-        # self.dropout = nn.Dropout(dropout)
-        # self.ln1 = LayerNorm(input_dim)
         self.fc = nn.Linear(input_dim, output_dim)
 
     def forward(self, x):
         if not self.pre_norm:
+            # x = torch.log10(x+1)
             x = torch.concat([x[:, :, 0].unsqueeze(-1), torch.log10(x[:, :, 1:]+1)], dim=-1)
         else:
             x = torch.concat([x[:, :, :-self.upstream_cut], torch.log10(x[:, :, -self.upstream_cut:]+1)], dim=-1)
@@ -329,12 +330,12 @@ class EncoderMinLSTMGNN(nn.Module):
         xmax = x[x.isfinite()].max()
         x = torch.where(~x.isfinite(), xmax, x)
         gnn_outputs0 = self.gnn0(self.graph, feat=x)
-        gnn_outputs1 = self.gnn1(self.graph, feat=gnn_outputs0.reshape(gnn_outputs0.shape[0], -1))
+        gnn_outputs1 = F.silu(self.gnn1(self.graph, feat=gnn_outputs0.reshape(gnn_outputs0.shape[0], -1)))
         gnn_outputs1 = gnn_outputs1.reshape(self.hidden_dim, self.seq_length, self.input_dim)
         # PostNorm, https://kexue.fm/archives/9009
         gnn_outputs = torch.where(torch.isnan(gnn_outputs1), x, gnn_outputs1)
         gnn_outputs = x + gnn_outputs
-        gnn_outputs = gnn_outputs * F.sigmoid(gnn_outputs)
+        gnn_outputs = F.silu(gnn_outputs)
         # https://openaccess.thecvf.com/content_CVPR_2019/papers/Li_Understanding_the_Disharmony_Between_Dropout_and_Batch_Normalization_by_Variance_CVPR_2019_paper.pdf
         # gnn_outputs = self.dropout(gnn_outputs)
         gnn_outputs = self.fc(self.ln0(gnn_outputs))
@@ -342,7 +343,7 @@ class EncoderMinLSTMGNN(nn.Module):
 
 
 class DecoderMinLSTMGNN(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim, dropout=0.1):
+    def __init__(self, input_dim, output_dim, hidden_dim):
         super(DecoderMinLSTMGNN, self).__init__()
         self.hidden_dim = hidden_dim
         self.lstm = MinLSTM(input_dim, input_dim)
@@ -354,10 +355,10 @@ class DecoderMinLSTMGNN(nn.Module):
     def forward(self, t_input):
         x = torch.where(torch.isnan(t_input), 0, t_input)
         # https://arxiv.org/abs/1506.02078
-        outputs = self.lstm1(self.lstm(x))
+        outputs = F.silu(self.lstm1(self.lstm(x)))
         outputs = torch.where(torch.isnan(outputs), x, outputs)
         outputs = x + outputs
-        outputs = outputs * F.sigmoid(outputs)
+        outputs = F.silu(outputs)
         gnn_output = self.fc_out(self.ln1(outputs))
         return gnn_output #, hiddens, cells
 
@@ -390,6 +391,7 @@ class Seq2Seq_Min_LSTM_GNN(nn.Module):
                                          graph=self.graph, seq_length=forecast_history, pre_norm=pre_norm, upstream_cut=upstream_cut)
         self.decoder = DecoderMinLSTMGNN(
             input_dim=de_input_size, hidden_dim=hidden_size, output_dim=output_size)
+        # self.fds = FDS(en_input_size)
 
     def forward(self, *src):
         if len(src) == 3:
@@ -397,7 +399,8 @@ class Seq2Seq_Min_LSTM_GNN(nn.Module):
         else:
             encoder_input, decoder_input = src
             trgs = torch.full((decoder_input.shape[0], self.prec_window + self.trg_len, self.output_size),
-                              float("nan")).to(encoder_input.device)
+                              float("nan"), device=decoder_input.device)
+        # encoder_input = self.fds.smooth(features=encoder_input, labels=trgs, epoch=100)
         encoder_outputs = self.encoder(encoder_input)
         outputs = []
         current_input = encoder_outputs[:, -1, :].unsqueeze(1)

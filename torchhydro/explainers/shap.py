@@ -7,6 +7,8 @@ Description: SHAP methods for deep learning models
 FilePath: \torchhydro\torchhydro\explainers\shap.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
+'''
 from typing import List
 import torch
 import numpy as np
@@ -14,8 +16,6 @@ import shap
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
-
-
 def plot_summary_shap_values(shap_values: torch.tensor, columns):
     mean_shap_values = shap_values.mean(dim=(0, 1))
 
@@ -231,3 +231,4 @@ def shap_summary_plot(dl_model, train_dataset, test_dataset) -> None:
     )
     shap.summary_plot(shap_values_avg, test_tensor_avg)
     plt.savefig(os.path.join(test_dataset.data_cfgs["test_path"], "shap.png"))
+'''

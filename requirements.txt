@@ -4,11 +4,10 @@ tbparse
 fsspec
 intake
 
-torch
+pytorch
 torchvision
 torchaudio
 tensorboard
-shap
 kaggle
 
 pytest

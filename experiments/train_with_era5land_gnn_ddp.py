@@ -16,6 +16,7 @@ import dgl
 from experiments.fabric_launcher_config import create_config_fabric
 from torchhydro.datasets.create_graph import get_upstream_graph
 from torchhydro.configs.config import cmd, update_cfg
+from torchhydro.trainers.train_utils import total_fab
 from torchhydro.trainers.trainer import train_and_evaluate
 
 # 设置日志记录器的级别为 INFO
@@ -29,14 +30,14 @@ for logger_name in logging.root.manager.loggerDict:
 prechn_gage_id = [gage_id.split('/')[-1].split('.')[0] for gage_id in glob.glob('/ftproot/basins-interim/timeseries/1h/*.csv', recursive=True)]
 camels_hourly_usgs = [file.split('/')[-1].split('-')[0] for file in glob.glob('/ftproot/camels_hourly/data/usgs_streamflow_csv/*.csv', recursive=True)]
 pre_gage_ids = [gage_id for gage_id in prechn_gage_id if (gage_id.split('_')[-1] in camels_hourly_usgs) | ('songliao' in gage_id)]
-remove_list = ['03604000']
-pre_gage_ids = [gage_id for gage_id in pre_gage_ids if gage_id.split('_')[1] not in remove_list]
 
 def test_run_model():
     # os.environ['CUDA_VISIBLE_DEVICES'] = '1,2'
+    # https://discuss.pytorch.org/t/ddp-via-lightning-fabric-training-hang-with-100-gpu-utilization/181046
+    # os.environ['NCCL_P2P_DISABLE'] = '1'
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'DETAIL'
-    os.environ['POLARS_VERBOSE'] = '1'
+    # os.environ['POLARS_VERBOSE'] = '1'
     config_data, graph_tuple = create_config_Seq2Seq()
     config_data['data_cfgs']['graph'] = graph_tuple[0]
     config_data['model_cfgs']['model_hyperparam']['graph'] = dgl.from_networkx(graph_tuple[0])
@@ -46,7 +47,7 @@ def test_run_model():
 
 def create_config_Seq2Seq():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_era5land", "ex1_648")
+    project_name = os.path.join("train_with_era5land", "ex1_652")
     config_data = create_config_fabric()
     network_shp_path = "gnn_data/SL_USA_HydroRiver_single.shp"
     node_shp_path = "gnn_data/iowa_usgs_hml_sl_stations.shp"
@@ -109,17 +110,17 @@ def create_config_Seq2Seq():
         dataset="GNNDataset",
         sampler="FullNeighborSampler",
         scaler="DapengScaler",
-        train_epoch=3,
+        train_epoch=9,
         save_epoch=1,
         train_period=[("2016-01-01-01", "2023-11-30-01")],
         test_period=[("2015-01-01-01", "2016-01-01-01")],
-        valid_period=[("2015-01-01-01", "2016-01-01-01")],
+        # valid_period=[("2015-01-01-01", "2016-01-01-01")],
         loss_func="MultiOutLoss",
         loss_param={
-            "loss_funcs": "RMSESum",
+            "loss_funcs": "RMSEWeightedSum",
             "data_gap": [0, 0],
-            "device": [1],
-            "item_weight": [0.8, 0.2],
+            # "device": [1],
+            "item_weight": [0.9, 0.1],
         },
         opt="Adam",
         lr_scheduler={
@@ -136,20 +137,38 @@ def create_config_Seq2Seq():
         #     "batch_sizes": [256, 512],
         # },
         patience=5,
-        model_type="GNN_DDP_MTL",
+        model_type="MTL",
         continue_train=True,
         network_shp=network_shp_path,
         node_shp=node_shp_path,
         basins_shp="/ftproot/basins-interim/shapes/basins.shp",
-        master_addr="localhost",
-        port="12345",
         num_workers=1,
         pin_memory=True,
-        weight_path='results/train_with_era5land/ex1_648/model_Ep5.pth',
+        weight_path='results/train_with_era5land/ex1_652/model_Ep1.pth',
     )
     # 更新默认配置
     update_cfg(config_data, args)
     return config_data, graph_tuple
 
 if __name__ == "__main__":
+    # https://github.com/Lightning-AI/pytorch-lightning/issues/20536
+    total_fab.launch()
     test_run_model()
+
+def test_comp_results():
+    import matplotlib.pyplot as plt
+    import polars as pl
+    pred_pq = pl.read_parquet("results/train_with_era5land/ex1_652/epochbestflow_pred.parquet")
+    obs_pq = pl.read_parquet("results/train_with_era5land/ex1_652/epochbestflow_obs.parquet")
+    basins = pred_pq['basin_id'].unique()
+    for bid in basins:
+        pred_bdf = pred_pq.filter(pl.col('basin_id') == bid)
+        obs_bdf = obs_pq.filter(pl.col('basin_id') == bid)
+        plt.figure(figsize=(20, 12))
+        plt.plot(pred_bdf['streamflow'], label='Pred', alpha=0.3)
+        plt.plot(obs_bdf['streamflow'], label='Obs', alpha=0.8)
+        plt.xlabel('time')
+        plt.ylabel('streamflow')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(f"results/train_with_era5land/ex1_652/basin_pics/epochbestflow_pred_obs_{bid}.png")

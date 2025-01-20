@@ -34,6 +34,7 @@ from torchhydro.datasets.data_utils import (
     warn_if_nan,
     wrap_t_s_dict, warn_if_nan_pq,
 )
+from torchhydro.trainers.train_utils import total_fab
 
 LOGGER = logging.getLogger(__name__)
 
@@ -1025,7 +1026,9 @@ class GNNDataset(Seq2SeqDataset):
                                                               pl.Series('time', date_times)])
                         station_df = pl.concat([station_df, up_str_df],  how='horizontal')
                         total_df = pl.concat([total_df, station_df])
-            total_df.write_parquet(tra_val_te_ds)
+            if total_fab.global_rank == 0:
+                total_df.write_parquet(tra_val_te_ds)
+                total_fab.barrier()
         total_df = total_df[total_df.columns[:save_cols]]
         return total_df
 

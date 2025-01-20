@@ -19,12 +19,9 @@ from torch.utils.tensorboard import SummaryWriter
 from torchhydro.trainers.train_utils import total_fab
 
 
-def save_model(model, model_file, gpu_num=1):
+def save_model(model, model_file):
     try:
-        if torch.cuda.device_count() > 1 and gpu_num > 1:
-            total_fab.save(model_file, model.module.state_dict())
-        else:
-            total_fab.save(model_file, model.state_dict())
+        total_fab.save(model_file, model.state_dict())
     except RuntimeError:
         total_fab.save(model_file, model.module.state_dict())
 
