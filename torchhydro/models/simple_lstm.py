@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-19 09:36:25
-LastEditTime: 2025-01-25 09:19:43
+LastEditTime: 2025-01-25 09:32:12
 LastEditors: Wenyu Ouyang
 Description: Some self-made LSTMs
 FilePath: /torchhydro/torchhydro/models/simple_lstm.py
@@ -68,11 +68,9 @@ class LinearSimpleLSTMModel(SimpleLSTM):
         super(LinearSimpleLSTMModel, self).__init__(**kwargs)
         self.former_linear = nn.Linear(linear_size, kwargs["input_size"])
 
-    def forward(self, x, do_drop_mc=False, dropout_false=False):
+    def forward(self, x):
         x0 = F.relu(self.former_linear(x))
-        return super(LinearSimpleLSTMModel, self).forward(
-            x0, do_drop_mc=do_drop_mc, dropout_false=dropout_false
-        )
+        return super(LinearSimpleLSTMModel, self).forward(x0)
 
 
 class SimpleLSTMForecast(SimpleLSTM):
