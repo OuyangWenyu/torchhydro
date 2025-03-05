@@ -2,7 +2,7 @@
 The method is similar with dpl4xaj.py.
 The difference between dpl4xaj and dpl4xaj_nn4et is:
 in the former, the parameter of PBM is only one output of a DL model,
-while in the latter, time series output of a DL model can be as parameter of PBM 
+while in the latter, time series output of a DL model can be as parameter of PBM
 and some modules could be replaced with neural networks
 """
 
@@ -164,7 +164,7 @@ class Xaj4DplWithNnModule(nn.Module):
             Hence, in warmup period, we don't need to initialize it again
         param_var_index
             the index of parameters which will be time-varying
-            NOTE: at the most, we support k, b, and c to be time-varying
+            NOTE: at the most, we support k, b, and c to be time-varying 至多支持k、b、c时变
         et_output
             we only support one-layer et now, because its water balance is not easy to handle with
         """
@@ -177,7 +177,7 @@ class Xaj4DplWithNnModule(nn.Module):
         param_range = MODEL_PARAM_DICT["xaj_mz"]["param_range"]
         self.k_scale = param_range["K"]
         self.b_scale = param_range["B"]
-        self.im_sacle = param_range["IM"]
+        self.im_scale = param_range["IM"]
         self.um_scale = param_range["UM"]
         self.lm_scale = param_range["LM"]
         self.dm_scale = param_range["DM"]
@@ -297,7 +297,7 @@ class Xaj4DplWithNnModule(nn.Module):
             bs = self.b_scale[0] + parameters_ts[:, :, 1] * (
                 self.b_scale[1] - self.b_scale[0]
             )
-        im = self.im_sacle[0] + parameters[:, 2] * (self.im_sacle[1] - self.im_sacle[0])
+        im = self.im_scale[0] + parameters[:, 2] * (self.im_scale[1] - self.im_scale[0])
         um = self.um_scale[0] + parameters[:, 3] * (self.um_scale[1] - self.um_scale[0])
         lm = self.lm_scale[0] + parameters[:, 4] * (self.lm_scale[1] - self.lm_scale[0])
         dm = self.dm_scale[0] + parameters[:, 5] * (self.dm_scale[1] - self.dm_scale[0])

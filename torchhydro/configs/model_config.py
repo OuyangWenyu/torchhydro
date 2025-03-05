@@ -118,6 +118,56 @@ MODEL_PARAM_DICT = {
             }
         ),
     },
+    "sac":{
+        "para_name": [  # todo: parameter name
+            "KC",  # ratio of potential evapotranspiration to reference crop evaporation generally from Allen, 1998
+            "PCTIM",  # The ratio of the permanent impervious area to total area of the basin 永久不透水面积占比
+            "ADIMP",  # The ratio of the alterable impervious area to total area of the basin 可变不透水面积占比
+            "UZTWM",  # Tension water capacity in the upper layer 上土层张力水容量
+            "UZFWM",  # Tension water capacity in the lower layer上土层自由水容量
+            "LZTWM",  # Tension water capacity in the lower layer下土层张力水容量
+            "LZFSM",  # Tension water capacity in the lower layer下土层快速自由水容量
+            "LZFPM",  # Tension water capacity in the lower layer下土层慢速自由水容量
+            "RSERV",  # The coefficient of deep evapotranspiration 下土层自由水中不参与蒸散发的比例
+            "PFREE",  # 从上土层向下土层下渗的水量中补充自由水的比例
+            "RIVA",  # 河网、湖泊及水生植物面积占全流域的面积比例
+            "ZPERC",  # 与最大下渗率有关的参数
+            "REXP",  # The exponent of the free water capacity curve 下渗曲线指数
+            "UZK",  # Outflow coefficients of interflow 上土层自由水日出流系数
+            "LZSK",  # Outflow coefficients of groundwater 下土层快速自由水日出流系数
+            "LZPK",  # Outflow coefficients of groundwater 下土层慢速自由水日出流系数
+            "CI",  # The recession constant of the lower interflow 壤中流日消退系数
+            "CGS",  # The recession constant of groundwater storage 快速地下水消退系数
+            "CGP",  # The recession constant of groundwater storage 慢速地下水消退系数
+            "KE",  # 河道汇流时间(小时)
+            "XE",  # 河道汇流流量比重系数[XE]
+        ],
+        "param_range": OrderedDict(
+            {
+                "KC": [0.1, 1.0],
+                "PCTIM": [0.0, 0.6],
+                "ADIMP": [0.0, 0.3],
+                "UZTWM": [1, 200],
+                "UZFWM": [0, 100],
+                "LZTWM": [10, 160],
+                "LZFSM": [0, 50],
+                "LZFPM": [0, 150],
+                "RSERV": [0.1, 0.4],
+                "PFREE": [0.01, 0.5],
+                "RIVA": [0.01, 0.09],
+                "ZPERC": [2, 25],
+                "REXP": [1, 5],
+                "UZK": [0.1, 1.0],
+                "LZSK": [0.05, 1.0],
+                "LZPK": [0.002, 0.7],
+                "CI": [0.25, 1.0],
+                "CGS": [0.5, 1.0],
+                "CGP": [0.70, 1.0],
+                "KE": [0.0, 1000],
+                "XE": [-0.5, 0.5],
+            }
+        ),
+    },
 }
 
 
