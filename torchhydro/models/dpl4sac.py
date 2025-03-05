@@ -1,3 +1,4 @@
+import numpy as np
 from typing import Union
 import torch
 from torch import nn
@@ -7,6 +8,112 @@ from torchhydro.models.dpl4xaj_nn4et import NnModule4Hydro
 
 PRECISION = 1e-5
 
+def calculate_evap(kc, uztwm, lztwm, riva, auztw, alztw, uztw, uzfw, lztw, prcp, pet) -> tuple[np.array, np.array, np.array, np.array, np.array, np.array]:
+
+    """
+    The three-layers evaporation model is described in Page 76;
+    The method is same with that in Page 22-23 in "Hydrologic Forecasting (4-th version)" written by Prof. Weimin Bao.
+    This book's Chinese name is 《水文预报》
+
+    Parameters
+    ----------
+    kc
+        coefficient of potential evapotranspiration to reference crop evaporation generally
+    uztwm
+        tension water capacity in the upper layer
+    lztwm
+        tension water capacity in the lower layer
+    riva
+        ratio of river net, lakes and hydrophyte area to total area of the basin
+    auztw
+        the upper layer tension water accumulation on the alterable impervious area
+    alztw
+        the lower layer tension water accumulation on the alterable impervious area
+    uztw
+        tension water accumulation in the upper layer
+    uzfw
+        free water accumulation in the upper layer
+    lztw
+        tension water accumulation in the lower layer
+    prcp
+        basin mean precipitation
+    pet
+        potential evapotranspiration
+
+    Returns
+    -------
+    tuple[np.array,np.array,np.array,np.array,np.array,np.array]
+        ae1ae3/e1/e2/e3/e4 are evaporation from upper/lower/deeper layer, respectively
+    """
+    # evaporation of basin
+    ep = kc * pet
+    # evaporation of the alterable impervious area
+    ae1 = min(auztw, ep*(auztw/uztwm))  #
+    ae3 = (ep - ae1) * (alztw / (uztwm + lztwm))  #
+    pav = max(0.0, prcp - (uztwm - (auztw - ae1)))
+    adsur = pav * ((alztw - ae3) / lztwm)
+    ars = max(0.0, ((pav - adsur) + (alztw -ae3)) - lztwm)
+    auztw = min(uztwm, (auztw - ae1) + prcp)
+    alztw = min(lztwm, (pav - adsur) + (alztw - ae3))
+    # evaporation of the permeable area
+    e1 = min(uztw, ep * (uztw / uztwm))  # upper layer
+    e2 = min(uzfw, ep - e1)  # lower layer
+    e3 = (ep - e1 - e2) * (lztw / (uztwm + lztwm))  # deeper layer
+    lt = lztw - e3
+    e4 = riva * ep  # river net, lakes and hydrophyte
+    e0 = ae1 + ae3 + e1 + e2 + e3 + e4  # total evaporation
+
+    return ae1, ae3, e1, e2, e3, e4
+
+def c(uztw, uzfw, uztwm, uzfwm, pe):
+    """
+    Calculates the amount of runoff generated from rainfall after entering the underlying surface
+
+    Same in "Hydrologic Forecasting (4-th version)"
+
+    Parameters
+    ----------
+    uztw
+        B exponent coefficient
+    uzfw
+        IMP imperiousness coefficient
+    uztwm
+        average soil moisture storage capacity
+    uzfwm
+        initial soil moisture
+    pe
+        net precipitation
+
+    Returns
+    -------
+    torch.Tensor
+        r -- runoff; r_im -- runoff of impervious part
+    """
+    ROIMP = pe * pctim
+    wmm = wm * (1 + b)
+    a = wmm * (1 - (1 - w0 / wm) ** (1 / (1 + b)))
+    if any(torch.isnan(a)):
+        raise ValueError(
+            "Error: NaN values detected. Try set clamp function or check your data!!!"
+        )
+    r_cal = torch.where(
+        pe > 0.0,
+        torch.where(
+            pe + a < wmm,
+            # torch.clamp is used for gradient not to be NaN, see more in xaj_sources function
+            pe - (wm - w0) + wm * (1 - torch.clamp(a + pe, max=wmm) / wmm) ** (1 + b),
+            pe - (wm - w0),
+        ),
+        torch.full(pe.size(), 0.0).to(pe.device),
+    )
+    if any(torch.isnan(r_cal)):
+        raise ValueError(
+            "Error: NaN values detected. Try set clamp function or check your data!!!"
+        )
+    r = torch.clamp(r_cal, min=0.0)
+    r_im_cal = pe * im
+    r_im = torch.clamp(r_im_cal, min=0.0)
+    return r, r_im
 
 def calculate_1layer_w_storage(uztwm, uzfwm, lztwm, lzfsm, lzfpm, w0, pe, rs, ri, rgs, rgp):
     """
@@ -70,7 +177,7 @@ class Sac4DplWithNnModule(nn.Module):
         Parameters
         ----------
         kernel_size
-            the time length of unit hydrograph
+            the time length of unit hydrograph 单位线
         warmup_length
             the length of warmup periods; 预热期
             sac needs a warmup period to generate reasonable initial state values 需要预热，形成初始条件
@@ -81,7 +188,7 @@ class Sac4DplWithNnModule(nn.Module):
         param_var_index
             the index of parameters which will be time-varying 随时间变化 时变
             NOTE: at the most, we support k, b, and c to be time-varying  至多支持k、b、c时变
-        et_output  蒸发输出？
+        et_output  蒸发输出 只支持一层蒸发 #
             we only support one-layer et now, because its water balance is not easy to handle with 蒸发的水量平衡不容易处理？
         nn_hidden_size
             the hidden layer size of neural network
@@ -140,7 +247,7 @@ class Sac4DplWithNnModule(nn.Module):
 
     def sac_generation_with_new_module(
         self,
-        p_and_e: Tensor,
+        p_and_e: Tensor,   # input, precipitation and evaporation
         kc,
         pctim,
         adimp,
@@ -157,15 +264,16 @@ class Sac4DplWithNnModule(nn.Module):
         Parameters
         ----------
         p_and_e
+            input, precipitation and evaporation.
         kc
-        pctim,
-        adimp,
-        uztwm,
-        uzfwm,
-        lztwm,
-        lzfpm,
-        rserv,
-        pfree,
+        pctim
+        adimp
+        uztwm
+        uzfwm
+        lztwm
+        lzfpm
+        rserv
+        pfree
 
         Returns
         -------

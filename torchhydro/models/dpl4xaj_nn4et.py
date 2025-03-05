@@ -125,11 +125,11 @@ def calculate_1layer_w_storage(um, lm, dm, w0, pe, r):
     torch.Tensor
         w -- soil moisture
     """
-    xaj_device = pe.device
+    xaj_device = pe.device  #
     tensor_zeros = torch.full_like(w0, 0.0, device=xaj_device)
     # water balance (equation 2.2 in Page 13, also shown in Page 23)
     w = w0 + pe - r
-    return torch.clamp(w, min=tensor_zeros, max=(um + lm + dm) - PRECISION)
+    return torch.clamp(w, min=tensor_zeros, max=(um + lm + dm) - PRECISION)   # minus a minimum #
 
 
 class Xaj4DplWithNnModule(nn.Module):
