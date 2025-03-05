@@ -119,28 +119,28 @@ MODEL_PARAM_DICT = {
         ),
     },
     "sac":{
-        "para_name": [  # todo: parameter name
-            "KC",  # ratio of potential evapotranspiration to reference crop evaporation generally from Allen, 1998
-            "PCTIM",  # The ratio of the permanent impervious area to total area of the basin 永久不透水面积占比
-            "ADIMP",  # The ratio of the alterable impervious area to total area of the basin 可变不透水面积占比
-            "UZTWM",  # Tension water capacity in the upper layer 上土层张力水容量
-            "UZFWM",  # Tension water capacity in the lower layer上土层自由水容量
-            "LZTWM",  # Tension water capacity in the lower layer下土层张力水容量
-            "LZFSM",  # Tension water capacity in the lower layer下土层快速自由水容量
-            "LZFPM",  # Tension water capacity in the lower layer下土层慢速自由水容量
-            "RSERV",  # The coefficient of deep evapotranspiration 下土层自由水中不参与蒸散发的比例
-            "PFREE",  # 从上土层向下土层下渗的水量中补充自由水的比例
-            "RIVA",  # 河网、湖泊及水生植物面积占全流域的面积比例
-            "ZPERC",  # 与最大下渗率有关的参数
-            "REXP",  # The exponent of the free water capacity curve 下渗曲线指数
-            "UZK",  # Outflow coefficients of interflow 上土层自由水日出流系数
-            "LZSK",  # Outflow coefficients of groundwater 下土层快速自由水日出流系数
-            "LZPK",  # Outflow coefficients of groundwater 下土层慢速自由水日出流系数
-            "CI",  # The recession constant of the lower interflow 壤中流日消退系数
-            "CGS",  # The recession constant of groundwater storage 快速地下水消退系数
-            "CGP",  # The recession constant of groundwater storage 慢速地下水消退系数
-            "KE",  # 河道汇流时间(小时)
-            "XE",  # 河道汇流流量比重系数[XE]
+        "para_name": [
+            "KC",  # coefficient of potential evapotranspiration to reference crop evaporation generally  K
+            "PCTIM",  # ratio of the permanent impervious area to total area of the basin 永久不透水面积占比
+            "ADIMP",  # ratio of the alterable impervious area to total area of the basin 可变不透水面积占比
+            "UZTWM",  # tension water capacity in the upper layer 上土层张力水容量  zone  M
+            "UZFWM",  # free water capacity in the upper layer 上土层自由水容量
+            "LZTWM",  # tension water capacity in the lower layer 下土层张力水容量
+            "LZFSM",  # speedy free water capacity in the lower layer 下土层快速自由水容量
+            "LZFPM",  # slow free water capacity in the lower layer 下土层慢速自由水容量
+            "RSERV",  # ratio of the part which do not evaporate in lower layer free water 下土层自由水中不参与蒸散发的比例
+            "PFREE",  # ratio of supplying the free water which infiltrating from upper layer to lower layer 从上土层向下土层下渗的水量中补充自由水的比例
+            "RIVA",  # ratio of river net, lakes and hydrophyte area to total area of the basin 河网、湖泊及水生植物面积占全流域的面积比例
+            "ZPERC",  # parameter about the maximal infiltrating ratio与最大下渗率有关的参数
+            "REXP",  # exponent of the infiltrating curve 下渗曲线指数
+            "UZK",  # daily outflow coefficient of the upper layer free water 上土层自由水日出流系数
+            "LZSK",  # daily outflow coefficient of the lower layer speedy free water 下土层快速自由水日出流系数
+            "LZPK",  # daily outflow coefficient of the lower layer slow free water 下土层慢速自由水日出流系数
+            "CI",  # recession coefficient of the interflow 壤中流日消退系数
+            "CGS",  # recession coefficient of speedy groundwater 快速地下水消退系数
+            "CGP",  # recession coefficient of slow groundwater 慢速地下水消退系数
+            "KE",  # confluence duration in riverway (hourly) 河道汇流时间(小时)
+            "XE",  # flow weight coefficient of riverway confluence 河道汇流流量比重系数
         ],
         "param_range": OrderedDict(
             {

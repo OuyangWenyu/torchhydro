@@ -7,6 +7,47 @@ from torchhydro.models.dpl4xaj_nn4et import NnModule4Hydro
 
 PRECISION = 1e-5
 
+
+def calculate_1layer_w_storage(uztwm, uzfwm, lztwm, lzfsm, lzfpm, w0, pe, rs, ri, rgs, rgp):
+    """
+    Update the soil moisture value.
+
+    According to the runoff-generation equation 5.2.2 in the book "SHUIWENYUBAO", dW = dPE - dR
+
+    Parameters
+    ----------
+    uztwm
+        tension soil moisture storage capacity of the upper layer (mm)
+    uzfwm
+        free soil moisture storage capacity of the upper layer (mm)
+    lztwm
+        tension soil moisture storage capacity of the lower layer (mm)
+    lzfsm
+        speedy free soil moisture storage capacity of the lower layer (mm)
+    lzfpm
+        slow free soil moisture storage capacity of the lower layer (mm)
+    pe
+        net precipitation (mm), it is able to be negative value in this function.
+    rs
+        runoff of
+    ri
+        runoff of interflow
+    rgs
+        runoff of speedy groundwater
+    rgp
+        runoff of slow groundwater
+    Returns
+    -------
+    torch.Tensor
+        w -- soil moisture
+    """
+    sac_device = pe.device  #
+    tensor_zeros = torch.full_like(w0, 0.0, device=sac_device)
+    # water balance
+    w = w0 + pe - rs  # todo:
+    return torch.clamp(w, min=tensor_zeros, max=(uztwm + uzfwm + lztwm + lzfsm + lzfpm) - PRECISION)   # minus a minimum #
+
+
 class Sac4DplWithNnModule(nn.Module):
     """
     Sacramento model for differential parameter learning with neural network as submodule
