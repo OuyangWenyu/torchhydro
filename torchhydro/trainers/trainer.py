@@ -60,7 +60,7 @@ def train_and_evaluate(cfgs: Dict):
     random_seed = cfgs["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
     resulter = Resulter(cfgs)
-    deephydro = _get_deep_hydro(cfgs)
+    deephydro = _get_deep_hydro(cfgs) # get deep learning mode 模式
     if cfgs["training_cfgs"]["train_mode"] and (
         (
             deephydro.weight_path is not None
@@ -69,7 +69,7 @@ def train_and_evaluate(cfgs: Dict):
         or (deephydro.weight_path is None)
     ):
         deephydro.model_train()
-    preds, obss = deephydro.model_evaluate()
+    preds, obss = deephydro.model_evaluate()   # infer ?
     resulter.save_cfg(deephydro.cfgs)
     resulter.save_result(preds, obss)
     resulter.eval_result(preds, obss)

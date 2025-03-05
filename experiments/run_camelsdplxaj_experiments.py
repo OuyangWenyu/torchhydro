@@ -9,7 +9,7 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import os
-from configs.config import cmd, default_config_file, update_cfg
+from torchhydro.configs.config import cmd, default_config_file, update_cfg
 
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate

@@ -170,7 +170,7 @@ class Resulter:
         # Finally, try to explain model behaviour using shap
         is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
         if is_shap:
-            shap_summary_plot(self.model, self.traindataset, self.testdataset)
+            shap_summary_plot(self.model, self.traindataset, self.testdataset)  #模型的可解释性画图
             # deep_explain_model_summary_plot(self.model, test_data)
             # deep_explain_model_heatmap(self.model, test_data)
 

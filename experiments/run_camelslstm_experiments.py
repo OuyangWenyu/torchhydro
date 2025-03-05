@@ -54,7 +54,7 @@ def run_normal_dl(
     valid_period=None,
     test_period=None,
 ):
-    if train_period is None:
+    if train_period is None:     # camels-us time_range: ["1980-01-01", "2014-12-31"]
         train_period = ["1985-10-01", "1995-10-01"]
     if valid_period is None:
         valid_period = ["1995-10-01", "2000-10-01"]
@@ -70,7 +70,8 @@ def run_normal_dl(
             ),
         },
         ctx=[0],
-        model_name="KuaiLSTM",
+        # model_name="KuaiLSTM",
+        model_name="CpuLSTM",
         model_hyperparam={
             "n_input_features": len(var_c) + len(var_t),
             "n_output_features": 1,
@@ -106,9 +107,9 @@ def run_normal_dl(
 
 
 # the gage_id.txt file is set by the user, it must be the format like:
-# GAUGE_ID
+# GAUGE_ID     # notice, capital
 # 01013500
 # 01022500
 # ......
 # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("ndl", "explstm"), "xxx/xxx/gage_id.txt")
+run_normal_dl(os.path.join("ndl", "explstm"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt")
