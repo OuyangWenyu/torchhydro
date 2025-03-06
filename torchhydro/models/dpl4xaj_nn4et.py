@@ -30,6 +30,8 @@ class NnModule4Hydro(nn.Module):
     """A NN module for Hydrological model.
     Generally, the difference between it and normal NN is:
     we need constrain its output to some specific value range
+    - calculate the evaporation.
+    - submodule of Xaj4DplWithNnModule
 
     Parameters
     ----------
@@ -72,7 +74,7 @@ class NnModule4Hydro(nn.Module):
             _description_
         w0 : _type_
             water storage
-        p : _type_
+        prcp : _type_
             precipitation
         pet: tensor
             potential evapotranspiration, used to be part of upper limit of ET
@@ -81,13 +83,13 @@ class NnModule4Hydro(nn.Module):
 
         Returns
         -------
-        _type_
-            _description_
+        et : _type_
+            the evaporation calculated by the SimpleAnn module
         """
         zeros = torch.full_like(w0, 0.0, device=x.device)
         et = torch.full_like(w0, 0.0, device=x.device)
         w_mask = w0 + prcp > PRECISION
-        y = self.ann(x)
+        y = self.ann(x)   #
         z = y.flatten()
         et[w_mask] = torch.clamp(
             z[w_mask],
@@ -101,7 +103,7 @@ class NnModule4Hydro(nn.Module):
 
 def calculate_1layer_w_storage(um, lm, dm, w0, pe, r):
     """
-    Update the soil moisture value.
+    Update the soil moisture value.  submodule of Xaj4DplWithNnModule
 
     According to the runoff-generation equation 2.60 in the book "SHUIWENYUBAO", dW = dPE - dR
 
@@ -224,6 +226,41 @@ class Xaj4DplWithNnModule(nn.Module):
         # wl0: Tensor = None,
         # wd0: Tensor = None,
     ) -> tuple:
+        """
+        generate runoff
+        Parameters
+        ----------
+        p_and_e
+            precipitation and evaporation, mm
+        k
+            evaporate discount coefficient
+        b
+            exponent of the tension water capacity curve
+        im
+            ratio of the impervious area to the total area of the basin
+        um
+            tension water capacity in the upper layer, mm.
+        lm
+            tension water capacity in the lower layer, mm.
+        dm
+            tension water capacity in the deepest layer, mm.
+        c
+            the coefficient of deep evapotranspiration
+        args
+            other arguments
+        Returns
+        -------
+        r
+            runoff, mm.
+        r_im
+            runoff of impervious area part, mm.
+        e
+            evaporation, mm.
+        pe
+            net precipitation, mm.
+        w
+            soil moisture accumulation, mm.
+        """
         # make sure physical variables' value ranges are correct
         prcp = torch.clamp(p_and_e[:, 0], min=0.0)
         pet = torch.clamp(p_and_e[:, 1], min=0.0)
@@ -257,7 +294,7 @@ class Xaj4DplWithNnModule(nn.Module):
     def forward(self, p_and_e, parameters_ts, return_state=False):
         """
         run XAJ model
-
+        forward transmission,
         Parameters
         ----------
         p_and_e
@@ -272,6 +309,10 @@ class Xaj4DplWithNnModule(nn.Module):
         -------
         torch.Tensor
             streamflow got by XAJ
+        q_sim
+            the simulate flow, Q(m^3/s).
+        es
+            the simulate evaporation, E(mm/d)
         """
         xaj_device = p_and_e.device
         if self.param_test_way == MODEL_PARAM_TEST_WAY["time_varying"]:
@@ -379,13 +420,13 @@ class Xaj4DplWithNnModule(nn.Module):
             qi0 = torch.full(ci.size(), 0.1).to(xaj_device)
             qg0 = torch.full(cg.size(), 0.1).to(xaj_device)
 
-        inputs = p_and_e[warmup_length:, :, :]
+        inputs = p_and_e[warmup_length:, :, :]  #
         runoff_ims_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         rss_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         ris_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         rgs_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         es_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
-        for i in range(inputs.shape[0]):
+        for i in range(inputs.shape[0]):  #
             if 0 in self.param_var_index or self.param_var_index is None:
                 k = ks[i]
             else:
@@ -434,15 +475,15 @@ class Xaj4DplWithNnModule(nn.Module):
             rgs_[i, :] = rg * (1 - im)
             es_[i, :] = e
         # seq, batch, feature
-        runoff_im = torch.unsqueeze(runoff_ims_, dim=2)
+        runoff_im = torch.unsqueeze(runoff_ims_, dim=2)  # 解缩
         rss = torch.unsqueeze(rss_, dim=2)
         es = torch.unsqueeze(es_, dim=2)
 
         conv_uh = KernelConv(a, theta, self.kernel_size)
-        qs_ = conv_uh(runoff_im + rss)
+        qs_ = conv_uh(runoff_im + rss)   # surface routing
 
         qs = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
-        for i in range(inputs.shape[0]):
+        for i in range(inputs.shape[0]):  # interflow and groundwater routing use the linear reservoir
             if i == 0:
                 qi = linear_reservoir(ris_[i], ci, qi0)
                 qg = linear_reservoir(rgs_[i], cg, qg0)
@@ -458,6 +499,9 @@ class Xaj4DplWithNnModule(nn.Module):
 
 
 class DplLstmNnModuleXaj(nn.Module):
+    """
+    Differential parameter learning - Long short-term memory neural network model
+    """
     def __init__(
         self,
         n_input_features,

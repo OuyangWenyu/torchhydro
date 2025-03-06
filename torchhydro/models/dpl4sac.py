@@ -10,9 +10,11 @@ PRECISION = 1e-5
 
 # todo: ascertain the time step of the model
 
-def calculate_evap(kc, pctim, uztwm, lztwm, riva,
-                   auztw, alztw, uztw, uzfw, lztw,
-                   prcp, pet) -> tuple[np.array, np.array, np.array, np.array, np.array, np.array]:
+def calculate_evap(
+    kc, pctim, uztwm, lztwm, riva,
+    auztw, alztw, uztw, uzfw, lztw,
+    prcp, pet
+    ) -> tuple[np.array, np.array, np.array, np.array, np.array, np.array, np.array]:
 
     """
     The three-layers evaporation model is described in Page 169;
@@ -54,18 +56,18 @@ def calculate_evap(kc, pctim, uztwm, lztwm, riva,
     tuple[np.array,np.array,np.array,np.array,np.array,np.array]
         ae2/ae1/ae3/e1/e2/e3/e4 are evaporation from upper/lower/deeper layer, respectively, mm.
     """
-    # evaporation of basin
+    # average evaporation of basin
     ep = kc * pet
     # evaporation of the permanent impervious area
     ae2 = pctim * ep
     # evaporation of the alterable impervious area
     ae1 = min(auztw, ep*(auztw/uztwm))  # upper layer
     ae3 = (ep - ae1) * (alztw / (uztwm + lztwm))  # lower layer
-    pav = max(0.0, prcp - (uztwm - (auztw - ae1)))
-    adsur = pav * ((alztw - ae3) / lztwm)
-    ars = max(0.0, ((pav - adsur) + (alztw -ae3)) - lztwm)
-    auztw = min(uztwm, (auztw - ae1) + prcp)
-    alztw = min(lztwm, (pav - adsur) + (alztw - ae3))
+    # pav = max(0.0, prcp - (uztwm - (auztw - ae1)))
+    # adsur = pav * ((alztw - ae3) / lztwm)
+    # ars = max(0.0, ((pav - adsur) + (alztw -ae3)) - lztwm)
+    # auztw = min(uztwm, (auztw - ae1) + prcp)
+    # alztw = min(lztwm, (pav - adsur) + (alztw - ae3))
     # evaporation of the permeable area
     e1 = min(uztw, ep * (uztw / uztwm))  # upper layer
     e2 = min(uzfw, ep - e1)  # lower layer
@@ -73,9 +75,9 @@ def calculate_evap(kc, pctim, uztwm, lztwm, riva,
     # lt = lztw - e3
     e4 = riva * ep  # river net, lakes and hydrophyte
     # total evaporation
-    e0 = ae2 + ae1 + ae3 + e1 + e2 + e3 + e4
+    e0 = ae2 + ae1 + ae3 + e1 + e2 + e3 + e4  # the total evaporation
 
-    return ae2, ae1, ae3, e1, e2, e3, e4
+    return ae2, ae1, ae3, e1, e2, e3, e4, e0
 
 def calculate_prcp_runoff(pctim, uztwm, uzfwm, lztwm, lzfsm, lzfpm, uzk, lzsk, lzpk, zperc, rexp, pfree, rserv, adimp,
                           uztw, uzfw, lztw, lzfs, lzfp,
@@ -108,7 +110,7 @@ def calculate_prcp_runoff(pctim, uztwm, uzfwm, lztwm, lzfsm, lzfpm, uzk, lzsk, l
     """
     # generate runoff
 
-    lt = lztw - e3
+    # lt = lztw - e3  #
     # runoff of the permanent impervious area
     roimp = pp * pctim
     # runoff of the alterable impervious area
@@ -122,6 +124,7 @@ def calculate_prcp_runoff(pctim, uztwm, uzfwm, lztwm, lzfsm, lzfpm, uzk, lzsk, l
     uf = min(uzfwm, pp + (uztw + uzfw - e1 - e2) - ut)
     ri = uf * uzk  # interflow
     uf = uf - ri
+
     # the infiltrated water
     pbase = lzfsm * lzsk + lzfpm * lzpk
     defr = 1 - (lzfs + lzfp + lt) / (lzfsm + lzfpm + lztwm)
@@ -135,15 +138,19 @@ def calculate_prcp_runoff(pctim, uztwm, uzfwm, lztwm, lzfsm, lzfpm, uzk, lzsk, l
         coef = 1
     percp = min(lzfpm - lzfp, max(fx - (lzfsm - lzfs), coef * fx))
     percs = fx - percp
+
     # update the soil moisture accumulation
     lt = lt + perct
     lp = lzfp + percp
     ls = lzfs + percs
+
     # groundwater
-    rgs = ls * lzsk
-    ls = ls - rgs
-    rgp = lp * lzpk
-    lp = lp = rgp
+    rgs = ls * lzsk  #
+    rgp = lp * lzpk  #
+
+    ls = ls - rgs  # update
+    lp = lp - rgp
+
     # water balance check
     if ut / uztwm < uf / uzfwm:
         uztw = uztwm * (ut + uf) / (uztwm + uzfwm)
@@ -170,22 +177,105 @@ def calculate_prcp_runoff(pctim, uztwm, uzfwm, lztwm, lzfsm, lzfpm, uzk, lzsk, l
 
     return rs, ri, rg
 
+def calculate_w_storage( # todo:
+    prcp,
+    uztwm, lztwm,
+    auztw, alztw, lztw,
+    ae1, ae3, e3,
+    um, lm, dm, wu0, wl0, wd0, eu, el, ed, pe, r
+) -> tuple[np.array, np.array, np.array]:
+    """
+    Update the soil moisture values of the three layers.
+
+    According to the equation (5-72, 5-75) in the book《水文预报》
+
+    Parameters
+    ----------
+    um
+        average soil moisture storage capacity of the upper layer
+    lm
+        average soil moisture storage capacity of the lower layer
+    dm
+        average soil moisture storage capacity of the deep layer
+    wu0
+        initial values of soil moisture in upper layer
+    wl0
+        initial values of soil moisture in lower layer
+    wd0
+        initial values of soil moisture in deep layer
+    eu
+        evaporation of the upper layer; it isn't used in this function
+    el
+        evaporation of the lower layer
+    ed
+        evaporation of the deep layer
+    pe
+        net precipitation; it is able to be negative value in this function
+    r
+        runoff
+
+    Returns
+    -------
+    tuple[np.array,np.array,np.array]
+        wu,wl,wd -- soil moisture in upper, lower and deep layer
+    """
+    # pe>0: the upper soil moisture was added firstly, then lower layer, and the final is deep layer
+    # pe<=0: no additional water, just remove evapotranspiration,
+    # but note the case: e >= p > 0
+    # (1) if wu0 + p > e, then e = eu (2) else, wu must be zero
+
+    pav = max(0.0, prcp - (uztwm - (auztw - ae1)))
+    adsur = pav * ((alztw - ae3) / lztwm)
+    ars = max(0.0, ((pav - adsur) + (alztw -ae3)) - lztwm)
+    auztw = min(uztwm, (auztw - ae1) + prcp)
+    alztw = min(lztwm, (pav - adsur) + (alztw - ae3))
+    lt = lztw - e3
+
+    wu = np.where(
+        pe > 0.0,
+        np.where(wu0 + pe - r < um, wu0 + pe - r, um),
+        np.where(wu0 + pe > 0.0, wu0 + pe, 0.0),
+    )
+    # calculate wd before wl because it is easier to cal using where statement
+    wd = np.where(
+        pe > 0.0,
+        np.where(wu0 + wl0 + pe - r > um + lm, wu0 + wl0 + wd0 + pe - r - um - lm, wd0),
+        wd0 - ed,
+    )
+    # water balance (equation 2.2 in Page 13, also shown in Page 23)
+    # if wu0 + p > e, then e = eu; else p must be used in upper layer,
+    # so no matter what the case is, el didn't include p, neither ed
+    wl = np.where(pe > 0.0, wu0 + wl0 + wd0 + pe - r - wu - wd, wl0 - el)
+    # the water storage should be in reasonable range
+    wu_ = np.clip(wu, a_min=0.0, a_max=um)
+    wl_ = np.clip(wl, a_min=0.0, a_max=lm)
+    wd_ = np.clip(wd, a_min=0.0, a_max=dm)
+    return wu_, wl_, wd_
+
 def calculate_route(
-    area,
-    pctim, adimp, ci, cgs, cgp,
+    hydrodt, area, rivernumber,
+    pctim, adimp, ci, cgs, cgp, ke, xe,
     qs0, qi0, qgs0, qgp0,
-    rs, ri, rgs, rgp, rg,
+    rs, ri, rgs, rgp,
     q_sim_0):
     """
     calcualte the route, the simulated flow.
     Parameters
     ----------
+    hydrodt
+        the time step
+    area
+        basin area, km^2.
+    rivernumber
+        the river sections number
     rs
-        ground runoff, mm.
+        surface runoff, mm.
     ri
         interflow runoff, mm.
-    rg
-        underground runoff, mm.
+    rgs
+        speedy groundwater runoff, mm.
+    rgp
+        slow groundwater runoff, mm.
     q_sim_0
     Returns
     -------
@@ -202,7 +292,24 @@ def calculate_route(
     qgp = cgp * qgp0 + (1 - cgp) * rgp * u
     q_sim = (qs + qi + qgs + qgp)
 
-    q_sim = 0
+    # river routing, use the Muskingum routing method
+    q_sim_0 = qs0 + qi0 + qgs0 + qgp0
+    if rivernumber > 0:
+        dt = hydrodt / 3600.0 / 2.0  # todo: hydrodt, the timestep of data
+        xo = xe
+        ko = ke / rivernumber
+        c1 = ko * (1.0 - xo) + dt
+        c2 = (-ko * xo + dt) / c1
+        c3 = (ko * (1.0 - xo) - dt) / c1
+        c1 = (ko * xo + dt) / c1
+        i1 = q_sim_0
+        i2 = q_sim
+        for i in range(rivernumber):
+            q_sim_0 = qq[i]  # todo:
+            i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
+            qq[i] = i2
+            i1 = q_sim_0
+    q_sim = i2
     return q_sim
 
 
@@ -319,7 +426,7 @@ class Sac4DplWithNnModule(nn.Module):
         self.ke_scale = param_range["KE"]
         self.xe_scale = param_range["XE"]
 
-        self.kernel_size = kernel_size
+        self.kernel_size = kernel_size  # the unit-line kernel size #
         self.warmup_length = warmup_length
         # there are 2 input variables in Sac: P and PET
         self.feature_size = 2
