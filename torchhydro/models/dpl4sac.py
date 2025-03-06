@@ -8,48 +8,59 @@ from torchhydro.models.dpl4xaj_nn4et import NnModule4Hydro
 
 PRECISION = 1e-5
 
-def calculate_evap(kc, uztwm, lztwm, riva, auztw, alztw, uztw, uzfw, lztw, prcp, pet) -> tuple[np.array, np.array, np.array, np.array, np.array, np.array]:
+# todo: ascertain the time step of the model
+
+def calculate_evap(kc, pctim, uztwm, lztwm, riva,
+                   auztw, alztw, uztw, uzfw, lztw,
+                   prcp, pet) -> tuple[np.array, np.array, np.array, np.array, np.array, np.array]:
 
     """
-    The three-layers evaporation model is described in Page 76;
-    The method is same with that in Page 22-23 in "Hydrologic Forecasting (4-th version)" written by Prof. Weimin Bao.
+    The three-layers evaporation model is described in Page 169;
+    The method is same with that in Page 169-170 in "Hydrologic Forecasting (4-th version)" written by Prof. Weimin Bao.
     This book's Chinese name is 《水文预报》
 
     Parameters
     ----------
+    --model parameters--
     kc
         coefficient of potential evapotranspiration to reference crop evaporation generally
+    pctim
+        ratio of the permanent impervious area to total area of the basin
     uztwm
-        tension water capacity in the upper layer
+        tension water capacity in the upper layer, mm.
     lztwm
-        tension water capacity in the lower layer
+        tension water capacity in the lower layer, mm.
     riva
         ratio of river net, lakes and hydrophyte area to total area of the basin
+    --middle variables--
     auztw
-        the upper layer tension water accumulation on the alterable impervious area
+        the upper layer tension water accumulation on the alterable impervious area, mm.
     alztw
-        the lower layer tension water accumulation on the alterable impervious area
+        the lower layer tension water accumulation on the alterable impervious area, mm.
     uztw
-        tension water accumulation in the upper layer
+        tension water accumulation in the upper layer, mm.
     uzfw
-        free water accumulation in the upper layer
+        free water accumulation in the upper layer, mm.
     lztw
-        tension water accumulation in the lower layer
+        tension water accumulation in the lower layer, mm.
+    --hydrodata--
     prcp
-        basin mean precipitation
+        basin mean precipitation, mm.
     pet
-        potential evapotranspiration
+        potential evapotranspiration, mm.
 
     Returns
     -------
     tuple[np.array,np.array,np.array,np.array,np.array,np.array]
-        ae1ae3/e1/e2/e3/e4 are evaporation from upper/lower/deeper layer, respectively
+        ae2/ae1/ae3/e1/e2/e3/e4 are evaporation from upper/lower/deeper layer, respectively, mm.
     """
     # evaporation of basin
     ep = kc * pet
+    # evaporation of the permanent impervious area
+    ae2 = pctim * ep
     # evaporation of the alterable impervious area
-    ae1 = min(auztw, ep*(auztw/uztwm))  #
-    ae3 = (ep - ae1) * (alztw / (uztwm + lztwm))  #
+    ae1 = min(auztw, ep*(auztw/uztwm))  # upper layer
+    ae3 = (ep - ae1) * (alztw / (uztwm + lztwm))  # lower layer
     pav = max(0.0, prcp - (uztwm - (auztw - ae1)))
     adsur = pav * ((alztw - ae3) / lztwm)
     ars = max(0.0, ((pav - adsur) + (alztw -ae3)) - lztwm)
@@ -59,19 +70,24 @@ def calculate_evap(kc, uztwm, lztwm, riva, auztw, alztw, uztw, uzfw, lztw, prcp,
     e1 = min(uztw, ep * (uztw / uztwm))  # upper layer
     e2 = min(uzfw, ep - e1)  # lower layer
     e3 = (ep - e1 - e2) * (lztw / (uztwm + lztwm))  # deeper layer
-    lt = lztw - e3
+    # lt = lztw - e3
     e4 = riva * ep  # river net, lakes and hydrophyte
-    e0 = ae1 + ae3 + e1 + e2 + e3 + e4  # total evaporation
+    # total evaporation
+    e0 = ae2 + ae1 + ae3 + e1 + e2 + e3 + e4
 
-    return ae1, ae3, e1, e2, e3, e4
+    return ae2, ae1, ae3, e1, e2, e3, e4
 
-def c(uztw, uzfw, uztwm, uzfwm, pe):
+def calculate_prcp_runoff(pctim, uztwm, uzfwm, lztwm, lzfsm, lzfpm, uzk, lzsk, lzpk, zperc, rexp, pfree, rserv, adimp,
+                          uztw, uzfw, lztw, lzfs, lzfp,
+                          pp, pe,
+                          pav, alztw,
+                          ae3, e1, e2, e3, ):
     """
     Calculates the amount of runoff generated from rainfall after entering the underlying surface
 
     Same in "Hydrologic Forecasting (4-th version)"
 
-    Parameters
+    Parameters # todo:
     ----------
     uztw
         B exponent coefficient
@@ -81,6 +97,7 @@ def c(uztw, uzfw, uztwm, uzfwm, pe):
         average soil moisture storage capacity
     uzfwm
         initial soil moisture
+    "uzk",  # daily outflow coefficient of the upper layer free water 上土层自由水日出流系数
     pe
         net precipitation
 
@@ -89,31 +106,107 @@ def c(uztw, uzfw, uztwm, uzfwm, pe):
     torch.Tensor
         r -- runoff; r_im -- runoff of impervious part
     """
-    ROIMP = pe * pctim
-    wmm = wm * (1 + b)
-    a = wmm * (1 - (1 - w0 / wm) ** (1 / (1 + b)))
-    if any(torch.isnan(a)):
-        raise ValueError(
-            "Error: NaN values detected. Try set clamp function or check your data!!!"
-        )
-    r_cal = torch.where(
-        pe > 0.0,
-        torch.where(
-            pe + a < wmm,
-            # torch.clamp is used for gradient not to be NaN, see more in xaj_sources function
-            pe - (wm - w0) + wm * (1 - torch.clamp(a + pe, max=wmm) / wmm) ** (1 + b),
-            pe - (wm - w0),
-        ),
-        torch.full(pe.size(), 0.0).to(pe.device),
-    )
-    if any(torch.isnan(r_cal)):
-        raise ValueError(
-            "Error: NaN values detected. Try set clamp function or check your data!!!"
-        )
-    r = torch.clamp(r_cal, min=0.0)
-    r_im_cal = pe * im
-    r_im = torch.clamp(r_im_cal, min=0.0)
-    return r, r_im
+    # generate runoff
+
+    lt = lztw - e3
+    # runoff of the permanent impervious area
+    roimp = pp * pctim
+    # runoff of the alterable impervious area
+    adsur = pav * ((alztw - ae3) / lztwm)
+    ars = max(0.0, ((pav - adsur) + (alztw -ae3)) - lztwm) * adimp
+    adsur = adsur * adimp  # todo:
+    # runoff of the permeable area
+    parea = 1 - pctim - adimp
+    rs = max(0.0, pp + (uztw + uzfw - e1 - e2) - (uztwm + uzfwm)) * parea
+    ut = min(uztwm, uztw - e1 + pp)
+    uf = min(uzfwm, pp + (uztw + uzfw - e1 - e2) - ut)
+    ri = uf * uzk  # interflow
+    uf = uf - ri
+    # the infiltrated water
+    pbase = lzfsm * lzsk + lzfpm * lzpk
+    defr = 1 - (lzfs + lzfp + lt) / (lzfsm + lzfpm + lztwm)
+    perc = pbase * ( 1 + zperc * pow(defr, rexp)) * uf / uzfwm
+    rate = min(perc, (lzfsm + lzfpm + lztwm) - (lzfs + lzfp + lt))
+    # assign the infiltrate water
+    fx = min(lzfsm + lzfpm - (lzfs + lzfp), max(rate - (lztwm - lt), rate * pfree))
+    perct = rate - fx
+    coef = (lzfpm / (lzfsm + lzfpm)) * (2 * (1 - lzfp / lzfpm) / ((1 - lzfp / lzfpm) + (1 - lzfsm / lzfsm)))
+    if coef > 1:
+        coef = 1
+    percp = min(lzfpm - lzfp, max(fx - (lzfsm - lzfs), coef * fx))
+    percs = fx - percp
+    # update the soil moisture accumulation
+    lt = lt + perct
+    lp = lzfp + percp
+    ls = lzfs + percs
+    # groundwater
+    rgs = ls * lzsk
+    ls = ls - rgs
+    rgp = lp * lzpk
+    lp = lp = rgp
+    # water balance check
+    if ut / uztwm < uf / uzfwm:
+        uztw = uztwm * (ut + uf) / (uztwm + uzfwm)
+        uzfw = uzfwm * (ut + uf) / (uztwm + uzfwm)
+    else:
+        uztw = ut
+        uzfw = uf
+    saved = rserv * (lzfsm + lzfpm)
+    ratio = (ls + lp - saved + lt) / (lzfsm + lzfpm - saved + lztwm)
+    if ratio < 0:
+        ratio = 0
+    if lt / lztwm < ratio:
+        lztw = lztwm * ratio
+        del_ = lztw - lt
+        lzfs = max(0.0, ls - del_)
+        lzfp = lp - max(0.0, del_ - ls)
+    else:
+        lztw = lt
+        lzfs = ls
+        lzfp = lp
+
+    rs = roimp + (adsur + ars) + rs
+    rg = rgs + rgp
+
+    return rs, ri, rg
+
+def calculate_route(
+    area,
+    pctim, adimp, ci, cgs, cgp,
+    qs0, qi0, qgs0, qgp0,
+    rs, ri, rgs, rgp, rg,
+    q_sim_0):
+    """
+    calcualte the route, the simulated flow.
+    Parameters
+    ----------
+    rs
+        ground runoff, mm.
+    ri
+        interflow runoff, mm.
+    rg
+        underground runoff, mm.
+    q_sim_0
+    Returns
+    -------
+    q_sim
+        the simulated flow, Q(m^3/s).
+    """
+    u = (1 - pctim - adimp) * area * 1000  # todo: / hydrodt     u, the unit converting coefficient.
+    parea = 1 - pctim - adimp
+
+    # slope routing, use the linear reservoir method
+    qs = rs * area * 1000.0  # todo: /hydrodt
+    qi = ci * qi0 + (1 - ci) * ri * u
+    qgs = cgs * qgs0 + (1 - cgs) * rgs * u
+    qgp = cgp * qgp0 + (1 - cgp) * rgp * u
+    q_sim = (qs + qi + qgs + qgp)
+
+    q_sim = 0
+    return q_sim
+
+
+
 
 def calculate_1layer_w_storage(uztwm, uzfwm, lztwm, lzfsm, lzfpm, w0, pe, rs, ri, rgs, rgp):
     """
