@@ -57,25 +57,25 @@ def calculate_evap(
         ae2/ae1/ae3/e1/e2/e3/e4 are evaporation from upper/lower/deeper layer, respectively, mm.
     """
     # average evaporation of basin
-    ep = kc * pet
+    ep = torch.clamp(kc * pet, min = 0)
     # evaporation of the permanent impervious area
-    ae2 = pctim * ep
+    ae2 = torch.clamp(pctim * ep, min = 0)
     # evaporation of the alterable impervious area
-    ae1 = min(auztw, ep*(auztw/uztwm))  # upper layer
-    ae3 = (ep - ae1) * (alztw / (uztwm + lztwm))  # lower layer
+    ae1 = torch.min((auztw, ep*(auztw/uztwm)))  # upper layer
+    ae3 = torch.clamp((ep - ae1) * (alztw / (uztwm + lztwm)), min = 0)  # lower layer
     # pav = max(0.0, prcp - (uztwm - (auztw - ae1)))
     # adsur = pav * ((alztw - ae3) / lztwm)
     # ars = max(0.0, ((pav - adsur) + (alztw -ae3)) - lztwm)
     # auztw = min(uztwm, (auztw - ae1) + prcp)
     # alztw = min(lztwm, (pav - adsur) + (alztw - ae3))
     # evaporation of the permeable area
-    e1 = min(uztw, ep * (uztw / uztwm))  # upper layer
-    e2 = min(uzfw, ep - e1)  # lower layer
-    e3 = (ep - e1 - e2) * (lztw / (uztwm + lztwm))  # deeper layer
+    e1 = torch.min((uztw, ep * (uztw / uztwm)))  # upper layer
+    e2 = torch.min((uzfw, ep - e1))  # lower layer
+    e3 = torch.clamp((ep - e1 - e2) * (lztw / (uztwm + lztwm)), min = 0)  # deeper layer
     # lt = lztw - e3
-    e4 = riva * ep  # river net, lakes and hydrophyte
+    e4 = torch.clamp(riva * ep, min = 0)  # river net, lakes and hydrophyte
     # total evaporation
-    e0 = ae2 + ae1 + ae3 + e1 + e2 + e3 + e4  # the total evaporation
+    e0 = torch.clamp(ae2 + ae1 + ae3 + e1 + e2 + e3 + e4, min = 0)  # the total evaporation
 
     return ae2, ae1, ae3, e1, e2, e3, e4, e0
 
