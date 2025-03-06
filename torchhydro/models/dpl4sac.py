@@ -110,7 +110,7 @@ def calculate_prcp_runoff(pctim, uztwm, uzfwm, lztwm, lzfsm, lzfpm, uzk, lzsk, l
     """
     # generate runoff
 
-    # lt = lztw - e3  #
+
     # runoff of the permanent impervious area
     roimp = pp * pctim
     # runoff of the alterable impervious area
@@ -122,10 +122,12 @@ def calculate_prcp_runoff(pctim, uztwm, uzfwm, lztwm, lzfsm, lzfpm, uzk, lzsk, l
     rs = max(0.0, pp + (uztw + uzfw - e1 - e2) - (uztwm + uzfwm)) * parea
     ut = min(uztwm, uztw - e1 + pp)
     uf = min(uzfwm, pp + (uztw + uzfw - e1 - e2) - ut)
+
     ri = uf * uzk  # interflow
     uf = uf - ri
 
     # the infiltrated water
+    lt = lztw - e3  #
     pbase = lzfsm * lzsk + lzfpm * lzpk
     defr = 1 - (lzfs + lzfp + lt) / (lzfsm + lzfpm + lztwm)
     perc = pbase * ( 1 + zperc * pow(defr, rexp)) * uf / uzfwm
@@ -141,8 +143,8 @@ def calculate_prcp_runoff(pctim, uztwm, uzfwm, lztwm, lzfsm, lzfpm, uzk, lzsk, l
 
     # update the soil moisture accumulation
     lt = lt + perct
-    lp = lzfp + percp
     ls = lzfs + percs
+    lp = lzfp + percp
 
     # groundwater
     rgs = ls * lzsk  #
@@ -231,26 +233,7 @@ def calculate_w_storage( # todo:
     alztw = min(lztwm, (pav - adsur) + (alztw - ae3))
     lt = lztw - e3
 
-    wu = np.where(
-        pe > 0.0,
-        np.where(wu0 + pe - r < um, wu0 + pe - r, um),
-        np.where(wu0 + pe > 0.0, wu0 + pe, 0.0),
-    )
-    # calculate wd before wl because it is easier to cal using where statement
-    wd = np.where(
-        pe > 0.0,
-        np.where(wu0 + wl0 + pe - r > um + lm, wu0 + wl0 + wd0 + pe - r - um - lm, wd0),
-        wd0 - ed,
-    )
-    # water balance (equation 2.2 in Page 13, also shown in Page 23)
-    # if wu0 + p > e, then e = eu; else p must be used in upper layer,
-    # so no matter what the case is, el didn't include p, neither ed
-    wl = np.where(pe > 0.0, wu0 + wl0 + wd0 + pe - r - wu - wd, wl0 - el)
-    # the water storage should be in reasonable range
-    wu_ = np.clip(wu, a_min=0.0, a_max=um)
-    wl_ = np.clip(wl, a_min=0.0, a_max=lm)
-    wd_ = np.clip(wd, a_min=0.0, a_max=dm)
-    return wu_, wl_, wd_
+    return auztw, alztw,
 
 def calculate_route(
     hydrodt, area, rivernumber,
@@ -508,3 +491,92 @@ class Sac4DplWithNnModule(nn.Module):
             return (r, rim, e, pe), (w,)
         else:
             raise ValueError("et_output should be 1")
+
+    def forward(self, p_and_e, parameters_ts, return_state=False):
+        """
+        run XAJ model
+        forward transmission,
+        Parameters
+        ----------
+        p_and_e
+            precipitation and potential evapotranspiration
+        parameters_ts
+            time series parameters of XAJ model;
+            some parameters may be time-varying specified by param_var_index
+        return_state
+            if True, return state values, mainly for warmup periods
+
+        Returns
+        -------
+        torch.Tensor
+            streamflow got by XAJ
+        q_sim
+            the simulate flow, Q(m^3/s).
+        es
+            the simulate evaporation, E(mm/d)
+        """
+        xaj_device = p_and_e.device
+        if self.param_test_way == MODEL_PARAM_TEST_WAY["time_varying"]:
+            parameters = parameters_ts[-1, :, :]
+        else:
+            # parameters_ts must be a 2-d tensor: (basin, param)
+            parameters = parameters_ts
+        # denormalize the parameters to general range
+
+        if 0 not in self.param_var_index or self.param_var_index is None:
+            ks = self.k_scale[0] + parameters[:, 0] * (
+                self.k_scale[1] - self.k_scale[0]
+            )
+        else:
+            ks = self.k_scale[0] + parameters_ts[:, :, 0] * (
+                self.k_scale[1] - self.k_scale[0]
+            )
+        if 1 not in self.param_var_index or self.param_var_index is None:
+            bs = self.b_scale[0] + parameters[:, 1] * (
+                self.b_scale[1] - self.b_scale[0]
+            )
+        else:
+            bs = self.b_scale[0] + parameters_ts[:, :, 1] * (
+                self.b_scale[1] - self.b_scale[0]
+            )
+        im = self.im_scale[0] + parameters[:, 2] * (self.im_scale[1] - self.im_scale[0])
+        um = self.um_scale[0] + parameters[:, 3] * (self.um_scale[1] - self.um_scale[0])
+        lm = self.lm_scale[0] + parameters[:, 4] * (self.lm_scale[1] - self.lm_scale[0])
+        dm = self.dm_scale[0] + parameters[:, 5] * (self.dm_scale[1] - self.dm_scale[0])
+        if 6 not in self.param_var_index or self.param_var_index is None:
+            cs = self.c_scale[0] + parameters[:, 6] * (
+                self.c_scale[1] - self.c_scale[0]
+            )
+        else:
+            cs = self.c_scale[0] + parameters_ts[:, :, 6] * (
+                self.c_scale[1] - self.c_scale[0]
+            )
+        sm = self.sm_scale[0] + parameters[:, 7] * (self.sm_scale[1] - self.sm_scale[0])
+        ex = self.ex_scale[0] + parameters[:, 8] * (self.ex_scale[1] - self.ex_scale[0])
+        ki_ = self.ki_scale[0] + parameters[:, 9] * (
+            self.ki_scale[1] - self.ki_scale[0]
+        )
+        kg_ = self.kg_scale[0] + parameters[:, 10] * (
+            self.kg_scale[1] - self.kg_scale[0]
+        )
+
+        ki = torch.where(
+            ki_ + kg_ < 1.0,
+            ki_,
+            (1 - PRECISION) / (ki_ + kg_) * ki_,
+        )
+        kg = torch.where(
+            ki_ + kg_ < 1.0,
+            kg_,
+            (1 - PRECISION) / (ki_ + kg_) * kg_,
+        )
+        a = self.a_scale[0] + parameters[:, 11] * (self.a_scale[1] - self.a_scale[0])
+        theta = self.theta_scale[0] + parameters[:, 12] * (
+            self.theta_scale[1] - self.theta_scale[0]
+        )
+        ci = self.ci_scale[0] + parameters[:, 13] * (
+            self.ci_scale[1] - self.ci_scale[0]
+        )
+        cg = self.cg_scale[0] + parameters[:, 14] * (
+            self.cg_scale[1] - self.cg_scale[0]
+        )

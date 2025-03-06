@@ -52,9 +52,9 @@ class NnModule4Hydro(nn.Module):
         Parameters
         ----------
         nx
-            number of input neurons
+            number of input neurons 输入神经元
         ny
-            number of output neurons
+            number of output neurons  输出神经元
         hidden_size
             a list/tuple which contains number of neurons in each hidden layer;
             if int, only one hidden layer except for hidden_size=0
@@ -479,6 +479,7 @@ class Xaj4DplWithNnModule(nn.Module):
         rss = torch.unsqueeze(rss_, dim=2)
         es = torch.unsqueeze(es_, dim=2)
 
+        # river routing
         conv_uh = KernelConv(a, theta, self.kernel_size)
         qs_ = conv_uh(runoff_im + rss)   # surface routing
 
@@ -500,7 +501,7 @@ class Xaj4DplWithNnModule(nn.Module):
 
 class DplLstmNnModuleXaj(nn.Module):
     """
-    Differential parameter learning - Long short-term memory neural network model
+    Xin'anjiang differential parameter learning - Long short-term memory neural network model
     """
     def __init__(
         self,
