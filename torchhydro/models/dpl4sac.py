@@ -10,64 +10,6 @@ from torchhydro.models.ann import SimpleAnn
 
 PRECISION = 1e-5
 
-# todo: ascertain the time step of the model
-
-def calculate_w_storage( # todo:
-    prcp,
-    uztwm, lztwm,
-    auztw, alztw, lztw,
-    ae1, ae3, e3,
-    um, lm, dm, wu0, wl0, wd0, eu, el, ed, pe, r
-) -> tuple[np.array, np.array, np.array]:
-    """
-    Update the soil moisture values of the three layers.
-
-    According to the equation (5-72, 5-75) in the book《水文预报》
-
-    Parameters
-    ----------
-    um
-        average soil moisture storage capacity of the upper layer
-    lm
-        average soil moisture storage capacity of the lower layer
-    dm
-        average soil moisture storage capacity of the deep layer
-    wu0
-        initial values of soil moisture in upper layer
-    wl0
-        initial values of soil moisture in lower layer
-    wd0
-        initial values of soil moisture in deep layer
-    eu
-        evaporation of the upper layer; it isn't used in this function
-    el
-        evaporation of the lower layer
-    ed
-        evaporation of the deep layer
-    pe
-        net precipitation; it is able to be negative value in this function
-    r
-        runoff
-
-    Returns
-    -------
-    tuple[np.array,np.array,np.array]
-        wu,wl,wd -- soil moisture in upper, lower and deep layer
-    """
-    # pe>0: the upper soil moisture was added firstly, then lower layer, and the final is deep layer
-    # pe<=0: no additional water, just remove evapotranspiration,
-    # but note the case: e >= p > 0
-    # (1) if wu0 + p > e, then e = eu (2) else, wu must be zero
-
-    pav = max(0.0, prcp - (uztwm - (auztw - ae1)))
-    adsur = pav * ((alztw - ae3) / lztwm)
-    ars = max(0.0, ((pav - adsur) + (alztw -ae3)) - lztwm)
-    auztw = min(uztwm, (auztw - ae1) + prcp)
-    alztw = min(lztwm, (pav - adsur) + (alztw - ae3))
-    lt = lztw - e3
-
-    return auztw, alztw,
-
 def calculate_route(
     hydrodt, area, rivernumber,
     pctim, adimp, ci, cgs, cgp, ke, xe,
@@ -136,20 +78,18 @@ class Sac4DplWithNnModule(nn.Module):
         self,
         warmup_length: int,
         nn_module=None,
-        param_var_index=None,
+        param_var_index=None,  # todo:
         source_book="HF",
-        source_type="sources",  # what's mean?
-        et_output=3,
         nn_hidden_size: Union[int, tuple, list] = None,
         nn_dropout=0.2,
         param_test_way=MODEL_PARAM_TEST_WAY["time_varying"],  # todo:
     ):
         """
-        Initiate a Sacramento model instance
+        Initiate a Sacramento model instance.
         Parameters
         ----------
         warmup_length
-            the length of warmup periods; 预热期
+            the length of warmup periods 预热期
             sac needs a warmup period to generate reasonable initial state values 需要预热，形成初始条件
         nn_module
             We initialize the module when we firstly initialize Sac4DplWithNnModule.
@@ -158,12 +98,10 @@ class Sac4DplWithNnModule(nn.Module):
         param_var_index
             the index of parameters which will be time-varying 随时间变化 时变
             NOTE: at the most, we support k, b, and c to be time-varying  至多支持k、b、c时变
-        et_output  蒸发输出 只支持一层蒸发 #
-            we only support one-layer et now, because its water balance is not easy to handle with 蒸发的水量平衡不容易处理？
         nn_hidden_size
             the hidden layer size of neural network
         nn_dropout
-            the dropout rate of neural network  神经网络的暂退率，(0.3, 0.5)
+            the dropout rate of neural network 神经网络中间层神经元的暂退率，(0.3, 0.5)，提高模型的稳健性。暂时退出、暂时不参与模拟计算的概率。什么时候重回计算呢？动态暂退？
         param_test_way
             the way to test the model parameters, time-varying. 模型参数测试方式，取时变式。
         """
@@ -194,11 +132,8 @@ class Sac4DplWithNnModule(nn.Module):
         self.xe_scale = param_range["XE"]
 
         self.warmup_length = warmup_length
-        # there are 2 input variables in Sac: P and PET
-        self.feature_size = 2  # P and Pet are two feature in nn model
+        self.feature_size = 2       # there are 2 input variables in Sac, P and PET. P and Pet are two feature in nn model.
         self.source_book = source_book
-        self.source_type = source_type
-        self.et_output = et_output
         self.param_var_index = param_var_index
         self.nn_hidden_size = nn_hidden_size
         self.nn_dropout = nn_dropout
@@ -211,7 +146,7 @@ class Sac4DplWithNnModule(nn.Module):
 
         Parameters
         ----------
-        --hydrodata--
+        p_and_e
         prcp
             basin mean precipitation, mm/d.
         pet
@@ -240,9 +175,8 @@ class Sac4DplWithNnModule(nn.Module):
         lztw
             tension water accumulation in the lower layer, mm.
 
-
         hydrodt
-            the time step
+            the time step, day.
         area
             basin area, km^2.
         rivernumber
@@ -259,10 +193,10 @@ class Sac4DplWithNnModule(nn.Module):
 
         Returns
         -------
+        q_sim : torch.Tensor
+        the simulated flow, Q(m^3/s).
         e_sim : torch.Tensor
             the simulated evaporation, E(mm/d).
-        q_sim : torch.Tensor
-            the simulated flow, Q(m^3/s).
         """
         sac_device = p_and_e.device
         prcp = torch.clamp(p_and_e[:, 0], min=0.0)
@@ -304,7 +238,8 @@ class Sac4DplWithNnModule(nn.Module):
         # todo:
         area = 0
         rivernumber = 0
-        hydrodt = 0
+        hydrodt = 1  # todo: 时间步长，1天。
+        qq = []   # todo:
 
         # evaporation
         ep = kc * pet       # average evaporation of basin
@@ -410,7 +345,7 @@ class Sac4DplWithNnModule(nn.Module):
                 qq[i] = i2
                 i1 = q_sim_0
         q_sim = i2
-        return e_sim, q_sim
+        return q_sim, e_sim
 
 
 class DplAnnModuleSac(nn.Module):
@@ -423,14 +358,12 @@ class DplAnnModuleSac(nn.Module):
         n_output_features,
         n_hidden_states,
         warmup_length,
-        param_limit_func="clamp",
+        param_limit_func="clamp",   # 参数限制函数 限制在[0,1]
         param_test_way="final",
         param_var_index=None,
         source_book="HF",
-        source_type="source",
         nn_hidden_states=None,
         nn_dropout=0.2,
-        et_output=3,
     ):
         """
         Differential Parameter learning model only with attributes as DL model's input: ANN -> Param -> SAC
@@ -462,10 +395,8 @@ class DplAnnModuleSac(nn.Module):
         self.pb_model = Sac4DplWithNnModule(
             warmup_length,
             source_book=source_book,
-            source_type=source_type,
             nn_hidden_size=nn_hidden_states,
             nn_dropout=nn_dropout,
-            et_output=et_output,
             param_var_index=param_var_index,
             param_test_way=param_test_way,
         )
@@ -477,40 +408,40 @@ class DplAnnModuleSac(nn.Module):
         """
         Differential parameter learning
 
-        z (normalized input) -> ANN -> param -> + x (not normalized) -> gr4j -> q
-        Parameters will be denormalized in gr4j model
+        z (normalized input) -> ANN -> param -> + x (not normalized) -> sac -> q
+        Parameters will be denormalized in sac model  在sac模型中参数会去正则化，即展开。
 
         Parameters
         ----------
         x
-            not normalized data used for physical model; a sequence-first 3-dim tensor. [sequence, batch, feature]
+            not normalized data used for physical model, a sequence-first 3-dim tensor. [sequence, batch, feature]  非正则数据，序列优先的三维张量，用于物理模型。 [序列，批次，特征]
         z
-            normalized data used for DL model; a 2-dim tensor. [batch, feature]
+            normalized data used for DL model, a 2-dim tensor. [batch, feature]  正则化后的数据，二维张量，用于DL模型。 [批次，特征]
 
         Returns
         -------
         torch.Tensor
-            one time forward result
+            one time forward result 单步前向传播结果？
         """
-        gen = self.dl_model(z)
+        gen = self.dl_model(z)  # SimpleAnn
         if torch.isnan(gen).any():
             raise ValueError("Error: NaN values detected. Check your data firstly!!!")
         # we set all params' values in [0, 1] and will scale them when forwarding
-        if self.param_func == "sigmoid":
-            params = F.sigmoid(gen)
+        if self.param_func == "sigmoid":  # activation function
+            params = F.sigmoid(gen)   # 参数是通过nn模型算出来的数据，然后传进下面的物理模型中，算出 降雨 和 蒸发。 # todo: ?
         elif self.param_func == "clamp":
-            params = torch.clamp(gen, min=0.0, max=1.0)
+            params = torch.clamp(gen, min=0.0, max=1.0)  #将输入input张量每个元素的范围限制到区间[min，max], 返回一个新张量。
         else:
             raise NotImplementedError(
                 "We don't provide this way to limit parameters' range!! Please choose sigmoid or clamp"
             )
         # just get one-period values, here we use the final period's values,
         # when the MODEL_PARAM_TEST_WAY is not time_varing, we use the last period's values.
-        if self.param_test_way != MODEL_PARAM_TEST_WAY["time_varying"]:
+        if self.param_test_way != MODEL_PARAM_TEST_WAY["time_varying"]:   # 时变  todo:
             params = params[-1, :, :]
         # Please put p in the first location and pet in the second
         q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)
-        return torch.cat([q, e], dim=-1)
+        return torch.cat([q, e], dim=-1)  # catenate, 拼接 q 和 e，按列。 [0,1]
 
 
 class DplLstmNnModuleSac(nn.Module):
@@ -527,10 +458,8 @@ class DplLstmNnModuleSac(nn.Module):
         param_test_way="final",
         param_var_index=None,
         source_book="HF",
-        source_type="sources",
         nn_hidden_size=None,
         nn_dropout=0.2,
-        et_output=3,
     ):
         """
         Differential Parameter learning model: LSTM -> Param -> SAC
@@ -565,10 +494,8 @@ class DplLstmNnModuleSac(nn.Module):
         self.pb_model = Sac4DplWithNnModule(
             warmup_length,
             source_book=source_book,
-            source_type=source_type,
             nn_hidden_size=nn_hidden_size,
             nn_dropout=nn_dropout,
-            et_output=et_output,
             param_var_index=param_var_index,
             param_test_way=param_test_way,
         )

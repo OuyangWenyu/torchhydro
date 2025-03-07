@@ -14,20 +14,20 @@ import torch.nn.functional as F
 
 
 class SimpleAnn(torch.nn.Module):
-    def __init__(self, nx: int, ny: int, hidden_size: Union[int, tuple, list] = None,
+    def __init__(self, nx: int, ny: int, hidden_size: Union[int, tuple, list] = None,  # Union,联合。hidden_size可以是int,tuple,list中的任意一种。 [tuple, list]；隐藏的层数及各层的神经元个数。
                  dr: Union[float, tuple, list] = 0.0):
         """
-        A simple multi-layer NN model with final linear layer
+        A simple multi-layer NN model with final linear layer  简单多层神经网络模型，最后一层是线性层。
 
         Parameters
         ----------
         nx
-            number of input neurons
+            number of input neurons  输入神经元个数
         ny
-            number of output neurons
-        hidden_size
-            a list/tuple which contains number of neurons in each hidden layer;
-            if int, only one hidden layer except for hidden_size=0
+            number of output neurons  输出神经元个数
+        hidden_size  隐藏大小，二维。 e.g. [3,4,5,4,3], 五层，各层的
+            a list/tuple which contains number of neurons in each hidden layer; 一个列或一个元组，每层隐藏层包含一些神经元。
+            if int, only one hidden layer except for hidden_size=0 除了等于零外，如果是 int, 表示只有一层隐藏层。
         dr
             dropout rate of layers, default is 0.0 which means no dropout;
             here we set number of dropout layers to (number of nn layers - 1)
