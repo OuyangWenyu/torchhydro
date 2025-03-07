@@ -86,7 +86,7 @@ class NnModule4Hydro(nn.Module):
         et : _type_
             the evaporation calculated by the SimpleAnn module
         """
-        zeros = torch.full_like(w0, 0.0, device=x.device)
+        zeros = torch.full_like(w0, 0.0, device=x.device)   # fill w0 with 0.0
         et = torch.full_like(w0, 0.0, device=x.device)
         w_mask = w0 + prcp > PRECISION
         y = self.ann(x)   #

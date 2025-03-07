@@ -3,181 +3,13 @@ from typing import Union
 import torch
 from torch import nn
 from torch import Tensor
+from torch.nn import functional as F
 from torchhydro.configs.model_config import MODEL_PARAM_DICT, MODEL_PARAM_TEST_WAY
-from torchhydro.models.dpl4xaj_nn4et import NnModule4Hydro
+from torchhydro.models.simple_lstm import SimpleLSTM
 
 PRECISION = 1e-5
 
 # todo: ascertain the time step of the model
-
-def calculate_evap(
-    kc, pctim, uztwm, lztwm, riva,
-    auztw, alztw, uztw, uzfw, lztw,
-    prcp, pet
-    ) -> tuple[np.array, np.array, np.array, np.array, np.array, np.array, np.array]:
-
-    """
-    The three-layers evaporation model is described in Page 169;
-    The method is same with that in Page 169-170 in "Hydrologic Forecasting (4-th version)" written by Prof. Weimin Bao.
-    This book's Chinese name is 《水文预报》
-
-    Parameters
-    ----------
-    --model parameters--
-    kc
-        coefficient of potential evapotranspiration to reference crop evaporation generally
-    pctim
-        ratio of the permanent impervious area to total area of the basin
-    uztwm
-        tension water capacity in the upper layer, mm.
-    lztwm
-        tension water capacity in the lower layer, mm.
-    riva
-        ratio of river net, lakes and hydrophyte area to total area of the basin
-    --middle variables--
-    auztw
-        the upper layer tension water accumulation on the alterable impervious area, mm.
-    alztw
-        the lower layer tension water accumulation on the alterable impervious area, mm.
-    uztw
-        tension water accumulation in the upper layer, mm.
-    uzfw
-        free water accumulation in the upper layer, mm.
-    lztw
-        tension water accumulation in the lower layer, mm.
-    --hydrodata--
-    prcp
-        basin mean precipitation, mm.
-    pet
-        potential evapotranspiration, mm.
-
-    Returns
-    -------
-    tuple[np.array,np.array,np.array,np.array,np.array,np.array]
-        ae2/ae1/ae3/e1/e2/e3/e4 are evaporation from upper/lower/deeper layer, respectively, mm.
-    """
-    # average evaporation of basin
-    ep = torch.clamp(kc * pet, min = 0)
-    # evaporation of the permanent impervious area
-    ae2 = torch.clamp(pctim * ep, min = 0)
-    # evaporation of the alterable impervious area
-    ae1 = torch.min((auztw, ep*(auztw/uztwm)))  # upper layer
-    ae3 = torch.clamp((ep - ae1) * (alztw / (uztwm + lztwm)), min = 0)  # lower layer
-    # pav = max(0.0, prcp - (uztwm - (auztw - ae1)))
-    # adsur = pav * ((alztw - ae3) / lztwm)
-    # ars = max(0.0, ((pav - adsur) + (alztw -ae3)) - lztwm)
-    # auztw = min(uztwm, (auztw - ae1) + prcp)
-    # alztw = min(lztwm, (pav - adsur) + (alztw - ae3))
-    # evaporation of the permeable area
-    e1 = torch.min((uztw, ep * (uztw / uztwm)))  # upper layer
-    e2 = torch.min((uzfw, ep - e1))  # lower layer
-    e3 = torch.clamp((ep - e1 - e2) * (lztw / (uztwm + lztwm)), min = 0)  # deeper layer
-    # lt = lztw - e3
-    e4 = torch.clamp(riva * ep, min = 0)  # river net, lakes and hydrophyte
-    # total evaporation
-    e0 = torch.clamp(ae2 + ae1 + ae3 + e1 + e2 + e3 + e4, min = 0)  # the total evaporation
-
-    return ae2, ae1, ae3, e1, e2, e3, e4, e0
-
-def calculate_prcp_runoff(pctim, uztwm, uzfwm, lztwm, lzfsm, lzfpm, uzk, lzsk, lzpk, zperc, rexp, pfree, rserv, adimp,
-                          uztw, uzfw, lztw, lzfs, lzfp,
-                          pp, pe,
-                          pav, alztw,
-                          ae3, e1, e2, e3, ):
-    """
-    Calculates the amount of runoff generated from rainfall after entering the underlying surface
-
-    Same in "Hydrologic Forecasting (4-th version)"
-
-    Parameters # todo:
-    ----------
-    uztw
-        B exponent coefficient
-    uzfw
-        IMP imperiousness coefficient
-    uztwm
-        average soil moisture storage capacity
-    uzfwm
-        initial soil moisture
-    "uzk",  # daily outflow coefficient of the upper layer free water 上土层自由水日出流系数
-    pe
-        net precipitation
-
-    Returns
-    -------
-    torch.Tensor
-        r -- runoff; r_im -- runoff of impervious part
-    """
-    # generate runoff
-
-
-    # runoff of the permanent impervious area
-    roimp = pp * pctim
-    # runoff of the alterable impervious area
-    adsur = pav * ((alztw - ae3) / lztwm)
-    ars = max(0.0, ((pav - adsur) + (alztw -ae3)) - lztwm) * adimp
-    adsur = adsur * adimp  # todo:
-    # runoff of the permeable area
-    parea = 1 - pctim - adimp
-    rs = max(0.0, pp + (uztw + uzfw - e1 - e2) - (uztwm + uzfwm)) * parea
-    ut = min(uztwm, uztw - e1 + pp)
-    uf = min(uzfwm, pp + (uztw + uzfw - e1 - e2) - ut)
-
-    ri = uf * uzk  # interflow
-    uf = uf - ri
-
-    # the infiltrated water
-    lt = lztw - e3  #
-    pbase = lzfsm * lzsk + lzfpm * lzpk
-    defr = 1 - (lzfs + lzfp + lt) / (lzfsm + lzfpm + lztwm)
-    perc = pbase * ( 1 + zperc * pow(defr, rexp)) * uf / uzfwm
-    rate = min(perc, (lzfsm + lzfpm + lztwm) - (lzfs + lzfp + lt))
-    # assign the infiltrate water
-    fx = min(lzfsm + lzfpm - (lzfs + lzfp), max(rate - (lztwm - lt), rate * pfree))
-    perct = rate - fx
-    coef = (lzfpm / (lzfsm + lzfpm)) * (2 * (1 - lzfp / lzfpm) / ((1 - lzfp / lzfpm) + (1 - lzfsm / lzfsm)))
-    if coef > 1:
-        coef = 1
-    percp = min(lzfpm - lzfp, max(fx - (lzfsm - lzfs), coef * fx))
-    percs = fx - percp
-
-    # update the soil moisture accumulation
-    lt = lt + perct
-    ls = lzfs + percs
-    lp = lzfp + percp
-
-    # groundwater
-    rgs = ls * lzsk  #
-    rgp = lp * lzpk  #
-
-    ls = ls - rgs  # update
-    lp = lp - rgp
-
-    # water balance check
-    if ut / uztwm < uf / uzfwm:
-        uztw = uztwm * (ut + uf) / (uztwm + uzfwm)
-        uzfw = uzfwm * (ut + uf) / (uztwm + uzfwm)
-    else:
-        uztw = ut
-        uzfw = uf
-    saved = rserv * (lzfsm + lzfpm)
-    ratio = (ls + lp - saved + lt) / (lzfsm + lzfpm - saved + lztwm)
-    if ratio < 0:
-        ratio = 0
-    if lt / lztwm < ratio:
-        lztw = lztwm * ratio
-        del_ = lztw - lt
-        lzfs = max(0.0, ls - del_)
-        lzfp = lp - max(0.0, del_ - ls)
-    else:
-        lztw = lt
-        lzfs = ls
-        lzfp = lp
-
-    rs = roimp + (adsur + ars) + rs
-    rg = rgs + rgp
-
-    return rs, ri, rg
 
 def calculate_w_storage( # todo:
     prcp,
@@ -295,49 +127,6 @@ def calculate_route(
     q_sim = i2
     return q_sim
 
-
-
-
-def calculate_1layer_w_storage(uztwm, uzfwm, lztwm, lzfsm, lzfpm, w0, pe, rs, ri, rgs, rgp):
-    """
-    Update the soil moisture value.
-
-    According to the runoff-generation equation 5.2.2 in the book "SHUIWENYUBAO", dW = dPE - dR
-
-    Parameters
-    ----------
-    uztwm
-        tension soil moisture storage capacity of the upper layer (mm)
-    uzfwm
-        free soil moisture storage capacity of the upper layer (mm)
-    lztwm
-        tension soil moisture storage capacity of the lower layer (mm)
-    lzfsm
-        speedy free soil moisture storage capacity of the lower layer (mm)
-    lzfpm
-        slow free soil moisture storage capacity of the lower layer (mm)
-    pe
-        net precipitation (mm), it is able to be negative value in this function.
-    rs
-        runoff of
-    ri
-        runoff of interflow
-    rgs
-        runoff of speedy groundwater
-    rgp
-        runoff of slow groundwater
-    Returns
-    -------
-    torch.Tensor
-        w -- soil moisture
-    """
-    sac_device = pe.device  #
-    tensor_zeros = torch.full_like(w0, 0.0, device=sac_device)
-    # water balance
-    w = w0 + pe - rs  # todo:
-    return torch.clamp(w, min=tensor_zeros, max=(uztwm + uzfwm + lztwm + lzfsm + lzfpm) - PRECISION)   # minus a minimum #
-
-
 class Sac4DplWithNnModule(nn.Module):
     """
     Sacramento model for differential parameter learning with neural network as submodule
@@ -354,9 +143,10 @@ class Sac4DplWithNnModule(nn.Module):
         et_output=1,
         nn_hidden_size: Union[int, tuple, list] = None,
         nn_dropout=0.2,
-        param_test_way=MODEL_PARAM_TEST_WAY["time_varying"],
+        param_test_way=MODEL_PARAM_TEST_WAY["time_varying"],  # todo:
     ):
         """
+        Initiate a Sacramento model instance
         Parameters
         ----------
         kernel_size
@@ -380,11 +170,8 @@ class Sac4DplWithNnModule(nn.Module):
         param_test_way
             the way to test the model parameters, time-varying. 模型参数测试方式，取时变式。
         """
-        if param_var_index is None:
-            param_var_index = [0, 6]
-        if nn_hidden_size is None:
-            nn_hidden_size = [16, 8]
         super(Sac4DplWithNnModule, self).__init__()
+        self.name = "Sacramento"
         self.params_names = MODEL_PARAM_DICT["sac"]["param_name"]
         param_range = MODEL_PARAM_DICT["sac"]["param_range"]
         self.kc_scale = param_range["KC"]
@@ -413,13 +200,6 @@ class Sac4DplWithNnModule(nn.Module):
         self.warmup_length = warmup_length
         # there are 2 input variables in Sac: P and PET
         self.feature_size = 2
-        if nn_module is None: # todo:
-            # 7: k, um, lm, dm, c, prcp, p_and_e[:, 1] + 1/3: w0 or wu0, wl0, wd0
-            self.evap_nn_module = NnModule4Hydro(
-                7 + et_output, et_output, nn_hidden_size, nn_dropout
-            )
-        else:
-            self.evap_nn_module = nn_module
         self.source_book = source_book
         self.source_type = source_type
         self.et_output = et_output
@@ -428,81 +208,43 @@ class Sac4DplWithNnModule(nn.Module):
         self.nn_dropout = nn_dropout
         self.param_test_way = param_test_way
 
-    def sac_generation_with_new_module(
-        self,
-        p_and_e: Tensor,   # input, precipitation and evaporation
-        kc,
-        pctim,
-        adimp,
-        uztwm,
-        uzfwm,
-        lztwm,
-        lzfpm,
-        rserv,
-        pfree,
-        *args,
-    ) -> tuple:
+    def forward(self, p_and_e, parameters, return_state=False):
         """
-        产生新的模块？ 蒸散发和产流
-        Parameters
-        ----------
-        p_and_e
-            input, precipitation and evaporation.
-        kc
-        pctim
-        adimp
-        uztwm
-        uzfwm
-        lztwm
-        lzfpm
-        rserv
-        pfree
-
-        Returns
-        -------
-
-        """
-        # make sure physical variables' value ranges are correct
-        prcp = torch.clamp(p_and_e[:, 0], min=0.0)
-        pet = torch.clamp(p_and_e[:, 1], min=0.0)
-        # wm
-        wm = um + lm + dm
-        if self.et_output != 1:
-            raise NotImplementedError("We only support one-layer evaporation now")
-        w0_ = args[0]
-        if w0_ is None:
-            w0_ = 0.6 * (um.detach() + lm.detach() + dm.detach())
-        w0 = torch.clamp(w0_, max=wm - PRECISION)
-        concat_input = torch.stack([k, um, lm, dm, c, w0, prcp, pet], dim=1)
-        e = self.evap_nn_module(concat_input, w0, prcp, pet, k)
-        # Calculate the runoff generated by net precipitation
-        prcp_difference = prcp - e
-        pe = torch.clamp(prcp_difference, min=0.0)
-        r, rim = calculate_prcp_runoff(b, im, wm, w0, pe)  # todo:
-        if self.et_output == 1:
-            w = calculate_1layer_w_storage(   # todo:
-                um,
-                lm,
-                dm,
-                w0,
-                prcp_difference,
-                r,
-            )
-            return (r, rim, e, pe), (w,)
-        else:
-            raise ValueError("et_output should be 1")
-
-    def forward(self, p_and_e, parameters_ts, return_state=False):
-        """
-        run XAJ model
+        run sac model
         forward transmission,
+
         Parameters
         ----------
         p_and_e
-            precipitation and potential evapotranspiration
-        parameters_ts
-            time series parameters of XAJ model;
-            some parameters may be time-varying specified by param_var_index
+            precipitation and potential evapotranspiration, mm/d.
+        parameters
+        --model parameters--
+        kc
+            coefficient of potential evapotranspiration to reference crop evaporation generally
+        pctim
+            ratio of the permanent impervious area to total area of the basin
+        uztwm
+            tension water capacity in the upper layer, mm.
+        lztwm
+            tension water capacity in the lower layer, mm.
+        riva
+            ratio of river net, lakes and hydrophyte area to total area of the basin
+        --middle variables--
+        auztw
+            the upper layer tension water accumulation on the alterable impervious area, mm.
+        alztw
+            the lower layer tension water accumulation on the alterable impervious area, mm.
+        uztw
+            tension water accumulation in the upper layer, mm.
+        uzfw
+            free water accumulation in the upper layer, mm.
+        lztw
+            tension water accumulation in the lower layer, mm.
+        --hydrodata--
+        prcp
+            basin mean precipitation, mm.
+        pet
+            potential evapotranspiration, mm.
         return_state
             if True, return state values, mainly for warmup periods
 
@@ -515,68 +257,221 @@ class Sac4DplWithNnModule(nn.Module):
         es
             the simulate evaporation, E(mm/d)
         """
-        xaj_device = p_and_e.device
-        if self.param_test_way == MODEL_PARAM_TEST_WAY["time_varying"]:
-            parameters = parameters_ts[-1, :, :]
-        else:
-            # parameters_ts must be a 2-d tensor: (basin, param)
-            parameters = parameters_ts
-        # denormalize the parameters to general range
+        sac_device = p_and_e.device
+        prcp = torch.clamp(p_and_e[:, 0], min=0.0)
+        pet = torch.clamp(p_and_e[:, 1], min=0.0)
+        # parameters
+        kc = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])
+        pctim = self.pctiscale[1] + parameters[:, 1] * (self.pctiscale[1] - self.pctiscale[0])
+        adimp = self.adimscale[1] + parameters[:, 1] * (self.adimscale[1] - self.adimscale[0])
+        uztwm = self.uztwscale[2] + parameters[:, 2] * (self.uztwscale[2] - self.uztwscale[0])
+        uzfwm = self.uzfwscale[3] + parameters[:, 3] * (self.uzfwscale[3] - self.uzfwscale[0])
+        lztwm = self.lztwscale[4] + parameters[:, 4] * (self.lztwscale[4] - self.lztwscale[0])
+        lzfsm = self.lzfsscale[5] + parameters[:, 5] * (self.lzfsscale[5] - self.lzfsscale[0])
+        lzfpm = self.lzfpscale[6] + parameters[:, 6] * (self.lzfpscale[6] - self.lzfpscale[0])
+        rserv = self.rserv_scale[7] + parameters[:, 7] * (self.rserv_scale[7] - self.rserv_scale[0])
+        pfree = self.pfree_scale[8] + parameters[:, 8] * (self.pfree_scale[8] - self.pfree_scale[0])
+        riva = self.riva_scale[9] + parameters[:, 9] * (self.riva_scale[9] - self.riva_scale[0])
+        zperc = self.zperc_scale[10] + parameters[:, 10] * (self.zperc_scale[10] - self.zperc_scale[0])
+        rexp = self.rexscale[11] + parameters[:, 11] * (self.rexscale[11] - self.rexscale[0])
+        uzk = self.uzk_scale[12] + parameters[:, 12] * (self.uzk_scale[12] - self.uzk_scale[0])
+        lzsk = self.lzsk_scale[13] + parameters[:, 13] * (self.lzsk_scale[13] - self.lzsk_scale[0])
+        lzpk = self.lzpk_scale[14] + parameters[:, 14] * (self.lzpk_scale[14] - self.lzpk_scale[0])
+        # middle variable  # todo: use warmup_length to handling the initial condition
+        auztw = 0
+        alztw = 0
+        uztw = 0
+        uzfw = 0
+        lztw = 0
+        lzfs = 0
+        lzfp = 0
 
-        if 0 not in self.param_var_index or self.param_var_index is None:
-            ks = self.k_scale[0] + parameters[:, 0] * (
-                self.k_scale[1] - self.k_scale[0]
-            )
-        else:
-            ks = self.k_scale[0] + parameters_ts[:, :, 0] * (
-                self.k_scale[1] - self.k_scale[0]
-            )
-        if 1 not in self.param_var_index or self.param_var_index is None:
-            bs = self.b_scale[0] + parameters[:, 1] * (
-                self.b_scale[1] - self.b_scale[0]
-            )
-        else:
-            bs = self.b_scale[0] + parameters_ts[:, :, 1] * (
-                self.b_scale[1] - self.b_scale[0]
-            )
-        im = self.im_scale[0] + parameters[:, 2] * (self.im_scale[1] - self.im_scale[0])
-        um = self.um_scale[0] + parameters[:, 3] * (self.um_scale[1] - self.um_scale[0])
-        lm = self.lm_scale[0] + parameters[:, 4] * (self.lm_scale[1] - self.lm_scale[0])
-        dm = self.dm_scale[0] + parameters[:, 5] * (self.dm_scale[1] - self.dm_scale[0])
-        if 6 not in self.param_var_index or self.param_var_index is None:
-            cs = self.c_scale[0] + parameters[:, 6] * (
-                self.c_scale[1] - self.c_scale[0]
-            )
-        else:
-            cs = self.c_scale[0] + parameters_ts[:, :, 6] * (
-                self.c_scale[1] - self.c_scale[0]
-            )
-        sm = self.sm_scale[0] + parameters[:, 7] * (self.sm_scale[1] - self.sm_scale[0])
-        ex = self.ex_scale[0] + parameters[:, 8] * (self.ex_scale[1] - self.ex_scale[0])
-        ki_ = self.ki_scale[0] + parameters[:, 9] * (
-            self.ki_scale[1] - self.ki_scale[0]
-        )
-        kg_ = self.kg_scale[0] + parameters[:, 10] * (
-            self.kg_scale[1] - self.kg_scale[0]
-        )
+        # evaporation
+        # average evaporation of basin
+        ep = kc * pet
+        # runoff of the permanent impervious area
+        roimp = prcp * pctim
+        # evaporation of the permanent impervious area
+        ae2 = pctim * ep
+        # evaporation of the alterable impervious area
+        ae1 = torch.min((auztw, ep * (auztw / uztwm)))  # upper layer
+        ae3 = (ep - ae1) * (alztw / (uztwm + lztwm)) # lower layer
+        pav = torch.max((0.0, prcp - (uztwm - (auztw - ae1))))
+        adsur = pav * ((alztw - ae3) / lztwm)
+        ars = torch.max((0.0, ((pav - adsur) + (alztw -ae3)) - lztwm))
+        auztw = torch.min((uztwm, (auztw - ae1) + prcp))
+        alztw = torch.min((lztwm, (pav - adsur) + (alztw - ae3)))
+        # evaporation of the permeable area
+        e1 = torch.min((uztw, ep * (uztw / uztwm)))  # upper layer
+        e2 = torch.min((uzfw, ep - e1))  # lower layer
+        e3 = (ep - e1 - e2) * (lztw / (uztwm + lztwm))  # deeper layer
+        lt = lztw - e3
+        e4 = riva * ep  # river net, lakes and hydrophyte
+        # total evaporation
+        e0 = ae2 + ae1 + ae3 + e1 + e2 + e3 + e4  # the total evaporation
 
-        ki = torch.where(
-            ki_ + kg_ < 1.0,
-            ki_,
-            (1 - PRECISION) / (ki_ + kg_) * ki_,
+        # generate runoff
+        # runoff of the alterable impervious area
+        adsur = adsur * adimp
+        ars = ars * adimp  # todo:
+        # runoff of the permeable area
+        parea = 1 - pctim - adimp
+        rs = torch.max((prcp + (uztw + uzfw - e1 - e2) - (uztwm + uzfwm), 0.0)) * parea
+        ut = torch.min((uztwm, uztw - e1 + prcp))
+        uf = torch.min((uzfwm, prcp + (uztw + uzfw - e1 - e2) - ut))
+        ri = uf * uzk  # interflow
+        uf = uf - ri
+        # the infiltrated water
+        pbase = lzfsm * lzsk + lzfpm * lzpk
+        defr = 1 - (lzfs + lzfp + lt) / (lzfsm + lzfpm + lztwm)
+        perc = pbase * (1 + zperc * pow(defr, rexp)) * uf / uzfwm
+        rate = torch.min((perc, (lzfsm + lzfpm + lztwm) - (lzfs + lzfp + lt)))
+        # assign the infiltrate water
+        fx = torch.min((lzfsm + lzfpm - (lzfs + lzfp), torch.max((rate - (lztwm - lt), rate * pfree))))
+        perct = rate - fx
+        coef = (lzfpm / (lzfsm + lzfpm)) * (2 * (1 - lzfp / lzfpm) / ((1 - lzfp / lzfpm) + (1 - lzfsm / lzfsm)))
+        coef = torch.min((coef, 1))
+        percp = torch.min((lzfpm - lzfp, torch.max((fx - (lzfsm - lzfs), coef * fx))))
+        percs = fx - percp
+        # update the soil moisture accumulation
+        lt = lt + perct
+        ls = lzfs + percs
+        lp = lzfp + percp
+        # generate groundwater runoff
+        rgs = ls * lzsk
+        rgp = lp * lzpk
+        ls = ls - rgs  # update
+        lp = lp - rgp
+        # water balance check
+        if ut / uztwm < uf / uzfwm:
+            uztw = uztwm * (ut + uf) / (uztwm + uzfwm)
+            uzfw = uzfwm * (ut + uf) / (uztwm + uzfwm)
+        else:
+            uztw = ut
+            uzfw = uf
+        saved = rserv * (lzfsm + lzfpm)
+        ratio = (ls + lp - saved + lt) / (lzfsm + lzfpm - saved + lztwm)
+        ratio = torch.max((ratio, 0))
+        if lt / lztwm < ratio:
+            lztw = lztwm * ratio
+            del_ = lztw - lt
+            lzfs = torch.max((0.0, ls - del_))
+            lzfp = lp - torch.max((0.0, del_ - ls))
+        else:
+            lztw = lt
+            lzfs = ls
+            lzfp = lp
+
+        rs = roimp + (adsur + ars) + rs
+        ri = ri
+        rg = rgs + rgp
+
+        q_sim = calculate_route()
+        return q_sim
+
+
+class DplLstmNnModuleSac(nn.Module):
+    """
+    Sacramento differential parameter learning - Long short-term memory neural network model
+    """
+    def __init__(
+        self,
+        n_input_features,
+        n_output_features,
+        n_hidden_states,
+        kernel_size,
+        warmup_length,
+        param_limit_func="clamp",
+        param_test_way="final",
+        param_var_index=None,
+        source_book="HF",
+        source_type="sources",
+        nn_hidden_size=None,
+        nn_dropout=0.2,
+        et_output=3,
+    ):
+        """
+        Differential Parameter learning model: LSTM -> Param -> SAC
+
+        The principle can be seen here: https://doi.org/10.1038/s41467-021-26107-z
+
+        Parameters
+        ----------
+        n_input_features
+            the number of input features of LSTM
+        n_output_features
+            the number of output features of LSTM, and it should be equal to the number of learning parameters in SAC
+        n_hidden_states
+            the number of hidden features of LSTM
+        kernel_size
+            the time length of unit hydrograph
+        warmup_length
+            the length of warmup periods;
+            hydrologic models need a warmup period to generate reasonable initial state values
+        param_limit_func
+            function used to limit the range of params; now it is sigmoid or clamp function
+        param_test_way
+            how we use parameters from dl model when testing;
+            now we have three ways:
+            1. "final" -- use the final period's parameter for each period
+            2. "mean_time" -- Mean values of all periods' parameters is used
+            3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
+            but remember these ways are only for non-variable parameters
+        param_var_index
+            variable parameters' indices in all parameters
+        """
+        super(DplLstmNnModuleSac, self).__init__()
+        self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)
+        self.pb_model = Sac4DplWithNnModule(
+            kernel_size,
+            warmup_length,
+            source_book=source_book,
+            source_type=source_type,
+            nn_hidden_size=nn_hidden_size,
+            nn_dropout=nn_dropout,
+            et_output=et_output,
+            param_var_index=param_var_index,
+            param_test_way=param_test_way,
         )
-        kg = torch.where(
-            ki_ + kg_ < 1.0,
-            kg_,
-            (1 - PRECISION) / (ki_ + kg_) * kg_,
-        )
-        a = self.a_scale[0] + parameters[:, 11] * (self.a_scale[1] - self.a_scale[0])
-        theta = self.theta_scale[0] + parameters[:, 12] * (
-            self.theta_scale[1] - self.theta_scale[0]
-        )
-        ci = self.ci_scale[0] + parameters[:, 13] * (
-            self.ci_scale[1] - self.ci_scale[0]
-        )
-        cg = self.cg_scale[0] + parameters[:, 14] * (
-            self.cg_scale[1] - self.cg_scale[0]
-        )
+        self.param_func = param_limit_func
+        self.param_test_way = param_test_way
+        self.param_var_index = param_var_index
+
+    def forward(self, x, z):
+        """
+        Differential parameter learning 微分参数学习
+
+        z (normalized input) -> lstm -> param -> + x (not normalized) -> sac -> q
+        Parameters will be denormalized in xaj model
+
+        Parameters
+        ----------
+        x
+            not normalized data used for physical model; a sequence-first 3-dim tensor. [sequence, batch, feature]
+        z
+            normalized data used for DL model; a sequence-first 3-dim tensor. [sequence, batch, feature]
+
+        Returns
+        -------
+        torch.Tensor
+            one time forward result
+        """
+        gen = self.dl_model(z)
+        if torch.isnan(gen).any():
+            raise ValueError("Error: NaN values detected. Check your data firstly!!!")
+        # we set all params' values in [0, 1] and will scale them when forwarding
+        if self.param_func == "sigmoid":
+            params = F.sigmoid(gen)
+        elif self.param_func == "clamp":
+            params = torch.clamp(gen, min=0.0, max=1.0)
+        else:
+            raise NotImplementedError(
+                "We don't provide this way to limit parameters' range!! Please choose sigmoid or clamp"
+            )
+        # just get one-period values, here we use the final period's values,
+        # when the MODEL_PARAM_TEST_WAY is not time_varing, we use the last period's values.
+        if self.param_test_way != MODEL_PARAM_TEST_WAY["time_varying"]:
+            params = params[-1, :, :]
+        # Please put p in the first location and pet in the second
+        q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)
+        return torch.cat([q, e], dim=-1)
