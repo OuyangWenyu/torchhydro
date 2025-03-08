@@ -547,3 +547,76 @@ def seq2seq_config():
     update_cfg(config_data, args)
 
     return config_data
+
+
+def dpl4sac_args():  # todo:
+    project_name = os.path.join("test", "expdpl4sac")
+    train_period = ["1994-01-01", "2005-01-01"]
+    valid_period = ["2005-01-01", "2010-01-01"]
+    test_period = ["2010-01-01", "2015-01-01"]
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "camels_us",  # time_range: ["1980-01-01", "2014-12-31]
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {"time_unit": ["1D"]},
+        },
+        model_type="Normal",
+        ctx=[0],
+        model_name="DplAnnSac",
+        model_hyperparam={
+            # "n_input_features": 2,
+            "n_input_features": 10,
+            # "n_output_features": 10,
+            "n_output_features": 2,  # streamflow, evaporation
+            "n_hidden_states": 30,
+            "warmup_length": 365,
+            "param_limit_func": "clamp",
+            "param_test_way": "final",  #
+        },
+        loss_func="NSELoss",
+        dataset="DplDataset",
+        scaler="DapengScaler",
+        scaler_params={
+            "prcp_norm_cols": [
+                "streamflow",
+            ],
+            "gamma_norm_cols": [  # todo"
+                "total_precipitation_hourly",
+                "potential_evaporation_hourly",
+            ],
+            "pbm_norm": True,
+        },
+        gage_id=[
+            "camels_01013500",
+            "camels_01022500",
+            "camels_01030500",
+            "camels_01031500",
+            "camels_01047000",
+            "camels_01052500",
+            "camels_01054200",
+            "camels_01055000",
+            "camels_01057000",
+            "camels_01170100",
+        ],
+        train_period=train_period,
+        valid_period=valid_period,
+        test_period=test_period,
+        batch_size=128,
+        hindcast_length=10,
+        forecast_length=365,
+        var_t=[  # 7
+            "prcp",
+            "dayl",
+            "srad",
+            "swe",
+            "tmax",
+            "tmin",
+            "vp",
+        ],
+        var_c=[],
+
+
+
+
+    )

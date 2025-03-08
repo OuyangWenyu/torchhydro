@@ -10,65 +10,6 @@ from torchhydro.models.ann import SimpleAnn
 
 PRECISION = 1e-5
 
-def calculate_route(
-    hydrodt, area, rivernumber,
-    pctim, adimp, ci, cgs, cgp, ke, xe,
-    qs0, qi0, qgs0, qgp0,
-    rs, ri, rgs, rgp,
-    q_sim_0):
-    """
-    calcualte the route, the simulated flow.
-    Parameters
-    ----------
-    hydrodt
-        the time step
-    area
-        basin area, km^2.
-    rivernumber
-        the river sections number
-    rs
-        surface runoff, mm.
-    ri
-        interflow runoff, mm.
-    rgs
-        speedy groundwater runoff, mm.
-    rgp
-        slow groundwater runoff, mm.
-    q_sim_0
-    Returns
-    -------
-    q_sim
-        the simulated flow, Q(m^3/s).
-    """
-    u = (1 - pctim - adimp) * area * 1000  # todo: / hydrodt     u, the unit converting coefficient.
-    parea = 1 - pctim - adimp
-
-    # slope routing, use the linear reservoir method
-    qs = rs * area * 1000.0  # todo: /hydrodt
-    qi = ci * qi0 + (1 - ci) * ri * u
-    qgs = cgs * qgs0 + (1 - cgs) * rgs * u
-    qgp = cgp * qgp0 + (1 - cgp) * rgp * u
-    q_sim = (qs + qi + qgs + qgp)
-
-    # river routing, use the Muskingum routing method
-    q_sim_0 = qs0 + qi0 + qgs0 + qgp0
-    if rivernumber > 0:
-        dt = hydrodt / 3600.0 / 2.0  # todo: hydrodt, the timestep of data
-        xo = xe
-        ko = ke / rivernumber
-        c1 = ko * (1.0 - xo) + dt
-        c2 = (-ko * xo + dt) / c1
-        c3 = (ko * (1.0 - xo) - dt) / c1
-        c1 = (ko * xo + dt) / c1
-        i1 = q_sim_0
-        i2 = q_sim
-        for i in range(rivernumber):
-            q_sim_0 = qq[i]  # todo:
-            i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
-            qq[i] = i2
-            i1 = q_sim_0
-    q_sim = i2
-    return q_sim
 
 class Sac4DplWithNnModule(nn.Module):
     """
@@ -78,11 +19,10 @@ class Sac4DplWithNnModule(nn.Module):
         self,
         warmup_length: int,
         nn_module=None,
-        param_var_index=None,  # todo:
         source_book="HF",
         nn_hidden_size: Union[int, tuple, list] = None,
         nn_dropout=0.2,
-        param_test_way=MODEL_PARAM_TEST_WAY["time_varying"],  # todo:
+        param_test_way=MODEL_PARAM_TEST_WAY["final"],
     ):
         """
         Initiate a Sacramento model instance.
@@ -95,15 +35,12 @@ class Sac4DplWithNnModule(nn.Module):
             We initialize the module when we firstly initialize Sac4DplWithNnModule.
             Then we will iterately call Sac4DplWithNnModule module for warmup. 迭代调用模型单元
             Hence, in warmup period, we don't need to initialize it again.
-        param_var_index
-            the index of parameters which will be time-varying 随时间变化 时变
-            NOTE: at the most, we support k, b, and c to be time-varying  至多支持k、b、c时变
         nn_hidden_size
             the hidden layer size of neural network
         nn_dropout
             the dropout rate of neural network 神经网络中间层神经元的暂退率，(0.3, 0.5)，提高模型的稳健性。暂时退出、暂时不参与模拟计算的概率。什么时候重回计算呢？动态暂退？
         param_test_way
-            the way to test the model parameters, time-varying. 模型参数测试方式，取时变式。
+            the way to test the model parameters, final. 模型参数测试方式，取final式。
         """
         super(Sac4DplWithNnModule, self).__init__()
         self.name = "Sacramento"
@@ -134,7 +71,6 @@ class Sac4DplWithNnModule(nn.Module):
         self.warmup_length = warmup_length
         self.feature_size = 2       # there are 2 input variables in Sac, P and PET. P and Pet are two feature in nn model.
         self.source_book = source_book
-        self.param_var_index = param_var_index
         self.nn_hidden_size = nn_hidden_size
         self.nn_dropout = nn_dropout
         self.param_test_way = param_test_way
@@ -175,8 +111,6 @@ class Sac4DplWithNnModule(nn.Module):
         lztw
             tension water accumulation in the lower layer, mm.
 
-        hydrodt
-            the time step, day.
         area
             basin area, km^2.
         rivernumber
@@ -236,9 +170,9 @@ class Sac4DplWithNnModule(nn.Module):
         qgp0 = 0
         qs0 = 0
         # todo:
-        area = 0
-        rivernumber = 0
-        hydrodt = 1  # todo: 时间步长，1天。
+        area = 0  # basion area
+        rivernumber = 1  # set only one river section.
+        hydrodt = 1
         qq = []   # todo:
 
         # evaporation
@@ -265,7 +199,7 @@ class Sac4DplWithNnModule(nn.Module):
         # generate runoff
         # runoff of the alterable impervious area
         adsur = adsur * adimp
-        ars = ars * adimp  # todo:
+        ars = ars * adimp
         # runoff of the permeable area
         parea = 1 - pctim - adimp
         rs = torch.max((prcp + (uztw + uzfw - e1 - e2) - (uztwm + uzfwm), 0.0)) * parea
@@ -317,11 +251,11 @@ class Sac4DplWithNnModule(nn.Module):
         rs = roimp + (adsur + ars) + rs     # the total surface runoff
 
         # routing
-        u = (1 - pctim - adimp) * area * 1000  # todo: / hydrodt   u, the unit converting coefficient.
+        u = (1 - pctim - adimp) * area * 1000  # daily coefficient, no need conversion.  # todo: area ?
         parea = 1 - pctim - adimp
 
         # slope routing, use the linear reservoir method
-        qs = rs * area * 1000.0         # todo: /hydrodt
+        qs = rs * area * 1000.0         # todo: area
         qi = ci * qi0 + (1 - ci) * ri * u
         qgs = cgs * qgs0 + (1 - cgs) * rgs * u
         qgp = cgp * qgp0 + (1 - cgp) * rgp * u
@@ -332,7 +266,7 @@ class Sac4DplWithNnModule(nn.Module):
         if rivernumber > 0:
             dt = hydrodt / 3600.0 / 2.0     # todo: hydrodt, the timestep of data
             xo = xe
-            ko = ke / rivernumber
+            ko = ke / rivernumber    # todo: KE is hourly coefficient, need convert to daily.
             c1 = ko * (1.0 - xo) + dt
             c2 = (-ko * xo + dt) / c1
             c3 = (ko * (1.0 - xo) - dt) / c1
@@ -340,7 +274,7 @@ class Sac4DplWithNnModule(nn.Module):
             i1 = q_sim_0
             i2 = q_sim
             for i in range(rivernumber):
-                q_sim_0 = qq[i]  # todo:
+                q_sim_0 = qq[i]  # todo:  give a routing space
                 i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
                 qq[i] = i2
                 i1 = q_sim_0
@@ -360,7 +294,6 @@ class DplAnnModuleSac(nn.Module):
         warmup_length,
         param_limit_func="clamp",   # 参数限制函数 限制在[0,1]
         param_test_way="final",
-        param_var_index=None,
         source_book="HF",
         nn_hidden_states=None,
         nn_dropout=0.2,
@@ -397,12 +330,10 @@ class DplAnnModuleSac(nn.Module):
             source_book=source_book,
             nn_hidden_size=nn_hidden_states,
             nn_dropout=nn_dropout,
-            param_var_index=param_var_index,
             param_test_way=param_test_way,
         )
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
-        self.param_var_index = param_var_index
 
     def forward(self, x, z):
         """
@@ -423,7 +354,7 @@ class DplAnnModuleSac(nn.Module):
         torch.Tensor
             one time forward result 单步前向传播结果？
         """
-        gen = self.dl_model(z)  # SimpleAnn
+        gen = self.dl_model(z)  # SimpleAnn   使用 nn 进化参数  计算各参数对目标值的梯度？
         if torch.isnan(gen).any():
             raise ValueError("Error: NaN values detected. Check your data firstly!!!")
         # we set all params' values in [0, 1] and will scale them when forwarding
@@ -437,10 +368,10 @@ class DplAnnModuleSac(nn.Module):
             )
         # just get one-period values, here we use the final period's values,
         # when the MODEL_PARAM_TEST_WAY is not time_varing, we use the last period's values.
-        if self.param_test_way != MODEL_PARAM_TEST_WAY["time_varying"]:   # 时变  todo:
+        if self.param_test_way != MODEL_PARAM_TEST_WAY["time_varying"]:
             params = params[-1, :, :]
         # Please put p in the first location and pet in the second
-        q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)
+        q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)   # 再将参数代入物理模型计算径流，再使用实测数据比对、计算目标值。反复迭代优化。
         return torch.cat([q, e], dim=-1)  # catenate, 拼接 q 和 e，按列。 [0,1]
 
 
@@ -456,7 +387,6 @@ class DplLstmNnModuleSac(nn.Module):
         warmup_length,
         param_limit_func="clamp",
         param_test_way="final",
-        param_var_index=None,
         source_book="HF",
         nn_hidden_size=None,
         nn_dropout=0.2,
@@ -486,8 +416,6 @@ class DplLstmNnModuleSac(nn.Module):
             2. "mean_time" -- Mean values of all periods' parameters is used
             3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
             but remember these ways are only for non-variable parameters
-        param_var_index
-            variable parameters' indices in all parameters
         """
         super(DplLstmNnModuleSac, self).__init__()
         self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)
@@ -496,12 +424,10 @@ class DplLstmNnModuleSac(nn.Module):
             source_book=source_book,
             nn_hidden_size=nn_hidden_size,
             nn_dropout=nn_dropout,
-            param_var_index=param_var_index,
             param_test_way=param_test_way,
         )
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
-        self.param_var_index = param_var_index
 
     def forward(self, x, z):
         """
