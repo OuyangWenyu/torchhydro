@@ -10,24 +10,35 @@ from torchhydro.models.ann import SimpleAnn
 
 PRECISION = 1e-5
 
+
 class SingleStepSacramento():
     """
     single step sacramento model
     """
-    def __init__(self):
+    def __init__(
+        self,
+        hydrodt: int = 1,
+        area: float = None,
+        rivernumber: int= 1,
+        para: Union[tuple, list] = None,
+        intervar: Union[tuple, list] = None,
+    ):
         """
         Initial a single-step sacramento model
         """
         super(SingleStepSacramento, self).__init__()
         self.name = 'SingleStepSacramento'
+        self.area = area
+        self.rivernumber = rivernumber
+        self.hydrodt = hydrodt
+        self.para = para
+        self.intervar = intervar
+        self.qq = [0.0,]
 
     def cal_runoff(
-        hydrodt: int = 1,
+        self,
         prcp: float = None,
         pet: float = None,
-        para: Union[tuple, list] = None,
-        intervar: Union[tuple, list] = None,
-        area: float = None,
     ):
         """
         single step evaporation and generating runoff
@@ -55,35 +66,30 @@ class SingleStepSacramento():
 
         """
         # parameters
-        kc = para[0]
-        pctim = para[1]
-        adimp = para[2]
-        uztwm = para[3]
-        uzfwm = para[4]
-        lztwm = para[5]
-        lzfsm = para[6]
-        lzfpm = para[7]
-        rserv = para[8]
-        pfree = para[9]
-        riva = para[10]
-        zperc = para[11]
-        rexp = para[12]
-        uzk = para[13]
-        lzsk = para[14]
-        lzpk = para[15]
-        ci = para[16]
-        cgs = para[17]
-        cgp = para[18]
-        ke = para[19]
-        xe = para[20]
+        kc = self.para[0]
+        pctim = self.para[1]
+        adimp = self.para[2]
+        uztwm = self.para[3]
+        uzfwm = self.para[4]
+        lztwm = self.para[5]
+        lzfsm = self.para[6]
+        lzfpm = self.para[7]
+        rserv = self.para[8]
+        pfree = self.para[9]
+        riva = self.para[10]
+        zperc = self.para[11]
+        rexp = self.para[12]
+        uzk = self.para[13]
+        lzsk = self.para[14]
+        lzpk = self.para[15]
         # middle variables, at the start of timestep.
-        auztw = intervar[0]
-        alztw = intervar[1]
-        uztw = intervar[2]
-        uzfw = intervar[3]
-        lztw = intervar[4]
-        lzfs = intervar[5]
-        lzfp = intervar[6]
+        auztw = self.intervar[0]
+        alztw = self.intervar[1]
+        uztw = self.intervar[2]
+        uzfw = self.intervar[3]
+        lztw = self.intervar[4]
+        lzfs = self.intervar[5]
+        lzfp = self.intervar[6]
 
         # evaporation
         ep = kc * pet  # average evaporation of basin
@@ -161,21 +167,19 @@ class SingleStepSacramento():
         # rs = roimp + (adsur + ars) + rs  # the total surface runoff
 
         # middle variables, at the end of timestep.
-        intervar[0] = auztw
-        intervar[1] = alztw
-        intervar[2] = uztw
-        intervar[3] = uzfw
-        intervar[4] = lztw
-        intervar[5] = lzfs
-        intervar[6] = lzfp
+        self.intervar[0] = auztw
+        self.intervar[1] = alztw
+        self.intervar[2] = uztw
+        self.intervar[3] = uzfw
+        self.intervar[4] = lztw
+        self.intervar[5] = lzfs
+        self.intervar[6] = lzfp
 
-        return et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar  # todo:
+        return et, roimp, adsur, ars, rs, ri, rgs, rgp, self.intervar[:6]  # todo:
 
     def cal_routing(
-        hydrodt,
+        self,
         roimp, adsur, ars, rs, ri, rgs, rgp,
-        para: Union[tuple, list] = None,
-        intervar: Union[tuple, list] = None,
     ):
         """
         single step routing
@@ -197,54 +201,89 @@ class SingleStepSacramento():
             the outflow at the end of timestep, m^3/s.
         """
         # parameters
-        pctim = para[1]
-        adimp = para[2]
-        ci = para[16]
-        cgs = para[17]
-        cgp = para[18]
-        ke = para[19]
-        xe = para[20]
+        pctim = self.para[1]
+        adimp = self.para[2]
+        ci = self.para[16]
+        cgs = self.para[17]
+        cgp = self.para[18]
+        ke = self.para[19]
+        xe = self.para[20]
         # middle variables, at the start of timestep.
-        qs0 = intervar[0]
-        qi0 = intervar[1]
-        qgs0 = intervar[2]
-        qgp0 = intervar[3]
+        qs0 = self.intervar[7]
+        qi0 = self.intervar[8]
+        qgs0 = self.intervar[9]
+        qgp0 = self.intervar[10]
 
         # routing
-        u = (1 - pctim - adimp) * area * 1000  # daily coefficient, no need conversion.  # todo: area
+        u = (1 - pctim - adimp) * self.area * 1000  # daily coefficient, no need conversion.  # todo: area
         parea = 1 - pctim - adimp
         # slope routing, use the linear reservoir method
-        qs = (roimp + (adsur + ars) * adimp + rs * parea) * area * 1000.0  # todo: area
+        qs = (roimp + (adsur + ars) * adimp + rs * parea) * self.area * 1000.0  # todo: area
         qi = ci * qi0 + (1 - ci) * ri * u
         qgs = cgs * qgs0 + (1 - cgs) * rgs * u
         qgp = cgp * qgp0 + (1 - cgp) * rgp * u
         q_sim_ = (qs + qi + qgs + qgp)
         # middle variable, at the end of timestep.
-        intervar[0] = qs
-        intervar[1] = qi
-        intervar[2] = qgs
-        intervar[3] = qgp
+        self.intervar[7] = qs
+        self.intervar[8] = qi
+        self.intervar[9] = qgs
+        self.intervar[10] = qgp
 
         # river routing, use the Muskingum routing method
         q_sim_0 = qs0 + qi0 + qgs0 + qgp0
-        if rivernumber > 0:
-            dt = hydrodt * 24.0 / 2.0
+        if self.rivernumber > 0:
+            dt = self.hydrodt * 24.0 / 2.0
             xo = xe
             ke = ke * 24.0  # KE is hourly coefficient, need convert to daily.
-            ko = ke / rivernumber
+            ko = ke / self.rivernumber
             c1 = ko * (1.0 - xo) + dt
             c2 = (-ko * xo + dt) / c1
             c3 = (ko * (1.0 - xo) - dt) / c1
             c1 = (ko * xo + dt) / c1
             i1 = q_sim_0
             i2 = q_sim_
-            for i in range(rivernumber):
-                q_sim_0 = qq[i]
+            for i in range(self.rivernumber):
+                q_sim_0 = self.qq[i]
                 i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
-                qq[i] = i2
+                self.qq[i].append(i2)
                 i1 = q_sim_0
         q_sim_ = i2
-        return q_sim_
+        return q_sim_, self.intervar[7:]
+
+
+class Sacramento():
+    """
+    sacramento model
+    """
+
+    def __init__(
+        self,
+        hydrodt: int = 1,
+        p_and_e: np.ndarray = None,
+        para: Union[tuple, list] = None,
+        area: float = None,
+        warmup_length: int = None,
+
+    ):
+        self.para = para
+        self.area = area
+        self.warmup_length = warmup_length
+        # hydrodata
+        self.hydrodt = hydrodt
+        self.sequence_length = p_and_e.shape[0]
+        self.prcp = p_and_e[:, 0]
+        self.evap = p_and_e[:, 1]
+
+    def sacmodel(self):
+        """
+
+        Returns
+        -------
+
+        """
+
+
+
 
 class Sac4Dpl(nn.Module):
     """
@@ -388,11 +427,16 @@ class Sac4Dpl(nn.Module):
         qi0 = 0
         qgs0 = 0
         qgp0 = 0
-        qs0 = 0.8 * 10 * area  # todo:
+        qs0 = 0.8 * 10 * self.area  # todo:
         rivernumber = 1  # set only one river section.
-
-
-
+        intervar = torch.full(11,0.0)
+        singlesac = SingleStepSacramento(1,100,para,intervar)
+        e_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
+        q_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
+        for i in range(p_and_e.shape[0]):
+            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar = singlesac.cal_runoff(p_and_e[i][0],p_and_e[i][1])
+            q_sim_[i] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp, intervar)
+            e_sim_[i] = et
 
         qq = [qi0 + qgs0 + qgp0 + qs0, ]  # set initial river flow
         # slope routing, use the linear reservoir method
