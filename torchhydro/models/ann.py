@@ -63,7 +63,7 @@ class SimpleAnn(torch.nn.Module):
                     torch.nn.Linear(hidden_size[i], hidden_size[i + 1]), # 第i+1层、第i+2层的神经元个数
                 )
                 dropout_list.append(
-                    torch.nn.Dropout(dr[i + 1]), # 第i+1层的暂退率
+                    torch.nn.Dropout(dr[i + 1]),  # 第i+1层的暂退率
                 )
             linear_list.add_module(   # 输出层
                 "linear%d" % (len(hidden_size) + 1),
@@ -72,15 +72,15 @@ class SimpleAnn(torch.nn.Module):
         self.linear_list = linear_list  # 注册到模型
         self.dropout_list = dropout_list
 
-    def forward(self, x): # 输入数据单次通过整个神经网络模型的传播结果
+    def forward(self, x):  # 输入数据单次通过整个神经网络模型的传播结果
         for i, model in enumerate(self.linear_list):
-            if i == 0: # 第一层  不是是输入层，输入层不做任何运算，输入层到第一层隐藏层开始运算。
-                if len(self.linear_list) == 1:   # 只有一层？
+            if i == 0:  # 第一层  不是是输入层，输入层不做任何运算，输入层到第一层隐藏层开始运算。
+                if len(self.linear_list) == 1:
                     return model(x)  # model 是 W*x+b 的线性模型，只有输入输出层，只进行一次线性变换，输入层->输出层。
                 else:
                     out = F.relu(self.dropout_list[i](model(x)))  # 只有一层隐藏层，输入层到隐藏层，进行一次线性换，使用暂退率和激活函数
             elif i == len(self.linear_list) - 1:  # 最后一层，输出层。
                 # in final layer, no relu again
                 return model(out)  # 最后一层隐藏层到输出层，进行一次线性变换，不使用暂退和激活函数
-            else: # 隐藏层数>1
-                out = F.relu(self.dropout_list[i](model(out)))   #中间隐藏层，各层运算，采用暂退和激活。 各层的out依次传向下一层。
+            else:  # 隐藏层数>1
+                out = F.relu(self.dropout_list[i](model(out)))   # 中间隐藏层，各层运算，采用暂退和激活。 各层的out依次传向下一层。

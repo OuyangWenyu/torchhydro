@@ -551,9 +551,9 @@ def seq2seq_config():
 
 def dpl4sac_args():  # todo:
     project_name = os.path.join("test", "expdpl4sac")
-    train_period = ["1994-01-01", "2005-01-01"]
-    valid_period = ["2005-01-01", "2010-01-01"]
-    test_period = ["2010-01-01", "2015-01-01"]
+    train_period = ["2010-01-01", "2011-01-01"]
+    valid_period = ["2011-01-01", "2012-01-01"]
+    test_period = ["2012-01-01", "2013-01-01"]
     return cmd(
         sub=project_name,
         source_cfgs={
@@ -566,13 +566,13 @@ def dpl4sac_args():  # todo:
         model_name="DplAnnSac",
         model_hyperparam={
             # "n_input_features": 2,
-            "n_input_features": 10,
-            # "n_output_features": 10,
-            "n_output_features": 2,  # streamflow, evaporation
+            "n_input_features": 9,
+            "n_output_features": 10,
+            # "n_output_features": 2,  # streamflow, evaporation
             "n_hidden_states": 30,
             "warmup_length": 365,
             "param_limit_func": "clamp",
-            "param_test_way": "final",  #
+            "param_test_way": "final",
         },
         loss_func="NSELoss",
         dataset="DplDataset",
@@ -602,7 +602,7 @@ def dpl4sac_args():  # todo:
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
-        batch_size=128,
+        batch_size=10,
         hindcast_length=10,
         forecast_length=365,
         var_t=[  # 7
@@ -614,9 +614,35 @@ def dpl4sac_args():  # todo:
             "tmin",
             "vp",
         ],
-        var_c=[],
-
-
-
-
+        var_c=[
+            "elev_mean",
+            "slope_mean",
+            "area_gages2",
+            "frac_forest",
+            "lai_max",
+            "lai_diff",
+            "dom_land_cover_frac",
+            "dom_land_cover",
+            "root_depth_50",
+            "soil_depth_statsgo",
+            "soil_porosity",
+            "soil_conductivity",
+            "max_water_content",
+            "geol_1st_class",
+            "geol_2nd_class",
+            "geol_porostiy",
+            "geol_permeability",
+        ],
+        var_out=["streamflow", "evaporation"],
+        target_as_input=0,
+        constant_only=0,
+        train_epoch=10,
+        save_epoch=1,
+        model_loader={
+            "load_way": "best",
+            # "test_epoch": 1,
+        },
+        warmup_length=365,
+        opt="Adadelta",
+        which_first_tensor="sequence",
     )

@@ -44,7 +44,7 @@ from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
 from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
 from torchhydro.models.dpl4hbv import DplLstmHbv, DplAnnHbv
 from torchhydro.models.dpl4gr4j import DplLstmGr4j, DplAnnGr4j
-from torchhydro.models.dpl4sac import DplAnnModuleSac, DplLstmNnModuleSac
+from torchhydro.models.dpl4sac import DplAnnSac, DplLstmSac
 """
 Utility dictionaries to map a string to a class.
 """
@@ -69,8 +69,8 @@ pytorch_model_dict = {
     "DplAnnHbv": DplAnnHbv,
     "DplLstmGr4j": DplLstmGr4j,
     "DplAnnGr4j": DplAnnGr4j,
-    "DplAnnSac": DplAnnModuleSac,
-    "DplLstmSac": DplLstmNnModuleSac
+    "DplAnnSac": DplAnnSac,
+    "DplLstmSac": DplLstmSac
 }
 
 pytorch_criterion_dict = {

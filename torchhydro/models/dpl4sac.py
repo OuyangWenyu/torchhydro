@@ -10,15 +10,249 @@ from torchhydro.models.ann import SimpleAnn
 
 PRECISION = 1e-5
 
-
-class Sac4DplWithNnModule(nn.Module):
+class SingleStepSacramento():
     """
-    Sacramento model for differential parameter learning with neural network as submodule
+    single step sacramento model
+    """
+    def __init__(self):
+        """
+        Initial a single-step sacramento model
+        """
+        super(SingleStepSacramento, self).__init__()
+        self.name = 'SingleStepSacramento'
+
+    def cal_runoff(
+        hydrodt: int = 1,
+        prcp: float = None,
+        pet: float = None,
+        para: Union[tuple, list] = None,
+        intervar: Union[tuple, list] = None,
+        area: float = None,
+    ):
+        """
+        single step evaporation and generating runoff
+        Parameters
+        -----------
+        hydrodt : int
+            time step
+        prcp : float
+            precipitation, mm/d.
+        pet : float
+            evaporation, mm/d.
+        para : Union[tuple, list]
+            model parameters.
+        intervar: Union[tuple, list]
+            inter variables in model.
+            auztw, the upper layer tension water accumulation on the alterable impervious area, mm.
+            alztw, the lower layer tension water accumulation on the alterable impervious area, mm.
+            uztw, tension water accumulation in the upper layer, mm.
+            uzfw, free water accumulation in the upper layer, mm.
+            lztw, tension water accumulation in the lower layer, mm.
+            lzfs, speed free water accumulation in the lower layer, mm.
+            lzfp, slow free water accumulation in the lower layer, mm.
+        Returns
+        -------
+
+        """
+        # parameters
+        kc = para[0]
+        pctim = para[1]
+        adimp = para[2]
+        uztwm = para[3]
+        uzfwm = para[4]
+        lztwm = para[5]
+        lzfsm = para[6]
+        lzfpm = para[7]
+        rserv = para[8]
+        pfree = para[9]
+        riva = para[10]
+        zperc = para[11]
+        rexp = para[12]
+        uzk = para[13]
+        lzsk = para[14]
+        lzpk = para[15]
+        ci = para[16]
+        cgs = para[17]
+        cgp = para[18]
+        ke = para[19]
+        xe = para[20]
+        # middle variables, at the start of timestep.
+        auztw = intervar[0]
+        alztw = intervar[1]
+        uztw = intervar[2]
+        uzfw = intervar[3]
+        lztw = intervar[4]
+        lzfs = intervar[5]
+        lzfp = intervar[6]
+
+        # evaporation
+        ep = kc * pet  # average evaporation of basin
+        roimp = prcp * pctim  # runoff of the permanent impervious area
+        ae2 = pctim * ep  # evaporation of the permanent impervious area
+        # evaporation of the alterable impervious area
+        ae1 = torch.min((auztw, ep * (auztw / uztwm)))  # upper layer
+        ae3 = (ep - ae1) * (alztw / (uztwm + lztwm))  # lower layer
+        pav = torch.max((0.0, prcp - (uztwm - (auztw - ae1))))
+        adsur = pav * ((alztw - ae3) / lztwm)
+        ars = torch.max((0.0, ((pav - adsur) + (alztw - ae3)) - lztwm))
+        auztw = torch.min((uztwm, (auztw - ae1) + prcp))
+        alztw = torch.min((lztwm, (pav - adsur) + (alztw - ae3)))
+        # evaporation of the permeable area
+        e1 = torch.min((uztw, ep * (uztw / uztwm)))  # upper layer
+        e2 = torch.min((uzfw, ep - e1))  # lower layer
+        e3 = (ep - e1 - e2) * (lztw / (uztwm + lztwm))  # deeper layer
+        lt = lztw - e3
+        e4 = riva * ep  # river net, lakes and hydrophyte
+        # total evaporation
+        et = ae2 + ae1 + ae3 + e1 + e2 + e3 + e4  # the total evaporation
+
+        # generate runoff
+        # runoff of the alterable impervious area
+        adsur = adsur * adimp
+        ars = ars * adimp
+        # runoff of the permeable area
+        parea = 1 - pctim - adimp
+        rs = torch.max((prcp + (uztw + uzfw - e1 - e2) - (uztwm + uzfwm), 0.0)) * parea
+        ut = torch.min((uztwm, uztw - e1 + prcp))
+        uf = torch.min((uzfwm, prcp + (uztw + uzfw - e1 - e2) - ut))
+        ri = uf * uzk  # interflow
+        uf = uf - ri
+        # the infiltrated water
+        pbase = lzfsm * lzsk + lzfpm * lzpk
+        defr = 1 - (lzfs + lzfp + lt) / (lzfsm + lzfpm + lztwm)
+        perc = pbase * (1 + zperc * pow(defr, rexp)) * uf / uzfwm
+        rate = torch.min((perc, (lzfsm + lzfpm + lztwm) - (lzfs + lzfp + lt)))
+        # assign the infiltrate water
+        fx = torch.min((lzfsm + lzfpm - (lzfs + lzfp), torch.max((rate - (lztwm - lt), rate * pfree))))
+        perct = rate - fx
+        coef = (lzfpm / (lzfsm + lzfpm)) * (2 * (1 - lzfp / lzfpm) / ((1 - lzfp / lzfpm) + (1 - lzfsm / lzfsm)))
+        coef = torch.min((coef, 1))
+        percp = torch.min((lzfpm - lzfp, torch.max((fx - (lzfsm - lzfs), coef * fx))))
+        percs = fx - percp
+        # update the soil moisture accumulation
+        lt = lt + perct
+        ls = lzfs + percs
+        lp = lzfp + percp
+        # generate groundwater runoff
+        rgs = ls * lzsk
+        ls = ls - rgs
+        rgp = lp * lzpk
+        lp = lp - rgp
+        # water balance check
+        if ut / uztwm < uf / uzfwm:
+            uztw = uztwm * (ut + uf) / (uztwm + uzfwm)
+            uzfw = uzfwm * (ut + uf) / (uztwm + uzfwm)
+        else:
+            uztw = ut
+            uzfw = uf
+        saved = rserv * (lzfsm + lzfpm)
+        ratio = (ls + lp - saved + lt) / (lzfsm + lzfpm - saved + lztwm)
+        ratio = torch.max((ratio, 0))
+        if lt / lztwm < ratio:
+            lztw = lztwm * ratio
+            del_ = lztw - lt
+            lzfs = torch.max((0.0, ls - del_))
+            lzfp = lp - torch.max((0.0, del_ - ls))
+        else:
+            lztw = lt
+            lzfs = ls
+            lzfp = lp
+
+        # rs = roimp + (adsur + ars) + rs  # the total surface runoff
+
+        # middle variables, at the end of timestep.
+        intervar[0] = auztw
+        intervar[1] = alztw
+        intervar[2] = uztw
+        intervar[3] = uzfw
+        intervar[4] = lztw
+        intervar[5] = lzfs
+        intervar[6] = lzfp
+
+        return et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar  # todo:
+
+    def cal_routing(
+        hydrodt,
+        roimp, adsur, ars, rs, ri, rgs, rgp,
+        para: Union[tuple, list] = None,
+        intervar: Union[tuple, list] = None,
+    ):
+        """
+        single step routing
+        Parameters
+        ----------
+        hydrodt
+        roimp
+        adsur
+        ars
+        rs
+        ri
+        rgs
+        rgp
+        intervar
+
+        Returns
+        -------
+        q_sim
+            the outflow at the end of timestep, m^3/s.
+        """
+        # parameters
+        pctim = para[1]
+        adimp = para[2]
+        ci = para[16]
+        cgs = para[17]
+        cgp = para[18]
+        ke = para[19]
+        xe = para[20]
+        # middle variables, at the start of timestep.
+        qs0 = intervar[0]
+        qi0 = intervar[1]
+        qgs0 = intervar[2]
+        qgp0 = intervar[3]
+
+        # routing
+        u = (1 - pctim - adimp) * area * 1000  # daily coefficient, no need conversion.  # todo: area
+        parea = 1 - pctim - adimp
+        # slope routing, use the linear reservoir method
+        qs = (roimp + (adsur + ars) * adimp + rs * parea) * area * 1000.0  # todo: area
+        qi = ci * qi0 + (1 - ci) * ri * u
+        qgs = cgs * qgs0 + (1 - cgs) * rgs * u
+        qgp = cgp * qgp0 + (1 - cgp) * rgp * u
+        q_sim_ = (qs + qi + qgs + qgp)
+        # middle variable, at the end of timestep.
+        intervar[0] = qs
+        intervar[1] = qi
+        intervar[2] = qgs
+        intervar[3] = qgp
+
+        # river routing, use the Muskingum routing method
+        q_sim_0 = qs0 + qi0 + qgs0 + qgp0
+        if rivernumber > 0:
+            dt = hydrodt * 24.0 / 2.0
+            xo = xe
+            ke = ke * 24.0  # KE is hourly coefficient, need convert to daily.
+            ko = ke / rivernumber
+            c1 = ko * (1.0 - xo) + dt
+            c2 = (-ko * xo + dt) / c1
+            c3 = (ko * (1.0 - xo) - dt) / c1
+            c1 = (ko * xo + dt) / c1
+            i1 = q_sim_0
+            i2 = q_sim_
+            for i in range(rivernumber):
+                q_sim_0 = qq[i]
+                i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
+                qq[i] = i2
+                i1 = q_sim_0
+        q_sim_ = i2
+        return q_sim_
+
+class Sac4Dpl(nn.Module):
+    """
+    Sacramento model for Differential Parameter learning as a submodule
     """
     def __init__(
         self,
         warmup_length: int,
-        nn_module=None,
         source_book="HF",
         nn_hidden_size: Union[int, tuple, list] = None,
         nn_dropout=0.2,
@@ -31,10 +265,6 @@ class Sac4DplWithNnModule(nn.Module):
         warmup_length
             the length of warmup periods 预热期
             sac needs a warmup period to generate reasonable initial state values 需要预热，形成初始条件
-        nn_module
-            We initialize the module when we firstly initialize Sac4DplWithNnModule.
-            Then we will iterately call Sac4DplWithNnModule module for warmup. 迭代调用模型单元
-            Hence, in warmup period, we don't need to initialize it again.
         nn_hidden_size
             the hidden layer size of neural network
         nn_dropout
@@ -42,7 +272,7 @@ class Sac4DplWithNnModule(nn.Module):
         param_test_way
             the way to test the model parameters, final. 模型参数测试方式，取final式。
         """
-        super(Sac4DplWithNnModule, self).__init__()
+        super(Sac4Dpl, self).__init__()
         self.name = "Sacramento"
         self.params_names = MODEL_PARAM_DICT["sac"]["param_name"]
         param_range = MODEL_PARAM_DICT["sac"]["param_range"]
@@ -99,17 +329,7 @@ class Sac4DplWithNnModule(nn.Module):
             tension water capacity in the lower layer, mm.
         riva
             ratio of river net, lakes and hydrophyte area to total area of the basin
-        --middle variables--
-        auztw
-            the upper layer tension water accumulation on the alterable impervious area, mm.
-        alztw
-            the lower layer tension water accumulation on the alterable impervious area, mm.
-        uztw
-            tension water accumulation in the upper layer, mm.
-        uzfw
-            free water accumulation in the upper layer, mm.
-        lztw
-            tension water accumulation in the lower layer, mm.
+
 
         area
             basin area, km^2.
@@ -137,18 +357,18 @@ class Sac4DplWithNnModule(nn.Module):
         pet = torch.clamp(p_and_e[:, 1], min=0.0)
         # parameters
         kc = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])
-        pctim = self.pctiscale[0] + parameters[:, 1] * (self.pctiscale[1] - self.pctiscale[0])
-        adimp = self.adimscale[0] + parameters[:, 2] * (self.adimscale[1] - self.adimscale[0])
-        uztwm = self.uztwscale[0] + parameters[:, 3] * (self.uztwscale[1] - self.uztwscale[0])
-        uzfwm = self.uzfwscale[0] + parameters[:, 4] * (self.uzfwscale[1] - self.uzfwscale[0])
-        lztwm = self.lztwscale[0] + parameters[:, 5] * (self.lztwscale[1] - self.lztwscale[0])
-        lzfsm = self.lzfsscale[0] + parameters[:, 6] * (self.lzfsscale[1] - self.lzfsscale[0])
-        lzfpm = self.lzfpscale[0] + parameters[:, 7] * (self.lzfpscale[1] - self.lzfpscale[0])
+        pctim = self.pctim_scale[0] + parameters[:, 1] * (self.pctiscale[1] - self.pctim_scale[0])
+        adimp = self.adimp_scale[0] + parameters[:, 2] * (self.adimp_scale[1] - self.adimp_scale[0])
+        uztwm = self.uztwm_scale[0] + parameters[:, 3] * (self.uztwscale[1] - self.uztwm_scale[0])
+        uzfwm = self.uzfwm_scale[0] + parameters[:, 4] * (self.uzfwm_scale[1] - self.uzfwm_scale[0])
+        lztwm = self.lztwm_scale[0] + parameters[:, 5] * (self.lztwm_scale[1] - self.lztwm_scale[0])
+        lzfsm = self.lzfsm_scale[0] + parameters[:, 6] * (self.lzfsm_scale[1] - self.lzfsm_scale[0])
+        lzfpm = self.lzfpm_scale[0] + parameters[:, 7] * (self.lzfpm_scale[1] - self.lzfpm_scale[0])
         rserv = self.rserv_scale[0] + parameters[:, 8] * (self.rserv_scale[1] - self.rserv_scale[0])
         pfree = self.pfree_scale[0] + parameters[:, 9] * (self.pfree_scale[1] - self.pfree_scale[0])
         riva = self.riva_scale[0] + parameters[:, 10] * (self.riva_scale[1] - self.riva_scale[0])
         zperc = self.zperc_scale[0] + parameters[:, 11] * (self.zperc_scale[1] - self.zperc_scale[0])
-        rexp = self.rexscale[0] + parameters[:, 12] * (self.rexscale[1] - self.rexscale[0])
+        rexp = self.rexp_scale[0] + parameters[:, 12] * (self.rexp_scale[1] - self.rexp_scale[0])
         uzk = self.uzk_scale[0] + parameters[:, 13] * (self.uzk_scale[1] - self.uzk_scale[0])
         lzsk = self.lzsk_scale[0] + parameters[:, 14] * (self.lzsk_scale[1] - self.lzsk_scale[0])
         lzpk = self.lzpk_scale[0] + parameters[:, 15] * (self.lzpk_scale[1] - self.lzpk_scale[0])
@@ -157,132 +377,39 @@ class Sac4DplWithNnModule(nn.Module):
         cgp = self.cgp_scale[0] + parameters[:, 18] * (self.cgp_scale[1] - self.cgp_scale[0])
         ke = self.ke_scale[0] + parameters[:, 19] * (self.ke_scale[1] - self.ke_scale[0])
         xe = self.xe_scale[0] + parameters[:, 20] * (self.xe_scale[1] - self.xe_scale[0])
-        # middle variable       # todo: use warmup_length to handling the initial condition
+        para = [kc, pctim, adimp, uztwm, uzfwm, lztwm, lzfsm, lzfpm, rserv, pfree, riva, zperc, rexp, uzk, lzsk, lzpk, ci, cgs, cgp, ke, xe]
         auztw = 0
-        alztw = 0
+        alztw = lztwm * 0.8
         uztw = 0
         uzfw = 0
-        lztw = 0
-        lzfs = 0
-        lzfp = 0
+        lztw = lztwm * 0.8
+        lzfs = 2.0
+        lzfp = 2.0
         qi0 = 0
         qgs0 = 0
         qgp0 = 0
-        qs0 = 0
-        # todo:
-        area = 0  # basion area
+        qs0 = 0.8 * 10 * area  # todo:
         rivernumber = 1  # set only one river section.
-        hydrodt = 1
-        qq = []   # todo:
 
-        # evaporation
-        ep = kc * pet       # average evaporation of basin
-        roimp = prcp * pctim        # runoff of the permanent impervious area
-        ae2 = pctim * ep        # evaporation of the permanent impervious area
-        # evaporation of the alterable impervious area
-        ae1 = torch.min((auztw, ep * (auztw / uztwm)))      # upper layer
-        ae3 = (ep - ae1) * (alztw / (uztwm + lztwm))        # lower layer
-        pav = torch.max((0.0, prcp - (uztwm - (auztw - ae1))))
-        adsur = pav * ((alztw - ae3) / lztwm)
-        ars = torch.max((0.0, ((pav - adsur) + (alztw -ae3)) - lztwm))
-        auztw = torch.min((uztwm, (auztw - ae1) + prcp))
-        alztw = torch.min((lztwm, (pav - adsur) + (alztw - ae3)))
-        # evaporation of the permeable area
-        e1 = torch.min((uztw, ep * (uztw / uztwm)))     # upper layer
-        e2 = torch.min((uzfw, ep - e1))     # lower layer
-        e3 = (ep - e1 - e2) * (lztw / (uztwm + lztwm))      # deeper layer
-        lt = lztw - e3
-        e4 = riva * ep      # river net, lakes and hydrophyte
-        # total evaporation
-        e_sim = ae2 + ae1 + ae3 + e1 + e2 + e3 + e4         # the total evaporation
 
-        # generate runoff
-        # runoff of the alterable impervious area
-        adsur = adsur * adimp
-        ars = ars * adimp
-        # runoff of the permeable area
-        parea = 1 - pctim - adimp
-        rs = torch.max((prcp + (uztw + uzfw - e1 - e2) - (uztwm + uzfwm), 0.0)) * parea
-        ut = torch.min((uztwm, uztw - e1 + prcp))
-        uf = torch.min((uzfwm, prcp + (uztw + uzfw - e1 - e2) - ut))
-        ri = uf * uzk       # interflow
-        uf = uf - ri
-        # the infiltrated water
-        pbase = lzfsm * lzsk + lzfpm * lzpk
-        defr = 1 - (lzfs + lzfp + lt) / (lzfsm + lzfpm + lztwm)
-        perc = pbase * (1 + zperc * pow(defr, rexp)) * uf / uzfwm
-        rate = torch.min((perc, (lzfsm + lzfpm + lztwm) - (lzfs + lzfp + lt)))
-        # assign the infiltrate water
-        fx = torch.min((lzfsm + lzfpm - (lzfs + lzfp), torch.max((rate - (lztwm - lt), rate * pfree))))
-        perct = rate - fx
-        coef = (lzfpm / (lzfsm + lzfpm)) * (2 * (1 - lzfp / lzfpm) / ((1 - lzfp / lzfpm) + (1 - lzfsm / lzfsm)))
-        coef = torch.min((coef, 1))
-        percp = torch.min((lzfpm - lzfp, torch.max((fx - (lzfsm - lzfs), coef * fx))))
-        percs = fx - percp
-        # update the soil moisture accumulation
-        lt = lt + perct
-        ls = lzfs + percs
-        lp = lzfp + percp
-        # generate groundwater runoff
-        rgs = ls * lzsk
-        ls = ls - rgs
-        rgp = lp * lzpk
-        lp = lp - rgp
-        # water balance check
-        if ut / uztwm < uf / uzfwm:
-            uztw = uztwm * (ut + uf) / (uztwm + uzfwm)
-            uzfw = uzfwm * (ut + uf) / (uztwm + uzfwm)
-        else:
-            uztw = ut
-            uzfw = uf
-        saved = rserv * (lzfsm + lzfpm)
-        ratio = (ls + lp - saved + lt) / (lzfsm + lzfpm - saved + lztwm)
-        ratio = torch.max((ratio, 0))
-        if lt / lztwm < ratio:
-            lztw = lztwm * ratio
-            del_ = lztw - lt
-            lzfs = torch.max((0.0, ls - del_))
-            lzfp = lp - torch.max((0.0, del_ - ls))
-        else:
-            lztw = lt
-            lzfs = ls
-            lzfp = lp
 
-        rs = roimp + (adsur + ars) + rs     # the total surface runoff
 
-        # routing
-        u = (1 - pctim - adimp) * area * 1000  # daily coefficient, no need conversion.  # todo: area ?
-        parea = 1 - pctim - adimp
-
+        qq = [qi0 + qgs0 + qgp0 + qs0, ]  # set initial river flow
         # slope routing, use the linear reservoir method
-        qs = rs * area * 1000.0         # todo: area
-        qi = ci * qi0 + (1 - ci) * ri * u
-        qgs = cgs * qgs0 + (1 - cgs) * rgs * u
-        qgp = cgp * qgp0 + (1 - cgp) * rgp * u
-        q_sim = (qs + qi + qgs + qgp)
+        qi0 = torch.full(ci.size(),0.0).to(sac_device)
+        qgs0 = torch.full(cgs.size(),0.0).to(sac_device)
+        qgp0 = torch.full(cgp.size(),0.0).to(sac_device)
+        # qs0 = 0.8 * 10 * area   # todo:
+        qs0 = torch.full(imputs.shape[:2],0.0).to(sac_device)
 
-        # river routing, use the Muskingum routing method
-        q_sim_0 = qs0 + qi0 + qgs0 + qgp0
-        if rivernumber > 0:
-            dt = hydrodt / 3600.0 / 2.0     # todo: hydrodt, the timestep of data
-            xo = xe
-            ko = ke / rivernumber    # todo: KE is hourly coefficient, need convert to daily.
-            c1 = ko * (1.0 - xo) + dt
-            c2 = (-ko * xo + dt) / c1
-            c3 = (ko * (1.0 - xo) - dt) / c1
-            c1 = (ko * xo + dt) / c1
-            i1 = q_sim_0
-            i2 = q_sim
-            for i in range(rivernumber):
-                q_sim_0 = qq[i]  # todo:  give a routing space
-                i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
-                qq[i] = i2
-                i1 = q_sim_0
-        q_sim = i2
+        # seq, batch, feature
+        q_sim = torch.unsqueeze(q_sim_, dim=2)
+        e_sim = torch.unsqueeze(e_sim_, dim=2)
+
         return q_sim, e_sim
 
 
-class DplAnnModuleSac(nn.Module):
+class DplAnnSac(nn.Module):
     """
     Sacramento differential parameter learning - neural network model
     """
@@ -325,7 +452,7 @@ class DplAnnModuleSac(nn.Module):
         """
         super(DplAnnModuleSac, self).__init__()
         self.dl_model = SimpleAnn(n_input_features, n_output_features, n_hidden_states)
-        self.pb_model = Sac4DplWithNnModule(
+        self.pb_model = Sac4Dpl(
             warmup_length,
             source_book=source_book,
             nn_hidden_size=nn_hidden_states,
@@ -375,7 +502,7 @@ class DplAnnModuleSac(nn.Module):
         return torch.cat([q, e], dim=-1)  # catenate, 拼接 q 和 e，按列。 [0,1]
 
 
-class DplLstmNnModuleSac(nn.Module):
+class DplLstmSac(nn.Module):
     """
     Sacramento differential parameter learning - Long short-term memory neural network model
     """
@@ -419,7 +546,7 @@ class DplLstmNnModuleSac(nn.Module):
         """
         super(DplLstmNnModuleSac, self).__init__()
         self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)
-        self.pb_model = Sac4DplWithNnModule(
+        self.pb_model = Sac4Dpl(
             warmup_length,
             source_book=source_book,
             nn_hidden_size=nn_hidden_size,
