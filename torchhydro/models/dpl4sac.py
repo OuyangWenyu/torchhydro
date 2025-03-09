@@ -20,22 +20,49 @@ class SingleStepSacramento(nn.Module):
         device: Union[str, torch.device],
         hydrodt: int = 1,
         # area: float = None,
-        rivernumber: Tensor = None,
         para: Tensor = None,
         intervar: Tensor = None,
+        rivernumber: Tensor = None,
         mq: Tensor = None,
     ):
         """
         Initial a single-step sacramento model
+        Parameters
+        -----------
+        device: Union[str, torch.device]
+            cpu or gpu device
+        hydrodt:
+            the time step of hydrodata, default to one day.
+        para: Tensor
+            parameters of sac model, 21.
+        intervar: Tensor
+            the inter variables in model, 11.
+            generate runoff
+            auztw, the upper layer tension water accumulation on the alterable impervious area, mm.
+            alztw, the lower layer tension water accumulation on the alterable impervious area, mm.
+            uztw, tension water accumulation in the upper layer, mm.
+            uzfw, free water accumulation in the upper layer, mm.
+            lztw, tension water accumulation in the lower layer, mm.
+            lzfs, speed free water accumulation in the lower layer, mm.
+            lzfp, slow free water accumulation in the lower layer, mm.
+            routing
+            qs0, the flow of surface at the start of timestep.
+            qi0, the flow of interflow at the start of timestep.
+            qgs0, the flow of speed groundwater at the start of timestep.
+            qgp0, the flow of slow groundwater at the start of timestep.
+        rivernumber: Tensor
+            the river sections number
+        mq: Tensor
+            the routing space of the Muskingum routing method
         """
         super(SingleStepSacramento, self).__init__()
         self.name = 'SingleStepSacramento'
         self.device = device
         # self.area = area
-        self.rivernumber = rivernumber
         self.hydrodt = hydrodt
         self.para = para
         self.intervar = intervar
+        self.rivernumber = rivernumber
         self.mq = mq  # Muskingum routing space
 
     def cal_runoff(
@@ -55,44 +82,36 @@ class SingleStepSacramento(nn.Module):
             evaporation, mm/d.
         para : Union[tuple, list]
             model parameters.
-        intervar: Union[tuple, list]
-            inter variables in model.
-            auztw, the upper layer tension water accumulation on the alterable impervious area, mm.
-            alztw, the lower layer tension water accumulation on the alterable impervious area, mm.
-            uztw, tension water accumulation in the upper layer, mm.
-            uzfw, free water accumulation in the upper layer, mm.
-            lztw, tension water accumulation in the lower layer, mm.
-            lzfs, speed free water accumulation in the lower layer, mm.
-            lzfp, slow free water accumulation in the lower layer, mm.
+
         Returns
         -------
 
         """
         # parameters
-        kc = self.para[0]
-        pctim = self.para[1]
-        adimp = self.para[2]
-        uztwm = self.para[3]
-        uzfwm = self.para[4]
-        lztwm = self.para[5]
-        lzfsm = self.para[6]
-        lzfpm = self.para[7]
-        rserv = self.para[8]
-        pfree = self.para[9]
-        riva = self.para[10]
-        zperc = self.para[11]
-        rexp = self.para[12]
-        uzk = self.para[13]
-        lzsk = self.para[14]
-        lzpk = self.para[15]
+        kc = self.para[:, 0]
+        pctim = self.para[:, 1]
+        adimp = self.para[:, 2]
+        uztwm = self.para[:, 3]
+        uzfwm = self.para[:, 4]
+        lztwm = self.para[:, 5]
+        lzfsm = self.para[:, 6]
+        lzfpm = self.para[:, 7]
+        rserv = self.para[:, 8]
+        pfree = self.para[:, 9]
+        riva = self.para[:, 10]
+        zperc = self.para[:, 11]
+        rexp = self.para[:, 12]
+        uzk = self.para[:, 13]
+        lzsk = self.para[:, 14]
+        lzpk = self.para[:, 15]
         # middle variables, at the start of timestep.
-        auztw = self.intervar[0]
-        alztw = self.intervar[1]
-        uztw = self.intervar[2]
-        uzfw = self.intervar[3]
-        lztw = self.intervar[4]
-        lzfs = self.intervar[5]
-        lzfp = self.intervar[6]
+        auztw = self.intervar[:, 0]
+        alztw = self.intervar[:, 1]
+        uztw = self.intervar[:, 2]
+        uzfw = self.intervar[:, 3]
+        lztw = self.intervar[:, 4]
+        lzfs = self.intervar[:, 5]
+        lzfp = self.intervar[:, 6]
 
         # evaporation
         ep = kc * pet  # average evaporation of basin
@@ -170,15 +189,15 @@ class SingleStepSacramento(nn.Module):
         # rs = roimp + (adsur + ars) + rs  # the total surface runoff
 
         # middle variables, at the end of timestep.
-        self.intervar[0] = auztw
-        self.intervar[1] = alztw
-        self.intervar[2] = uztw
-        self.intervar[3] = uzfw
-        self.intervar[4] = lztw
-        self.intervar[5] = lzfs
-        self.intervar[6] = lzfp
+        self.intervar[:, 0] = auztw
+        self.intervar[:, 1] = alztw
+        self.intervar[:, 2] = uztw
+        self.intervar[:, 3] = uzfw
+        self.intervar[:, 4] = lztw
+        self.intervar[:, 5] = lzfs
+        self.intervar[:, 6] = lzfp
 
-        return et, roimp, adsur, ars, rs, ri, rgs, rgp, self.intervar[:6]  # todo:
+        return et, roimp, adsur, ars, rs, ri, rgs, rgp, self.intervar[:, :6]  # todo:
 
     def cal_routing(
         self,
@@ -204,18 +223,18 @@ class SingleStepSacramento(nn.Module):
             the outflow at the end of timestep, m^3/s.
         """
         # parameters
-        pctim = self.para[1]
-        adimp = self.para[2]
-        ci = self.para[16]
-        cgs = self.para[17]
-        cgp = self.para[18]
-        ke = self.para[19]
-        xe = self.para[20]
+        pctim = self.para[:, 1]
+        adimp = self.para[:, 2]
+        ci = self.para[:, 16]
+        cgs = self.para[:, 17]
+        cgp = self.para[:, 18]
+        ke = self.para[:, 19]
+        xe = self.para[:, 20]
         # middle variables, at the start of timestep.
-        qs0 = torch.full(self.intervar[7,:].size(),self.intervar[:7]).to(self.device)
-        qi0 = torch.full(self.intervar[8,:].size(),self.intervar[:8]).to(self.device)
-        qgs0 = self.intervar[9]
-        qgp0 = self.intervar[10]
+        qs0 = torch.full(self.intervar[:, 7].size(),self.intervar[:, 7]).to(self.device)
+        qi0 = torch.full(self.intervar[:, 8].size(),self.intervar[:, 8]).to(self.device)
+        qgs0 = torch.full(self.intervar[:, 9].size(),self.intervar[:, 9]).to(self.device)
+        qgp0 = torch.full(self.intervar[:, 10].size(),self.intervar[:, 10]).to(self.device)
 
         # routing
         u = (1 - pctim - adimp) * 1000  # * self.area   # daily coefficient, no need conversion.  # todo: area
@@ -227,10 +246,10 @@ class SingleStepSacramento(nn.Module):
         qgp = cgp * qgp0 + (1 - cgp) * rgp * u
         q_sim_ = (qs + qi + qgs + qgp)
         # middle variable, at the end of timestep.
-        self.intervar[7] = qs
-        self.intervar[8] = qi
-        self.intervar[9] = qgs
-        self.intervar[10] = qgp
+        self.intervar[:, 7] = qs
+        self.intervar[:, 8] = qi
+        self.intervar[:, 9] = qgs
+        self.intervar[:, 10] = qgp
 
         # river routing, use the Muskingum routing method
         q_sim_0 = qs0 + qi0 + qgs0 + qgp0
@@ -246,15 +265,15 @@ class SingleStepSacramento(nn.Module):
             i1 = q_sim_0
             i2 = q_sim_
             for i in range(self.rivernumber):
-                q_sim_0 = self.mq[i,:]  # rivernumber|basin
+                q_sim_0 = self.mq[:, i]  # basin|rivernumber
                 i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
-                self.mq[i,:] = i2
+                self.mq[:, i] = i2
                 i1 = q_sim_0
         q_sim_ = i2
-        return q_sim_, self.intervar[7:]
+        return q_sim_, self.intervar[:, 7:]
 
 
-class Sacramento():
+class Sacramento(nn.Module):
     """
     sacramento model
     """
@@ -296,8 +315,6 @@ class Sac4Dpl(nn.Module):
         self,
         warmup_length: int,
         source_book="HF",
-        nn_hidden_size: Union[int, tuple, list] = None,
-        nn_dropout=0.2,
         param_test_way=MODEL_PARAM_TEST_WAY["final"],
     ):
         """
@@ -307,8 +324,6 @@ class Sac4Dpl(nn.Module):
         warmup_length
             the length of warmup periods 预热期
             sac needs a warmup period to generate reasonable initial state values 需要预热，形成初始条件
-        nn_hidden_size
-            the hidden layer size of neural network
         nn_dropout
             the dropout rate of neural network 神经网络中间层神经元的暂退率，(0.3, 0.5)，提高模型的稳健性。暂时退出、暂时不参与模拟计算的概率。什么时候重回计算呢？动态暂退？
         param_test_way
@@ -343,8 +358,6 @@ class Sac4Dpl(nn.Module):
         self.warmup_length = warmup_length
         self.feature_size = 2       # there are 2 input variables in Sac, P and PET. P and Pet are two feature in nn model.
         self.source_book = source_book
-        self.nn_hidden_size = nn_hidden_size
-        self.nn_dropout = nn_dropout
         self.param_test_way = param_test_way
 
     def forward(self, p_and_e, parameters, return_state=False):
@@ -398,27 +411,6 @@ class Sac4Dpl(nn.Module):
         prcp = torch.clamp(p_and_e[:, 0], min=0.0)
         pet = torch.clamp(p_and_e[:, 1], min=0.0)
         # parameters
-        # kc = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])    # parameters[:, 0]是个二维张量， 流域|参数  kc是个一维张量，不同流域的参数。  basin first
-        # pctim = self.pctim_scale[0] + parameters[:, 1] * (self.pctiscale[1] - self.pctim_scale[0])
-        # adimp = self.adimp_scale[0] + parameters[:, 2] * (self.adimp_scale[1] - self.adimp_scale[0])
-        # uztwm = self.uztwm_scale[0] + parameters[:, 3] * (self.uztwscale[1] - self.uztwm_scale[0])
-        # uzfwm = self.uzfwm_scale[0] + parameters[:, 4] * (self.uzfwm_scale[1] - self.uzfwm_scale[0])
-        # lztwm = self.lztwm_scale[0] + parameters[:, 5] * (self.lztwm_scale[1] - self.lztwm_scale[0])
-        # lzfsm = self.lzfsm_scale[0] + parameters[:, 6] * (self.lzfsm_scale[1] - self.lzfsm_scale[0])
-        # lzfpm = self.lzfpm_scale[0] + parameters[:, 7] * (self.lzfpm_scale[1] - self.lzfpm_scale[0])
-        # rserv = self.rserv_scale[0] + parameters[:, 8] * (self.rserv_scale[1] - self.rserv_scale[0])
-        # pfree = self.pfree_scale[0] + parameters[:, 9] * (self.pfree_scale[1] - self.pfree_scale[0])
-        # riva = self.riva_scale[0] + parameters[:, 10] * (self.riva_scale[1] - self.riva_scale[0])
-        # zperc = self.zperc_scale[0] + parameters[:, 11] * (self.zperc_scale[1] - self.zperc_scale[0])
-        # rexp = self.rexp_scale[0] + parameters[:, 12] * (self.rexp_scale[1] - self.rexp_scale[0])
-        # uzk = self.uzk_scale[0] + parameters[:, 13] * (self.uzk_scale[1] - self.uzk_scale[0])
-        # lzsk = self.lzsk_scale[0] + parameters[:, 14] * (self.lzsk_scale[1] - self.lzsk_scale[0])
-        # lzpk = self.lzpk_scale[0] + parameters[:, 15] * (self.lzpk_scale[1] - self.lzpk_scale[0])
-        # ci = self.ci_scale[0] + parameters[:, 16] * (self.ci_scale[1] - self.ci_scale[0])
-        # cgs = self.cgs_scale[0] + parameters[:, 17] * (self.cgs_scale[1] - self.cgs_scale[0])
-        # cgp = self.cgp_scale[0] + parameters[:, 18] * (self.cgp_scale[1] - self.cgp_scale[0])
-        # ke = self.ke_scale[0] + parameters[:, 19] * (self.ke_scale[1] - self.ke_scale[0])
-        # xe = self.xe_scale[0] + parameters[:, 20] * (self.xe_scale[1] - self.xe_scale[0])
         para = torch.full(parameters.shap(), 0.0)
         para[:, 0] = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])    # parameters[:, 0]是个二维张量， 流域|参数  kc是个一维张量，不同流域的参数。  basin first
         para[:, 1] = self.pctim_scale[0] + parameters[:, 1] * (self.pctiscale[1] - self.pctim_scale[0])
@@ -449,43 +441,32 @@ class Sac4Dpl(nn.Module):
         mq = torch.full((para[:, 0].size(),rivernumber[0]),0.0)  # Muskingum routing space
         singlesac = SingleStepSacramento(sac_device, 1, rivernumber, para, intervar, mq)
 
-        if self.warmup_length > 0:
+        if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
             # set no_grad for warmup periods
             with torch.no_grad():
-                p_and_e_warmup = p_and_e[0:self.warmup_length, :, :]
-                if self.param_test_way == MODEL_PARAM_TEST_WAY["time_varying"]:
-                    parameters_ts_warmup = para[0:self.warmup_length, :, :]
-                else:
-                    parameters_ts_warmup = para
-                cal_init_sac4dpl = singlesac(
-                    kernel_size=self.kernel_size,
+                p_and_e_warmup = p_and_e[0:self.warmup_length, :, :]  # time|basin|p_and_e
+                cal_init_sac4dpl = Sac4Dpl(
                     # warmup_length must be 0 here
                     warmup_length=0,
-                    nn_module=self.evap_nn_module,
-                    param_var_index=self.param_var_index,
-                    source_book=self.source_book,
-                    source_type=self.source_type,
-                    et_output=self.et_output,
-                    nn_hidden_size=self.nn_hidden_size,
-                    nn_dropout=self.nn_dropout,
                     param_test_way=self.param_test_way,
                 )
                 if cal_init_sac4dpl.warmup_length > 0:
                     raise RuntimeError("Please set init model's warmup length to 0!!!")
-                _, _, *w0, s0, fr0, qi0, qg0 = cal_init_sac4dpl(
-                    p_and_e_warmup, parameters_ts_warmup, return_state=True
+                _, _, intervar = cal_init_sac4dpl(
+                    p_and_e_warmup, para, return_state=True
                 )
-        else:
+        else:  # if no, set a small value directly.
             # use detach func to make wu0 no_grad as it is an initial value
-            if self.et_output == 1:
-                # () and , must be added, otherwise, w0 will be a tensor, not a tuple
-                w0 = (0.5 * (um.detach() + lm.detach() + dm.detach()),)
-            else:
-                raise ValueError("et_output should be 1 or 3")
-            s0 = 0.5 * (sm.detach())
-            fr0 = torch.full(ci.size(), 0.1).to(sac_device)
-            qi0 = torch.full(ci.size(), 0.1).to(sac_device)
-            qg0 = torch.full(cg.size(), 0.1).to(sac_device)
+            # if self.et_output == 1:  # output the evaporation
+            #     # () and , must be added, otherwise, w0 will be a tensor, not a tuple
+            #     w0 = (0.5 * (um.detach() + lm.detach() + dm.detach()),)
+            # else:
+            #     raise ValueError("et_output should be 1 or 3")
+            # s0 = 0.5 * (sm.detach())
+            # fr0 = torch.full(ci.size(), 0.1).to(sac_device)
+            # qi0 = torch.full(ci.size(), 0.1).to(sac_device)
+            # qg0 = torch.full(cg.size(), 0.1).to(sac_device)
+            intervar = torch.full((para[:, 0].size(), 11), 0.1)  # to(sac_device)?
 
         e_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
         q_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
@@ -493,7 +474,6 @@ class Sac4Dpl(nn.Module):
             et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:6] = singlesac.cal_runoff(prcp[i], pet[i])
             q_sim_[i], intervar[7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)
             e_sim_[i] = et
-
 
         # slope routing, use the linear reservoir method
         # qi0 = torch.full(ci.size(),0.0).to(sac_device)
@@ -505,7 +485,8 @@ class Sac4Dpl(nn.Module):
         # seq, batch, feature
         q_sim = torch.unsqueeze(q_sim_, dim=2)
         e_sim = torch.unsqueeze(e_sim_, dim=2)
-
+        if return_state:
+            return q_sim, e_sim, intervar
         return q_sim, e_sim
 
 
@@ -522,7 +503,6 @@ class DplAnnSac(nn.Module):
         param_limit_func="clamp",   # 参数限制函数 限制在[0,1]
         param_test_way="final",
         source_book="HF",
-        nn_dropout=0.2,
     ):
         """
         Differential Parameter learning model only with attributes as DL model's input: ANN -> Param -> SAC
@@ -554,7 +534,6 @@ class DplAnnSac(nn.Module):
         self.pb_model = Sac4Dpl(
             warmup_length,
             source_book=source_book,
-            nn_dropout=nn_dropout,
             param_test_way=param_test_way,
         )
         self.param_func = param_limit_func
@@ -580,7 +559,7 @@ class DplAnnSac(nn.Module):
         torch.Tensor
             one time forward result 单步前向传播结果？
         """
-        gen = self.dl_model(z)  # SimpleAnn   使用 nn 进化参数  计算各参数对目标值的梯度？   传出来的是参数，经过激活函数后传到物理模型中，去正则化，进行洪水演算，模拟径流。
+        gen = self.dl_model(z)  # SimpleAnn   使用 nn 进化参数  计算各参数对目标值损失的梯度？   传出来的是参数，经过激活函数后传到物理模型中，去正则化，进行洪水演算，模拟径流。
         if torch.isnan(gen).any():
             raise ValueError("Error: NaN values detected. Check your data firstly!!!")
         # we set all params' values in [0, 1] and will scale them when forwarding
@@ -614,8 +593,6 @@ class DplLstmSac(nn.Module):
         param_limit_func="clamp",
         param_test_way="final",
         source_book="HF",
-        nn_hidden_size=None,
-        nn_dropout=0.2,
     ):
         """
         Differential Parameter learning model: LSTM -> Param -> SAC
@@ -648,8 +625,6 @@ class DplLstmSac(nn.Module):
         self.pb_model = Sac4Dpl(
             warmup_length,
             source_book=source_book,
-            nn_hidden_size=nn_hidden_size,
-            nn_dropout=nn_dropout,
             param_test_way=param_test_way,
         )
         self.param_func = param_limit_func
@@ -674,7 +649,7 @@ class DplLstmSac(nn.Module):
         torch.Tensor
             one time forward result
         """
-        gen = self.dl_model(z)
+        gen = self.dl_model(z)  # SimpleLSTM   先使用lstm优化参数，计算各参数对目标值损失函数的梯度
         if torch.isnan(gen).any():
             raise ValueError("Error: NaN values detected. Check your data firstly!!!")
         # we set all params' values in [0, 1] and will scale them when forwarding
@@ -689,7 +664,7 @@ class DplLstmSac(nn.Module):
         # just get one-period values, here we use the final period's values,
         # when the MODEL_PARAM_TEST_WAY is not time_varing, we use the last period's values.
         if self.param_test_way != MODEL_PARAM_TEST_WAY["time_varying"]:
-            params = params[-1, :, :]
+            params = params[-1, :, :]  # todo: why the parameters are three-dimension?
         # Please put p in the first location and pet in the second
-        q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)
-        return torch.cat([q, e], dim=-1)
+        q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)  # 再将参数代入物理模型计算径流，然后使用实测数据比对、计算目标值。反复迭代优化，计算目标值损失量。  时间|批次（流域）|特征（降雨蒸发）
+        return torch.cat([q, e], dim=-1)  # -1 means column

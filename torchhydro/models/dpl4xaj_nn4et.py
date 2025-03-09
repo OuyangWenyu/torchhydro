@@ -405,8 +405,8 @@ class Xaj4DplWithNnModule(nn.Module):
                 )
                 if cal_init_xaj4dpl.warmup_length > 0:
                     raise RuntimeError("Please set init model's warmup length to 0!!!")
-                _, _, *w0, s0, fr0, qi0, qg0 = cal_init_xaj4dpl(
-                    p_and_e_warmup, parameters_ts_warmup, return_state=True
+                _, _, *w0, s0, fr0, qi0, qg0 = cal_init_xaj4dpl(   # todo: how to warmup?
+                    p_and_e_warmup, parameters_ts_warmup, return_state=True  # call self.forward function 调用了下面的代码。
                 )
         else:
             # use detach func to make wu0 no_grad as it is an initial value

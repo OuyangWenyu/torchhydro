@@ -18,6 +18,21 @@ from torch.nn import Parameter as P
 
 class SimpleLSTM(nn.Module):
     def __init__(self, input_size, output_size, hidden_size, dr=0.0):
+        """
+        A simple multi-layer LSTM - NN model
+
+        Parameters
+        ----------
+        input_size
+            number of input neurons  输入神经元个数
+        output_size
+            number of output neurons  输出神经元个数
+        hidden_size
+
+        dr: float
+            dropout rate of layers, default is 0.0 which means no dropout;
+            here we set number of dropout layers to (number of nn layers - 1)
+        """
         super(SimpleLSTM, self).__init__()
         self.linearIn = nn.Linear(input_size, hidden_size)
         self.lstm = nn.LSTM(
