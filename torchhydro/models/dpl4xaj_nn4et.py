@@ -320,7 +320,7 @@ class Xaj4DplWithNnModule(nn.Module):
         else:
             # parameters_ts must be a 2-d tensor: (basin, param)
             parameters = parameters_ts
-        # denormalize the parameters to general range
+        # denormalize the parameters to general range  参数去正则化
         # TODO: now the specific parameters are hard coded; 0 is k, 1 is b, 6 is c, same as in model_config.py
         if 0 not in self.param_var_index or self.param_var_index is None:
             ks = self.k_scale[0] + parameters[:, 0] * (
@@ -420,7 +420,7 @@ class Xaj4DplWithNnModule(nn.Module):
             qi0 = torch.full(ci.size(), 0.1).to(xaj_device)
             qg0 = torch.full(cg.size(), 0.1).to(xaj_device)
 
-        inputs = p_and_e[warmup_length:, :, :]  #
+        inputs = p_and_e[warmup_length:, :, :]  # 三个维度， todo: 时间|数据项|流域 ？
         runoff_ims_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         rss_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         ris_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
@@ -483,7 +483,7 @@ class Xaj4DplWithNnModule(nn.Module):
         conv_uh = KernelConv(a, theta, self.kernel_size)
         qs_ = conv_uh(runoff_im + rss)   # surface routing
 
-        qs = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
+        qs = torch.full(inputs.shape[:2], 0.0).to(xaj_device)  # 取input的第一维、第二维。
         for i in range(inputs.shape[0]):  # interflow and groundwater routing use the linear reservoir
             if i == 0:
                 qi = linear_reservoir(ris_[i], ci, qi0)

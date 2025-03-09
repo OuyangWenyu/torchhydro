@@ -11,34 +11,37 @@ from torchhydro.models.ann import SimpleAnn
 PRECISION = 1e-5
 
 
-class SingleStepSacramento():
+class SingleStepSacramento(nn.Module):
     """
     single step sacramento model
     """
     def __init__(
         self,
+        device: Union[str, torch.device],
         hydrodt: int = 1,
-        area: float = None,
-        rivernumber: int= 1,
-        para: Union[tuple, list] = None,
-        intervar: Union[tuple, list] = None,
+        # area: float = None,
+        rivernumber: Tensor = None,
+        para: Tensor = None,
+        intervar: Tensor = None,
+        mq: Tensor = None,
     ):
         """
         Initial a single-step sacramento model
         """
         super(SingleStepSacramento, self).__init__()
         self.name = 'SingleStepSacramento'
-        self.area = area
+        self.device = device
+        # self.area = area
         self.rivernumber = rivernumber
         self.hydrodt = hydrodt
         self.para = para
         self.intervar = intervar
-        self.qq = [0.0,]
+        self.mq = mq  # Muskingum routing space
 
     def cal_runoff(
         self,
-        prcp: float = None,
-        pet: float = None,
+        prcp: Tensor = None,
+        pet: Tensor = None,
     ):
         """
         single step evaporation and generating runoff
@@ -152,8 +155,8 @@ class SingleStepSacramento():
             uztw = ut
             uzfw = uf
         saved = rserv * (lzfsm + lzfpm)
-        ratio = (ls + lp - saved + lt) / (lzfsm + lzfpm - saved + lztwm)
-        ratio = torch.max((ratio, 0))
+        ratio_ = (ls + lp - saved + lt) / (lzfsm + lzfpm - saved + lztwm)
+        ratio = torch.max((ratio_, 0.0))
         if lt / lztwm < ratio:
             lztw = lztwm * ratio
             del_ = lztw - lt
@@ -209,16 +212,16 @@ class SingleStepSacramento():
         ke = self.para[19]
         xe = self.para[20]
         # middle variables, at the start of timestep.
-        qs0 = self.intervar[7]
-        qi0 = self.intervar[8]
+        qs0 = torch.full(self.intervar[7,:].size(),self.intervar[:7]).to(self.device)
+        qi0 = torch.full(self.intervar[8,:].size(),self.intervar[:8]).to(self.device)
         qgs0 = self.intervar[9]
         qgp0 = self.intervar[10]
 
         # routing
-        u = (1 - pctim - adimp) * self.area * 1000  # daily coefficient, no need conversion.  # todo: area
+        u = (1 - pctim - adimp) * 1000  # * self.area   # daily coefficient, no need conversion.  # todo: area
         parea = 1 - pctim - adimp
         # slope routing, use the linear reservoir method
-        qs = (roimp + (adsur + ars) * adimp + rs * parea) * self.area * 1000.0  # todo: area
+        qs = (roimp + (adsur + ars) * adimp + rs * parea) * 1000.0  # * self.area  # todo: area
         qi = ci * qi0 + (1 - ci) * ri * u
         qgs = cgs * qgs0 + (1 - cgs) * rgs * u
         qgp = cgp * qgp0 + (1 - cgp) * rgp * u
@@ -243,9 +246,9 @@ class SingleStepSacramento():
             i1 = q_sim_0
             i2 = q_sim_
             for i in range(self.rivernumber):
-                q_sim_0 = self.qq[i]
+                q_sim_0 = self.mq[i,:]  # rivernumber|basin
                 i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
-                self.qq[i].append(i2)
+                self.mq[i,:] = i2
                 i1 = q_sim_0
         q_sim_ = i2
         return q_sim_, self.intervar[7:]
@@ -261,12 +264,12 @@ class Sacramento():
         hydrodt: int = 1,
         p_and_e: np.ndarray = None,
         para: Union[tuple, list] = None,
-        area: float = None,
+        # area: float = None,
         warmup_length: int = None,
 
     ):
         self.para = para
-        self.area = area
+        # self.area = area
         self.warmup_length = warmup_length
         # hydrodata
         self.hydrodt = hydrodt
@@ -395,56 +398,109 @@ class Sac4Dpl(nn.Module):
         prcp = torch.clamp(p_and_e[:, 0], min=0.0)
         pet = torch.clamp(p_and_e[:, 1], min=0.0)
         # parameters
-        kc = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])
-        pctim = self.pctim_scale[0] + parameters[:, 1] * (self.pctiscale[1] - self.pctim_scale[0])
-        adimp = self.adimp_scale[0] + parameters[:, 2] * (self.adimp_scale[1] - self.adimp_scale[0])
-        uztwm = self.uztwm_scale[0] + parameters[:, 3] * (self.uztwscale[1] - self.uztwm_scale[0])
-        uzfwm = self.uzfwm_scale[0] + parameters[:, 4] * (self.uzfwm_scale[1] - self.uzfwm_scale[0])
-        lztwm = self.lztwm_scale[0] + parameters[:, 5] * (self.lztwm_scale[1] - self.lztwm_scale[0])
-        lzfsm = self.lzfsm_scale[0] + parameters[:, 6] * (self.lzfsm_scale[1] - self.lzfsm_scale[0])
-        lzfpm = self.lzfpm_scale[0] + parameters[:, 7] * (self.lzfpm_scale[1] - self.lzfpm_scale[0])
-        rserv = self.rserv_scale[0] + parameters[:, 8] * (self.rserv_scale[1] - self.rserv_scale[0])
-        pfree = self.pfree_scale[0] + parameters[:, 9] * (self.pfree_scale[1] - self.pfree_scale[0])
-        riva = self.riva_scale[0] + parameters[:, 10] * (self.riva_scale[1] - self.riva_scale[0])
-        zperc = self.zperc_scale[0] + parameters[:, 11] * (self.zperc_scale[1] - self.zperc_scale[0])
-        rexp = self.rexp_scale[0] + parameters[:, 12] * (self.rexp_scale[1] - self.rexp_scale[0])
-        uzk = self.uzk_scale[0] + parameters[:, 13] * (self.uzk_scale[1] - self.uzk_scale[0])
-        lzsk = self.lzsk_scale[0] + parameters[:, 14] * (self.lzsk_scale[1] - self.lzsk_scale[0])
-        lzpk = self.lzpk_scale[0] + parameters[:, 15] * (self.lzpk_scale[1] - self.lzpk_scale[0])
-        ci = self.ci_scale[0] + parameters[:, 16] * (self.ci_scale[1] - self.ci_scale[0])
-        cgs = self.cgs_scale[0] + parameters[:, 17] * (self.cgs_scale[1] - self.cgs_scale[0])
-        cgp = self.cgp_scale[0] + parameters[:, 18] * (self.cgp_scale[1] - self.cgp_scale[0])
-        ke = self.ke_scale[0] + parameters[:, 19] * (self.ke_scale[1] - self.ke_scale[0])
-        xe = self.xe_scale[0] + parameters[:, 20] * (self.xe_scale[1] - self.xe_scale[0])
-        para = [kc, pctim, adimp, uztwm, uzfwm, lztwm, lzfsm, lzfpm, rserv, pfree, riva, zperc, rexp, uzk, lzsk, lzpk, ci, cgs, cgp, ke, xe]
-        auztw = 0
-        alztw = lztwm * 0.8
-        uztw = 0
-        uzfw = 0
-        lztw = lztwm * 0.8
-        lzfs = 2.0
-        lzfp = 2.0
-        qi0 = 0
-        qgs0 = 0
-        qgp0 = 0
-        qs0 = 0.8 * 10 * self.area  # todo:
-        rivernumber = 1  # set only one river section.
-        intervar = torch.full(11,0.0)
-        singlesac = SingleStepSacramento(1,100,para,intervar)
+        # kc = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])    # parameters[:, 0]是个二维张量， 流域|参数  kc是个一维张量，不同流域的参数。  basin first
+        # pctim = self.pctim_scale[0] + parameters[:, 1] * (self.pctiscale[1] - self.pctim_scale[0])
+        # adimp = self.adimp_scale[0] + parameters[:, 2] * (self.adimp_scale[1] - self.adimp_scale[0])
+        # uztwm = self.uztwm_scale[0] + parameters[:, 3] * (self.uztwscale[1] - self.uztwm_scale[0])
+        # uzfwm = self.uzfwm_scale[0] + parameters[:, 4] * (self.uzfwm_scale[1] - self.uzfwm_scale[0])
+        # lztwm = self.lztwm_scale[0] + parameters[:, 5] * (self.lztwm_scale[1] - self.lztwm_scale[0])
+        # lzfsm = self.lzfsm_scale[0] + parameters[:, 6] * (self.lzfsm_scale[1] - self.lzfsm_scale[0])
+        # lzfpm = self.lzfpm_scale[0] + parameters[:, 7] * (self.lzfpm_scale[1] - self.lzfpm_scale[0])
+        # rserv = self.rserv_scale[0] + parameters[:, 8] * (self.rserv_scale[1] - self.rserv_scale[0])
+        # pfree = self.pfree_scale[0] + parameters[:, 9] * (self.pfree_scale[1] - self.pfree_scale[0])
+        # riva = self.riva_scale[0] + parameters[:, 10] * (self.riva_scale[1] - self.riva_scale[0])
+        # zperc = self.zperc_scale[0] + parameters[:, 11] * (self.zperc_scale[1] - self.zperc_scale[0])
+        # rexp = self.rexp_scale[0] + parameters[:, 12] * (self.rexp_scale[1] - self.rexp_scale[0])
+        # uzk = self.uzk_scale[0] + parameters[:, 13] * (self.uzk_scale[1] - self.uzk_scale[0])
+        # lzsk = self.lzsk_scale[0] + parameters[:, 14] * (self.lzsk_scale[1] - self.lzsk_scale[0])
+        # lzpk = self.lzpk_scale[0] + parameters[:, 15] * (self.lzpk_scale[1] - self.lzpk_scale[0])
+        # ci = self.ci_scale[0] + parameters[:, 16] * (self.ci_scale[1] - self.ci_scale[0])
+        # cgs = self.cgs_scale[0] + parameters[:, 17] * (self.cgs_scale[1] - self.cgs_scale[0])
+        # cgp = self.cgp_scale[0] + parameters[:, 18] * (self.cgp_scale[1] - self.cgp_scale[0])
+        # ke = self.ke_scale[0] + parameters[:, 19] * (self.ke_scale[1] - self.ke_scale[0])
+        # xe = self.xe_scale[0] + parameters[:, 20] * (self.xe_scale[1] - self.xe_scale[0])
+        para = torch.full(parameters.shap(), 0.0)
+        para[:, 0] = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])    # parameters[:, 0]是个二维张量， 流域|参数  kc是个一维张量，不同流域的参数。  basin first
+        para[:, 1] = self.pctim_scale[0] + parameters[:, 1] * (self.pctiscale[1] - self.pctim_scale[0])
+        para[:, 2] = self.adimp_scale[0] + parameters[:, 2] * (self.adimp_scale[1] - self.adimp_scale[0])
+        para[:, 3] = self.uztwm_scale[0] + parameters[:, 3] * (self.uztwscale[1] - self.uztwm_scale[0])
+        para[:, 4] = self.uzfwm_scale[0] + parameters[:, 4] * (self.uzfwm_scale[1] - self.uzfwm_scale[0])
+        para[:, 5] = self.lztwm_scale[0] + parameters[:, 5] * (self.lztwm_scale[1] - self.lztwm_scale[0])
+        para[:, 6] = self.lzfsm_scale[0] + parameters[:, 6] * (self.lzfsm_scale[1] - self.lzfsm_scale[0])
+        para[:, 7] = self.lzfpm_scale[0] + parameters[:, 7] * (self.lzfpm_scale[1] - self.lzfpm_scale[0])
+        para[:, 8] = self.rserv_scale[0] + parameters[:, 8] * (self.rserv_scale[1] - self.rserv_scale[0])
+        para[:, 9] = self.pfree_scale[0] + parameters[:, 9] * (self.pfree_scale[1] - self.pfree_scale[0])
+        para[:, 10] = self.riva_scale[0] + parameters[:, 10] * (self.riva_scale[1] - self.riva_scale[0])
+        para[:, 11] = self.zperc_scale[0] + parameters[:, 11] * (self.zperc_scale[1] - self.zperc_scale[0])
+        para[:, 12] = self.rexp_scale[0] + parameters[:, 12] * (self.rexp_scale[1] - self.rexp_scale[0])
+        para[:, 13] = self.uzk_scale[0] + parameters[:, 13] * (self.uzk_scale[1] - self.uzk_scale[0])
+        para[:, 14] = self.lzsk_scale[0] + parameters[:, 14] * (self.lzsk_scale[1] - self.lzsk_scale[0])
+        para[:, 15] = self.lzpk_scale[0] + parameters[:, 15] * (self.lzpk_scale[1] - self.lzpk_scale[0])
+        para[:, 16] = self.ci_scale[0] + parameters[:, 16] * (self.ci_scale[1] - self.ci_scale[0])
+        para[:, 17] = self.cgs_scale[0] + parameters[:, 17] * (self.cgs_scale[1] - self.cgs_scale[0])
+        para[:, 18] = self.cgp_scale[0] + parameters[:, 18] * (self.cgp_scale[1] - self.cgp_scale[0])
+        para[:, 19] = self.ke_scale[0] + parameters[:, 19] * (self.ke_scale[1] - self.ke_scale[0])
+        para[:, 20] = self.xe_scale[0] + parameters[:, 20] * (self.xe_scale[1] - self.xe_scale[0])
+        # para = torch.full((kc.size(),parameters.shap(1)),[kc, pctim, adimp, uztwm, uzfwm, lztwm, lzfsm, lzfpm, rserv, pfree, riva, zperc, rexp, uzk, lzsk, lzpk, ci, cgs, cgp, ke, xe],)
+
+        # area = [2252.7, 573.6, 3676.17, 769.05, 909.1, 383.82, 180.98, 250.64, 190.92, 31.3]     # dpl4sac_args camelsus [gage_id.area]  # todo: 线性水库汇流需要用到流域面积将产流runoff的mm乘以面积的m^2将平面径流转化为流量的m^3/s
+        rivernumber = torch.full(para[:, 0].size(),1)  # set only one river section.
+        intervar = torch.full((para[:, 0].size(),11),0.0)  # basin|inter_variables
+        mq = torch.full((para[:, 0].size(),rivernumber[0]),0.0)  # Muskingum routing space
+        singlesac = SingleStepSacramento(sac_device, 1, rivernumber, para, intervar, mq)
+
+        if self.warmup_length > 0:
+            # set no_grad for warmup periods
+            with torch.no_grad():
+                p_and_e_warmup = p_and_e[0:self.warmup_length, :, :]
+                if self.param_test_way == MODEL_PARAM_TEST_WAY["time_varying"]:
+                    parameters_ts_warmup = para[0:self.warmup_length, :, :]
+                else:
+                    parameters_ts_warmup = para
+                cal_init_sac4dpl = singlesac(
+                    kernel_size=self.kernel_size,
+                    # warmup_length must be 0 here
+                    warmup_length=0,
+                    nn_module=self.evap_nn_module,
+                    param_var_index=self.param_var_index,
+                    source_book=self.source_book,
+                    source_type=self.source_type,
+                    et_output=self.et_output,
+                    nn_hidden_size=self.nn_hidden_size,
+                    nn_dropout=self.nn_dropout,
+                    param_test_way=self.param_test_way,
+                )
+                if cal_init_sac4dpl.warmup_length > 0:
+                    raise RuntimeError("Please set init model's warmup length to 0!!!")
+                _, _, *w0, s0, fr0, qi0, qg0 = cal_init_sac4dpl(
+                    p_and_e_warmup, parameters_ts_warmup, return_state=True
+                )
+        else:
+            # use detach func to make wu0 no_grad as it is an initial value
+            if self.et_output == 1:
+                # () and , must be added, otherwise, w0 will be a tensor, not a tuple
+                w0 = (0.5 * (um.detach() + lm.detach() + dm.detach()),)
+            else:
+                raise ValueError("et_output should be 1 or 3")
+            s0 = 0.5 * (sm.detach())
+            fr0 = torch.full(ci.size(), 0.1).to(sac_device)
+            qi0 = torch.full(ci.size(), 0.1).to(sac_device)
+            qg0 = torch.full(cg.size(), 0.1).to(sac_device)
+
         e_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
         q_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
         for i in range(p_and_e.shape[0]):
-            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar = singlesac.cal_runoff(p_and_e[i][0],p_and_e[i][1])
-            q_sim_[i] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp, intervar)
+            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:6] = singlesac.cal_runoff(prcp[i], pet[i])
+            q_sim_[i], intervar[7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)
             e_sim_[i] = et
 
-        qq = [qi0 + qgs0 + qgp0 + qs0, ]  # set initial river flow
+
         # slope routing, use the linear reservoir method
-        qi0 = torch.full(ci.size(),0.0).to(sac_device)
-        qgs0 = torch.full(cgs.size(),0.0).to(sac_device)
-        qgp0 = torch.full(cgp.size(),0.0).to(sac_device)
-        # qs0 = 0.8 * 10 * area   # todo:
-        qs0 = torch.full(imputs.shape[:2],0.0).to(sac_device)
+        # qi0 = torch.full(ci.size(),0.0).to(sac_device)
+        # qgs0 = torch.full(cgs.size(),0.0).to(sac_device)
+        # qgp0 = torch.full(cgp.size(),0.0).to(sac_device)
+        # qs0 = 0.8 * 10 * area
+        # qs0 = torch.full(imputs.shape[:2],0.0).to(sac_device)
 
         # seq, batch, feature
         q_sim = torch.unsqueeze(q_sim_, dim=2)
@@ -466,7 +522,6 @@ class DplAnnSac(nn.Module):
         param_limit_func="clamp",   # 参数限制函数 限制在[0,1]
         param_test_way="final",
         source_book="HF",
-        nn_hidden_states=None,
         nn_dropout=0.2,
     ):
         """
@@ -494,12 +549,11 @@ class DplAnnSac(nn.Module):
             2. "mean_time" -- Mean values of all periods' parameters is used
             3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
         """
-        super(DplAnnModuleSac, self).__init__()
+        super(DplAnnSac, self).__init__()
         self.dl_model = SimpleAnn(n_input_features, n_output_features, n_hidden_states)
         self.pb_model = Sac4Dpl(
             warmup_length,
             source_book=source_book,
-            nn_hidden_size=nn_hidden_states,
             nn_dropout=nn_dropout,
             param_test_way=param_test_way,
         )
@@ -516,16 +570,17 @@ class DplAnnSac(nn.Module):
         Parameters
         ----------
         x
-            not normalized data used for physical model, a sequence-first 3-dim tensor. [sequence, batch, feature]  非正则数据，序列优先的三维张量，用于物理模型。 [序列，批次，特征]
+            not normalized data used for physical model, a sequence-first 3-dim tensor. [sequence, batch, feature]  非正则数据，序列优先的三维张量，用于物理模型。 [序列，批次，特征]  [时间|批次划分|特征（降雨、蒸发）]  流域？
+            # todo: 批次划分作为一个维度？ 那是如何划分的？ 划分的过程在哪？
         z
-            normalized data used for DL model, a 2-dim tensor. [batch, feature]  正则化后的数据，二维张量，用于DL模型。 [批次，特征]
+            normalized data used for DL model, a 2-dim tensor. [batch, feature]  正则化后的数据，二维张量，用于DL模型。 [批次，特征]  [批次划分|参数]？
 
         Returns
         -------
         torch.Tensor
             one time forward result 单步前向传播结果？
         """
-        gen = self.dl_model(z)  # SimpleAnn   使用 nn 进化参数  计算各参数对目标值的梯度？
+        gen = self.dl_model(z)  # SimpleAnn   使用 nn 进化参数  计算各参数对目标值的梯度？   传出来的是参数，经过激活函数后传到物理模型中，去正则化，进行洪水演算，模拟径流。
         if torch.isnan(gen).any():
             raise ValueError("Error: NaN values detected. Check your data firstly!!!")
         # we set all params' values in [0, 1] and will scale them when forwarding
@@ -540,9 +595,9 @@ class DplAnnSac(nn.Module):
         # just get one-period values, here we use the final period's values,
         # when the MODEL_PARAM_TEST_WAY is not time_varing, we use the last period's values.
         if self.param_test_way != MODEL_PARAM_TEST_WAY["time_varying"]:
-            params = params[-1, :, :]
+            params = params[-1, :, :]   # todo: added a dimension?    basin|parameters
         # Please put p in the first location and pet in the second
-        q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)   # 再将参数代入物理模型计算径流，再使用实测数据比对、计算目标值。反复迭代优化。
+        q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)   # 再将参数代入物理模型计算径流，然后使用实测数据比对、计算目标值。反复迭代优化，计算目标值损失量。    第三维是数据项/属性项，降雨和蒸发数据   todo:流域和时间哪个是第一维？
         return torch.cat([q, e], dim=-1)  # catenate, 拼接 q 和 e，按列。 [0,1]
 
 
@@ -588,7 +643,7 @@ class DplLstmSac(nn.Module):
             3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
             but remember these ways are only for non-variable parameters
         """
-        super(DplLstmNnModuleSac, self).__init__()
+        super(DplLstmSac, self).__init__()
         self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)
         self.pb_model = Sac4Dpl(
             warmup_length,

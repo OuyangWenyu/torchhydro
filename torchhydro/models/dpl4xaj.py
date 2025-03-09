@@ -239,13 +239,13 @@ def xaj_generation(
         (r, rim, e, pe), (wu, wl, wd)
     """
     # make sure physical variables' value ranges are correct
-    prcp = torch.clamp(p_and_e[:, 0], min=0.0)
+    prcp = torch.clamp(p_and_e[:, 0], min=0.0)  # torch.clamp(input, min=None, max=None, *, out=None) → Tensor， Clamps all elements in input into the range [ min, max ]. Letting min_value and max_value be min and max, respectively。
     pet = torch.clamp(p_and_e[:, 1] * k, min=0.0)
     # wm
     wm = um + lm + dm
     if wu0 is None:
         # use detach func to make wu0 no_grad as it is an initial value
-        wu0 = 0.6 * (um.detach())
+        wu0 = 0.6 * (um.detach())  #
     if wl0 is None:
         wl0 = 0.6 * (lm.detach())
     if wd0 is None:
@@ -707,7 +707,7 @@ class Xaj4Dpl(nn.Module):
 
     def forward(self, p_and_e, parameters, return_state=False):
         """
-        run XAJ model
+        run XAJ model   # 这里面把前面的蒸发、产流、水量更新、分水源、汇流都串起来。
 
         Parameters
         ----------
@@ -770,7 +770,7 @@ class Xaj4Dpl(nn.Module):
                 p_and_e_warmup = p_and_e[0:warmup_length, :, :]
                 cal_init_xaj4dpl = Xaj4Dpl(
                     self.kernel_size, 0, self.source_book, self.source_type
-                )
+                )  # todo: 这里调用了自己
                 if cal_init_xaj4dpl.warmup_length > 0:
                     raise RuntimeError("Please set init model's warmup length to 0!!!")
                 _, _, *w0, s0, fr0, qi0, qg0 = cal_init_xaj4dpl(
@@ -784,7 +784,7 @@ class Xaj4Dpl(nn.Module):
             qi0 = torch.full(ci.size(), 0.1).to(xaj_device)
             qg0 = torch.full(cg.size(), 0.1).to(xaj_device)
 
-        inputs = p_and_e[warmup_length:, :, :]
+        inputs = p_and_e[warmup_length:, :, :]   # [时间|批次划分|特征（降雨蒸发）]
         runoff_ims_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         rss_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         ris_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
@@ -834,9 +834,10 @@ class Xaj4Dpl(nn.Module):
         rss = torch.unsqueeze(rss_, dim=2)
         es = torch.unsqueeze(es_, dim=2)
 
+        # 河道汇流
         conv_uh = KernelConv(a, theta, self.kernel_size)
         qs_ = conv_uh(runoff_im + rss)
-        qs = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
+        qs = torch.full(inputs.shape[:2], 0.0).to(xaj_device)  # 取inputs的第一维、第二维
         for i in range(inputs.shape[0]):
             if i == 0:
                 qi = linear_reservoir(ris_[i], ci, qi0)
