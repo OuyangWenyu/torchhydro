@@ -240,7 +240,7 @@ def xaj_generation(
     """
     # make sure physical variables' value ranges are correct
     prcp = torch.clamp(p_and_e[:, 0], min=0.0)  # torch.clamp(input, min=None, max=None, *, out=None) → Tensor， Clamps all elements in input into the range [ min, max ]. Letting min_value and max_value be min and max, respectively。
-    pet = torch.clamp(p_and_e[:, 1] * k, min=0.0)
+    pet = torch.clamp(p_and_e[:, 1] * k, min=0.0)   # [time|basin] two dimension tensor
     # wm
     wm = um + lm + dm
     if wu0 is None:

@@ -87,7 +87,7 @@ class SingleStepSacramento(nn.Module):
         -------
 
         """
-        # parameters
+        # assign values to the parameters
         kc = self.para[:, 0]
         pctim = self.para[:, 1]
         adimp = self.para[:, 2]
@@ -118,16 +118,16 @@ class SingleStepSacramento(nn.Module):
         roimp = prcp * pctim  # runoff of the permanent impervious area
         ae2 = pctim * ep  # evaporation of the permanent impervious area
         # evaporation of the alterable impervious area
-        ae1 = torch.min((auztw, ep * (auztw / uztwm)))  # upper layer
+        ae1 = torch.min(auztw, ep * (auztw / uztwm))  # upper layer
         ae3 = (ep - ae1) * (alztw / (uztwm + lztwm))  # lower layer
-        pav = torch.max((0.0, prcp - (uztwm - (auztw - ae1))))
+        pav = torch.clamp(prcp - (uztwm - (auztw - ae1)), min=0.0)
         adsur = pav * ((alztw - ae3) / lztwm)
-        ars = torch.max((0.0, ((pav - adsur) + (alztw - ae3)) - lztwm))
-        auztw = torch.min((uztwm, (auztw - ae1) + prcp))
-        alztw = torch.min((lztwm, (pav - adsur) + (alztw - ae3)))
+        ars = torch.clamp(((pav - adsur) + (alztw - ae3)) - lztwm, min=0.0)
+        auztw = torch.min(uztwm, (auztw - ae1) + prcp)
+        alztw = torch.min(lztwm, (pav - adsur) + (alztw - ae3))
         # evaporation of the permeable area
-        e1 = torch.min((uztw, ep * (uztw / uztwm)))  # upper layer
-        e2 = torch.min((uzfw, ep - e1))  # lower layer
+        e1 = torch.min(uztw, ep * (uztw / uztwm))  # upper layer
+        e2 = torch.min(uzfw, ep - e1)  # lower layer
         e3 = (ep - e1 - e2) * (lztw / (uztwm + lztwm))  # deeper layer
         lt = lztw - e3
         e4 = riva * ep  # river net, lakes and hydrophyte
@@ -140,22 +140,22 @@ class SingleStepSacramento(nn.Module):
         ars = ars * adimp
         # runoff of the permeable area
         parea = 1 - pctim - adimp
-        rs = torch.max((prcp + (uztw + uzfw - e1 - e2) - (uztwm + uzfwm), 0.0)) * parea
-        ut = torch.min((uztwm, uztw - e1 + prcp))
-        uf = torch.min((uzfwm, prcp + (uztw + uzfw - e1 - e2) - ut))
+        rs = torch.clamp(prcp + (uztw + uzfw - e1 - e2) - (uztwm + uzfwm), min=0.0) * parea
+        ut = torch.min(uztwm, uztw - e1 + prcp)
+        uf = torch.min(uzfwm, prcp + (uztw + uzfw - e1 - e2) - ut)
         ri = uf * uzk  # interflow
         uf = uf - ri
         # the infiltrated water
         pbase = lzfsm * lzsk + lzfpm * lzpk
         defr = 1 - (lzfs + lzfp + lt) / (lzfsm + lzfpm + lztwm)
         perc = pbase * (1 + zperc * pow(defr, rexp)) * uf / uzfwm
-        rate = torch.min((perc, (lzfsm + lzfpm + lztwm) - (lzfs + lzfp + lt)))
+        rate = torch.min(perc, (lzfsm + lzfpm + lztwm) - (lzfs + lzfp + lt))
         # assign the infiltrate water
-        fx = torch.min((lzfsm + lzfpm - (lzfs + lzfp), torch.max((rate - (lztwm - lt), rate * pfree))))
+        fx = torch.min(lzfsm + lzfpm - (lzfs + lzfp), torch.max(rate - (lztwm - lt), rate * pfree))
         perct = rate - fx
         coef = (lzfpm / (lzfsm + lzfpm)) * (2 * (1 - lzfp / lzfpm) / ((1 - lzfp / lzfpm) + (1 - lzfsm / lzfsm)))
-        coef = torch.min((coef, 1))
-        percp = torch.min((lzfpm - lzfp, torch.max((fx - (lzfsm - lzfs), coef * fx))))
+        coef = torch.min(coef, 1)
+        percp = torch.min(lzfpm - lzfp, torch.max(fx - (lzfsm - lzfs), coef * fx))
         percs = fx - percp
         # update the soil moisture accumulation
         lt = lt + perct
@@ -175,12 +175,12 @@ class SingleStepSacramento(nn.Module):
             uzfw = uf
         saved = rserv * (lzfsm + lzfpm)
         ratio_ = (ls + lp - saved + lt) / (lzfsm + lzfpm - saved + lztwm)
-        ratio = torch.max((ratio_, 0.0))
+        ratio = torch.clamp(ratio_, min=0.0)
         if lt / lztwm < ratio:
             lztw = lztwm * ratio
             del_ = lztw - lt
-            lzfs = torch.max((0.0, ls - del_))
-            lzfp = lp - torch.max((0.0, del_ - ls))
+            lzfs = torch.clamp(ls - del_, min=0.0)
+            lzfp = lp - torch.clamp(del_ - ls, min=0.0)
         else:
             lztw = lt
             lzfs = ls
@@ -262,8 +262,8 @@ class SingleStepSacramento(nn.Module):
             c2 = (-ko * xo + dt) / c1
             c3 = (ko * (1.0 - xo) - dt) / c1
             c1 = (ko * xo + dt) / c1
-            i1 = q_sim_0
-            i2 = q_sim_
+            i1 = q_sim_0  # flow at the start of timestep, inflow.
+            i2 = q_sim_  # flow at the end of timestep, outflow.
             for i in range(self.rivernumber):
                 q_sim_0 = self.mq[:, i]  # basin|rivernumber
                 i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
@@ -438,7 +438,7 @@ class Sac4Dpl(nn.Module):
         # area = [2252.7, 573.6, 3676.17, 769.05, 909.1, 383.82, 180.98, 250.64, 190.92, 31.3]     # dpl4sac_args camelsus [gage_id.area]  # todo: 线性水库汇流需要用到流域面积将产流runoff的mm乘以面积的m^2将平面径流转化为流量的m^3/s
         rivernumber = torch.full(para[:, 0].size(),1)  # set only one river section.
         intervar = torch.full((para[:, 0].size(),11),0.0)  # basin|inter_variables
-        mq = torch.full((para[:, 0].size(),rivernumber[0]),0.0)  # Muskingum routing space
+        mq = torch.full((para[:, 0].size(),rivernumber[0]),0.0)  # Muskingum routing space   basin|rivernumber
         singlesac = SingleStepSacramento(sac_device, 1, rivernumber, para, intervar, mq)
 
         if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
@@ -456,16 +456,6 @@ class Sac4Dpl(nn.Module):
                     p_and_e_warmup, para, return_state=True
                 )
         else:  # if no, set a small value directly.
-            # use detach func to make wu0 no_grad as it is an initial value
-            # if self.et_output == 1:  # output the evaporation
-            #     # () and , must be added, otherwise, w0 will be a tensor, not a tuple
-            #     w0 = (0.5 * (um.detach() + lm.detach() + dm.detach()),)
-            # else:
-            #     raise ValueError("et_output should be 1 or 3")
-            # s0 = 0.5 * (sm.detach())
-            # fr0 = torch.full(ci.size(), 0.1).to(sac_device)
-            # qi0 = torch.full(ci.size(), 0.1).to(sac_device)
-            # qg0 = torch.full(cg.size(), 0.1).to(sac_device)
             intervar = torch.full((para[:, 0].size(), 11), 0.1)  # to(sac_device)?
 
         e_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
@@ -474,13 +464,6 @@ class Sac4Dpl(nn.Module):
             et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:6] = singlesac.cal_runoff(prcp[i], pet[i])
             q_sim_[i], intervar[7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)
             e_sim_[i] = et
-
-        # slope routing, use the linear reservoir method
-        # qi0 = torch.full(ci.size(),0.0).to(sac_device)
-        # qgs0 = torch.full(cgs.size(),0.0).to(sac_device)
-        # qgp0 = torch.full(cgp.size(),0.0).to(sac_device)
-        # qs0 = 0.8 * 10 * area
-        # qs0 = torch.full(imputs.shape[:2],0.0).to(sac_device)
 
         # seq, batch, feature
         q_sim = torch.unsqueeze(q_sim_, dim=2)

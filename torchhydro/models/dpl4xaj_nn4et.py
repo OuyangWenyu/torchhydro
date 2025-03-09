@@ -338,7 +338,7 @@ class Xaj4DplWithNnModule(nn.Module):
             bs = self.b_scale[0] + parameters_ts[:, :, 1] * (
                 self.b_scale[1] - self.b_scale[0]
             )
-        im = self.im_scale[0] + parameters[:, 2] * (self.im_scale[1] - self.im_scale[0])
+        im = self.im_scale[0] + parameters[:, 2] * (self.im_scale[1] - self.im_scale[0])  # a column tensor
         um = self.um_scale[0] + parameters[:, 3] * (self.um_scale[1] - self.um_scale[0])
         lm = self.lm_scale[0] + parameters[:, 4] * (self.lm_scale[1] - self.lm_scale[0])
         dm = self.dm_scale[0] + parameters[:, 5] * (self.dm_scale[1] - self.dm_scale[0])

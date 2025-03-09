@@ -6,11 +6,11 @@ from torchhydro.trainers.trainer import train_and_evaluate
 
 @pytest.fixture()    # 用于测试的特征  装饰器是装饰器，魔法函数是魔法函数。
 def dpl4sac_args():  # todo:
-    project_name = os.path.join("test", "expdpl4sac")
-    train_period = ["2010-01-01", "2011-01-01"]
-    valid_period = ["2011-01-01", "2012-01-01"]
-    test_period = ["2012-01-01", "2013-01-01"]
-    return cmd(
+    project_name = os.path.join("test", "expdpl4sac")  #
+    train_period = ["2010-01-01", "2011-01-01"]  # 训练期
+    valid_period = ["2011-01-01", "2012-01-01"]  # 验证期
+    test_period = ["2012-01-01", "2013-01-01"]  # 测试期
+    return cmd(  # parameters inputted from control console
         sub=project_name,
         source_cfgs={
             "source_name": "camels_us",  # time_range: ["1980-01-01", "2014-12-31]
@@ -30,10 +30,10 @@ def dpl4sac_args():  # todo:
             "param_limit_func": "clamp",
             "param_test_way": "final",
         },
-        loss_func="NSELoss",
-        dataset="DplDataset",
-        scaler="DapengScaler",
-        scaler_params={
+        loss_func="NSELoss",  # loss function todo: detail
+        dataset="DplDataset",  # help="Choose a dataset class for PyTorch", "DplDataset": DplDataset,  todo: there are "source_name": "camels_us"
+        scaler="DapengScaler",  # only numerical scaler: for categorical vars, they are transformed to numerical vars when reading them
+        scaler_params={  # todo:
             "prcp_norm_cols": [
                 "streamflow",
             ],
@@ -43,6 +43,7 @@ def dpl4sac_args():  # todo:
             ],
             "pbm_norm": True,
         },
+        # 数据预处理，标准化、归一化  归一化：将一列数据变换到某个固定区间（范围）中，通常是[0，1]区间。  标准化：将数据变换为均值为0，标准差为1的分布。 所以到底是归一化还是标准化？
         gage_id=[
             "camels_01013500",
             "camels_01022500",
@@ -59,17 +60,17 @@ def dpl4sac_args():  # todo:
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
-        batch_size=10,
-        hindcast_length=10,
+        batch_size=10,  # todo: means basin in this model?
+        hindcast_length=10,  # 回算、反演、反算，hindcast = reforecast, 回报、回算。
         forecast_length=365,
         var_t=[  # 7
-            "prcp",
-            "dayl",
-            "srad",
-            "swe",
-            "tmax",
-            "tmin",
-            "vp",
+            "prcp",  # (mm/day)   todo: pet
+            "dayl",  # dayl(s)
+            "srad",  # (W/m2)
+            "swe",  # (mm)
+            "tmax",  # (C)
+            "tmin",  # (C)
+            "vp",  # (Pa)
         ],
         var_c=[
             "elev_mean",
@@ -91,8 +92,8 @@ def dpl4sac_args():  # todo:
             "geol_permeability",
         ],
         var_out=["streamflow", "evaporation"],  # output variables, output two features, streamflow and evaporation
-        target_as_input=0,
-        constant_only=0,
+        target_as_input=0,  # help="if true, we will use target data as input for data assimilation or physics-based models",   todo: what's mean of target data? 目标数据？目标值，NSE?
+        constant_only=0,  # help="if true, we will only use attribute data as input for deep learning models. now it is only for dpl models and it is only used when target_as_input is False. "
         train_epoch=30,  # 训练30个来回，反复迭代训练30遍
         save_epoch=1,  # 保存最后一次训练的模型参数和结果
         model_loader={

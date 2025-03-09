@@ -64,6 +64,24 @@ class SingleStepTank(nn.Module):
         -------
 
         """
+        # patameters
+        kc = self.para[:, 0]
+        w1 = self.para[:, 1]
+        w2 = self.para[:, 2]
+        k1 = self.para[:, 3]
+        k2 = self.para[:, 4]
+        a0 = self.para[:, 5]
+        b0 = self.para[:, 6]
+        c0 = self.para[:, 7]
+        h1 = self.para[:, 8]
+        h2 = self.para[:, 9]
+        a1 = self.para[:, 10]
+        a2 = self.para[:, 11]
+        h3 = self.para[:, 12]
+        b1 = self.para[:, 13]
+        h4 = self.para[:, 14]
+        c1 = self.para[:, 15]
+        d1 = self.para[:, 16]
         et = 0
         rs = 0
         ri = 0

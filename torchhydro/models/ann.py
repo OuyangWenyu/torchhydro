@@ -31,7 +31,7 @@ class SimpleAnn(torch.nn.Module):
         dr          同hidden_size, 表达的是二维大小。   e.g. [0.1, 0.2, 0.3, 0.2], 4层可暂退层，各层暂退率分别为 0.1, 0.2, 0.3, 0.2。
             dropout rate of layers, default is 0.0 which means no dropout;  同hidden_size,
             here we set number of dropout layers to (number of nn layers - 1)  设置暂退层数为 神经网络层数-1。 除最后一层输出层不设置为可以暂退的层外，其余层均设置为可暂退层，包括第一层输入层。
-        """
+        """  # todo: dropout layers = nn layers - 1 ?
         super(SimpleAnn, self).__init__()
         linear_list = torch.nn.ModuleList()  # 模块列表  线性列表
         dropout_list = torch.nn.ModuleList()  # 暂退列表
