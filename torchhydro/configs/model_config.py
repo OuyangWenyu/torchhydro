@@ -118,8 +118,8 @@ MODEL_PARAM_DICT = {
             }
         ),
     },
-    "sac":{
-        "para_name": [
+    "sac": {
+        "param_name": [
             "KC",  # coefficient of potential evapotranspiration to reference crop evaporation generally  K
             "PCTIM",  # ratio of the permanent impervious area to total area of the basin 永久不透水面积占比
             "ADIMP",  # ratio of the alterable impervious area to total area of the basin 可变不透水面积占比
@@ -168,6 +168,16 @@ MODEL_PARAM_DICT = {
             }
         ),
     },
+    "tank": {  # todo：
+        "param_name": [
+
+        ],
+        "param_range": OrderedDict(
+            {
+
+            }
+        )
+    }
 }
 
 

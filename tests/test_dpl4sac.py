@@ -1,7 +1,7 @@
 import os
 import pytest
 from torchhydro import SETTING
-from torchhydro.configs.config import default_config_file, update_cfg
+from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
 @pytest.fixture()    # 用于测试的特征  装饰器是装饰器，魔法函数是魔法函数。
@@ -14,17 +14,19 @@ def dpl4sac_args():  # todo:
         sub=project_name,
         source_cfgs={
             "source_name": "camels_us",  # time_range: ["1980-01-01", "2014-12-31]
-            "source_path": SETTING["local_data_path"]["datasets-interim"],
-            "other_settings": {"time_unit": ["1D"]},
+            "source_path": "D:\minio\waterism\datasets-origin\camels\camels_us",
+            # "source_path": SETTING["local_data_path"]["datasets-interim"],
+            # "other_settings": {"time_unit": ["1D"]},
         },
         model_type="Normal",  # help="The type of DL model",  "Normal": DeepHydro,   # todo: this model used DeepHydro?
         ctx=[-1],  # help="Running Context -- gpu num or cpu. E.g `--ctx 0 1` means run code in gpu 0 and 1; -1 means cpu",
         model_name="DplAnnSac",
         model_hyperparam={  # the __init__ function parameters of model class
             # "n_input_features": 2,
+            # "n_input_features": 9,
             "n_input_features": 9,
-            "n_output_features": 10,
-            # "n_output_features": 2,  # streamflow, evaporation
+            # "n_output_features": 10,
+            "n_output_features": 2,  # streamflow, evaporation
             "n_hidden_states": 30,
             "warmup_length": 365,
             "param_limit_func": "clamp",
@@ -45,23 +47,33 @@ def dpl4sac_args():  # todo:
         },
         # 数据预处理，标准化、归一化  归一化：将一列数据变换到某个固定区间（范围）中，通常是[0，1]区间。  标准化：将数据变换为均值为0，标准差为1的分布。 所以到底是归一化还是标准化？
         gage_id=[
-            "camels_01013500",
-            "camels_01022500",
-            "camels_01030500",
-            "camels_01031500",
-            "camels_01047000",
-            "camels_01052500",
-            "camels_01054200",
-            "camels_01055000",
-            "camels_01057000",
+            # "camels_01013500",
+            # "camels_01022500",
+            # "camels_01030500",
+            # "camels_01031500",
+            # "camels_01047000",
+            # "camels_01052500",
+            # "camels_01054200",
+            # "camels_01055000",
+            # "camels_01057000",
             # "camels_01170100",
-            "camels_01073000"
+            # # "camels_01073000",
+            "1013500",
+            "1022500",
+            "1030500",
+            "1031500",
+            "1047000",
+            "1052500",
+            "1054200",
+            "1055000",
+            "1057000",
+            "1073000",
         ],
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
         batch_size=10,  # todo: means basin in this model?
-        hindcast_length=10,  # 回算、反演、反算，hindcast = reforecast, 回报、回算。
+        # hindcast_length=10,  # 回算、反演、反算，hindcast = reforecast, 回报、回算。
         forecast_length=365,
         var_t=[  # 7
             "prcp",  # (mm/day)   todo: pet

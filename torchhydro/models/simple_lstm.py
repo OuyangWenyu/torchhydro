@@ -20,15 +20,16 @@ class SimpleLSTM(nn.Module):
     def __init__(self, input_size, output_size, hidden_size, dr=0.0):
         """
         A simple multi-layer LSTM - NN model
-
+        循环神经网络
+        LSTM是 nn 里面已经封装好了的模型，这里再一次封装
         Parameters
         ----------
         input_size
-            number of input neurons  输入神经元个数
+            number of input neurons  输入神经元个数  输入数据的特征维数  input(seq_len,batch_size,input_size)
         output_size
-            number of output neurons  输出神经元个数
+            number of output neurons  输出神经元个数    output(seq_len,batch_size,num_directions*hidden_size)
         hidden_size
-            number of neurons in each hidden layer
+            number of neurons in each hidden layer    隐藏层的维数   隐藏层节点特征维度
         dr: float
             dropout rate of layers, default is 0.0 which means no dropout;
             here we set number of dropout layers to (number of nn layers - 1)
@@ -36,9 +37,9 @@ class SimpleLSTM(nn.Module):
         super(SimpleLSTM, self).__init__()
         self.linearIn = nn.Linear(input_size, hidden_size)   # 第一层，即输入层为线性层
         self.lstm = nn.LSTM(  #
-            hidden_size,  #
-            hidden_size,  #
-            1,
+            hidden_size,  # input_size 输入特征的维度
+            hidden_size,  #  隐藏层神经元个数
+            1,  # 循环神经网络的层数
             dropout=dr,  # 这里使用暂退。
         )
         self.linearOut = nn.Linear(hidden_size, output_size)  # 最后一层，即输出层也为线性层

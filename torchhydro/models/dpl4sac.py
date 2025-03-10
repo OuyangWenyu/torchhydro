@@ -314,13 +314,12 @@ class Sacramento(nn.Module):
 
 class Sac4Dpl(nn.Module):
     """
-    Sacramento model for Differential Parameter learning as a submodule
+    Sacramento model for differential Parameter learning module
     """
     def __init__(
         self,
         warmup_length: int,
         source_book="HF",
-        param_test_way=MODEL_PARAM_TEST_WAY["final"],
     ):
         """
         Initiate a Sacramento model instance.
@@ -363,21 +362,29 @@ class Sac4Dpl(nn.Module):
         self.warmup_length = warmup_length
         self.feature_size = 2       # there are 2 input variables in Sac, P and PET. P and Pet are two feature in nn model.
         self.source_book = source_book
-        self.param_test_way = param_test_way
 
-    def forward(self, p_and_e, parameters, return_state=False):
+    def forward(
+        self,
+        p_and_e: Tensor,
+        parameters: Tensor,
+        return_state: bool = False,
+    ):
         """
         sac model
         forward transmission
 
         Parameters
         ----------
-        p_and_e
+        p_and_e: Tensor
+            time|basin|p_and_e
         prcp
             basin mean precipitation, mm/d.
         pet
             potential evapotranspiration, mm/d.
-        parameters
+        parameters: Tensor
+            model parameters, 21.
+        return_state: bool
+            whether to return model state or not.
         --model parameters--
         kc
             coefficient of potential evapotranspiration to reference crop evaporation generally
@@ -411,10 +418,8 @@ class Sac4Dpl(nn.Module):
             the simulated evaporation, E(mm/d).
         """
         sac_device = p_and_e.device
-        prcp = torch.clamp(p_and_e[:, 0], min=0.0)
-        pet = torch.clamp(p_and_e[:, 1], min=0.0)
         # parameters
-        para = torch.full(parameters.shap(), 0.0)
+        para = torch.full(parameters.size(), 0.0)
         para[:, 0] = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])    # parameters[:, 0]是个二维张量， 流域|参数  kc是个一维张量，不同流域的参数。  basin first
         para[:, 1] = self.pctim_scale[0] + parameters[:, 1] * (self.pctiscale[1] - self.pctim_scale[0])
         para[:, 2] = self.adimp_scale[0] + parameters[:, 2] * (self.adimp_scale[1] - self.adimp_scale[0])
@@ -462,11 +467,16 @@ class Sac4Dpl(nn.Module):
         else:  # if no, set a small value directly.
             intervar = torch.full((para[:, 0].size(), 11), 0.1)  # to(sac_device)?
 
-        singlesac = SingleStepSacramento(sac_device, 1, rivernumber, para, intervar, mq)
+        prcp = torch.clamp(p_and_e[self.warmup_length:, :, 0], min=0.0)  # time|basin
+        pet = torch.clamp(p_and_e[self.warmup_length:, :, 1], min=0.0)  # time|basin
+        n_step, n_basin = prcp.size()
+        singlesac = SingleStepSacramento(sac_device, 1, para, intervar, rivernumber, mq)
         e_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
         q_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
-        for i in range(p_and_e.shape[0]):
-            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:6] = singlesac.cal_runoff(prcp[i], pet[i])
+        for i in range(n_step):
+            p = prcp[i, :]
+            e = pet[i, :]
+            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:6] = singlesac.cal_runoff(p, e)
             q_sim_[i], intervar[7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)
             e_sim_[i] = et
 
@@ -522,7 +532,6 @@ class DplAnnSac(nn.Module):
         self.pb_model = Sac4Dpl(
             warmup_length,
             source_book=source_book,
-            param_test_way=param_test_way,
         )
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
@@ -613,7 +622,6 @@ class DplLstmSac(nn.Module):
         self.pb_model = Sac4Dpl(
             warmup_length,
             source_book=source_book,
-            param_test_way=param_test_way,
         )
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
