@@ -770,7 +770,7 @@ class Xaj4Dpl(nn.Module):
                 p_and_e_warmup = p_and_e[0:warmup_length, :, :]
                 cal_init_xaj4dpl = Xaj4Dpl(
                     self.kernel_size, 0, self.source_book, self.source_type
-                )  # todo: 这里调用了自己
+                )
                 if cal_init_xaj4dpl.warmup_length > 0:
                     raise RuntimeError("Please set init model's warmup length to 0!!!")
                 _, _, *w0, s0, fr0, qi0, qg0 = cal_init_xaj4dpl(
@@ -806,10 +806,10 @@ class Xaj4Dpl(nn.Module):
                 else:
                     raise NotImplementedError("No such divide-sources method")
             else:
-                (r, rim, e, pe), w = xaj_generation(
+                (r, rim, e, pe), w = xaj_generation(  # generate runoff
                     inputs[i, :, :], k, b, im, um, lm, dm, c, *w
                 )
-                if self.source_type == "sources":
+                if self.source_type == "sources":  # divide water source
                     (rs, ri, rg), (s, fr) = xaj_sources(
                         pe, r, sm, ex, ki, kg, s, fr, book=self.source_book
                     )
@@ -834,7 +834,7 @@ class Xaj4Dpl(nn.Module):
         rss = torch.unsqueeze(rss_, dim=2)
         es = torch.unsqueeze(es_, dim=2)
 
-        # 河道汇流
+        # slop routing
         conv_uh = KernelConv(a, theta, self.kernel_size)
         qs_ = conv_uh(runoff_im + rss)
         qs = torch.full(inputs.shape[:2], 0.0).to(xaj_device)  # 取inputs的第一维、第二维
@@ -846,6 +846,9 @@ class Xaj4Dpl(nn.Module):
                 qi = linear_reservoir(ris_[i], ci, qi)
                 qg = linear_reservoir(rgs_[i], cg, qg)
             qs[i, :] = qs_[i, :, 0] + qi + qg
+
+        # where is river routing?
+
         # seq, batch, feature
         q_sim = torch.unsqueeze(qs, dim=2)
         if return_state:

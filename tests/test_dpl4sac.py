@@ -17,10 +17,10 @@ def dpl4sac_args():  # todo:
             "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {"time_unit": ["1D"]},
         },
-        model_type="Normal",
+        model_type="Normal",  # help="The type of DL model",  "Normal": DeepHydro,   # todo: this model used DeepHydro?
         ctx=[-1],  # help="Running Context -- gpu num or cpu. E.g `--ctx 0 1` means run code in gpu 0 and 1; -1 means cpu",
-        model_name="DplAnnSac",  # the __init__ function parameters of model class
-        model_hyperparam={
+        model_name="DplAnnSac",
+        model_hyperparam={  # the __init__ function parameters of model class
             # "n_input_features": 2,
             "n_input_features": 9,
             "n_output_features": 10,
@@ -72,7 +72,7 @@ def dpl4sac_args():  # todo:
             "tmin",  # (C)
             "vp",  # (Pa)
         ],
-        var_c=[
+        var_c=[  # todo: where to use this data items?
             "elev_mean",
             "slope_mean",
             "area_gages2",    # area  todo: how to deliver into pb model?
@@ -96,12 +96,12 @@ def dpl4sac_args():  # todo:
         constant_only=0,  # help="if true, we will only use attribute data as input for deep learning models. now it is only for dpl models and it is only used when target_as_input is False. "
         train_epoch=30,  # 训练30个来回，反复迭代训练30遍
         save_epoch=1,  # 保存最后一次训练的模型参数和结果
-        model_loader={
+        model_loader={  # 模型加载，加载最优模型
             "load_way": "best",
             # "test_epoch": 1,
         },
         warmup_length=365,  # 预热期一年
-        opt="Adadelta",  # 通过动态调整学习率，能有效避免过度衰减的问题，适合长时间训练任务，且无需手动调整学习率。
+        opt="Adadelta",  # 通过动态调整学习率，能有效避免过度衰减的问题，适合长时间训练任务，且无需手动调整学习率。  adaptive delta
         which_first_tensor="sequence",  #序列优先，即时间是第一维
     )
 

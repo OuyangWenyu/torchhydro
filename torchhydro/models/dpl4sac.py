@@ -74,18 +74,19 @@ class SingleStepSacramento(nn.Module):
         single step evaporation and generating runoff
         Parameters
         -----------
-        hydrodt : int
-            time step
-        prcp : float
+        prcp : Tensor
             precipitation, mm/d.
-        pet : float
+        pet : Tensor
             evaporation, mm/d.
-        para : Union[tuple, list]
-            model parameters.
 
         Returns
         -------
-
+        et
+            the total evaporation, mm.
+        roimp, adsur, ars, rs, ri, rgs, rgp,
+            the runoff of various water source, mm.
+        self.intervar[:, :6]
+            the inter variables, 7.
         """
         # assign values to the parameters
         kc = self.para[:, 0]
@@ -197,7 +198,7 @@ class SingleStepSacramento(nn.Module):
         self.intervar[:, 5] = lzfs
         self.intervar[:, 6] = lzfp
 
-        return et, roimp, adsur, ars, rs, ri, rgs, rgp, self.intervar[:, :6]  # todo:
+        return et, roimp, adsur, ars, rs, ri, rgs, rgp, self.intervar[:, :6]
 
     def cal_routing(
         self,
@@ -207,16 +208,20 @@ class SingleStepSacramento(nn.Module):
         single step routing
         Parameters
         ----------
-        hydrodt
         roimp
+            runoff of the permanent impervious area, mm.
         adsur
+            runoff of the alterable impervious area, mm.
         ars
+            runoff of the alterable impervious area, mm.
         rs
+            surface runoff of the permeable area, mm.
         ri
+            runoff of interflow, mm.
         rgs
+            runoff of speed groundwater, mm.
         rgp
-        intervar
-
+            runoff of slow groundwater, mm.
         Returns
         -------
         q_sim
@@ -244,7 +249,7 @@ class SingleStepSacramento(nn.Module):
         qi = ci * qi0 + (1 - ci) * ri * u
         qgs = cgs * qgs0 + (1 - cgs) * rgs * u
         qgp = cgp * qgp0 + (1 - cgp) * rgp * u
-        q_sim_ = (qs + qi + qgs + qgp)
+        q_sim_ = (qs + qi + qgs + qgp)  # time|basin, two dimension tensor
         # middle variable, at the end of timestep.
         self.intervar[:, 7] = qs
         self.intervar[:, 8] = qi
@@ -269,7 +274,7 @@ class SingleStepSacramento(nn.Module):
                 i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
                 self.mq[:, i] = i2
                 i1 = q_sim_0
-        q_sim_ = i2
+        q_sim_ = i2    # todo:
         return q_sim_, self.intervar[:, 7:]
 
 
@@ -384,8 +389,6 @@ class Sac4Dpl(nn.Module):
             tension water capacity in the lower layer, mm.
         riva
             ratio of river net, lakes and hydrophyte area to total area of the basin
-
-
         area
             basin area, km^2.
         rivernumber
@@ -433,13 +436,14 @@ class Sac4Dpl(nn.Module):
         para[:, 18] = self.cgp_scale[0] + parameters[:, 18] * (self.cgp_scale[1] - self.cgp_scale[0])
         para[:, 19] = self.ke_scale[0] + parameters[:, 19] * (self.ke_scale[1] - self.ke_scale[0])
         para[:, 20] = self.xe_scale[0] + parameters[:, 20] * (self.xe_scale[1] - self.xe_scale[0])
-        # para = torch.full((kc.size(),parameters.shap(1)),[kc, pctim, adimp, uztwm, uzfwm, lztwm, lzfsm, lzfpm, rserv, pfree, riva, zperc, rexp, uzk, lzsk, lzpk, ci, cgs, cgp, ke, xe],)
 
+        # para = torch.full((kc.size(),parameters.shap(1)),[kc, pctim, adimp, uztwm, uzfwm, lztwm, lzfsm, lzfpm, rserv, pfree, riva, zperc, rexp, uzk, lzsk, lzpk, ci, cgs, cgp, ke, xe],)
         # area = [2252.7, 573.6, 3676.17, 769.05, 909.1, 383.82, 180.98, 250.64, 190.92, 31.3]     # dpl4sac_args camelsus [gage_id.area]  # todo: 线性水库汇流需要用到流域面积将产流runoff的mm乘以面积的m^2将平面径流转化为流量的m^3/s
-        rivernumber = torch.full(para[:, 0].size(),1)  # set only one river section.
+
         intervar = torch.full((para[:, 0].size(),11),0.0)  # basin|inter_variables
-        mq = torch.full((para[:, 0].size(),rivernumber[0]),0.0)  # Muskingum routing space   basin|rivernumber
-        singlesac = SingleStepSacramento(sac_device, 1, rivernumber, para, intervar, mq)
+        rsnpb = 1  # river sections number per basin
+        rivernumber = torch.full(para[:, 0].size(),rsnpb)  # set only one river section.   basin|river_section
+        mq = torch.full((para[:, 0].size(),rsnpb),0.0)  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
 
         if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
             # set no_grad for warmup periods
@@ -458,6 +462,7 @@ class Sac4Dpl(nn.Module):
         else:  # if no, set a small value directly.
             intervar = torch.full((para[:, 0].size(), 11), 0.1)  # to(sac_device)?
 
+        singlesac = SingleStepSacramento(sac_device, 1, rivernumber, para, intervar, mq)
         e_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
         q_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
         for i in range(p_and_e.shape[0]):
@@ -466,8 +471,8 @@ class Sac4Dpl(nn.Module):
             e_sim_[i] = et
 
         # seq, batch, feature
-        q_sim = torch.unsqueeze(q_sim_, dim=2)
-        e_sim = torch.unsqueeze(e_sim_, dim=2)
+        e_sim = torch.unsqueeze(e_sim_, dim=-1)  # add a dimension,  todo: why?
+        q_sim = torch.unsqueeze(q_sim_, dim=-1)
         if return_state:
             return q_sim, e_sim, intervar
         return q_sim, e_sim

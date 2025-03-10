@@ -64,7 +64,7 @@ class SingleStepTank(nn.Module):
         -------
 
         """
-        # patameters
+        # assign values to the parameters
         kc = self.para[:, 0]
         w1 = self.para[:, 1]
         w2 = self.para[:, 2]
@@ -82,6 +82,39 @@ class SingleStepTank(nn.Module):
         h4 = self.para[:, 14]
         c1 = self.para[:, 15]
         d1 = self.para[:, 16]
+        # middle variables, at the start of timestep.
+        xf = self.intervar[:, 0]
+        xp = self.intervar[:, 1]
+        x2 = self.intervar[:, 2]
+        xs = self.intervar[:, 3]
+        x3 = self.intervar[:, 4]
+        x4 = self.intervar[:, 5]
+
+        # evaporation
+        ep = kc * pet
+        e0 = torch.min(ep, prcp + xp +xf)
+        pe = torch.clamp(prcp - e0, min=0.0)
+        # soil moisture
+        x = xf
+        xf = x - torch.clamp(ep - prcp, min=0.0)
+        xp = xp - torch.clamp(ep - prcp - x, min=0.0)
+
+        # update soil moisture
+        t1 = k1 * torch.min(x2, w1 - xp)
+        xp = xp + t1
+        x2 = x2 - t1
+
+        t2 = k2 * (xs * w1 - xp * w2) / (w1 + w2)  #
+
+        xp = xp + t2
+        xs = xs - t2
+
+        xf = xf + torch.clamp(xp + pe - w1)  # update the first layer free water
+        xp = torch.min(w1, xp + pe)
+        # the infiltrated water
+        f1 = a0 * xf
+
+
         et = 0
         rs = 0
         ri = 0

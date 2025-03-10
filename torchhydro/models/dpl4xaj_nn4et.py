@@ -221,7 +221,7 @@ class Xaj4DplWithNnModule(nn.Module):
         lm,
         dm,
         c,
-        *args,
+        *args,  # use args to save other parameters
         # wu0: Tensor = None,
         # wl0: Tensor = None,
         # wd0: Tensor = None,
@@ -420,13 +420,13 @@ class Xaj4DplWithNnModule(nn.Module):
             qi0 = torch.full(ci.size(), 0.1).to(xaj_device)
             qg0 = torch.full(cg.size(), 0.1).to(xaj_device)
 
-        inputs = p_and_e[warmup_length:, :, :]  # 三个维度， todo: 时间|数据项|流域 ？
+        inputs = p_and_e[warmup_length:, :, :]  # 三个维度，  时间|流域|数据项    sequece|batch|feature
         runoff_ims_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         rss_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         ris_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         rgs_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         es_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
-        for i in range(inputs.shape[0]):  #
+        for i in range(inputs.shape[0]):  # 时段数
             if 0 in self.param_var_index or self.param_var_index is None:
                 k = ks[i]
             else:
@@ -439,9 +439,9 @@ class Xaj4DplWithNnModule(nn.Module):
                 c = cs[i]
             else:
                 c = cs
-            if i == 0:
-                (r, rim, e, pe), w = self.xaj_generation_with_new_module(
-                    inputs[i, :, :], k, b, im, um, lm, dm, c, *w0
+            if i == 0:  # the first timestep
+                (r, rim, e, pe), w = self.xaj_generation_with_new_module(  # todo: 这些在条件语句里面声明的变量的作用范围？
+                    inputs[i, :, :], k, b, im, um, lm, dm, c, *w0  # initial condition, the soil  moisture accumulation 初始土壤水蓄量
                 )
                 if self.source_type == "sources":
                     (rs, ri, rg), (s, fr) = xaj_sources(
@@ -453,9 +453,9 @@ class Xaj4DplWithNnModule(nn.Module):
                     )
                 else:
                     raise NotImplementedError("No such divide-sources method")
-            else:
-                (r, rim, e, pe), w = self.xaj_generation_with_new_module(
-                    inputs[i, :, :], k, b, im, um, lm, dm, c, *w
+            else:  #
+                (r, rim, e, pe), w = self.xaj_generation_with_new_module(  # return the single step variables
+                    inputs[i, :, :], k, b, im, um, lm, dm, c, *w  # soil  moisture accumulation of the last timestep
                 )
                 if self.source_type == "sources":
                     (rs, ri, rg), (s, fr) = xaj_sources(
@@ -468,7 +468,7 @@ class Xaj4DplWithNnModule(nn.Module):
                 else:
                     raise NotImplementedError("No such divide-sources method")
             # impevious part is pe * im
-            runoff_ims_[i, :] = rim
+            runoff_ims_[i, :] = rim  # save the variabls of every timestep
             # so for non-imprvious part, the result should be corrected
             rss_[i, :] = rs * (1 - im)
             ris_[i, :] = ri * (1 - im)
@@ -476,7 +476,7 @@ class Xaj4DplWithNnModule(nn.Module):
             es_[i, :] = e
         # seq, batch, feature
         runoff_im = torch.unsqueeze(runoff_ims_, dim=2)  # 解缩
-        rss = torch.unsqueeze(rss_, dim=2)
+        rss = torch.unsqueeze(rss_, dim=2)  # 在第二维上插入一个维度
         es = torch.unsqueeze(es_, dim=2)
 
         # river routing

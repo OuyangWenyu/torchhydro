@@ -135,15 +135,27 @@ class NSELoss(torch.nn.Module):
         super(NSELoss, self).__init__()
 
     def forward(self, output, target):
+        """
+        Loss function for NSELoss
+        # todo: loss function forward too?
+        Parameters
+        ----------
+        output
+        target
+
+        Returns
+        -------
+
+        """
         Ngage = target.shape[1]
         losssum = 0
         nsample = 0
         for ii in range(Ngage):
             t0 = target[:, ii, 0]
-            mask = t0 == t0
+            mask = t0 == t0  #
             if len(mask[mask]) > 0:
                 p0 = output[:, ii, 0]
-                p = p0[mask]
+                p = p0[mask]  #
                 t = t0[mask]
                 tmean = t.mean()
                 SST = torch.sum((t - tmean) ** 2)

@@ -28,25 +28,25 @@ class SimpleLSTM(nn.Module):
         output_size
             number of output neurons  输出神经元个数
         hidden_size
-
+            number of neurons in each hidden layer
         dr: float
             dropout rate of layers, default is 0.0 which means no dropout;
             here we set number of dropout layers to (number of nn layers - 1)
         """
         super(SimpleLSTM, self).__init__()
-        self.linearIn = nn.Linear(input_size, hidden_size)
-        self.lstm = nn.LSTM(
-            hidden_size,
-            hidden_size,
+        self.linearIn = nn.Linear(input_size, hidden_size)   # 第一层，即输入层为线性层
+        self.lstm = nn.LSTM(  #
+            hidden_size,  #
+            hidden_size,  #
             1,
-            dropout=dr,
+            dropout=dr,  # 这里使用暂退。
         )
-        self.linearOut = nn.Linear(hidden_size, output_size)
+        self.linearOut = nn.Linear(hidden_size, output_size)  # 最后一层，即输出层也为线性层
 
-    def forward(self, x):
-        x0 = F.relu(self.linearIn(x))
-        out_lstm, (hn, cn) = self.lstm(x0)
-        return self.linearOut(out_lstm)
+    def forward(self, x):  # 传播。 todo: 这个传播是仅前向传播还是包括前向和反向？
+        x0 = F.relu(self.linearIn(x))  # 输入层经过激活函数后，传入长短期记忆模型
+        out_lstm, (hn, cn) = self.lstm(x0)  # 经过长短期记忆模型传播后，传入输出层
+        return self.linearOut(out_lstm)  # 输出层经过一次线性变换后传出一次传播结果，不断循环往复传播。
 
 
 class SimpleLSTMForecast(SimpleLSTM):
