@@ -202,30 +202,39 @@ class SingleStepSacramento(nn.Module):
 
     def cal_routing(
         self,
-        roimp, adsur, ars, rs, ri, rgs, rgp,
+        roimp: Tensor = None,
+        adsur: Tensor = None,
+        ars: Tensor = None,
+        rs: Tensor = None,
+        ri: Tensor = None,
+        rgs: Tensor = None,
+        rgp: Tensor = None,
     ):
         """
         single step routing
+
         Parameters
         ----------
-        roimp
+        roimp: Tensor
             runoff of the permanent impervious area, mm.
-        adsur
+        adsur: Tensor
             runoff of the alterable impervious area, mm.
-        ars
+        ars: Tensor
             runoff of the alterable impervious area, mm.
-        rs
+        rs: Tensor
             surface runoff of the permeable area, mm.
-        ri
+        ri: Tensor
             runoff of interflow, mm.
-        rgs
+        rgs: Tensor
             runoff of speed groundwater, mm.
-        rgp
+        rgp: Tensor
             runoff of slow groundwater, mm.
         Returns
         -------
-        q_sim
+        q_sim: Tensor
             the outflow at the end of timestep, m^3/s.
+        self.intervar[:, 7:]
+            the inter variables of routing part, m^3/s, 4.
         """
         # parameters
         pctim = self.para[:, 1]
@@ -274,7 +283,7 @@ class SingleStepSacramento(nn.Module):
                 i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
                 self.mq[:, i] = i2
                 i1 = q_sim_0
-        q_sim_ = i2    # todo:
+        q_sim_ = i2    # todo: a problem
         return q_sim_, self.intervar[:, 7:]
 
 
@@ -308,8 +317,6 @@ class Sacramento(nn.Module):
         -------
 
         """
-
-
 
 
 class Sac4Dpl(nn.Module):
@@ -457,7 +464,6 @@ class Sac4Dpl(nn.Module):
                 cal_init_sac4dpl = Sac4Dpl(
                     # warmup_length must be 0 here
                     warmup_length=0,
-                    param_test_way=self.param_test_way,
                 )
                 if cal_init_sac4dpl.warmup_length > 0:
                     raise RuntimeError("Please set init model's warmup length to 0!!!")
@@ -476,7 +482,7 @@ class Sac4Dpl(nn.Module):
         for i in range(n_step):
             p = prcp[i, :]
             e = pet[i, :]
-            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:6] = singlesac.cal_runoff(p, e)
+            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:6] = singlesac.cal_runoff(p, e)  # todo:
             q_sim_[i], intervar[7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)
             e_sim_[i] = et
 

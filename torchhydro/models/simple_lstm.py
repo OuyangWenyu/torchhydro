@@ -21,7 +21,8 @@ class SimpleLSTM(nn.Module):
         """
         A simple multi-layer LSTM - NN model
         循环神经网络
-        LSTM是 nn 里面已经封装好了的模型，这里再一次封装
+        LSTM是 nn 里面已经封装好了的模型，这里再一次封装，方便自己使用。
+
         Parameters
         ----------
         input_size
@@ -36,9 +37,9 @@ class SimpleLSTM(nn.Module):
         """
         super(SimpleLSTM, self).__init__()
         self.linearIn = nn.Linear(input_size, hidden_size)   # 第一层，即输入层为线性层
-        self.lstm = nn.LSTM(  #
+        self.lstm = nn.LSTM(  # 使用一个 lstm 模型     # todo: rnn 和 ann 的区别
             hidden_size,  # input_size 输入特征的维度
-            hidden_size,  #  隐藏层神经元个数
+            hidden_size,  # 隐藏层神经元个数
             1,  # 循环神经网络的层数
             dropout=dr,  # 这里使用暂退。
         )

@@ -170,6 +170,26 @@ MODEL_PARAM_DICT = {
     },
     "tank": {  # todo：
         "param_name": [
+            "KC",  # coefficient of potential evapotranspiration to reference crop evaporation generally 蒸散发折算系数
+            "W1",  # ratio of the permanent impervious area to total area of the basin 第一土壤水分层饱和容量
+            "W2",  # ratio of the alterable impervious area to total area of the basin 第二土壤水分层饱和容量
+            "K1",  # tension water capacity in the upper layer 下层自由水补充上层张力水比例系数
+            "K2",  # free water capacity in the upper layer 第一层与第二层的水量交换系数
+            "a0",  # tension water capacity in the lower layer 第一层自由水下渗到第二层的下渗系数
+            "b0",  # speedy free water capacity in the lower layer 第二层自由水下渗到壤中流的下渗系数
+            "c0",  # slow free water capacity in the lower layer 壤中流下渗到浅层地下水的下渗系数
+            "h1",  # ratio of the part which do not evaporate in lower layer free water 地面径流底孔出流孔高度
+            "h2",  # ratio of supplying the free water which infiltrating from upper layer to lower layer 地面径流表孔出流孔高度
+            "a1",  # ratio of river net, lakes and hydrophyte area to total area of the basin 地面径流底孔出流系数
+            "a2",  # parameter about the maximal infiltrating 地面径流表孔出流系数
+            "h3",  # exponent of the infiltrating curve 地面径流表孔出流系数
+            "b1",  # daily outflow coefficient of the upper layer free water 壤中流出流系数
+            "h4",  # daily outflow coefficient of the lower layer speedy free water 浅层地下水出流孔高度
+            "c1",  # daily outflow coefficient of the lower layer slow free water 浅层地下水出流系数
+            "d1",  # recession coefficient of the interflow 深层地下水出流系数
+            "e1",  # recession coefficient of speedy groundwater 底孔出流系数
+            "e2",  # recession coefficient of slow groundwater 表孔出流系数
+            "h",  # confluence duration in riverway (hourly) 河道水箱出流孔高度
 
         ],
         "param_range": OrderedDict(

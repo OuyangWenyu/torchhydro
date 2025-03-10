@@ -98,8 +98,8 @@ class SingleStepTank(nn.Module):
 
         # evaporation
         ep = kc * pet  # basin evaporation capacity
-        e0 = torch.min(ep, prcp + xp + xf)  # the actual evaporation    only one layer evaporation
-        pe = torch.clamp(prcp - e0, min=0.0)  # net precipitation
+        et = torch.min(ep, prcp + xp + xf)  # the actual evaporation    only one layer evaporation
+        pe = torch.clamp(prcp - et, min=0.0)  # net precipitation
         # soil moisture
         x = xf
         xf = x - torch.clamp(ep - prcp, min=0.0)  # update the first layer remain free water
@@ -142,13 +142,66 @@ class SingleStepTank(nn.Module):
         x3 = x3 + f2  # shallow groundwater accumulation
         f3 = c0 * x3  # shallow infiltrated water of  groundwater
 
-        et = 0
-        rs = 0
-        ri = 0
-        rgs = 0
-        rgd = 0
+        # shallow groundwater runoff
+        if x3 > h4:
+            rgs = (x3 - h4) * c1
+        else:
+            rgs = 0
+        x3 = x3 - (f3 + rgs)  # update the shallow groundwater
+
+        # deep groundwater    x4 generate the deep layer groundwater runoff
+        x4 = x4 + f3
+        rgd = d1 * x4
+        x4 = x4 - rgd
+
+        # middle variables, at the end of timestep.
+        self.intervar[:, 0] = xf
+        self.intervar[:, 1] = xp
+        self.intervar[:, 2] = x2
+        self.intervar[:, 3] = xs
+        self.intervar[:, 4] = x3
+        self.intervar[:, 5] = x4
+
         return et, rs, ri, rgs, rgd, self.intervar[:, :6]
 
+    def routing(
+        self,
+        rs: Tensor = None,
+        ri: Tensor = None,
+        rgs: Tensor = None,
+        rgd: Tensor = None,
+    ):
+        """
+        single step routing
+
+        Parameters
+        ----------
+        rs: Tensor
+        ri: Tensor
+        rgs: Tensor
+        rgd: Tensor
+
+        Returns
+        -------
+
+        """
+        # parameters
+        e1 = self.para[:, 17]
+        e2 = self.para[:, 18]
+        h = self.para[:, 19]
+        # middle variables, at the start of timestep.
+        x5 = self.intervar[:, 6]
+        qs0 = self.intervar[:, 7]
+        # unit conversion
+        u = self.hydrodt / 1000.0 / self.area  # todo: basin area
+        qs = qs0
+        if x5 >= h:
+            k0 = 1 / (e1 + e2)
+            c0 = e2 * h / (e1 + e2)
+        else:
+            k0 = 1 / e1
+            c0 = 0
+        k1
 
 
 class Tank4Dpl(nn.Module):
@@ -175,8 +228,8 @@ class Tank4Dpl(nn.Module):
         self.params_names = MODEL_PARAM_DICT["tank"]["param_name"]
         param_range = MODEL_PARAM_DICT["tank"]["param_range"]
         self.kc_scale = param_range["KC"]
-        self.pctim_scale = param_range["PCTIM"]
-        self.adimp_scale = param_range["ADIMP"]
+        self.w1_scale = param_range["W1"]
+        self.w2_scale = param_range["W2"]
         self.uztwm_scale = param_range["UZTWM"]
         self.uzfwm_scale = param_range["UZFWM"]
         self.lztwm_scale = param_range["LZTWM"]
