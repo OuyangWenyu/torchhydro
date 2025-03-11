@@ -20,9 +20,6 @@ class SingleStepTank(nn.Module):
         """
         Initial a single-step Tank model
 
-        The model is same with that in chapter 5 in "Hydrological Forecasting (4-th version)" written by Prof. Weimin Bao.
-        This book's Chinese name is 《水文预报》
-        Same in "Hydrological Forecasting (4-th version)"
 
         Parameters
         -----------

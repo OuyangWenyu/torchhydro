@@ -1,21 +1,12 @@
-"""
-Author: Wenyu Ouyang
-Date: 2023-09-20 20:05:10
-LastEditTime: 2024-05-27 16:21:16
-LastEditors: Wenyu Ouyang
-Description: A case for dPL-XAJ model
-FilePath: \torchhydro\experiments\run_camelsdplxaj_experiments.py
-Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
-"""
-
 import os
+import pytest
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
 
-
-def run_dplxaj(train_period=None, valid_period=None, test_period=None):
+# @pytest.fixture()
+def run_camelsdplsac(train_period=None, valid_period=None, test_period=None):
+# def camelsdpl4sac_args():
     """
     Use attr and forcing as input for dPL model
 
@@ -27,6 +18,14 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
     -------
 
     """
+    # project_name = os.path.join("test_camels", "expdpl4sac")
+    # train_period = ["1985-01-01", "1995-01-01"]
+    # valid_period = ["1995-01-01", "2000-01-01"]
+    # test_period = ["2000-01-01", "2010-01-01"]
+    # train_period=["1985-10-01", "1986-10-01"],
+    # valid_period=["1986-10-01", "1987-10-01"],
+    # test_period=["1987-10-01", "1988-10-01"],
+
     if train_period is None:
         train_period = ["1985-10-01", "1995-10-01"]
     if valid_period is None:
@@ -34,23 +33,24 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
     if test_period is None:
         test_period = ["2000-10-01", "2010-10-01"]
     config = default_config_file()
+    # return cmd(
     args = cmd(
-        sub=os.path.join("test_camels", "expdplxaj"),
+        sub=os.path.join("test_camels", "expdpl4sac"),
         source_cfgs={
             "source_name": "camels_us",
             "source_path": os.path.join(
                 SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
             ),
         },
-        ctx=[0],
-        model_name="DplLstmXaj",
-        model_hyperparam={  #
-            "n_input_features": 25,
-            "n_output_features": 15,
+        ctx=[-1],
+        model_name="DplLstmSac",
+        model_hyperparam={  # reference to run_camelsdplxaj_experiments.rundplxaj
+            "n_input_features": 25,  # ?
+            "n_output_features": 21,  # 输入21个参数
             "n_hidden_states": 256,
-            "kernel_size": 15,
             "warmup_length": 10,
             "param_limit_func": "clamp",
+            "param_test_way": "final"
         },
         loss_func="RMSESum",
         dataset="DplDataset",
@@ -113,8 +113,15 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
     train_and_evaluate(config)
 
 
-run_dplxaj(
+# def test_camelsDplAnnSac(camelsdpl4sac_args):
+#     cfg = default_config_file()
+#     update_cfg(cfg, camelsdpl4sac_args)
+#     train_and_evaluate(cfg)
+#     print("All processes are finished!")
+
+run_camelsdplsac(
     train_period=["1985-10-01", "1986-10-01"],
     valid_period=["1986-10-01", "1987-10-01"],
     test_period=["1987-10-01", "1988-10-01"],
 )
+

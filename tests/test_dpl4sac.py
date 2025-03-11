@@ -18,15 +18,15 @@ def dpl4sac_args():  # todo:
             # "source_path": SETTING["local_data_path"]["datasets-interim"],
             # "other_settings": {"time_unit": ["1D"]},
         },
-        model_type="Normal",  # help="The type of DL model",  "Normal": DeepHydro,   # todo: this model used DeepHydro?   用的是 DplAnnSac 和 DplLstmSac, 用到了 DeepHydro 了吗？ modle_type 与 model_name 的区别是什么？
+        # model_type="Normal",  # help="The type of DL model",  "Normal": DeepHydro,   # todo: modle_type 与 model_name 的区别是什么？
         ctx=[-1],  # help="Running Context -- gpu num or cpu. E.g `--ctx 0 1` means run code in gpu 0 and 1; -1 means cpu",
         model_name="DplAnnSac",
         model_hyperparam={  # the __init__ function parameters of model class   DplAnnSac 的超参数？
-            # "n_input_features": 2,
-            # "n_input_features": 9,
+            # "n_input_features": 2,  # precipitation|evaporation
             "n_input_features": 9,
-            # "n_output_features": 10,
-            "n_output_features": 2,  # streamflow, evaporation
+            # "n_input_features": 7,  # var_t of camels_us
+            "n_output_features": 10,
+            # "n_output_features": 2,  # streamflow, evaporation
             "n_hidden_states": 30,
             "warmup_length": 365,
             "param_limit_func": "clamp",
@@ -35,6 +35,8 @@ def dpl4sac_args():  # todo:
         loss_func="NSELoss",  # loss function todo: detail
         dataset="DplDataset",  # help="Choose a dataset class for PyTorch", "DplDataset": DplDataset,  todo: there are "source_name": "camels_us"
         # 专门为这个测试做一个DplAnnSac模型可直接使用的数据集？更小，是camels_us的子集？
+        # datasource is the original data, e.g. camelsus_attributes.nc and camelsus_timeseries.nc
+        # dataset is the specific data for a specific model?  made from camelsxx_xxxx.nc?  can be used directly by a specific model?
         scaler="DapengScaler",  # only numerical scaler: for categorical vars, they are transformed to numerical vars when reading them
         scaler_params={  # todo:
             "prcp_norm_cols": [
@@ -69,7 +71,8 @@ def dpl4sac_args():  # todo:
             "1054200",
             "1055000",
             "1057000",
-            "1073000",
+            # "1073000",
+            "01170100",
         ],
         train_period=train_period,
         valid_period=valid_period,
@@ -116,7 +119,7 @@ def dpl4sac_args():  # todo:
         },
         warmup_length=365,  # 预热期一年
         opt="Adadelta",  # 通过动态调整学习率，能有效避免过度衰减的问题，适合长时间训练任务，且无需手动调整学习率。  adaptive delta
-        which_first_tensor="sequence",  #序列优先，即时间是第一维
+        which_first_tensor="sequence",  # 序列优先，即时间是第一维
     )
 
 def test_DplAnnSac(dpl4sac_args):

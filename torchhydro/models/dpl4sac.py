@@ -428,9 +428,9 @@ class Sac4Dpl(nn.Module):
         # parameters
         para = torch.full(parameters.size(), 0.0)
         para[:, 0] = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])    # parameters[:, 0]是个二维张量， 流域|参数  kc是个一维张量，不同流域的参数。  basin first
-        para[:, 1] = self.pctim_scale[0] + parameters[:, 1] * (self.pctiscale[1] - self.pctim_scale[0])
+        para[:, 1] = self.pctim_scale[0] + parameters[:, 1] * (self.pctim_scale[1] - self.pctim_scale[0])
         para[:, 2] = self.adimp_scale[0] + parameters[:, 2] * (self.adimp_scale[1] - self.adimp_scale[0])
-        para[:, 3] = self.uztwm_scale[0] + parameters[:, 3] * (self.uztwscale[1] - self.uztwm_scale[0])
+        para[:, 3] = self.uztwm_scale[0] + parameters[:, 3] * (self.uztwm_scale[1] - self.uztwm_scale[0])
         para[:, 4] = self.uzfwm_scale[0] + parameters[:, 4] * (self.uzfwm_scale[1] - self.uzfwm_scale[0])
         para[:, 5] = self.lztwm_scale[0] + parameters[:, 5] * (self.lztwm_scale[1] - self.lztwm_scale[0])
         para[:, 6] = self.lzfsm_scale[0] + parameters[:, 6] * (self.lzfsm_scale[1] - self.lzfsm_scale[0])
@@ -442,7 +442,7 @@ class Sac4Dpl(nn.Module):
         para[:, 12] = self.rexp_scale[0] + parameters[:, 12] * (self.rexp_scale[1] - self.rexp_scale[0])
         para[:, 13] = self.uzk_scale[0] + parameters[:, 13] * (self.uzk_scale[1] - self.uzk_scale[0])
         para[:, 14] = self.lzsk_scale[0] + parameters[:, 14] * (self.lzsk_scale[1] - self.lzsk_scale[0])
-        para[:, 15] = self.lzpk_scale[0] + parameters[:, 15] * (self.lzpk_scale[1] - self.lzpk_scale[0])
+        para[:, 15] = self.lzpk_scale[0] + parameters[:, 15] * (self.lzpk_scale[1] - self.lzpk_scale[0])  # IndexError: index 15 is out of bounds for dimension 1 with size 15
         para[:, 16] = self.ci_scale[0] + parameters[:, 16] * (self.ci_scale[1] - self.ci_scale[0])
         para[:, 17] = self.cgs_scale[0] + parameters[:, 17] * (self.cgs_scale[1] - self.cgs_scale[0])
         para[:, 18] = self.cgp_scale[0] + parameters[:, 18] * (self.cgp_scale[1] - self.cgp_scale[0])
@@ -624,7 +624,7 @@ class DplLstmSac(nn.Module):
             but remember these ways are only for non-variable parameters
         """
         super(DplLstmSac, self).__init__()
-        self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)
+        self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)  # config.cmd.model_hyperparam.(n_input_features,n_output_features,n_hidden_states)
         self.pb_model = Sac4Dpl(
             warmup_length,
             source_book=source_book,
@@ -632,12 +632,13 @@ class DplLstmSac(nn.Module):
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
 
-    def forward(self, x, z):
+    def forward(self, x, z):  # where are the inputs of x and z data.
         """
         Differential parameter learning 微分参数学习
 
         z (normalized input) -> lstm -> param -> + x (not normalized) -> sac -> q
-        Parameters will be denormalized in xaj model
+        正则化的输入（model_hyperparam.n_input_features） -> 到 lstm 模型中 -> 输出参数（model_hyperparam.n_output_features -> 加上未正则化的x(降雨蒸发)数据 -> 到 sac 模型中 -> 模拟出径流q）
+        Parameters will be denormalized in sac model
 
         Parameters
         ----------
@@ -666,7 +667,7 @@ class DplLstmSac(nn.Module):
         # just get one-period values, here we use the final period's values,
         # when the MODEL_PARAM_TEST_WAY is not time_varing, we use the last period's values.
         if self.param_test_way != MODEL_PARAM_TEST_WAY["time_varying"]:
-            params = params[-1, :, :]  # todo: why the parameters are three-dimension?
+            params = params[-1, :, :]  # todo: why the parameters are three-dimension?   matrix operation added the dimensionalities
         # Please put p in the first location and pet in the second
         q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)  # 再将参数代入物理模型计算径流，然后使用实测数据比对、计算目标值。反复迭代优化，计算目标值损失量。  时间|批次（流域）|特征（降雨蒸发）
         return torch.cat([q, e], dim=-1)  # -1 means column

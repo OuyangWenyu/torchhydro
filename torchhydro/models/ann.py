@@ -31,8 +31,8 @@ class SimpleAnn(torch.nn.Module):
         dr          同hidden_size, 表达的是二维大小。   e.g. [0.1, 0.2, 0.3, 0.2], 4层可暂退层，各层暂退率分别为 0.1, 0.2, 0.3, 0.2。
             dropout rate of layers, default is 0.0 which means no dropout;  同hidden_size,
             here we set number of dropout layers to (number of nn layers - 1)  设置暂退层数为 神经网络层数-1。 除最后一层输出层不设置为可以暂退的层外，其余层均设置为可暂退层，包括第一层输入层。
-            todo: dropout layers = nn layers - 1 ?
-            nn layers = hidden layers + 2 ?  输入层也可以暂退dropout? 不能吧。 输入神经元数是否等于特征feature数？
+            神经网络的层，上一层神经元的输出，线性变换，到下一层神经元的输入，是一层。神经网络的层数等于神经元的层数-1。 -> 神经元暂退层数 = 神经网络层数-1，dropout layers = nn layers - 1.
+            输入层神经元数等于输入特征feature数
         """
         super(SimpleAnn, self).__init__()
         linear_list = torch.nn.ModuleList()  # 模块列表  线性列表
