@@ -60,12 +60,18 @@ class SingleStepTank(nn.Module):
 
         Parameters
         ----------
-        prcp
-        pet
-
+        prcp: Tensor
+            precipitation, mm/d.
+        pet: Tensor
+            evaporation, mm/d.
         Returns
         -------
-
+        et,
+            the total evaporation, mm.
+        rs, ri, rgs, rgd,
+            the runoff of various water source, mm.
+        self.intervar[:, :5]
+            the inter variables, 6.
         """
         # assign values to the parameters
         kc = self.para[:, 0]
@@ -159,7 +165,7 @@ class SingleStepTank(nn.Module):
         self.intervar[:, 4] = x3
         self.intervar[:, 5] = x4
 
-        return et, rs, ri, rgs, rgd, self.intervar[:, :6]
+        return et, rs, ri, rgs, rgd, self.intervar[:, :5]
 
     def routing(
         self,
@@ -174,13 +180,19 @@ class SingleStepTank(nn.Module):
         Parameters
         ----------
         rs: Tensor
+            surface runoff, mm.
         ri: Tensor
+            runoff of interflow, mm.
         rgs: Tensor
+            runoff of speed groundwater, mm.
         rgd: Tensor
-
+            runoff of slow groundwater, mm.
         Returns
         -------
-
+        q_sim: Tensor
+            the outflow at the end of timestep, m^3/s.
+        self.intervar[:, 6:]
+            the inter variables of routing part, m^3/s, 2.
         """
         # parameters
         e1 = self.para[:, 17]
@@ -198,7 +210,23 @@ class SingleStepTank(nn.Module):
         else:
             k0 = 1 / e1
             c0 = 0
-        k1
+        k1 = 1 / e1
+        c1 = 0
+        dt = 0.5 * u
+        i = rs + ri + rgs + rgd
+        q1 = (k0 - dt) / (k1 + dt) * qs0 + (i - c1 + c0) / (k1 + dt)
+        x5 = k1 * q1 + c1
+        k1 = torch.where(x5 > h, 1 / (e1 + e2), k1)
+        c1 = torch.where(x5 > h, e2 * h / (e1 + e2), c1)
+        q1 = (k0 - dt) / (k1 + dt) * qs0 + (i - c1 + c0) / (k1 + dt)  # update
+        x5 = k1 * q1 + c1
+        qs0 = q1  # todo: q_sim
+
+        # middle variables, at the start of timestep.
+        self.intervar[:, 6] = x5
+        self.intervar[:, 7] = qs0
+
+        return q1, self.intervar[:,6:]
 
 
 class Tank4Dpl(nn.Module):
@@ -227,25 +255,80 @@ class Tank4Dpl(nn.Module):
         self.kc_scale = param_range["KC"]
         self.w1_scale = param_range["W1"]
         self.w2_scale = param_range["W2"]
-        self.uztwm_scale = param_range["UZTWM"]
-        self.uzfwm_scale = param_range["UZFWM"]
-        self.lztwm_scale = param_range["LZTWM"]
-        self.lzfsm_scale = param_range["LZFSM"]
-        self.lzfpm_scale = param_range["LZFPM"]
-        self.rserv_scale = param_range["RSERV"]
-        self.pfree_scale = param_range["PFREE"]
-        self.riva_scale = param_range["RIVA"]
-        self.zperc_scale = param_range["ZPERC"]
-        self.rexp_scale = param_range["REXP"]
-        self.uzk_scale = param_range["UZK"]
-        self.lzsk_scale = param_range["LZSK"]
-        self.lzpk_scale = param_range["LZPK"]
-        self.ci_scale = param_range["CI"]
-        self.cgs_scale = param_range["CGS"]
-        self.cgp_scale = param_range["CGP"]
-        self.ke_scale = param_range["KE"]
-        self.xe_scale = param_range["XE"]
+        self.k1_scale = param_range["K1"]
+        self.k2_scale = param_range["K2"]
+        self.a0_scale = param_range["a0"]
+        self.b0_scale = param_range["b0"]
+        self.c0_scale = param_range["c0"]
+        self.h1_scale = param_range["h1"]
+        self.h2_scale = param_range["h2"]
+        self.a1_scale = param_range["a1"]
+        self.a2_scale = param_range["a2"]
+        self.h3_scale = param_range["h3"]
+        self.b1_scale = param_range["b1"]
+        self.h4_scale = param_range["h4"]
+        self.c1_scale = param_range["c1"]
+        self.d1_scale = param_range["d1"]
+        self.e1_scale = param_range["e1"]
+        self.e2_scale = param_range["e2"]
+        self.h_scale = param_range["h"]
 
         self.warmup_length = warmup_length
         self.feature_size = 2       # there are 2 input variables in Sac, P and PET. P and Pet are two feature in nn model.
         self.source_book = source_book
+
+    def forward(
+        self,
+        p_and_e: Tensor,
+        parameters: Tensor,
+        return_state: bool = False,
+    ):
+        """
+        tank model
+        forward transmission
+
+        Parameters
+        ----------
+        p_and_e: Tensor
+            time|basin|p_and_e
+        prcp
+            basin mean precipitation, mm/d.
+        pet
+            potential evapotranspiration, mm/d.
+        parameters: Tensor
+            model parameters, 21.
+        return_state: bool
+            whether to return model state or not.
+
+        Returns
+        -------
+        q_sim : torch.Tensor
+        the simulated flow, Q(m^3/s).
+        e_sim : torch.Tensor
+            the simulated evaporation, E(mm/d).
+        """
+        sac_device = p_and_e.device
+        n_basin, n_para = parameters.size()
+        # parameters
+        para = torch.full((n_basin, n_para), 0.0)
+        para[:, 0] = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])    # parameters[:, 0]是个二维张量， 流域|参数  kc是个一维张量，不同流域的参数。  basin first
+        para[:, 1] = self.w1_scale[0] + parameters[:, 1] * (self.w1_scale[1] - self.w1_scale[0])
+        para[:, 2] = self.w2_scale[0] + parameters[:, 2] * (self.w2_scale[1] - self.w2_scale[0])
+        para[:, 3] = self.k1_scale[0] + parameters[:, 3] * (self.k1_scale[1] - self.k1_scale[0])
+        para[:, 4] = self.k2_scale[0] + parameters[:, 4] * (self.k2_scale[1] - self.k2_scale[0])
+        para[:, 5] = self.a0_scale[0] + parameters[:, 5] * (self.a0_scale[1] - self.a0_scale[0])
+        para[:, 6] = self.b0_scale[0] + parameters[:, 6] * (self.b0_scale[1] - self.b0_scale[0])
+        para[:, 7] = self.c0_scale[0] + parameters[:, 7] * (self.c0_scale[1] - self.c0_scale[0])
+        para[:, 8] = self.h1_scale[0] + parameters[:, 8] * (self.h1_scale[1] - self.h1_scale[0])
+        para[:, 9] = self.h2_scale[0] + parameters[:, 9] * (self.h2_scale[1] - self.h2_scale[0])
+        para[:, 10] = self.a1_scale[0] + parameters[:, 10] * (self.a1_scale[1] - self.a1_scale[0])
+        para[:, 11] = self.a2_scale[0] + parameters[:, 11] * (self.a2_scale[1] - self.a2_scale[0])
+        para[:, 12] = self.h3_scale[0] + parameters[:, 12] * (self.h3_scale[1] - self.h3_scale[0])
+        para[:, 13] = self.b1_scale[0] + parameters[:, 13] * (self.b1_scale[1] - self.b1_scale[0])
+        para[:, 14] = self.h4_scale[0] + parameters[:, 14] * (self.h4_scale[1] - self.h4_scale[0])
+        para[:, 15] = self.c1_scale[0] + parameters[:, 15] * (self.c1_scale[1] - self.c1_scale[0])
+        para[:, 16] = self.d1_scale[0] + parameters[:, 16] * (self.d1_scale[1] - self.d1_scale[0])
+        para[:, 17] = self.e1_scale[0] + parameters[:, 17] * (self.e1_scale[1] - self.e1_scale[0])
+        para[:, 18] = self.e2_scale[0] + parameters[:, 18] * (self.e2_scale[1] - self.e2_scale[0])
+        para[:, 19] = self.h_scale[0] + parameters[:, 19] * (self.h_scale[1] - self.h_scale[0])
+

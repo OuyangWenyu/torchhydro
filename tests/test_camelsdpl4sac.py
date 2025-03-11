@@ -4,9 +4,7 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
 
-# @pytest.fixture()
 def run_camelsdplsac(train_period=None, valid_period=None, test_period=None):
-# def camelsdpl4sac_args():
     """
     Use attr and forcing as input for dPL model
 
@@ -18,13 +16,6 @@ def run_camelsdplsac(train_period=None, valid_period=None, test_period=None):
     -------
 
     """
-    # project_name = os.path.join("test_camels", "expdpl4sac")
-    # train_period = ["1985-01-01", "1995-01-01"]
-    # valid_period = ["1995-01-01", "2000-01-01"]
-    # test_period = ["2000-01-01", "2010-01-01"]
-    # train_period=["1985-10-01", "1986-10-01"],
-    # valid_period=["1986-10-01", "1987-10-01"],
-    # test_period=["1987-10-01", "1988-10-01"],
 
     if train_period is None:
         train_period = ["1985-10-01", "1995-10-01"]
@@ -69,7 +60,7 @@ def run_camelsdplsac(train_period=None, valid_period=None, test_period=None):
             ],
             "pbm_norm": True,
         },
-        gage_id=[
+        gage_id=[  # 10 ?
             "01013500",
             "01022500",
             "01030500",
@@ -84,7 +75,7 @@ def run_camelsdplsac(train_period=None, valid_period=None, test_period=None):
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
-        batch_size=20,
+        batch_size=20,  # train 20 basin ?
         forecast_history=0,
         forecast_length=30,
         var_t=[
@@ -112,12 +103,6 @@ def run_camelsdplsac(train_period=None, valid_period=None, test_period=None):
     update_cfg(config, args)
     train_and_evaluate(config)
 
-
-# def test_camelsDplAnnSac(camelsdpl4sac_args):
-#     cfg = default_config_file()
-#     update_cfg(cfg, camelsdpl4sac_args)
-#     train_and_evaluate(cfg)
-#     print("All processes are finished!")
 
 run_camelsdplsac(
     train_period=["1985-10-01", "1986-10-01"],

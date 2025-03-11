@@ -155,7 +155,7 @@ class SingleStepSacramento(nn.Module):
         fx = torch.min(lzfsm + lzfpm - (lzfs + lzfp), torch.max(rate - (lztwm - lt), rate * pfree))
         perct = rate - fx
         coef = (lzfpm / (lzfsm + lzfpm)) * (2 * (1 - lzfp / lzfpm) / ((1 - lzfp / lzfpm) + (1 - lzfsm / lzfsm)))
-        coef = torch.min(coef, 1)
+        coef = torch.clamp(coef, max=1)
         percp = torch.min(lzfpm - lzfp, torch.max(fx - (lzfsm - lzfs), coef * fx))
         percs = fx - percp
         # update the soil moisture accumulation
@@ -168,18 +168,21 @@ class SingleStepSacramento(nn.Module):
         rgp = lp * lzpk
         lp = lp - rgp
         # water balance check
-        if ut / uztwm < uf / uzfwm:
-            uztw = uztwm * (ut + uf) / (uztwm + uzfwm)
-            uzfw = uzfwm * (ut + uf) / (uztwm + uzfwm)
-        else:
-            uztw = ut
-            uzfw = uf
+        utr = ut / uztwm
+        ufr = uf / uzfwm
+        utfr = (ut + uf) / (uztwm + uzfwm)
+        uztw = torch.where(utr < ufr, uztwm * utfr, ut)
+        uzfw = torch.where(utr < ufr, uzfwm * utfr, uf)
         saved = rserv * (lzfsm + lzfpm)
         ratio_ = (ls + lp - saved + lt) / (lzfsm + lzfpm - saved + lztwm)
         ratio = torch.clamp(ratio_, min=0.0)
+        ltr = lt / lztwm
+        lztw = torch.where(ltr < ratio, lztwm * ratio, lt)
+        # del_ = torch.where(ltr < ratio, lztw - lt, del_)
+        # lzfs =
         if lt / lztwm < ratio:
             lztw = lztwm * ratio
-            del_ = lztw - lt
+            del_ = lztw - lt  # todo: a problem
             lzfs = torch.clamp(ls - del_, min=0.0)
             lzfp = lp - torch.clamp(del_ - ls, min=0.0)
         else:
@@ -425,8 +428,9 @@ class Sac4Dpl(nn.Module):
             the simulated evaporation, E(mm/d).
         """
         sac_device = p_and_e.device
+        n_basin, n_para = parameters.size()
         # parameters
-        para = torch.full(parameters.size(), 0.0)
+        para = torch.full((n_basin, n_para), 0.0)
         para[:, 0] = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])    # parameters[:, 0]是个二维张量， 流域|参数  kc是个一维张量，不同流域的参数。  basin first
         para[:, 1] = self.pctim_scale[0] + parameters[:, 1] * (self.pctim_scale[1] - self.pctim_scale[0])
         para[:, 2] = self.adimp_scale[0] + parameters[:, 2] * (self.adimp_scale[1] - self.adimp_scale[0])
@@ -442,7 +446,7 @@ class Sac4Dpl(nn.Module):
         para[:, 12] = self.rexp_scale[0] + parameters[:, 12] * (self.rexp_scale[1] - self.rexp_scale[0])
         para[:, 13] = self.uzk_scale[0] + parameters[:, 13] * (self.uzk_scale[1] - self.uzk_scale[0])
         para[:, 14] = self.lzsk_scale[0] + parameters[:, 14] * (self.lzsk_scale[1] - self.lzsk_scale[0])
-        para[:, 15] = self.lzpk_scale[0] + parameters[:, 15] * (self.lzpk_scale[1] - self.lzpk_scale[0])  # IndexError: index 15 is out of bounds for dimension 1 with size 15
+        para[:, 15] = self.lzpk_scale[0] + parameters[:, 15] * (self.lzpk_scale[1] - self.lzpk_scale[0])
         para[:, 16] = self.ci_scale[0] + parameters[:, 16] * (self.ci_scale[1] - self.ci_scale[0])
         para[:, 17] = self.cgs_scale[0] + parameters[:, 17] * (self.cgs_scale[1] - self.cgs_scale[0])
         para[:, 18] = self.cgp_scale[0] + parameters[:, 18] * (self.cgp_scale[1] - self.cgp_scale[0])
@@ -452,10 +456,10 @@ class Sac4Dpl(nn.Module):
         # para = torch.full((kc.size(),parameters.shap(1)),[kc, pctim, adimp, uztwm, uzfwm, lztwm, lzfsm, lzfpm, rserv, pfree, riva, zperc, rexp, uzk, lzsk, lzpk, ci, cgs, cgp, ke, xe],)
         # area = [2252.7, 573.6, 3676.17, 769.05, 909.1, 383.82, 180.98, 250.64, 190.92, 31.3]     # dpl4sac_args camelsus [gage_id.area]  # todo: 线性水库汇流需要用到流域面积将产流runoff的mm乘以面积的m^2将平面径流转化为流量的m^3/s
 
-        intervar = torch.full((para[:, 0].size(),11),0.0)  # basin|inter_variables
+        intervar = torch.full((n_basin,11),0.0)  # basin|inter_variables  TypeError: full(): argument 'size' (position 1) must be tuple of ints, but found element of type torch.Size at pos 0
         rsnpb = 1  # river sections number per basin
         rivernumber = torch.full(para[:, 0].size(),rsnpb)  # set only one river section.   basin|river_section
-        mq = torch.full((para[:, 0].size(),rsnpb),0.0)  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
+        mq = torch.full((n_basin,rsnpb),0.0)  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
 
         if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
             # set no_grad for warmup periods
@@ -471,14 +475,14 @@ class Sac4Dpl(nn.Module):
                     p_and_e_warmup, para, return_state=True
                 )
         else:  # if no, set a small value directly.
-            intervar = torch.full((para[:, 0].size(), 11), 0.1)  # to(sac_device)?
+            intervar = torch.full((n_basin, 11), 0.1)  # to(sac_device)?
 
         prcp = torch.clamp(p_and_e[self.warmup_length:, :, 0], min=0.0)  # time|basin
         pet = torch.clamp(p_and_e[self.warmup_length:, :, 1], min=0.0)  # time|basin
         n_step, n_basin = prcp.size()
         singlesac = SingleStepSacramento(sac_device, 1, para, intervar, rivernumber, mq)
-        e_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
-        q_sim_ = torch.full(p_and_e.shape[:2], 0.0).to(sac_device)
+        e_sim_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        q_sim_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         for i in range(n_step):
             p = prcp[i, :]
             e = pet[i, :]
