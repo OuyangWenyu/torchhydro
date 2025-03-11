@@ -171,7 +171,7 @@ MODEL_PARAM_DICT = {
     "tank": {  # todo：
         "param_name": [
             "KC",  # coefficient of potential evapotranspiration to reference crop evaporation generally 蒸散发折算系数
-            "W1",  # ratio of the permanent impervious area to total area of the basin 第一土壤水分层饱和容量
+            "W1",  # the first soil moisture layer  第一土壤水分层饱和容量
             "W2",  # ratio of the alterable impervious area to total area of the basin 第二土壤水分层饱和容量
             "K1",  # tension water capacity in the upper layer 下层自由水补充上层张力水比例系数
             "K2",  # free water capacity in the upper layer 第一层与第二层的水量交换系数

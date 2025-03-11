@@ -178,17 +178,17 @@ class SingleStepSacramento(nn.Module):
         ratio = torch.clamp(ratio_, min=0.0)
         ltr = lt / lztwm
         lztw = torch.where(ltr < ratio, lztwm * ratio, lt)
-        # del_ = torch.where(ltr < ratio, lztw - lt, del_)
-        # lzfs =
-        if lt / lztwm < ratio:
-            lztw = lztwm * ratio
-            del_ = lztw - lt  # todo: a problem
-            lzfs = torch.clamp(ls - del_, min=0.0)
-            lzfp = lp - torch.clamp(del_ - ls, min=0.0)
-        else:
-            lztw = lt
-            lzfs = ls
-            lzfp = lp
+        lzfs = torch.where(ltr < ratio, torch.clamp(ls - (lztw - lt), min=0.0), ls)
+        lzfp = torch.where(ltr < ratio, lp - torch.clamp((lztw - lt) - ls, min=0.0), lp)
+        # if lt / lztwm < ratio:
+        #     lztw = lztwm * ratio
+        #     del_ = lztw - lt  # todo: a problem
+        #     lzfs = torch.clamp(ls - del_, min=0.0)
+        #     lzfp = lp - torch.clamp(del_ - ls, min=0.0)
+        # else:
+        #     lztw = lt
+        #     lzfs = ls
+        #     lzfp = lp
 
         # rs = roimp + (adsur + ars) + rs  # the total surface runoff
 
@@ -201,7 +201,7 @@ class SingleStepSacramento(nn.Module):
         self.intervar[:, 5] = lzfs
         self.intervar[:, 6] = lzfp
 
-        return et, roimp, adsur, ars, rs, ri, rgs, rgp, self.intervar[:, :6]
+        return et, roimp, adsur, ars, rs, ri, rgs, rgp, self.intervar[:, :7]
 
     def cal_routing(
         self,
@@ -239,6 +239,7 @@ class SingleStepSacramento(nn.Module):
         self.intervar[:, 7:]
             the inter variables of routing part, m^3/s, 4.
         """
+        n_basin, _ = self.intervar.size()
         # parameters
         pctim = self.para[:, 1]
         adimp = self.para[:, 2]
@@ -248,10 +249,15 @@ class SingleStepSacramento(nn.Module):
         ke = self.para[:, 19]
         xe = self.para[:, 20]
         # middle variables, at the start of timestep.
-        qs0 = torch.full(self.intervar[:, 7].size(),self.intervar[:, 7]).to(self.device)
-        qi0 = torch.full(self.intervar[:, 8].size(),self.intervar[:, 8]).to(self.device)
-        qgs0 = torch.full(self.intervar[:, 9].size(),self.intervar[:, 9]).to(self.device)
-        qgp0 = torch.full(self.intervar[:, 10].size(),self.intervar[:, 10]).to(self.device)
+        qs0 = self.intervar[:, 7]
+        qi0 = self.intervar[:, 8]
+        qgs0 = self.intervar[:, 9]
+        qgp0 = self.intervar[:, 10]
+        # qs0 = torch.full(n_basin, self.intervar[:, 7]).to(self.device)
+        # qi0 = torch.full(n_basin, self.intervar[:, 8]).to(self.device)
+        # qgs0 = torch.full(self.intervar[:, 9].size(),self.intervar[:, 9]).to(self.device)
+        # qgp0 = torch.full(self.intervar[:, 10].size(),self.intervar[:, 10]).to(self.device)
+
 
         # routing
         u = (1 - pctim - adimp) * 1000  # * self.area   # daily coefficient, no need conversion.  # todo: area
@@ -486,8 +492,8 @@ class Sac4Dpl(nn.Module):
         for i in range(n_step):
             p = prcp[i, :]
             e = pet[i, :]
-            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:6] = singlesac.cal_runoff(p, e)  # todo:
-            q_sim_[i], intervar[7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)
+            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:, :7] = singlesac.cal_runoff(p, e)
+            q_sim_[i], intervar[:, 7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)
             e_sim_[i] = et
 
         # seq, batch, feature

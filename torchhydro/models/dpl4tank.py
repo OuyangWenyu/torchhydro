@@ -332,3 +332,64 @@ class Tank4Dpl(nn.Module):
         para[:, 18] = self.e2_scale[0] + parameters[:, 18] * (self.e2_scale[1] - self.e2_scale[0])
         para[:, 19] = self.h_scale[0] + parameters[:, 19] * (self.h_scale[1] - self.h_scale[0])
 
+        intervar = torch.full((n_basin,11),0.0)  # basin|inter_variables
+        rsnpb = 1  # river sections number per basin
+        rivernumber = torch.full(para[:, 0].size(),rsnpb)  # set only one river section.   basin|river_section
+        mq = torch.full((n_basin,rsnpb),0.0)  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber
+
+        if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
+            # set no_grad for warmup periods
+            with torch.no_grad():
+                p_and_e_warmup = p_and_e[0:self.warmup_length, :, :]  # time|basin|p_and_e
+                cal_init_tank4dpl = Tank4Dpl(
+                    # warmup_length must be 0 here
+                    warmup_length=0,
+                )
+                if cal_init_tank4dpl.warmup_length > 0:
+                    raise RuntimeError("Please set init model's warmup length to 0!!!")
+                _, _, intervar = cal_init_tank4dpl(
+                    p_and_e_warmup, para, return_state=True
+                )
+        else:  # if no, set a small value directly.
+            intervar = torch.full((n_basin, 11), 0.1)  # to(tank_device)?
+
+class DplAnnTank(nn.Module):
+    """
+    Tank differential parameter learning - neural network model
+    """
+    def __init__(
+        self,
+        n_input_features,
+        n_output_features,
+        n_hidden_states,
+        warmup_length,
+        param_limit_func="clamp",   # 参数限制函数 限制在[0,1]
+        param_test_way="final",
+        source_book="HF",
+    ):
+        """
+        Differential Parameter learning model only with attributes as DL model's input: ANN -> Param -> TANK
+
+        The principle can be seen here: https://doi.org/10.1038/s41467-021-26107-z
+
+        Parameters
+        ----------
+        n_input_features
+            the number of input features of ANN
+        n_output_features
+            the number of output features of ANN, and it should be equal to the number of learning parameters in TANK
+        n_hidden_states
+            the number of hidden features of ANN; it could be Union[int, tuple, list]
+        warmup_length
+            the length of warmup periods;
+            hydrologic models need a warmup period to generate reasonable initial state values
+        param_limit_func
+            function used to limit the range of params; now it is sigmoid or clamp function
+        param_test_way
+            how we use parameters from dl model when testing;
+            now we have three ways:
+            1. "final" -- use the final period's parameter for each period
+            2. "mean_time" -- Mean values of all periods' parameters is used
+            3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
+        """
+        super(DplAnnTank, self).__init__()
