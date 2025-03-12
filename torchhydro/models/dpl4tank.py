@@ -307,7 +307,7 @@ class Tank4Dpl(nn.Module):
         e_sim : torch.Tensor
             the simulated evaporation, E(mm/d).
         """
-        sac_device = p_and_e.device
+        tank_device = p_and_e.device
         n_basin, n_para = parameters.size()
         # parameters
         para = torch.full((n_basin, n_para), 0.0)
@@ -351,7 +351,27 @@ class Tank4Dpl(nn.Module):
                     p_and_e_warmup, para, return_state=True
                 )
         else:  # if no, set a small value directly.
-            intervar = torch.full((n_basin, 11), 0.1)  # to(tank_device)?
+            intervar = torch.full((n_basin, 11), 0.1)
+
+        prcp = torch.clamp(p_and_e[self.warmup_length:, :, 0], min=0.0)  # time|basin
+        pet = torch.clamp(p_and_e[self.warmup_length:, :, 1], min=0.0)  # time|basin
+        n_step, n_basin = prcp.size()
+        singletank = SingleStepTank(tank_device, 1, para, intervar, rivernumber, mq)
+        e_sim_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
+        q_sim_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
+        for i in range(n_step):
+            p = prcp[i, :]
+            e = pet[i, :]
+            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:, :7] = singletank.cal_runoff(p, e)
+            q_sim_[i], intervar[:, 7:] = singletank.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)
+            e_sim_[i] = et
+
+        # seq, batch, feature
+        e_sim = torch.unsqueeze(e_sim_, dim=-1)  # add a dimension
+        q_sim = torch.unsqueeze(q_sim_, dim=-1)
+        if return_state:
+            return q_sim, e_sim, intervar
+        return q_sim, e_sim
 
 class DplAnnTank(nn.Module):
     """

@@ -924,8 +924,8 @@ class DplLstmXaj(nn.Module):
             one time forward result
         """
         q, e = lstm_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
-        return torch.cat([q, e], dim=-1)
-
+        # return torch.cat([q, e], dim=-1)
+        return q
 
 class DplAnnXaj(nn.Module):
     def __init__(

@@ -103,7 +103,7 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         train_epoch=2,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 2,
         },
         warmup_length=10,
         opt="Adadelta",

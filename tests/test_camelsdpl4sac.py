@@ -101,7 +101,7 @@ def run_camelsdplsac(train_period=None, valid_period=None, test_period=None):
         which_first_tensor="sequence",
     )
     update_cfg(config, args)
-    train_and_evaluate(config)
+    train_and_evaluate(config)  # assert labels.shape == output.shape
 
 
 run_camelsdplsac(

@@ -405,7 +405,7 @@ class Xaj4DplWithNnModule(nn.Module):
                 )
                 if cal_init_xaj4dpl.warmup_length > 0:
                     raise RuntimeError("Please set init model's warmup length to 0!!!")
-                _, _, *w0, s0, fr0, qi0, qg0 = cal_init_xaj4dpl(   # todo: how to warmup?
+                _, _, *w0, s0, fr0, qi0, qg0 = cal_init_xaj4dpl(
                     p_and_e_warmup, parameters_ts_warmup, return_state=True  # call self.forward function 调用了下面的代码。
                 )
         else:
@@ -440,7 +440,7 @@ class Xaj4DplWithNnModule(nn.Module):
             else:
                 c = cs
             if i == 0:  # the first timestep
-                (r, rim, e, pe), w = self.xaj_generation_with_new_module(  # todo: 这些在条件语句里面声明的变量的作用范围？
+                (r, rim, e, pe), w = self.xaj_generation_with_new_module(
                     inputs[i, :, :], k, b, im, um, lm, dm, c, *w0  # initial condition, the soil  moisture accumulation 初始土壤水蓄量
                 )
                 if self.source_type == "sources":
@@ -453,7 +453,7 @@ class Xaj4DplWithNnModule(nn.Module):
                     )
                 else:
                     raise NotImplementedError("No such divide-sources method")
-            else:  #
+            else:
                 (r, rim, e, pe), w = self.xaj_generation_with_new_module(  # return the single step variables
                     inputs[i, :, :], k, b, im, um, lm, dm, c, *w  # soil  moisture accumulation of the last timestep
                 )

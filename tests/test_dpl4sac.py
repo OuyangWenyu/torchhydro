@@ -35,6 +35,7 @@ def dpl4sac_args():  # todo:
         loss_func="NSELoss",  # loss function todo: detail
         dataset="DplDataset",  # help="Choose a dataset class for PyTorch", "DplDataset": DplDataset,  todo: there are "source_name": "camels_us"
         # 专门为这个测试做一个DplAnnSac模型可直接使用的数据集？更小，是camels_us的子集？
+        # create dev
         # datasource is the original data, e.g. camelsus_attributes.nc and camelsus_timeseries.nc
         # dataset is the specific data for a specific model?  made from camelsxx_xxxx.nc?  can be used directly by a specific model?
         scaler="DapengScaler",  # only numerical scaler: for categorical vars, they are transformed to numerical vars when reading them
