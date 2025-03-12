@@ -721,6 +721,7 @@ class Smap4Camels(SupData4Camels):
 
 data_sources_dict = {
     "camels_us": Camels,
+    "camels_ch": Camels_ch,  #
     "selfmadehydrodataset": SelfMadeHydroDataset,
     "usgs4camels": SupData4Camels,
     "modiset4camels": ModisEt4Camels,
