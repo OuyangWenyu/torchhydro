@@ -92,7 +92,7 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=2,
+        train_epoch=20,
         save_epoch=1,
         model_loader={
             "load_way": "specified",

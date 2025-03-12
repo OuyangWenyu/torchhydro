@@ -85,7 +85,7 @@ def model_infer(seq_first, device, model, xs, ys):
     if seq_first:
         output = output.transpose(0, 1)
         ys = ys.transpose(0, 1)
-    return ys, output  # ys (20,30,1)  output (20,30,2)
+    return ys, output
 
 
 def denormalize4eval(eval_dataloader, output, labels, rolling=False):
@@ -364,7 +364,7 @@ def compute_loss(
             labels = labels.unsqueeze(2)
         else:
             labels = labels.unsqueeze(0)
-    assert labels.shape == output.shape   # AssertionError  lables (20,30,1)  output (20,30,2)
+    assert labels.shape == output.shape
     return criterion(output, labels.float())
 
 

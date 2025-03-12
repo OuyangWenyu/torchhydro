@@ -16,7 +16,6 @@ def run_camelsdplsac(train_period=None, valid_period=None, test_period=None):
     -------
 
     """
-
     if train_period is None:
         train_period = ["1985-10-01", "1995-10-01"]
     if valid_period is None:
@@ -94,7 +93,7 @@ def run_camelsdplsac(train_period=None, valid_period=None, test_period=None):
         train_epoch=2,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 2,
         },
         warmup_length=10,
         opt="Adadelta",
@@ -102,6 +101,7 @@ def run_camelsdplsac(train_period=None, valid_period=None, test_period=None):
     )
     update_cfg(config, args)
     train_and_evaluate(config)  # assert labels.shape == output.shape
+    print("All processes are finished!")
 
 
 run_camelsdplsac(

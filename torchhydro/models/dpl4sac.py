@@ -696,7 +696,7 @@ class DplLstmSac(nn.Module):
         Differential parameter learning 微分参数学习
 
         z (normalized input) -> lstm -> param -> + x (not normalized) -> sac -> q
-        正则化的输入（model_hyperparam.n_input_features） -> 到 lstm 模型中 -> 输出参数（model_hyperparam.n_output_features -> 加上未正则化的x(降雨蒸发)数据 -> 到 sac 模型中 -> 模拟出径流q）
+        正则化的输入（model_hyperparam.n_input_features） -> 到 lstm 模型中 -> 输出参数（model_hyperparam.n_output_features -> 加上未正则化的x(降雨蒸发)数据 -> 到 sac 模型中 -> 模拟出径流q
         Parameters will be denormalized in sac model
 
         Parameters
