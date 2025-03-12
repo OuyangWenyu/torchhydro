@@ -412,4 +412,29 @@ class DplAnnTank(nn.Module):
             2. "mean_time" -- Mean values of all periods' parameters is used
             3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
         """
-        super(DplAnnTank, self).__init__()
+        self.dl_model = SimpleAnn(n_input_features, n_output_features, n_hidden_states)
+        self.pb_model = Sac4Dpl(
+            warmup_length,
+            source_book=source_book,
+        )
+        self.param_func = param_limit_func
+        self.param_test_way = param_test_way
+
+    def forward(self, x, z):
+        """
+        Differential parameter learning
+
+        z (normalized input) -> ANN -> param -> + x (not normalized) -> sac -> q
+
+        Parameters
+        ----------
+        x
+            not normalized data used for physical model, a sequence-first 3-dim tensor. [sequence, batch, feature]
+            normalized data used for DL model, a 2-dim tensor. [batch, feature]
+
+        Returns
+        -------
+        torch.Tensor
+            one time forward result
+        """
+        gen = self.dl_model(z)
