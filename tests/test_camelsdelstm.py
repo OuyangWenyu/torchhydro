@@ -34,13 +34,25 @@ VAR_C_CHOSEN_FROM_CAMELS_DE = [
     "geo_log10_permeability",
 ]
 VAR_T_CHOSEN_FROM_DE = [
-    "discharge_vol",
     "water_level",
     "precipitation_mean",
+    "precipitation_min",
+    "precipitation_median",
+    "precipitation_max",
+    "precipitation_stdev",
     "humidity_mean",
+    "humidity_min",
+    "humidity_median",
+    "humidity_max",
     "humidity_stdev",
     "radiation_global_mean",
+    "radiation_global_min",
+    "radiation_global_median",
+    "radiation_global_max",
+    "radiation_global_stdev",
     "temperature_mean",
+    "temperature_min",
+    "temperature_max",
 ]
 
 
@@ -68,7 +80,7 @@ def run_normal_dl(
                 SETTING["local_data_path"]["datasets-origin"], "camels", "camels_de"
             ),
         },
-        ctx=[0],
+        ctx=[-1],
         # model_name="KuaiLSTM",
         model_name="CpuLSTM",
         model_hyperparam={
