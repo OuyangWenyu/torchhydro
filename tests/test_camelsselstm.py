@@ -14,63 +14,63 @@ from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
-VAR_C_CHOSEN_FROM_CAMELS_US = [
+VAR_C_CHOSEN_FROM_CAMELS_SE = [
     "elev_mean",
     "slope_mean",
-    "area_gages2",
-    "frac_forest",
-    "lai_max",
-    "lai_diff",
-    "dom_land_cover_frac",
+    "area",
+    "shrub_perc",
+    "mix_wood_perc",
+    "rock_perc",
+    "dom_land_cover",
     "dom_land_cover",
     "root_depth_50",
-    "soil_depth_statsgo",
-    "soil_porosity",
-    "soil_conductivity",
-    "max_water_content",
-    "geol_1st_class",
-    "geol_2nd_class",
-    "geol_porostiy",
-    "geol_permeability",
+    "root_depth",
+    "porosity",
+    "conductivity",
+    "tot_avail_water",
+    "unconsol_sediments",
+    "siliciclastic_sedimentary",
+    "geo_porosity",
+    "geo_log10_permeability",
 ]
-VAR_T_CHOSEN_FROM_DAYMET = [
-    # NOTE: prcp must be the first variable
-    "prcp",
-    "dayl",
-    "srad",
+VAR_T_CHOSEN_FROM_SE = [
+    "waterlevel",
+    "precipitation",
+    "temperature_min",
+    "temperature_mean",
+    "temperature_max",
+    "rel_sun_dur",
     "swe",
-    "tmax",
-    "tmin",
-    "vp",
 ]
 
 
 def run_normal_dl(
     project_name,
     gage_id_file,
-    var_c=VAR_C_CHOSEN_FROM_CAMELS_US,
-    var_t=VAR_T_CHOSEN_FROM_DAYMET,
+    var_c=VAR_C_CHOSEN_FROM_CAMELS_SE,
+    var_t=VAR_T_CHOSEN_FROM_SE,
     train_period=None,
     valid_period=None,
     test_period=None,
 ):
-    if train_period is None:
-        train_period = ["1985-10-01", "1995-10-01"]
+    if train_period is None:  # camels-se time_range: ["1961-01-01", "2020-12-31"]
+        train_period = ["2016-10-01", "2017-10-01"]
     if valid_period is None:
-        valid_period = ["1995-10-01", "2000-10-01"]
+        valid_period = ["2017-10-01", "2018-10-01"]
     if test_period is None:
-        test_period = ["2000-10-01", "2010-10-01"]
+        test_period = ["2018-10-01", "2019-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_us",
+            "source_name": "camels_se",
             "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_se"
             ),
         },
-        ctx=[0],
-        model_name="KuaiLSTM",
+        ctx=[-1],
+        # model_name="KuaiLSTM",
+        model_name="CpuLSTM",
         model_hyperparam={
             "n_input_features": len(var_c) + len(var_t),
             "n_output_features": 1,
@@ -111,4 +111,4 @@ def run_normal_dl(
 # 01022500
 # ......
 # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("ndl", "explstm"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt")
+run_normal_dl(os.path.join("test_camels", "lstm_camelsse"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_se\\gage_id.txt")
