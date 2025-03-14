@@ -14,7 +14,7 @@ from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
-VAR_C_CHOSEN_FROM_CAMELS_CH = [
+VAR_C_CHOSEN_FROM_CAMELS_BR = [
     "elev_mean",
     "slope_mean",
     "area",
@@ -33,7 +33,7 @@ VAR_C_CHOSEN_FROM_CAMELS_CH = [
     "geo_porosity",
     "geo_log10_permeability",
 ]
-VAR_T_CHOSEN_FROM_CH = [
+VAR_T_CHOSEN_FROM_BR = [
     "precipitation",
     "waterlevel",
     "temperature_min",
@@ -47,25 +47,25 @@ VAR_T_CHOSEN_FROM_CH = [
 def run_normal_dl(
     project_name,
     gage_id_file,
-    var_c=VAR_C_CHOSEN_FROM_CAMELS_CH,
-    var_t=VAR_T_CHOSEN_FROM_CH,
+    var_c=VAR_C_CHOSEN_FROM_CAMELS_BR,
+    var_t=VAR_T_CHOSEN_FROM_BR,
     train_period=None,
     valid_period=None,
     test_period=None,
 ):
-    if train_period is None:  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
-        train_period = ["2017-10-01", "2018-10-01"]
+    if train_period is None:  # camels-br time_range: ["1980-01-01", "2018-12-31"]
+        train_period = ["2015-10-01", "2016-10-01"]
     if valid_period is None:
-        valid_period = ["2018-10-01", "2019-10-01"]
+        valid_period = ["2016-10-01", "2017-10-01"]
     if test_period is None:
-        test_period = ["2019-10-01", "2020-10-01"]
+        test_period = ["2017-10-01", "2018-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_ch",
+            "source_name": "camels_br",
             "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_ch"
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_br"
             ),
         },
         ctx=[-1],
@@ -111,4 +111,4 @@ def run_normal_dl(
 # 01022500
 # ......
 # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("test_camels", "lstm_camelsch"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_ch\\gage_id.txt")
+run_normal_dl(os.path.join("test_camels", "lstm_camelsbr"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_br\\gage_id.txt")

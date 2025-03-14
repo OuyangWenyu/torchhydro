@@ -69,8 +69,9 @@ def run_normal_dl(
                 SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
             ),
         },
-        ctx=[0],
-        model_name="KuaiLSTM",
+        ctx=[-1],
+        # model_name="KuaiLSTM",
+        model_name="CpuLSTM",
         model_hyperparam={
             "n_input_features": len(var_c) + len(var_t),
             "n_output_features": 1,
