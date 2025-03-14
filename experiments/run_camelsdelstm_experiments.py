@@ -14,12 +14,12 @@ from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
-VAR_C_CHOSEN_FROM_CAMELS_CH = [
+VAR_C_CHOSEN_FROM_CAMELS_DE = [
     "elev_mean",
-    "slope_mean",
+    "slope_fdc",
     "area",
-    "scrub_perc",  # note: this fields in original data file is different with its in data description pdf file,
-    "mixed_wood_perc",  #
+    "forests_and_seminatural_areas_perc",
+    "mix_wood_perc",
     "rock_perc",
     "dom_land_cover",
     "dom_land_cover",
@@ -33,27 +33,39 @@ VAR_C_CHOSEN_FROM_CAMELS_CH = [
     "geo_porosity",
     "geo_log10_permeability",
 ]
-VAR_T_CHOSEN_FROM_CH = [
-    "precipitation",
-    "waterlevel",
-    "temperature_min",
+VAR_T_CHOSEN_FROM_DE = [
+    "water_level",
+    "precipitation_mean",
+    "precipitation_min",
+    "precipitation_median",
+    "precipitation_max",
+    "precipitation_stdev",
+    "humidity_mean",
+    "humidity_min",
+    "humidity_median",
+    "humidity_max",
+    "humidity_stdev",
+    "radiation_global_mean",
+    "radiation_global_min",
+    "radiation_global_median",
+    "radiation_global_max",
+    "radiation_global_stdev",
     "temperature_mean",
+    "temperature_min",
     "temperature_max",
-    "rel_sun_dur",
-    "swe",
 ]
 
 
 def run_normal_dl(
     project_name,
     gage_id_file,
-    var_c=VAR_C_CHOSEN_FROM_CAMELS_CH,
-    var_t=VAR_T_CHOSEN_FROM_CH,
+    var_c=VAR_C_CHOSEN_FROM_CAMELS_DE,
+    var_t=VAR_T_CHOSEN_FROM_DE,
     train_period=None,
     valid_period=None,
     test_period=None,
 ):
-    if train_period is None:  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
+    if train_period is None:  # camels-de time_range: ["1951-01-01", "2020-12-31"]
         train_period = ["2017-10-01", "2018-10-01"]
     if valid_period is None:
         valid_period = ["2018-10-01", "2019-10-01"]
@@ -63,9 +75,9 @@ def run_normal_dl(
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_ch",
+            "source_name": "camels_de",
             "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_ch"
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_de"
             ),
         },
         ctx=[-1],
@@ -91,11 +103,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=20,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 1,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",
@@ -111,4 +123,4 @@ def run_normal_dl(
 # 01022500
 # ......
 # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("test_camels", "lstm_camelsch"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_ch\\gage_id.txt")
+run_normal_dl(os.path.join("test_camels", "lstm_camelsde"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_de\\gage_id.txt")
