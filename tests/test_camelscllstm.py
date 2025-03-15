@@ -34,8 +34,8 @@ VAR_C_CHOSEN_FROM_CAMELS_CH = [
     "geo_log10_permeability",
 ]
 VAR_T_CHOSEN_FROM_CH = [
-    "precipitation",
     "waterlevel",
+    "precipitation",
     "temperature_min",
     "temperature_mean",
     "temperature_max",
@@ -91,11 +91,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=1,
+        train_epoch=20,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 1,
+            "test_epoch": 20,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",
@@ -111,4 +111,4 @@ def run_normal_dl(
 # 01022500
 # ......
 # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("test_camels", "lstm_camelsch"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_ch\\gage_id.txt")
+run_normal_dl(os.path.join("test_camels", "lstm_camelsch"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_cl\\gage_id.txt")

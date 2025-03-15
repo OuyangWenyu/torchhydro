@@ -98,7 +98,7 @@ class SupData4Camels:
 
     @property
     def ts_xrdataset_path(self):
-        return CACHE_DIR.joinpath("camelsus_streamflow.nc")
+        return CACHE_DIR.joinpath("camelsus_streamflow.nc")  #
 
     def cache_ts_xrdataset(self):
         """Save all timeseries data in a netcdf file in the cache directory"""
