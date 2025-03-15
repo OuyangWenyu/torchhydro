@@ -53,7 +53,7 @@ def run_normal_dl(
     valid_period=None,
     test_period=None,
 ):
-    if train_period is None:  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
+    if train_period is None:  # camels-se time_range: ["1961-01-01", "2020-12-31"]
         train_period = ["2017-10-01", "2018-10-01"]
     if valid_period is None:
         valid_period = ["2018-10-01", "2019-10-01"]
