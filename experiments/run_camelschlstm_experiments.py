@@ -18,8 +18,8 @@ VAR_C_CHOSEN_FROM_CAMELS_CH = [
     "elev_mean",
     "slope_mean",
     "area",
-    "scrub_perc",  # note: this fields in original data file is different with its in data description pdf file,
-    "mixed_wood_perc",  #
+    "scrub_perc",  # note: this field in original data file is different with its in data description pdf file, choose the former for convience.
+    "mixed_wood_perc",  # note: this field in original data file is different with its in data description pdf file, choose the former for convience.
     "rock_perc",
     "dom_land_cover",
     "dom_land_cover",
@@ -91,11 +91,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=20,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 1,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",
