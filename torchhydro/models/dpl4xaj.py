@@ -847,8 +847,6 @@ class Xaj4Dpl(nn.Module):
                 qg = linear_reservoir(rgs_[i], cg, qg)
             qs[i, :] = qs_[i, :, 0] + qi + qg
 
-        # where is river routing?
-
         # seq, batch, feature
         q_sim = torch.unsqueeze(qs, dim=2)
         if return_state:

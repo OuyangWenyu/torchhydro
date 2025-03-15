@@ -4,6 +4,8 @@ import torch
 from torch import nn
 from torch import Tensor
 from torchhydro.configs.model_config import MODEL_PARAM_DICT, MODEL_PARAM_TEST_WAY
+from torchhydro.models.simple_lstm import SimpleLSTM
+from torchhydro.models.ann import SimpleAnn
 
 class SingleStepTank(nn.Module):
     """
@@ -413,7 +415,7 @@ class DplAnnTank(nn.Module):
             3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
         """
         self.dl_model = SimpleAnn(n_input_features, n_output_features, n_hidden_states)
-        self.pb_model = Sac4Dpl(
+        self.pb_model = Tank4Dpl(
             warmup_length,
             source_book=source_book,
         )

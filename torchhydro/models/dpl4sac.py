@@ -271,18 +271,11 @@ class SingleStepSacramento(nn.Module):
         qi0 = self.intervar[:, 8]
         qgs0 = self.intervar[:, 9]
         qgp0 = self.intervar[:, 10]
-        # qs0 = (self.intervar[:, 7]).to(self.device)
-        # qi0 = (self.intervar[:, 8]).to(self.device)
-        # qgs0 = (self.intervar[:, 9]).to(self.device)
-        # qgp0 = (self.intervar[:, 10]).to(self.device)
         qs0.to(self.device)
         qi0.to(self.device)
         qgs0.to(self.device)
         qgp0.to(self.device)
-        # qs0 = torch.full(n_basin, self.intervar[:, 7]).to(self.device)
-        # qi0 = torch.full(n_basin, self.intervar[:, 8]).to(self.device)
-        # qgs0 = torch.full(self.intervar[:, 9].size(),self.intervar[:, 9]).to(self.device)
-        # qgp0 = torch.full(self.intervar[:, 10].size(),self.intervar[:, 10]).to(self.device)
+
 
 
         # routing
@@ -324,23 +317,6 @@ class SingleStepSacramento(nn.Module):
                     self.mq[i, j] = i2
                     i1 = q_sim_0[i]
             q_sim_[i] = i2  # todo: a problem
-        # if self.rivernumber > 0:
-        #     dt = self.hydrodt * 24.0 / 2.0
-        #     xo = xe
-        #     ke = ke * 24.0  # KE is hourly coefficient, need convert to daily.
-        #     ko = ke / self.rivernumber
-        #     c1 = ko * (1.0 - xo) + dt
-        #     c2 = (-ko * xo + dt) / c1
-        #     c3 = (ko * (1.0 - xo) - dt) / c1
-        #     c1 = (ko * xo + dt) / c1
-        #     i1 = q_sim_0  # flow at the start of timestep, inflow.
-        #     i2 = q_sim_  # flow at the end of timestep, outflow.
-        #     for i in range(self.rivernumber):
-        #         q_sim_0 = self.mq[:, i]  # basin|rivernumber
-        #         i2 = c1 * i1 + c2 * i2 + c3 * q_sim_0
-        #         self.mq[:, i] = i2
-        #         i1 = q_sim_0
-        # q_sim_ = i2
 
         return q_sim_, self.intervar[:, 7:]
 
