@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Optional
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset  # torch的数据集工具
 from tqdm import tqdm
 from hydrodatasource.utils.utils import streamflow_unit_conv
 
@@ -88,16 +88,19 @@ def detect_date_format(date_str):
 
 
 class BaseDataset(Dataset):
-    """Base data set class to load and preprocess data (batch-first) using PyTorch's Dataset"""
+    """Base data set class to load and preprocess data (batch-first) using PyTorch's Dataset
+    基本数据集类，用来加载和处理数据（批次优先），使用 Pytorch 数据集。
+
+    """
 
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         """
         Parameters
         ----------
-        data_cfgs
-            parameters for reading source data
+        data_cfgs  数据配置
+            parameters for reading source data 读源数据的参数，是个dict.
         is_tra_val_te
-            train, vaild or test
+            train, vaild or test  # 是否训练、率定或测试
         """
         super(BaseDataset, self).__init__()
         self.data_cfgs = data_cfgs
@@ -139,7 +142,7 @@ class BaseDataset(Dataset):
     @property
     def nt(self):
         """length of longest time series in all basins
-
+            所有流域的最长时间序列。
         Returns
         -------
         int
