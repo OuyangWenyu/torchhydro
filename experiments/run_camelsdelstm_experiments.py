@@ -84,7 +84,7 @@ def run_normal_dl(
         # model_name="KuaiLSTM",
         model_name="CpuLSTM",
         model_hyperparam={
-            "n_input_features": len(var_c) + len(var_t),
+            "n_input_features": len(var_c) + len(var_t),  # 17 + 19
             "n_output_features": 1,
             "n_hidden_states": 256,
         },
