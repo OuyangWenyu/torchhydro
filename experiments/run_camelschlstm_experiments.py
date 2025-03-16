@@ -23,6 +23,7 @@ VAR_C_CHOSEN_FROM_CAMELS_CH = [
     "rock_perc",
     "dom_land_cover",
     "dom_land_cover",
+    # "wetlands_perc",
     "root_depth_50",
     "root_depth",
     "porosity",
@@ -68,11 +69,11 @@ def run_normal_dl(
                 SETTING["local_data_path"]["datasets-origin"], "camels", "camels_ch"
             ),
         },
-        ctx=[-1],
+        ctx=[0],
         # model_name="KuaiLSTM",
         model_name="CpuLSTM",
         model_hyperparam={
-            "n_input_features": len(var_c) + len(var_t),  # 17 + 7
+            "n_input_features": len(var_c) + len(var_t),  # 17 + 7 = 24
             "n_output_features": 1,
             "n_hidden_states": 256,
         },
@@ -80,7 +81,7 @@ def run_normal_dl(
         sampler="KuaiSampler",
         dataset="StreamflowDataset",
         scaler="DapengScaler",
-        batch_size=512,
+        batch_size=512,    # 批次大小
         forecast_history=0,
         forecast_length=366,
         var_t=var_t,
@@ -91,11 +92,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=1,
+        train_epoch=20,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 1,
+            "test_epoch": 20,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",
