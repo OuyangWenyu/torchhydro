@@ -63,7 +63,7 @@ def run_normal_dl(
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_ch",
+            "source_name": "camels_aus",
             "source_path": os.path.join(
                 SETTING["local_data_path"]["datasets-origin"], "camels", "camels_aus"
             ),
@@ -91,11 +91,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=20,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 1,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",

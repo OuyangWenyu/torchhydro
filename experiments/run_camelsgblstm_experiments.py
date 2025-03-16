@@ -16,22 +16,22 @@ from torchhydro.trainers.trainer import train_and_evaluate
 
 VAR_C_CHOSEN_FROM_CAMELS_GB = [
     "elev_mean",
-    "slope_mean",
+    "slope_fdc",
     "area",
     "shrub_perc",
-    "mix_wood_perc",
-    "rock_perc",
+    "dwood_perc",
+    "organic_perc",
     "dom_land_cover",
     "dom_land_cover",
     "root_depth_50",
     "root_depth",
-    "porosity",
-    "conductivity",
-    "tot_avail_water",
-    "unconsol_sediments",
-    "siliciclastic_sedimentary",
-    "geo_porosity",
-    "geo_log10_permeability",
+    "porosity_cosby",
+    "conductivity_cosby_50",
+    "soil_depth_pelletier",
+    "urban_perc",
+    "inwater_perc",
+    "inter_mod_perc",
+    "frac_mod_perc",
 ]
 VAR_T_CHOSEN_FROM_GB= [
     "precipitation",
@@ -92,11 +92,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=20,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 1,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",
@@ -112,4 +112,4 @@ def run_normal_dl(
 # 01022500
 # ......
 # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("test_camels", "lstm_camelsgb"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_gb\\gage_id.txt")
+run_normal_dl(os.path.join("test_camels", "lstm_camelsgb"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_gb\\8344e4f3-d2ea-44f5-8afa-86d2987543a9\\8344e4f3-d2ea-44f5-8afa-86d2987543a9\\data\\gage_id.txt")
