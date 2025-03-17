@@ -36,7 +36,7 @@ VAR_C_CHOSEN_FROM_CAMELS_DK = [
 VAR_T_CHOSEN_FROM_DK = [
     "precipitation",
     "pet",
-    "pet",
+    "temperature",
     "DKM_dtp",
     "DKM_eta",
     "DKM_wcr",
@@ -84,7 +84,7 @@ def run_normal_dl(
         sampler="KuaiSampler",
         dataset="StreamflowDataset",
         scaler="DapengScaler",
-        batch_size=512,
+        batch_size=50,
         forecast_history=0,
         forecast_length=366,
         var_t=var_t,

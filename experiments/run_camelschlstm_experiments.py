@@ -22,8 +22,7 @@ VAR_C_CHOSEN_FROM_CAMELS_CH = [
     "mixed_wood_perc",  # note: this field in original data file is different with its in data description pdf file, choose the former for convience.
     "rock_perc",
     "dom_land_cover",
-    "dom_land_cover",
-    # "wetlands_perc",
+    "crop_perc",
     "root_depth_50",
     "root_depth",
     "porosity",
@@ -81,7 +80,7 @@ def run_normal_dl(
         sampler="KuaiSampler",
         dataset="StreamflowDataset",
         scaler="DapengScaler",
-        batch_size=512,    # 批次大小
+        batch_size=50,    # 批次大小
         forecast_history=0,
         forecast_length=366,
         var_t=var_t,
@@ -92,11 +91,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=20,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 1,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",
