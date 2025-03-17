@@ -35,16 +35,16 @@ VAR_C_CHOSEN_FROM_CAMELS_IND = [
 ]
 VAR_T_CHOSEN_FROM_IND = [
     "prcp",
+    "pet",
     "tmax",
     "tmin",
     "tavg",
     "srad_lw",
     "srad_sw",
-    "wind_u"
+    "wind_u",
     "wind_v",
     "wind",
     "rel_hum",
-    "pet",
     "pet_gleam",
     "aet_gleam",
     "evap_canopy",
