@@ -17,7 +17,7 @@ from torchhydro.trainers.trainer import train_and_evaluate
 VAR_C_CHOSEN_FROM_CAMELS_FR = [
     "top_altitude_mean",
     "top_slo_mean",
-    # "sit_area_hydro",  # todo: add area
+    "sta_area_snap",
     "top_drainage_density",
     "clc_2018_lvl1_1",
     "clc_2018_lvl2_11",
@@ -89,7 +89,7 @@ def run_normal_dl(
         sampler="KuaiSampler",
         dataset="StreamflowDataset",
         scaler="DapengScaler",
-        batch_size=512,
+        batch_size=50,
         forecast_history=0,
         forecast_length=366,
         var_t=var_t,

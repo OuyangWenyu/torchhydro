@@ -17,30 +17,42 @@ from torchhydro.trainers.trainer import train_and_evaluate
 VAR_C_CHOSEN_FROM_CAMELS_IND = [
     "elev_mean",
     "slope_mean",
-    "area",
-    "scrub_perc",
-    "mixed_wood_perc",
-    "rock_perc",
+    "cwc_area",
+    "trees_frac",
+    "lai_max",
+    "lai_diff",
     "dom_land_cover",
-    "dom_land_cover",
-    "root_depth_50",
-    "root_depth",
-    "porosity",
-    "conductivity",
-    "tot_avail_water",
-    "unconsol_sediments",
-    "siliciclastic_sedimentary",
-    "geo_porosity",
-    "geo_log10_permeability",
+    "dom_land_cover_frac",
+    "crops_frac",
+    "soil_depth",
+    "soil_awc_top",
+    "soil_conductivity_top",
+    "water_frac",
+    "geol_class_1st",
+    "geol_class_2nd",
+    "geol_porosity",
+    "geol_permeability",
 ]
 VAR_T_CHOSEN_FROM_IND = [
-    "precipitation",
-    "waterlevel",
-    "temperature_min",
-    "temperature_mean",
-    "temperature_max",
-    "rel_sun_dur",
-    "swe",
+    "prcp",
+    "tmax",
+    "tmin",
+    "tavg",
+    "srad_lw",
+    "srad_sw",
+    "wind_u"
+    "wind_v",
+    "wind",
+    "rel_hum",
+    "pet",
+    "pet_gleam",
+    "aet_gleam",
+    "evap_canopy",
+    "evap_surface",
+    "sm_lvl1",
+    "sm_lvl2",
+    "sm_lvl3",
+    "sm_lvl4",
 ]
 
 
@@ -91,11 +103,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=20,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 1,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",
@@ -111,4 +123,4 @@ def run_normal_dl(
 # 01022500
 # ......
 # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("test_camels", "lstm_camelsind"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_ind\\gage_id.txt")
+run_normal_dl(os.path.join("test_camels", "lstm_camelsind"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_ind\\CAMELS_IND_All_Catchments\\gage_id.txt")
