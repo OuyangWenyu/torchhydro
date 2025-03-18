@@ -18,29 +18,32 @@ VAR_C_CHOSEN_FROM_CAMELS_CL = [
     "elev_mean",
     "slope_mean",
     "area",
-    "scrub_perc",
-    "mixed_wood_perc",
-    "rock_perc",
+    "forest_frac",
+    "crop_frac",
+    "nf_frac",
+    "dom_land_cover_frac",
     "dom_land_cover",
-    "dom_land_cover",
-    "root_depth_50",
-    "root_depth",
-    "porosity",
-    "conductivity",
-    "tot_avail_water",
-    "unconsol_sediments",
-    "siliciclastic_sedimentary",
-    "geo_porosity",
-    "geo_log10_permeability",
+    "grass_frac",
+    "shrub_frac",
+    "wet_frac",
+    "imp_frac",
+    "fp_frac",
+    "geol_class_1st",
+    "geol_class_1st_frac",
+    "geol_class_2nd",
+    "carb_rocks_frac",
 ]
 VAR_T_CHOSEN_FROM_CL = [
-    "precipitation",
-    "waterlevel",
-    "temperature_min",
-    "temperature_mean",
-    "temperature_max",
-    "rel_sun_dur",
-    "swe",
+    "precip_cr2met",
+    "precip_chirps",
+    "precip_mswep",
+    "precip_tmpa",
+    "tmin_cr2met",
+    "tmax_cr2met",
+    "tmean_cr2met",
+    "pet_8d_modis",
+    "pet_hargreaves",
+    "swe"
 ]
 
 
@@ -53,12 +56,12 @@ def run_normal_dl(
     valid_period=None,
     test_period=None,
 ):
-    if train_period is None:  # camels-cl time_range: ["1981-01-01", "2020-12-31"]
-        train_period = ["2017-10-01", "2018-10-01"]
+    if train_period is None:  # camels-cl time_range: ["1995-01-01", "2015-01-01"]
+        train_period = ["2011-10-01", "2012-10-01"]
     if valid_period is None:
-        valid_period = ["2018-10-01", "2019-10-01"]
+        valid_period = ["2012-10-01", "2013-10-01"]
     if test_period is None:
-        test_period = ["2019-10-01", "2020-10-01"]
+        test_period = ["2013-10-01", "2014-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -80,7 +83,7 @@ def run_normal_dl(
         sampler="KuaiSampler",
         dataset="StreamflowDataset",
         scaler="DapengScaler",
-        batch_size=512,
+        batch_size=50,
         forecast_history=0,
         forecast_length=366,
         var_t=var_t,

@@ -18,20 +18,20 @@ VAR_C_CHOSEN_FROM_CAMELS_BR = [
     "elev_mean",
     "slope_mean",
     "area",
-    "scrub_perc",
-    "mixed_wood_perc",
-    "rock_perc",
+    "forest_perc",
+    "crop_perc",
+    "shrub_perc",
+    "dom_land_cover_perc",
     "dom_land_cover",
-    "dom_land_cover",
-    "root_depth_50",
-    "root_depth",
-    "porosity",
-    "conductivity",
-    "tot_avail_water",
-    "unconsol_sediments",
-    "siliciclastic_sedimentary",
-    "geo_porosity",
-    "geo_log10_permeability",
+    "org_carbon_content",
+    "clay_perc",
+    "sand_perc",
+    "silt_perc",
+    "water_table_depth",
+    "geol_class_1st",
+    "geol_class_2nd",
+    "geol_porosity",
+    "geol_permeability",
 ]
 VAR_T_CHOSEN_FROM_BR = [
     "precipitation_chirps",
@@ -55,12 +55,12 @@ def run_normal_dl(
     valid_period=None,
     test_period=None,
 ):
-    if train_period is None:  # camels-br time_range: ["1980-01-01", "2018-12-31"]
-        train_period = ["2015-10-01", "2016-10-01"]
+    if train_period is None:  # camels-br time_range: ["1995-01-01", "2015-01-01"]
+        train_period = ["2012-10-01", "2013-10-01"]
     if valid_period is None:
-        valid_period = ["2016-10-01", "2017-10-01"]
+        valid_period = ["2013-10-01", "2014-10-01"]
     if test_period is None:
-        test_period = ["2017-10-01", "2018-10-01"]
+        test_period = ["2014-10-01", "2015-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -82,7 +82,7 @@ def run_normal_dl(
         sampler="KuaiSampler",
         dataset="StreamflowDataset",
         scaler="DapengScaler",
-        batch_size=512,
+        batch_size=50,
         forecast_history=0,
         forecast_length=366,
         var_t=var_t,
