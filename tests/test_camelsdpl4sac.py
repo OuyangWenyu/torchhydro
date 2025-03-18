@@ -59,7 +59,7 @@ def run_camelsdplsac(
         },
         loss_func="RMSESum",
         sampler="KuaiSampler",
-        dataset="StreamflowDataset",
+        dataset="DplDataset",
         scaler="DapengScaler",
         train_period=train_period,
         valid_period=valid_period,
