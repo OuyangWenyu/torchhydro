@@ -681,6 +681,7 @@ class DplLstmSac(nn.Module):
             not normalized data used for physical model; a sequence-first 3-dim tensor. [sequence, batch, feature]
         z
             normalized data used for DL model; a sequence-first 3-dim tensor. [sequence, batch, feature]
+            21 parameters of sac model, normalized.
 
         Returns
         -------

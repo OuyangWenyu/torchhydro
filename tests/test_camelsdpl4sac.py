@@ -4,6 +4,9 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
 
+VAR_C_CHOSEN_FROM_CAMELS_US = [
+    "area_gages2",
+]
 VAR_T_CHOSEN_FROM_DAYMET = [
     # NOTE: prcp must be the first variable
     "prcp",
@@ -17,6 +20,7 @@ VAR_T_CHOSEN_FROM_DAYMET = [
 
 def run_camelsdplsac(
     gage_id_file,
+    var_c=VAR_C_CHOSEN_FROM_CAMELS_US,
     var_t=VAR_T_CHOSEN_FROM_DAYMET,
     train_period=None,
     valid_period=None,
@@ -59,13 +63,14 @@ def run_camelsdplsac(
         },
         loss_func="RMSESum",
         sampler="KuaiSampler",
-        dataset="DplDataset",
+        dataset="StreamflowDataset",
         scaler="DapengScaler",
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
         batch_size=50,
         forecast_length=366,
+        var_c=var_c,
         var_t=var_t,
         var_out=["streamflow"],
         target_as_input=0,
