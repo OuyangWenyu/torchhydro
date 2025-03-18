@@ -5,18 +5,19 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
 @pytest.fixture()    # 用于测试的特征  装饰器是装饰器，魔法函数是魔法函数。
-def dpl4sac_args():  # todo:
+def dpl4sac_args():
     project_name = os.path.join("test", "expdpl4sac")  # D:\torchhydro\tests\results\test\expdpl4sac
-    train_period = ["2009-01-01", "2011-01-01"]  # 训练期  预热一年、训练一年
-    valid_period = ["2011-01-01", "2012-01-01"]  # 验证期
-    test_period = ["2012-01-01", "2013-01-01"]  # 测试期/预报期
+    train_period = ["2007-10-01", "2008-10-01"]  # 训练期  预热一年、训练一年
+    valid_period = ["2008-10-01", "2009-10-01"]  # 验证期
+    test_period = ["2009-10-01", "2010-10-01"]  # 测试期/预报期
     return cmd(  # parameters inputted from control console
         sub=project_name,
         source_cfgs={
             "source_name": "camels_us",  # time_range: ["1980-01-01", "2014-12-31]
-            "source_path": "D:\minio\waterism\datasets-origin\camels\camels_us",
-            # "source_path": SETTING["local_data_path"]["datasets-interim"],
-            # "other_settings": {"time_unit": ["1D"]},
+            # "source_path": "D:\minio\waterism\datasets-origin\camels\camels_us",
+            "source_path": os.path.join(
+                SETTING["local_data_path"]["datasets-interim"], "camels", "camels_us"
+            )
         },
         # model_type="Normal",  # help="The type of DL model",  "Normal": DeepHydro,   # todo: modle_type 与 model_name 的区别是什么？
         ctx=[-1],  # help="Running Context -- gpu num or cpu. E.g `--ctx 0 1` means run code in gpu 0 and 1; -1 means cpu",
