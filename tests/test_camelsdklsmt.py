@@ -48,21 +48,15 @@ VAR_T_CHOSEN_FROM_DK = [
 ]
 
 @pytest.fixture
-def run_normal_dl(
-    project_name,
-    gage_id_file,
-    var_c=VAR_C_CHOSEN_FROM_CAMELS_DK,
-    var_t=VAR_T_CHOSEN_FROM_DK,
-    train_period=None,
-    valid_period=None,
-    test_period=None,
+def camelsdklsmt_args(
+    var_c = VAR_C_CHOSEN_FROM_CAMELS_DK,
+    var_t = VAR_T_CHOSEN_FROM_DK
 ):
-    if train_period is None:  # camels-dk time_range: ["1989-01-02", "2023-12-31"]
-        train_period = ["2017-10-01", "2018-10-01"]
-    if valid_period is None:
-        valid_period = ["2018-10-01", "2019-10-01"]
-    if test_period is None:
-        test_period = ["2019-10-01", "2020-10-01"]
+    project_name = os.path.join("test_camels", "lstm_camelsdk"),
+    # camels-dk time_range: ["1989-01-02", "2023-12-31"]
+    train_period = ["2017-10-01", "2018-10-01"]
+    valid_period = ["2018-10-01", "2019-10-01"]
+    test_period = ["2019-10-01", "2020-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -101,19 +95,19 @@ def run_normal_dl(
             "load_way": "specified",
             "test_epoch": 1,
         },
-        gage_id_file=gage_id_file,
+        # the gage_id.txt file is set by the user, it must be the format like:
+        # GAUGE_ID
+        # 01013500
+        # 01022500
+        # ......
+        # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
+        gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_dk\\gage_id.txt",
         which_first_tensor="sequence",
     )
     update_cfg(config_data, args)
-    train_and_evaluate(config_data)
+    return config_data
+
+
+def test_camelsdklstm(camelsdklsmt_args):
+    train_and_evaluate(camelsdklsmt_args)
     print("All processes are finished!")
-
-
-def test_camelsdklstm(run_normal_dl):
-    # the gage_id.txt file is set by the user, it must be the format like:
-    # GAUGE_ID
-    # 01013500
-    # 01022500
-    # ......
-    # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-    run_normal_dl(os.path.join("test_camels", "lstm_camelsdk"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_dk\\gage_id.txt")
