@@ -51,7 +51,7 @@ def run_camelsdplsac(
         ctx=[-1],
         model_name="DplLstmSac",
         model_hyperparam={
-            "n_input_features": 21,  # 21 parameter of sac model
+            "n_input_features": 21,  # 21 parameter of sac model   25
             "n_output_features": 21,  # 输入21个参数
             "n_hidden_states": 256,
             "warmup_length": 10,
@@ -92,9 +92,9 @@ def run_camelsdplsac(
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
-        batch_size=20,
+        batch_size=20,  # 20 basin per batch
         forecast_history=0,
-        forecast_length=30,
+        forecast_length=30,  # 10 + 30 = 40, sequence length
         var_t=[
             "prcp",
             "PET",
