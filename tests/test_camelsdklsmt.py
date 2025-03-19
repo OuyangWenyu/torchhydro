@@ -109,7 +109,7 @@ def run_normal_dl(
     print("All processes are finished!")
 
 
-def test_camelsdklstm():
+def test_camelsdklstm(run_normal_dl):
     # the gage_id.txt file is set by the user, it must be the format like:
     # GAUGE_ID
     # 01013500
