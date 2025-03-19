@@ -9,31 +9,31 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import os
-
+import pytest
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
 VAR_C_CHOSEN_FROM_CAMELS_GB = [
     "elev_mean",
-    "slope_mean",
+    "slope_fdc",
     "area",
     "shrub_perc",
-    "mix_wood_perc",
-    "rock_perc",
+    "dwood_perc",
+    "organic_perc",
     "dom_land_cover",
-    "dom_land_cover",
+    "grass_perc",
     "root_depth_50",
     "root_depth",
-    "porosity",
-    "conductivity",
-    "tot_avail_water",
-    "unconsol_sediments",
-    "siliciclastic_sedimentary",
-    "geo_porosity",
-    "geo_log10_permeability",
+    "porosity_cosby",
+    "conductivity_cosby_50",
+    "soil_depth_pelletier",
+    "urban_perc",
+    "inwater_perc",
+    "inter_mod_perc",
+    "frac_mod_perc",
 ]
-VAR_T_CHOSEN_FROM_GB= [
+VAR_T_CHOSEN_FROM_GB = [
     "precipitation",
     "pet",
     "temperature",
@@ -44,22 +44,16 @@ VAR_T_CHOSEN_FROM_GB= [
     "windspeed",
 ]
 
-
-def run_normal_dl(
-    project_name,
-    gage_id_file,
-    var_c=VAR_C_CHOSEN_FROM_CAMELS_GB,
-    var_t=VAR_T_CHOSEN_FROM_GB,
-    train_period=None,
-    valid_period=None,
-    test_period=None,
+@pytest.fixture
+def camelsgblsmt_args(
+    var_c = VAR_C_CHOSEN_FROM_CAMELS_GB,
+    var_t = VAR_T_CHOSEN_FROM_GB
 ):
-    if train_period is None:  # camels-gb time_range: ["1970-10-01", "2015-09-30"]
-        train_period = ["2011-10-01", "2012-10-01"]
-    if valid_period is None:
-        valid_period = ["2012-10-01", "2013-10-01"]
-    if test_period is None:
-        test_period = ["2013-10-01", "2014-10-01"]
+    project_name = os.path.join("test_camels", "lstm_camelsgb"),
+    # camels-gb time_range: ["1970-10-01", "2015-09-30"]
+    train_period = ["2011-10-01", "2012-10-01"]
+    valid_period = ["2012-10-01", "2013-10-01"]
+    test_period = ["2013-10-01", "2014-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -81,7 +75,7 @@ def run_normal_dl(
         sampler="KuaiSampler",
         dataset="StreamflowDataset",
         scaler="DapengScaler",
-        batch_size=512,
+        batch_size=50,
         forecast_history=0,
         forecast_length=366,
         var_t=var_t,
@@ -92,24 +86,25 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=20,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 1,
         },
-        gage_id_file=gage_id_file,
+        # the gage_id.txt file is set by the user, it must be the format like:
+        # GAUGE_ID
+        # 01013500
+        # 01022500
+        # ......
+        # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
+        gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_gb\\gage_id.txt",
         which_first_tensor="sequence",
     )
     update_cfg(config_data, args)
-    train_and_evaluate(config_data)
+    return config_data
+
+
+def test_camelsgblstm(camelsgblsmt_args):
+    train_and_evaluate(camelsgblsmt_args)
     print("All processes are finished!")
-
-
-# the gage_id.txt file is set by the user, it must be the format like:
-# GAUGE_ID
-# 01013500
-# 01022500
-# ......
-# Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("test_camels", "lstm_camelsgb"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_gb\\gage_id.txt")
