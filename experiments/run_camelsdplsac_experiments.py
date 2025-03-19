@@ -1,21 +1,27 @@
-"""
-Author: Wenyu Ouyang
-Date: 2023-09-20 20:05:10
-LastEditTime: 2024-05-27 16:21:16
-LastEditors: Wenyu Ouyang
-Description: A case for dPL-XAJ model
-FilePath: \torchhydro\experiments\run_camelsdplxaj_experiments.py
-Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
-"""
-
 import os
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
-
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
 
+# VAR_C_CHOSEN_FROM_CAMELS_US = [
+#     "area_gages2",
+# ]
+# VAR_T_CHOSEN_FROM_DAYMET = [
+#     # NOTE: prcp must be the first variable
+#     "prcp",
+#     "dayl",
+#     "srad",
+#     "swe",
+#     "tmax",
+#     "tmin",
+#     "vp",
+# ]
 
-def run_dplxaj(train_period=None, valid_period=None, test_period=None):
+def run_camelsdplsac(
+    train_period=None,
+    valid_period=None,
+    test_period=None
+):
     """
     Use attr and forcing as input for dPL model
 
@@ -35,28 +41,30 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         test_period = ["2000-10-01", "2010-10-01"]
     config = default_config_file()
     args = cmd(
-        sub=os.path.join("test_camels", "expdplxaj"),
+        sub=os.path.join("test_camels", "expdpl4sac"),
         source_cfgs={
             "source_name": "camels_us",
             "source_path": os.path.join(
                 SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
             ),
         },
-        ctx=[0],
-        model_name="DplLstmXaj",
-        model_hyperparam={  #
-            "n_input_features": 25,
-            "n_output_features": 15,
+        ctx=[-1],
+        model_name="DplLstmSac",
+        model_hyperparam={
+            "n_input_features": 21,  # 21 parameter of sac model
+            "n_output_features": 21,  # 输入21个参数
             "n_hidden_states": 256,
-            "kernel_size": 15,
             "warmup_length": 10,
-            "param_limit_func": "clamp",
         },
         loss_func="RMSESum",
-        dataset="DplDataset",
+        # sampler="KuaiSampler",
+        # dataset="StreamflowDataset",
+        dataset="DplDataset",   # todo:
         scaler="DapengScaler",
-        scaler_params={
-            "prcp_norm_cols": ["streamflow"],
+        scaler_params={  # todo:
+            "prcp_norm_cols": [
+                "streamflow",
+            ],
             "gamma_norm_cols": [
                 "prcp",
                 "pr",
@@ -101,6 +109,7 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         target_as_input=0,
         constant_only=0,
         train_epoch=10,
+        save_epoch=1,
         model_loader={
             "load_way": "specified",
             "test_epoch": 10,
@@ -111,10 +120,12 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
     )
     update_cfg(config, args)
     train_and_evaluate(config)
+    print("All processes are finished!")
 
 
-run_dplxaj(
+run_camelsdplsac(
     train_period=["1985-10-01", "1986-10-01"],
     valid_period=["1986-10-01", "1987-10-01"],
     test_period=["1987-10-01", "1988-10-01"],
 )
+

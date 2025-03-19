@@ -44,7 +44,6 @@ def run_camelsdplsac(
     if test_period is None:
         test_period = ["2009-10-01", "2010-10-01"]
     config = default_config_file()
-    # return cmd(
     args = cmd(
         sub=os.path.join("test_camels", "expdpl4sac"),
         source_cfgs={
@@ -55,14 +54,14 @@ def run_camelsdplsac(
         },
         ctx=[-1],
         model_name="DplLstmSac",
-        model_hyperparam={  # reference to run_camelsdplxaj_experiments.rundplxaj
-            "n_input_features": 21,
+        model_hyperparam={
+            "n_input_features": 21,  # 21 parameter of sac model
             "n_output_features": 21,  # 输入21个参数
             "n_hidden_states": 256,
             "warmup_length": 365,
         },
         loss_func="RMSESum",
-        sampler="KuaiSampler",
+        # sampler="KuaiSampler",
         # dataset="StreamflowDataset",
         dataset="DplDataset",   # todo:
         scaler="DapengScaler",
