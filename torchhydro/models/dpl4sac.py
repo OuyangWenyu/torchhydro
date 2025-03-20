@@ -276,8 +276,6 @@ class SingleStepSacramento(nn.Module):
         qgs0.to(self.device)
         qgp0.to(self.device)
 
-
-
         # routing
         parea_ = 1 - pctim - adimp
         parea = torch.clamp(parea_, min=0.0)
@@ -429,6 +427,32 @@ class Sac4Dpl(nn.Module):
         """
         sac_device = p_and_e.device
         n_basin, n_para = parameters.size()
+
+        # para = torch.full((kc.size(),parameters.shap(1)),[kc, pctim, adimp, uztwm, uzfwm, lztwm, lzfsm, lzfpm, rserv, pfree, riva, zperc, rexp, uzk, lzsk, lzpk, ci, cgs, cgp, ke, xe],)
+        # area = [2252.7, 573.6, 3676.17, 769.05, 909.1, 383.82, 180.98, 250.64, 190.92, 31.3]     # dpl4sac_args camelsus [gage_id.area]  # todo: 线性水库汇流需要用到流域面积将产流runoff的mm乘以面积的m^2将平面径流转化为流量的m^3/s
+
+        intervar = torch.full((n_basin,11),0.0).detach()  # basin|inter_variables
+        rsnpb = 1  # river sections number per basin
+        rivernumber = np.full(n_basin, 1)  # set only one river section.   basin|river_section
+        mq = torch.full((n_basin,rsnpb),0.0).detach()  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
+
+        if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
+            # set no_grad for warmup periods
+            with torch.no_grad():
+                p_and_e_warmup = p_and_e[0:self.warmup_length, :, :]  # time|basin|p_and_e
+                cal_init_sac4dpl = Sac4Dpl(
+                    # warmup_length must be 0 here
+                    warmup_length=0,
+                )
+                if cal_init_sac4dpl.warmup_length > 0:
+                    raise RuntimeError("Please set init model's warmup length to 0!!!")
+                _, _, intervar = cal_init_sac4dpl(  # note: parameter should be the parameters before de-normalizing.
+                    p_and_e_warmup, parameters, return_state=True
+                )
+        else:  # if no, set a small value directly.
+            intervar = torch.full((n_basin, 11), 0.1).detach()
+            mq = torch.full((n_basin, rsnpb), 0.01).detach()
+
         # parameters
         para = torch.full((n_basin, n_para), 0.0)
         para[:, 0] = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])    # parameters[:, 0]是个二维张量， 流域|参数  kc是个一维张量，不同流域的参数。  basin first
@@ -453,40 +477,16 @@ class Sac4Dpl(nn.Module):
         para[:, 19] = self.ke_scale[0] + parameters[:, 19] * (self.ke_scale[1] - self.ke_scale[0])
         para[:, 20] = self.xe_scale[0] + parameters[:, 20] * (self.xe_scale[1] - self.xe_scale[0])
 
-        # para = torch.full((kc.size(),parameters.shap(1)),[kc, pctim, adimp, uztwm, uzfwm, lztwm, lzfsm, lzfpm, rserv, pfree, riva, zperc, rexp, uzk, lzsk, lzpk, ci, cgs, cgp, ke, xe],)
-        # area = [2252.7, 573.6, 3676.17, 769.05, 909.1, 383.82, 180.98, 250.64, 190.92, 31.3]     # dpl4sac_args camelsus [gage_id.area]  # todo: 线性水库汇流需要用到流域面积将产流runoff的mm乘以面积的m^2将平面径流转化为流量的m^3/s
-
-        intervar = torch.full((n_basin,11),0.0).detach()  # basin|inter_variables
-        rsnpb = 1  # river sections number per basin
-        rivernumber = np.full(n_basin, 1)  # set only one river section.   basin|river_section
-        mq = torch.full((n_basin,rsnpb),0.0).detach()  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
-
-        if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
-            # set no_grad for warmup periods
-            with torch.no_grad():
-                p_and_e_warmup = p_and_e[0:self.warmup_length, :, :]  # time|basin|p_and_e
-                cal_init_sac4dpl = Sac4Dpl(
-                    # warmup_length must be 0 here
-                    warmup_length=0,
-                )
-                if cal_init_sac4dpl.warmup_length > 0:
-                    raise RuntimeError("Please set init model's warmup length to 0!!!")
-                _, _, intervar = cal_init_sac4dpl(
-                    p_and_e_warmup, para, return_state=True
-                )
-        else:  # if no, set a small value directly.
-            intervar = torch.full((n_basin, 11), 0.1).detach()
-            mq = torch.full((n_basin, rsnpb), 0.01).detach()
-
-        prcp = torch.clamp(p_and_e[self.warmup_length:, :, 0], min=0.0)  # time|basin
-        pet = torch.clamp(p_and_e[self.warmup_length:, :, 1], min=0.0)  # time|basin
+        prcp = p_and_e[self.warmup_length:, :, 0]  # time|basin
+        pet = p_and_e[self.warmup_length:, :, 1]  # time|basin
         n_step, n_basin = prcp.size()
         singlesac = SingleStepSacramento(sac_device, 1, para, intervar, rivernumber, mq)
         e_sim_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         q_sim_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         for i in range(n_step):
-            p = prcp[i, :]
-            e = pet[i, :]
+            p = torch.clamp(prcp[i, :], min=0.0)
+            e_ = torch.nan_to_num(pet[i, :], nan=0.0, posinf=0.0, neginf=0.0)
+            e = torch.clamp(e_, min=0.0)
             et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:, :7] = singlesac.cal_runoff(p, e)
             q_sim_[i], intervar[:, 7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)
             e_sim_[i] = et

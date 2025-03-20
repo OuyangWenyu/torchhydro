@@ -108,19 +108,19 @@ class SingleStepTank(nn.Module):
         pe = torch.clamp(prcp - et, min=0.0)  # net precipitation
         # soil moisture
         x = xf
-        xf = x - torch.clamp(ep - prcp, min=0.0)  # update the first layer remain free water
-        xp = xp - torch.clamp(ep - prcp - x, min=0.0)  # update the first layer remain tension water
+        xf_ = x - torch.clamp(ep - prcp, min=0.0)  # update the first layer remain free water
+        xp_ = xp - torch.clamp(ep - prcp - x, min=0.0)  # update the first layer remain tension water
         # update soil moisture
-        t1 = k1 * torch.min(x2, w1 - xp)
-        xp = xp + t1  # update the first layer tension water
-        x2 = x2 - t1  # update the second layer free water
+        t1 = k1 * torch.min(x2, w1 - xp_)
+        xp = xp_ + t1  # update the first layer tension water
+        x2_ = x2 - t1  # update the second layer free water
 
         t2 = k2 * (xs * w1 - xp * w2) / (w1 + w2)  # if t2>0,
 
         xp = xp + t2  # update the first layer tension water
         xs = xs - t2  # update the second layer tension water
 
-        xf = xf + torch.clamp(xp + pe - w1)  # update the first layer free water
+        xf = xf_ + torch.clamp(xp + pe - w1)  # update the first layer free water
         xp = torch.min(w1, xp + pe)  # update the first layer tension water    the next timestep
 
         # the infiltrated water
@@ -312,6 +312,29 @@ class Tank4Dpl(nn.Module):
         """
         tank_device = p_and_e.device
         n_basin, n_para = parameters.size()
+
+        intervar = torch.full((n_basin,11),0.0).detach()  # basin|inter_variables
+        rsnpb = 1  # river sections number per basin
+        rivernumber = np.full(n_basin, 1)  # set only one river section.   basin|river_section
+        mq = torch.full((n_basin,rsnpb),0.0).detach()  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
+
+        if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
+            # set no_grad for warmup periods
+            with torch.no_grad():
+                p_and_e_warmup = p_and_e[0:self.warmup_length, :, :]  # time|basin|p_and_e
+                cal_init_tank4dpl = Tank4Dpl(
+                    # warmup_length must be 0 here
+                    warmup_length=0,
+                )
+                if cal_init_tank4dpl.warmup_length > 0:
+                    raise RuntimeError("Please set init model's warmup length to 0!!!")
+                _, _, intervar = cal_init_tank4dpl(
+                    p_and_e_warmup, parameters, return_state=True
+                )
+        else:  # if no, set a small value directly.
+            intervar = torch.full((n_basin, 11), 0.1).detach()
+            mq = torch.full((n_basin, rsnpb), 0.01).detach()
+
         # parameters
         para = torch.full((n_basin, n_para), 0.0)
         para[:, 0] = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])    # parameters[:, 0]是个二维张量， 流域|参数  kc是个一维张量，不同流域的参数。  basin first
@@ -334,27 +357,6 @@ class Tank4Dpl(nn.Module):
         para[:, 17] = self.e1_scale[0] + parameters[:, 17] * (self.e1_scale[1] - self.e1_scale[0])
         para[:, 18] = self.e2_scale[0] + parameters[:, 18] * (self.e2_scale[1] - self.e2_scale[0])
         para[:, 19] = self.h_scale[0] + parameters[:, 19] * (self.h_scale[1] - self.h_scale[0])
-
-        intervar = torch.full((n_basin,11),0.0)  # basin|inter_variables
-        rsnpb = 1  # river sections number per basin
-        rivernumber = torch.full(para[:, 0].size(),rsnpb)  # set only one river section.   basin|river_section
-        mq = torch.full((n_basin,rsnpb),0.0)  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber
-
-        if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
-            # set no_grad for warmup periods
-            with torch.no_grad():
-                p_and_e_warmup = p_and_e[0:self.warmup_length, :, :]  # time|basin|p_and_e
-                cal_init_tank4dpl = Tank4Dpl(
-                    # warmup_length must be 0 here
-                    warmup_length=0,
-                )
-                if cal_init_tank4dpl.warmup_length > 0:
-                    raise RuntimeError("Please set init model's warmup length to 0!!!")
-                _, _, intervar = cal_init_tank4dpl(
-                    p_and_e_warmup, para, return_state=True
-                )
-        else:  # if no, set a small value directly.
-            intervar = torch.full((n_basin, 11), 0.1)
 
         prcp = torch.clamp(p_and_e[self.warmup_length:, :, 0], min=0.0)  # time|basin
         pet = torch.clamp(p_and_e[self.warmup_length:, :, 1], min=0.0)  # time|basin
@@ -485,7 +487,7 @@ class DplLstmTank(nn.Module):
         n_input_features
             the number of input features of LSTM
         n_output_features
-            the number of output features of LSTM, and it should be equal to the number of learning parameters in SAC
+            the number of output features of LSTM, and it should be equal to the number of learning parameters in TANK
         n_hidden_states
             the number of hidden features of LSTM
         warmup_length
