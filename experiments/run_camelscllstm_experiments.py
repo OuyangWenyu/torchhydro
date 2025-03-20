@@ -43,7 +43,7 @@ VAR_T_CHOSEN_FROM_CL = [
     "tmean_cr2met",
     "pet_8d_modis",
     "pet_hargreaves",
-    "swe"
+    "swe",
 ]
 
 

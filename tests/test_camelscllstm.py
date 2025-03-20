@@ -9,63 +9,60 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import os
-
+import pytest
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
-VAR_C_CHOSEN_FROM_CAMELS_CH = [
+VAR_C_CHOSEN_FROM_CAMELS_CL = [
     "elev_mean",
     "slope_mean",
     "area",
-    "shrub_perc",
-    "mix_wood_perc",
-    "rock_perc",
+    "forest_frac",
+    "crop_frac",
+    "nf_frac",
+    "dom_land_cover_frac",
     "dom_land_cover",
-    "dom_land_cover",
-    "root_depth_50",
-    "root_depth",
-    "porosity",
-    "conductivity",
-    "tot_avail_water",
-    "unconsol_sediments",
-    "siliciclastic_sedimentary",
-    "geo_porosity",
-    "geo_log10_permeability",
+    "grass_frac",
+    "shrub_frac",
+    "wet_frac",
+    "imp_frac",
+    "fp_frac",
+    "geol_class_1st",
+    "geol_class_1st_frac",
+    "geol_class_2nd",
+    "carb_rocks_frac",
 ]
-VAR_T_CHOSEN_FROM_CH = [
-    "waterlevel",
-    "precipitation",
-    "temperature_min",
-    "temperature_mean",
-    "temperature_max",
-    "rel_sun_dur",
+VAR_T_CHOSEN_FROM_CL = [
+    "precip_cr2met",
+    "precip_chirps",
+    "precip_mswep",
+    "precip_tmpa",
+    "tmin_cr2met",
+    "tmax_cr2met",
+    "tmean_cr2met",
+    "pet_8d_modis",
+    "pet_hargreaves",
     "swe",
 ]
 
-
-def run_normal_dl(
-    project_name,
-    gage_id_file,
-    var_c=VAR_C_CHOSEN_FROM_CAMELS_CH,
-    var_t=VAR_T_CHOSEN_FROM_CH,
-    train_period=None,
-    valid_period=None,
-    test_period=None,
+@pytest.fixture
+def camelscllsmt_args(
+    var_c = VAR_C_CHOSEN_FROM_CAMELS_CL,
+    var_t = VAR_T_CHOSEN_FROM_CL
 ):
-    if train_period is None:  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
-        train_period = ["2017-10-01", "2018-10-01"]
-    if valid_period is None:
-        valid_period = ["2018-10-01", "2019-10-01"]
-    if test_period is None:
-        test_period = ["2019-10-01", "2020-10-01"]
+    project_name = os.path.join("test_camels", "lstm_camelscl"),
+    # camels-cl time_range: ["1970-10-01", "2015-09-30"]
+    train_period = ["2011-10-01", "2012-10-01"]
+    valid_period = ["2012-10-01", "2013-10-01"]
+    test_period = ["2013-10-01", "2014-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_ch",
+            "source_name": "camels_cl",
             "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_ch"
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_cl"
             ),
         },
         ctx=[-1],
@@ -80,7 +77,7 @@ def run_normal_dl(
         sampler="KuaiSampler",
         dataset="StreamflowDataset",
         scaler="DapengScaler",
-        batch_size=512,
+        batch_size=50,
         forecast_history=0,
         forecast_length=366,
         var_t=var_t,
@@ -91,24 +88,25 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=20,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 1,
         },
-        gage_id_file=gage_id_file,
+        # the gage_id.txt file is set by the user, it must be the format like:
+        # GAUGE_ID
+        # 01013500
+        # 01022500
+        # ......
+        # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
+        gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_cl\\gage_id.txt",
         which_first_tensor="sequence",
     )
     update_cfg(config_data, args)
-    train_and_evaluate(config_data)
+    return config_data
+
+
+def test_camelscllstm(camelscllsmt_args):
+    train_and_evaluate(camelscllsmt_args)
     print("All processes are finished!")
-
-
-# the gage_id.txt file is set by the user, it must be the format like:
-# GAUGE_ID
-# 01013500
-# 01022500
-# ......
-# Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("test_camels", "lstm_camelsch"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_cl\\gage_id.txt")
