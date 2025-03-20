@@ -3,6 +3,7 @@ from typing import Union
 import torch
 from torch import nn
 from torch import Tensor
+from torch.nn import functional as F
 from torchhydro.configs.model_config import MODEL_PARAM_DICT, MODEL_PARAM_TEST_WAY
 from torchhydro.models.simple_lstm import SimpleLSTM
 from torchhydro.models.ann import SimpleAnn
@@ -426,7 +427,7 @@ class DplAnnTank(nn.Module):
         """
         Differential parameter learning
 
-        z (normalized input) -> ANN -> param -> + x (not normalized) -> sac -> q
+        z (normalized input) -> ANN -> param -> + x (not normalized) -> tank -> q
 
         Parameters
         ----------
@@ -440,3 +441,21 @@ class DplAnnTank(nn.Module):
             one time forward result
         """
         gen = self.dl_model(z)
+        if torch.isnan(gen).any():
+            raise ValueError("Error: NaN values detected. Check your data firstly!!!")
+        # we set all params' values in [0, 1] and will scale them when forwarding
+        if self.param_func == "sigmoid":
+            params = F.sigmoid(gen)
+        elif self.param_func == "clamp":
+            params = torch.clamp(gen, min=0.0, max=1.0)
+        else:
+            raise NotImplementedError(
+                "We don't provide this way to limit parameters' range!! Please choose sigmoid or clamp"
+            )
+        # just get one-period values, here we use the final period's values,
+        # when the MODEL_PARAM_TEST_WAY is not time_varing, we use the last period's values.
+        if self.param_test_way != MODEL_PARAM_TEST_WAY["time_varying"]:
+            params = params[-1, :, :]
+        # Please put p in the first location and pet in the second
+        q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)
+        return torch.cat([q, e], dim=-1)

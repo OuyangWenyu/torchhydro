@@ -3,19 +3,6 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
 
-# VAR_C_CHOSEN_FROM_CAMELS_US = [
-#     "area_gages2",
-# ]
-# VAR_T_CHOSEN_FROM_DAYMET = [
-#     # NOTE: prcp must be the first variable
-#     "prcp",
-#     "dayl",
-#     "srad",
-#     "swe",
-#     "tmax",
-#     "tmin",
-#     "vp",
-# ]
 
 def run_camelsdplsac(
     train_period=None,
@@ -51,7 +38,7 @@ def run_camelsdplsac(
         ctx=[-1],
         model_name="DplLstmSac",
         model_hyperparam={
-            "n_input_features": 21,  # 21 parameter of sac model   25
+            "n_input_features": 25,  # 21 parameter of sac model   25
             "n_output_features": 21,  # 输入21个参数
             "n_hidden_states": 256,
             "warmup_length": 10,
