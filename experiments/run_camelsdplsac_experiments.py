@@ -64,7 +64,7 @@ def run_camelsdplsac(
             ],
             "pbm_norm": True,
         },
-        gage_id=[
+        gage_id=[  # grid
             "01013500",
             "01022500",
             "01030500",
@@ -79,7 +79,7 @@ def run_camelsdplsac(
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
-        batch_size=20,  # 20 basin per batch
+        batch_size=20,  # 20 basin per batch  ?
         forecast_history=0,
         forecast_length=30,  # 10 + 30 = 40, sequence length
         var_t=[
@@ -111,8 +111,8 @@ def run_camelsdplsac(
 
 
 run_camelsdplsac(
-    train_period=["1985-10-01", "1986-10-01"],
-    valid_period=["1986-10-01", "1987-10-01"],
-    test_period=["1987-10-01", "1988-10-01"],
+    train_period=["1980-01-01", "1981-01-01"],
+    valid_period=["1981-01-01", "1982-01-01"],
+    test_period=["1982-01-01", "1983-01-01"],
 )
 

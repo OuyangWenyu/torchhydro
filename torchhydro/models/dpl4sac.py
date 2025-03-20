@@ -475,7 +475,8 @@ class Sac4Dpl(nn.Module):
                     p_and_e_warmup, para, return_state=True
                 )
         else:  # if no, set a small value directly.
-            intervar = torch.full((n_basin, 11), 0.1).detach()  # to(sac_device)?
+            intervar = torch.full((n_basin, 11), 0.1).detach()
+            mq = torch.full((n_basin, rsnpb), 0.01).detach()
 
         prcp = torch.clamp(p_and_e[self.warmup_length:, :, 0], min=0.0)  # time|basin
         pet = torch.clamp(p_and_e[self.warmup_length:, :, 1], min=0.0)  # time|basin

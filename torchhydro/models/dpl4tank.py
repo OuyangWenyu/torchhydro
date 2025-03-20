@@ -459,3 +459,53 @@ class DplAnnTank(nn.Module):
         # Please put p in the first location and pet in the second
         q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)
         return torch.cat([q, e], dim=-1)
+
+
+class DplLstmTank(nn.Module):
+    """
+    Tank differential parameter learning - Long short-term memory neural network model
+    """
+    def __init__(
+        self,
+        n_input_features,
+        n_output_features,
+        n_hidden_states,
+        warmup_length,
+        param_limit_func="clamp",
+        param_test_way="final",
+        source_book="HF",
+    ):
+        """
+        Differential Parameter learning model: LSTM -> Param -> TANK
+
+        The principle can be seen here: https://doi.org/10.1038/s41467-021-26107-z
+
+        Parameters
+        ----------
+        n_input_features
+            the number of input features of LSTM
+        n_output_features
+            the number of output features of LSTM, and it should be equal to the number of learning parameters in SAC
+        n_hidden_states
+            the number of hidden features of LSTM
+        warmup_length
+            the length of warmup periods;
+            hydrologic models need a warmup period to generate reasonable initial state values
+        param_limit_func
+            function used to limit the range of params; now it is sigmoid or clamp function
+        param_test_way
+            how we use parameters from dl model when testing;
+            now we have three ways:
+            1. "final" -- use the final period's parameter for each period
+            2. "mean_time" -- Mean values of all periods' parameters is used
+            3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
+            but remember these ways are only for non-variable parameters
+        """
+        super(DplLstmTank, self).__init__()
+        self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)
+        self.pb_model = Tank4Dpl(
+            warmup_length,
+            source_book=source_book,
+        )
+        self.param_func = param_limit_func
+        self.param_test_way = param_test_way
