@@ -101,6 +101,10 @@ class SingleStepTank(nn.Module):
         xs = self.intervar[:, 3]
         x3 = self.intervar[:, 4]
         x4 = self.intervar[:, 5]
+        self.intervar[:, 7] = qs.detach()
+        self.intervar[:, 8] = qi.detach()
+        self.intervar[:, 9] = qgs.detach()
+        self.intervar[:, 10] = qgp.detach()
 
         # evaporation
         ep = kc * pet  # basin evaporation capacity
