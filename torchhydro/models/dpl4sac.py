@@ -270,7 +270,7 @@ class SingleStepSacramento(nn.Module):
         qs0 = self.intervar[:, 7].detach()  #
         qi0 = self.intervar[:, 8].detach()
         qgs0 = self.intervar[:, 9].detach()
-        qgp0 = self.intervar[:, 10].detach()
+        qgp0 = self.intervar[:, 10].to(self.device)
 
         # routing
         parea = 1 - pctim - adimp
@@ -282,9 +282,9 @@ class SingleStepSacramento(nn.Module):
         # qi = torch.clamp(qi_, min=0.0)
         qgs = cgs * qgs0 + (1 - cgs) * rgs * u
         # qgs = torch.clamp(qgs_, min=0.0)
-        qgp = cgp * qgp0 + (1 - cgp) * rgp * u   #
-        # qgp = torch.clamp(qgp_, min=0.0)
-        q_sim_ = (qs + qi + qgs + qgp)  # time|basin, two dimension tensor
+        qgp = torch.add(torch.mul(cgp, qgp0), torch.mul((1 - cgp), torch.mul(rgp, u)))  # modified by an inplace operation https://www.cnblogs.com/jiangkejie/p/13390377.html
+        qgp = torch.clamp(qgp, min=0.0)
+        q_sim_ = (qs.clone() + qi.clone() + qgs.clone() + qgp.clone())  # time|basin, two dimension tensor
         # middle variable, at the end of timestep.
         self.intervar[:, 7] = qs.detach()
         self.intervar[:, 8] = qi.detach()
@@ -486,6 +486,7 @@ class Sac4Dpl(nn.Module):
             e = torch.clamp(e_, min=0.0)
             et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:, :7] = singlesac.cal_runoff(p, e)
             q_sim_[i], intervar[:, 7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)  # qs_[i], qi_[i], qgs_[i], qgp_[i],
+            singlesac.intervar = intervar.detach()  # update inter variabls at end of per time-step
             e_sim_[i] = et
 
         # seq, batch, feature
@@ -582,7 +583,8 @@ class DplAnnSac(nn.Module):
             params = params[-1, :, :]   # todo: added a dimension?    basin|parameters
         # Please put p in the first location and pet in the second
         q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)   # 再将参数代入物理模型计算径流，然后使用实测数据比对、计算目标值。反复迭代优化，计算目标值损失量。    第三维是数据项/属性项，降雨和蒸发数据   时间|流域|特征（降雨蒸发）
-        return torch.cat([q, e], dim=-1)  # catenate, 拼接 q 和 e，按列。 [0,1]
+        # return torch.cat([q, e], dim=-1)  # catenate, 拼接 q 和 e，按列。 [0,1]
+        return q
 
 
 class DplLstmSac(nn.Module):

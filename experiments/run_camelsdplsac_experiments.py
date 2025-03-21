@@ -38,6 +38,7 @@ def run_camelsdplsac(
         },
         ctx=[-1],
         model_name="DplLstmSac",
+        # model_name="DplAnnSac",
         model_hyperparam={
             "n_input_features": 25,  # 21 parameter of sac model   25
             "n_output_features": 21,  # 输入21个参数

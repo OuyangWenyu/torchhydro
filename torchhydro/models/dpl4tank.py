@@ -357,6 +357,10 @@ class Tank4Dpl(nn.Module):
         para[:, 17] = self.e1_scale[0] + parameters[:, 17] * (self.e1_scale[1] - self.e1_scale[0])
         para[:, 18] = self.e2_scale[0] + parameters[:, 18] * (self.e2_scale[1] - self.e2_scale[0])
         para[:, 19] = self.h_scale[0] + parameters[:, 19] * (self.h_scale[1] - self.h_scale[0])
+        qs_ = torch.full((n_step, n_basin), 0.0).to(tank_device)  #
+        qi_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
+        qgs_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
+        qgp_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
 
         prcp = torch.clamp(p_and_e[self.warmup_length:, :, 0], min=0.0)  # time|basin
         pet = torch.clamp(p_and_e[self.warmup_length:, :, 1], min=0.0)  # time|basin
