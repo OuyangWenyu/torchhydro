@@ -61,9 +61,9 @@ class SingleStepSacramento(nn.Module):
         # self.area = area
         self.hydrodt = hydrodt
         self.para = para
-        self.intervar = intervar
+        self.intervar = intervar.detach()
         self.rivernumber = rivernumber
-        self.mq = mq  # Muskingum routing space
+        self.mq = mq.detach()  # Muskingum routing space
 
     def cal_runoff(
         self,
@@ -120,8 +120,8 @@ class SingleStepSacramento(nn.Module):
         ae2 = pctim * ep  # evaporation of the permanent impervious area
         # evaporation of the alterable impervious area
         ae1 = torch.min(auztw0, ep * (auztw0 / uztwm))  # upper layer
-        ae3 = (ep - ae1) * (alztw0 / (uztwm + lztwm))  # lower layer
-        ae3 = torch.clamp(ae3, min=0.0)
+        ae3_ = (ep - ae1) * (alztw0 / (uztwm + lztwm))  # lower layer
+        ae3 = torch.clamp(ae3_, min=0.0)
         pav = torch.clamp(prcp - (uztwm - (auztw0 - ae1)), min=0.0)
         adsur_ = pav * ((alztw0 - ae3) / lztwm)
         adsur = torch.clamp(adsur_, min=0.0)
@@ -267,58 +267,54 @@ class SingleStepSacramento(nn.Module):
         ke = self.para[:, 19]
         xe = self.para[:, 20]
         # middle variables, at the start of timestep.
-        qs0 = self.intervar[:, 7]  #
-        qi0 = self.intervar[:, 8]
-        qgs0 = self.intervar[:, 9]
-        qgp0 = self.intervar[:, 10]
-        qs0.to(self.device)
-        qi0.to(self.device)
-        qgs0.to(self.device)
-        qgp0.to(self.device)
+        qs0 = self.intervar[:, 7].detach()  #
+        qi0 = self.intervar[:, 8].detach()
+        qgs0 = self.intervar[:, 9].detach()
+        qgp0 = self.intervar[:, 10].detach()
 
         # routing
-        parea_ = 1 - pctim - adimp
-        parea = torch.clamp(parea_, min=0.0)
-        u = parea * 1000  # * self.area   # daily coefficient, no need conversion.  # todo: area
+        parea = 1 - pctim - adimp
+        # parea = torch.clamp(parea_, min=0.0)
+        u = parea * 1000 # * self.area   # daily coefficient, no need conversion.  # todo: area
         # slope routing, use the linear reservoir method
         qs = (roimp + (adsur + ars) * adimp + rs * parea) * 1000.0  # * self.area  # todo: area
-        qi_ = ci * qi0 + (1 - ci) * ri * u
-        qi = torch.clamp(qi_, min=0.0)
-        qgs_ = cgs * qgs0 + (1 - cgs) * rgs * u
-        qgs = torch.clamp(qgs_, min=0.0)
-        qgp_ = cgp * qgp0 + (1 - cgp) * rgp * u
-        qgp = torch.clamp(qgp_, min=0.0)
+        qi = ci * qi0 + (1 - ci) * ri * u
+        # qi = torch.clamp(qi_, min=0.0)
+        qgs = cgs * qgs0 + (1 - cgs) * rgs * u
+        # qgs = torch.clamp(qgs_, min=0.0)
+        qgp = cgp * qgp0 + (1 - cgp) * rgp * u   #
+        # qgp = torch.clamp(qgp_, min=0.0)
         q_sim_ = (qs + qi + qgs + qgp)  # time|basin, two dimension tensor
         # middle variable, at the end of timestep.
-        self.intervar[:, 7] = qs
-        self.intervar[:, 8] = qi
-        self.intervar[:, 9] = qgs
-        self.intervar[:, 10] = qgp
+        self.intervar[:, 7] = qs.detach()
+        self.intervar[:, 8] = qi.detach()
+        self.intervar[:, 9] = qgs.detach()
+        self.intervar[:, 10] = qgp.detach()
 
         # river routing, use the Muskingum routing method
-        ke_ = torch.full(ke.size(),0.0)
-        q_sim_0 = qs0 + qi0 + qgs0 + qgp0
+        ke_ = torch.full(ke.size(),0.0).detach()
+        q_sim_0 = (qs0 + qi0 + qgs0 + qgp0).detach()
         for i in range(n_basin):
             if self.rivernumber[i] > 0:
                 dt = self.hydrodt * 24.0 / 2.0
-                xo = xe[i]
-                ke_[i] = ke[i] * 24.0  # KE is hourly coefficient, need convert to daily.
-                ko = ke_[i] / self.rivernumber[i]
-                c1 = max(ko * (1.0 - xo) + dt, 0.0)
-                c2 = max((-ko * xo + dt) / c1, 0.0)
+                xo = xe[i].detach()
+                ke_[i] = (ke[i] * 24.0).detach()  # KE is hourly coefficient, need convert to daily.
+                ko = (ke_[i] / self.rivernumber[i]).detach()
+                c1 = (max(ko * (1.0 - xo) + dt, 0.0)).detach()
+                c2 = (max((-ko * xo + dt) / c1, 0.0)).detach()
                 c3 = max((ko * (1.0 - xo) - dt) / c1, 0.0)
-                c1_ = (ko * xo + dt) / c1
-                i1 = q_sim_0[i]  # flow at the start of timestep, inflow.
-                i2 = q_sim_[i]  # flow at the end of timestep, outflow.
+                c1_ = ((ko * xo + dt) / c1).detach()
+                i1 = q_sim_0[i].detach()  # flow at the start of timestep, inflow.
+                i2 = q_sim_[i].detach()  # flow at the end of timestep, outflow.
                 for j in range(self.rivernumber[i]):
                     q_sim_0[i] = self.mq[i, j]  # basin|rivernumber
-                    i2_ = c1_ * i1 + c2 * i2 + c3 * q_sim_0[i]
+                    i2_ = (c1_ * i1 + c2 * i2 + c3 * q_sim_0[i]).detach()
                     self.mq[i, j] = i2_
-                    i1 = q_sim_0[i]
-                    i2 = i2_
+                    i1 = q_sim_0[i].detach()
+                    i2 = i2_.detach()
             q_sim_[i] = i2  # todo: a problem
 
-        return q_sim_, self.intervar[:, 7:]
+        return q_sim_, self.intervar[:, 7:]  # qs, qi, qgs, qgp,
 
 class Sac4Dpl(nn.Module):
     """
@@ -430,12 +426,8 @@ class Sac4Dpl(nn.Module):
 
         # para = torch.full((kc.size(),parameters.shap(1)),[kc, pctim, adimp, uztwm, uzfwm, lztwm, lzfsm, lzfpm, rserv, pfree, riva, zperc, rexp, uzk, lzsk, lzpk, ci, cgs, cgp, ke, xe],)
         # area = [2252.7, 573.6, 3676.17, 769.05, 909.1, 383.82, 180.98, 250.64, 190.92, 31.3]     # dpl4sac_args camelsus [gage_id.area]  # todo: 线性水库汇流需要用到流域面积将产流runoff的mm乘以面积的m^2将平面径流转化为流量的m^3/s
-
-        intervar = torch.full((n_basin,11),0.0).detach()  # basin|inter_variables
         rsnpb = 1  # river sections number per basin
-        rivernumber = np.full(n_basin, 1)  # set only one river section.   basin|river_section
-        mq = torch.full((n_basin,rsnpb),0.0).detach()  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
-
+        mq = torch.full((n_basin, rsnpb),0.0).detach()  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
         if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
             # set no_grad for warmup periods
             with torch.no_grad():
@@ -450,8 +442,9 @@ class Sac4Dpl(nn.Module):
                     p_and_e_warmup, parameters, return_state=True
                 )
         else:  # if no, set a small value directly.
-            intervar = torch.full((n_basin, 11), 0.1).detach()
-            mq = torch.full((n_basin, rsnpb), 0.01).detach()
+            intervar = torch.full((n_basin, 11), 0.1).detach()  # basin|inter_variables
+            mq = torch.full((n_basin, rsnpb), 0.01).detach()  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
+        rivernumber = np.full(n_basin, 1)  # set only one river section.   basin|river_section
 
         # parameters
         para = torch.full((n_basin, n_para), 0.0)
@@ -480,15 +473,19 @@ class Sac4Dpl(nn.Module):
         prcp = p_and_e[self.warmup_length:, :, 0]  # time|basin
         pet = p_and_e[self.warmup_length:, :, 1]  # time|basin
         n_step, n_basin = prcp.size()
-        singlesac = SingleStepSacramento(sac_device, 1, para, intervar, rivernumber, mq)
+        singlesac = SingleStepSacramento(sac_device, 1, para, intervar, rivernumber, mq)  # todo: hydrodt
         e_sim_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         q_sim_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        # qs_ = torch.full((n_step, n_basin), 0.0).to(sac_device)  #
+        # qi_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        # qgs_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        # qgp_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         for i in range(n_step):
             p = torch.clamp(prcp[i, :], min=0.0)
             e_ = torch.nan_to_num(pet[i, :], nan=0.0, posinf=0.0, neginf=0.0)
             e = torch.clamp(e_, min=0.0)
             et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:, :7] = singlesac.cal_runoff(p, e)
-            q_sim_[i], intervar[:, 7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)
+            q_sim_[i], intervar[:, 7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)  # qs_[i], qi_[i], qgs_[i], qgp_[i],
             e_sim_[i] = et
 
         # seq, batch, feature

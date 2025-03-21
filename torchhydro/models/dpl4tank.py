@@ -511,3 +511,43 @@ class DplLstmTank(nn.Module):
         )
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
+    def forward(self, x, z):
+        """
+        Differential parameter learning
+
+        z (normalized input) -> lstm -> param -> + x (not normalized) -> tank -> q
+        Parameters will be denormalized in tank model
+
+        Parameters
+        ----------
+        x
+            not normalized data used for physical model; a sequence-first 3-dim tensor. [sequence, batch, feature]
+        z
+            normalized data used for DL model; a sequence-first 3-dim tensor. [sequence, batch, feature]
+            21 parameters of sac model, normalized.
+
+        Returns
+        -------
+        torch.Tensor
+            one time forward result
+        """
+        gen = self.dl_model(z)
+        if torch.isnan(gen).any():
+            raise ValueError("Error: NaN values detected. Check your data firstly!!!")
+        # we set all params' values in [0, 1] and will scale them when forwarding
+        if self.param_func == "sigmoid":
+            params = F.sigmoid(gen)
+        elif self.param_func == "clamp":
+            params = torch.clamp(gen, min=0.0, max=1.0)
+        else:
+            raise NotImplementedError(
+                "We don't provide this way to limit parameters' range!! Please choose sigmoid or clamp"
+            )
+        # just get one-period values, here we use the final period's values,
+        # when the MODEL_PARAM_TEST_WAY is not time_varing, we use the last period's values.
+        if self.param_test_way != MODEL_PARAM_TEST_WAY["time_varying"]:
+            params = params[-1, :, :]
+        # Please put p in the first location and pet in the second
+        q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)
+        # return torch.cat([q, e], dim=-1)
+        return q

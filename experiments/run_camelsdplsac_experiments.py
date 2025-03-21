@@ -1,4 +1,5 @@
 import os
+import torch
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
@@ -74,7 +75,17 @@ def run_camelsdplsac(
             "01054200",
             "01055000",
             "01057000",
-            "01170100",
+            "01073000",
+            "01078000",
+            "01118300",
+            "01121000",
+            "01123000",
+            "01134500",
+            "01137500",
+            "01139000",
+            "01139800",
+            "01142500",
+            "01144000",
         ],
         train_period=train_period,
         valid_period=valid_period,
@@ -106,13 +117,14 @@ def run_camelsdplsac(
         which_first_tensor="sequence",
     )
     update_cfg(config, args)
-    train_and_evaluate(config)
+    with torch.autograd.set_detect_anomaly(True):
+        train_and_evaluate(config)
     print("All processes are finished!")
 
 
 run_camelsdplsac(
-    train_period=["1980-01-01", "1981-01-01"],
-    valid_period=["1981-01-01", "1982-01-01"],
-    test_period=["1982-01-01", "1983-01-01"],
+    train_period=["1985-07-01", "1986-07-01"],
+    valid_period=["1986-10-01", "1987-10-01"],
+    test_period=["1987-10-01", "1988-10-01"],
 )
 
