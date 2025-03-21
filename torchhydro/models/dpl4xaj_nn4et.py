@@ -489,7 +489,7 @@ class Xaj4DplWithNnModule(nn.Module):
                 qi = linear_reservoir(ris_[i], ci, qi0)
                 qg = linear_reservoir(rgs_[i], cg, qg0)
             else:
-                qi = linear_reservoir(ris_[i], ci, qi)
+                qi = linear_reservoir(ris_[i], ci, qi)  # the variables range
                 qg = linear_reservoir(rgs_[i], cg, qg)
             qs[i, :] = qs_[i, :, 0] + qi + qg
         # seq, batch, feature

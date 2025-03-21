@@ -480,14 +480,31 @@ class Sac4Dpl(nn.Module):
         # qi_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         # qgs_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         # qgp_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        roimp_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        adsur_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        ars_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        rs_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        ri_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        rgs_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        rgp_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         for i in range(n_step):
             p = torch.clamp(prcp[i, :], min=0.0)
             e_ = torch.nan_to_num(pet[i, :], nan=0.0, posinf=0.0, neginf=0.0)
             e = torch.clamp(e_, min=0.0)
-            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:, :7] = singlesac.cal_runoff(p, e)
-            q_sim_[i], intervar[:, 7:] = singlesac.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)  # qs_[i], qi_[i], qgs_[i], qgp_[i],
-            singlesac.intervar = intervar.detach()  # update inter variabls at end of per time-step
+            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:, :7] = singlesac.cal_runoff(p, e)  # generating runoff and routing should be seperated?
+            singlesac.intervar[:, :7] = intervar[:, :7].detach()  # update inter variabls at end of per time-step
             e_sim_[i] = et
+            roimp_[i] = roimp
+            adsur_[i] = adsur
+            ars_[i] = ars
+            rs_[i] = rs
+            ri_[i] = ri
+            rgs_[i] = rgs
+            rgp_[i] = rgp
+
+        for i in range(n_step):
+            q_sim_[i], intervar[:, 7:] = singlesac.cal_routing(roimp_[i], adsur_[i], ars_[i], rs_[i], ri_[i], rgs_[i], rgp_[i])
+            singlesac.intervar[:, 7:] = intervar[:, 7:].detach()  # update inter variabls at end of per time-step
 
         # seq, batch, feature
         e_sim = torch.unsqueeze(e_sim_, dim=-1)  # add a dimension,  todo: why?
