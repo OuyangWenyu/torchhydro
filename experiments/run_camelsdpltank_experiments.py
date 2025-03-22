@@ -4,7 +4,7 @@ from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
 
 
-def run_camelsdplsac(
+def run_camelsdpltank(
     train_period=None,
     valid_period=None,
     test_period=None
@@ -28,8 +28,8 @@ def run_camelsdplsac(
         test_period = ["2000-10-01", "2010-10-01"]
     config = default_config_file()
     args = cmd(
-        sub=os.path.join("test_camels", "expdpllstmsac"),
-        # sub=os.path.join("test_camels", "expdplannsac"),
+        sub=os.path.join("test_camels", "expdpllstmtank"),
+        # sub=os.path.join("test_camels", "expdplanntank"),
         source_cfgs={
             "source_name": "camels_us",
             "source_path": os.path.join(
@@ -37,8 +37,8 @@ def run_camelsdplsac(
             ),
         },
         ctx=[-1],
-        model_name="DplLstmSac",
-        # model_name="DplAnnSac",
+        model_name="DplLstmTank",
+        # model_name="DplAnnTank",
         model_hyperparam={
             "n_input_features": 25,
             "n_output_features": 21,
@@ -121,7 +121,7 @@ def run_camelsdplsac(
     print("All processes are finished!")
 
 
-run_camelsdplsac(
+run_camelsdpltank(
     train_period=["1985-07-01", "1986-07-01"],
     valid_period=["1986-10-01", "1987-10-01"],
     test_period=["1987-10-01", "1988-10-01"],

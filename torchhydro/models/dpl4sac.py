@@ -270,12 +270,12 @@ class Sac4Dpl(nn.Module):
             rgp_[i] = rgp
 
         # routing
+        u = parea * 1000  # daily coefficient, no need conversion.
         for i in range(n_step):
             q_sim_0 = (qs + qi + qgs + qgp).detach()
             # routing
             parea = 1 - pctim - adimp
-            # parea = torch.clamp(parea_, min=0.0)
-            u = parea * 1000  # daily coefficient, no need conversion.
+            parea = torch.clamp(parea, min=0.0)
             # slope routing, use the linear reservoir method
             qs = (roimp_[i] + (adsur_[i] + ars_[i]) * adimp + rs_[i] * parea) * 1000.0
             qi = ci * qi + (1 - ci) * ri_[i] * u

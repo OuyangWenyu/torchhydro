@@ -54,6 +54,7 @@ class Tank4Dpl(nn.Module):
 
         self.warmup_length = warmup_length
         self.feature_size = 2  # there are 2 input variables in Sac, P and PET. P and Pet are two feature in nn model.
+        self.hydrodt = 1
         self.source_book = source_book
 
     def forward(
@@ -75,7 +76,7 @@ class Tank4Dpl(nn.Module):
         pet
             potential evapotranspiration, mm/d.
         parameters: Tensor
-            model parameters, 21.
+            model parameters, 19.
         return_state: bool
             whether to return model state or not.
         rs: Tensor
@@ -107,9 +108,6 @@ class Tank4Dpl(nn.Module):
         tank_device = p_and_e.device
         n_basin, n_para = parameters.size()
 
-        rsnpb = 1  # river sections number per basin
-        rivernumber = np.full(n_basin, rsnpb)  # set only one river section.   basin|river_section
-        mq = torch.full((n_basin,rsnpb),0.0).detach()  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
         if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
             # set no_grad for warmup periods
             with torch.no_grad():
@@ -120,11 +118,10 @@ class Tank4Dpl(nn.Module):
                 )
                 if cal_init_tank4dpl.warmup_length > 0:
                     raise RuntimeError("Please set init model's warmup length to 0!!!")
-                _, _, intervar = cal_init_tank4dpl(
+                _, _, xf, xp, x2, xs, x3, x4, x5, qs = cal_init_tank4dpl(
                     p_and_e_warmup, parameters, return_state=True
                 )
         else:  # if no, set a small value directly.
-            intervar = torch.full((n_basin, 11), 0.1).detach()
             xf = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(tank_device)
             xp = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(tank_device)
             x2 = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(tank_device)
@@ -133,7 +130,6 @@ class Tank4Dpl(nn.Module):
             x4 = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(tank_device)
             x5 = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(tank_device)
             qs = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(tank_device)
-            mq = torch.full((n_basin, rsnpb), 0.01).detach()
 
         # parameters
         kc = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])
@@ -163,7 +159,7 @@ class Tank4Dpl(nn.Module):
         e_sim_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
         q_sim_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
         rs_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
-        r1_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
+        ri_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
         rgs_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
         rgd_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
         for i in range(n_step):
@@ -175,100 +171,93 @@ class Tank4Dpl(nn.Module):
             pe = torch.clamp(p - et, min=0.0)  # net precipitation
             # soil moisture
             x = xf
-            xf_ = x - torch.clamp(ep - p, min=0.0)  # update the first layer remain free water
-            xp_ = xp - torch.clamp(ep - p - x, min=0.0)  # update the first layer remain tension water
+            xf = x - torch.clamp(ep - p, min=0.0)  # update the first layer remain free water
+            xf = torch.clamp(xf, min=0.0)
+            xp = xp - torch.clamp(ep - p - x, min=0.0)  # update the first layer remain tension water
+            xp = torch.clamp(xp, min=0.0)
             # update soil moisture
-            t1 = k1 * torch.min(x2, w1 - xp_)
-            xp = xp_ + t1  # update the first layer tension water
-            x2_ = x2 - t1  # update the second layer free water
+            t1 = k1 * torch.min(x2, w1 - xp)
+            t1 = torch.clamp(t1, min=0.0)
+            xp = xp + t1  # update the first layer tension water
+            x2 = x2 - t1  # update the second layer free water
+            x2 = torch.clamp(x2, min=0.0)
 
             t2 = k2 * (xs * w1 - xp * w2) / (w1 + w2)  # if t2>0,
+            t2 = torch.clamp(t2, min=0.0)
 
             xp = xp + t2  # update the first layer tension water
             xs = xs - t2  # update the second layer tension water
+            xs = torch.clamp(xs, min=0.0)
 
-            xf = xf_ + torch.clamp(xp + pe - w1)  # update the first layer free water
+            xf = xf + torch.clamp(xp + pe - w1, min=0.0)  # update the first layer free water
             xp = torch.min(w1, xp + pe)  # update the first layer tension water    the next timestep
 
             # the infiltrated water
             f1 = a0 * xf
 
             # surface runoff    the first layer generate the surface runoff
-            if xf > h2:
-                rs = (xf - h1) * a1 + (xf - h2) * a2
-            elif xf > h1:
-                rs = (xf - h1) * a1
-            else:
-                rs = 0.0
+            rs = torch.where(
+                xf > h2,
+                (xf - h1) * a1 + (xf - h2) * a2,
+                torch.where(xf > h1, (xf - h1) * a1, 0.0)
+            )
             # update soil moisture
             x2 = x2 + f1  # update the second layer free water
             xf = xf - (rs + f1)  # the first layer free water
+            xf = torch.clamp(xf, min=0.0)
             f2 = b0 * x2  # infiltrated water of the second layer
 
             # interflow    the second layer generate interflow
-            if x2 > h3:
-                ri = (x2 - h3) * b1
-            else:
-                ri = 0
+            ri = torch.where(x2 > h3, (x2 - h3) * b1, 0.0)
             # update soil moisture
             x2 = x2 - (f2 + ri)  # update the second layer free water
+            x2 = torch.clamp(x2, min=0.0)
             x3 = x3 + f2  # shallow groundwater accumulation
             f3 = c0 * x3  # shallow infiltrated water of  groundwater
 
             # shallow groundwater runoff
-            if x3 > h4:
-                rgs = (x3 - h4) * c1
-            else:
-                rgs = 0
+            rgs = torch.where(x3 > h4, (x3 - h4) * c1, 0.0)
             x3 = x3 - (f3 + rgs)  # update the shallow groundwater
+            x3 = torch.clamp(x3, min=0.0)
 
             # deep groundwater    x4 generate the deep layer groundwater runoff
             x4 = x4 + f3
             rgd = d1 * x4
             x4 = x4 - rgd
+            x4 = torch.clamp(x4, min=0.0)
 
-            # middle variables, at the end of timestep.
-            self.intervar[:, 0] = xf
-            self.intervar[:, 1] = xp
-            self.intervar[:, 2] = x2
-            self.intervar[:, 3] = xs
-            self.intervar[:, 4] = x3
-            self.intervar[:, 5] = x4
-
-            return et, rs, ri, rgs, rgd, self.intervar[:, :5]
-            et, roimp, adsur, ars, rs, ri, rgs, rgp, intervar[:, :7] = singletank.cal_runoff(p, e)
-            q_sim_[i], intervar[:, 7:] = singletank.cal_routing(roimp, adsur, ars, rs, ri, rgs, rgp)
+            # save
             e_sim_[i] = et
+            rs_[i] = rs
+            ri_[i] = ri
+            rgs_[i] = rgs
+            rgd_[i] = rgd
 
+        # routing
+        u = self.hydrodt / 1000.0  # unit conversion
         for i in range(n_step):
-            # unit conversion
-            u = self.hydrodt / 1000.0 / self.area
-            qs = qs0
-            if x5 >= h:
-                k0 = 1 / (e1 + e2)
-                c0 = e2 * h / (e1 + e2)
-            else:
-                k0 = 1 / e1
-                c0 = 0
+            k0 = torch.where(x5 >= h, 1 / (e1 + e2), 1 / e1)
+            c0 = torch.where(x5 >= h, e2 * h / (e1 + e2), 0)
             k1 = 1 / e1
             c1 = 0
             dt = 0.5 * u
-            i = rs + ri + rgs + rgd
-            q1 = (k0 - dt) / (k1 + dt) * qs0 + (i - c1 + c0) / (k1 + dt)
+            ii = rs_[i] + ri_[i] + rgs_[i] + rgd_[i]
+            q1 = (k0 - dt) / (k1 + dt) * qs + (ii - c1 + c0) / (k1 + dt)
+            q1 = torch.clamp(q1, min=0.0)
             x5 = k1 * q1 + c1
             k1 = torch.where(x5 > h, 1 / (e1 + e2), k1)
             c1 = torch.where(x5 > h, e2 * h / (e1 + e2), c1)
-            q1 = (k0 - dt) / (k1 + dt) * qs0 + (i - c1 + c0) / (k1 + dt)  # update
+            q1 = (k0 - dt) / (k1 + dt) * qs + (ii - c1 + c0) / (k1 + dt)  # update
+            q1 = torch.clamp(q1, min=0.0)
             x5 = k1 * q1 + c1
-            qs0 = q1  # todo: q_sim
+            qs = q1
             q_sim_[i] = q1
-            return q1, self.intervar[:, 6:]
 
         # seq, batch, feature
         e_sim = torch.unsqueeze(e_sim_, dim=-1)  # add a dimension
         q_sim = torch.unsqueeze(q_sim_, dim=-1)
         if return_state:
-            return q_sim, e_sim, intervar
+            return q_sim, e_sim, xf, xp, x2, xs, x3, x4, x5, qs
         return q_sim, e_sim
 
 class DplAnnTank(nn.Module):
@@ -407,6 +396,7 @@ class DplLstmTank(nn.Module):
         )
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
+
     def forward(self, x, z):
         """
         Differential parameter learning
