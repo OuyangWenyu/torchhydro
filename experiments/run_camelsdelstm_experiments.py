@@ -14,66 +14,77 @@ from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
-VAR_C_CHOSEN_FROM_CAMELS_US = [
+VAR_C_CHOSEN_FROM_CAMELS_DE = [
     "elev_mean",
-    "slope_mean",
-    "area_gages2",
-    "frac_forest",
-    "lai_max",
-    "lai_diff",
-    "dom_land_cover_frac",
-    "dom_land_cover",
-    "root_depth_50",
-    "soil_depth_statsgo",
-    "soil_porosity",
-    "soil_conductivity",
-    "max_water_content",
-    "geol_1st_class",
-    "geol_2nd_class",
-    "geol_porostiy",
-    "geol_permeability",
+    "slope_fdc",
+    "area",
+    "forests_and_seminatural_areas_perc",
+    "artificial_surfaces_perc",
+    "agricultural_areas_perc",
+    "wetlands_perc",
+    "water_bodies_perc",
+    "clay_30_100cm_mean",
+    "soil_organic_carbon_30_100cm_mean",
+    "silt_0_30cm_mean",
+    "sand_0_30cm_mean",
+    "bulk_density_0_30cm_mean",
+    "geochemical_rocktype_silicate_perc",
+    "geochemical_rocktype_carbonatic_perc",
+    "cavity_pores_perc",
+    "geochemical_rocktype_silicate_perc",
 ]
-VAR_T_CHOSEN_FROM_DAYMET = [
-    # NOTE: prcp must be the first variable
-    "prcp",
-    "dayl",
-    "srad",
-    "swe",
-    "tmax",
-    "tmin",
-    "vp",
+VAR_T_CHOSEN_FROM_DE = [
+    "precipitation_mean",
+    "precipitation_min",
+    "precipitation_median",
+    "precipitation_max",
+    "precipitation_stdev",
+    "water_level",
+    "humidity_mean",
+    "humidity_min",
+    "humidity_median",
+    "humidity_max",
+    "humidity_stdev",
+    "radiation_global_mean",
+    "radiation_global_min",
+    "radiation_global_median",
+    "radiation_global_max",
+    "radiation_global_stdev",
+    "temperature_mean",
+    "temperature_min",
+    "temperature_max",
 ]
 
 
 def run_normal_dl(
     project_name,
     gage_id_file,
-    var_c=VAR_C_CHOSEN_FROM_CAMELS_US,
-    var_t=VAR_T_CHOSEN_FROM_DAYMET,
+    var_c=VAR_C_CHOSEN_FROM_CAMELS_DE,
+    var_t=VAR_T_CHOSEN_FROM_DE,
     train_period=None,
     valid_period=None,
     test_period=None,
 ):
-    if train_period is None:
-        train_period = ["1985-10-01", "1995-10-01"]
+    if train_period is None:  # camels-de time_range: ["1951-01-01", "2020-12-31"]
+        train_period = ["2017-10-01", "2018-10-01"]
     if valid_period is None:
-        valid_period = ["1995-10-01", "2000-10-01"]
+        valid_period = ["2018-10-01", "2019-10-01"]
     if test_period is None:
-        test_period = ["2000-10-01", "2010-10-01"]
+        test_period = ["2019-10-01", "2020-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_us",
+            "source_name": "camels_de",
             "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_de"
             ),
         },
         ctx=[-1],
         # model_name="KuaiLSTM",
         model_name="CpuLSTM",
         model_hyperparam={
-            "n_input_features": len(var_c) + len(var_t),  # 17 + 7 = 24
+            "n_input_features": len(var_c) + len(var_t),  # 17 + 19 = 36
             "n_output_features": 1,
             "n_hidden_states": 256,
         },
@@ -81,7 +92,7 @@ def run_normal_dl(
         sampler="KuaiSampler",
         dataset="StreamflowDataset",
         scaler="DapengScaler",
-        batch_size=512,
+        batch_si0ze=50,
         forecast_history=0,
         forecast_length=366,
         var_t=var_t,
@@ -92,11 +103,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=20,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 1,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",
@@ -112,4 +123,4 @@ def run_normal_dl(
 # 01022500
 # ......
 # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("ndl", "explstm"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt")
+run_normal_dl(os.path.join("test_camels", "lstm_camelsde"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_de\\gage_id.txt")

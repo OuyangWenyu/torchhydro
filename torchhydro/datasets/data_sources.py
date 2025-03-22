@@ -17,7 +17,7 @@ import pint_xarray  # noqa but it is used in the code
 from tqdm import tqdm
 
 from hydroutils import hydro_time
-from hydrodataset import Camels
+from hydrodataset import Camels, CamelsCh, CamelsDe, CamelsDk, CamelsSe, CamelsGb, CamelsFr, CamelsInd, CamelsAus, CamelsBr, CamelsCl
 from hydrodatasource.reader.data_source import SelfMadeHydroDataset
 
 
@@ -98,7 +98,7 @@ class SupData4Camels:
 
     @property
     def ts_xrdataset_path(self):
-        return CACHE_DIR.joinpath("camelsus_streamflow.nc")
+        return CACHE_DIR.joinpath("camelsus_streamflow.nc")  #
 
     def cache_ts_xrdataset(self):
         """Save all timeseries data in a netcdf file in the cache directory"""
@@ -726,4 +726,14 @@ data_sources_dict = {
     "modiset4camels": ModisEt4Camels,
     "nldas4camels": Nldas4Camels,
     "smap4camels": Smap4Camels,
+    "camels_ch": CamelsCh,
+    "camels_de": CamelsDe,
+    "camels_dk": CamelsDk,
+    "camels_se": CamelsSe,
+    "camels_gb": CamelsGb,
+    "camels_fr": CamelsFr,
+    "camels_ind": CamelsInd,
+    "camels_aus": CamelsAus,
+    "camels_br": CamelsBr,
+    "camels_cl": CamelsCl,
 }
