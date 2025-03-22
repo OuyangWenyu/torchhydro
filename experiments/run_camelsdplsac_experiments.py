@@ -118,8 +118,8 @@ def run_camelsdplsac(
         which_first_tensor="sequence",
     )
     update_cfg(config, args)
-    with torch.autograd.set_detect_anomaly(True):
-        train_and_evaluate(config)
+    # with torch.autograd.set_detect_anomaly(True):
+    train_and_evaluate(config)
     print("All processes are finished!")
 
 

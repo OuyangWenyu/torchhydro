@@ -365,6 +365,7 @@ class Sac4Dpl(nn.Module):
 
         self.warmup_length = warmup_length
         self.feature_size = 2       # there are 2 input variables in Sac, P and PET. P and Pet are two feature in nn model.
+        self.hydrodt = 1  # one day
         self.source_book = source_book
 
     def forward(
@@ -424,9 +425,8 @@ class Sac4Dpl(nn.Module):
         sac_device = p_and_e.device
         n_basin, n_para = parameters.size()
 
-        # para = torch.full((kc.size(),parameters.shap(1)),[kc, pctim, adimp, uztwm, uzfwm, lztwm, lzfsm, lzfpm, rserv, pfree, riva, zperc, rexp, uzk, lzsk, lzpk, ci, cgs, cgp, ke, xe],)
-        # area = [2252.7, 573.6, 3676.17, 769.05, 909.1, 383.82, 180.98, 250.64, 190.92, 31.3]     # dpl4sac_args camelsus [gage_id.area]  # todo: 线性水库汇流需要用到流域面积将产流runoff的mm乘以面积的m^2将平面径流转化为流量的m^3/s
         rsnpb = 1  # river sections number per basin
+        rivernumber = np.full(n_basin, rsnpb)  # set only one river section.   basin|river_section
         mq = torch.full((n_basin, rsnpb),0.0).detach()  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
         if self.warmup_length > 0:  # if warmup_length>0, use warmup to calculate initial state.
             # set no_grad for warmup periods
@@ -438,11 +438,10 @@ class Sac4Dpl(nn.Module):
                 )
                 if cal_init_sac4dpl.warmup_length > 0:
                     raise RuntimeError("Please set init model's warmup length to 0!!!")
-                _, _, intervar = cal_init_sac4dpl(  # note: parameter should be the parameters before de-normalizing.
+                _, _, auztw, alztw, uztw, uzfw, lztw, lzfs, lzfp, qs, qi, qgs, qgp, mq = cal_init_sac4dpl(  # note: parameter should be the parameters before de-normalizing.
                     p_and_e_warmup, parameters, return_state=True
                 )
         else:  # if no, set a small value directly.
-            # intervar = torch.full((n_basin, 11), 0.1).detach()  # basin|inter_variables
             auztw = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
             alztw = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
             uztw = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
@@ -450,15 +449,13 @@ class Sac4Dpl(nn.Module):
             lztw = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
             lzfs = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
             lzfp = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
-            qs0 = self.intervar[:, 7].detach()  #
-            qi0 = self.intervar[:, 8].detach()
-            qgs0 = self.intervar[:, 9].detach()
-            qgp0 = self.intervar[:, 10].to(self.device)
+            qs = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
+            qi = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
+            qgs = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
+            qgp = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
             mq = torch.full((n_basin, rsnpb), 0.01).detach()  # Muskingum routing space   basin|rivernumber   note: the column number of mp must equle to the column number of rivernumber   todo: ke, river section number
-        rivernumber = np.full(n_basin, 1)  # set only one river section.   basin|river_section
 
         # parameters
-        para = torch.full((n_basin, n_para), 0.0)
         kc = self.kc_scale[0] + parameters[:, 0] * (self.kc_scale[1] - self.kc_scale[0])    # parameters[:, 0]是个二维张量， 流域|参数  kc是个一维张量，不同流域的参数。  basin first
         pctim = self.pctim_scale[0] + parameters[:, 1] * (self.pctim_scale[1] - self.pctim_scale[0])
         adimp = self.adimp_scale[0] + parameters[:, 2] * (self.adimp_scale[1] - self.adimp_scale[0])
@@ -484,13 +481,8 @@ class Sac4Dpl(nn.Module):
         prcp = p_and_e[self.warmup_length:, :, 0]  # time|basin
         pet = p_and_e[self.warmup_length:, :, 1]  # time|basin
         n_step, n_basin = prcp.size()
-        singlesac = SingleStepSacramento(sac_device, 1, para, intervar, rivernumber, mq)  # todo: hydrodt
         e_sim_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         q_sim_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
-        # qs_ = torch.full((n_step, n_basin), 0.0).to(sac_device)  #
-        # qi_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
-        # qgs_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
-        # qgp_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         roimp_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         adsur_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         ars_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
@@ -500,32 +492,32 @@ class Sac4Dpl(nn.Module):
         rgp_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         for i in range(n_step):
             p = torch.clamp(prcp[i, :], min=0.0)
-            e_ = torch.nan_to_num(pet[i, :], nan=0.0, posinf=0.0, neginf=0.0)
-            e = torch.clamp(e_, min=0.0)
+            e = torch.nan_to_num(pet[i, :], nan=0.0, posinf=0.0, neginf=0.0)
+            e = torch.clamp(e, min=0.0)
             # evaporation
             ep = kc * e  # average evaporation of basin
             roimp = pctim * p  # runoff of the permanent impervious area
             ae2 = pctim * ep  # evaporation of the permanent impervious area
             # evaporation of the alterable impervious area
             ae1 = torch.min(auztw, ep * (auztw / uztwm))  # upper layer
-            ae3_ = (ep - ae1) * (alztw / (uztwm + lztwm))  # lower layer
-            ae3 = torch.clamp(ae3_, min=0.0)
-            pav = torch.clamp(prcp - (uztwm - (auztw - ae1)), min=0.0)
-            adsur_ = pav * ((alztw - ae3) / lztwm)
-            adsur = torch.clamp(adsur_, min=0.0)
+            ae3 = (ep - ae1) * (alztw / (uztwm + lztwm))  # lower layer
+            ae3 = torch.clamp(ae3, min=0.0)
+            pav = torch.clamp(p - (uztwm - (auztw - ae1)), min=0.0)
+            adsur = pav * ((alztw - ae3) / lztwm)
+            adsur = torch.clamp(adsur, min=0.0)
             ars = torch.clamp(((pav - adsur) + (alztw - ae3)) - lztwm, min=0.0)
-            auztw_ = torch.min(uztwm, (auztw - ae1) + prcp)
-            auztw = torch.clamp(auztw_, min=0.0)
-            alztw_ = torch.min(lztwm, (pav - adsur) + (alztw - ae3))
-            alztw = torch.clamp(alztw_, min=0.0)
+            auztw = torch.min(uztwm, (auztw - ae1) + p)
+            auztw = torch.clamp(auztw, min=0.0)
+            alztw = torch.min(lztwm, (pav - adsur) + (alztw - ae3))
+            alztw = torch.clamp(alztw, min=0.0)
             # evaporation of the permeable area
             e1 = torch.min(uztw, ep * (uztw / uztwm))  # upper layer
-            e2_ = torch.min(uzfw, ep - e1)  # lower layer
-            e2 = torch.clamp(e2_, min=0.0)
-            e3_ = (ep - e1 - e2) * (lztw / (uztwm + lztwm))  # deeper layer
-            e3 = torch.clamp(e3_, min=0.0)
-            lt1_ = lztw - e3
-            lt1 = torch.clamp(lt1_, min=0.0)
+            e2 = torch.min(uzfw, ep - e1)  # lower layer
+            e2 = torch.clamp(e2, min=0.0)
+            e3 = (ep - e1 - e2) * (lztw / (uztwm + lztwm))  # deeper layer
+            e3 = torch.clamp(e3, min=0.0)
+            lt1 = lztw - e3
+            lt1 = torch.clamp(lt1, min=0.0)
             e4 = riva * ep  # river net, lakes and hydrophyte
             # total evaporation
             et = ae2 + ae1 + ae3 + e1 + e2 + e3 + e4  # the total evaporation
@@ -536,43 +528,43 @@ class Sac4Dpl(nn.Module):
             ars_adimp = ars * adimp
             # runoff of the permeable area
             parea = 1 - pctim - adimp
-            rs = torch.clamp(prcp + (uztw + uzfw - e1 - e2) - (uztwm + uzfwm), min=0.0) * parea
-            ut_ = torch.min(uztwm, uztw - e1 + prcp)
-            ut = torch.clamp(ut_, min=0.0)
-            uf_ = torch.min(uzfwm, prcp + (uztw + uzfw - e1 - e2) - ut)
-            uf = torch.clamp(uf_, min=0.0)
+            rs = torch.clamp(p + (uztw + uzfw - e1 - e2) - (uztwm + uzfwm), min=0.0) * parea
+            ut = torch.min(uztwm, uztw - e1 + p)
+            ut = torch.clamp(ut, min=0.0)
+            uf = torch.min(uzfwm, p + (uztw + uzfw - e1 - e2) - ut)
+            uf = torch.clamp(uf, min=0.0)
             ri = uf * uzk  # interflow
-            uf_ = uf - ri
-            uf = torch.clamp(uf_, min=0.0)
+            uf = uf - ri
+            uf = torch.clamp(uf, min=0.0)
             # the infiltrated water
             pbase = lzfsm * lzsk + lzfpm * lzpk
-            defr_ = 1 - (lzfs + lzfp + lt1) / (lzfsm + lzfpm + lztwm)
-            defr = torch.clamp(defr_, min=0.0)
+            defr = 1 - (lzfs + lzfp + lt1) / (lzfsm + lzfpm + lztwm)
+            defr = torch.clamp(defr, min=0.0)
             perc = pbase * (1 + zperc * pow(defr, rexp)) * uf / uzfwm
-            rate_ = torch.min(perc, (lzfsm + lzfpm + lztwm) - (lzfs + lzfp + lt1))
-            rate = torch.clamp(rate_, min=0.0)
+            rate = torch.min(perc, (lzfsm + lzfpm + lztwm) - (lzfs + lzfp + lt1))
+            rate = torch.clamp(rate, min=0.0)
             # assign the infiltrate water
-            fx_ = torch.min(lzfsm + lzfpm - (lzfs + lzfp), torch.max(rate - (lztwm - lt1), rate * pfree))
-            fx = torch.clamp(fx_, min=0.0)
-            perct_ = rate - fx
-            perct = torch.clamp(perct_, min=0.0)
-            coef_ = (lzfpm / (lzfsm + lzfpm)) * (2 * (1 - lzfp / lzfpm) / ((1 - lzfp / lzfpm) + (1 - lzfsm / lzfsm)))
-            coef = torch.clamp(coef_, min=0.0, max=1.0)
-            percp_ = torch.min(lzfpm - lzfp, torch.max(fx - (lzfsm - lzfs), coef * fx))
-            percp = torch.clamp(percp_, min=0.0)
-            percs_ = fx - percp
-            percs = torch.clamp(percs_, min=0.0)
+            fx = torch.min(lzfsm + lzfpm - (lzfs + lzfp), torch.max(rate - (lztwm - lt1), rate * pfree))
+            fx = torch.clamp(fx, min=0.0)
+            perct = rate - fx
+            perct = torch.clamp(perct, min=0.0)
+            coef = (lzfpm / (lzfsm + lzfpm)) * (2 * (1 - lzfp / lzfpm) / ((1 - lzfp / lzfpm) + (1 - lzfsm / lzfsm)))
+            coef = torch.clamp(coef, min=0.0, max=1.0)
+            percp = torch.min(lzfpm - lzfp, torch.max(fx - (lzfsm - lzfs), coef * fx))
+            percp = torch.clamp(percp, min=0.0)
+            percs = fx - percp
+            percs = torch.clamp(percs, min=0.0)
             # update the soil moisture accumulation
             lt2 = lt1 + perct
             ls = lzfs + percs
             lp = lzfp + percp
             # generate groundwater runoff
             rgs = ls * lzsk
-            ls2_ = ls - rgs
-            ls2 = torch.clamp(ls2_, min=0.0)
+            ls2 = ls - rgs
+            ls2 = torch.clamp(ls2, min=0.0)
             rgp = lp * lzpk
-            lp2_ = lp - rgp
-            lp2 = torch.clamp(lp2_, min=0.0)
+            lp2 = lp - rgp
+            lp2 = torch.clamp(lp2, min=0.0)
             # water balance check
             utr = ut / uztwm
             ufr = uf / uzfwm
@@ -580,8 +572,8 @@ class Sac4Dpl(nn.Module):
             uztw = torch.where(utr < ufr, uztwm * utfr, ut)
             uzfw = torch.where(utr < ufr, uzfwm * utfr, uf)
             saved = rserv * (lzfsm + lzfpm)
-            ratio_ = (ls + lp - saved + lt2) / (lzfsm + lzfpm - saved + lztwm)
-            ratio = torch.clamp(ratio_, min=0.0)
+            ratio = (ls + lp - saved + lt2) / (lzfsm + lzfpm - saved + lztwm)
+            ratio = torch.clamp(ratio, min=0.0)
             ltr = lt2 / lztwm
             lztw = torch.where(ltr < ratio, lztwm * ratio, lt2)
             lzfs = torch.where(ltr < ratio, torch.clamp(ls - (lztw - lt2), min=0.0), ls2)
@@ -596,61 +588,51 @@ class Sac4Dpl(nn.Module):
             rgs_[i] = rgs
             rgp_[i] = rgp
 
+        # cal_routing
         for i in range(n_step):
+            q_sim_0 = (qs + qi + qgs + qgp).detach()
             # routing
             parea = 1 - pctim - adimp
             # parea = torch.clamp(parea_, min=0.0)
-            u = parea * 1000  # * self.area   # daily coefficient, no need conversion.  # todo: area
+            u = parea * 1000  # * self.area   # daily coefficient, no need conversion.
             # slope routing, use the linear reservoir method
-            qs = (roimp + (adsur + ars) * adimp + rs * parea) * 1000.0  # * self.area  # todo: area
-            qi = ci * qi0 + (1 - ci) * ri * u
-            # qi = torch.clamp(qi_, min=0.0)
-            qgs = cgs * qgs0 + (1 - cgs) * rgs * u
-            # qgs = torch.clamp(qgs_, min=0.0)
-            qgp = torch.add(torch.mul(cgp, qgp0), torch.mul((1 - cgp), torch.mul(rgp,
-                                                                                 u)))  # modified by an inplace operation https://www.cnblogs.com/jiangkejie/p/13390377.html
+            qs = (roimp_[i] + (adsur_[i] + ars_[i]) * adimp + rs_[i] * parea) * 1000.0
+            qi = ci * qi + (1 - ci) * ri_[i] * u
+            qi = torch.clamp(qi, min=0.0)
+            qgs = cgs * qgs + (1 - cgs) * rgs_[i] * u
+            qgs = torch.clamp(qgs, min=0.0)
+            qgp = cgp * qgp + (1 - cgp) * rgp_[i] * u  # modified by an inplace operation https://www.cnblogs.com/jiangkejie/p/13390377.html
             qgp = torch.clamp(qgp, min=0.0)
-            q_sim_ = (qs.clone() + qi.clone() + qgs.clone() + qgp.clone())  # time|basin, two dimension tensor
-            # middle variable, at the end of timestep.
-            self.intervar[:, 7] = qs.detach()
-            self.intervar[:, 8] = qi.detach()
-            self.intervar[:, 9] = qgs.detach()
-            self.intervar[:, 10] = qgp.detach()
+            q_sim_[i] = (qs + qi + qgs + qgp)  # time|basin, two dimension tensor
 
             # river routing, use the Muskingum routing method
             ke_ = torch.full(ke.size(), 0.0).detach()
-            q_sim_0 = (qs0 + qi0 + qgs0 + qgp0).detach()
-            for i in range(n_basin):
-                if self.rivernumber[i] > 0:
+            for j in range(n_basin):
+                if rivernumber[j] > 0:
                     dt = self.hydrodt * 24.0 / 2.0
-                    xo = xe[i].detach()
-                    ke_[i] = (ke[i] * 24.0).detach()  # KE is hourly coefficient, need convert to daily.
-                    ko = (ke_[i] / self.rivernumber[i]).detach()
+                    xo = xe[j].detach()
+                    ke_[j] = (ke[j] * 24.0).detach()  # KE is hourly coefficient, need convert to daily.
+                    ko = (ke_[j] / rivernumber[j]).detach()
                     c1 = (max(ko * (1.0 - xo) + dt, 0.0)).detach()
                     c2 = (max((-ko * xo + dt) / c1, 0.0)).detach()
                     c3 = max((ko * (1.0 - xo) - dt) / c1, 0.0)
                     c1_ = ((ko * xo + dt) / c1).detach()
-                    i1 = q_sim_0[i].detach()  # flow at the start of timestep, inflow.
-                    i2 = q_sim_[i].detach()  # flow at the end of timestep, outflow.
-                    for j in range(self.rivernumber[i]):
-                        q_sim_0[i] = self.mq[i, j]  # basin|rivernumber
-                        i2_ = (c1_ * i1 + c2 * i2 + c3 * q_sim_0[i]).detach()
-                        self.mq[i, j] = i2_
-                        i1 = q_sim_0[i].detach()
+                    i1 = q_sim_0[j].detach()  # flow at the start of timestep, inflow.
+                    i2 = q_sim_[i][j].detach()  # flow at the end of timestep, outflow.
+                    for k in range(rivernumber[j]):
+                        q_sim_0[j] = mq[j, k]  # basin|rivernumber
+                        i2_ = (c1_ * i1 + c2 * i2 + c3 * q_sim_0[j]).detach()
+                        mq[j, k] = i2_
+                        i1 = q_sim_0[j].detach()
                         i2 = i2_.detach()
-                q_sim_[i] = i2  # todo: a problem
-
-            return q_sim_, self.intervar[:, 7:]  # qs, qi, qgs, qgp,
-            q_sim_[i], intervar[:, 7:] = singlesac.cal_routing(roimp_[i], adsur_[i], ars_[i], rs_[i], ri_[i], rgs_[i], rgp_[i])
-            singlesac.intervar[:, 7:] = intervar[:, 7:].detach()  # update inter variabls at end of per time-step
+                q_sim_[i][j] = i2  # todo: a problem
 
         # seq, batch, feature
-        e_sim = torch.unsqueeze(e_sim_, dim=-1)  # add a dimension,  todo: why?
+        e_sim = torch.unsqueeze(e_sim_, dim=-1)  # add a dimension
         q_sim = torch.unsqueeze(q_sim_, dim=-1)
         if return_state:
-            return q_sim, e_sim, intervar
+            return q_sim, e_sim, auztw, alztw, uztw, uzfw, lztw, lzfs, lzfp, qs, qi, qgs, qgp, mq
         return q_sim, e_sim
-
 
 class DplAnnSac(nn.Module):
     """
