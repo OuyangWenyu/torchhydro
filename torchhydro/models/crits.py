@@ -152,10 +152,10 @@ class NSELoss(torch.nn.Module):
         nsample = 0
         for ii in range(Ngage):
             t0 = target[:, ii, 0]
-            mask = t0 == t0  #
+            mask = t0 == t0
             if len(mask[mask]) > 0:
                 p0 = output[:, ii, 0]
-                p = p0[mask]  #
+                p = p0[mask]
                 t = t0[mask]
                 tmean = t.mean()
                 SST = torch.sum((t - tmean) ** 2)

@@ -239,13 +239,13 @@ def xaj_generation(
         (r, rim, e, pe), (wu, wl, wd)
     """
     # make sure physical variables' value ranges are correct
-    prcp = torch.clamp(p_and_e[:, 0], min=0.0)  # torch.clamp(input, min=None, max=None, *, out=None) → Tensor， Clamps all elements in input into the range [ min, max ]. Letting min_value and max_value be min and max, respectively。
+    prcp = torch.clamp(p_and_e[:, 0], min=0.0)
     pet = torch.clamp(p_and_e[:, 1] * k, min=0.0)   # [time|basin] two dimension tensor
     # wm
     wm = um + lm + dm
     if wu0 is None:
         # use detach func to make wu0 no_grad as it is an initial value
-        wu0 = 0.6 * (um.detach())  #
+        wu0 = 0.6 * (um.detach())
     if wl0 is None:
         wl0 = 0.6 * (lm.detach())
     if wd0 is None:
@@ -837,7 +837,7 @@ class Xaj4Dpl(nn.Module):
         # slop routing
         conv_uh = KernelConv(a, theta, self.kernel_size)
         qs_ = conv_uh(runoff_im + rss)
-        qs = torch.full(inputs.shape[:2], 0.0).to(xaj_device)  # 取inputs的第一维、第二维
+        qs = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         for i in range(inputs.shape[0]):
             if i == 0:
                 qi = linear_reservoir(ris_[i], ci, qi0)
@@ -922,7 +922,8 @@ class DplLstmXaj(nn.Module):
             one time forward result
         """
         q, e = lstm_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
-        return torch.cat([q, e], dim=-1)
+        # return torch.cat([q, e], dim=-1)
+        return q
 
 class DplAnnXaj(nn.Module):
     def __init__(

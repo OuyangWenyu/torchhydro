@@ -52,9 +52,9 @@ class NnModule4Hydro(nn.Module):
         Parameters
         ----------
         nx
-            number of input neurons 输入神经元
+            number of input neurons
         ny
-            number of output neurons  输出神经元
+            number of output neurons
         hidden_size
             a list/tuple which contains number of neurons in each hidden layer;
             if int, only one hidden layer except for hidden_size=0
@@ -86,10 +86,10 @@ class NnModule4Hydro(nn.Module):
         et : _type_
             the evaporation calculated by the SimpleAnn module
         """
-        zeros = torch.full_like(w0, 0.0, device=x.device)   # fill w0 with 0.0
+        zeros = torch.full_like(w0, 0.0, device=x.device)
         et = torch.full_like(w0, 0.0, device=x.device)
         w_mask = w0 + prcp > PRECISION
-        y = self.ann(x)   #
+        y = self.ann(x)
         z = y.flatten()
         et[w_mask] = torch.clamp(
             z[w_mask],
@@ -131,7 +131,7 @@ def calculate_1layer_w_storage(um, lm, dm, w0, pe, r):
     tensor_zeros = torch.full_like(w0, 0.0, device=xaj_device)
     # water balance (equation 2.2 in Page 13, also shown in Page 23)
     w = w0 + pe - r
-    return torch.clamp(w, min=tensor_zeros, max=(um + lm + dm) - PRECISION)   # minus a minimum #
+    return torch.clamp(w, min=tensor_zeros, max=(um + lm + dm) - PRECISION)
 
 
 class Xaj4DplWithNnModule(nn.Module):
@@ -166,7 +166,7 @@ class Xaj4DplWithNnModule(nn.Module):
             Hence, in warmup period, we don't need to initialize it again
         param_var_index
             the index of parameters which will be time-varying
-            NOTE: at the most, we support k, b, and c to be time-varying 至多支持k、b、c时变
+            NOTE: at the most, we support k, b, and c to be time-varying
         et_output
             we only support one-layer et now, because its water balance is not easy to handle with
         """
@@ -320,7 +320,7 @@ class Xaj4DplWithNnModule(nn.Module):
         else:
             # parameters_ts must be a 2-d tensor: (basin, param)
             parameters = parameters_ts
-        # denormalize the parameters to general range  参数去正则化
+        # denormalize the parameters to general range
         # TODO: now the specific parameters are hard coded; 0 is k, 1 is b, 6 is c, same as in model_config.py
         if 0 not in self.param_var_index or self.param_var_index is None:
             ks = self.k_scale[0] + parameters[:, 0] * (
@@ -338,7 +338,7 @@ class Xaj4DplWithNnModule(nn.Module):
             bs = self.b_scale[0] + parameters_ts[:, :, 1] * (
                 self.b_scale[1] - self.b_scale[0]
             )
-        im = self.im_scale[0] + parameters[:, 2] * (self.im_scale[1] - self.im_scale[0])  # a column tensor
+        im = self.im_scale[0] + parameters[:, 2] * (self.im_scale[1] - self.im_scale[0])
         um = self.um_scale[0] + parameters[:, 3] * (self.um_scale[1] - self.um_scale[0])
         lm = self.lm_scale[0] + parameters[:, 4] * (self.lm_scale[1] - self.lm_scale[0])
         dm = self.dm_scale[0] + parameters[:, 5] * (self.dm_scale[1] - self.dm_scale[0])
@@ -406,7 +406,7 @@ class Xaj4DplWithNnModule(nn.Module):
                 if cal_init_xaj4dpl.warmup_length > 0:
                     raise RuntimeError("Please set init model's warmup length to 0!!!")
                 _, _, *w0, s0, fr0, qi0, qg0 = cal_init_xaj4dpl(
-                    p_and_e_warmup, parameters_ts_warmup, return_state=True  # call self.forward function 调用了下面的代码。
+                    p_and_e_warmup, parameters_ts_warmup, return_state=True
                 )
         else:
             # use detach func to make wu0 no_grad as it is an initial value
@@ -420,7 +420,7 @@ class Xaj4DplWithNnModule(nn.Module):
             qi0 = torch.full(ci.size(), 0.1).to(xaj_device)
             qg0 = torch.full(cg.size(), 0.1).to(xaj_device)
 
-        inputs = p_and_e[warmup_length:, :, :]  # 三个维度，  时间|流域|数据项    sequece|batch|feature
+        inputs = p_and_e[warmup_length:, :, :]
         runoff_ims_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         rss_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         ris_ = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
@@ -441,7 +441,7 @@ class Xaj4DplWithNnModule(nn.Module):
                 c = cs
             if i == 0:  # the first timestep
                 (r, rim, e, pe), w = self.xaj_generation_with_new_module(
-                    inputs[i, :, :], k, b, im, um, lm, dm, c, *w0  # initial condition, the soil  moisture accumulation 初始土壤水蓄量
+                    inputs[i, :, :], k, b, im, um, lm, dm, c, *w0  # initial condition, the soil  moisture accumulation
                 )
                 if self.source_type == "sources":
                     (rs, ri, rg), (s, fr) = xaj_sources(
@@ -475,15 +475,15 @@ class Xaj4DplWithNnModule(nn.Module):
             rgs_[i, :] = rg * (1 - im)
             es_[i, :] = e
         # seq, batch, feature
-        runoff_im = torch.unsqueeze(runoff_ims_, dim=2)  # 解缩
-        rss = torch.unsqueeze(rss_, dim=2)  # 在第二维上插入一个维度
+        runoff_im = torch.unsqueeze(runoff_ims_, dim=2)
+        rss = torch.unsqueeze(rss_, dim=2)
         es = torch.unsqueeze(es_, dim=2)
 
         # river routing
         conv_uh = KernelConv(a, theta, self.kernel_size)
         qs_ = conv_uh(runoff_im + rss)   # surface routing
 
-        qs = torch.full(inputs.shape[:2], 0.0).to(xaj_device)  # 取input的第一维、第二维。
+        qs = torch.full(inputs.shape[:2], 0.0).to(xaj_device)
         for i in range(inputs.shape[0]):  # interflow and groundwater routing use the linear reservoir
             if i == 0:
                 qi = linear_reservoir(ris_[i], ci, qi0)

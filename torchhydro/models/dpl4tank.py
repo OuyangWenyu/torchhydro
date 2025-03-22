@@ -28,7 +28,7 @@ class Tank4Dpl(nn.Module):
             "Hydrological Forecasting (4-th version)" written by Prof. Weimin Bao.
         """
         super(Tank4Dpl, self).__init__()
-        self.name = "Sacramento"
+        self.name = "Tank"
         self.params_names = MODEL_PARAM_DICT["tank"]["param_name"]
         param_range = MODEL_PARAM_DICT["tank"]["param_range"]
         self.kc_scale = param_range["KC"]
@@ -105,7 +105,6 @@ class Tank4Dpl(nn.Module):
             the simulated evaporation, E(mm/d).
         """
         tank_device = p_and_e.device
-
         n_basin, n_para = parameters.size()
 
         rsnpb = 1  # river sections number per basin

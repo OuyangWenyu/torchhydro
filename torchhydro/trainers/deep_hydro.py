@@ -359,7 +359,7 @@ class DeepHydro(DeepHydroInterface):
             eval_log, denormalized predictions and observations
         """
         self.model = self.load_model(mode="infer")
-        preds_xr, obss_xr = self.inference()  #
+        preds_xr, obss_xr = self.inference()
         return preds_xr, obss_xr
 
     def inference(self) -> Tuple[xr.Dataset, xr.Dataset]:
