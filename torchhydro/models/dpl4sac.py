@@ -52,7 +52,7 @@ class Sac4Dpl(nn.Module):
         self.xe_scale = param_range["XE"]
 
         self.warmup_length = warmup_length
-        self.feature_size = 2  # there are 2 input variables in Sac, P and PET. P and Pet are two feature in nn model.
+        self.feature_size = 2  # there are 2 input variables in Sac, P and PET.
         self.hydrodt = 1  # one day
         self.source_book = source_book
 
@@ -81,17 +81,17 @@ class Sac4Dpl(nn.Module):
         lztw, sleep video water accumulation in the lower layer, mm.
         lzfs, speed free water accumulation in the lower layer, mm.
         lzfp, slow free water accumulation in the lower layer, mm.
-        roimp: runoff of the permanent impervious area, mm.
-        adsur: runoff of the alterable impervious area, mm.
-        ars: runoff of the alterable impervious area, mm.
-        rs: surface runoff of the permeable area, mm.
-        ri: runoff of interflow, mm.
-        rgs: runoff of speed groundwater, mm.
-        rgp: runoff of slow groundwater, mm.
+        roimp, runoff of the permanent impervious area, mm.
+        adsur, runoff of the alterable impervious area, mm.
+        ars, runoff of the alterable impervious area, mm.
+        rs, surface runoff of the permeable area, mm.
+        ri, runoff of interflow, mm.
+        rgs, runoff of speed groundwater, mm.
+        rgp, runoff of slow groundwater, mm.
         Returns
         -------
         q_sim : torch.Tensor
-        the simulated flow, Q(m^3/s).
+            the simulated flow, Q(m^3/s).
         e_sim : torch.Tensor
             the simulated evaporation, E(mm/d).
         auztw, alztw, uztw, uzfw, lztw, lzfs, lzfp, qs, qi, qgs, qgp, mq : torch.Tensor
@@ -170,6 +170,7 @@ class Sac4Dpl(nn.Module):
         ri_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         rgs_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         rgp_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
+        # generate runoff
         for i in range(n_step):  # https://zhuanlan.zhihu.com/p/490501696
             p = torch.clamp(prcp[i, :], min=0.0)
             e = torch.nan_to_num(pet[i, :], nan=0.0, posinf=0.0, neginf=0.0)

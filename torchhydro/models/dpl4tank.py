@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from torch import nn
 from torch import Tensor
@@ -53,8 +52,8 @@ class Tank4Dpl(nn.Module):
         self.h_scale = param_range["h"]
 
         self.warmup_length = warmup_length
-        self.feature_size = 2  # there are 2 input variables in Sac, P and PET. P and Pet are two feature in nn model.
-        self.hydrodt = 1
+        self.feature_size = 2  # there are 2 input variables in Tank, precipitation and evaporation.
+        self.hydrodt = 1  # one day
         self.source_book = source_book
 
     def forward(
@@ -64,46 +63,37 @@ class Tank4Dpl(nn.Module):
         return_state: bool = False,
     ):
         """
-        tank model
-        forward transmission
+        tank model, forward transmission.
 
         Parameters
         ----------
         p_and_e: Tensor
-            time|basin|p_and_e
-        prcp
-            basin mean precipitation, mm/d.
-        pet
-            potential evapotranspiration, mm/d.
+            precipitation and evaporation, (time,basin,p_and_e).
         parameters: Tensor
             model parameters, 19.
         return_state: bool
             whether to return model state or not.
-        rs: Tensor
-            surface runoff, mm.
-        ri: Tensor
-            runoff of interflow, mm.
-        rgs: Tensor
-            runoff of speed groundwater, mm.
-        rgd: Tensor
-        runoff of slow groundwater, mm.
-        the inter variables in model, 8.
-        generate runoff
+        --inter variables--
         xf, the upper layer tension water accumulation on the alterable impervious area, mm.
         xp, the lower layer tension water accumulation on the alterable impervious area, mm.
         x2, tension water accumulation in the upper layer, mm.
         xs, free water accumulation in the upper layer, mm.
         x3, tension water accumulation in the lower layer, mm.
         x4, speed free water accumulation in the lower layer, mm.
-        routing
-        x5, the flow of surface at the start of timestep.
-        qs0, the flow of interflow at the start of timestep.
+        x5, the flow of surface at the start of timestep, mm.
+        qs, the flow of interflow at the start of timestep, mm.
+        rs, surface runoff, mm.
+        ri, runoff of interflow, mm.
+        rgs, runoff of speed groundwater, mm.
+        rgd, runoff of slow groundwater, mm.
         Returns
         -------
         q_sim : torch.Tensor
-        the simulated flow, Q(m^3/s).
+            the simulated flow, Q(m^3/s).
         e_sim : torch.Tensor
             the simulated evaporation, E(mm/d).
+        xf, xp, x2, xs, x3, x4, x5, qs : torch.Tensor
+            the state variables.
         """
         tank_device = p_and_e.device
         n_basin, n_para = parameters.size()
@@ -162,6 +152,7 @@ class Tank4Dpl(nn.Module):
         ri_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
         rgs_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
         rgd_ = torch.full((n_step, n_basin), 0.0).to(tank_device)
+        # generate runoff
         for i in range(n_step):
             p = prcp[i, :]
             e = pet[i, :]
@@ -317,7 +308,6 @@ class DplAnnTank(nn.Module):
         ----------
         x
             not normalized data used for physical model, a sequence-first 3-dim tensor.
-            normalized data used for DL model, a 2-dim tensor.
         z
             normalized data used for DL model; a sequence-first 3-dim tensor.
             19 parameters of tank model, normalized.

@@ -175,21 +175,21 @@ MODEL_PARAM_DICT = {
             "W2",  # the second soil moisture layer saturation capacity 第二土壤水分层饱和容量
             "K1",  # ratio of lower layer free water supplied upper layer tension water 下层自由水补充上层张力水比例系数
             "K2",  # water exchange coefficient of the first layer with the second layer 第一层与第二层的水量交换系数
-            "a0",  # tension water capacity in the lower layer 第一层自由水下渗到第二层的下渗系数
-            "b0",  # speedy free water capacity in the lower layer 第二层自由水下渗到壤中流的下渗系数
-            "c0",  # slow free water capacity in the lower layer 壤中流下渗到浅层地下水的下渗系数
-            "h1",  # ratio of the part which do not evaporate in lower layer free water 地面径流底孔出流孔高度
-            "h2",  # ratio of supplying the free water which infiltrating from upper layer to lower layer 地面径流表孔出流孔高度
-            "a1",  # ratio of river net, lakes and hydrophyte area to total area of the basin 地面径流底孔出流系数
-            "a2",  # parameter about the maximal infiltrating 地面径流表孔出流系数
-            "h3",  # exponent of the infiltrating curve 壤中流出流孔高度
-            "b1",  # daily outflow coefficient of the upper layer free water 壤中流出流系数
-            "h4",  # daily outflow coefficient of the lower layer speedy free water 浅层地下水出流孔高度
-            "c1",  # daily outflow coefficient of the lower layer slow free water 浅层地下水出流系数
-            "d1",  # recession coefficient of the interflow 深层地下水出流系数
-            "e1",  # recession coefficient of speedy groundwater 底孔出流系数
-            "e2",  # recession coefficient of slow groundwater 表孔出流系数
-            "h",  # confluence duration in riverway (hourly) 河道水箱出流孔高度
+            "a0",  # coefficient of the first layer free water infiltrated into the second layer 第一层自由水下渗到第二层的下渗系数
+            "b0",  # coefficient of the second layer free water infiltrated into the interflow 第二层自由水下渗到壤中流的下渗系数
+            "c0",  # coefficient of the interflow infiltrated into the shoal layer groundwater 壤中流下渗到浅层地下水的下渗系数
+            "h1",  # hole height of surface runoff discharging via bottom hole 地面径流底孔出流孔高度
+            "h2",  # hole height of surface runoff discharging via surface hole 地面径流表孔出流孔高度
+            "a1",  # coefficient of surface runoff discharging via bottom hole 地面径流底孔出流系数
+            "a2",  # coefficient of surface runoff discharging via surface hole 地面径流表孔出流系数
+            "h3",  # hole height of interflow discharging via hole 壤中流出流孔高度
+            "b1",  # coefficient of interflow discharging 壤中流出流系数
+            "h4",  # hole height of shoal layer groundwater discharging 浅层地下水出流孔高度
+            "c1",  # coefficient of shoal layer groundwater discharging 浅层地下水出流系数
+            "d1",  # coefficient of deep layer groundwater discharging  深层地下水出流系数
+            "e1",  # coefficient of bottom hole discharging 底孔出流系数
+            "e2",  # coefficient of surface hole discharging 表孔出流系数
+            "h",  # hole height of river-tank discharging 河道水箱出流孔高度
 
         ],
         "param_range": OrderedDict(
