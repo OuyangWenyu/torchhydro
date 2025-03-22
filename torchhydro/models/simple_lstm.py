@@ -20,7 +20,7 @@ class SimpleLSTM(nn.Module):
     def __init__(self, input_size, output_size, hidden_size, dr=0.0):
         """
         A simple multi-layer LSTM - NN model
-        循环神经网络
+        循环神经网络的长短期记忆神经网络模型
         LSTM是 nn 里面已经封装好了的模型，这里再一次封装，方便自己使用。
 
         Parameters
@@ -33,11 +33,10 @@ class SimpleLSTM(nn.Module):
             number of neurons in each hidden layer    隐藏层的维数   隐藏层节点特征维度
         dr: float
             dropout rate of layers, default is 0.0 which means no dropout;
-            here we set number of dropout layers to (number of nn layers - 1)
         """
         super(SimpleLSTM, self).__init__()
         self.linearIn = nn.Linear(input_size, hidden_size)   # 第一层，即输入层为线性层
-        self.lstm = nn.LSTM(  # 使用一个 lstm 模型     # todo: rnn 和 ann 的区别
+        self.lstm = nn.LSTM(  # 使用一个 lstm 模型
             hidden_size,  # input_size 输入特征的维度
             hidden_size,  # 隐藏层神经元个数
             1,  # 循环神经网络的层数
@@ -45,7 +44,7 @@ class SimpleLSTM(nn.Module):
         )
         self.linearOut = nn.Linear(hidden_size, output_size)  # 最后一层，即输出层也为线性层
 
-    def forward(self, x):  # 传播。 todo: 这个传播是仅前向传播还是包括前向和反向？
+    def forward(self, x):  # 传播
         x0 = F.relu(self.linearIn(x))  # 输入层经过激活函数后，传入长短期记忆模型
         out_lstm, (hn, cn) = self.lstm(x0)  # 经过长短期记忆模型传播后，传入输出层
         return self.linearOut(out_lstm)  # 输出层经过一次线性变换后传出一次传播结果，不断循环往复传播。

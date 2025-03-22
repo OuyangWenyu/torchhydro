@@ -136,8 +136,8 @@ class NSELoss(torch.nn.Module):
 
     def forward(self, output, target):
         """
-        Loss function for NSELoss
-        # todo: loss function forward too?
+        Loss function for NSELoss l
+
         Parameters
         ----------
         output

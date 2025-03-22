@@ -1,5 +1,4 @@
 import os
-import torch
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
@@ -29,7 +28,8 @@ def run_camelsdplsac(
         test_period = ["2000-10-01", "2010-10-01"]
     config = default_config_file()
     args = cmd(
-        sub=os.path.join("test_camels", "expdpl4sac"),
+        sub=os.path.join("test_camels", "expdpllstmsac"),
+        # sub=os.path.join("test_camels", "expdplannsac"),
         source_cfgs={
             "source_name": "camels_us",
             "source_path": os.path.join(
@@ -40,17 +40,15 @@ def run_camelsdplsac(
         model_name="DplLstmSac",
         # model_name="DplAnnSac",
         model_hyperparam={
-            "n_input_features": 25,  # 21 parameter of sac model   25
-            "n_output_features": 21,  # 输入21个参数
+            "n_input_features": 25,
+            "n_output_features": 21,
             "n_hidden_states": 256,
             "warmup_length": 10,
         },
         loss_func="RMSESum",
-        # sampler="KuaiSampler",
-        # dataset="StreamflowDataset",
-        dataset="DplDataset",   # todo:
+        dataset="DplDataset",
         scaler="DapengScaler",
-        scaler_params={  # todo:
+        scaler_params={
             "prcp_norm_cols": [
                 "streamflow",
             ],
@@ -66,7 +64,7 @@ def run_camelsdplsac(
             ],
             "pbm_norm": True,
         },
-        gage_id=[  # grid
+        gage_id=[
             "01013500",
             "01022500",
             "01030500",
@@ -91,9 +89,9 @@ def run_camelsdplsac(
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
-        batch_size=20,  # 20 basin per batch  ?
+        batch_size=20,
         forecast_history=0,
-        forecast_length=30,  # 10 + 30 = 40, sequence length
+        forecast_length=30,
         var_t=[
             "prcp",
             "PET",
@@ -107,11 +105,11 @@ def run_camelsdplsac(
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,
-        train_epoch=10,
+        train_epoch=2,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 10,
+            "test_epoch": 2,
         },
         warmup_length=10,
         opt="Adadelta",
