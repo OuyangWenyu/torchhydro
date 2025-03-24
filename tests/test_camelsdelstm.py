@@ -33,7 +33,7 @@ def var_c():
         "geochemical_rocktype_silicate_perc",
         "geochemical_rocktype_carbonatic_perc",
         "cavity_pores_perc",
-        "geochemical_rocktype_halitic_perc",
+        "aquifer_perc",
     ]
 
 @pytest.fixture
