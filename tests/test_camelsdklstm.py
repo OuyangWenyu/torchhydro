@@ -17,53 +17,45 @@ from torchhydro.trainers.trainer import train_and_evaluate
 @pytest.fixture
 def var_c():
     return [
-        "elev_mean",
-        "slope_fdc",
-        "area",
-        "forests_and_seminatural_areas_perc",
-        "artificial_surfaces_perc",
-        "agricultural_areas_perc",
-        "wetlands_perc",
-        "water_bodies_perc",
-        "clay_30_100cm_mean",
-        "soil_organic_carbon_30_100cm_mean",
-        "silt_0_30cm_mean",
-        "sand_0_30cm_mean",
-        "bulk_density_0_30cm_mean",
-        "geochemical_rocktype_silicate_perc",
-        "geochemical_rocktype_carbonatic_perc",
-        "cavity_pores_perc",
-        "aquifer_perc",
+        "dem_mean",
+        "slope_mean",
+        "catch_area",
+        "pct_forest_levin_2011",
+        "pct_agriculture_levin_2016",
+        "pct_urban_levin_2021",
+        "pct_naturedry_levin_2018",
+        "pct_forest_corine_2000",
+        "root_depth",
+        "pct_sand",
+        "pct_silt",
+        "pct_clay",
+        "chalk_d",
+        "uaquifer_t",
+        "pct_aeolain_sand",
+        "pct_sandy_till",
+        "pct_glam_clay",
     ]
 
 @pytest.fixture
 def var_t():
     return [
-        "precipitation_mean",
-        "precipitation_min",
-        "precipitation_median",
-        "precipitation_max",
-        "precipitation_stdev",
-        "water_level",
-        "humidity_mean",
-        "humidity_min",
-        "humidity_median",
-        "humidity_max",
-        "humidity_stdev",
-        "radiation_global_mean",
-        "radiation_global_min",
-        "radiation_global_median",
-        "radiation_global_max",
-        "radiation_global_stdev",
-        "temperature_mean",
-        "temperature_min",
-        "temperature_max",
+        "precipitation",
+        "pet",
+        "temperature",
+        "DKM_dtp",
+        "DKM_eta",
+        "DKM_wcr",
+        "DKM_sdr",
+        "DKM_sre",
+        "DKM_gwh",
+        "DKM_irr",
+        "Abstraction",
     ]
 
 @pytest.fixture
-def camelsdelsmt_args(var_c, var_t):
-    project_name = os.path.join("test_camels", "lstm_camelsde")
-    # camels-de time_range: ["1951-01-01", "2020-12-31"]
+def camelsdklsmt_args(var_c, var_t):
+    project_name = os.path.join("test_camels", "lstm_camelsdk")
+    # camels-dk time_range: ["1989-01-02", "2023-12-31"]
     train_period = ["2017-10-01", "2018-10-01"]
     valid_period = ["2018-10-01", "2019-10-01"]
     test_period = ["2019-10-01", "2020-10-01"]
@@ -71,9 +63,9 @@ def camelsdelsmt_args(var_c, var_t):
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_de",
+            "source_name": "camels_dk",
             "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_de"
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_dk"
             ),
         },
         ctx=[-1],
@@ -111,13 +103,13 @@ def camelsdelsmt_args(var_c, var_t):
         # 01022500
         # ......
         # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-        gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_de\\gage_id.txt",
+        gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_dk\\gage_id.txt",
         which_first_tensor="sequence",
     )
     update_cfg(config_data, args)
     return config_data
 
 
-def test_camelsdelstm(camelsdelsmt_args):
-    train_and_evaluate(camelsdelsmt_args)
+def test_camelsdklstm(camelsdklsmt_args):
+    train_and_evaluate(camelsdklsmt_args)
     print("All processes are finished!")

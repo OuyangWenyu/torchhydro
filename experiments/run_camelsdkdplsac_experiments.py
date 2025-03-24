@@ -80,11 +80,11 @@ def run_camelsdkdplsac(
         loss_func="RMSESum",
         dataset="DplDataset",
         scaler="DapengScaler",
-        scaler_params={  #
-            "prcp_norm_cols": [
+        scaler_params={
+            "prcp_norm_cols": [  #
                 "streamflow",
             ],
-            "gamma_norm_cols": [
+            "gamma_norm_cols": [  #
                 "precipitation",
                 "pr",
                 "total_precipitation",
@@ -94,7 +94,7 @@ def run_camelsdkdplsac(
                 "ET_sum",
                 "ssm",
             ],
-            "pbm_norm": True,
+            "pbm_norm": True,  #
         },
         gage_id=[
             "11100001",
