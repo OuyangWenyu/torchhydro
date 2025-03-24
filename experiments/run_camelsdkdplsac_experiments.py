@@ -3,37 +3,40 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
 
-VAR_C_CHOSEN_FROM_CAMELS_CH = [
-    "elev_mean",
+VAR_C_CHOSEN_FROM_CAMELS_DK = [
+    "dem_mean",
     "slope_mean",
-    "area",
-    "scrub_perc",  # note: this field in original data file is different with its in data description pdf file, choose the former for convience.
-    "mixed_wood_perc",  # note: this field in original data file is different with its in data description pdf file, choose the former for convience.
-    "rock_perc",
-    "dom_land_cover",
-    "crop_perc",
-    "root_depth_50",
+    "catch_area",
+    "pct_forest_levin_2011",
+    "pct_agriculture_levin_2016",
+    "pct_urban_levin_2021",
+    "pct_naturedry_levin_2018",
+    "pct_forest_corine_2000",
     "root_depth",
-    "porosity",
-    "conductivity",
-    "tot_avail_water",
-    "unconsol_sediments",
-    "siliciclastic_sedimentary",
-    "geo_porosity",
-    "geo_log10_permeability",
+    "pct_sand",
+    "pct_silt",
+    "pct_clay",
+    "chalk_d",
+    "uaquifer_t",
+    "pct_aeolain_sand",
+    "pct_sandy_till",
+    "pct_glam_clay",
 ]
-VAR_T_CHOSEN_FROM_CH = [
+VAR_T_CHOSEN_FROM_DK = [
     "precipitation",
-    "ET",
-    "waterlevel",
-    "temperature_min",
-    "temperature_mean",
-    "temperature_max",
-    "rel_sun_dur",
-    "swe",
+    "pet",
+    "temperature",
+    "DKM_dtp",
+    "DKM_eta",
+    "DKM_wcr",
+    "DKM_sdr",
+    "DKM_sre",
+    "DKM_gwh",
+    "DKM_irr",
+    "Abstraction",
 ]
 
-def run_camelsdplsac(
+def run_camelsdkdplsac(
     train_period=None,
     valid_period=None,
     test_period=None
@@ -49,7 +52,7 @@ def run_camelsdplsac(
     -------
 
     """
-    if train_period is None:  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
+    if train_period is None:  # camels-dk time_range: ["1989-01-02", "2023-12-31"]
         train_period = ["2017-10-01", "2018-10-01"]
     if valid_period is None:
         valid_period = ["2018-10-01", "2019-10-01"]
@@ -57,19 +60,19 @@ def run_camelsdplsac(
         test_period = ["2019-10-01", "2020-10-01"]
     config = default_config_file()
     args = cmd(
-        sub=os.path.join("test_camels", "expdpllstmsac_camelsch"),
+        sub=os.path.join("test_camels", "expdpllstmsac_camelsdk"),
         # sub=os.path.join("test_camels", "expdplannsac"),
         source_cfgs={
-            "source_name": "camels_ch",
+            "source_name": "camels_dk",
             "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_ch"
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_dk"
             ),
         },
         ctx=[-1],
         model_name="DplLstmSac",
         # model_name="DplAnnSac",
         model_hyperparam={
-            "n_input_features": len(VAR_T_CHOSEN_FROM_CH)+len(VAR_C_CHOSEN_FROM_CAMELS_CH),
+            "n_input_features": len(VAR_T_CHOSEN_FROM_DK)+len(VAR_C_CHOSEN_FROM_CAMELS_DK),
             "n_output_features": 21,
             "n_hidden_states": 256,
             "warmup_length": 10,
@@ -77,7 +80,7 @@ def run_camelsdplsac(
         loss_func="RMSESum",
         dataset="DplDataset",
         scaler="DapengScaler",
-        scaler_params={
+        scaler_params={  #
             "prcp_norm_cols": [
                 "streamflow",
             ],
@@ -87,27 +90,33 @@ def run_camelsdplsac(
                 "total_precipitation",
                 "potential_evaporation",
                 "ET",
-                "PET",
+                "pet",
                 "ET_sum",
                 "ssm",
             ],
             "pbm_norm": True,
         },
         gage_id=[
-            "2009",
-            "2011",
-            "2016",
-            "2018",
-            "2019",
-            "2020",
-            "2024",
-            "2029",
-            "2030",
-            "2033",
-            "2034",
-            "2044",
-            "2056",
-            "2063",
+            "11100001",
+            "11100003",
+            "11100004",
+            "11100005",
+            "11100006",
+            "11100008",
+            "11100009",
+            "11100024",
+            "11100055",
+            "11100056",
+            "11100066",
+            "11100072",
+            "11100074",
+            "11100077",
+            "11100078",
+            "11100093",
+            "11100099",
+            "11102587",
+            "12000001",
+            "12000045",
         ],
         train_period=train_period,
         valid_period=valid_period,
@@ -115,16 +124,16 @@ def run_camelsdplsac(
         batch_size=20,
         forecast_history=0,
         forecast_length=30,
-        var_t=VAR_T_CHOSEN_FROM_CH,
-        var_c=VAR_C_CHOSEN_FROM_CAMELS_CH,
+        var_t=VAR_T_CHOSEN_FROM_DK,
+        var_c=VAR_C_CHOSEN_FROM_CAMELS_DK,
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,
-        train_epoch=10,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 10,
+            "test_epoch": 1,
         },
         warmup_length=10,
         opt="Adadelta",
@@ -135,9 +144,9 @@ def run_camelsdplsac(
     print("All processes are finished!")
 
 
-run_camelsdplsac(  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
-    train_period=["1981-01-01", "19821-01-01"],
-    valid_period=["1986-10-01", "1987-10-01"],
-    test_period=["1987-10-01", "1988-10-01"],
+run_camelsdkdplsac(  # camels-dk time_range: ["1989-01-02", "2023-12-31"]
+    train_period=["1990-07-01", "1991-07-01"],
+    valid_period=["1991-10-01", "1992-10-01"],
+    test_period=["1992-10-01", "1993-10-01"],
 )
 

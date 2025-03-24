@@ -473,7 +473,7 @@ class DplLstmSac(nn.Module):
         torch.Tensor
             one time forward result
         """
-        gen = self.dl_model(z)
+        gen = self.dl_model(z)  # todo: nan values when lack of evaporation.
         if torch.isnan(gen).any():
             raise ValueError("Error: NaN values detected. Check your data firstly!!!")
         # we set all params' values in [0, 1] and will scale them when forwarding
