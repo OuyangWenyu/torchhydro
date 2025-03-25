@@ -56,11 +56,11 @@ def run_normal_dl(
     test_period=None,
 ):
     if train_period is None:  # camels-br time_range: ["1995-01-01", "2015-01-01"]
-        train_period = ["2012-10-01", "2013-10-01"]
+        train_period = ["2011-10-01", "2012-10-01"]
     if valid_period is None:
-        valid_period = ["2013-10-01", "2014-10-01"]
+        valid_period = ["2012-10-01", "2013-10-01"]
     if test_period is None:
-        test_period = ["2014-10-01", "2015-10-01"]
+        test_period = ["2013-10-01", "2014-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,

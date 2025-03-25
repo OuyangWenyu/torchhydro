@@ -101,7 +101,12 @@ def run_camelsdkdplsac(
             "12430456",
             "12430590",
             "12430591",
+            "12430666",
             "12431077",
+            "13210113",
+            "13210722",
+            "13210733",
+            "13230003",
         ],
         train_period=train_period,
         valid_period=valid_period,
@@ -135,3 +140,4 @@ run_camelsdkdplsac(  # camels-dk time_range: ["1989-01-02", "2023-12-31"]
     test_period=["1992-10-01", "1993-10-01"],
 )
 
+# 164
