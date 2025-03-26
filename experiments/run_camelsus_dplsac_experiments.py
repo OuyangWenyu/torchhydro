@@ -122,8 +122,9 @@ def run_camelsdplsac(
 
 
 run_camelsdplsac(  # camels-us time_range: ["1980-01-01", "2014-12-31"]
-    train_period=["1980-01-01", "1981-01-01"],
+    train_period=["1985-10-01", "1986-10-01"],
     valid_period=["1986-10-01", "1987-10-01"],
     test_period=["1987-10-01", "1988-10-01"],
 )
 
+# 327
