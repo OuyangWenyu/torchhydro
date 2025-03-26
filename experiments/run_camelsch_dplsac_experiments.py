@@ -30,7 +30,7 @@ VAR_T_CHOSEN_FROM_CH = [
     "temperature_mean",
     "temperature_max",
     "rel_sun_dur",
-    # "swe",
+    "swe",
 ]
 
 def run_camelschdplsac(
@@ -105,7 +105,7 @@ def run_camelschdplsac(
             # "2030",
             # "2033",
             # "2034",
-            # "2044",
+            "2044",
             "2053",  #
             # "2067",
             # "2068",  #
