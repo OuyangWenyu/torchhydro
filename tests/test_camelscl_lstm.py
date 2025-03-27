@@ -18,64 +18,53 @@ from torchhydro.trainers.trainer import train_and_evaluate
 def var_c():
     return [
         "elev_mean",
-        "mean_slope_pct",
-        "catchment_area",
-        "prop_forested",
-        "nvis_grasses_n",
-        "lc19_shrbsca",
-        "lc01_extracti",
-        "lc03_waterbo",
-        "nvis_nodata_n",
-        "carbnatesed",
-        "metamorph",
-        "oldrock",
-        "lc11_wetlands",
-        "claya",
-        "sanda",
-        "geol_prim",
-        "geol_prim_prop",
+        "slope_mean",
+        "area",
+        "forest_frac",
+        "crop_frac",
+        "nf_frac",
+        "dom_land_cover_frac",
+        "dom_land_cover",
+        "grass_frac",
+        "shrub_frac",
+        "wet_frac",
+        "imp_frac",
+        "fp_frac",
+        "geol_class_1st",
+        "geol_class_1st_frac",
+        "geol_class_2nd",
+        "carb_rocks_frac",
     ]
 
 @pytest.fixture
 def var_t():
     return [
-        "precipitation_AWAP",
-        "et_morton_actual_SILO",
-        "et_morton_point_SILO",
-        "et_morton_wet_SILO",
-        "et_short_crop_SILO",
-        "et_tall_crop_SILO",
-        "evap_morton_lake_SILO",
-        "evap_pan_SILO",
-        "evap_syn_SILO",
-        "solarrad_AWAP",
-        "tmax_AWAP",
-        "tmin_AWAP",
-        "vprp_AWAP",
-        "mslp_SILO",
-        "radiation_SILO",
-        "rh_tmax_SILO",
-        "rh_tmin_SILO",
-        "tmax_SILO",
-        "tmin_SILO",
-        "vp_deficit_SILO",
-        "vp_SILO",
+        "precip_cr2met",
+        "precip_chirps",
+        "precip_mswep",
+        "precip_tmpa",
+        "tmin_cr2met",
+        "tmax_cr2met",
+        "tmean_cr2met",
+        "pet_8d_modis",
+        "pet_hargreaves",
+        "swe",
     ]
 
 @pytest.fixture
-def camelsauslsmt_args(var_c,var_t):
-    project_name = os.path.join("test_camels", "lstm_camelsaus")
-    # camels-aus time_range: ["1990-01-01", "2010-01-01"]
-    train_period = ["2006-10-01", "2007-10-01"]
-    valid_period = ["2007-10-01", "2008-10-01"]
-    test_period = ["2008-10-01", "2009-10-01"]
+def camelscllsmt_args(var_c,var_t):
+    project_name = os.path.join("test_camels", "lstm_camelscl"),
+    # camels-cl time_range: ["1970-10-01", "2015-09-30"]
+    train_period = ["2011-10-01", "2012-10-01"]
+    valid_period = ["2012-10-01", "2013-10-01"]
+    test_period = ["2013-10-01", "2014-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_aus",
+            "source_name": "camels_cl",
             "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_aus"
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_cl"
             ),
         },
         ctx=[-1],
@@ -101,11 +90,11 @@ def camelsauslsmt_args(var_c,var_t):
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=10,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 10,
+            "test_epoch": 1,
         },
         # the gage_id.txt file is set by the user, it must be the format like:
         # GAUGE_ID
@@ -113,13 +102,13 @@ def camelsauslsmt_args(var_c,var_t):
         # 01022500
         # ......
         # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-        gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_aus\\gage_id.txt",
+        gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_cl\\gage_id.txt",
         which_first_tensor="sequence",
     )
     update_cfg(config_data, args)
     return config_data
 
 
-def test_camelsauslstm(camelsauslsmt_args):
-    train_and_evaluate(camelsauslsmt_args)
+def test_camelscllstm(camelscllsmt_args):
+    train_and_evaluate(camelscllsmt_args)
     print("All processes are finished!")

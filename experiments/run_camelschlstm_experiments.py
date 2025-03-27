@@ -91,11 +91,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=1,
+        train_epoch=10,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 1,
+            "test_epoch": 10,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",
