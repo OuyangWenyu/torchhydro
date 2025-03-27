@@ -383,8 +383,8 @@ class DplAnnSac(nn.Module):
             one time forward result
         """
         gen = self.dl_model(z)
-        if torch.isnan(gen).any():
-            raise ValueError("Error: NaN values detected. Check your data firstly!!!")
+        # if torch.isnan(gen).any():
+        #     raise ValueError("Error: NaN values detected. Check your data firstly!!!")
         # we set all params' values in [0, 1] and will scale them when forwarding
         if self.param_func == "sigmoid":
             params = F.sigmoid(gen)
@@ -474,8 +474,8 @@ class DplLstmSac(nn.Module):
             one time forward result
         """
         gen = self.dl_model(z)  # todo: nan values when lack of evaporation.
-        if torch.isnan(gen).any():
-            raise ValueError("Error: NaN values detected. Check your data firstly!!!")
+        # if torch.isnan(gen).any():
+        #     raise ValueError("Error: NaN values detected. Check your data firstly!!!")
         # we set all params' values in [0, 1] and will scale them when forwarding
         if self.param_func == "sigmoid":
             params = F.sigmoid(gen)

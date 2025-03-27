@@ -30,7 +30,7 @@ VAR_T_CHOSEN_FROM_CH = [
     "temperature_mean",
     "temperature_max",
     "rel_sun_dur",
-    # "swe",
+    "swe",
 ]
 
 def run_camelschdplsac(
@@ -72,7 +72,7 @@ def run_camelschdplsac(
             "n_input_features": len(VAR_T_CHOSEN_FROM_CH)+len(VAR_C_CHOSEN_FROM_CAMELS_CH),  # 8 + 17 = 25
             "n_output_features": 21,
             "n_hidden_states": 256,
-            "warmup_length": 10,
+            "warmup_length": 40,
         },
         loss_func="RMSESum",
         dataset="DplDataset",
@@ -94,29 +94,29 @@ def run_camelschdplsac(
             "pbm_norm": True,
         },
         gage_id=[
-            # "2009",
-            # "2011",
-            # "2016",
-            # "2018",
-            # "2019",
-            # "2020",
-            # "2024",
-            # "2029",
-            # "2030",
-            # "2033",
-            # "2034",
+            "2009",
+            "2011",
+            "2016",
+            "2018",
+            "2019",
+            "2020",
+            "2024",
+            "2029",
+            "2030",
+            "2033",
+            "2034",
             "2044",
-            # "2053",  #
-            # "2067",
-            # "2068",  #
-            # "2070",
+            "2053",  #
+            "2067",
+            "2068",  #
+            "2070",
         ],
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
         batch_size=20,
         forecast_history=0,
-        forecast_length=30,
+        forecast_length=42,
         var_t=VAR_T_CHOSEN_FROM_CH,
         var_c=VAR_C_CHOSEN_FROM_CAMELS_CH,
         var_out=["streamflow"],
@@ -128,7 +128,7 @@ def run_camelschdplsac(
             "load_way": "specified",
             "test_epoch": 3,
         },
-        warmup_length=10,
+        warmup_length=40,
         opt="Adadelta",
         which_first_tensor="sequence",
     )
@@ -138,7 +138,7 @@ def run_camelschdplsac(
 
 
 run_camelschdplsac(  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
-    train_period=["1981-01-01", "1982-01-01"],
+    train_period=["1998-09-02", "1998-12-02"],
     valid_period=["1986-10-01", "1987-10-01"],
     test_period=["1987-10-01", "1988-10-01"],
 )
@@ -151,4 +151,14 @@ run_camelschdplsac(  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
 # problems
 #  lack of evaporation
 #  lack of streamflow for part of stations/basins, nan values
-#  some fields
+#  some fields of forcing data is absent in part of time range, nan values
+
+# experiment
+# swe  nan values before 1998.09.02
+#  1981.01.01-1981.02.09 (10,30)
+#   use swe, all of target values are null
+#   commented swe, all of target values are not null
+#   use swe and covered nan values with 0, all of target values are not null. while the target values get worse.
+#  1998.08.01-1998.11.01 (40,42)
+#   use swe, all of target values are null
+#   use swe and covered nan values with 0, all of target values are not null. got bad the target values.
