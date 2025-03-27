@@ -72,7 +72,7 @@ def run_camelschdplsac(
             "n_input_features": len(VAR_T_CHOSEN_FROM_CH)+len(VAR_C_CHOSEN_FROM_CAMELS_CH),  # 8 + 17 = 25
             "n_output_features": 21,
             "n_hidden_states": 256,
-            "warmup_length": 40,
+            "warmup_length": 10,
         },
         loss_func="RMSESum",
         dataset="DplDataset",
@@ -102,7 +102,7 @@ def run_camelschdplsac(
             "2020",
             "2024",
             "2029",
-            "2030",
+            # "2030",  #
             "2033",
             "2034",
             "2044",
@@ -116,7 +116,7 @@ def run_camelschdplsac(
         test_period=test_period,
         batch_size=20,
         forecast_history=0,
-        forecast_length=42,
+        forecast_length=30,
         var_t=VAR_T_CHOSEN_FROM_CH,
         var_c=VAR_C_CHOSEN_FROM_CAMELS_CH,
         var_out=["streamflow"],
@@ -128,7 +128,7 @@ def run_camelschdplsac(
             "load_way": "specified",
             "test_epoch": 3,
         },
-        warmup_length=40,
+        warmup_length=10,
         opt="Adadelta",
         which_first_tensor="sequence",
     )
@@ -138,9 +138,9 @@ def run_camelschdplsac(
 
 
 run_camelschdplsac(  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
-    train_period=["1998-09-02", "1998-12-02"],
-    valid_period=["1986-10-01", "1987-10-01"],
-    test_period=["1987-10-01", "1988-10-01"],
+    train_period=["1998-10-01", "1999-10-01"],
+    valid_period=["1999-10-01", "2000-10-01"],
+    test_period=["2001-10-01", "2002-10-01"],
 )
 
 
@@ -159,6 +159,9 @@ run_camelschdplsac(  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
 #   use swe, all of target values are null
 #   commented swe, all of target values are not null
 #   use swe and covered nan values with 0, all of target values are not null. while the target values get worse.
-#  1998.08.01-1998.11.01 (40,42)
+#  1998.08.01-1998.11.01 (40,52)
 #   use swe, all of target values are null
-#   use swe and covered nan values with 0, all of target values are not null. got bad the target values.
+#   use swe and covered nan values with 0, all of target values are not null. get bad target values.
+#  1998.09.02-1998.12.02 (40,51)  no nan values
+#   use swe, all of target values are null
+#   use swe and covered nan values with 0,  all of target values are not null. while the target values get worse.
