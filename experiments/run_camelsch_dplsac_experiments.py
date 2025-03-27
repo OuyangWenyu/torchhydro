@@ -30,7 +30,7 @@ VAR_T_CHOSEN_FROM_CH = [
     "temperature_mean",
     "temperature_max",
     "rel_sun_dur",
-    "swe",
+    # "swe",
 ]
 
 def run_camelschdplsac(
@@ -146,3 +146,9 @@ run_camelschdplsac(  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
 
 # 229
 # 17
+
+
+# problems
+#  lack of evaporation
+#  lack of streamflow for part of stations/basins, nan values
+#  some fields
