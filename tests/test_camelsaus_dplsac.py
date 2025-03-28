@@ -55,10 +55,7 @@ def var_t():
 @pytest.fixture
 def camelsausdplsac_arg(
     var_c,
-    var_t,
-    train_period=None,
-    valid_period=None,
-    test_period=None
+    var_t
 ):
     """
     Use attr and forcing as input for dPL model
@@ -71,12 +68,10 @@ def camelsausdplsac_arg(
     -------
 
     """
-    if train_period is None:  # camels-aus time_range: ["1990-01-01", "2010-01-01"]
-        train_period = ["2006-10-01", "2007-10-01"]
-    if valid_period is None:
-        valid_period = ["2007-10-01", "2008-10-01"]
-    if test_period is None:
-        test_period = ["2008-10-01", "2009-10-01"]
+    # camels-aus time_range: ["1990-01-01", "2010-01-01"]
+    train_period = ["2006-10-01", "2007-10-01"]
+    valid_period = ["2007-10-01", "2008-10-01"]
+    test_period = ["2008-10-01", "2009-10-01"]
     config = default_config_file()
     args = cmd(
         sub=os.path.join("test_camels", "expdpllstmsac_camelsaus"),
@@ -159,8 +154,6 @@ def camelsausdplsac_arg(
         which_first_tensor="sequence",
     )
     update_cfg(config, args)
-
-
 
 def test_camelsausdplsac(camelsausdplsac_arg):
     train_and_evaluate(camelsausdplsac_arg)
