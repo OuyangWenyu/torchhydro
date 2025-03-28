@@ -75,6 +75,7 @@ def run_camelschdplsac(
             "warmup_length": 10,
         },
         loss_func="RMSESum",
+        sampler="KuaiSampler",
         dataset="DplDataset",
         scaler="DapengScaler",
         scaler_params={
@@ -93,31 +94,31 @@ def run_camelschdplsac(
             ],
             "pbm_norm": True,
         },
-        # gage_id_file = "D:\\minio\\waterism\\datasets-origin\\camels\\camels_ch\\gage_id.txt",
-        gage_id=[
-            "2009",
-            "2011",
-            "2016",
-            "2018",
-            "2019",
-            "2020",
-            "2024",
-            "2029",
-            # "2030",  #
-            "2033",
-            "2034",
-            "2044",
-            "2053",  #
-            "2067",
-            "2068",  #
-            "2070",
-        ],
+        gage_id_file = "D:\\minio\\waterism\\datasets-origin\\camels\\camels_ch\\gage_id.txt",
+        # gage_id=[
+        #     "2009",
+        #     "2011",
+        #     "2016",
+        #     "2018",
+        #     "2019",
+        #     "2020",
+        #     "2024",
+        #     "2029",
+        #     # "2030",  #
+        #     "2033",
+        #     "2034",
+        #     "2044",
+        #     "2053",  #
+        #     "2067",
+        #     "2068",  #
+        #     "2070",
+        # ],
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
         batch_size=50,
         forecast_history=0,
-        forecast_length=366,
+        forecast_length=365,
         var_t=VAR_T_CHOSEN_FROM_CH,
         var_c=VAR_C_CHOSEN_FROM_CAMELS_CH,
         var_out=["streamflow"],
@@ -131,7 +132,7 @@ def run_camelschdplsac(
         },
         warmup_length=10,
         opt="Adadelta",
-        # rs=1234,
+        rs=1234,
         which_first_tensor="sequence",
     )
     update_cfg(config, args)
@@ -170,4 +171,6 @@ run_camelschdplsac(  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
 #
 
 # covering nan values with 0 will increase the time-step of time sequence, thus, target values get worse.
-# lack of streamflow
+# lack of streamflow   download from somewhere, following us.  reject stations/basins lacking of streamflow directly.
+# lack of evaporation   download from somewhere.  not a necessary item for nn model, while pb model need it.
+#
