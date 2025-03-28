@@ -93,6 +93,7 @@ def run_camelschdplsac(
             ],
             "pbm_norm": True,
         },
+        # gage_id_file = "D:\\minio\\waterism\\datasets-origin\\camels\\camels_ch\\gage_id.txt",
         gage_id=[
             "2009",
             "2011",
@@ -114,22 +115,23 @@ def run_camelschdplsac(
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
-        batch_size=20,
+        batch_size=50,
         forecast_history=0,
-        forecast_length=30,
+        forecast_length=366,
         var_t=VAR_T_CHOSEN_FROM_CH,
         var_c=VAR_C_CHOSEN_FROM_CAMELS_CH,
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,
-        train_epoch=3,
+        train_epoch=1,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 3,
+            "test_epoch": 1,
         },
         warmup_length=10,
         opt="Adadelta",
+        # rs=1234,
         which_first_tensor="sequence",
     )
     update_cfg(config, args)
@@ -138,9 +140,9 @@ def run_camelschdplsac(
 
 
 run_camelschdplsac(  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
-    train_period=["1998-10-01", "1999-10-01"],
-    valid_period=["1999-10-01", "2000-10-01"],
-    test_period=["2001-10-01", "2002-10-01"],
+    train_period=["2017-10-01", "2018-10-01"],
+    valid_period=["2018-10-01", "2019-10-01"],
+    test_period=["2019-10-01", "2020-10-01"],
 )
 
 
@@ -150,7 +152,7 @@ run_camelschdplsac(  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
 
 # problems
 #  lack of evaporation
-#  lack of streamflow for part of stations/basins, nan values
+#  lack of streamflow for part of stations/basins, nan values    key item
 #  some fields of forcing data is absent in part of time range, nan values
 
 # experiment
@@ -162,6 +164,10 @@ run_camelschdplsac(  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
 #  1998.08.01-1998.11.01 (40,52)
 #   use swe, all of target values are null
 #   use swe and covered nan values with 0, all of target values are not null. get bad target values.
-#  1998.09.02-1998.12.02 (40,51)  no nan values
-#   use swe, all of target values are null
+#  1998.10.01-1999.10.01 (10,30)  no nan values
+#   use swe, all of target values are not null
 #   use swe and covered nan values with 0,  all of target values are not null. while the target values get worse.
+#
+
+# covering nan values with 0 will increase the time-step of time sequence, thus, target values get worse.
+# lack of streamflow
