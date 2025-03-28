@@ -105,11 +105,11 @@ def run_camelsdplsac(
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,
-        train_epoch=1,
+        train_epoch=10,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 1,
+            "test_epoch": 10,
         },
         warmup_length=10,
         opt="Adadelta",
