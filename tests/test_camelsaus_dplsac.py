@@ -154,6 +154,7 @@ def camelsausdplsac_arg(
         which_first_tensor="sequence",
     )
     update_cfg(config, args)
+    return config
 
 def test_camelsausdplsac(camelsausdplsac_arg):
     train_and_evaluate(camelsausdplsac_arg)
