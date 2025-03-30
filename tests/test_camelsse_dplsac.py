@@ -7,47 +7,34 @@ import pytest
 @pytest.fixture
 def var_c():
     return [
-        "top_altitude_mean",
-        "top_slo_mean",
-        "sta_area_snap",
-        "top_drainage_density",
-        "clc_2018_lvl1_1",
-        "clc_2018_lvl2_11",
-        "clc_2018_lvl3_111",
-        "clc_1990_lvl1_1",
-        "clc_2018_lvl1_2",
-        "top_slo_ori_n",
-        "top_slo_ori_ne",
-        "top_slo_ori_e",
-        "top_slo_flat",
-        "top_slo_gentle",
-        "top_slo_moderate",
-        "top_slo_ori_se",
-        "geo_py",
-        "geo_pa",
+        "Elevation_mabsl",
+        "Slope_mean_degree",
+        "Area_km2",
+        "Shrubs_and_grassland_percentage",
+        "Urban_percentage",
+        "Water_percentage",
+        "Forest_percentage",
+        "Open_land_percentage",
+        "Glaciofluvial_sediment_percentage",
+        "Bedrock_percentage",
+        "Postglacial_sand_and_gravel_percentage",
+        "Till_percentage",
+        "Wetlands_percentage",
+        "Peat_percentage",
+        "Silt_percentage",
+        "DOR",
+        "RegVol_m3",
     ]
 
 @pytest.fixture
 def var_t():
     return [
-        "tsd_prec",
-        "tsd_pet_ou",
-        "tsd_prec_solid_frac",
-        "tsd_temp",
-        "tsd_pet_pe",
-        "tsd_pet_pm",
-        "tsd_wind",
-        "tsd_humid",
-        "tsd_rad_dli",
-        "tsd_rad_ssi",
-        "tsd_swi_gr",
-        "tsd_swi_isba",
-        "tsd_swe_isba",
-        "tsd_temp_min",
-        "tsd_temp_max",
+        "Pobs_mm",
+        "ET",  # lock of evaporation
+        "Tobs_C",
     ]
 
-def camelsfrdplsac_arg(var_c, var_t):
+def camelssedplsac_arg(var_c,var_t):
     """
     Use attr and forcing as input for dPL model
 
@@ -59,25 +46,25 @@ def camelsfrdplsac_arg(var_c, var_t):
     -------
 
     """
-    # camels-fr time_range: ["1970-01-01", "2022-01-01"]
-    train_period = ["2012-10-01", "2013-10-01"]
-    valid_period = ["2013-10-01", "2014-10-01"]
-    test_period = ["2014-10-01", "2015-10-01"]
+    # camels-se time_range: ["1961-01-01", "2020-12-31"]
+    train_period = ["2017-10-01", "2018-10-01"]
+    valid_period = ["2018-10-01", "2019-10-01"]
+    test_period = ["2019-10-01", "2020-10-01"]
     config = default_config_file()
     args = cmd(
-        sub=os.path.join("test_camels", "expdpllstmsac_camelsfr"),
+        sub=os.path.join("test_camels", "expdpllstmsac_camelsse"),
         # sub=os.path.join("test_camels", "expdplannsac"),
         source_cfgs={
-            "source_name": "camels_fr",
+            "source_name": "camels_se",
             "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_fr"
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_se"
             ),
         },
         ctx=[-1],
         model_name="DplLstmSac",
         # model_name="DplAnnSac",
         model_hyperparam={
-            "n_input_features": len(var_c)+len(var_t),
+            "n_input_features": len(var_c)+len(var_t),  # 3 + 17 = 20
             "n_output_features": 21,
             "n_hidden_states": 256,
             "warmup_length": 10,
@@ -90,38 +77,38 @@ def camelsfrdplsac_arg(var_c, var_t):
                 "streamflow",
             ],
             "gamma_norm_cols": [
-                "tsd_prec",
+                "Pobs_mm",
                 "pr",
                 "total_precipitation",
                 "potential_evaporation",
                 "ET",
-                "tsd_pet_ou",
+                "pet",
                 "ET_sum",
                 "ssm",
             ],
             "pbm_norm": True,
         },
         gage_id=[
-            "A105003001",
-            "A107020001",
-            "A112020001",
-            "A116003002",
-            "A140202001",
-            "A202030001",
-            "A204010101",
-            "A211030001",
-            "A212020002",
-            "A231020001",
-            "A234021001",
-            "A251020001",
-            "A270011001",
-            "A273011002",
-            "A284020001",
-            "A330010001",
-            "A361011001",
-            "A369011001",
-            "A373020001",
-            "A380020001",
+            "5",
+            "20",
+            "37",
+            "97",
+            "138",
+            "186",
+            "200",
+            "257",
+            "364",
+            "591",
+            "654",
+            "736",
+            "740",
+            "751",
+            "855",
+            "1069",
+            "1083",
+            "1123",
+            "1166",
+            "1169",
         ],
         train_period=train_period,
         valid_period=valid_period,
@@ -147,6 +134,8 @@ def camelsfrdplsac_arg(var_c, var_t):
     update_cfg(config, args)
     return config
 
-def test_camelsfrdplsac(camelsfrdplsac_arg):
-    train_and_evaluate(camelsfrdplsac_arg)
+
+def test_camelssedplsac(camelssedplsac_arg):
+    train_and_evaluate(camelssedplsac_arg)
     print("All processes are finished!")
+
