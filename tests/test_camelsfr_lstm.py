@@ -58,14 +58,12 @@ def var_t():
     "tsd_temp_max",
 ]
 
-
 def camelsfrlstm_arg(var_c, var_t):
-    if train_period is None:  # camels-fr time_range: ["1970-01-01", "2022-01-01"]
-        train_period = ["2017-10-01", "2018-10-01"]
-    if valid_period is None:
-        valid_period = ["2018-10-01", "2019-10-01"]
-    if test_period is None:
-        test_period = ["2019-10-01", "2020-10-01"]
+    project_name = os.path.join("test_camels", "lstm_camelsfr")
+    # camels-fr time_range: ["1970-01-01", "2022-01-01"]
+    train_period = ["2017-10-01", "2018-10-01"]
+    valid_period = ["2018-10-01", "2019-10-01"]
+    test_period = ["2019-10-01", "2020-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -104,20 +102,17 @@ def camelsfrlstm_arg(var_c, var_t):
             "load_way": "specified",
             "test_epoch": 1,
         },
-        gage_id_file=gage_id_file,
+        # the gage_id.txt file is set by the user, it must be the format like:
+        # GAUGE_ID
+        # 01013500
+        # 01022500
+        # ......
+        # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
+        gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_fr\\gage_id.txt",
         which_first_tensor="sequence",
     )
     update_cfg(config_data, args)
     return config_data
-
-
-# the gage_id.txt file is set by the user, it must be the format like:
-# GAUGE_ID
-# 01013500
-# 01022500
-# ......
-# Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("test_camels", "lstm_camelsfr"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_fr\\gage_id.txt")
 
 def test_camelsfrlstm(camelsfrlsmt_args):
     train_and_evaluate(camelsfrlsmt_args)
