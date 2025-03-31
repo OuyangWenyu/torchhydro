@@ -2,8 +2,11 @@ import os
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
+import pytest
 
-VAR_C_CHOSEN_FROM_CAMELS_GB = [
+@pytest.fixture
+def var_c():
+    return [
     "elev_mean",
     "slope_fdc",
     "area",
@@ -22,7 +25,10 @@ VAR_C_CHOSEN_FROM_CAMELS_GB = [
     "inter_mod_perc",
     "frac_mod_perc",
 ]
-VAR_T_CHOSEN_FROM_GB = [
+
+@pytest.fixture
+def var_t():
+    return [
     "precipitation",
     "pet",
     "temperature",
@@ -33,11 +39,8 @@ VAR_T_CHOSEN_FROM_GB = [
     "windspeed",
 ]
 
-def camelsgbdplsac_arg(
-    train_period=None,
-    valid_period=None,
-    test_period=None
-):
+@pytest.fixture
+def camelsgbdplsac_arg(var_c, var_t):
     """
     Use attr and forcing as input for dPL model
 
@@ -49,12 +52,10 @@ def camelsgbdplsac_arg(
     -------
 
     """
-    if train_period is None:  # camels-gb time_range: ["1970-10-01", "2015-09-30"]
-        train_period = ["2012-10-01", "2013-10-01"]
-    if valid_period is None:
-        valid_period = ["2013-10-01", "2014-10-01"]
-    if test_period is None:
-        test_period = ["2014-10-01", "2015-10-01"]
+    # camels-gb time_range: ["1970-10-01", "2015-09-30"]
+    train_period = ["2012-10-01", "2013-10-01"]
+    valid_period = ["2013-10-01", "2014-10-01"]
+    test_period = ["2014-10-01", "2015-10-01"]
     config = default_config_file()
     args = cmd(
         sub=os.path.join("test_camels", "expdpllstmsac_camelsgb"),
@@ -69,7 +70,7 @@ def camelsgbdplsac_arg(
         model_name="DplLstmSac",
         # model_name="DplAnnSac",
         model_hyperparam={
-            "n_input_features": len(VAR_T_CHOSEN_FROM_GB)+len(VAR_C_CHOSEN_FROM_CAMELS_GB),
+            "n_input_features": len(var_c)+len(var_t),
             "n_output_features": 21,
             "n_hidden_states": 256,
             "warmup_length": 10,
@@ -121,8 +122,8 @@ def camelsgbdplsac_arg(
         batch_size=20,
         forecast_history=0,
         forecast_length=30,
-        var_t=VAR_T_CHOSEN_FROM_GB,
-        var_c=VAR_C_CHOSEN_FROM_CAMELS_GB,
+        var_t=var_t,
+        var_c=var_c,
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,

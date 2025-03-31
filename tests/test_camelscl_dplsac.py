@@ -25,6 +25,7 @@ def var_c():
         "geol_class_2nd",
         "carb_rocks_frac",
     ]
+
 @pytest.fixture
 def var_t():
     return [

@@ -2,48 +2,55 @@ import os
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
+import pytest
 
-VAR_C_CHOSEN_FROM_CAMELS_IND = [
-    "elev_mean",
-    "slope_mean",
-    "cwc_area",
-    "trees_frac",
-    "lai_max",
-    "lai_diff",
-    "dom_land_cover",
-    "dom_land_cover_frac",
-    "crops_frac",
-    "soil_depth",
-    "soil_awc_top",
-    "soil_conductivity_top",
-    "water_frac",
-    "geol_class_1st",
-    "geol_class_2nd",
-    "geol_porosity",
-    "geol_permeability",
-]
-VAR_T_CHOSEN_FROM_IND = [
-    "prcp",
-    "pet",
-    "tmax",
-    "tmin",
-    "tavg",
-    "srad_lw",
-    "srad_sw",
-    "wind_u",
-    "wind_v",
-    "wind",
-    "rel_hum",
-    "pet_gleam",
-    "aet_gleam",
-    "evap_canopy",
-    "evap_surface",
-    "sm_lvl1",
-    "sm_lvl2",
-    "sm_lvl3",
-    "sm_lvl4",
-]
+@pytest.fixture
+def var_c():
+    return [
+        "elev_mean",
+        "slope_mean",
+        "cwc_area",
+        "trees_frac",
+        "lai_max",
+        "lai_diff",
+        "dom_land_cover",
+        "dom_land_cover_frac",
+        "crops_frac",
+        "soil_depth",
+        "soil_awc_top",
+        "soil_conductivity_top",
+        "water_frac",
+        "geol_class_1st",
+        "geol_class_2nd",
+        "geol_porosity",
+        "geol_permeability",
+    ]
 
+@pytest.fixture
+def var_t():
+    return [
+        "prcp",
+        "pet",
+        "tmax",
+        "tmin",
+        "tavg",
+        "srad_lw",
+        "srad_sw",
+        "wind_u",
+        "wind_v",
+        "wind",
+        "rel_hum",
+        "pet_gleam",
+        "aet_gleam",
+        "evap_canopy",
+        "evap_surface",
+        "sm_lvl1",
+        "sm_lvl2",
+        "sm_lvl3",
+        "sm_lvl4",
+    ]
+
+@pytest.fixture
 def camelsinddplsac_arg(var_c,var_t):
     """
     Use attr and forcing as input for dPL model
@@ -56,12 +63,10 @@ def camelsinddplsac_arg(var_c,var_t):
     -------
 
     """
-    if train_period is None:  # camels-ind time_range: ["1981-01-01", "2020-12-31"]
-        train_period = ["2017-10-01", "2018-10-01"]
-    if valid_period is None:
-        valid_period = ["2018-10-01", "2019-10-01"]
-    if test_period is None:
-        test_period = ["2019-10-01", "2020-10-01"]
+    # camels-ind time_range: ["1981-01-01", "2020-12-31"]
+    train_period = ["2017-10-01", "2018-10-01"]
+    valid_period = ["2018-10-01", "2019-10-01"]
+    test_period = ["2019-10-01", "2020-10-01"]
     config = default_config_file()
     args = cmd(
         sub=os.path.join("test_camels", "expdpllstmsac_camelsind"),
@@ -76,7 +81,7 @@ def camelsinddplsac_arg(var_c,var_t):
         model_name="DplLstmSac",
         # model_name="DplAnnSac",
         model_hyperparam={
-            "n_input_features": len(VAR_T_CHOSEN_FROM_IND)+len(VAR_C_CHOSEN_FROM_CAMELS_IND),  # 19 + 17 = 36
+            "n_input_features": len(var_c)+len(var_t),  # 19 + 17 = 36
             "n_output_features": 21,
             "n_hidden_states": 256,
             "warmup_length": 10,
@@ -128,8 +133,8 @@ def camelsinddplsac_arg(var_c,var_t):
         batch_size=20,
         forecast_history=0,
         forecast_length=30,
-        var_t=VAR_T_CHOSEN_FROM_IND,
-        var_c=VAR_C_CHOSEN_FROM_CAMELS_IND,
+        var_t=var_t,
+        var_c=var_c,
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,

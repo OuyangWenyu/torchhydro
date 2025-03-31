@@ -35,9 +35,9 @@ def var_c():
         "inter_mod_perc",
         "frac_mod_perc",
     ]
-    
+
 @pytest.fixture
-def var_c():
+def var_t():
     return [
         "precipitation",
         "pet",

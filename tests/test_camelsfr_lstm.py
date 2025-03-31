@@ -58,6 +58,7 @@ def var_t():
     "tsd_temp_max",
 ]
 
+@pytest.fixture
 def camelsfrlstm_arg(var_c, var_t):
     project_name = os.path.join("test_camels", "lstm_camelsfr")
     # camels-fr time_range: ["1970-01-01", "2022-01-01"]

@@ -34,6 +34,7 @@ def var_t():
         "Tobs_C",
     ]
 
+@pytest.fixture
 def camelssedplsac_arg(var_c,var_t):
     """
     Use attr and forcing as input for dPL model

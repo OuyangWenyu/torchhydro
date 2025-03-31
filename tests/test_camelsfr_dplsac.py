@@ -47,6 +47,7 @@ def var_t():
         "tsd_temp_max",
     ]
 
+@pytest.fixture
 def camelsfrdplsac_arg(var_c, var_t):
     """
     Use attr and forcing as input for dPL model
