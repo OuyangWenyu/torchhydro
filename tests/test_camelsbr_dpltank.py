@@ -60,7 +60,7 @@ def camelsbrdpltank_arg(var_c,var_t):
     config = default_config_file()
     args = cmd(
         sub=os.path.join("test_camels", "dpllstmtank_camelsbr"),
-        # sub=os.path.join("test_camels", "dplanntank"),
+        # sub=os.path.join("test_camels", "dplanntank_camelsbr"),
         source_cfgs={
             "source_name": "camels_br",
             "source_path": os.path.join(

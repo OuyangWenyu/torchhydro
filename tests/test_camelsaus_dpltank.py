@@ -75,7 +75,7 @@ def camelsausdpltank_arg(
     config = default_config_file()
     args = cmd(
         sub=os.path.join("test_camels", "dpllstmtank_camelsaus"),
-        # sub=os.path.join("test_camels", "expdplannsac"),
+        # sub=os.path.join("test_camels", "dplanntank_camelsaus"),
         source_cfgs={
             "source_name": "camels_aus",
             "source_path": os.path.join(
