@@ -34,6 +34,7 @@ class narx(RNNBase):
         dropout: float = 0.0,
         bidirectional: bool = False,
         proj_size: int = 0,
+        close_loop: bool = False,
         device=None,
         dtype=None,
     ) -> None:
@@ -62,3 +63,50 @@ class narx(RNNBase):
                 f"Unknown nonlinearity '{self.nonlinearity}'. Select from 'tanh' or 'relu'."
             )
         super().__init__(mode, *args, **kwargs)
+
+    @overload
+    @torch._jit_internal._overload_method
+    def forward(
+        self, input: Tensor, hx: Optional[Tensor] = None
+    ) -> Tuple[Tensor, Tensor]:
+        pass
+
+    @overload
+    @torch._jit_internal._overload_method
+    def forward(
+        self, input: PackedSequence, hx: Optional[Tensor] = None
+    ) -> Tuple[PackedSequence, Tensor]:
+        pass
+
+    def forward(self, input, hx=None):
+        """
+        narx forward function
+        Parameters
+        ----------
+        input
+            input time series
+        hx
+
+        Returns
+        -------
+
+        """
+        self._update_flat_weights()
+
+        num_directions = 2 if self.bidirectional else 1
+        orig_input = input
+
+        if isinstance(orig_input, PackedSequence):
+            input, batch_sizes, sorted_indices, unsorted_indices = input
+            max_batch_size = batch_sizes[0]
+
+            if hx is None:
+                hx = torch.zeros(
+                    self.num_layers * num_directions,
+                    max_batch_size,
+                    self.hidden_size,
+                    dtype=input.dtype,
+                    device=input.device,
+                )
+            else:
+                hx = self.permute_hidden(hx, sorted_indices)
