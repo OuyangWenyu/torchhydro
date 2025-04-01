@@ -74,7 +74,7 @@ def camelsausdpltank_arg(
     test_period = ["2008-10-01", "2009-10-01"]
     config = default_config_file()
     args = cmd(
-        sub=os.path.join("test_camels", "expdpllstmsac_camelsaus"),
+        sub=os.path.join("test_camels", "dpllstmtank_camelsaus"),
         # sub=os.path.join("test_camels", "expdplannsac"),
         source_cfgs={
             "source_name": "camels_aus",

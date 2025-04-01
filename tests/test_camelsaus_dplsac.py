@@ -74,8 +74,8 @@ def camelsausdplsac_arg(
     test_period = ["2008-10-01", "2009-10-01"]
     config = default_config_file()
     args = cmd(
-        sub=os.path.join("test_camels", "expdpllstmsac_camelsaus"),
-        # sub=os.path.join("test_camels", "expdplannsac"),
+        sub=os.path.join("test_camels", "dpllstmsac_camelsaus"),
+        # sub=os.path.join("test_camels", "dplannsac"),
         source_cfgs={
             "source_name": "camels_aus",
             "source_path": os.path.join(
