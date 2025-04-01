@@ -110,3 +110,24 @@ class narx(RNNBase):
                 )
             else:
                 hx = self.permute_hidden(hx, sorted_indices)
+        else:
+            batch_sizes = None
+            if input.dim() not in (2, 3):
+                raise ValueError(
+                    f"narx: Expected input to be 2D or 3D, got {input.dim()}D tensor instead"
+                )
+            is_batched = input.dim() == 3
+            batch_dim = 0 if self.batch_first else 1
+            if not is_batched:
+                input = input.unsqueeze(batch_dim)
+                if hx is not None:
+                    if hx.dim() != 2:
+                        raise RuntimeError(
+                            f"For unbatched 2-D input, hx should also be 2-D but got {hx.dim()}-D tensor"
+                        )
+                    hx = hx.unsqueeze(1)
+            else:
+                if hx is not None and hx.dim() != 3:
+                    raise RuntimeError(
+                        f"For batched 3-D input, hx should also be 3-D but got {hx.dim()}-D tensor"
+                    )
