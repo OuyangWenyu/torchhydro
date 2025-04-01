@@ -61,8 +61,8 @@ def camelsdkdplsac_arg(var_c, var_t):
     test_period = ["2019-10-01", "2020-10-01"]
     config = default_config_file()
     args = cmd(
-        sub=os.path.join("test_camels", "expdpllstmsac_camelsdk"),
-        # sub=os.path.join("test_camels", "expdplannsac"),
+        sub=os.path.join("test_camels", "dpllstmsac_camelsdk"),
+        # sub=os.path.join("test_camels", "dplannsac_camelsdk"),
         source_cfgs={
             "source_name": "camels_dk",
             "source_path": os.path.join(

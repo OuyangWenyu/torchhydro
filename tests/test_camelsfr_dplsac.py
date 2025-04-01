@@ -66,8 +66,8 @@ def camelsfrdplsac_arg(var_c, var_t):
     test_period = ["2014-10-01", "2015-10-01"]
     config = default_config_file()
     args = cmd(
-        sub=os.path.join("test_camels", "expdpllstmsac_camelsfr"),
-        # sub=os.path.join("test_camels", "expdplannsac"),
+        sub=os.path.join("test_camels", "dpllstmsac_camelsfr"),
+        # sub=os.path.join("test_camels", "dplannsac_camelsfr"),
         source_cfgs={
             "source_name": "camels_fr",
             "source_path": os.path.join(
