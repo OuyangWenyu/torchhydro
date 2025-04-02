@@ -2,42 +2,44 @@ import os
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
+import pytest
 
-VAR_C_CHOSEN_FROM_CAMELS_CH = [
-    "elev_mean",
-    "slope_mean",
-    "area",
-    "scrub_perc",  # note: this field in original data file is different with its in data description pdf file, choose the former for convience.
-    "mixed_wood_perc",  # note: this field in original data file is different with its in data description pdf file, choose the former for convience.
-    "rock_perc",
-    "dom_land_cover",
-    "crop_perc",
-    "root_depth_50",
-    "root_depth",
-    "porosity",
-    "conductivity",
-    "tot_avail_water",
-    "unconsol_sediments",
-    "siliciclastic_sedimentary",
-    "geo_porosity",
-    "geo_log10_permeability",
-]
-VAR_T_CHOSEN_FROM_CH = [
-    "precipitation",
-    "ET",
-    "waterlevel",
-    "temperature_min",
-    "temperature_mean",
-    "temperature_max",
-    "rel_sun_dur",
-    "swe",
-]
+@pytest.fixture
+def var_c():
+    return [
+        "elev_mean",
+        "slope_mean",
+        "area",
+        "scrub_perc",  # note: this field in original data file is different with its in data description pdf file, choose the former for convience.
+        "mixed_wood_perc",  # note: this field in original data file is different with its in data description pdf file, choose the former for convience.
+        "rock_perc",
+        "dom_land_cover",
+        "crop_perc",
+        "root_depth_50",
+        "root_depth",
+        "porosity",
+        "conductivity",
+        "tot_avail_water",
+        "unconsol_sediments",
+        "siliciclastic_sedimentary",
+        "geo_porosity",
+        "geo_log10_permeability",
+    ]
 
-def run_camelschdplsac(
-    train_period=None,
-    valid_period=None,
-    test_period=None
-):
+@pytest.fixture
+def var_t():
+    return [
+        "precipitation",
+        "ET",
+        "waterlevel",
+        "temperature_min",
+        "temperature_mean",
+        "temperature_max",
+        "rel_sun_dur",
+        "swe",
+    ]
+
+def camelschdpltank_arg(var_c,var_t):
     """
     Use attr and forcing as input for dPL model
 
@@ -49,16 +51,14 @@ def run_camelschdplsac(
     -------
 
     """
-    if train_period is None:  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
-        train_period = ["2017-10-01", "2018-10-01"]
-    if valid_period is None:
-        valid_period = ["2018-10-01", "2019-10-01"]
-    if test_period is None:
-        test_period = ["2019-10-01", "2020-10-01"]
+    # camels-ch time_range: ["1981-01-01", "2020-12-31"]
+    train_period = ["2017-10-01", "2018-10-01"]
+    valid_period = ["2018-10-01", "2019-10-01"]
+    test_period = ["2019-10-01", "2020-10-01"]
     config = default_config_file()
     args = cmd(
-        sub=os.path.join("test_camels", "dplsac_lstm_camelsch"),
-        # sub=os.path.join("test_camels", "dplsac_ann_camelsch"),
+        sub=os.path.join("test_camels", "dpltank_lstm_camelsch"),
+        # sub=os.path.join("test_camels", "dpltank_ann_camelsch"),
         source_cfgs={
             "source_name": "camels_ch",
             "source_path": os.path.join(
@@ -66,10 +66,10 @@ def run_camelschdplsac(
             ),
         },
         ctx=[-1],
-        model_name="DplLstmSac",
-        # model_name="DplAnnSac",
+        model_name="DplLstmTank",
+        # model_name="DplAnnTank",
         model_hyperparam={
-            "n_input_features": len(VAR_T_CHOSEN_FROM_CH)+len(VAR_C_CHOSEN_FROM_CAMELS_CH),  # 8 + 17 = 25
+            "n_input_features": len(var_c)+len(var_t),  # 8 + 17 = 25
             "n_output_features": 21,
             "n_hidden_states": 256,
             "warmup_length": 10,
@@ -117,8 +117,8 @@ def run_camelschdplsac(
         batch_size=20,
         forecast_history=0,
         forecast_length=30,
-        var_t=VAR_T_CHOSEN_FROM_CH,
-        var_c=VAR_C_CHOSEN_FROM_CAMELS_CH,
+        var_t=var_t,
+        var_c=var_c,
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,
@@ -133,13 +133,10 @@ def run_camelschdplsac(
         which_first_tensor="sequence",
     )
     update_cfg(config, args)
-    train_and_evaluate(config)
+    return config
+
+
+def test_camelschdpltank(camelschdpltank_arg):
+    train_and_evaluate(camelschdpltank_arg)
     print("All processes are finished!")
-
-
-run_camelschdplsac(  # camels-ch time_range: ["1981-01-01", "2020-12-31"]
-    train_period=["1981-01-01", "1982-01-01"],
-    valid_period=["1986-10-01", "1987-10-01"],
-    test_period=["1987-10-01", "1988-10-01"],
-)
 
