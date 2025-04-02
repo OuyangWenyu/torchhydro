@@ -148,3 +148,28 @@ class narx(RNNBase):
         assert hx is not None
         self.check_forward_args(input, hx, batch_sizes)
         assert self.mode == "narx_tanh" or self.mode == "narx_relu"
+        if batch_sizes is None:
+            if self.mode == "narx_tanh":
+                result = self.narx_tanh(
+                    input,
+                    hx,
+                    self._flat_weights,
+                    self.bias,
+                    self.num_layers,
+                    self.dropout,
+                    self.training,
+                    self.bidirectional,
+                    self.batch_first,
+                )
+            else:
+                result = self.narx_relu(
+                    input,
+                    hx,
+                    self._flat_weights,
+                    self.bias,
+                    self.num_layers,
+                    self.dropout,
+                    self.training,
+                    self.bidirectional,
+                    self.batch_first,
+                )
