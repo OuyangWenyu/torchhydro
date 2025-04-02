@@ -86,7 +86,7 @@ class narx(RNNBase):
         input
             input time series
         hx
-
+            hidden state
         Returns
         -------
 
@@ -110,7 +110,7 @@ class narx(RNNBase):
                 )
             else:
                 hx = self.permute_hidden(hx, sorted_indices)
-        else:
+        else:  #
             batch_sizes = None
             if input.dim() not in (2, 3):
                 raise ValueError(
@@ -126,8 +126,25 @@ class narx(RNNBase):
                             f"For unbatched 2-D input, hx should also be 2-D but got {hx.dim()}-D tensor"
                         )
                     hx = hx.unsqueeze(1)
-            else:
+            else:  #
                 if hx is not None and hx.dim() != 3:
                     raise RuntimeError(
                         f"For batched 3-D input, hx should also be 3-D but got {hx.dim()}-D tensor"
                     )
+            max_batch_size = input.size(0) if self.batch_first else input.size(1)
+            sorted_indices = None
+            unsorted_indices = None
+            if hx is None:
+                hx = torch.zeros(
+                    self.num_layers * num_directions,
+                    max_batch_size,
+                    self.hidden_size,
+                    dtype=input.dtype,
+                    device=input.device,
+                )
+            else:
+                hx = self.permute_hidden(hx, sorted_indices)
+
+        assert hx is not None
+        self.check_forward_args(input, hx, batch_sizes)
+        assert self.mode == "narx_tanh" or self.mode == "narx_relu"
