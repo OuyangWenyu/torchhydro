@@ -173,3 +173,28 @@ class narx(RNNBase):
                     self.bidirectional,
                     self.batch_first,
                 )
+        else:
+            if self.mode == "narx_tanh":
+                result = self.narx_tanh(
+                    input,
+                    batch_sizes,
+                    hx,
+                    self._flat_weights,
+                    self.bias,
+                    self.num_layers,
+                    self.dropout,
+                    self.training,
+                    self.bidirectional,
+                )
+            else:
+                result = self.narx_relu(
+                    input,
+                    batch_sizes,
+                    hx,
+                    self._flat_weights,
+                    self.bias,
+                    self.num_layers,
+                    self.dropout,
+                    self.training,
+                    self.bidirectional,
+                )
