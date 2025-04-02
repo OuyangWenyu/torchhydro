@@ -100,10 +100,10 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,
-        train_epoch=10,
+        train_epoch=20,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 10,
+            "test_epoch": 20,
         },
         warmup_length=10,
         opt="Adadelta",
@@ -114,7 +114,7 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
 
 
 run_dplxaj(
-    train_period=["1985-10-01", "1986-10-01"],
+    train_period=["1985-07-01", "1986-07-01"],
     valid_period=["1986-10-01", "1987-10-01"],
     test_period=["1987-10-01", "1988-10-01"],
 )
