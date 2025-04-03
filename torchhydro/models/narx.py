@@ -4,20 +4,20 @@ from typing import overload, Optional, Tuple
 import torch
 import torch.nn as nn
 from torch.nn.modules.rnn import RNNBase
-from torch import Tensor
+from torch import _VF, Tensor
 from torch.nn.utils.rnn import PackedSequence
 
 __all__ = [
     "RNNBase",
-    "narx",
+    "Narx",
 ]
 
 _narx_impls = {
-    "narx_tanh",
-    "narx_relu",
+    "RNN_TANH": _VF.rnn_tanh,
+    "RNN_RELU": _VF.rnn_relu,
 }
 
-class narx(RNNBase):
+class Narx(RNNBase):
     """
     narx model
     nonlinear autoregressive with exogenous inputs neural network.
@@ -38,6 +38,25 @@ class narx(RNNBase):
         device=None,
         dtype=None,
     ) -> None:
+        """
+
+        Parameters
+        ----------
+        input_size
+        hidden_size
+        num_layers
+            the number of recurrent stack layers
+        nonlinearity
+        bias
+        batch_first
+        dropout
+        bidirectional
+        proj_size
+        close_loop
+            default false when train period.
+        device
+        dtype
+        """
         ...
 
     @overload
@@ -55,9 +74,9 @@ class narx(RNNBase):
         else:
             self.nonlinearity = kwargs.pop("nonlinearity", "tanh")
         if self.nonlinearity == "tanh":
-            mode = "narx_tanh"
+            mode = "RNN_TANH"
         elif self.nonlinearity == "relu":
-            mode = "narx_relu"
+            mode = "RNN_RELU"
         else:
             raise ValueError(
                 f"Unknown nonlinearity '{self.nonlinearity}'. Select from 'tanh' or 'relu'."
@@ -134,7 +153,7 @@ class narx(RNNBase):
             max_batch_size = input.size(0) if self.batch_first else input.size(1)
             sorted_indices = None
             unsorted_indices = None
-            if hx is None:
+            if hx is None:  #
                 hx = torch.zeros(
                     self.num_layers * num_directions,
                     max_batch_size,
@@ -147,10 +166,10 @@ class narx(RNNBase):
 
         assert hx is not None
         self.check_forward_args(input, hx, batch_sizes)
-        assert self.mode == "narx_tanh" or self.mode == "narx_relu"
+        assert self.mode == "RNN_TANH" or self.mode == "RNN_RELU"
         if batch_sizes is None:
-            if self.mode == "narx_tanh":
-                result = self.narx_tanh(
+            if self.mode == "RNN_TANH":
+                result = _VF.rnn_tanh(
                     input,
                     hx,
                     self._flat_weights,
@@ -162,7 +181,7 @@ class narx(RNNBase):
                     self.batch_first,
                 )
             else:
-                result = self.narx_relu(
+                result = _VF.rnn_relu(
                     input,
                     hx,
                     self._flat_weights,
@@ -174,8 +193,8 @@ class narx(RNNBase):
                     self.batch_first,
                 )
         else:
-            if self.mode == "narx_tanh":
-                result = self.narx_tanh(
+            if self.mode == "RNN_TANH":
+                result = _VF.rnn_tanh(
                     input,
                     batch_sizes,
                     hx,
@@ -187,7 +206,7 @@ class narx(RNNBase):
                     self.bidirectional,
                 )
             else:
-                result = self.narx_relu(
+                result = _VF.rnn_relu(
                     input,
                     batch_sizes,
                     hx,
@@ -198,3 +217,28 @@ class narx(RNNBase):
                     self.training,
                     self.bidirectional,
                 )
+
+        output = result[0]
+        hidden = result[1]
+
+        if isinstance(orig_input, PackedSequence):
+            output_packed = PackedSequence(
+                output, batch_sizes, sorted_indices, unsorted_indices
+            )
+            return output_packed, self.permute_hidden(hidden, unsorted_indices)
+
+        if not is_batched:
+            output = output.squeeze(batch_dim)
+            hidden = hidden.squeeze(1)
+
+        return output, self.permute_hidden(hidden, unsorted_indices)
+
+    def close_loop(self):
+        """
+        close loop when prediction period.
+        Returns
+        -------
+
+        """
+
+        return 0
