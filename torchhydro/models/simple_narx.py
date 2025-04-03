@@ -1,4 +1,4 @@
-
+import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torchhydro.models import narx
@@ -38,6 +38,9 @@ class SimpleNarx(nn.Module):
         out
             the output sequence of the model
         """
+        nt, ngrid, nx = x.shape
+        yt = torch.zeros(ngrid, 1)  # single step
+
         x0 = F.relu(self.linearIn(x))
         out_narx, hxn = self.narx(x0)
         out = self.linearOut(out_narx)
