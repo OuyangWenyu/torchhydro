@@ -18,13 +18,13 @@ class SimpleNarx(nn.Module):
         num_layers
         """
         super(SimpleNarx, self).__init__()
-        self.linearIn = nn.Linear(n_input_features, n_hidden_states)
-        self.narx = narx.Narx(
+        self.linearIn = nn.Linear(n_input_features, n_hidden_states)  # (linearIn): Linear(in_features=25, out_features=256, bias=True)
+        self.narx = narx.Narx(  # (narx): Narx(256, 256)
             input_size=n_hidden_states,
             hidden_size=n_hidden_states,
             num_layers=num_layers,
         )
-        self.linearOut = nn.Linear(n_hidden_states, n_output_features)
+        self.linearOut = nn.Linear(n_hidden_states, n_output_features)  # (linearOut): Linear(in_features=256, out_features=1, bias=True)
 
     def forward(self, x):
         """

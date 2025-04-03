@@ -167,8 +167,8 @@ class Narx(RNNBase):
         assert hx is not None
         self.check_forward_args(input, hx, batch_sizes)
         assert self.mode == "RNN_TANH" or self.mode == "RNN_RELU"
-        if batch_sizes is None:
-            if self.mode == "RNN_TANH":
+        if batch_sizes is None:  #
+            if self.mode == "RNN_TANH":  #
                 result = _VF.rnn_tanh(
                     input,
                     hx,
