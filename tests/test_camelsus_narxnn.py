@@ -18,10 +18,10 @@ import pytest
 @pytest.fixture
 def var_c():
     return [
-        "elev_mean",
-        "slope_mean",
-        "area_gages2",
-        "frac_forest",
+        # "elev_mean",
+        # "slope_mean",
+        # "area_gages2",
+        # "frac_forest",
         # "lai_max",
         # "lai_diff",
         # "dom_land_cover_frac",
@@ -75,8 +75,8 @@ def camelsusnarxnn_arg(var_c,var_t):
             "n_input_features": len(var_c) + len(var_t),  # 17 + 9 = 26
             "n_output_features": 1,
             "n_hidden_states": 64,
-            "input_delay":[1,1],
-            "feedback_delay":[1],
+            "input_delay": [1, 2],
+            "feedback_delay": [1,],
         },
         loss_func="RMSESum",
         sampler="KuaiSampler",

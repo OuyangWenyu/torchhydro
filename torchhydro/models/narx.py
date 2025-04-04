@@ -1,5 +1,5 @@
 
-from typing import overload, Optional, Tuple
+from typing import overload, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -34,6 +34,8 @@ class Narx(RNNBase):
         dropout: float = 0.0,
         bidirectional: bool = False,
         proj_size: int = 0,
+        input_delay: Union[list, tuple] = None,
+        feedback_delay: Union[list, tuple] = None,
         close_loop: bool = False,
         device=None,
         dtype=None,
