@@ -7,48 +7,39 @@ import pytest
 @pytest.fixture
 def var_c():
     return [
-        "elev_mean",
-        "slope_fdc",
-        "area",
-        "forests_and_seminatural_areas_perc",
-        "artificial_surfaces_perc",
-        "agricultural_areas_perc",
-        "wetlands_perc",
-        "water_bodies_perc",
-        "clay_30_100cm_mean",
-        "soil_organic_carbon_30_100cm_mean",
-        "silt_0_30cm_mean",
-        "sand_0_30cm_mean",
-        "bulk_density_0_30cm_mean",
-        "geochemical_rocktype_silicate_perc",
-        "geochemical_rocktype_carbonatic_perc",
-        "cavity_pores_perc",
-        "aquifer_perc",
+        "dem_mean",
+        "slope_mean",
+        "catch_area",
+        "pct_forest_levin_2011",
+        "pct_agriculture_levin_2016",
+        "pct_urban_levin_2021",
+        "pct_naturedry_levin_2018",
+        "pct_forest_corine_2000",
+        "root_depth",
+        "pct_sand",
+        "pct_silt",
+        "pct_clay",
+        "chalk_d",
+        "uaquifer_t",
+        "pct_aeolain_sand",
+        "pct_sandy_till",
+        "pct_glam_clay",
     ]
 
 @pytest.fixture
 def var_t():
     return [
-        "precipitation_mean",
-        "ET",  #  lock of evaporation
-        "precipitation_min",
-        "precipitation_median",
-        "precipitation_max",
-        "precipitation_stdev",
-        "water_level",
-        "humidity_mean",
-        "humidity_min",
-        "humidity_median",
-        "humidity_max",
-        "humidity_stdev",
-        "radiation_global_mean",
-        "radiation_global_min",
-        "radiation_global_median",
-        "radiation_global_max",
-        "radiation_global_stdev",
-        "temperature_mean",
-        "temperature_min",
-        "temperature_max",
+        "precipitation",
+        "pet",
+        "temperature",
+        "DKM_dtp",
+        "DKM_eta",
+        "DKM_wcr",
+        "DKM_sdr",
+        "DKM_sre",
+        "DKM_gwh",
+        "DKM_irr",
+        "Abstraction",
     ]
 
 @pytest.fixture
@@ -64,7 +55,7 @@ def camelsdkdpltank_arg(var_c, var_t):
     -------
 
     """
-    # camels-de time_range: ["1951-01-01", "2020-12-31"]
+    # camels-dk time_range: ["1989-01-02", "2023-12-31"]
     train_period = ["2017-10-01", "2018-10-01"]
     valid_period = ["2018-10-01", "2019-10-01"]
     test_period = ["2019-10-01", "2020-10-01"]
@@ -107,12 +98,26 @@ def camelsdkdpltank_arg(var_c, var_t):
             "pbm_norm": True,
         },
         gage_id=[
-            "DE110000",
-            "DE110010",
-            "DE110020",
-            "DE110030",
-            "DE110040",
-            "DE110060",
+            "12410011",
+            "12430456",
+            "12430590",
+            "12430591",
+            "12430666",
+            "12431077",
+            "13210113",
+            "13210722",
+            "13210733",
+            "13230003",
+            "13230398",
+            "13230466",
+            "13230469",
+            "13230518",
+            "13230551",
+            "13230688",
+            "13230704",
+            "13230734",
+            "13231260",
+            "13231332",
         ],
         train_period=train_period,
         valid_period=valid_period,
