@@ -82,7 +82,6 @@ class Narx(RNNBase):
                 f"Unknown nonlinearity '{self.nonlinearity}'. Select from 'tanh' or 'relu'."
             )
         super().__init__(mode, *args, **kwargs)
-        self.linearOut = nn.Linear(hidden_size, output_size)
 
     @overload
     @torch._jit_internal._overload_method

@@ -18,38 +18,39 @@ import pytest
 @pytest.fixture
 def var_c():
     return [
-    "elev_mean",
-    "slope_mean",
-    "area_gages2",
-    "frac_forest",
-    "lai_max",
-    "lai_diff",
-    "dom_land_cover_frac",
-    "dom_land_cover",
-    "root_depth_50",
-    "soil_depth_statsgo",
-    "soil_porosity",
-    "soil_conductivity",
-    "max_water_content",
-    "geol_1st_class",
-    "geol_2nd_class",
-    "geol_porostiy",
-    "geol_permeability",
-]
+        "elev_mean",
+        "slope_mean",
+        "area_gages2",
+        "frac_forest",
+        # "lai_max",
+        # "lai_diff",
+        # "dom_land_cover_frac",
+        # "dom_land_cover",
+        # "root_depth_50",
+        # "soil_depth_statsgo",
+        # "soil_porosity",
+        # "soil_conductivity",
+        # "max_water_content",
+        # "geol_1st_class",
+        # "geol_2nd_class",
+        # "geol_porostiy",
+        # "geol_permeability",
+    ]
 
 @pytest.fixture
 def var_t():
     return [
-    # NOTE: prcp must be the first variable
-    "prcp",
-    "dayl",
-    "srad",
-    "swe",
-    "tmax",
-    "tmin",
-    "vp",
-    "streamflow",
-]
+        # NOTE: prcp must be the first variable
+        "prcp",
+        "PET",
+        # "dayl",
+        # "srad",
+        # "swe",
+        # "tmax",
+        # "tmin",
+        # "vp",
+        "streamflow",
+    ]
 
 @pytest.fixture
 def camelsusnarx_arg(var_c,var_t):
@@ -71,7 +72,7 @@ def camelsusnarx_arg(var_c,var_t):
         # model_name="KuaiLSTM",
         model_name="SimpleNarx",
         model_hyperparam={
-            "n_input_features": len(var_c) + len(var_t),  # 17 + 7 = 24
+            "n_input_features": len(var_c) + len(var_t),  # 17 + 9 = 26
             "n_output_features": 1,
             "n_hidden_states": 256,
         },
