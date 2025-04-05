@@ -736,3 +736,11 @@ class TransformerDataset(Seq2SeqDataset):
             torch.from_numpy(x).float(),
             torch.from_numpy(x_h).float(),
         ], torch.from_numpy(y).float()
+
+class NarxDataset(BaseDataset):
+    """
+    a dataset for Narx model.
+    """
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(NarxDataset, self).__init__(data_cfgs, is_tra_val_te)
+
