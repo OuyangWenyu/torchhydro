@@ -1,12 +1,11 @@
-from typing import Union
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from torchhydro.models import narx
 
 class Narx(nn.Module):
     """
     nonlinear autoregressive with exogenous inputs neural network model
+        y(t) = f(y(t-1),...,y(t-ny),x(t),...,x(t-nx))
     """
     def __init__(
         self,
@@ -19,7 +18,7 @@ class Narx(nn.Module):
         close_loop: bool = False,
     ):
         """
-
+        Initialize the Narx model instance.
         Parameters
         ----------
         n_input_features: int, number of input features.
@@ -30,14 +29,14 @@ class Narx(nn.Module):
         num_layers: int, the number of recurrent layers.
         close_loop: bool, whether to close the loop when feeding in.
         """
-        super(Narxnn, self).__init__()
-        self.nx = n_input_features  #
+        super(Narx, self).__init__()
+        self.nx = n_input_features
         self.ny = n_output_features  # n_output_features = n_feedback_features in narx nn model
         # self.num_layers = num_layers
         self.hidden_size = n_hidden_states
         self.input_delay = input_delay
         self.feedback_delay = feedback_delay
-        self.max_delay = max(input_delay, feedback_delay)
+        self.max_delay = max(self.input_delay, self.feedback_delay)
         self.close_loop = close_loop
         in_features = (self.nx-self.ny) * (self.input_delay + 1) + self.ny * (self.feedback_delay + 1)
         self.linearIn = nn.Linear(in_features, self.hidden_size)
@@ -46,6 +45,9 @@ class Narx(nn.Module):
             hidden_size=self.hidden_size,
         )
         self.linearOut = nn.Linear(self.hidden_size, self.ny)
+
+    def close_loop(self):
+        self.close_loop = True
 
     def forward(self, x):
         """
@@ -58,10 +60,12 @@ class Narx(nn.Module):
         Returns
         -------
         out
-            the output sequence of the model
+            the output sequence of model.
         """
         nt, ngrid, nx = x.shape  # (time,basins,features)
         out = torch.zeros(nt, ngrid, self.ny)  # (time,basins,output_features)
+        for t in range(self.max_delay):
+            out[t, :, :] = x[t, :, -self.ny:]
         for t in range(self.max_delay, nt):
             x0 = x[(t - self.input_delay): t, :, :(self.nx - self.ny)]
             x0_t = x0[-1, :, :]
