@@ -9,51 +9,47 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import os
-
+import pytest
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
-VAR_C_CHOSEN_FROM_CAMELS_SE = [
-    "Elevation_mabsl",
-    "Slope_mean_degree",
-    "Area_km2",
-    "Shrubs_and_grassland_percentage",
-    "Urban_percentage",
-    "Water_percentage",
-    "Forest_percentage",
-    "Open_land_percentage",
-    "Glaciofluvial_sediment_percentage",
-    "Bedrock_percentage",
-    "Postglacial_sand_and_gravel_percentage",
-    "Till_percentage",
-    "Wetlands_percentage",
-    "Peat_percentage",
-    "Silt_percentage",
-    "DOR",
-    "RegVol_m3",
-]
-VAR_T_CHOSEN_FROM_SE = [
-    "Pobs_mm",
-    "Tobs_C",
-]
+@pytest.fixture
+def var_c():
+    return [
+        "Elevation_mabsl",
+        "Slope_mean_degree",
+        "Area_km2",
+        "Shrubs_and_grassland_percentage",
+        "Urban_percentage",
+        "Water_percentage",
+        "Forest_percentage",
+        "Open_land_percentage",
+        "Glaciofluvial_sediment_percentage",
+        "Bedrock_percentage",
+        "Postglacial_sand_and_gravel_percentage",
+        "Till_percentage",
+        "Wetlands_percentage",
+        "Peat_percentage",
+        "Silt_percentage",
+        "DOR",
+        "RegVol_m3",
+    ]
+    
+@pytest.fixture
+def var_t():
+    return [
+        "Pobs_mm",
+        "Tobs_C",
+    ]
 
-
-def run_normal_dl(
-    project_name,
-    gage_id_file,
-    var_c=VAR_C_CHOSEN_FROM_CAMELS_SE,
-    var_t=VAR_T_CHOSEN_FROM_SE,
-    train_period=None,
-    valid_period=None,
-    test_period=None,
-):
-    if train_period is None:  # camels-se time_range: ["1961-01-01", "2020-12-31"]
-        train_period = ["2017-10-01", "2018-10-01"]
-    if valid_period is None:
-        valid_period = ["2018-10-01", "2019-10-01"]
-    if test_period is None:
-        test_period = ["2019-10-01", "2020-10-01"]
+@pytest.fixture
+def camelsselsmt_args(var_c,var_t):
+    project_name = os.path.join("test_camels", "lstm_camelsse"),
+    # camels-se time_range: ["1961-01-01", "2020-12-31"]
+    train_period = ["2017-10-01", "2018-10-01"]
+    valid_period = ["2018-10-01", "2019-10-01"]
+    test_period = ["2019-10-01", "2020-10-01"]
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
@@ -92,18 +88,19 @@ def run_normal_dl(
             "load_way": "specified",
             "test_epoch": 10,
         },
-        gage_id_file=gage_id_file,
+        # the gage_id.txt file is set by the user, it must be the format like:
+        # GAUGE_ID
+        # 01013500
+        # 01022500
+        # ......
+        # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
+        gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_se\\gage_id.txt",
         which_first_tensor="sequence",
     )
     update_cfg(config_data, args)
-    train_and_evaluate(config_data)
+    return config_data
+
+
+def test_camelsselstm(camelsselsmt_args):
+    train_and_evaluate(camelsselsmt_args)
     print("All processes are finished!")
-
-
-# the gage_id.txt file is set by the user, it must be the format like:
-# GAUGE_ID
-# 01013500
-# 01022500
-# ......
-# Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("test_camels", "lstm_camelsse"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_se\\gage_id.txt")

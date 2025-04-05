@@ -20,7 +20,7 @@ def run_camelsdpltank(
     -------
 
     """
-    if train_period is None:
+    if train_period is None:  # camels-us time_range: ["1980-01-01", "2014-12-31"]
         train_period = ["1985-10-01", "1995-10-01"]
     if valid_period is None:
         valid_period = ["1995-10-01", "2000-10-01"]
@@ -41,7 +41,7 @@ def run_camelsdpltank(
         # model_name="DplAnnTank",
         model_hyperparam={
             "n_input_features": 25,
-            "n_output_features": 21,
+            "n_output_features": 20,
             "n_hidden_states": 256,
             "warmup_length": 10,
         },
@@ -105,11 +105,11 @@ def run_camelsdpltank(
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,
-        train_epoch=10,
+        train_epoch=20,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 10,
+            "test_epoch": 20,
         },
         warmup_length=10,
         opt="Adadelta",
@@ -121,7 +121,7 @@ def run_camelsdpltank(
     print("All processes are finished!")
 
 
-run_camelsdpltank(
+run_camelsdpltank(  # camels-us time_range: ["1980-01-01", "2014-12-31"]
     train_period=["1985-07-01", "1986-07-01"],
     valid_period=["1986-10-01", "1987-10-01"],
     test_period=["1987-10-01", "1988-10-01"],
