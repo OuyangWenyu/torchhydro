@@ -59,8 +59,7 @@ def camelsusnarxnn_arg(var_c,var_t):
     train_period = ["1985-10-01", "1995-10-01"]
     valid_period = ["1995-10-01", "2000-10-01"]
     test_period = ["2000-10-01", "2010-10-01"]
-    config_data = default_config_file()
-    args = cmd(
+    return cmd(
         sub=project_name,
         source_cfgs={
             "source_name": "camels_us",
@@ -75,8 +74,8 @@ def camelsusnarxnn_arg(var_c,var_t):
             "n_input_features": len(var_c) + len(var_t),  # 17 + 9 = 26
             "n_output_features": 1,
             "n_hidden_states": 64,
-            "input_delay": [1, 2],
-            "feedback_delay": [1,],
+            "input_delay": 2,
+            "feedback_delay": 1,
         },
         loss_func="RMSESum",
         sampler="KuaiSampler",
@@ -84,7 +83,7 @@ def camelsusnarxnn_arg(var_c,var_t):
         scaler="DapengScaler",
         batch_size=10,
         forecast_history=0,
-        forecast_length=366,
+        forecast_length=10,
         var_t=var_t,
         var_c=var_c,
         var_out=["streamflow"],
@@ -105,12 +104,35 @@ def camelsusnarxnn_arg(var_c,var_t):
         # 01022500
         # ......
         # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-        gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt",
+        # gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt",
+        gage_id=[
+            "01013500",
+            # "01022500",
+            # "01030500",
+            # "01031500",
+            # "01047000",
+            # "01052500",
+            # "01054200",
+            # "01055000",
+            # "01057000",
+            # "01073000",
+            # "01078000",
+            # "01118300",
+            # "01121000",
+            # "01123000",
+            # "01134500",
+            # "01137500",
+            # "01139000",
+            # "01139800",
+            # "01142500",
+            # "01144000",
+        ],
         which_first_tensor="sequence",
     )
-    update_cfg(config_data, args)
-    return config_data
+
 
 def test_camelsusnarxnn(camelsusnarxnn_arg):
-    train_and_evaluate(camelsusnarxnn_arg)
+    config_data = default_config_file()
+    update_cfg(config_data, camelsusnarxnn_arg)
+    train_and_evaluate(config_data)
     print("All processes are finished!")

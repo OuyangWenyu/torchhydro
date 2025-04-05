@@ -52,7 +52,8 @@ class Narxnn(nn.Module):
         Parameters
         ----------
         x
-            the input time sequence
+            the input time sequence. note, the input features need to contain the history output(target) features data in train and test period.
+            e.g. streamflow is an output(target) feature in a task of flood forcasting.
         Returns
         -------
         out
