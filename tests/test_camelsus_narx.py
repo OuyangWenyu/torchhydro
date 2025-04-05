@@ -53,12 +53,12 @@ def var_t():
     ]
 
 @pytest.fixture
-def camelsusnarxnn_arg(var_c,var_t):
-    project_name = os.path.join("test_camels", "narxnn_camelsus")
+def camelsusnarx_arg(var_c,var_t):
+    project_name = os.path.join("test_camels", "narx_camelsus")
     # camels-us time_range: ["1980-01-01", "2014-12-31"]
-    train_period = ["1985-10-01", "1995-10-01"]
-    valid_period = ["1995-10-01", "2000-10-01"]
-    test_period = ["2000-10-01", "2010-10-01"]
+    train_period = ["1985-10-01", "1988-10-01"]
+    valid_period = ["1988-10-01", "1989-10-01"]
+    test_period = ["1989-10-01", "1990-10-01"]
     return cmd(
         sub=project_name,
         source_cfgs={
@@ -69,7 +69,7 @@ def camelsusnarxnn_arg(var_c,var_t):
         },
         ctx=[-1],
         # model_name="KuaiLSTM",
-        model_name="Narxnn",
+        model_name="Narx",
         model_hyperparam={
             "n_input_features": len(var_c) + len(var_t),  # 17 + 9 = 26
             "n_output_features": 1,
@@ -82,8 +82,8 @@ def camelsusnarxnn_arg(var_c,var_t):
         dataset="StreamflowDataset",
         scaler="DapengScaler",
         batch_size=10,
-        forecast_history=0,
-        forecast_length=10,
+        forecast_history=0,  # help="length of time sequence when training in encoder part, for decoder-only models, forecast_history=0"
+        forecast_length=30,
         var_t=var_t,
         var_c=var_c,
         var_out=["streamflow"],
@@ -107,15 +107,15 @@ def camelsusnarxnn_arg(var_c,var_t):
         # gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt",
         gage_id=[
             "01013500",
-            # "01022500",
-            # "01030500",
-            # "01031500",
-            # "01047000",
-            # "01052500",
-            # "01054200",
-            # "01055000",
-            # "01057000",
-            # "01073000",
+            "01022500",
+            "01030500",
+            "01031500",
+            "01047000",
+            "01052500",
+            "01054200",
+            "01055000",
+            "01057000",
+            "01073000",
             # "01078000",
             # "01118300",
             # "01121000",
@@ -131,8 +131,11 @@ def camelsusnarxnn_arg(var_c,var_t):
     )
 
 
-def test_camelsusnarxnn(camelsusnarxnn_arg):
+def test_camelsusnarx(camelsusnarx_arg):
     config_data = default_config_file()
-    update_cfg(config_data, camelsusnarxnn_arg)
+    update_cfg(config_data, camelsusnarx_arg)
     train_and_evaluate(config_data)
     print("All processes are finished!")
+
+
+# 167

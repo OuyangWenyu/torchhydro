@@ -1,246 +1,83 @@
-
-from typing import overload, Optional, Tuple, Union
-
+from typing import Union
 import torch
 import torch.nn as nn
-from torch.nn.modules.rnn import RNNBase
-from torch import _VF, Tensor
-from torch.nn.utils.rnn import PackedSequence
+from torch.nn import functional as F
+from torchhydro.models import narx
 
-__all__ = [
-    "RNNBase",
-    "Narx",
-]
-
-_narx_impls = {
-    "RNN_TANH": _VF.rnn_tanh,
-    "RNN_RELU": _VF.rnn_relu,
-}
-
-class Narx(RNNBase):
+class Narx(nn.Module):
     """
-    narx model
-    nonlinear autoregressive with exogenous inputs neural network.
+    nonlinear autoregressive with exogenous inputs neural network model
     """
-    @overload
     def __init__(
         self,
-        input_size: int,
-        hidden_size: int,
-        num_layers: int = 1,
-        nonlinearity: str = "tanh",
-        bias: bool = True,
-        batch_first: bool = False,
-        dropout: float = 0.0,
-        bidirectional: bool = False,
-        proj_size: int = 0,
-        input_delay: Union[list, tuple] = None,
-        feedback_delay: Union[list, tuple] = None,
+        n_input_features: int,
+        n_output_features: int,
+        n_hidden_states: int,
+        input_delay: int,
+        feedback_delay: int,
+        # num_layers: int = 10,
         close_loop: bool = False,
-        device=None,
-        dtype=None,
-    ) -> None:
+    ):
         """
 
         Parameters
         ----------
-        input_size
-        hidden_size
-        num_layers
-            the number of recurrent stack layers
-        nonlinearity
-        bias
-        batch_first
-        dropout
-        bidirectional
-        proj_size
-        close_loop
-            default false when train period.
-        device
-        dtype
+        n_input_features: int, number of input features.
+        n_output_features: int, number of output features.
+        n_hidden_states: int, number of hidden states.
+        input_delay: int, the maximum input delay time-step.
+        feedback_delay: int, the maximum feedback delay time-step.
+        num_layers: int, the number of recurrent layers.
+        close_loop: bool, whether to close the loop when feeding in.
         """
-        ...
+        super(Narxnn, self).__init__()
+        self.nx = n_input_features  #
+        self.ny = n_output_features  # n_output_features = n_feedback_features in narx nn model
+        # self.num_layers = num_layers
+        self.hidden_size = n_hidden_states
+        self.input_delay = input_delay
+        self.feedback_delay = feedback_delay
+        self.max_delay = max(input_delay, feedback_delay)
+        self.close_loop = close_loop
+        in_features = (self.nx-self.ny) * (self.input_delay + 1) + self.ny * (self.feedback_delay + 1)
+        self.linearIn = nn.Linear(in_features, self.hidden_size)
+        self.narx = nn.RNNCell(
+            input_size=self.hidden_size,
+            hidden_size=self.hidden_size,
+        )
+        self.linearOut = nn.Linear(self.hidden_size, self.ny)
 
-    @overload
-    def __init__(self, *args, **kwargs):
-        ...
-
-    def __init__(self, *args, **kwargs):
-        if "proj_size" in kwargs:
-            raise ValueError(
-                "proj_size argument is not supported for narx"
-            )
-        if len(args) > 3:
-            self.nonlinearity = args[3]
-            args = args[:3] + args[4:]
-        else:
-            self.nonlinearity = kwargs.pop("nonlinearity", "tanh")
-        if self.nonlinearity == "tanh":
-            mode = "RNN_TANH"
-        elif self.nonlinearity == "relu":
-            mode = "RNN_RELU"
-        else:
-            raise ValueError(
-                f"Unknown nonlinearity '{self.nonlinearity}'. Select from 'tanh' or 'relu'."
-            )
-        super().__init__(mode, *args, **kwargs)
-
-    @overload
-    @torch._jit_internal._overload_method
-    def forward(
-        self, input: Tensor, hx: Optional[Tensor] = None
-    ) -> Tuple[Tensor, Tensor]:
-        pass
-
-    @overload
-    @torch._jit_internal._overload_method
-    def forward(
-        self, input: PackedSequence, hx: Optional[Tensor] = None
-    ) -> Tuple[PackedSequence, Tensor]:
-        pass
-
-    def forward(self, input, hx=None):
+    def forward(self, x):
         """
-        narx forward function
+        forward propagation function
         Parameters
         ----------
-        input
-            input time series
-        hx
-            hidden state
+        x
+            the input time sequence. note, the input features need to contain the history output(target) features data in train and test period.
+            e.g. streamflow is an output(target) feature in a task of flood forcasting.
         Returns
         -------
-
+        out
+            the output sequence of the model
         """
-        self._update_flat_weights()
-
-        num_directions = 2 if self.bidirectional else 1
-        orig_input = input
-
-        if isinstance(orig_input, PackedSequence):
-            input, batch_sizes, sorted_indices, unsorted_indices = input
-            max_batch_size = batch_sizes[0]
-
-            if hx is None:
-                hx = torch.zeros(
-                    self.num_layers * num_directions,
-                    max_batch_size,
-                    self.hidden_size,
-                    dtype=input.dtype,
-                    device=input.device,
-                )
-            else:
-                hx = self.permute_hidden(hx, sorted_indices)
-        else:  #
-            batch_sizes = None
-            if input.dim() not in (2, 3):
-                raise ValueError(
-                    f"narx: Expected input to be 2D or 3D, got {input.dim()}D tensor instead"
-                )
-            is_batched = input.dim() == 3
-            batch_dim = 0 if self.batch_first else 1
-            if not is_batched:
-                input = input.unsqueeze(batch_dim)
-                if hx is not None:
-                    if hx.dim() != 2:
-                        raise RuntimeError(
-                            f"For unbatched 2-D input, hx should also be 2-D but got {hx.dim()}-D tensor"
-                        )
-                    hx = hx.unsqueeze(1)
-            else:  #
-                if hx is not None and hx.dim() != 3:
-                    raise RuntimeError(
-                        f"For batched 3-D input, hx should also be 3-D but got {hx.dim()}-D tensor"
-                    )
-            max_batch_size = input.size(0) if self.batch_first else input.size(1)
-            sorted_indices = None
-            unsorted_indices = None
-            if hx is None:  #
-                hx = torch.zeros(
-                    self.num_layers * num_directions,
-                    max_batch_size,
-                    self.hidden_size,
-                    dtype=input.dtype,
-                    device=input.device,
-                )
-            else:
-                hx = self.permute_hidden(hx, sorted_indices)
-
-        assert hx is not None
-        self.check_forward_args(input, hx, batch_sizes)
-        assert self.mode == "RNN_TANH" or self.mode == "RNN_RELU"
-        if batch_sizes is None:  #
-            if self.mode == "RNN_TANH":  #
-                result = _VF.rnn_tanh(
-                    input,
-                    hx,
-                    self._flat_weights,
-                    self.bias,
-                    self.num_layers,
-                    self.dropout,
-                    self.training,
-                    self.bidirectional,
-                    self.batch_first,
-                )
-            else:
-                result = _VF.rnn_relu(
-                    input,
-                    hx,
-                    self._flat_weights,
-                    self.bias,
-                    self.num_layers,
-                    self.dropout,
-                    self.training,
-                    self.bidirectional,
-                    self.batch_first,
-                )
-        else:
-            if self.mode == "RNN_TANH":
-                result = _VF.rnn_tanh(
-                    input,
-                    batch_sizes,
-                    hx,
-                    self._flat_weights,
-                    self.bias,
-                    self.num_layers,
-                    self.dropout,
-                    self.training,
-                    self.bidirectional,
-                )
-            else:
-                result = _VF.rnn_relu(
-                    input,
-                    batch_sizes,
-                    hx,
-                    self._flat_weights,
-                    self.bias,
-                    self.num_layers,
-                    self.dropout,
-                    self.training,
-                    self.bidirectional,
-                )
-
-        output = result[0]
-        hidden = result[1]
-
-        if isinstance(orig_input, PackedSequence):
-            output_packed = PackedSequence(
-                output, batch_sizes, sorted_indices, unsorted_indices
-            )
-            return output_packed, self.permute_hidden(hidden, unsorted_indices)
-
-        if not is_batched:
-            output = output.squeeze(batch_dim)
-            hidden = hidden.squeeze(1)
-
-        return output, self.permute_hidden(hidden, unsorted_indices)
-
-    def close_loop(self):
-        """
-        close loop when prediction period.
-        Returns
-        -------
-
-        """
-
-        return 0
+        nt, ngrid, nx = x.shape  # (time,basins,features)
+        out = torch.zeros(nt, ngrid, self.ny)  # (time,basins,output_features)
+        for t in range(self.max_delay, nt):
+            x0 = x[(t - self.input_delay): t, :, :(self.nx - self.ny)]
+            x0_t = x0[-1, :, :]
+            for i in range(self.input_delay):
+                x0_i = x0[i, :, :]
+                x0_t = torch.cat((x0_t, x0_i), dim=-1)
+            y0 = x[(t-self.feedback_delay):t, :, -self.ny:]
+            y0_t = y0[-1, :, :]
+            for i in range(self.feedback_delay):
+                y0i = y0[i, :, :]
+                y0_t = torch.cat((y0_t, y0i), dim=-1)
+            xt = torch.cat([x0_t, y0_t], dim=-1)  # (basins,features)  single step, no time dimension.
+            x_l = F.relu(self.linearIn(xt))
+            out_t = self.narx(x_l)  # single step
+            yt = self.linearOut(out_t)  # (basins,output_features) single step output value, e.g. streamflow
+            out[t, :, :] = yt
+            if self.close_loop:
+                x[t+1, :, -self.ny:] = yt  #
+        return out
