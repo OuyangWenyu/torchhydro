@@ -58,8 +58,8 @@ def camelsgbdpltank_arg(var_c, var_t):
     test_period = ["2014-10-01", "2015-10-01"]
     config = default_config_file()
     args = cmd(
-        sub=os.path.join("test_camels", "dpllstmsac_camelsgb"),
-        # sub=os.path.join("test_camels", "dplannsac_camelsgb"),
+        sub=os.path.join("test_camels", "dpllstmtank_camelsgb"),
+        # sub=os.path.join("test_camels", "dplanntank_camelsgb"),
         source_cfgs={
             "source_name": "camels_gb",
             "source_path": os.path.join(
@@ -67,8 +67,8 @@ def camelsgbdpltank_arg(var_c, var_t):
             ),
         },
         ctx=[-1],
-        model_name="DplLstmSac",
-        # model_name="DplAnnSac",
+        model_name="DplLstmTank",
+        # model_name="DplAnnTank",
         model_hyperparam={
             "n_input_features": len(var_c)+len(var_t),
             "n_output_features": 21,

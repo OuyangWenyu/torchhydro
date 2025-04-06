@@ -744,3 +744,10 @@ class NarxDataset(BaseDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         super(NarxDataset, self).__init__(data_cfgs, is_tra_val_te)
 
+
+    def __getitem__(self, index):
+        return tuple(tensor[index] for tensor in self.tensors)
+
+    def __len__(self):
+        return self.tensors[0].size(0)
+
