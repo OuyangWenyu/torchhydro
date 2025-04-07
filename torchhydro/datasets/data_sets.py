@@ -736,4 +736,3 @@ class TransformerDataset(Seq2SeqDataset):
             torch.from_numpy(x).float(),
             torch.from_numpy(x_h).float(),
         ], torch.from_numpy(y).float()
-

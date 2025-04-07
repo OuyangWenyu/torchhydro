@@ -1,8 +1,8 @@
 from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.data_utils import (
-    warn_if_nan,
     wrap_t_s_dict,
 )
+
 class NarxDataset(BaseDataset):
     """
     a dataset for Narx model.
@@ -23,6 +23,7 @@ class NarxDataset(BaseDataset):
             raise ValueError(
                 "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
             )
+        self.b_nestedness = self.data_cfgs["b_nestedness"]
         # load and preprocess data
         self._load_data()
 
@@ -38,6 +39,7 @@ class NarxDataset(BaseDataset):
         self.rho = self.data_cfgs["forecast_history"]
         self.warmup_length = self.data_cfgs["warmup_length"]
         self.horizon = self.data_cfgs["forecast_length"]
+        self.b_nestedness = self.data_cfgs["b_nestedness"]
 
     def _load_data(self):
         self._pre_load_data()
@@ -77,12 +79,17 @@ class NarxDataset(BaseDataset):
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
             data_forcing_ds_, data_output_ds_
         )
-        # c
-        data_attr_ds = self.data_source.read_attr_xrdataset(
+        if self.b_nestedness:
+            nestedness_info = self.data_source.read_nestedness_xrdataset(
+                self.t_s_dict["sites_id"],
+                self.data_cfgs["nestedness_cols"],
+            )
+        # n   nestedness  streamflow
+        data_nested_ds = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
-            self.data_cfgs["constant_cols"],
+            self.data_cfgs["target_cols"],
             all_number=True,
         )
         self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
-            data_forcing_ds, data_output_ds, data_attr_ds
+            data_forcing_ds, data_output_ds, data_nested_ds
         )

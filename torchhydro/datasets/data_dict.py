@@ -16,8 +16,7 @@ from torchhydro.datasets.data_sets import (
     Seq2SeqDataset,
     TransformerDataset,
 )
-
-
+from torchhydro.datasets.narcdataset import NarxDataset
 
 datasets_dict = {
     "StreamflowDataset": BaseDataset,
@@ -26,4 +25,5 @@ datasets_dict = {
     "FlexDataset": FlexibleDataset,
     "Seq2SeqDataset": Seq2SeqDataset,
     "TransformerDataset": TransformerDataset,
+    "NarxDataset": NarxDataset,
 }
