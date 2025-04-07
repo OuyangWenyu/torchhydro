@@ -84,12 +84,12 @@ class NarxDataset(BaseDataset):
                 self.t_s_dict["sites_id"],
                 self.data_cfgs["nestedness_cols"],
             )
-        # n   nestedness  streamflow
+        # n   nestedness  streamflow  a forcing type
         data_nested_ds = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             self.data_cfgs["target_cols"],
             all_number=True,
         )
         self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
-            data_forcing_ds, data_output_ds, data_nested_ds
+            data_forcing_ds, data_nested_ds, data_output_ds
         )
