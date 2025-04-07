@@ -211,6 +211,7 @@ def default_config_file():
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
+            "b_nestedness": False,
         },
         "training_cfgs": {
             "master_addr": "localhost",

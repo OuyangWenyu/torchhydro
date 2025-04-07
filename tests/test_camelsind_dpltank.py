@@ -67,10 +67,9 @@ def camelsinddpltank_arg(var_c,var_t):
     train_period = ["2017-10-01", "2018-10-01"]
     valid_period = ["2018-10-01", "2019-10-01"]
     test_period = ["2019-10-01", "2020-10-01"]
-    config = default_config_file()
-    args = cmd(
+    return cmd(
         sub=os.path.join("test_camels", "dpllstmtank_camelsind"),
-        # sub=os.path.join("test_camels", "dplanntank_camelsin"),
+        # sub=os.path.join("test_camels", "dplanntank_camelsind"),
         source_cfgs={
             "source_name": "camels_ind",
             "source_path": os.path.join(
@@ -148,11 +147,12 @@ def camelsinddpltank_arg(var_c,var_t):
         opt="Adadelta",
         which_first_tensor="sequence",
     )
-    update_cfg(config, args)
-    return config
+
 
 def test_camelsinddpltank(camelsinddpltank_arg):
-    train_and_evaluate(camelsinddpltank_arg)
+    config = default_config_file()
+    update_cfg(config, camelsinddpltank_arg)
+    train_and_evaluate(config)
     print("All processes are finished!")
 
 

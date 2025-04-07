@@ -737,32 +737,3 @@ class TransformerDataset(Seq2SeqDataset):
             torch.from_numpy(x_h).float(),
         ], torch.from_numpy(y).float()
 
-class NarxDataset(BaseDataset):
-    """
-    a dataset for Narx model.
-    """
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        """
-        Initialize the Narx dataset.  for fr in camels.
-        Parameters
-        ----------
-        data_cfgs
-        is_tra_val_te
-        """
-        super(NarxDataset, self).__init__(data_cfgs, is_tra_val_te)
-        self.data_cfgs = data_cfgs
-        if is_tra_val_te in {"train", "valid", "test"}:
-            self.is_tra_val_te = is_tra_val_te
-        else:
-            raise ValueError(
-                "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
-            )
-
-
-
-    def __getitem__(self, index):
-        return tuple(tensor[index] for tensor in self.tensors)
-
-    def __len__(self):
-        return self.num_samples if self.train_mode else self.ngrid
-
