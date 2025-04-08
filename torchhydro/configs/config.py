@@ -49,7 +49,7 @@ def default_config_file():
         "model_cfgs": {
             # model_type including normal deep learning (Normal), federated learning (FedLearn), transfer learing (TransLearn), multi-task learning (MTL), etc.
             "model_type": "Normal",
-            # supported models can be seen in hydroDL/model_dict_function.py
+            # supported models can be seen in models/model_dict_function.py
             "model_name": "LSTM",
             # the details of model parameters for the "model_name" model
             "model_hyperparam": {
@@ -367,6 +367,7 @@ def cmd(
     patience=None,
     min_time_unit=None,
     min_time_interval=None,
+    b_nestedness=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -832,6 +833,13 @@ def cmd(
         default=min_time_interval,
         type=int,
     )
+    parser.add_argument(
+        "--b_nestedness",
+        dest="b_nestedness",
+        help="The catchment nestedness config",
+        default=b_nestedness,
+        type=bool,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -1079,6 +1087,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["early_stopping"] = new_args.early_stopping
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
+    if new_args.b_nestedness is not None:
+        cfg_file["data_cfgs"]["b_nestedness"] = new_args.b_nestedness
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 

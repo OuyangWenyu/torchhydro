@@ -80,10 +80,7 @@ class NarxDataset(BaseDataset):
             data_forcing_ds_, data_output_ds_
         )
         if self.b_nestedness:
-            nestedness_info = self.data_source.read_nestedness_xrdataset(
-                self.t_s_dict["sites_id"],
-                self.data_cfgs["nestedness_cols"],
-            )
+            nestedness_info = self.data_source.read_nestedness_csv(self.t_s_dict["sites_id"])
         # n   nestedness  streamflow  a forcing type
         data_nested_ds = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
