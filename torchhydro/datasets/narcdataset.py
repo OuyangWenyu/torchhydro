@@ -2,6 +2,7 @@ from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.data_utils import (
     wrap_t_s_dict,
 )
+from torchhydro.models.basintree import BasinTree
 
 class NarxDataset(BaseDataset):
     """
@@ -29,6 +30,7 @@ class NarxDataset(BaseDataset):
         self._load_data()
 
     def __getitem__(self, index):
+        #
         return tuple(tensor[index] for tensor in self.tensors)
 
     def __len__(self):
@@ -81,7 +83,12 @@ class NarxDataset(BaseDataset):
             data_forcing_ds_, data_output_ds_
         )
         if self.b_nestedness:
-            nestedness_info = self.data_source.read_nestedness_csv(self.t_s_dict["sites_id"])
+            nestedness_info = self.data_source.read_nestedness_csv()
+            basin_tree = BasinTree(nestedness_info)
+            # return all related basins, cal_order and basin tree
+            # make forcing dataset containing nested basin stream for each input gauge.
+            #
+
         # n   nestedness  streamflow  a forcing type
         data_nested_ds = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],

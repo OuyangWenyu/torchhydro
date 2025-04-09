@@ -2,6 +2,52 @@ import pandas as pd
 from pandas import DataFrame as df
 import numpy as np
 
+
+class Node:
+    """
+    basin node, similar to river node.
+    """
+    def __init__(self, node_id, basin_id):
+        self.node_name = node_id
+        self.basin_ds = basin_id
+        self.basin_us = []
+
+    def add_basin_us(self, basin_id):
+        self.basin_us.append(basin_id)
+
+    def amount_basin_us(self):
+        n_basin_us = len(self.basin_us)
+        return n_basin_us
+
+
+class Basin:
+    """
+    basin object, similar to river.
+    """
+    def __init__(self, basin_id):
+        self.basin_name = basin_id
+        self.basin_type = ""
+        self.node = None
+        self.basin_order = -1  # basin order, similar to river order
+        self.max_order_of_tree = -1
+        self.cal_order = self.max_order_of_tree - self.basin_order
+
+    def set_basin_type(self, basin_type):
+        self.basin_type = basin_type
+
+    def set_node(self, node: Node = None):
+        self.node = node
+
+    def set_basin_order(self, basin_order):
+        self.basin_order = basin_order
+
+    def set_max_order_of_tree(self, max_order_of_tree):
+        self.max_order_of_tree = max_order_of_tree
+
+    def refresh_cal_order(self):
+        self.cal_order = self.max_order_of_tree - self.basin_order
+
+
 class BasinTree:
     """
     generate the basin tree through catchment nestedness information
@@ -19,13 +65,11 @@ class BasinTree:
         self.nestedness = nestednessinfo
         self.basins = nestednessinfo.index.values
         self.n_basin = len(self.basins)
-        self.max_basin_step = max(nestednessinfo.columns[3]) + 1
+        self.max_basin_order = max(nestednessinfo.columns[3]) + 1
         self.n_single_river = 0
         self.n_leaf = 0
         self.n_river_tree_root = 0
         self.n_limb = 0
-
-
 
     def basin_type(self):
         """
@@ -115,12 +159,47 @@ class BasinTree:
         basin_ds = self.nestedness.at[basin_id, 2]
         return basin_us, basin_ds
 
-    def single_basin(
+
+    def basin_order(
         self,
         basin_id: str = None,
     ):
         """
 
+        Parameters
+        ----------
+        basin_id
+
+        Returns
+        -------
+
+        """
+        basin_us = self.nestedness.at[basin_id, 5]
+        if not basin_us==None:
+            basin_us = basin_us.split(",")
+        basin = [basin_id] + basin_us
+        n_basin = len(basin)
+        order = [-1]*n_basin
+        order[0] = 1  # basin_id
+        for i in range(1, n_basin):
+            i_basin = basin[i]
+            i_order = 1
+            while True:
+                basin_ds = self.nestedness.at[i_basin, 2]
+                if basin_ds == basin[0]:
+                    break
+                i_order = i_order + 1
+                i_basin = basin_ds
+            order[i] = i_order
+
+
+
+    def single_basin(
+        self,
+        basin_id: str = None,
+    ):
+        """
+        Strahler
         Returns
         -------
 

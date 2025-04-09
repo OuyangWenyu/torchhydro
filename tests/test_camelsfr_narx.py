@@ -76,6 +76,28 @@ def camelsfrnarx_arg(var_c, var_t):
         sampler="KuaiSampler",
         dataset="NarxDataset",
         scaler="DapengScaler",
+        gage_id=[
+            "A105003001",
+            "A107020001",
+            "A112020001",
+            "A116003002",
+            "A140202001",
+            "A202030001",
+            "A204010101",
+            "A211030001",
+            "A212020002",
+            "A231020001",
+            "A234021001",
+            "A251020001",
+            "A270011001",
+            "A273011002",
+            "A284020001",
+            "A330010001",
+            "A361011001",
+            "A369011001",
+            "A373020001",
+            "A380020001",
+        ],
         batch_size=10,
         forecast_history=0,
         forecast_length=30,
@@ -99,7 +121,7 @@ def camelsfrnarx_arg(var_c, var_t):
         # 01022500
         # ......
         # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-        gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_fr\\gage_id.txt",
+        # gage_id_file="D:\\minio\\waterism\\datasets-origin\\camels\\camels_fr\\gage_id.txt",
         which_first_tensor="sequence",
         b_nestedness=True,
     )
