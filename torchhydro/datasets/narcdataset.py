@@ -9,7 +9,8 @@ class NarxDataset(BaseDataset):
     """
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         """
-        Initialize the Narx dataset.  for fr in camels.
+        Initialize the Narx dataset.  for fr in camels.   narx model is more suitable for nested catchment flood prediction,
+        while only fr have the nestedness information in camels, so choose fr to make dataset.
         Parameters
         ----------
         data_cfgs
