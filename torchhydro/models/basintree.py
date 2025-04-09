@@ -65,7 +65,8 @@ class BasinTree:
         self.nestedness = nestednessinfo
         self.basins = nestednessinfo.index.values
         self.n_basin = len(self.basins)
-        self.max_basin_order = max(nestednessinfo.columns[3]) + 1
+        nes_n_nested_within = nestednessinfo["nes_n_nested_within"].tolist()
+        self.max_basin_order = max(nes_n_nested_within) + 1
         self.n_single_river = 0
         self.n_leaf = 0
         self.n_river_tree_root = 0
@@ -91,8 +92,8 @@ class BasinTree:
         basin_type = [""]*self.n_basin
 
         for i in range(self.n_basin):
-            nes_n_nested_within = self.nestedness.at[i, 3]
-            nes_n_station_ds = self.nestedness.at[i, 1]
+            nes_n_nested_within = self.nestedness.at[self.basins[i], "nes_n_nested_within"]
+            nes_n_station_ds = self.nestedness.at[self.basins[i], "nes_n_station_ds"]
             if nes_n_nested_within == 0 and nes_n_station_ds == 0:
                 type_single_river[i] = True
                 n_single_river = n_single_river + 1
@@ -174,7 +175,7 @@ class BasinTree:
         -------
 
         """
-        basin_us = self.nestedness.at[basin_id, 5]
+        basin_us = self.nestedness.at[basin_id, "nes_station_nested_within"]
         if not basin_us==None:
             basin_us = basin_us.split(",")
         basin = [basin_id] + basin_us
@@ -183,14 +184,17 @@ class BasinTree:
         order[0] = 1  # basin_id
         for i in range(1, n_basin):
             i_basin = basin[i]
-            i_order = 1
+            i_order = 2
             while True:
-                basin_ds = self.nestedness.at[i_basin, 2]
+                basin_ds = self.nestedness.at[i_basin, "nes_next_station_ds"]
                 if basin_ds == basin[0]:
+                    order[i] = i_order
                     break
-                i_order = i_order + 1
-                i_basin = basin_ds
-            order[i] = i_order
+                else:
+                    i_order = i_order + 1
+                    i_basin = basin_ds
+        return order
+
 
 
 
@@ -204,7 +208,10 @@ class BasinTree:
         -------
 
         """
+        basin = Basin(basin_id)
         basin_type = self.nestedness.at[basin_id, "basin_type"]
+        basin.set_basin_type(basin_type)
+
         basin_us = None
         basin_ds = None
         if basin_type == "single_river":
@@ -215,6 +222,7 @@ class BasinTree:
             basin_us, basin_ds = self.limb(basin_id)
         if basin_type == "river_tree_root":
             basin_us, basin_ds = self.river_tree_root(basin_id)
+
         return basin_us, basin_ds
 
     def get_tree(self, basin_id):
