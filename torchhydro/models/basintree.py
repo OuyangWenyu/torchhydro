@@ -186,8 +186,9 @@ class BasinTree:
         for i in range(n_basin):
             basin_i = Basin(basin[i])
             basin_i.basin_type = self.nestedness.at[basin[i], "basin_type"]
-            node = Node(basin[i])
-            basin_i.node = node
+            node_id = "node_" + basin[i]
+            node = Node(node_id, basin[i])
+            basin_i.set_node(node)
             basin_object[i] = basin_i
 
         order = [-1]*n_basin

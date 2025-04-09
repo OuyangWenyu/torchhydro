@@ -96,6 +96,25 @@ def test_basin_order():
     print(order)
     # [1, 4, 2, 3, 5, 5, 5, 3, 5, 4, 2, 3, 4, 6]
 
+def test_single_basin():
+    camelsfr = camels_fr.CamelsFr()
+    basin_id = "A511061001"
+    node_id = "node_" + basin_id
+    node = Node(node_id, basin_id)
+    basin_us = [
+        "A405062001",
+        "A417301001",
+        "A420063001",
+        "A402061001",
+        "A436203001",
+        "A414020202",
+        "A443064001",
+        "A433301001",
+    ]
+    for i in range(len(basin_us)):
+        node.add_basin_us(basin_us[i])
+
+
 def test_BasinTree():
     camelsfr = camels_fr.CamelsFr()
     nestedness_info = camelsfr.read_nestedness_csv()
