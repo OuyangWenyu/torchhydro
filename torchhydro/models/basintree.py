@@ -51,6 +51,7 @@ class Basin:
 class BasinTree:
     """
     generate the basin tree through catchment nestedness information
+    This class use to calculate the link/topology relationship between basins.
     """
     def __init__(
         self,
@@ -180,19 +181,32 @@ class BasinTree:
             basin_us = basin_us.split(",")
         basin = [basin_id] + basin_us
         n_basin = len(basin)
+
+        basin_object = [Basin]*n_basin
+        for i in range(n_basin):
+            basin_i = Basin(basin[i])
+            basin_i.basin_type = self.nestedness.at[basin[i], "basin_type"]
+            node = Node(basin[i])
+            basin_i.node = node
+            basin_object[i] = basin_i
+
         order = [-1]*n_basin
         order[0] = 1  # basin_id
+        basin_object[0].set_basin_order(1)
         for i in range(1, n_basin):
-            i_basin = basin[i]
-            i_order = 2
+            basin_i = basin[i]
+            order_i = 2
+            basin_object[i].set_basin_order(2)
+            basin_object[i].node.add_basin_us(basin_i)
             while True:
-                basin_ds = self.nestedness.at[i_basin, "nes_next_station_ds"]
+                basin_ds = self.nestedness.at[basin_i, "nes_next_station_ds"]
                 if basin_ds == basin[0]:
-                    order[i] = i_order
+                    order[i] = order_i
                     break
                 else:
-                    i_order = i_order + 1
-                    i_basin = basin_ds
+                    order_i = order_i + 1
+                    basin_i = basin_ds
+
         return order
 
 

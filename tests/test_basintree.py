@@ -90,6 +90,7 @@ def test_basin_order():
     camelsfr = camels_fr.CamelsFr()
     nestedness_info = camelsfr.read_nestedness_csv()
     basin_tree = BasinTree(nestedness_info)
+    basin_tree.basin_type()
     basin_id = "A550061001"
     order = basin_tree.basin_order(basin_id)
     print(order)
