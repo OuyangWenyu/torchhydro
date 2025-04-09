@@ -139,5 +139,3 @@ def test_camelsusnarx(camelsusnarx_arg):
     train_and_evaluate(config_data)
     print("All processes are finished!")
 
-
-# 167

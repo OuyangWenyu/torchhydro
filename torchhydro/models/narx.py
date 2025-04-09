@@ -83,5 +83,5 @@ class Narx(nn.Module):
             yt = self.linearOut(out_t)  # (basins,output_features) single step output value, e.g. streamflow
             out[t, :, :] = yt
             if self.close_loop:
-                x[t+1, :, -self.ny:] = yt  #
+                x[t+1, :, -self.ny:] = yt
         return out
