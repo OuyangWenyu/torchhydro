@@ -1,8 +1,11 @@
+
 from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.data_utils import (
     wrap_t_s_dict,
 )
 from torchhydro.models.basintree import BasinTree
+import numpy as np
+import torch
 
 class NarxDataset(BaseDataset):
     """
@@ -29,9 +32,26 @@ class NarxDataset(BaseDataset):
         # load and preprocess data
         self._load_data()
 
-    def __getitem__(self, index):
-        #
-        return tuple(tensor[index] for tensor in self.tensors)
+    def __getitem__(self, item: int):
+        if not self.train_mode:
+            x = self.x[item, :, :]
+            y = self.y[item, :, :]
+            if self.c is None or self.c.shape[-1] == 0:
+                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            c = self.c[item, :]
+            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xc = np.concatenate((x, c), axis=1)
+            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        basin, idx = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx: idx + self.rho + self.horizon, :]
+        if self.c is None or self.c.shape[-1] == 0:
+            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
 
     def __len__(self):
         return self.num_samples if self.train_mode else self.ngrid

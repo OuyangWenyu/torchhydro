@@ -86,14 +86,58 @@ def test_basin_type():
     # n_limb = 75
     # n_river_tree_root = 83
 
+def test_get_basin_index():
+    camelsfr = camels_fr.CamelsFr()
+    nestedness_info = camelsfr.read_nestedness_csv()
+    basin_tree = BasinTree(nestedness_info)
+    basin_id_list = [
+        "A405062001",
+        "A417301001",
+        "A420063001",
+        "A402061001",
+        "A436203001",
+        "A414020202",
+        "A443064001",
+        "A433301001",
+    ]
+    basin_id = "A420063001"
+    basin_index = basin_tree._get_basin_index(basin_id, basin_id_list)
+    print(basin_index)
+    # 2
+
 def test_basin_order():
     camelsfr = camels_fr.CamelsFr()
     nestedness_info = camelsfr.read_nestedness_csv()
     basin_tree = BasinTree(nestedness_info)
     basin_tree.basin_type()
     basin_id = "A550061001"
-    order = basin_tree.basin_order(basin_id)
-    print(order)
+    basin_us = [
+        "A443064001",
+        "A433301001",
+        "A524201001",
+        "A436203001",
+        "A414020202",
+        "A615103001",
+        "A402061001",
+        "A511061001",
+        "A550061001",
+        "A673122001",
+        "A543101001",
+        "A405062001",
+        "A526102003",
+        "A843101001",
+        "A764201001",
+        "A420063001",
+        "A542201001",
+        "A788101001",
+        "A807101001",
+        "A417301001",
+        "A662121202",
+        "A605102001",
+        "A712201001",
+    ]
+    basin_object = basin_tree.basin_order(basin_id)
+    print(basin_object)
     # [1, 4, 2, 3, 5, 5, 5, 3, 5, 4, 2, 3, 4, 6]
 
 def test_single_basin():
