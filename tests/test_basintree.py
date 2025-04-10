@@ -158,6 +158,57 @@ def test_single_basin():
     for i in range(len(basin_us)):
         node.add_basin_us(basin_us[i])
 
+def test_figure_out_root_single_basin():
+    camelsfr = camels_fr.CamelsFr()
+    nestedness_info = camelsfr.read_nestedness_csv()
+    basin_tree = BasinTree(nestedness_info)
+    basin_id_list = [
+        "A105003001",
+        "A107020001",
+        "A112020001",
+        "A116003002",
+        "A140202001",
+        "A202030001",
+        "A204010101",
+        "A211030001",
+        "A212020002",
+        "A231020001",
+        "A234021001",
+        "A251020001",
+        "A270011001",
+        "A273011002",
+        "A284020001",
+        "A330010001",
+        "A361011001",
+        "A369011001",
+        "A373020001",
+        "A380020001",
+        "A402061001",
+        "A405062001",
+        "A414020202",
+        "A417301001",
+        "A420063001",
+        "A433301001",
+        "A436203001",
+        "A443064001",
+        "A511061001",
+        "A524201001",
+        "A526102003",
+        "A542201001",
+        "A543101001",
+        "A550061001",
+    ]
+    root_basin, single_basin = basin_tree.figure_out_root_single_basin(basin_id_list)
+    print("--root_basin--")
+    print(root_basin)
+    print("--single_basin--")
+    print(single_basin)
+    # --root_basin - -
+    # ['A405062001', 'A436203001', 'A443064001', 'A511061001', 'A526102003', 'A543101001', 'A550061001', 'A116003002',
+    #  'A204010101', 'A212020002', 'A273011002', 'A369011001']
+    # --single_basin - -
+    # ['A140202001', 'A231020001', 'A234021001', 'A251020001', 'A284020001', 'A330010001', 'A373020001', 'A380020001',
+    #  'A107020001', 'A402061001', 'A414020202', 'A417301001', 'A433301001', 'A524201001', 'A542201001']
 
 def test_BasinTree():
     camelsfr = camels_fr.CamelsFr()

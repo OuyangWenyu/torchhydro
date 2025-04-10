@@ -216,6 +216,8 @@ class BasinTree:
             if basin_ds_index >= 0:
                 basin_object[basin_ds_index].node.add_basin_us(basin[i])
 
+        # sort along order
+
         return basin_object
 
     def _get_basin_index(self, basin_id, basin_id_list: list) -> int:
@@ -266,11 +268,67 @@ class BasinTree:
         return 0
 
 
-    def tree_root(self, basin_id_list: list = None):
-        """calculate the tree root among basin_id_list and sort"""
+    def figure_out_root_single_basin(self, basin_id_list: list = None):
+        """figure out the root basins and single basins among basin_id_list"""
+
         n_basin = len(basin_id_list)
 
-        return 0
+        # sort
+        single_river = []
+        leaf = []
+        limb = []
+        river_tree_root = []
+        for i in range(n_basin):
+            basin_type = self.nestedness.at[basin_id_list[i], "basin_type"]
+            if basin_type == "single_river":
+                single_river.append(basin_id_list[i])
+            if basin_type == "leaf":
+                leaf.append(basin_id_list[i])
+            if basin_type == "limb":
+                limb.append(basin_id_list[i])
+            if basin_type == "river_tree_root":
+                river_tree_root.append(basin_id_list[i])
+
+        # figure out the root basin among basin_id_list
+        for i in range(len(river_tree_root)):
+            # upstream basin of river_tree_root
+            river_tree_root_us = self.nestedness.at[river_tree_root[i], "nes_station_nested_within"]
+            river_tree_root_us.split(",")
+            # checking whether the leafs and limbs are contained or not, if true, remove it from its list
+            leaf_in = []
+            for j in range(len(leaf)):
+                if leaf[j] in river_tree_root_us:
+                    leaf_in.append(j)
+            for j in range(len(leaf_in)):
+                del leaf[leaf_in[j]]
+            limb_in = []
+            for j in range(len(limb)):
+                if limb[j] in river_tree_root_us:
+                    limb_in.append(j)
+            for j in range(len(limb_in)):
+                del limb[limb_in[j]]
+        # checking whether a limb are contained in upstream of another limb , if true, remove it from limb list
+        while True:
+            if len(limb) <= 1:
+                break
+            i = 0
+            lim_us = self.nestedness.at[limb[i], "nes_next_station_ds"]
+            lim_us = lim_us.split(",")
+            limb_in = []
+            for j in range(1, len(limb)):
+                if limb[j] in lim_us:
+                    limb_in.append(j)
+            if len(limb_in) == 0:
+                break
+            for j in range(len(limb_in)):
+                del limb[limb_in[j]]
+        root_basin = limb + river_tree_root
+
+        # the remaining are single basin
+        single_basin = single_river + leaf
+
+        return root_basin, single_basin
+
 
     def set_cal_order(self, basin_id_list: list = None):
         """set the calculate order of basin_id_list and its tree"""
