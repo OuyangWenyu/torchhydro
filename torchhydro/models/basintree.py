@@ -51,7 +51,8 @@ class Basin:
 class BasinTree:
     """
     generate the basin tree through catchment nestedness information
-    This class use to calculate the link/topology relationship between basins.   the link relationship between basins for regions in camels may need take into account.
+    This class use to figure out the link/topology relationship between basins.
+    the link relationship between basins for regions in camels may need take into account.
     """
     def __init__(
         self,
@@ -74,7 +75,8 @@ class BasinTree:
         self.n_leaf = 0
         self.n_river_tree_root = 0
         self.n_limb = 0
-        self.basin_type()  #
+        self.basin_type()
+        root_basin, single_basin = self.figure_out_root_single_basin(basin_id_list)
 
     def basin_type(self):
         """
@@ -164,31 +166,42 @@ class BasinTree:
         basin_ds = self.nestedness.at[basin_id, 2]
         return basin_us, basin_ds
 
+    def get_basin_type(self, basin_id: str = None):
+        basin_type = self.nestedness.at[basin_id, "basin_type"]
+        return basin_type
+
+    def get_upstream_basin(self, basin_id: str = None):
+        basin_us = self.nestedness.at[basin_id, "nes_station_nested_within"]
+        if not basin_us == None:
+            basin_us = basin_us.split(",")
+        return basin_us
+
+    def get_downstream_basin(self, basin_id: str = None):
+        basin_ds = self.nestedness.at[basin_id, "nes_next_station_ds"]
+        return basin_ds
 
     def basin_order(
         self,
         basin_id: str = None,
     ):
         """
-        calculate the basin order
+            figure out the basin order
         Parameters
         ----------
-        basin_id
-
+        basin_id: str
+            root basin id
         Returns
         -------
 
         """
-        basin_us = self.nestedness.at[basin_id, "nes_station_nested_within"]
-        if not basin_us==None:
-            basin_us = basin_us.split(",")
+        basin_us = self.get_upstream_basin(basin_id)
         basin = [basin_id] + basin_us
         n_basin = len(basin)
 
         basin_object = [Basin]*n_basin
         for i in range(n_basin):
             basin_i = Basin(basin[i])
-            basin_i.basin_type = self.nestedness.at[basin[i], "basin_type"]
+            basin_i.basin_type = self.get_basin_type(basin[i])
             node_id = "node_" + basin[i]
             node = Node(node_id, basin[i])
             basin_i.set_node(node)
@@ -200,7 +213,7 @@ class BasinTree:
             basin_i = basin[i]
             order_i = 2
             while True:
-                basin_ds = self.nestedness.at[basin_i, "nes_next_station_ds"]
+                basin_ds = self.get_downstream_basin(basin[i])
                 if basin_ds == basin[0]:
                     basin_object[i].set_basin_order(order_i)
                     break
@@ -211,7 +224,7 @@ class BasinTree:
         # upstream basin
         for i in range(n_basin):
             basin_i = basin[i]
-            basin_ds = self.nestedness.at[basin_i, "nes_next_station_ds"]
+            basin_ds = self.get_downstream_basin(basin[i])
             basin_ds_index = self._get_basin_index(basin_ds, basin)
             if basin_ds_index >= 0:
                 basin_object[basin_ds_index].node.add_basin_us(basin[i])
@@ -241,7 +254,7 @@ class BasinTree:
 
         """
         basin = Basin(basin_id)
-        basin_type = self.nestedness.at[basin_id, "basin_type"]
+        basin_type = self.get_basin_type(basin_id)
         basin.set_basin_type(basin_type)
 
         basin_us = None
@@ -269,8 +282,19 @@ class BasinTree:
 
 
     def figure_out_root_single_basin(self, basin_id_list: list = None):
-        """figure out the root basins and single basins among basin_id_list"""
-
+        """
+            figure out the root basins and single basins among basin_id_list
+        Parameters
+        ----------
+        basin_id_list: list
+            id list of basins which need to forcasting.
+        Returns
+        -------
+        root_basins： list
+            root basin among basin_id_list
+        single_basins: list
+            single basin among basin_id_list
+        """
         n_basin = len(basin_id_list)
 
         # sort
@@ -279,7 +303,7 @@ class BasinTree:
         limb = []
         river_tree_root = []
         for i in range(n_basin):
-            basin_type = self.nestedness.at[basin_id_list[i], "basin_type"]
+            basin_type = self.get_basin_type(basin_id_list[i])
             if basin_type == "single_river":
                 single_river.append(basin_id_list[i])
             if basin_type == "leaf":
@@ -292,7 +316,7 @@ class BasinTree:
         # figure out the root basin among basin_id_list
         for i in range(len(river_tree_root)):
             # upstream basin of river_tree_root
-            river_tree_root_us = self.nestedness.at[river_tree_root[i], "nes_station_nested_within"]
+            river_tree_root_us = self.get_upstream_basin(river_tree_root[i])
             river_tree_root_us.split(",")
             # checking whether the leafs and limbs are contained or not, if true, remove it from its list
             leaf_in = []
@@ -312,8 +336,7 @@ class BasinTree:
             if len(limb) <= 1:
                 break
             i = 0
-            lim_us = self.nestedness.at[limb[i], "nes_next_station_ds"]
-            lim_us = lim_us.split(",")
+            lim_us = self.get_upstream_basin(limb[i])
             limb_in = []
             for j in range(1, len(limb)):
                 if limb[j] in lim_us:
@@ -331,6 +354,16 @@ class BasinTree:
 
 
     def set_cal_order(self, basin_id_list: list = None):
-        """set the calculate order of basin_id_list and its tree"""
+        """
+            set the calculate order of basin_id_list and its tree
+        Parameters
+        ----------
+        basin_id_list
+
+        Returns
+        -------
+
+        """
+
 
         return 0
