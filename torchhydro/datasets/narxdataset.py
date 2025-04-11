@@ -35,7 +35,18 @@ class NarxDataset(BaseDataset):
         self._load_data()
 
     def __getitem__(self, item: int):
-        # DataLoader
+        """
+        DataLoader load data from here and deliver into model.
+        deal with data order
+        how to implement changeable batch size
+        Parameters
+        ----------
+        item
+
+        Returns
+        -------
+
+        """
         if not self.train_mode:
             x = self.x[item, :, :]
             y = self.y[item, :, :]
@@ -54,7 +65,7 @@ class NarxDataset(BaseDataset):
         c = self.c[basin, :]
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
         xc = np.concatenate((x, c), axis=1)
-        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()  # deliver into model prcp, pet, attributes and streamflow etc.
 
     def __len__(self):
         return self.num_samples if self.train_mode else self.ngrid
