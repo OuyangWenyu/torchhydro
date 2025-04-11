@@ -6,6 +6,8 @@ from torchhydro.datasets.data_utils import (
 from torchhydro.models.basintree import BasinTree
 import numpy as np
 import torch
+from tqdm import tqdm
+import sys
 
 class NarxDataset(BaseDataset):
     """
@@ -33,6 +35,7 @@ class NarxDataset(BaseDataset):
         self._load_data()
 
     def __getitem__(self, item: int):
+        # DataLoader
         if not self.train_mode:
             x = self.x[item, :, :]
             y = self.y[item, :, :]
@@ -118,3 +121,29 @@ class NarxDataset(BaseDataset):
         self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_nested_ds, data_output_ds
         )
+
+    def _create_lookup_table(self):
+        lookup = []
+        # list to collect basins ids of basins without a single training sample
+        basin_coordinates = len(self.t_s_dict["sites_id"])
+        rho = self.rho
+        warmup_length = self.warmup_length
+        horizon = self.horizon
+        max_time_length = self.nt
+        for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
+            if self.is_tra_val_te != "train":
+                lookup.extend(
+                    (basin, f)
+                    for f in range(warmup_length, max_time_length - rho - horizon + 1)
+                )
+            else:
+                # some dataloader load data with warmup period, so leave some periods for it
+                # [warmup_len] -> time_start -> [rho] -> [horizon]
+                nan_array = np.isnan(self.y[basin, :, :])
+                lookup.extend(
+                    (basin, f)
+                    for f in range(warmup_length, max_time_length - rho - horizon + 1)
+                    if not np.all(nan_array[f + rho : f + rho + horizon])
+                )
+        self.lookup_table = dict(enumerate(lookup))
+        self.num_samples = len(self.lookup_table)
