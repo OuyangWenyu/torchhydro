@@ -52,7 +52,7 @@ class BasinTree:
     """
     generate the basin tree through catchment nestedness information
     This class use to figure out the link/topology relationship between basins.
-    the link relationship between basins for regions in camels may need take into account.
+    the link relationship between basins for region in camels may need take into account.
     """
     def __init__(
         self,
@@ -75,17 +75,16 @@ class BasinTree:
         self.n_leaf = 0
         self.n_river_tree_root = 0
         self.n_limb = 0
-        self.basin_type()
-        root_basin, single_basin = self.figure_out_root_single_basin(basin_id_list)
+        self._basin_type()
 
-    def basin_type(self):
+    def _basin_type(self):
         """
         calculate the type for each basin. basin type: single_river, leaf, limb, river_tree_root.
         Returns
         -------
 
         """
-        self.nestedness = pd.concat([self.nestedness,pd.DataFrame(columns=["type_single_river", "type_leaf", "type_limb", "type_river_tree_root", "basin_type"])],axis=1,sort=False)
+        self.nestedness = pd.concat([self.nestedness, pd.DataFrame(columns=["type_single_river", "type_leaf", "type_limb", "type_river_tree_root", "basin_type"])], axis=1, sort=False)
 
         type_single_river = [False]*self.n_basin
         n_single_river = 0
@@ -198,24 +197,27 @@ class BasinTree:
         basin = [basin_id] + basin_us
         n_basin = len(basin)
 
-        basin_object = [Basin]*n_basin
+        # generate basin object, containing the basin node.
+        basin_object = []
         for i in range(n_basin):
-            basin_i = Basin(basin[i])
-            basin_i.basin_type = self.get_basin_type(basin[i])
-            node_id = "node_" + basin[i]
-            node = Node(node_id, basin[i])
-            basin_i.set_node(node)
-            basin_object[i] = basin_i
+            basin_id = basin[i]
+            basin_i = self.generate_basin_object(basin_id)
+            basin_object.append(basin_i)
 
         # basin order
         basin_object[0].set_basin_order(1)
+        max_order = 1
+        order = [0]*n_basin
         for i in range(1, n_basin):
             basin_i = basin[i]
             order_i = 2
             while True:
-                basin_ds = self.get_downstream_basin(basin[i])
+                basin_ds = self.get_downstream_basin(basin_i)
                 if basin_ds == basin[0]:
                     basin_object[i].set_basin_order(order_i)
+                    order[i] = order_i
+                    if order_i > max_order:
+                        max_order = order_i
                     break
                 else:
                     order_i = order_i + 1
@@ -224,14 +226,37 @@ class BasinTree:
         # upstream basin
         for i in range(n_basin):
             basin_i = basin[i]
-            basin_ds = self.get_downstream_basin(basin[i])
+            basin_ds = self.get_downstream_basin(basin_i)
             basin_ds_index = self._get_basin_index(basin_ds, basin)
             if basin_ds_index >= 0:
                 basin_object[basin_ds_index].node.add_basin_us(basin[i])
 
         # sort along order
+        basin_tree = []
+        order_index = list(range(n_basin))
+        for i in range(n_basin):
+            for j in range(n_basin-1-i):
+                if order[j] > order[j+1]:
+                    temp_order = order[j+1]
+                    order[j+1] = order[j]
+                    order[j] = temp_order
+                    temp_order_index = order_index[j+1]
+                    order_index[j+1] = order_index[j]
+                    order_index[j] = temp_order_index
+        for i in range(n_basin):
+            basin_tree.append(basin_object[order_index[i]])
 
-        return basin_object
+        return basin_tree, max_order
+
+    def generate_basin_object(self, basin_id: str = None):
+        """generate a basin object"""
+        basin = Basin(basin_id)
+        basin.basin_type = self.get_basin_type(basin_id)
+        node_id = "node_" + basin_id
+        node = Node(node_id, basin_id)
+        basin.set_node(node)
+
+        return basin
 
     def _get_basin_index(self, basin_id, basin_id_list: list) -> int:
         """return the index of basin in basin_id_list"""
@@ -270,17 +295,6 @@ class BasinTree:
 
         return basin_us, basin_ds
 
-    def get_tree(self, basin_id):
-        """
-        return the tree of basin_id_list
-        Returns
-        -------
-
-        """
-
-        return 0
-
-
     def figure_out_root_single_basin(self, basin_id_list: list = None):
         """
             figure out the root basins and single basins among basin_id_list
@@ -317,7 +331,6 @@ class BasinTree:
         for i in range(len(river_tree_root)):
             # upstream basin of river_tree_root
             river_tree_root_us = self.get_upstream_basin(river_tree_root[i])
-            river_tree_root_us.split(",")
             # checking whether the leafs and limbs are contained or not, if true, remove it from its list
             leaf_in = []
             for j in range(len(leaf)):
@@ -352,6 +365,27 @@ class BasinTree:
 
         return root_basin, single_basin
 
+    def get_basin_trees(self, basin_id_list: list = None):
+        """get the basin order of basin_id_list"""
+        root_basin, single_basin = self.figure_out_root_single_basin(basin_id_list)
+        n_root_basin = len(root_basin)
+        n_single_basin = len(single_basin)
+
+        basin_trees = []
+        max_order = 1
+        for i in range(n_root_basin):
+            basin_tree_i, max_order_i = self.basin_order(root_basin[i])
+            basin_trees.append(basin_tree_i)
+            if max_order_i > max_order:
+                max_order = max_order_i
+        single_basin_object = []
+        for i in range(n_single_basin):
+            basin_id = single_basin[i]
+            basin = self.generate_basin_object(basin_id)
+            single_basin_object.append(basin)
+        basin_trees.append(single_basin_object)
+
+        return basin_trees, max_order
 
     def set_cal_order(self, basin_id_list: list = None):
         """
