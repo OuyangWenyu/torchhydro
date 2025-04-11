@@ -5,28 +5,6 @@ import pytest
 
 # @pytest.fixture()
 def test_Node():
-    gage_id = [
-        "A105003001",
-        "A107020001",
-        "A112020001",
-        "A116003002",
-        "A140202001",
-        "A202030001",
-        "A204010101",
-        "A211030001",
-        "A212020002",
-        "A231020001",
-        "A234021001",
-        "A251020001",
-        "A270011001",
-        "A273011002",
-        "A284020001",
-        "A330010001",
-        "A361011001",
-        "A369011001",
-        "A373020001",
-        "A380020001",
-    ],
     basin_id = "A511061001"
     node_id = "node_" + basin_id
     node = Node(node_id, basin_id)
@@ -72,7 +50,7 @@ def test_basin_type():
     basin_ids = camelsfr.gage
     nestedness_info = camelsfr.read_nestedness_csv()
     basin_tree = BasinTree(nestedness_info)
-    basin_tree.basin_type()
+    basin_tree._region_basin_type()
     n_single_river = basin_tree.n_single_river
     n_leaf = basin_tree.n_leaf
     n_limb = basin_tree.n_limb
@@ -109,34 +87,8 @@ def test_basin_order():
     camelsfr = camels_fr.CamelsFr()
     nestedness_info = camelsfr.read_nestedness_csv()
     basin_tree = BasinTree(nestedness_info)
-    # basin_tree.basin_type()
     basin_id = "A550061001"
-    basin_us = [
-        "A443064001",
-        "A433301001",
-        "A524201001",
-        "A436203001",
-        "A414020202",
-        "A615103001",
-        "A402061001",
-        "A511061001",
-        "A550061001",
-        "A673122001",
-        "A543101001",
-        "A405062001",
-        "A526102003",
-        "A843101001",
-        "A764201001",
-        "A420063001",
-        "A542201001",
-        "A788101001",
-        "A807101001",
-        "A417301001",
-        "A662121202",
-        "A605102001",
-        "A712201001",
-    ]
-    basin_tree, max_order = basin_tree.basin_order(basin_id)
+    basin_tree, max_order = basin_tree.basin_tree_and_order(basin_id)
     print(basin_tree)
     # [1, 4, 2, 3, 5, 5, 5, 3, 5, 4, 2, 3, 4, 6]
     # [<torchhydro.models.basintree.Basin object at 0x0000016114C38080>,
@@ -258,45 +210,15 @@ def test_BasinTree():
         "A712201001",
     ]
 
-def test_get_basin_order():
+def test_get_basin_tree():
     camelsfr = camels_fr.CamelsFr()
     nestedness_info = camelsfr.read_nestedness_csv()
     basin_tree = BasinTree(nestedness_info)
     basin_id_list = [
-        "A105003001",
-        "A107020001",
-        "A112020001",
         "A116003002",
         "A140202001",
-        "A202030001",
-        "A204010101",
-        "A211030001",
-        "A212020002",
-        "A231020001",
-        "A234021001",
-        "A251020001",
-        "A270011001",
-        "A273011002",
-        "A284020001",
-        "A330010001",
-        "A361011001",
-        "A369011001",
-        "A373020001",
-        "A380020001",
-        "A402061001",
-        "A405062001",
-        "A414020202",
-        "A417301001",
-        "A420063001",
-        "A433301001",
-        "A436203001",
-        "A443064001",
-        "A511061001",
-        "A524201001",
-        "A526102003",
-        "A542201001",
-        "A543101001",
         "A550061001",
+
     ]
     basin_trees, max_order = basin_tree.get_basin_trees(basin_id_list)
     print("--basin_trees--")
@@ -344,5 +266,33 @@ def test_get_basin_order():
 # <torchhydro.models.basintree.Basin object at 0x000001DEEE69F650>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69F6E0>,
 # <torchhydro.models.basintree.Basin object at 0x000001DEEE69F770>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69F800>,
 # <torchhydro.models.basintree.Basin object at 0x000001DEEE69F890>]]
+# --max_order--
+# 6
+# total basin 73
+
+# [[<torchhydro.models.basintree.Basin object at 0x000002223411F1D0>, <torchhydro.models.basintree.Basin object at 0x000002223411C680>,
+# <torchhydro.models.basintree.Basin object at 0x00000222342C1310>, <torchhydro.models.basintree.Basin object at 0x000002223411F290>,
+# <torchhydro.models.basintree.Basin object at 0x00000222342C1340>, <torchhydro.models.basintree.Basin object at 0x00000222342C12B0>,
+# <torchhydro.models.basintree.Basin object at 0x000002223411F350>, <torchhydro.models.basintree.Basin object at 0x00000222342C1370>,
+# <torchhydro.models.basintree.Basin object at 0x00000222342C1250>, <torchhydro.models.basintree.Basin object at 0x000002223411EF00>,
+# <torchhydro.models.basintree.Basin object at 0x00000222342C1280>, <torchhydro.models.basintree.Basin object at 0x00000222342C1520>,
+# <torchhydro.models.basintree.Basin object at 0x00000222342C1430>, <torchhydro.models.basintree.Basin object at 0x00000222342C11F0>], []]
+# --basin_trees--
+# 2
+# --max_order--
+# 6
+
+# --basin_trees--
+# 3
+# [[<torchhydro.models.basintree.Basin object at 0x0000025D89F8EDB0>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8EF30>,
+# <torchhydro.models.basintree.Basin object at 0x0000025D89F8E870>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8ECF0>,
+# <torchhydro.models.basintree.Basin object at 0x0000025D89F8EB10>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8E990>,
+# <torchhydro.models.basintree.Basin object at 0x0000025D89F8ED20>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8EA50>,
+# <torchhydro.models.basintree.Basin object at 0x0000025D89F8E450>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8EE10>,
+# <torchhydro.models.basintree.Basin object at 0x0000025D89F8EC90>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8EC60>,
+# <torchhydro.models.basintree.Basin object at 0x0000025D89F8E930>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8E8D0>],
+# [<torchhydro.models.basintree.Basin object at 0x0000025D89F8E270>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8E120>,
+# <torchhydro.models.basintree.Basin object at 0x0000025D89F8E750>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8E2D0>],
+# [<torchhydro.models.basintree.Basin object at 0x0000025D89F8E690>]]  19
 # --max_order--
 # 6

@@ -75,9 +75,9 @@ class BasinTree:
         self.n_leaf = 0
         self.n_river_tree_root = 0
         self.n_limb = 0
-        self._basin_type()
+        self._region_basin_type()
 
-    def _basin_type(self):
+    def _region_basin_type(self):
         """
         calculate the type for each basin. basin type: single_river, leaf, limb, river_tree_root.
         Returns
@@ -179,7 +179,7 @@ class BasinTree:
         basin_ds = self.nestedness.at[basin_id, "nes_next_station_ds"]
         return basin_ds
 
-    def basin_order(
+    def basin_tree_and_order(
         self,
         basin_id: str = None,
     ):
@@ -374,7 +374,8 @@ class BasinTree:
         basin_trees = []
         max_order = 1
         for i in range(n_root_basin):
-            basin_tree_i, max_order_i = self.basin_order(root_basin[i])
+            basin_i = root_basin[i]
+            basin_tree_i, max_order_i = self.basin_tree_and_order(basin_i)
             basin_trees.append(basin_tree_i)
             if max_order_i > max_order:
                 max_order = max_order_i
