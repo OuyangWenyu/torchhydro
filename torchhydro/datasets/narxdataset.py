@@ -134,6 +134,12 @@ class NarxDataset(BaseDataset):
         )
 
     def _create_lookup_table(self):
+        """
+
+        Returns
+        -------
+
+        """
         lookup = []
         # list to collect basins ids of basins without a single training sample
         basin_coordinates = len(self.t_s_dict["sites_id"])
