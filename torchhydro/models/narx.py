@@ -65,8 +65,8 @@ class Narx(nn.Module):
         out
             the output sequence of model.
         """
-        nt, ngrid, nx = x.shape  # (time,basins,features)
-        out = torch.zeros(nt, ngrid, self.ny)  # (time,basins,output_features)
+        nt, ngrid, nx = x.shape  # (time,basins, features)
+        out = torch.zeros(nt, ngrid, self.ny)  # (time,basins, output_features)
         for t in range(self.max_delay):
             out[t, :, :] = x[t, :, -self.ny:]
         for t in range(self.max_delay, nt):
@@ -80,10 +80,10 @@ class Narx(nn.Module):
             for i in range(self.feedback_delay):
                 y0i = y0[i, :, :]
                 y0_t = torch.cat((y0_t, y0i), dim=-1)
-            xt = torch.cat([x0_t, y0_t], dim=-1)  # (basins,features)  single step, no time dimension.
+            xt = torch.cat([x0_t, y0_t], dim=-1)  # (basins, features)  single step, no time dimension.
             x_l = F.relu(self.linearIn(xt))
             out_t = self.narx(x_l)  # single step
-            yt = self.linearOut(out_t)  # (basins,output_features) single step output value, e.g. streamflow
+            yt = self.linearOut(out_t)  # (basins, output_features) single step output value, e.g. streamflow
             out[t, :, :] = yt
             if self.close_loop:
                 x[t+1, :, -self.ny:] = yt
