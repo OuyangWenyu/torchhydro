@@ -1,7 +1,6 @@
 
 from hydrodataset import camels_fr
 from torchhydro.models.basintree import Node, Basin, BasinTree
-import pytest
 
 # @pytest.fixture()
 def test_Node():

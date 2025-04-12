@@ -5,7 +5,7 @@ from torch.nn import functional as F
 
 class Narx(nn.Module):
     """
-    nonlinear autoregressive with exogenous inputs neural network model
+    nonlinear autoregressive with exogenous inputs neural network model.
         y(t) = f(y(t-1),...,y(t-ny),x(t),...,x(t-nx))
     """
     def __init__(
@@ -20,6 +20,7 @@ class Narx(nn.Module):
     ):
         """
         Initialize the Narx model instance.
+
         Parameters
         ----------
         n_input_features: int, number of input features.
@@ -53,6 +54,7 @@ class Narx(nn.Module):
     def forward(self, x):
         """
         forward propagation function
+
         Parameters
         ----------
         x

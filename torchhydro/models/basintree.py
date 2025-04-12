@@ -61,6 +61,7 @@ class BasinTree:
     ):
         """
         Initialize the basin tree of the whole region.
+
         Parameters
         ----------
         nestednessinfo
@@ -80,6 +81,7 @@ class BasinTree:
     def _region_basin_type(self):
         """
         calculate the type for each basin. basin type: single_river, leaf, limb, river_tree_root.
+
         Returns
         -------
 
