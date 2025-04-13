@@ -2,7 +2,6 @@
 from hydrodataset import camels_fr
 from torchhydro.models.basintree import Node, Basin, BasinTree
 
-# @pytest.fixture()
 def test_Node():
     basin_id = "A511061001"
     node_id = "node_" + basin_id

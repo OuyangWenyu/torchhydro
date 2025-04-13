@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+
 class Narx(nn.Module):
     """
     nonlinear autoregressive with exogenous inputs neural network model.
