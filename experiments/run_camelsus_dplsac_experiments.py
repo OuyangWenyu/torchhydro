@@ -38,7 +38,7 @@ def run_camelsdplsac(
         },
         ctx=[-1],
         model_name="DplLstmSac",
-        # model_name="DplAnnSac",
+        # model_name="DplAnnSac",  #
         model_hyperparam={
             "n_input_features": 25,
             "n_output_features": 21,
@@ -116,7 +116,6 @@ def run_camelsdplsac(
         which_first_tensor="sequence",
     )
     update_cfg(config, args)
-    # with torch.autograd.set_detect_anomaly(True):
     train_and_evaluate(config)
     print("All processes are finished!")
 
@@ -126,5 +125,3 @@ run_camelsdplsac(  # camels-us time_range: ["1980-01-01", "2014-12-31"]
     valid_period=["1986-10-01", "1987-10-01"],
     test_period=["1987-10-01", "1988-10-01"],
 )
-
-# 327
