@@ -38,7 +38,7 @@ def run_camelsdplsac(
         },
         ctx=[-1],
         model_name="DplLstmSac",
-        # model_name="DplAnnSac",  #
+        # model_name="DplAnnSac",
         model_hyperparam={
             "n_input_features": 25,
             "n_output_features": 21,
@@ -89,7 +89,7 @@ def run_camelsdplsac(
         train_period=train_period,
         valid_period=valid_period,
         test_period=test_period,
-        batch_size=20,
+        batch_size=50,
         forecast_history=0,
         forecast_length=30,
         var_t=[
