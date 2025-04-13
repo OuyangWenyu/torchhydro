@@ -38,7 +38,7 @@ def run_camelsdpltank(
         },
         ctx=[-1],
         model_name="DplLstmTank",
-        # model_name="DplAnnTank",
+        # model_name="DplAnnTank",  #
         model_hyperparam={
             "n_input_features": 25,
             "n_output_features": 20,
@@ -105,11 +105,11 @@ def run_camelsdpltank(
         var_out=["streamflow"],
         target_as_input=0,
         constant_only=0,
-        train_epoch=20,
+        train_epoch=10,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 10,
         },
         warmup_length=10,
         opt="Adadelta",
@@ -126,4 +126,3 @@ run_camelsdpltank(  # camels-us time_range: ["1980-01-01", "2014-12-31"]
     valid_period=["1986-10-01", "1987-10-01"],
     test_period=["1987-10-01", "1988-10-01"],
 )
-
