@@ -116,3 +116,16 @@ def run_normal_dl(
 # ......
 # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
 run_normal_dl(os.path.join("ndl", "explstm"), "/mnt/d/minio/waterism/datasets-origin/camels/camels_us/gage_id.txt")
+
+
+# Epoch 20 Loss 0.8337 time 4.49 lr 1.0
+# CpuLstmModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (lstm): LstmCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 20 Valid Loss 0.9237 Valid Metric {'NSE of streamflow': [0.24244678020477295, -0.036179184913635254, -0.007669806480407715, -0.0780559778213501, -0.05985069274902344, -0.0077179670333862305, -0.06328582763671875, -0.06202042102813721, -0.13751983642578125, 0.010161876678466797], 'RMSE of streamflow': [1.80736243724823, 2.44464373588562, 2.341862678527832, 3.6298441886901855, 3.8003172874450684, 4.194015979766846, 6.63815450668335, 5.046813488006592, 3.151641607284546, 2.9736499786376953], 'R2 of streamflow': [0.24244678020477295, -0.036179184913635254, -0.007669806480407715, -0.0780559778213501, -0.05985069274902344, -0.0077179670333862305, -0.06328582763671875, -0.06202042102813721, -0.13751983642578125, 0.010161876678466797], 'KGE of streamflow': [0.13924946550200235, -0.031437955975069265, -0.05356836594699632, -0.21488607087441713, -0.19362044739420536, -0.145627078711843, -0.32808453020217154, -0.2884999593282622, -0.28120633888291, -0.15351603208830422], 'FHV of streamflow': [-72.1327896118164, -81.04639434814453, -80.39788055419922, -89.96695709228516, -89.39441680908203, -88.49397277832031, -94.32064056396484, -93.00979614257812, -92.5948715209961, -88.17268371582031], 'FLV of streamflow': [40.367164611816406, -1.421554684638977, 55.06676483154297, 40.552146911621094, 8.934036254882812, 22.379226684570312, 8.942217826843262, 12.878012657165527, -22.03927993774414, 40.07017135620117]}
+# /home/yulili/code/torchhydro/torchhydro/trainers/deep_hydro.py:201: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+#   checkpoint = torch.load(weight_path, map_location=self.device)
+# Weights sucessfully loaded
+# All processes are finished!
