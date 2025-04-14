@@ -9,7 +9,10 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import os
+import sys
+cur_path = os.path.abspath(os.path.dirname(__file__))
 
+# import SETTING
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
@@ -112,4 +115,4 @@ def run_normal_dl(
 # 01022500
 # ......
 # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-run_normal_dl(os.path.join("ndl", "explstm"), "D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt")
+run_normal_dl(os.path.join("ndl", "explstm"), "/mnt/d/minio/waterism/datasets-origin/camels/camels_us/gage_id.txt")

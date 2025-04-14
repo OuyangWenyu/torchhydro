@@ -125,3 +125,14 @@ run_camelsdplsac(  # camels-us time_range: ["1980-01-01", "2014-12-31"]
     valid_period=["1986-10-01", "1987-10-01"],
     test_period=["1987-10-01", "1988-10-01"],
 )
+
+# update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Finish Normalization
+
+# 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 20/20 [00:00<00:00, 1052.38it/s]
+# Finish Normalization
