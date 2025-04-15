@@ -293,3 +293,18 @@ def test_get_basin_tree():
 # [<torchhydro.models.basintree.Basin object at 0x0000025D89F8E690>]]  19
 # --max_order--
 # 6
+
+
+
+# >>>PYTHON-EXEC-OUTPUT
+# Running pytest with args: ['-p', 'vscode_pytest', '--rootdir=/home/yulili/code/torchhydro/tests', '/home/yulili/code/torchhydro/tests/test_basintree.py::test_Basin']
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# collected 1 item
+
+# test_basintree.py .                                                      [100%]
+
+# Finished running tests!

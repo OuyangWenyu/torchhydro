@@ -12,7 +12,6 @@ import os
 import sys
 cur_path = os.path.abspath(os.path.dirname(__file__))
 
-# import SETTING
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
@@ -95,11 +94,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=10,
+        train_epoch=20,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 10,
+            "test_epoch": 20,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",
@@ -115,9 +114,7 @@ def run_normal_dl(
 # 01022500
 # ......
 # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-gage_id_file = "D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt"
-# gage_id_file = "/mnt/d/minio/waterism/datasets-origin/camels/camels_us/gage_id.txt"
-run_normal_dl(os.path.join("ndl", "explstm"), gage_id_file)
+run_normal_dl(os.path.join("ndl", "explstm"), "/mnt/d/minio/waterism/datasets-origin/camels/camels_us/gage_id.txt")
 
 
 # Epoch 20 Loss 0.8337 time 4.49 lr 1.0
