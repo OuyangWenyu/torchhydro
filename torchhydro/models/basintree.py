@@ -78,6 +78,9 @@ class BasinTree:
         self.n_limb = 0
         self._region_basin_type()
 
+        if not basin_id_list:  #
+            self.basin_id_list = basin_id_list
+
     def _region_basin_type(self):
         """
         calculate the type for each basin. basin type: single_river, leaf, limb, river_tree_root.
@@ -369,6 +372,8 @@ class BasinTree:
 
     def get_basin_trees(self, basin_id_list: list = None):
         """get the basin order of basin_id_list"""
+        if basin_id_list is None:
+            basin_id_list = self.basin_id_list
         root_basin, single_basin = self.figure_out_root_single_basin(basin_id_list)
         n_root_basin = len(root_basin)
         n_single_basin = len(single_basin)
@@ -402,5 +407,7 @@ class BasinTree:
 
         """
 
+
+        
 
         return 0

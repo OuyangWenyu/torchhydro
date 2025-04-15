@@ -108,7 +108,7 @@ class NarxDataset(BaseDataset):
         data_output_ds_ = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             [start_date, end_date],
-            self.data_cfgs["target_cols"],
+            self.data_cfgs["target_cols"],  # streamflow
         )
         if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
             data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
@@ -118,18 +118,21 @@ class NarxDataset(BaseDataset):
         )
         if self.b_nestedness:
             nestedness_info = self.data_source.read_nestedness_csv()
-            basin_tree = BasinTree(nestedness_info, self.t_s_dict["sites_id"])
+            basin_tree_ = BasinTree(nestedness_info, self.t_s_dict["sites_id"])
             # return all related basins, cal_order and basin tree
-            # make forcing dataset containing nested basin stream for each input gauge.
-            #
-            basin_tree_, max_order = basin_tree.get_basin_trees()
+            # make forcing dataset containing nested basin streamflow for each input gauge.
+            # cal_order
+            basin_tree, max_order = basin_tree_.get_basin_trees()
 
-        # n   nestedness  streamflow  a forcing type
-        data_nested_ds = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            self.data_cfgs["target_cols"],
-            all_number=True,
-        )
+
+
+
+            # n   nestedness  streamflow  a forcing type
+            data_nested_ds = self.data_source.read_ts_xrdataset(
+                self.t_s_dict["sites_id"],
+                self.data_cfgs["target_cols"],
+                all_number=True,
+            )
         self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_nested_ds, data_output_ds
         )
