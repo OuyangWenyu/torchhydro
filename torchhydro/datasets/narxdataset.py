@@ -47,28 +47,28 @@ class NarxDataset(BaseDataset):
         -------
 
         """
-        if not self.train_mode:
-            x = self.x[item, :, :]
-            y = self.y[item, :, :]
-            if self.c is None or self.c.shape[-1] == 0:
+        if not self.train_mode:  # 非训练模式
+            x = self.x[item, :, :]  # forcing data
+            y = self.y[item, :, :]  # var_out, streamflow
+            if self.c is None or self.c.shape[-1] == 0:  # attributions
                 return torch.from_numpy(x).float(), torch.from_numpy(y).float()
             c = self.c[item, :]
             c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
             xc = np.concatenate((x, c), axis=1)
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
         basin, idx = self.lookup_table[item]
-        warmup_length = self.warmup_length
+        warmup_length = self.warmup_length  # 
         x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]
         y = self.y[basin, idx: idx + self.rho + self.horizon, :]
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float()
         c = self.c[basin, :]
-        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-        xc = np.concatenate((x, c), axis=1)
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T  # repeat the attributes for each tim-step.
+        xc = np.concatenate((x, c), axis=1)  # incorporate, as the input of model.
         return torch.from_numpy(xc).float(), torch.from_numpy(y).float()  # deliver into model prcp, pet, attributes and streamflow etc.
 
     def __len__(self):
-        return self.num_samples if self.train_mode else self.ngrid
+        return self.num_samples if self.train_mode else self.ngrid  # 
 
     def _pre_load_data(self):
         self.train_mode = self.is_tra_val_te == "train"
@@ -83,9 +83,9 @@ class NarxDataset(BaseDataset):
         self._read_xyc()
         # normalization
         norm_x, norm_y, norm_c = self._normalize()
-        self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)
+        self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)  # deal with nan value
         self._trans2nparr()
-        self._create_lookup_table()
+        self._create_lookup_table()  # 
 
     def _read_xyc_specified_time(self, start_date, end_date):
         """Read x, y, c data from data source with specified time range
@@ -118,10 +118,11 @@ class NarxDataset(BaseDataset):
         )
         if self.b_nestedness:
             nestedness_info = self.data_source.read_nestedness_csv()
-            basin_tree = BasinTree(nestedness_info)
+            basin_tree = BasinTree(nestedness_info, self.t_s_dict["sites_id"])
             # return all related basins, cal_order and basin tree
             # make forcing dataset containing nested basin stream for each input gauge.
             #
+            basin_tree_, max_order = basin_tree.get_basin_trees()
 
         # n   nestedness  streamflow  a forcing type
         data_nested_ds = self.data_source.read_ts_xrdataset(
