@@ -12,7 +12,6 @@ import os
 import sys
 cur_path = os.path.abspath(os.path.dirname(__file__))
 
-# import SETTING
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
@@ -95,11 +94,11 @@ def run_normal_dl(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=20,
+        train_epoch=2,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 20,
+            "test_epoch": 2,
         },
         gage_id_file=gage_id_file,
         which_first_tensor="sequence",

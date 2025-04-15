@@ -8,6 +8,10 @@ class TestDatasource:
         self.data_cfgs = source_cfgs
 
     def read_ts_xrdataset(self, basin_id, t_range, var_lst):
+        """
+        
+        """
+        return 0
 
 def test_read_xyc_specified_time():
     """
@@ -16,3 +20,4 @@ def test_read_xyc_specified_time():
     -------
 
     """
+    return 0
