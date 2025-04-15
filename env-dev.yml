@@ -11,18 +11,16 @@ dependencies:
   - scikit-learn
   - fsspec
   - intake
-  - pytorch<2.5
-  - torchvision
-  - torchaudio
-  # - cpuonly # cpu version for pcs without cuda
-  - pytorch-cuda<12.2
-  - tensorboard
   - kaggle
   - pytest
   - black
   - flake8
   - pip
   - pip:
+    - torch
+    - torchvision
+    - torchaudio
+    - tensorboard
     - shap
     - tbparse
     - setuptools
