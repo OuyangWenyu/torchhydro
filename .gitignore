@@ -135,3 +135,4 @@ mlruns/
 .vscode/
 .idea
 results/
+settings.json:Zone.Identifier
