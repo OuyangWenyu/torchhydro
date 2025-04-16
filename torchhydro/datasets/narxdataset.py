@@ -104,7 +104,7 @@ class NarxDataset(BaseDataset):
 
     def _trans2nparr(self):
         """To make __getitem__ more efficient,
-        we transform x, y, c to numpy array with shape (nsample, nt, nvar).    means (batch(basin), time, features)
+        we transform x, y, c to numpy array with shape (nsample, nt, nvar).    means [batch(basin), time, features]
         """
         self.x = self.x.transpose("basin", "time", "variable").to_numpy()  # tanspose, 变换顺序, 转置。 may means T.  batch first here
         self.y = self.y.transpose("basin", "time", "variable").to_numpy()
@@ -139,7 +139,7 @@ class NarxDataset(BaseDataset):
         tuple[xr.Dataset, xr.Dataset, xr.Dataset]
             x, y, c data. forcing, target(streamflow), attributions.
         """
-        # x
+        
         start_date = self.t_s_dict["t_final_range"][0]
         end_date = self.t_s_dict["t_final_range"][1]
         self._read_xyc_specified_time(start_date, end_date)
@@ -165,8 +165,8 @@ class NarxDataset(BaseDataset):
             # make forcing dataset containing nested basin streamflow for each input gauge.
             # cal_order
             basin_tree, max_order = basin_tree_.get_basin_trees()
-            basins = basin_tree  #
-            basin_order = basin_tree_.set_cal_order()  # 
+            basins = basin_tree   #
+            basin_order = basin_tree_.set_cal_order()   # 
             # n   nestedness  streamflow  a forcing type
             # x
             data_forcing_ds_ = self.data_source.read_ts_xrdataset(
@@ -195,7 +195,7 @@ class NarxDataset(BaseDataset):
 
     def _create_lookup_table(self):
         """
-
+        
         Returns
         -------
 

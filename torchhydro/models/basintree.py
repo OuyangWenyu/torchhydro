@@ -10,9 +10,9 @@ class Node:
     basin node, similar to river node.
     """
     def __init__(self, node_id, basin_id):
-        self.node_name = node_id
-        self.basin_ds = basin_id
-        self.basin_us = []
+        self.node_id = node_id
+        self.basin_ds = basin_id  # downstream basin
+        self.basin_us = []  # upstream basin
 
     def add_basin_us(self, basin_id):
         self.basin_us.append(basin_id)
@@ -27,7 +27,7 @@ class Basin:
     basin object, similar to river.
     """
     def __init__(self, basin_id):
-        self.basin_name = basin_id
+        self.basin_id = basin_id
         self.basin_type = ""
         self.node = None
         self.basin_order = -1  # basin order, similar to river order
@@ -82,7 +82,8 @@ class BasinTree:
 
         if not basin_id_list:  #
             self.basin_id_list = basin_id_list
-
+        self.basin_tree = None
+        self.basin_tree_max_order = 0
         
 
     def _region_basin_type(self):
@@ -93,8 +94,7 @@ class BasinTree:
         -------
 
         """
-        self.nestedness = pd.concat(
-            [
+        self.nestedness = pd.concat([
                 self.nestedness, 
                 pd.DataFrame(columns=[
                     "type_single_river",
@@ -102,8 +102,7 @@ class BasinTree:
                     "type_limb",
                     "type_river_tree_root",
                     "basin_type"
-                ])
-            ],
+                ])],
             axis=1, 
             sort=False
         )
@@ -245,7 +244,7 @@ class BasinTree:
                     order_i = order_i + 1
                     basin_i = basin_ds
 
-        # upstream basin
+        # upstream basin of directly linking to this basin.
         for i in range(n_basin):
             basin_i = basin[i]
             basin_ds = self.get_downstream_basin(basin_i)
@@ -255,6 +254,8 @@ class BasinTree:
 
         # sort along order
         basin_tree = []
+        basin_list = []
+        order_list = []
         order_index = list(range(n_basin))
         for i in range(n_basin):
             for j in range(n_basin-1-i):
@@ -267,6 +268,9 @@ class BasinTree:
                     order_index[j] = temp_order_index
         for i in range(n_basin):
             basin_tree.append(basin_object[order_index[i]])
+            basin_list.append(basin_object[order_index[i]].basin_id)
+            order_list.append(basin_object[order_index[i]].basin_order)
+        # basin list and order list
 
         return basin_tree, max_order
 
@@ -388,7 +392,7 @@ class BasinTree:
         return root_basin, single_basin
 
     def get_basin_trees(self, basin_id_list: list = None):
-        """get the basin order of basin_id_list"""
+        """get the basin tree and order of basin_id_list"""
         if basin_id_list is None:
             basin_id_list = self.basin_id_list
         root_basin, single_basin = self.figure_out_root_single_basin(basin_id_list)
@@ -396,6 +400,7 @@ class BasinTree:
         n_single_basin = len(single_basin)
 
         basin_trees = []
+        # root basin
         max_order = 1
         for i in range(n_root_basin):
             basin_i = root_basin[i]
@@ -403,6 +408,8 @@ class BasinTree:
             basin_trees.append(basin_tree_i)
             if max_order_i > max_order:
                 max_order = max_order_i
+
+        # single basin
         single_basin_object = []
         for i in range(n_single_basin):
             basin_id = single_basin[i]
@@ -410,9 +417,12 @@ class BasinTree:
             single_basin_object.append(basin)
         basin_trees.append(single_basin_object)
 
+        self.basin_tree = basin_trees
+        self.basin_tree_max_order = max_order
+
         return basin_trees, max_order
 
-    def set_cal_order(self, basin_trees: list = None):
+    def get_cal_order(self, basin_trees: list = None):
         """
             set the calculate order of basin_id_list and its tree
         Parameters
