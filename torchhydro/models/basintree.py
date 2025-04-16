@@ -83,6 +83,8 @@ class BasinTree:
         if not basin_id_list:  #
             self.basin_id_list = basin_id_list
 
+        
+
     def _region_basin_type(self):
         """
         figure out the type for each basin. basin type: single_river, leaf, limb, river_tree_root.
@@ -204,7 +206,7 @@ class BasinTree:
         basin_id: str = None,
     ):
         """
-            figure out the basin order
+            give a basin, generate its the basin tree and order.
         Parameters
         ----------
         basin_id: str
@@ -410,12 +412,13 @@ class BasinTree:
 
         return basin_trees, max_order
 
-    def set_cal_order(self, basin_id_list: list = None):
+    def set_cal_order(self, basin_trees: list = None):
         """
             set the calculate order of basin_id_list and its tree
         Parameters
         ----------
         basin_id_list
+        basin_trees
 
         Returns
         -------
@@ -423,6 +426,6 @@ class BasinTree:
         """
         
 
-        
+        cal_order = 0
 
-        return 0
+        return cal_order

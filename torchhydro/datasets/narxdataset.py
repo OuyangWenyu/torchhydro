@@ -43,16 +43,17 @@ class NarxDataset(BaseDataset):
         DataLoader load data from here and deliver into model.
         deal with data order
         how to implement changeable batch size
+        fetch and deliver into model
         Parameters
         ----------
-        item
+        item: batch/basins
 
         Returns
         -------
 
         """
         if not self.train_mode:  # not train mode
-            x = self.x[item, :, :]  # forcing data
+            x = self.x[item, :, :]  # forcing data   [batch(basin), sequence, features]
             y = self.y[item, :, :]  # var_out, streamflow
             if self.c is None or self.c.shape[-1] == 0:  # attributions
                 return torch.from_numpy(x).float(), torch.from_numpy(y).float()
@@ -60,7 +61,7 @@ class NarxDataset(BaseDataset):
             c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
             xc = np.concatenate((x, c), axis=1)
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-        basin, idx = self.lookup_table[item]
+        basin, idx = self.lookup_table[item]  # 
         warmup_length = self.warmup_length  #
         x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]
         y = self.y[basin, idx: idx + self.rho + self.horizon, :]
@@ -80,12 +81,12 @@ class NarxDataset(BaseDataset):
 
     def _pre_load_data(self):
         """preload data.
-        some setting.
+        some arguments setting.
         """
         self.train_mode = self.is_tra_val_te == "train"
         self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
-        self.rho = self.data_cfgs["forecast_history"]
-        self.warmup_length = self.data_cfgs["warmup_length"]
+        self.rho = self.data_cfgs["forecast_history"]  # the length of the history data for forecasting, the rho in LSTM.
+        self.warmup_length = self.data_cfgs["warmup_length"]  # For physics-based models, we need warmup; default is 0 as DL models generally don't need it
         self.horizon = self.data_cfgs["forecast_length"]
         self.b_nestedness = self.data_cfgs["b_nestedness"]
 
@@ -101,11 +102,23 @@ class NarxDataset(BaseDataset):
         self._trans2nparr()
         self._create_lookup_table()  #
 
+    def _trans2nparr(self):
+        """To make __getitem__ more efficient,
+        we transform x, y, c to numpy array with shape (nsample, nt, nvar).    means (batch(basin), time, features)
+        """
+        self.x = self.x.transpose("basin", "time", "variable").to_numpy()  # tanspose, 变换顺序, 转置。 may means T.  batch first here
+        self.y = self.y.transpose("basin", "time", "variable").to_numpy()
+        if self.c is not None and self.c.shape[-1] > 0:
+            self.c = self.c.transpose("basin", "variable").to_numpy()
+            self.c_origin = self.c_origin.transpose("basin", "variable").to_numpy()
+        self.x_origin = self.x_origin.transpose("basin", "time", "variable").to_numpy()
+        self.y_origin = self.y_origin.transpose("basin", "time", "variable").to_numpy()
+
     def _normalize(self):
         """normalize
-        target_vars, streamflow.
-        relevant_vars, forcing, e.g. prcp, pet, srad, etc.
-        constant_vars, attributes, e.g. area, slope, elev, etc.
+            target_vars, streamflow.
+            relevant_vars, forcing, e.g. prcp, pet, srad, etc.
+            constant_vars, attributes, e.g. area, slope, elev, etc.
         """
         scaler_hub = ScalerHub(
             self.y_origin,
@@ -143,44 +156,42 @@ class NarxDataset(BaseDataset):
         end_date : str
             end time
         """
-        # # y
-        # data_output_ds_ = self.data_source.read_ts_xrdataset(
-        #     self.t_s_dict["sites_id"],
-        #     [start_date, end_date],
-        #     self.data_cfgs["target_cols"],  # streamflow
-        # )
-        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):  # turn dict into list
-            data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
-            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
-        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
-            data_forcing_ds_, data_output_ds_
-        )
-        if self.b_nestedness:
+        if not self.b_nestedness:
+            raise ValueError("naxrdataset needs nestedness information.")
+        else:
             nestedness_info = self.data_source.read_nestedness_csv()
             basin_tree_ = BasinTree(nestedness_info, self.t_s_dict["sites_id"])
             # return all related basins, cal_order and basin tree
             # make forcing dataset containing nested basin streamflow for each input gauge.
             # cal_order
             basin_tree, max_order = basin_tree_.get_basin_trees()
-            basins = basin_tree
+            basins = basin_tree  #
+            basin_order = basin_tree_.set_cal_order()  # 
             # n   nestedness  streamflow  a forcing type
             # x
             data_forcing_ds_ = self.data_source.read_ts_xrdataset(
                 basins,
                 [start_date, end_date],
-                self.data_cfgs["relevant_cols"],
+                self.data_cfgs["relevant_cols"],  # forcing data
             )
             # y
-            data_nested_output_ds = self.data_source.read_ts_xrdataset(
+            data_nested_output_ds_ = self.data_source.read_ts_xrdataset(
                 basins,
                 [start_date, end_date],
-                self.data_cfgs["target_cols"],
+                self.data_cfgs["target_cols"],  # target data, streamflow.
             )
-        else:
-            return 0
-        self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
-            data_forcing_ds, data_nested_output_ds,
-        )
+            #
+            if isinstance(data_nested_output_ds_, dict) or isinstance(data_forcing_ds_, dict):  # turn dict into list
+                data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
+                data_nested_output_ds_ = data_nested_output_ds_[list(data_nested_output_ds_.keys())[0]]
+            data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+                data_forcing_ds_, data_nested_output_ds_
+            )
+
+            self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
+                data_forcing_ds, data_nested_output_ds_,
+            )
+            
 
     def _create_lookup_table(self):
         """
