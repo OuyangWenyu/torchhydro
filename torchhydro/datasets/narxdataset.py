@@ -1,13 +1,16 @@
+"""narx model dataset"""
+
+import sys
+import numpy as np
+import torch
+from tqdm import tqdm
 
 from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.data_utils import (
     wrap_t_s_dict,
 )
 from torchhydro.models.basintree import BasinTree
-import numpy as np
-import torch
-from tqdm import tqdm
-import sys
+from torchhydro.datasets.data_scalers import ScalerHub
 
 class NarxDataset(BaseDataset):
     """
@@ -15,12 +18,13 @@ class NarxDataset(BaseDataset):
     """
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         """
-        Initialize the Narx dataset.  for fr in camels.   narx model is more suitable for nested catchment flood prediction,
+        Initialize the Narx dataset.  for fr in camels.
+        narx model is more suitable for nested catchment flood prediction,
         while only fr have the nestedness information in camels, so choose fr to make dataset.
         Parameters
         ----------
-        data_cfgs
-        is_tra_val_te
+        data_cfgs: data configures, setting via console.
+        is_tra_val_te: three mode, train, validate and test.
         """
         super(NarxDataset, self).__init__(data_cfgs, is_tra_val_te)
         self.data_cfgs = data_cfgs
@@ -47,7 +51,7 @@ class NarxDataset(BaseDataset):
         -------
 
         """
-        if not self.train_mode:  # 非训练模式
+        if not self.train_mode:  # not train mode
             x = self.x[item, :, :]  # forcing data
             y = self.y[item, :, :]  # var_out, streamflow
             if self.c is None or self.c.shape[-1] == 0:  # attributions
@@ -57,7 +61,7 @@ class NarxDataset(BaseDataset):
             xc = np.concatenate((x, c), axis=1)
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
         basin, idx = self.lookup_table[item]
-        warmup_length = self.warmup_length  # 
+        warmup_length = self.warmup_length  #
         x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]
         y = self.y[basin, idx: idx + self.rho + self.horizon, :]
         if self.c is None or self.c.shape[-1] == 0:
@@ -68,9 +72,16 @@ class NarxDataset(BaseDataset):
         return torch.from_numpy(xc).float(), torch.from_numpy(y).float()  # deliver into model prcp, pet, attributes and streamflow etc.
 
     def __len__(self):
-        return self.num_samples if self.train_mode else self.ngrid  # 
+        """
+            expected to return the size of the dataset by many:class:`torch.utils.data.Sampler` implementations and 
+            the default options of :class:`torch.utils.data.DataLoader`.
+        """
+        return self.num_samples if self.train_mode else self.ngrid  # ngrid means nbasin
 
     def _pre_load_data(self):
+        """preload data.
+        some setting.
+        """
         self.train_mode = self.is_tra_val_te == "train"
         self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
         self.rho = self.data_cfgs["forecast_history"]
@@ -79,13 +90,46 @@ class NarxDataset(BaseDataset):
         self.b_nestedness = self.data_cfgs["b_nestedness"]
 
     def _load_data(self):
+        """load data to make dataset.
+        
+        """
         self._pre_load_data()
         self._read_xyc()
         # normalization
         norm_x, norm_y, norm_c = self._normalize()
         self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)  # deal with nan value
         self._trans2nparr()
-        self._create_lookup_table()  # 
+        self._create_lookup_table()  #
+
+    def _normalize(self):
+        """normalize
+        target_vars, streamflow.
+        relevant_vars, forcing, e.g. prcp, pet, srad, etc.
+        constant_vars, attributes, e.g. area, slope, elev, etc.
+        """
+        scaler_hub = ScalerHub(
+            self.y_origin,
+            self.x_origin,
+            self.c_origin,
+            data_cfgs=self.data_cfgs,
+            is_tra_val_te=self.is_tra_val_te,
+            data_source=self.data_source,
+        )
+        self.target_scaler = scaler_hub.target_scaler
+        return scaler_hub.x, scaler_hub.y, scaler_hub.c
+    
+    def _read_xyc(self):
+        """Read x, y, c data from data source
+
+        Returns
+        -------
+        tuple[xr.Dataset, xr.Dataset, xr.Dataset]
+            x, y, c data. forcing, target(streamflow), attributions.
+        """
+        # x
+        start_date = self.t_s_dict["t_final_range"][0]
+        end_date = self.t_s_dict["t_final_range"][1]
+        self._read_xyc_specified_time(start_date, end_date)
 
     def _read_xyc_specified_time(self, start_date, end_date):
         """Read x, y, c data from data source with specified time range
@@ -99,18 +143,13 @@ class NarxDataset(BaseDataset):
         end_date : str
             end time
         """
-        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            [start_date, end_date],
-            self.data_cfgs["relevant_cols"],
-        )
-        # y
-        data_output_ds_ = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            [start_date, end_date],
-            self.data_cfgs["target_cols"],  # streamflow
-        )
-        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
+        # # y
+        # data_output_ds_ = self.data_source.read_ts_xrdataset(
+        #     self.t_s_dict["sites_id"],
+        #     [start_date, end_date],
+        #     self.data_cfgs["target_cols"],  # streamflow
+        # )
+        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):  # turn dict into list
             data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
             data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
@@ -123,18 +162,24 @@ class NarxDataset(BaseDataset):
             # make forcing dataset containing nested basin streamflow for each input gauge.
             # cal_order
             basin_tree, max_order = basin_tree_.get_basin_trees()
-
-
-
-
+            basins = basin_tree
             # n   nestedness  streamflow  a forcing type
-            data_nested_ds = self.data_source.read_ts_xrdataset(
-                self.t_s_dict["sites_id"],
-                self.data_cfgs["target_cols"],
-                all_number=True,
+            # x
+            data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+                basins,
+                [start_date, end_date],
+                self.data_cfgs["relevant_cols"],
             )
+            # y
+            data_nested_output_ds = self.data_source.read_ts_xrdataset(
+                basins,
+                [start_date, end_date],
+                self.data_cfgs["target_cols"],
+            )
+        else:
+            return 0
         self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
-            data_forcing_ds, data_nested_ds, data_output_ds
+            data_forcing_ds, data_nested_output_ds,
         )
 
     def _create_lookup_table(self):

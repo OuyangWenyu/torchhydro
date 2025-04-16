@@ -1,6 +1,8 @@
+"""
+generate basin tree.
+"""
 import pandas as pd
 from pandas import DataFrame as df
-import numpy as np
 
 
 class Node:
@@ -83,13 +85,26 @@ class BasinTree:
 
     def _region_basin_type(self):
         """
-        calculate the type for each basin. basin type: single_river, leaf, limb, river_tree_root.
+        figure out the type for each basin. basin type: single_river, leaf, limb, river_tree_root.
 
         Returns
         -------
 
         """
-        self.nestedness = pd.concat([self.nestedness, pd.DataFrame(columns=["type_single_river", "type_leaf", "type_limb", "type_river_tree_root", "basin_type"])], axis=1, sort=False)
+        self.nestedness = pd.concat(
+            [
+                self.nestedness, 
+                pd.DataFrame(columns=[
+                    "type_single_river",
+                    "type_leaf",
+                    "type_limb",
+                    "type_river_tree_root",
+                    "basin_type"
+                ])
+            ],
+            axis=1, 
+            sort=False
+        )
 
         type_single_river = [False]*self.n_basin
         n_single_river = 0
@@ -309,7 +324,7 @@ class BasinTree:
             id list of basins which need to forcasting.
         Returns
         -------
-        root_basins： list
+        root_basins: list
             root basin among basin_id_list
         single_basins: list
             single basin among basin_id_list
@@ -406,7 +421,7 @@ class BasinTree:
         -------
 
         """
-
+        
 
         
 
