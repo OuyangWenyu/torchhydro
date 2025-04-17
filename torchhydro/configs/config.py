@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-04-17 10:11:03
+LastEditTime: 2025-04-17 21:07:02
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: /torchhydro/torchhydro/configs/config.py
@@ -232,10 +232,12 @@ def default_config_file():
                 # 1st opt config, all epochs use this lr,
                 # this setting will cover the lr setting in "optim_params"
                 "lr": 0.001,
-                # 2nd opt config, diff epoch uses diff lr, key is epoch,
-                # start from 0, each value means the decay rate
-                # if initial lr is 0.001, then 0: 0.5 neans the lr of 0 epoch is 0.001*0.5=0.0005
-                # "lr_scheduler": {0: 1, 1: 0.5, 2: 0.2},
+                # 2nd opt config, piecewise constant learning rate:
+                # diff epoch uses diff lr, key is epoch, start from 0,
+                # each value means the decay rate. For example,
+                # if initial lr is 0.001, then 1: 0.5 means the lr of 2nd epoch is 0.001*0.5=0.0005
+                # and the next following epoch keep this lr until the next key
+                # "lr_scheduler": {0: 1, 1: 0.5, 10: 0.2},
                 # 3rd opt config, initial lr need to be set in "optim_params" or it will use default one
                 # lr_factor as an exponential decay factor
                 # "lr_factor": 0.1,
