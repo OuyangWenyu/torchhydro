@@ -5,6 +5,7 @@ import re
 import numpy as np
 import torch
 from tqdm import tqdm
+from hydrodatasource.utils.utils import streamflow_unit_conv
 
 from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.data_utils import (
@@ -36,6 +37,7 @@ class NarxDataset(BaseDataset):
                 "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
             )
         self.b_nestedness = self.data_cfgs["b_nestedness"]
+        self.basin_list = None
         # load and preprocess data
         self._load_data()
 
@@ -162,7 +164,7 @@ class NarxDataset(BaseDataset):
             streamflow_dataset = data_output_ds[[self.streamflow_name]]
             converted_streamflow_dataset = streamflow_unit_conv(
                 streamflow_dataset,
-                self.data_source.read_area(self.basins),
+                self.data_source.read_area(self.basin_list),
                 target_unit=prcp_unit,
             )
             data_output_ds[self.streamflow_name] = converted_streamflow_dataset[
@@ -204,9 +206,8 @@ class NarxDataset(BaseDataset):
             # make forcing dataset containing nested basin streamflow for each input gauge.
             # cal_order
             basin_tree, max_order, basin_list, order_list = basin_tree_.get_basin_trees()
-            self.basins = basin_list
+            self.basin_list = basin_list
             basin_order = order_list   #
-            # n   nestedness  streamflow  a forcing type
             # x
             data_forcing_ds_ = self.data_source.read_ts_xrdataset(
                 basin_list,
@@ -235,7 +236,7 @@ class NarxDataset(BaseDataset):
 
     def _create_lookup_table(self):
         """
-        confused
+        create lookup table.
         Returns
         -------
 
@@ -243,10 +244,10 @@ class NarxDataset(BaseDataset):
         lookup = []
         # list to collect basins ids of basins without a single training sample
         basin_coordinates = len(self.t_s_dict["sites_id"])
-        rho = self.rho
+        rho = self.rho  # forcast_history
         warmup_length = self.warmup_length
-        horizon = self.horizon
-        max_time_length = self.nt
+        horizon = self.horizon  # forcast_length
+        max_time_length = self.nt  # length of longest time series in all basins
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
             if self.is_tra_val_te != "train":
                 lookup.extend(
