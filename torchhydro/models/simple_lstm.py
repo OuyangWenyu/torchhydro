@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-19 09:36:25
-LastEditTime: 2024-04-09 15:29:35
+LastEditTime: 2025-04-16 19:03:46
 LastEditors: Wenyu Ouyang
 Description: Some self-made LSTMs
-FilePath: \torchhydro\torchhydro\models\simple_lstm.py
+FilePath: /torchhydro/torchhydro/models/simple_lstm.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -23,7 +23,25 @@ class SimpleLSTM(nn.Module):
         self.lstm = nn.LSTM(
             hidden_size,
             hidden_size,
-            1,
+        )
+        self.dropout = nn.Dropout(p=dr)
+        self.linearOut = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        x0 = F.relu(self.linearIn(x))
+        out_lstm, (hn, cn) = self.lstm(x0)
+        out_lstm_dr = self.dropout(out_lstm)
+        return self.linearOut(out_lstm_dr)
+
+
+class MultiLayerLSTM(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size, num_layers=1, dr=0.0):
+        super(MultiLayerLSTM, self).__init__()
+        self.linearIn = nn.Linear(input_size, hidden_size)
+        self.lstm = nn.LSTM(
+            hidden_size,
+            hidden_size,
+            num_layers,
             dropout=dr,
         )
         self.linearOut = nn.Linear(hidden_size, output_size)
@@ -32,6 +50,48 @@ class SimpleLSTM(nn.Module):
         x0 = F.relu(self.linearIn(x))
         out_lstm, (hn, cn) = self.lstm(x0)
         return self.linearOut(out_lstm)
+
+
+class LinearSimpleLSTMModel(SimpleLSTM):
+    """
+    This model is nonlinear layer + SimpleLSTM.
+    """
+
+    def __init__(self, linear_size, **kwargs):
+        """
+
+        Parameters
+        ----------
+        linear_size
+            the number of input features for the first input linear layer
+        """
+        super(LinearSimpleLSTMModel, self).__init__(**kwargs)
+        self.former_linear = nn.Linear(linear_size, kwargs["input_size"])
+
+    def forward(self, x):
+        x0 = F.relu(self.former_linear(x))
+        return super(LinearSimpleLSTMModel, self).forward(x0)
+
+
+class LinearMultiLayerLSTMModel(MultiLayerLSTM):
+    """
+    This model is nonlinear layer + MultiLayerLSTM.
+    """
+
+    def __init__(self, linear_size, **kwargs):
+        """
+
+        Parameters
+        ----------
+        linear_size
+            the number of input features for the first input linear layer
+        """
+        super(LinearMultiLayerLSTMModel, self).__init__(**kwargs)
+        self.former_linear = nn.Linear(linear_size, kwargs["input_size"])
+
+    def forward(self, x):
+        x0 = F.relu(self.former_linear(x))
+        return super(LinearMultiLayerLSTMModel, self).forward(x0)
 
 
 class SimpleLSTMForecast(SimpleLSTM):

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-01-02 13:43:10
+LastEditTime: 2025-04-17 10:11:03
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: /torchhydro/torchhydro/configs/config.py
@@ -11,6 +11,7 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 import argparse
 import fnmatch
 import json
+import warnings
 import os
 
 import numpy as np
@@ -53,8 +54,8 @@ def default_config_file():
             "model_name": "LSTM",
             # the details of model parameters for the "model_name" model
             "model_hyperparam": {
-                # <- warmup -><- forecast_history -><- forecast_length ->
-                "forecast_history": 30,
+                # <- warmup -><- hindcast_length -><- forecast_length ->
+                "hindcast_length": 30,
                 "forecast_length": 30,
                 # the size of input (feature number)
                 "input_size": 24,
@@ -93,14 +94,13 @@ def default_config_file():
                 "source_names": ["CAMELS"],
                 "source_paths": ["../../example/camels_us"],
             },
-            "validation_path": None,
-            "test_path": None,
+            "case_dir": None,
             "batch_size": 100,
-            # we generally have three times: [warmup, forecast_history, forecast_length]
+            # we generally have three times: [warmup, hindcast_length, forecast_length]
             # For physics-based models, we need warmup; default is 0 as DL models generally don't need it
             "warmup_length": 0,
             # the length of the history data for forecasting
-            "forecast_history": 30,
+            "hindcast_length": 30,
             # the length of the forecast data
             "forecast_length": 1,
             # the min time step of the input data
@@ -204,8 +204,13 @@ def default_config_file():
                     "ssma",
                     "susma",
                 ],
+                # NOTE: pbm_norm is True means norm and denorm for differentiable models; if you use pure data-driven models, you should set it as False
                 "pbm_norm": False,
             },
+            # For scaler from sklearn, we need to specify the stat_dict_file for three different parts:
+            # target_vars, relevant_vars and constant_vars, and the sequence must be target_vars, relevant_vars, constant_vars
+            # the seperator of three stat_dict_file is ";"
+            # for example: "stat_dict_file": "target_stat_dict_file;relevant_stat_dict_file;constant_stat_dict_file"
             "stat_dict_file": None,
             # dataset for pytorch dataset
             "dataset": "StreamflowDataset",
@@ -231,13 +236,13 @@ def default_config_file():
                 # start from 0, each value means the decay rate
                 # if initial lr is 0.001, then 0: 0.5 neans the lr of 0 epoch is 0.001*0.5=0.0005
                 # "lr_scheduler": {0: 1, 1: 0.5, 2: 0.2},
-                # 3rd opt config, lr as a initial value (will cover the lr setting in "optim_params")
+                # 3rd opt config, initial lr need to be set in "optim_params" or it will use default one
                 # lr_factor as an exponential decay factor
-                # "lr": 0.001, "lr_factor": 0.1,
-                # 4th opt config, lr as a initial value, it will cover the lr setting in "optim_params"
+                # "lr_factor": 0.1,
+                # 4th opt config, initial lr need to be set in "optim_params" or it will use default one
                 # lr_patience represent how many epochs without opt (we watch val_loss) could be tolerated
                 # if lr_patience is satisfied, then lr will be decayed by lr_factor by a linear way
-                # "lr": 0.001, "lr_factor": 0.1, "lr_patience": 1,
+                # "lr_factor": 0.1, "lr_patience": 1,
             },
             "early_stopping": False,
             "patience": 1,
@@ -282,7 +287,7 @@ def default_config_file():
             "model_loader": {"load_way": "specified", "test_epoch": 20},
             # "model_loader": {"load_way": "best"},
             # "model_loader": {"load_way": "latest"},
-            # "model_loader": {"load_way": "pth", "pth": "path/to/weights"},
+            # "model_loader": {"load_way": "pth", "pth_path": "path/to/weights"},
             "metrics": ["NSE", "RMSE", "R2", "KGE", "FHV", "FLV"],
             "fill_nan": "no",
             "explainer": None,
@@ -324,7 +329,9 @@ def cmd(
     opt_param=None,
     batch_size=None,
     warmup_length=0,
+    # forecast_history will be deprecated in the future
     forecast_history=None,
+    hindcast_length=None,
     forecast_length=None,
     train_mode=None,
     train_epoch=None,
@@ -560,9 +567,16 @@ def cmd(
         type=int,
     )
     parser.add_argument(
+        "--hindcast_length",
+        dest="hindcast_length",
+        help="length of time sequence when training in encoder part, for decoder-only models, hindcast_length=0",
+        default=hindcast_length,
+        type=int,
+    )
+    parser.add_argument(
         "--forecast_history",
         dest="forecast_history",
-        help="length of time sequence when training in encoder part, for decoder-only models, forecast_history=0",
+        help="length of time sequence when training in encoder part, for decoder-only models, hindcast_length=0",
         default=forecast_history,
         type=int,
     )
@@ -889,10 +903,7 @@ def update_cfg(cfg_file, new_args):
         os.makedirs(result_dir)
     if new_args.sub is not None:
         subset, subexp = new_args.sub.split(os.sep)
-        cfg_file["data_cfgs"]["validation_path"] = os.path.join(
-            project_dir, "results", subset, subexp
-        )
-        cfg_file["data_cfgs"]["test_path"] = os.path.join(result_dir, subset, subexp)
+        cfg_file["data_cfgs"]["case_dir"] = os.path.join(result_dir, subset, subexp)
     if new_args.source_cfgs is not None:
         cfg_file["data_cfgs"]["source_cfgs"] = new_args.source_cfgs
     if new_args.scaler is not None:
@@ -1067,14 +1078,28 @@ def update_cfg(cfg_file, new_args):
             raise RuntimeError(
                 "Please set same warmup_length in model_cfgs and data_cfgs"
             )
-    if new_args.forecast_history is not None:
-        cfg_file["data_cfgs"]["forecast_history"] = new_args.forecast_history
+    if new_args.hindcast_length is not None:
+        cfg_file["data_cfgs"]["hindcast_length"] = new_args.hindcast_length
+    if new_args.hindcast_length is None and new_args.forecast_history is not None:
+        # forecast_history will be deprecated in the future
+        warnings.warn(
+            "forecast_history will be deprecated in the future, please use hindcast_length instead"
+        )
+        cfg_file["data_cfgs"]["hindcast_length"] = new_args.forecast_history
     if new_args.forecast_length is not None:
         cfg_file["data_cfgs"]["forecast_length"] = new_args.forecast_length
     if new_args.start_epoch > 1:
         cfg_file["training_cfgs"]["start_epoch"] = new_args.start_epoch
     if new_args.stat_dict_file is not None:
-        cfg_file["data_cfgs"]["stat_dict_file"] = new_args.stat_dict_file
+        stat_dict_file = new_args.stat_dict_file
+        if len(stat_dict_file.split(";")) > 1:
+            target_, relevant_, constant_ = stat_dict_file.split(";")
+            stat_dict_file = {
+                "target_vars": target_,
+                "relevant_vars": relevant_,
+                "constant_vars": constant_,
+            }
+        cfg_file["data_cfgs"]["stat_dict_file"] = stat_dict_file
     if new_args.num_workers is not None and new_args.num_workers > 0:
         cfg_file["training_cfgs"]["num_workers"] = new_args.num_workers
     if new_args.which_first_tensor is not None:

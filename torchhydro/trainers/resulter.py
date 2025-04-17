@@ -31,20 +31,10 @@ from torchhydro.trainers.train_utils import (
 from torchhydro.trainers.deep_hydro import DeepHydro
 
 
-def set_unit_to_var(ds):
-    units_dict = ds.attrs["units"]
-    for var_name, units in units_dict.items():
-        if var_name in ds:
-            ds[var_name].attrs["units"] = units
-    if "units" in ds.attrs:
-        del ds.attrs["units"]
-    return ds
-
-
 class Resulter:
     def __init__(self, cfgs) -> None:
         self.cfgs = cfgs
-        self.result_dir = cfgs["data_cfgs"]["test_path"]
+        self.result_dir = cfgs["data_cfgs"]["case_dir"]
         if not os.path.exists(self.result_dir):
             os.makedirs(self.result_dir)
 
@@ -112,17 +102,17 @@ class Resulter:
         save_dir = self.result_dir
         flow_pred_file = os.path.join(save_dir, self.pred_name)
         flow_obs_file = os.path.join(save_dir, self.obs_name)
-        pred = set_unit_to_var(pred)
-        obs = set_unit_to_var(obs)
-        pred.to_netcdf(flow_pred_file + ".nc")
-        obs.to_netcdf(flow_obs_file + ".nc")
+        max_len = max(len(basin) for basin in pred.basin.values)
+        encoding = {"basin": {"dtype": f"U{max_len}"}}
+        pred.to_netcdf(flow_pred_file + ".nc", encoding=encoding)
+        obs.to_netcdf(flow_obs_file + ".nc", encoding=encoding)
 
     def eval_result(self, preds_xr, obss_xr):
         # types of observations
         target_col = self.cfgs["data_cfgs"]["target_cols"]
         evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
         basin_ids = self.cfgs["data_cfgs"]["object_ids"]
-        test_path = self.cfgs["data_cfgs"]["test_path"]
+        test_path = self.cfgs["data_cfgs"]["case_dir"]
         # Assume object_ids like ['changdian_61561']
         # fill_nan: "no" means ignoring the NaN value;
         #           "sum" means calculate the sum of the following values in the NaN locations.
@@ -233,7 +223,7 @@ class Resulter:
     def _save_pbm_params(self, cfgs, seq_first):
         training_cfgs = cfgs["training_cfgs"]
         model_loader = cfgs["evaluation_cfgs"]["model_loader"]
-        model_pth_dir = cfgs["data_cfgs"]["test_path"]
+        model_pth_dir = cfgs["data_cfgs"]["case_dir"]
         weight_path = read_pth_from_model_loader(model_loader, model_pth_dir)
         cfgs["model_cfgs"]["weight_path"] = weight_path
         cfgs["training_cfgs"]["device"] = [0] if torch.cuda.is_available() else [-1]
@@ -288,7 +278,7 @@ class Resulter:
         """read tensorboard log files"""
         is_scalar = kwargs.get("is_scalar", False)
         is_histogram = kwargs.get("is_histogram", False)
-        log_dir = self.cfgs["data_cfgs"]["test_path"]
+        log_dir = self.cfgs["data_cfgs"]["case_dir"]
         if is_scalar:
             scalar_file = os.path.join(log_dir, "tb_scalars.csv")
             if not os.path.exists(scalar_file):

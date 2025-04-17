@@ -59,7 +59,7 @@ def args():
             "01170100",
         ],
         batch_size=8,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=20,
         min_time_unit="D",
         min_time_interval="1",
@@ -134,8 +134,8 @@ def mtl_args():
             "01170100",
         ],
         batch_size=100,
-        forecast_history=0,
-        forecast_length=365,  # batch_size=100, forecast_history=365,
+        hindcast_length=0,
+        forecast_length=365,  # batch_size=100, rho=365,
         var_t=[
             "temperature",
             "specific_humidity",
@@ -210,7 +210,7 @@ def s2s_args(basin4test):
             # number of min-time-intervals to predict; horizon
             "forecast_length": 56,
             # Number of preceding streamflow time steps included in the output,
-            # which must be less than or equal to forecast_history, and is recommended to be set to 1
+            # which must be less than or equal to hindcast_length, and is recommended to be set to 1
             "hindcast_output_window": 1,
             "teacher_forcing_ratio": 0.5,
         },
@@ -218,7 +218,7 @@ def s2s_args(basin4test):
         gage_id=basin4test,
         batch_size=512,
         # historical number of min-time-intervals; 240 means 240 * 3H = 720H
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval="3",
@@ -306,7 +306,7 @@ def trans_args(basin4test):
         model_loader={"load_way": "best"},
         gage_id=basin4test,
         batch_size=128,
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval="3",
@@ -428,7 +428,7 @@ def dpl_args():
         valid_period=valid_period,
         test_period=test_period,
         batch_size=50,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=60,
         var_t=[
             "prcp",
@@ -485,7 +485,7 @@ def seq2seq_config():
         gage_id=gage_id,
         # gage_id=["21400800", "21401550", "21401300", "21401900"],
         batch_size=128,
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval=3,
@@ -606,7 +606,7 @@ def dpl4hbv_selfmadehydrodataset_args():
         valid_period=valid_period,
         test_period=test_period,
         batch_size=300,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=365,
         var_t=[
             # although the name is hourly, it might be daily according to your choice
@@ -730,7 +730,7 @@ def dpl4xaj_selfmadehydrodataset_args():
         valid_period=valid_period,
         test_period=test_period,
         batch_size=300,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=365,
         var_t=[
             # although the name is hourly, it might be daily according to your choice

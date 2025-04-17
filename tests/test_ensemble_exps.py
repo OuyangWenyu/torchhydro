@@ -68,10 +68,15 @@ def test_run_lstm_cross_val(var_c_target, var_t_target, gage_id):
     valid_period = ["2015-10-01", "2018-10-01"]
     args = cmd(
         sub=project_name,
-        source="SelfMadeCAMELS",
-        source_path=os.path.join(
-            SETTING["local_data_path"]["datasets-interim"], "camels_cc"
-        ),
+        source_cfgs={
+            "source_name": "SelfMadeCAMELS",
+            "source_path": os.path.join(
+                SETTING["local_data_path"]["datasets-interim"], "camels_cc"
+            ),
+            "other_settings": {
+                "time_unit": ["3h"],
+            },
+        },
         ctx=[0],
         model_name="KuaiLSTM",
         model_hyperparam={
@@ -85,7 +90,7 @@ def test_run_lstm_cross_val(var_c_target, var_t_target, gage_id):
         train_period=train_period,
         test_period=valid_period,
         batch_size=20,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=365,
         scaler="DapengScaler",
         dataset="StreamflowDataset",
@@ -124,11 +129,15 @@ def test_run_cross_val_tlcamelsus2cc(
     valid_period = ["2015-10-01", "2018-10-01"]
     args = cmd(
         sub=project_name,
-        source="SelfMadeCAMELS",
-        # cc means China continent
-        source_path=os.path.join(
-            SETTING["local_data_path"]["datasets-interim"], "camels_cc"
-        ),
+        source_cfgs={
+            "source_name": "SelfMadeCAMELS",
+            "source_path": os.path.join(
+                SETTING["local_data_path"]["datasets-interim"], "camels_cc"
+            ),
+            "other_settings": {
+                "time_unit": ["3h"],
+            },
+        },
         ctx=[0],
         model_type="TransLearn",
         model_name="KaiLSTM",
@@ -141,7 +150,7 @@ def test_run_cross_val_tlcamelsus2cc(
         opt="Adadelta",
         loss_func="RMSESum",
         batch_size=5,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=20,
         rs=1234,
         train_period=train_period,

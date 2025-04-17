@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-01-03 20:32:42
+LastEditTime: 2025-01-12 14:56:22
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
-FilePath: /torchhydro/torchhydro/trainers/train_utils.py
+FilePath: \torchhydro\torchhydro\trainers\train_utils.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -32,6 +32,67 @@ from hydroutils.hydro_file import (
 )
 
 from torchhydro.models.crits import GaussianLoss
+
+
+def rolling_evaluate(
+    batch_shape,
+    rho,
+    forecast_length,
+    rolling,
+    hindcast_output_window,
+    the_array,
+):
+    """
+    Perform rolling evaluation to restore the prediction results to the original time series length.
+
+    This function is used to restore the rolling prediction results of the model to the original time series length.
+    It assumes that the length of the rolling window is equal to the forecast length, and that there is only one prediction value for each time step.
+    The function calculates the restored prediction results based on the given batch shape, historical window length, forecast length, rolling window length,
+    hindcast output window length, and prediction result array.
+
+    Parameters
+    ----------
+    batch_shape : tuple
+        The shape of the batch, containing three elements (ngrid, nt, nf), representing the number of grids, the number of time steps, and the number of features, respectively.
+    rho : int
+        The length of the historical window.
+    forecast_length : int
+        The length of the forecast.
+    rolling : int
+        The length of the rolling window, which should be equal to the forecast length.
+    hindcast_output_window : int
+        The length of the hindcast output window.
+    the_array : np.ndarray
+        The prediction result array, with the shape (samples, window_size, nf), where samples represent the number of samples,
+        window_size represents the size of the window, and nf represents the number of features.
+
+    Returns
+    -------
+    np.ndarray
+        The restored prediction result array, with the shape (ngrid, recover_len, nf), where recover_len represents the length of the restored time steps.
+
+    Raises
+    ------
+    NotImplementedError
+        Raised when the rolling window length is not equal to the forecast length.
+    """
+    ngrid, nt, nf = batch_shape
+    if rolling != forecast_length:
+        # TODO: now we only guarantee each time has only one value,
+        # so we directly reshape the data rather than a real rolling
+        raise NotImplementedError(
+            "rolling should be equal to forecast_length in data_cfgs now, others are not supported yet"
+        )
+    window_size = hindcast_output_window + forecast_length
+    recover_len = nt - rho + hindcast_output_window
+    samples = int(the_array.shape[0] / ngrid)
+    the_array_ = np.full((ngrid, recover_len, nf), np.nan)
+    # recover the_array to pred_
+    the_array_4d = the_array.reshape(ngrid, samples, window_size, nf)
+    for i in range(ngrid):
+        for j in range(0, recover_len - window_size + 1, window_size):
+            the_array_[i, j : j + window_size, :] = the_array_4d[i, j, :, :]
+    return the_array_.reshape(ngrid, recover_len, nf)
 
 
 def model_infer(seq_first, device, model, xs, ys):
@@ -73,76 +134,21 @@ def model_infer(seq_first, device, model, xs, ys):
                 else xs.to(device)
             )
         ]
-    ys = (
-        ys.permute([1, 0, 2]).to(device)
-        if seq_first and ys.ndim == 3
-        else ys.to(device)
-    )
+    if ys is not None:
+        ys = (
+            ys.permute([1, 0, 2]).to(device)
+            if seq_first and ys.ndim == 3
+            else ys.to(device)
+        )
     output = model(*xs)
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
     if seq_first:
         output = output.transpose(0, 1)
-        ys = ys.transpose(0, 1)
+        if ys is not None:
+            ys = ys.transpose(0, 1)
     return ys, output
-
-
-def denormalize4eval(eval_dataloader, output, labels, rolling=0):
-    """_summary_
-
-    Parameters
-    ----------
-    eval_dataloader : _type_
-        dataloader for validation or test
-    output : np.ndarray
-        batch-first model output
-    labels : np.ndarray
-        batch-first observed data
-    rolling: int
-        default 0, if rolling is used, perform forecasting using rolling window size
-
-    Returns
-    -------
-    tuple[xr.Dataset, xr.Dataset]
-        predicted data and observed data
-    """
-    target_scaler = eval_dataloader.dataset.target_scaler
-    target_data = target_scaler.data_target
-    # the units are dimensionless for pure DL models
-    units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
-    if target_scaler.pbm_norm:
-        units = {**units, **target_data.attrs["units"]}
-    if rolling > 0:
-        hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
-        rho = target_scaler.data_cfgs["forecast_history"]
-        # TODO: -1 because seq2seqdataset has one more time, hence we need to cut it, as rolling will be refactored, we will modify it later
-        selected_time_points = target_data.coords["time"][
-            rho - hindcast_output_window : -1
-        ]
-    else:
-        warmup_length = eval_dataloader.dataset.warmup_length
-        selected_time_points = target_data.coords["time"][warmup_length:]
-
-    selected_data = target_data.sel(time=selected_time_points)
-    preds_xr = target_scaler.inverse_transform(
-        xr.DataArray(
-            output.transpose(2, 0, 1),
-            dims=selected_data.dims,
-            coords=selected_data.coords,
-            attrs={"units": units},
-        )
-    )
-    obss_xr = target_scaler.inverse_transform(
-        xr.DataArray(
-            labels.transpose(2, 0, 1),
-            dims=selected_data.dims,
-            coords=selected_data.coords,
-            attrs={"units": units},
-        )
-    )
-
-    return preds_xr, obss_xr
 
 
 class EarlyStopper(object):
@@ -284,7 +290,9 @@ def evaluate_validation(
             )
 
     else:
-        preds_xr, obss_xr = denormalize4eval(validation_data_loader, output, labels)
+        valdataset = validation_data_loader.dataset
+        preds_xr = valdataset.denormalize(output)
+        obss_xr = valdataset.denormalize(labels)
         for i, col in enumerate(target_col):
             obs = obss_xr[col].to_numpy()
             pred = preds_xr[col].to_numpy()
@@ -319,7 +327,9 @@ def len_denormalize_delayed(
     # but we have multi-outputs for each time step in this case
     o = output[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
     l = labels[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
-    preds_xr, obss_xr = denormalize4eval(validation_data_loader, o, l, rolling)
+    valdataset = validation_data_loader.dataset
+    preds_xr = valdataset.denormalize(o, rolling)
+    obss_xr = valdataset.denormalize(l, rolling)
     obs = obss_xr[col].to_numpy()
     pred = preds_xr[col].to_numpy()
     return obs, pred
@@ -632,7 +642,7 @@ def cellstates_when_inference(seq_first, data_cfgs, pred):
     )
     cs_out_lst = [cs_out]
     cell_state = reduce(lambda a, b: np.vstack((a, b)), cs_out_lst)
-    np.save(os.path.join(data_cfgs["test_path"], "cell_states.npy"), cell_state)
+    np.save(os.path.join(data_cfgs["case_dir"], "cell_states.npy"), cell_state)
     # model.zero_grad()
     torch.cuda.empty_cache()
     return pred, cell_state

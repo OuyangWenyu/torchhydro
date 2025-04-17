@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-21 15:37:58
-LastEditTime: 2025-01-02 14:06:24
+LastEditTime: 2025-01-12 15:31:29
 LastEditors: Wenyu Ouyang
 Description: Some basic funtions for dealing with data
-FilePath: /torchhydro/torchhydro/datasets/data_utils.py
+FilePath: \torchhydro\torchhydro\datasets\data_utils.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -390,3 +390,26 @@ def dam_num_chosen(gages, usgs_id, dam_num):
             usgs_id[i] for i in range(data_attr.size) if data_attr[:, 0][i] == dam_num
         ]
     )
+
+
+def set_unit_to_var(ds):
+    """returned xa.Dataset need has units for each variable -- xr.DataArray
+    or the dataset cannot be saved to netCDF file
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        the dataset with units as attributes
+
+    Returns
+    -------
+    ds : xr.Dataset
+        unit attrs are for each variable dataarray
+    """
+    units_dict = ds.attrs["units"]
+    for var_name, units in units_dict.items():
+        if var_name in ds:
+            ds[var_name].attrs["units"] = units
+    if "units" in ds.attrs:
+        del ds.attrs["units"]
+    return ds

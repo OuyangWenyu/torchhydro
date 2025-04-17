@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-01-02 14:34:59
+LastEditTime: 2025-04-17 08:55:40
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /torchhydro/torchhydro/datasets/data_sets.py
+FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -26,6 +26,7 @@ from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
 
 from torchhydro.datasets.data_utils import (
+    set_unit_to_var,
     warn_if_nan,
     wrap_t_s_dict,
 )
@@ -242,7 +243,7 @@ class BaseDataset(Dataset):
     def _pre_load_data(self):
         self.train_mode = self.is_tra_val_te == "train"
         self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
-        self.rho = self.data_cfgs["forecast_history"]
+        self.rho = self.data_cfgs["hindcast_length"]
         self.warmup_length = self.data_cfgs["warmup_length"]
         self.horizon = self.data_cfgs["forecast_length"]
 
@@ -278,6 +279,49 @@ class BaseDataset(Dataset):
         )
         self.target_scaler = scaler_hub.target_scaler
         return scaler_hub.x, scaler_hub.y, scaler_hub.c
+
+    def denormalize(self, norm_data, rolling=0):
+        """Denormalize the norm_data
+
+        Parameters
+        ----------
+        norm_data : np.ndarray
+            batch-first data
+        rolling: int
+            default 0, if rolling is used, perform forecasting using rolling window size
+
+        Returns
+        -------
+        xr.Dataset
+            denormlized data
+        """
+        target_scaler = self.target_scaler
+        target_data = target_scaler.data_target
+        # the units are dimensionless for pure DL models
+        units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
+        if target_scaler.pbm_norm:
+            units = {**units, **target_data.attrs["units"]}
+        if rolling > 0:
+            hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
+            rho = target_scaler.data_cfgs["hindcast_length"]
+            # TODO: -1 because seq2seqdataset has one more time, hence we need to cut it, as rolling will be refactored, we will modify it later
+            selected_time_points = target_data.coords["time"][
+                rho - hindcast_output_window : -1
+            ]
+        else:
+            warmup_length = self.warmup_length
+            selected_time_points = target_data.coords["time"][warmup_length:]
+
+        selected_data = target_data.sel(time=selected_time_points)
+        denorm_xr_ds = target_scaler.inverse_transform(
+            xr.DataArray(
+                norm_data,
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
+        )
+        return set_unit_to_var(denorm_xr_ds)
 
     def _to_dataarray_with_unit(self, data_forcing_ds, data_output_ds, data_attr_ds):
         # trans to dataarray to better use xbatch

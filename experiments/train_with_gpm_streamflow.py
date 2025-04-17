@@ -64,7 +64,7 @@ def create_config():
         model_loader={"load_way": "best"},
         gage_id=gage_id,
         batch_size=1024,
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval=3,

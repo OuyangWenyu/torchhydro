@@ -37,6 +37,6 @@ def test_train_evaluate_continue(args, config_data):
     args.train_mode = 1
     update_cfg(config_data, args)
     config_data["model_cfgs"]["weight_path"] = os.path.join(
-        config_data["data_cfgs"]["test_path"], "model_Ep1.pth"
+        config_data["data_cfgs"]["case_dir"], "model_Ep1.pth"
     )
     train_and_evaluate(config_data)

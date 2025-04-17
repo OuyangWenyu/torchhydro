@@ -63,7 +63,7 @@ def config():
         },
         loss_func="RMSESum",
         batch_size=256,
-        forecast_history=336,
+        hindcast_length=336,
         forecast_length=24,
         train_period=[
             ("2015-06-01", "2015-09-30"),

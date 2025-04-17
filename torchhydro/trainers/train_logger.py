@@ -157,8 +157,8 @@ class TrainLogger:
             self._save_final_epoch(params, model)
 
     def _save_final_epoch(self, params, model):
-        # In final epoch, we save the model and params in test_path
-        final_path = params["data_cfgs"]["test_path"]
+        # In final epoch, we save the model and params in case_dir
+        final_path = params["data_cfgs"]["case_dir"]
         params["run"] = self.session_params
         time_stamp = datetime.now().strftime("%d_%B_%Y%I_%M%p")
         model_save_path = os.path.join(final_path, f"{time_stamp}_model.pth")
@@ -193,7 +193,7 @@ class TrainLogger:
         """
         # input4modelplot = torch.randn(
         #     self.data_cfgs["batch_size"],
-        #     self.data_cfgs["forecast_history"],
+        #     self.data_cfgs["hindcast_length"],
         #     # self.model_cfgs["model_hyperparam"]["n_input_features"],
         #     self.model_cfgs["model_hyperparam"]["input_size"],
         # )
@@ -201,12 +201,12 @@ class TrainLogger:
             input4modelplot = [
                 torch.randn(
                     self.data_cfgs["batch_size"],
-                    self.data_cfgs["forecast_history"],
+                    self.data_cfgs["hindcast_length"],
                     self.data_cfgs["input_features"] - 1,
                 ),
                 torch.randn(
                     self.data_cfgs["batch_size"],
-                    self.data_cfgs["forecast_history"],
+                    self.data_cfgs["hindcast_length"],
                     self.data_cfgs["cnn_size"],
                 ),
                 torch.rand(
@@ -217,12 +217,12 @@ class TrainLogger:
             input4modelplot = [
                 torch.randn(
                     self.data_cfgs["batch_size"],
-                    self.data_cfgs["forecast_history"],
+                    self.data_cfgs["hindcast_length"],
                     self.data_cfgs["input_features"],
                 ),
                 torch.randn(
                     self.data_cfgs["batch_size"],
-                    self.data_cfgs["forecast_history"],
+                    self.data_cfgs["hindcast_length"],
                     self.data_cfgs["input_size_encoder2"],
                 ),
                 torch.rand(

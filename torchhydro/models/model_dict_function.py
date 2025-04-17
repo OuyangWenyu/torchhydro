@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-10-29 11:43:09
+LastEditTime: 2025-04-16 19:05:26
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
-FilePath: \torchhydro\torchhydro\models\model_dict_function.py
+FilePath: /torchhydro/torchhydro/models/model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -18,7 +18,13 @@ from torchhydro.models.cudnnlstm import (
     CpuLstmModel,
 )
 
-from torchhydro.models.simple_lstm import SimpleLSTM, SimpleLSTMForecast
+from torchhydro.models.simple_lstm import (
+    LinearMultiLayerLSTMModel,
+    LinearSimpleLSTMModel,
+    MultiLayerLSTM,
+    SimpleLSTM,
+    SimpleLSTMForecast,
+)
 from torchhydro.models.seqforecast import SequentialForecastLSTM
 from torchhydro.models.seq2seq import (
     GeneralSeq2Seq,
@@ -50,14 +56,26 @@ from torchhydro.models.dpl4gr4j import DplLstmGr4j, DplAnnGr4j
 Utility dictionaries to map a string to a class.
 """
 pytorch_model_dict = {
+    # LSTM models from Group MHPI
     "KuaiLSTM": CudnnLstmModel,
     "CpuLSTM": CpuLstmModel,
     "KaiLSTM": LinearCudnnLstmModel,
     "DapengCNNLSTM": CNN1dLCmodel,
     "LSTMKernel": CudnnLstmModelLstmKernel,
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
+    # Differentiable models
     "DplLstmXaj": DplLstmXaj,
     "DplAttrXaj": DplAnnXaj,
+    "DplNnModuleXaj": DplLstmNnModuleXaj,
+    "DplLstmHbv": DplLstmHbv,
+    "DplAnnHbv": DplAnnHbv,
+    "DplLstmGr4j": DplLstmGr4j,
+    "DplAnnGr4j": DplAnnGr4j,
+    # LSTMs
+    "SimpleLSTM": SimpleLSTM,
+    "LinearSimpleLSTMModel": LinearSimpleLSTMModel,
+    "MultiLayerLSTM": MultiLayerLSTM,
+    "LinearMultiLayerLSTMModel": LinearMultiLayerLSTMModel,
     "SPPLSTM": SPP_LSTM_Model,
     "SimpleLSTMForecast": SimpleLSTMForecast,
     "SPPLSTM2": SPP_LSTM_Model_2,
@@ -65,13 +83,8 @@ pytorch_model_dict = {
     "Seq2Seq": GeneralSeq2Seq,
     "DataEnhanced": DataEnhancedModel,
     "DataFusion": DataFusionModel,
+    # Transformer
     "Transformer": Transformer,
-    "DplNnModuleXaj": DplLstmNnModuleXaj,
-    "DplLstmHbv": DplLstmHbv,
-    "DplAnnHbv": DplAnnHbv,
-    "DplLstmGr4j": DplLstmGr4j,
-    "DplAnnGr4j": DplAnnGr4j,
-    "SimpleLSTM": SimpleLSTM,
 }
 
 pytorch_criterion_dict = {
