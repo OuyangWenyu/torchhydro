@@ -1,6 +1,7 @@
 """narx model dataset"""
 
 import sys
+import re
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -73,7 +74,7 @@ class NarxDataset(BaseDataset):
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T  # repeat the attributes for each tim-step.
         xc = np.concatenate((x, c), axis=1)  # incorporate, as the input of model.
         # where to handle cal order? 
-        
+
         return torch.from_numpy(xc).float(), torch.from_numpy(y).float()  # deliver into model prcp, pet, attributes and streamflow etc.  DataLoader
 
     def __len__(self):
@@ -134,6 +135,40 @@ class NarxDataset(BaseDataset):
         )
         self.target_scaler = scaler_hub.target_scaler
         return scaler_hub.x, scaler_hub.y, scaler_hub.c
+
+    def _check_ts_xrds_unit(self, data_forcing_ds, data_output_ds):
+        """Check timeseries xarray dataset unit and convert if necessary
+
+        Parameters
+        ----------
+        data_forcing_ds : _type_
+            _description_
+        data_output_ds : _type_
+            _description_
+        """
+
+        def standardize_unit(unit):
+            unit = unit.lower()  # convert to lower case
+            unit = re.sub(r"day", "d", unit)
+            unit = re.sub(r"hour", "h", unit)
+            return unit
+
+        streamflow_unit = data_output_ds[self.streamflow_name].attrs["units"]
+        prcp_unit = data_forcing_ds[self.precipitation_name].attrs["units"]
+
+        standardized_streamflow_unit = standardize_unit(streamflow_unit)
+        standardized_prcp_unit = standardize_unit(prcp_unit)
+        if standardized_streamflow_unit != standardized_prcp_unit:
+            streamflow_dataset = data_output_ds[[self.streamflow_name]]
+            converted_streamflow_dataset = streamflow_unit_conv(
+                streamflow_dataset,
+                self.data_source.read_area(self.basins),
+                target_unit=prcp_unit,
+            )
+            data_output_ds[self.streamflow_name] = converted_streamflow_dataset[
+                self.streamflow_name
+            ]
+        return data_forcing_ds, data_output_ds
     
     def _read_xyc(self):
         """Read x, y, c data from data source
@@ -169,18 +204,18 @@ class NarxDataset(BaseDataset):
             # make forcing dataset containing nested basin streamflow for each input gauge.
             # cal_order
             basin_tree, max_order, basin_list, order_list = basin_tree_.get_basin_trees()
-            basins = basin_list   #
-            basin_order = order_list   # 
+            self.basins = basin_list
+            basin_order = order_list   #
             # n   nestedness  streamflow  a forcing type
             # x
             data_forcing_ds_ = self.data_source.read_ts_xrdataset(
-                basins,
+                basin_list,
                 [start_date, end_date],
                 self.data_cfgs["relevant_cols"],  # forcing data
             )
             # y
             data_nested_output_ds_ = self.data_source.read_ts_xrdataset(
-                basins,
+                basin_list,
                 [start_date, end_date],
                 self.data_cfgs["target_cols"],  # target data, streamflow.
             )
@@ -193,9 +228,8 @@ class NarxDataset(BaseDataset):
             data_forcing_ds, data_nested_output_ds_ = self._check_ts_xrds_unit(
                 data_forcing_ds_, data_nested_output_ds_
             )
-
-            self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
-                data_forcing_ds, data_nested_output_ds_,
+            self.x_origin, self.y_origin = self._to_dataarray_with_unit(   # origin data
+                data_forcing_ds, data_nested_output_ds_
             )
             
 

@@ -232,7 +232,7 @@ class BasinTree:
         # basin order
         basin_object[0].set_basin_order(1)
         max_order = 1
-        order = [0]*n_basin
+        order = [1]*n_basin
         for i in range(1, n_basin):
             basin_i = basin[i]
             order_i = 2
@@ -427,7 +427,7 @@ class BasinTree:
             single_basin_order.append(1)
         basin_trees.append(single_basin_object)
         basin_list.append(single_basin)
-        order_list.append(order_list)
+        order_list.append(single_basin_order)
 
         self.basin_tree = basin_trees
         self.basin_tree_max_order = max_order
