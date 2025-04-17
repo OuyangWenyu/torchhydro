@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-10-29 16:07:08
+LastEditTime: 2025-04-17 20:43:21
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
-FilePath: \torchhydro\torchhydro\trainers\train_logger.py
+FilePath: /torchhydro/torchhydro/trainers/train_logger.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -125,14 +125,14 @@ class TrainLogger:
                 for evaluation_metric in evaluation_metrics:
                     self.tb.add_scalar(
                         f"Valid{target_col[i]}{evaluation_metric}mean",
-                        np.mean(
+                        np.nanmean(
                             valid_metrics[f"{evaluation_metric} of {target_col[i]}"]
                         ),
                         epoch,
                     )
                     self.tb.add_scalar(
                         f"Valid{target_col[i]}{evaluation_metric}median",
-                        np.median(
+                        np.nanmedian(
                             valid_metrics[f"{evaluation_metric} of {target_col[i]}"]
                         ),
                         epoch,
