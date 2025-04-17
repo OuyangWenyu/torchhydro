@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:17:44
-LastEditTime: 2025-01-12 15:23:28
+LastEditTime: 2025-04-17 10:09:12
 LastEditors: Wenyu Ouyang
 Description: normalize the data
-FilePath: \torchhydro\torchhydro\datasets\data_scalers.py
+FilePath: /torchhydro/torchhydro/datasets/data_scalers.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -83,13 +83,11 @@ class ScalerHub(object):
             other optional parameters for ScalerHub
         """
         self.data_cfgs = data_cfgs
-        norm_keys = ["target_vars", "relevant_vars", "constant_vars"]
-        norm_dict = {}
         scaler_type = data_cfgs["scaler"]
+        pbm_norm = data_cfgs["scaler_params"]["pbm_norm"]
         if scaler_type == "DapengScaler":
             gamma_norm_cols = data_cfgs["scaler_params"]["gamma_norm_cols"]
             prcp_norm_cols = data_cfgs["scaler_params"]["prcp_norm_cols"]
-            pbm_norm = data_cfgs["scaler_params"]["pbm_norm"]
             scaler = DapengScaler(
                 target_vars,
                 relevant_vars,
@@ -101,100 +99,179 @@ class ScalerHub(object):
                 pbm_norm=pbm_norm,
                 data_source=data_source,
             )
-            x, y, c = scaler.load_data()
-            self.target_scaler = scaler
-
         elif scaler_type in SCALER_DICT.keys():
-            # TODO: not fully tested, espacially for pbm models
-            all_vars = [target_vars, relevant_vars, constant_vars]
-            for i in range(len(all_vars)):
-                data_tmp = all_vars[i]
-                scaler = SCALER_DICT[scaler_type]()
-                if data_tmp.ndim == 3:
-                    # for forcings and outputs
-                    num_instances, num_time_steps, num_features = data_tmp.transpose(
-                        "basin", "time", "variable"
-                    ).shape
-                    data_tmp = data_tmp.to_numpy().reshape(-1, num_features)
-                    save_file = os.path.join(
-                        data_cfgs["case_dir"], f"{norm_keys[i]}_scaler.pkl"
-                    )
-                    if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
-                        data_norm = scaler.fit_transform(data_tmp)
-                        # Save scaler in case_dir for valid/test
-                        with open(save_file, "wb") as outfile:
-                            pkl.dump(scaler, outfile)
-                    else:
-                        if data_cfgs["stat_dict_file"] is not None:
-                            shutil.copy(data_cfgs["stat_dict_file"], save_file)
-                        if not os.path.isfile(save_file):
-                            raise FileNotFoundError(
-                                "Please genereate xx_scaler.pkl file"
-                            )
-                        with open(save_file, "rb") as infile:
-                            scaler = pkl.load(infile)
-                            data_norm = scaler.transform(data_tmp)
-                    data_norm = data_norm.reshape(
-                        num_instances, num_time_steps, num_features
-                    )
-                else:
-                    # for attributes
-                    save_file = os.path.join(
-                        data_cfgs["case_dir"], f"{norm_keys[i]}_scaler.pkl"
-                    )
-                    if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
-                        data_norm = scaler.fit_transform(data_tmp)
-                        # Save scaler in case_dir for valid/test
-                        with open(save_file, "wb") as outfile:
-                            pkl.dump(scaler, outfile)
-                    else:
-                        if data_cfgs["stat_dict_file"] is not None:
-                            shutil.copy(data_cfgs["stat_dict_file"], save_file)
-                        assert os.path.isfile(save_file)
-                        with open(save_file, "rb") as infile:
-                            scaler = pkl.load(infile)
-                            data_norm = scaler.transform(data_tmp)
-                norm_dict[norm_keys[i]] = data_norm
-                if i == 0:
-                    self.target_scaler = scaler
-            x_ = norm_dict["relevant_vars"]
-            y_ = norm_dict["target_vars"]
-            c_ = norm_dict["constant_vars"]
-            # TODO: need more test for real data
-            x = xr.DataArray(
-                x_,
-                coords={
-                    "basin": target_vars.coords["basin"],
-                    "time": target_vars.coords["time"],
-                    "variable": target_vars.coords["variable"],
-                },
-                dims=["basin", "time", "variable"],
-            )
-            y = xr.DataArray(
-                y_,
-                coords={
-                    "basin": relevant_vars.coords["basin"],
-                    "time": relevant_vars.coords["time"],
-                    "variable": relevant_vars.coords["variable"],
-                },
-                dims=["basin", "time", "variable"],
-            )
-            c = xr.DataArray(
-                c_,
-                coords={
-                    "basin": constant_vars.coords["basin"],
-                    "variable": constant_vars.coords["variable"],
-                },
-                dims=["basin", "variable"],
+            scaler = SklearnScaler(
+                target_vars,
+                relevant_vars,
+                constant_vars,
+                data_cfgs,
+                is_tra_val_te,
+                pbm_norm=pbm_norm,
             )
         else:
             raise NotImplementedError(
                 "We don't provide this Scaler now!!! Please choose another one: DapengScaler or key in SCALER_DICT"
             )
+
+        x, y, c = scaler.load_data()
+        self.target_scaler = scaler
         print("Finish Normalization\n")
         self.x = x
         self.y = y
         self.c = c
+
+
+class SklearnScaler(object):
+    def __init__(
+        self,
+        target_vars,
+        relevant_vars,
+        constant_vars,
+        data_cfgs,
+        is_tra_val_te,
+        pbm_norm=False,
+    ):
+        """
+        A class for Scaler
+        """
+        # we will use data_target for denormalization
+        self.data_target = target_vars.transpose("basin", "time", "variable")
+        self.data_forcing = relevant_vars.transpose("basin", "time", "variable")
+        self.data_attr = constant_vars.transpose("basin", "variable")
+        self.data_cfgs = data_cfgs
+        self.is_tra_val_te = is_tra_val_te
+        self.target_scaler = None
+        self.pbm_norm = pbm_norm
+
+    def load_data(self):
+        # TODO: not fully tested for differentiable models
+        norm_keys = ["target_vars", "relevant_vars", "constant_vars"]
+        norm_dict = {}
+        scaler_type = self.data_cfgs["scaler"]
+        all_vars = [self.data_target, self.data_forcing, self.data_attr]
+        for i in range(len(all_vars)):
+            data_tmp = all_vars[i]
+            scaler = SCALER_DICT[scaler_type]()
+            if data_tmp.ndim == 3:
+                # for forcings and outputs
+                num_instances, num_time_steps, num_features = data_tmp.shape
+                data_tmp = data_tmp.to_numpy().reshape(-1, num_features)
+                scaler, data_norm = self._sklearn_scale(
+                    self.data_cfgs, self.is_tra_val_te, norm_keys[i], scaler, data_tmp
+                )
+                data_norm = data_norm.reshape(
+                    num_instances, num_time_steps, num_features
+                )
+            else:
+                num_instances, num_features = data_tmp.shape
+                data_tmp = data_tmp.to_numpy().reshape(-1, num_features)
+                scaler, data_norm = self._sklearn_scale(
+                    self.data_cfgs, self.is_tra_val_te, norm_keys[i], scaler, data_tmp
+                )
+                # don't need to reshape data_norm again as it is 2-d
+            norm_dict[norm_keys[i]] = data_norm
+            if i == 0:
+                # 0 means target_vars, and we only need to save target_vars
+                # scaler for denormalization
+                self.target_scaler = scaler
+        x_ = norm_dict["relevant_vars"]
+        y_ = norm_dict["target_vars"]
+        c_ = norm_dict["constant_vars"]
+        y_coords = self.data_target.coords
+        x_coords = self.data_forcing.coords
+        c_coords = self.data_attr.coords
+        y = xr.DataArray(
+            y_,
+            coords={
+                "basin": y_coords["basin"],
+                "time": y_coords["time"],
+                "variable": y_coords["variable"],
+            },
+            dims=["basin", "time", "variable"],
+        )
+        x = xr.DataArray(
+            x_,
+            coords={
+                "basin": x_coords["basin"],
+                "time": x_coords["time"],
+                "variable": x_coords["variable"],
+            },
+            dims=["basin", "time", "variable"],
+        )
+        c = xr.DataArray(
+            c_,
+            coords={
+                "basin": c_coords["basin"],
+                "variable": c_coords["variable"],
+            },
+            dims=["basin", "variable"],
+        )
+        return x, y, c
+
+    def _sklearn_scale(self, data_cfgs, is_tra_val_te, norm_key, scaler, data_tmp):
+        save_file = os.path.join(data_cfgs["case_dir"], f"{norm_key}_scaler.pkl")
+        if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
+            data_norm = scaler.fit_transform(data_tmp)
+            # Save scaler in case_dir for valid/test
+            with open(save_file, "wb") as outfile:
+                pkl.dump(scaler, outfile)
+        else:
+            if data_cfgs["stat_dict_file"] is not None:
+                # NOTE: you need to set data_cfgs["stat_dict_file"] as a str with ";" as its seperator
+                # the sequence of the stat_dict_file must be same as the sequence of norm_keys
+                # for example: "stat_dict_file": "target_stat_dict_file;relevant_stat_dict_file;constant_stat_dict_file"
+                shutil.copy(data_cfgs["stat_dict_file"][norm_key], save_file)
+            if not os.path.isfile(save_file):
+                raise FileNotFoundError("Please genereate xx_scaler.pkl file")
+            with open(save_file, "rb") as infile:
+                scaler = pkl.load(infile)
+                data_norm = scaler.transform(data_tmp)
+        return scaler, data_norm
+
+    def inverse_transform(self, target_values):
+        """
+        Denormalization for output variables
+
+        Parameters
+        ----------
+        target_values
+            output variables (xr.DataArray or np.ndarray)
+
+        Returns
+        -------
+        xr.Dataset
+            denormalized predictions or observations
+        """
+        coords = self.data_target.coords
+        attrs = self.data_target.attrs
+        # input must be xr.DataArray
+        if not isinstance(target_values, xr.DataArray):
+            # the shape of target_values must be (basin, time, variable)
+            target_values = xr.DataArray(
+                target_values,
+                coords={
+                    "basin": coords["basin"],
+                    "time": coords["time"],
+                    "variable": coords["variable"],
+                },
+                dims=["basin", "time", "variable"],
+            )
+        # transform to numpy array for sklearn inverse_transform
+        shape = target_values.shape
+        arr = target_values.to_numpy().reshape(-1, shape[-1])
+        # sklearn inverse_transform
+        arr_inv = self.target_scaler.inverse_transform(arr)
+        # reshape to original shape
+        arr_inv = arr_inv.reshape(shape)
+        result = xr.DataArray(
+            arr_inv,
+            coords=target_values.coords,
+            dims=target_values.dims,
+            attrs=attrs,
+        )
+        # add attrs for units
+        result.attrs.update(self.data_target.attrs)
+        return result.to_dataset(dim="variable")
 
 
 class DapengScaler(object):
@@ -251,9 +328,9 @@ class DapengScaler(object):
                 "sm_surface",
                 "sm_rootzone",
             ]
-        self.data_target = target_vars
-        self.data_forcing = relevant_vars
-        self.data_attr = constant_vars
+        self.data_target = target_vars.transpose("basin", "time", "variable")
+        self.data_forcing = relevant_vars.transpose("basin", "time", "variable")
+        self.data_attr = constant_vars.transpose("basin", "variable")
         self.data_cfgs = data_cfgs
         self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
         self.data_other = other_vars
