@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-01-25 09:33:46
+LastEditTime: 2025-04-16 19:05:26
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: /torchhydro/torchhydro/models/model_dict_function.py
@@ -60,14 +60,26 @@ from torchhydro.models.dpl4gr4j import DplLstmGr4j, DplAnnGr4j
 Utility dictionaries to map a string to a class.
 """
 pytorch_model_dict = {
+    # LSTM models from Group MHPI
     "KuaiLSTM": CudnnLstmModel,
     "CpuLSTM": CpuLstmModel,
     "KaiLSTM": LinearCudnnLstmModel,
     "DapengCNNLSTM": CNN1dLCmodel,
     "LSTMKernel": CudnnLstmModelLstmKernel,
     "KuaiLSTMMultiOut": CudnnLstmModelMultiOutput,
+    # Differentiable models
     "DplLstmXaj": DplLstmXaj,
     "DplAttrXaj": DplAnnXaj,
+    "DplNnModuleXaj": DplLstmNnModuleXaj,
+    "DplLstmHbv": DplLstmHbv,
+    "DplAnnHbv": DplAnnHbv,
+    "DplLstmGr4j": DplLstmGr4j,
+    "DplAnnGr4j": DplAnnGr4j,
+    # LSTMs
+    "SimpleLSTM": SimpleLSTM,
+    "LinearSimpleLSTMModel": LinearSimpleLSTMModel,
+    "MultiLayerLSTM": MultiLayerLSTM,
+    "LinearMultiLayerLSTMModel": LinearMultiLayerLSTMModel,
     "SPPLSTM": SPP_LSTM_Model,
     "SimpleLSTMForecast": SimpleLSTMForecast,
     "HoLSTM": HoLSTM,
@@ -78,6 +90,7 @@ pytorch_model_dict = {
     "Seq2Seq": GeneralSeq2Seq,
     "DataEnhanced": DataEnhancedModel,
     "DataFusion": DataFusionModel,
+    # Transformer
     "Transformer": Transformer,
     "DplNnModuleXaj": DplLstmNnModuleXaj,
     "DplLstmHbv": DplLstmHbv,

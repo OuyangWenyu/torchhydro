@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-01-12 15:16:28
+LastEditTime: 2025-04-17 08:55:40
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: \torchhydro\torchhydro\datasets\data_sets.py
+FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -315,7 +315,7 @@ class BaseDataset(Dataset):
         selected_data = target_data.sel(time=selected_time_points)
         denorm_xr_ds = target_scaler.inverse_transform(
             xr.DataArray(
-                norm_data.transpose(2, 0, 1),
+                norm_data,
                 dims=selected_data.dims,
                 coords=selected_data.coords,
                 attrs={"units": units},

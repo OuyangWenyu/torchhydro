@@ -1,11 +1,12 @@
-import tempfile
 import pandas as pd
 import pytest
 import numpy as np
+from sklearn.discriminant_analysis import StandardScaler
 import xarray as xr
-import json
 import os
-from torchhydro.datasets.data_scalers import DapengScaler
+import pickle as pkl
+
+from torchhydro.datasets.data_scalers import DapengScaler, ScalerHub
 from hydrodatasource.reader.data_source import SelfMadeHydroDataset
 
 
@@ -128,3 +129,81 @@ def test_dapeng_scaler_load_data_and_denorm(sample_data):
             denorm_y.coords[coord].values,
             err_msg=f"{coord} is inconsistent",
         )
+
+
+def test_sklearn_scale_train_mode(sample_data):
+    target_vars, relevant_vars, constant_vars, data_cfgs = sample_data
+    scaler_hub = ScalerHub(
+        target_vars=target_vars,
+        relevant_vars=relevant_vars,
+        constant_vars=constant_vars,
+        data_cfgs=data_cfgs,
+        is_tra_val_te="train",
+    )
+    norm_key = "target_vars"
+    scaler = StandardScaler()
+    data_tmp = target_vars.to_numpy().reshape(-1, target_vars.shape[-1])
+
+    # Call the _sklearn_scale method
+    scaler, data_norm = scaler_hub._sklearn_scale(
+        data_cfgs, "train", norm_key, scaler, data_tmp
+    )
+
+    # Check if the scaler is fitted and data is normalized
+    assert hasattr(scaler, "mean_"), "Scaler is not fitted"
+    assert data_norm.shape == data_tmp.shape, "Normalized data shape mismatch"
+
+    # Check if the scaler file is saved
+    save_file = os.path.join(data_cfgs["case_dir"], f"{norm_key}_scaler.pkl")
+    assert os.path.isfile(save_file), "Scaler file was not saved"
+
+
+def test_sklearn_scale_test_mode_with_existing_scaler(sample_data):
+    target_vars, relevant_vars, constant_vars, data_cfgs = sample_data
+    scaler_hub = ScalerHub(
+        target_vars=target_vars,
+        relevant_vars=relevant_vars,
+        constant_vars=constant_vars,
+        data_cfgs=data_cfgs,
+        is_tra_val_te="train",
+    )
+    norm_key = "target_vars"
+    scaler = StandardScaler()
+    data_tmp = target_vars.to_numpy().reshape(-1, target_vars.shape[-1])
+
+    # Save a pre-fitted scaler for testing
+    save_file = os.path.join(data_cfgs["case_dir"], f"{norm_key}_scaler.pkl")
+    with open(save_file, "wb") as outfile:
+        pkl.dump(scaler.fit(data_tmp), outfile)
+
+    # Call the _sklearn_scale method in test mode
+    scaler, data_norm = scaler_hub._sklearn_scale(
+        data_cfgs, "test", norm_key, scaler, data_tmp
+    )
+
+    # Check if the scaler is loaded and data is normalized
+    assert hasattr(scaler, "mean_"), "Scaler is not loaded correctly"
+    assert data_norm.shape == data_tmp.shape, "Normalized data shape mismatch"
+
+
+def test_sklearn_scale_test_mode_without_scaler_file(sample_data):
+    target_vars, relevant_vars, constant_vars, data_cfgs = sample_data
+    scaler_hub = ScalerHub(
+        target_vars=target_vars,
+        relevant_vars=relevant_vars,
+        constant_vars=constant_vars,
+        data_cfgs=data_cfgs,
+        is_tra_val_te="test",
+    )
+    norm_key = "target_vars"
+    scaler = StandardScaler()
+    data_tmp = target_vars.to_numpy().reshape(-1, target_vars.shape[-1])
+
+    # Ensure no scaler file exists
+    save_file = os.path.join(data_cfgs["case_dir"], f"{norm_key}_scaler.pkl")
+    if os.path.isfile(save_file):
+        os.remove(save_file)
+
+    # Expect a FileNotFoundError
+    with pytest.raises(FileNotFoundError):
+        scaler_hub._sklearn_scale(data_cfgs, "test", norm_key, scaler, data_tmp)

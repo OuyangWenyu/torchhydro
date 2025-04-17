@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-01-12 10:12:48
+LastEditTime: 2025-04-17 10:11:03
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: \torchhydro\torchhydro\configs\config.py
+FilePath: /torchhydro/torchhydro/configs/config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -209,6 +209,10 @@ def default_config_file():
                 # NOTE: pbm_norm is True means norm and denorm for differentiable models; if you use pure data-driven models, you should set it as False
                 "pbm_norm": False,
             },
+            # For scaler from sklearn, we need to specify the stat_dict_file for three different parts:
+            # target_vars, relevant_vars and constant_vars, and the sequence must be target_vars, relevant_vars, constant_vars
+            # the seperator of three stat_dict_file is ";"
+            # for example: "stat_dict_file": "target_stat_dict_file;relevant_stat_dict_file;constant_stat_dict_file"
             "stat_dict_file": None,
             # dataset for pytorch dataset
             "dataset": "StreamflowDataset",
@@ -234,13 +238,13 @@ def default_config_file():
                 # start from 0, each value means the decay rate
                 # if initial lr is 0.001, then 0: 0.5 neans the lr of 0 epoch is 0.001*0.5=0.0005
                 # "lr_scheduler": {0: 1, 1: 0.5, 2: 0.2},
-                # 3rd opt config, lr as a initial value (will cover the lr setting in "optim_params")
+                # 3rd opt config, initial lr need to be set in "optim_params" or it will use default one
                 # lr_factor as an exponential decay factor
-                # "lr": 0.001, "lr_factor": 0.1,
-                # 4th opt config, lr as a initial value, it will cover the lr setting in "optim_params"
+                # "lr_factor": 0.1,
+                # 4th opt config, initial lr need to be set in "optim_params" or it will use default one
                 # lr_patience represent how many epochs without opt (we watch val_loss) could be tolerated
                 # if lr_patience is satisfied, then lr will be decayed by lr_factor by a linear way
-                # "lr": 0.001, "lr_factor": 0.1, "lr_patience": 1,
+                # "lr_factor": 0.1, "lr_patience": 1,
             },
             "early_stopping": False,
             "patience": 1,
@@ -285,7 +289,7 @@ def default_config_file():
             "model_loader": {"load_way": "specified", "test_epoch": 20},
             # "model_loader": {"load_way": "best"},
             # "model_loader": {"load_way": "latest"},
-            # "model_loader": {"load_way": "pth", "pth": "path/to/weights"},
+            # "model_loader": {"load_way": "pth", "pth_path": "path/to/weights"},
             "metrics": ["NSE", "RMSE", "R2", "KGE", "FHV", "FLV"],
             "fill_nan": "no",
             "explainer": None,
@@ -1099,7 +1103,15 @@ def update_cfg(cfg_file, new_args):
     if new_args.start_epoch > 1:
         cfg_file["training_cfgs"]["start_epoch"] = new_args.start_epoch
     if new_args.stat_dict_file is not None:
-        cfg_file["data_cfgs"]["stat_dict_file"] = new_args.stat_dict_file
+        stat_dict_file = new_args.stat_dict_file
+        if len(stat_dict_file.split(";")) > 1:
+            target_, relevant_, constant_ = stat_dict_file.split(";")
+            stat_dict_file = {
+                "target_vars": target_,
+                "relevant_vars": relevant_,
+                "constant_vars": constant_,
+            }
+        cfg_file["data_cfgs"]["stat_dict_file"] = stat_dict_file
     if new_args.num_workers is not None and new_args.num_workers > 0:
         cfg_file["training_cfgs"]["num_workers"] = new_args.num_workers
     if new_args.which_first_tensor is not None:

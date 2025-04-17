@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-19 09:36:25
-LastEditTime: 2025-01-25 09:32:12
+LastEditTime: 2025-04-16 19:03:46
 LastEditors: Wenyu Ouyang
 Description: Some self-made LSTMs
 FilePath: /torchhydro/torchhydro/models/simple_lstm.py
@@ -24,15 +24,15 @@ class SimpleLSTM(nn.Module):
         self.lstm = nn.LSTM(
             hidden_size,
             hidden_size,
-            1,
-            dropout=dr,
         )
+        self.dropout = nn.Dropout(p=dr)
         self.linearOut = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
         x0 = F.relu(self.linearIn(x))
         out_lstm, (hn, cn) = self.lstm(x0)
-        return self.linearOut(out_lstm)
+        out_lstm_dr = self.dropout(out_lstm)
+        return self.linearOut(out_lstm_dr)
 
 
 class HoLSTM(nn.Module):

@@ -30,17 +30,17 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-show = pd.read_csv(
-    os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_us.csv"),
-    dtype={"id": str},
-)
-gage_id = show["id"].values.tolist()
-# gage_id = ["songliao_21401550"]
+# show = pd.read_csv(
+#     os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_us.csv"),
+#     dtype={"id": str},
+# )
+# gage_id = show["id"].values.tolist()
+gage_id = ["songliao_21401550", "songliao_21401050"]
 
 
 def config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_era5land", "ex7_us_basins_new_torchhydro")
+    project_name = os.path.join("train_with_era5land", "ex_test")
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
@@ -50,15 +50,15 @@ def config():
             "source_name": "selfmadehydrodataset",
             "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
-                "time_unit": ["3h"],
+                "time_unit": ["1h"],
             },
         },
         ctx=[2],
         model_name="Seq2Seq",
         model_hyperparam={
-            "en_input_size": 17,
-            "de_input_size": 18,
-            "output_size": 2,
+            "en_input_size": 16,
+            "de_input_size": 17,
+            "output_size": 1,
             "hidden_size": 256,
             "forecast_length": 56,
             "hindcast_output_window": 1,
@@ -71,11 +71,11 @@ def config():
         hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
-        min_time_interval=3,
+        min_time_interval=1,
         var_t=[
             # "precipitationCal",
             "total_precipitation_hourly",
-            "sm_surface",
+            # "sm_surface",
         ],
         var_c=[
             "area",  # 面积
@@ -94,21 +94,21 @@ def config():
             "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
             "dor_pc_pva",  # 调节程度
         ],
-        var_out=["streamflow", "sm_surface"],
+        var_out=["streamflow"],
         dataset="Seq2SeqDataset",
-        sampler="BasinBatchSampler",
+        # sampler="BasinBatchSampler",
         scaler="DapengScaler",
-        train_epoch=100,
+        train_epoch=3,
         save_epoch=1,
-        train_period=["2015-06-01-01", "2022-11-01-01"],
+        train_period=["2020-06-01-01", "2022-11-01-01"],
         test_period=["2022-11-01-01", "2023-12-01-01"],
         valid_period=["2023-11-01-01", "2023-12-01-01"],
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
-            "data_gap": [0, 0],
+            "data_gap": [0],
             "device": [2],
-            "item_weight": [0.8, 0.2],
+            "item_weight": [1],
         },
         opt="Adam",
         lr_scheduler={
@@ -118,6 +118,7 @@ def config():
         which_first_tensor="batch",
         calc_metrics=False,
         early_stopping=True,
+        rolling=56,
         # ensemble=True,
         # ensemble_items={
         #     "batch_sizes": [256, 512],
