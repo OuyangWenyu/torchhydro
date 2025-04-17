@@ -161,6 +161,8 @@ def default_config_file():
             #     "usgsFlow": "camels_us",
             #     "ET": "modiset4camels",
             # },
+            # offset_length for y input offset forecast
+            "offset_length": 0,
             "constant_rm_nan": True,
             # if constant_only, we will only use constant data as DL models' input: this is only for dpl models now
             "constant_only": False,
@@ -338,6 +340,7 @@ def cmd(
     weight_path=None,
     continue_train=None,
     var_c=None,
+    offset_length=None,
     c_rm_nan=1,
     var_t=None,
     t_rm_nan=1,
@@ -651,6 +654,13 @@ def cmd(
     )
     parser.add_argument(
         "--var_c", dest="var_c", help="types of attributes", default=var_c, nargs="+"
+    )
+    parser.add_argument(
+        "--offset_length",
+        dest="offset_length",
+        help="offset_length",
+        default=offset_length,
+        type=int,
     )
     parser.add_argument(
         "--c_rm_nan",
@@ -972,6 +982,8 @@ def update_cfg(cfg_file, new_args):
         else:
             cfg_file["data_cfgs"]["constant_cols"] = new_args.var_c
     cfg_file["data_cfgs"]["constant_rm_nan"] = bool(new_args.c_rm_nan != 0)
+    if new_args.offset_length is not None:
+        cfg_file["data_cfgs"]["offset_length"] = new_args.offset_length
     if new_args.var_t is not None:
         cfg_file["data_cfgs"]["relevant_cols"] = new_args.var_t
         print(

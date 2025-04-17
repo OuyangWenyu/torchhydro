@@ -24,6 +24,10 @@ from torchhydro.models.simple_lstm import (
     MultiLayerLSTM,
     SimpleLSTM,
     SimpleLSTMForecast,
+    SimpleLSTMForecastWithStreamflowLinear,
+    FoLSTM,
+    HoLSTM,
+    HFLSTM,
 )
 from torchhydro.models.seqforecast import SequentialForecastLSTM
 from torchhydro.models.seq2seq import (
@@ -66,6 +70,9 @@ pytorch_model_dict = {
     "DplAttrXaj": DplAnnXaj,
     "SPPLSTM": SPP_LSTM_Model,
     "SimpleLSTMForecast": SimpleLSTMForecast,
+    "HoLSTM": HoLSTM,
+    "FoLSTM": FoLSTM,
+    "HFLSTM": HFLSTM,
     "SPPLSTM2": SPP_LSTM_Model_2,
     "SeqForecastLSTM": SequentialForecastLSTM,
     "Seq2Seq": GeneralSeq2Seq,
@@ -79,6 +86,7 @@ pytorch_model_dict = {
     "DplAnnGr4j": DplAnnGr4j,
     "SimpleLSTM": SimpleLSTM,
     "LinearSimpleLSTMModel": LinearSimpleLSTMModel,
+    "SimpleLSTMForecastWithStreamflowLinear": SimpleLSTMForecastWithStreamflowLinear,
     "MultiLayerLSTM": MultiLayerLSTM,
     "LinearMultiLayerLSTMModel": LinearMultiLayerLSTMModel,
 }

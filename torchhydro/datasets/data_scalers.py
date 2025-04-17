@@ -238,7 +238,7 @@ class DapengScaler(object):
         """
         if prcp_norm_cols is None:
             prcp_norm_cols = [
-                "streamflow",
+                # "streamflow",
             ]
         if gamma_norm_cols is None:
             gamma_norm_cols = [
@@ -375,7 +375,11 @@ class DapengScaler(object):
         x = self.data_forcing
         for k in range(len(forcing_lst)):
             var = forcing_lst[k]
-            if var in self.gamma_norm_cols:
+            if var in self.prcp_norm_cols:
+                stat_dict[var] = cal_stat_prcp_norm(
+                    x.sel(variable=var).to_numpy(), self.mean_prcp
+                )
+            elif var in self.gamma_norm_cols:
                 stat_dict[var] = cal_stat_gamma(x.sel(variable=var).to_numpy())
             else:
                 stat_dict[var] = cal_stat(x.sel(variable=var).to_numpy())
@@ -453,10 +457,34 @@ class DapengScaler(object):
         stat_dict = self.stat_dict
         var_lst = self.data_cfgs["relevant_cols"]
         data = self.data_forcing
-        data = _trans_norm(
-            data, var_lst, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=to_norm
+        # data = _trans_norm(
+        #     data, var_lst, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=to_norm
+        # )
+        input = xr.full_like(data, np.nan)
+        # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
+        input.attrs = copy.deepcopy(data.attrs)
+        if "units" not in input.attrs:
+            Warning("The attrs of output data does not contain units")
+            input.attrs["units"] = {}
+        for i in range(len(var_lst)):
+            var = var_lst[i]
+            if var in self.prcp_norm_cols:
+                input.loc[dict(variable=var)] = _prcp_norm(
+                    data.sel(variable=var).to_numpy(),
+                    self.mean_prcp,
+                    to_norm=True,
+                )
+            else:
+                input.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()
+            input.attrs["units"][var] = "dimensionless"
+        input = _trans_norm(
+            input,
+            var_lst,
+            stat_dict,
+            log_norm_cols=self.log_norm_cols,
+            to_norm=to_norm,
         )
-        return data
+        return input
 
     def get_data_const(self, to_norm=True) -> np.array:
         """
