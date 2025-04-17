@@ -83,7 +83,7 @@ class ScalerHub(object):
             other optional parameters for ScalerHub
         """
         self.data_cfgs = data_cfgs
-        norm_keys = ["target_vars", "relevant_vars", "constant_vars"]
+        norm_keys = ["target_vars", "relevant_vars", "constant_vars"]  # y, x, c
         norm_dict = {}
         scaler_type = data_cfgs["scaler"]
         if scaler_type == "DapengScaler":
@@ -106,11 +106,13 @@ class ScalerHub(object):
 
         elif scaler_type in SCALER_DICT.keys():
             # TODO: not fully tested, espacially for pbm models
-            all_vars = [target_vars, relevant_vars, constant_vars]
+            all_vars = [target_vars, relevant_vars, constant_vars]  # y, x, c
             for i in range(len(all_vars)):
                 data_tmp = all_vars[i]
                 scaler = SCALER_DICT[scaler_type]()
-                if data_tmp.ndim == 3:
+                if data_tmp is None:
+                    data_norm = None
+                elif data_tmp.ndim == 3:
                     # for forcings and outputs
                     num_instances, num_time_steps, num_features = data_tmp.transpose(
                         "basin", "time", "variable"
@@ -157,12 +159,22 @@ class ScalerHub(object):
                 norm_dict[norm_keys[i]] = data_norm
                 if i == 0:
                     self.target_scaler = scaler
-            x_ = norm_dict["relevant_vars"]
-            y_ = norm_dict["target_vars"]
-            c_ = norm_dict["constant_vars"]
+            x_ = norm_dict["relevant_vars"]  # forcing
+            y_ = norm_dict["target_vars"]  # streamflow
+            c_ = norm_dict["constant_vars"]  # attr
             # TODO: need more test for real data
             x = xr.DataArray(
                 x_,
+                coords={
+                    "basin": relevant_vars.coords["basin"],
+                    "time": relevant_vars.coords["time"],
+                    "variable": self.data_cfgs["relevant_cols"]
+                    # relevant_vars.coords["variable"],
+                },
+                dims=["basin", "time", "variable"],
+            )
+            y = xr.DataArray(
+                y_,
                 coords={
                     "basin": target_vars.coords["basin"],
                     "time": target_vars.coords["time"],
@@ -170,23 +182,17 @@ class ScalerHub(object):
                 },
                 dims=["basin", "time", "variable"],
             )
-            y = xr.DataArray(
-                y_,
-                coords={
-                    "basin": relevant_vars.coords["basin"],
-                    "time": relevant_vars.coords["time"],
-                    "variable": relevant_vars.coords["variable"],
-                },
-                dims=["basin", "time", "variable"],
-            )
-            c = xr.DataArray(
-                c_,
-                coords={
-                    "basin": constant_vars.coords["basin"],
-                    "variable": constant_vars.coords["variable"],
-                },
-                dims=["basin", "variable"],
-            )
+            if c_ is None:
+                c = None
+            else:
+                c = xr.DataArray(
+                    c_,
+                    coords={
+                        "basin": constant_vars.coords["basin"],
+                        "variable": constant_vars.coords["variable"],
+                    },
+                    dims=["basin", "variable"],
+                )
         else:
             raise NotImplementedError(
                 "We don't provide this Scaler now!!! Please choose another one: DapengScaler or key in SCALER_DICT"

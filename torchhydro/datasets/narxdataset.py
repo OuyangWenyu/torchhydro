@@ -128,9 +128,9 @@ class NarxDataset(BaseDataset):
             constant_vars, attributes, e.g. area, slope, elev, etc.
         """
         scaler_hub = ScalerHub(
-            self.y_origin,
-            self.x_origin,
-            self.c_origin,
+            self.y_origin,  # streamflow
+            self.x_origin,  # prcp, pet
+            self.c_origin,  # attrs
             data_cfgs=self.data_cfgs,
             is_tra_val_te=self.is_tra_val_te,
             data_source=self.data_source,
@@ -229,8 +229,9 @@ class NarxDataset(BaseDataset):
             data_forcing_ds, data_nested_output_ds_ = self._check_ts_xrds_unit(
                 data_forcing_ds_, data_nested_output_ds_
             )
-            self.x_origin, self.y_origin = self._to_dataarray_with_unit(   # origin data
-                data_forcing_ds, data_nested_output_ds_
+            data_attr_ds = None
+            self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(   # origin data
+                data_forcing_ds, data_nested_output_ds_, data_attr_ds
             )
             
 

@@ -21,8 +21,6 @@ class TestDatasource:
 
         return 0
 
-
-
 def test_read_xyc_specified_time():
     """
 
@@ -30,13 +28,12 @@ def test_read_xyc_specified_time():
     -------
 
     """
-    temp_test_path = "/home/yulili/.cache/hydro/camelsfr_timeseries.nc"
+    temp_test_path = "results/test_camels/narxdataset_camelsfr"
     os.makedirs(temp_test_path, exist_ok=True)
-    # data_sources_dict.update({"mockdatasource": TestDatasource})
     data_cfgs = {
         "source_cfgs": {
             "source_name": "camels_fr",
-            "source_path": str(temp_test_path),
+            "source_path": "camels/camels_fr",
         },
         "test_path": str(temp_test_path),
         "object_ids": [
@@ -79,9 +76,19 @@ def test_read_xyc_specified_time():
         "constant_rm_nan": True,
         "scaler": "StandardScaler",  # Add the scaler configuration here
         "stat_dict_file": None,  # Added the missing configuration
+        "b_nestedness": True,
     }
     is_tra_val_te = "train"
     dataset = NarxDataset(data_cfgs, is_tra_val_te)
-    
 
-    return 0
+# test_narxdataset.py Finish Normalization
+
+
+#   0%|          | 0/3 [00:00<?, ?it/s]
+# 100%|██████████| 3/3 [00:00<00:00, 850.71it/s]
+# Finish Normalization
+
+
+#   0%|          | 0/3 [00:00<?, ?it/s]
+# 100%|██████████| 3/3 [00:00<00:00, 1245.34it/s]
+.

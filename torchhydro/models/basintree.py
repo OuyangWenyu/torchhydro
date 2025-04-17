@@ -82,8 +82,7 @@ class BasinTree:
         self._region_basin_type()
 
         # basin_id_list
-        if not basin_id_list:  #
-            self.basin_id_list = basin_id_list
+        self.basin_id_list = basin_id_list
         self.basin_tree = None
         self.basin_tree_max_order = 0
         self.basin_list = None
@@ -412,8 +411,8 @@ class BasinTree:
             basin_i = root_basin[i]
             basin_tree_i, max_order_i, basin_list_i, order_list_i = self.basin_tree_and_order(basin_i)
             basin_trees.append(basin_tree_i)
-            basin_list.append(basin_list_i)
-            order_list.append(order_list_i)
+            basin_list = basin_list + basin_list_i
+            order_list = order_list + order_list_i
             if max_order_i > max_order:
                 max_order = max_order_i
 
@@ -426,8 +425,8 @@ class BasinTree:
             single_basin_object.append(basin)
             single_basin_order.append(1)
         basin_trees.append(single_basin_object)
-        basin_list.append(single_basin)
-        order_list.append(single_basin_order)
+        basin_list = basin_list + basin_list_i
+        order_list = order_list + order_list_i
 
         self.basin_tree = basin_trees
         self.basin_tree_max_order = max_order
