@@ -69,6 +69,7 @@ class BasinTree:
         nestednessinfo
         basin_id_list: basins chose to forecasting.
         """
+        # whole region
         self.nestedness = nestednessinfo
         self.basins = nestednessinfo.index.values
         self.n_basin = len(self.basins)
@@ -80,10 +81,13 @@ class BasinTree:
         self.n_limb = 0
         self._region_basin_type()
 
+        # basin_id_list
         if not basin_id_list:  #
             self.basin_id_list = basin_id_list
         self.basin_tree = None
         self.basin_tree_max_order = 0
+        self.basin_list = None
+        self.order_list = None
         
 
     def _region_basin_type(self):
@@ -272,7 +276,7 @@ class BasinTree:
             order_list.append(basin_object[order_index[i]].basin_order)
         # basin list and order list
 
-        return basin_tree, max_order
+        return basin_tree, max_order, basin_list, order_list
 
     def generate_basin_object(self, basin_id: str = None):
         """generate a basin object"""
@@ -400,27 +404,37 @@ class BasinTree:
         n_single_basin = len(single_basin)
 
         basin_trees = []
+        basin_list = []
+        order_list = []
         # root basin
         max_order = 1
         for i in range(n_root_basin):
             basin_i = root_basin[i]
-            basin_tree_i, max_order_i = self.basin_tree_and_order(basin_i)
+            basin_tree_i, max_order_i, basin_list_i, order_list_i = self.basin_tree_and_order(basin_i)
             basin_trees.append(basin_tree_i)
+            basin_list.append(basin_list_i)
+            order_list.append(order_list_i)
             if max_order_i > max_order:
                 max_order = max_order_i
 
         # single basin
         single_basin_object = []
+        single_basin_order = []
         for i in range(n_single_basin):
             basin_id = single_basin[i]
             basin = self.generate_basin_object(basin_id)
             single_basin_object.append(basin)
+            single_basin_order.append(1)
         basin_trees.append(single_basin_object)
+        basin_list.append(single_basin)
+        order_list.append(order_list)
 
         self.basin_tree = basin_trees
         self.basin_tree_max_order = max_order
+        self.basin_list = basin_list
+        self.order_list = order_list
 
-        return basin_trees, max_order
+        return basin_trees, max_order, basin_list, order_list
 
     def get_cal_order(self, basin_trees: list = None):
         """

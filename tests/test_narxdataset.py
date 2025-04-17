@@ -3,6 +3,9 @@ from torchhydro.datasets.narxdataset import NarxDataset
 
 
 class TestDatasource:
+    """
+    a calss for testing the narxdataset.
+    """
     def __init__(self, source_cfgs, time_unit="1D"):
         self.ngrid = 2
         self.nt = 366

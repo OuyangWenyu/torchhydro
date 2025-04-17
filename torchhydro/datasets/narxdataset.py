@@ -44,6 +44,8 @@ class NarxDataset(BaseDataset):
         deal with data order
         how to implement changeable batch size
         fetch and deliver into model
+        /home/yulili/.conda/envs/torchhydro/lib/python3.13/site-packages/torch/utils/data/_utils/fetch.py  class _MapDatasetFetcher(_BaseDatasetFetcher) call this method.
+        /home/yulili/.conda/envs/torchhydro/lib/python3.13/site-packages/torch/utils/data/dataloader.py  _next_data(self)
         Parameters
         ----------
         item: batch/basins
@@ -63,14 +65,16 @@ class NarxDataset(BaseDataset):
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
         basin, idx = self.lookup_table[item]  # 
         warmup_length = self.warmup_length  #
-        x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]
+        x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]  # [batch(basin), time, features]
         y = self.y[basin, idx: idx + self.rho + self.horizon, :]
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float()
         c = self.c[basin, :]
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T  # repeat the attributes for each tim-step.
         xc = np.concatenate((x, c), axis=1)  # incorporate, as the input of model.
-        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()  # deliver into model prcp, pet, attributes and streamflow etc.
+        # where to handle cal order? 
+        
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()  # deliver into model prcp, pet, attributes and streamflow etc.  DataLoader
 
     def __len__(self):
         """
@@ -106,7 +110,7 @@ class NarxDataset(BaseDataset):
         """To make __getitem__ more efficient,
         we transform x, y, c to numpy array with shape (nsample, nt, nvar).    means [batch(basin), time, features]
         """
-        self.x = self.x.transpose("basin", "time", "variable").to_numpy()  # tanspose, 变换顺序, 转置。 may means T.  batch first here
+        self.x = self.x.transpose("basin", "time", "variable").to_numpy()  # tanspose, 转置。 means T.  batch first here
         self.y = self.y.transpose("basin", "time", "variable").to_numpy()
         if self.c is not None and self.c.shape[-1] > 0:
             self.c = self.c.transpose("basin", "variable").to_numpy()
@@ -160,13 +164,13 @@ class NarxDataset(BaseDataset):
             raise ValueError("naxrdataset needs nestedness information.")
         else:
             nestedness_info = self.data_source.read_nestedness_csv()
-            basin_tree_ = BasinTree(nestedness_info, self.t_s_dict["sites_id"])
+            basin_tree_ = BasinTree(nestedness_info, self.basins)
             # return all related basins, cal_order and basin tree
             # make forcing dataset containing nested basin streamflow for each input gauge.
             # cal_order
-            basin_tree, max_order = basin_tree_.get_basin_trees()
-            basins = basin_tree   #
-            basin_order = basin_tree_.set_cal_order()   # 
+            basin_tree, max_order, basin_list, order_list = basin_tree_.get_basin_trees()
+            basins = basin_list   #
+            basin_order = order_list   # 
             # n   nestedness  streamflow  a forcing type
             # x
             data_forcing_ds_ = self.data_source.read_ts_xrdataset(
@@ -180,11 +184,13 @@ class NarxDataset(BaseDataset):
                 [start_date, end_date],
                 self.data_cfgs["target_cols"],  # target data, streamflow.
             )
-            #
-            if isinstance(data_nested_output_ds_, dict) or isinstance(data_forcing_ds_, dict):  # turn dict into list
+            # handle cal order
+
+            # turn dict into list
+            if isinstance(data_nested_output_ds_, dict) or isinstance(data_forcing_ds_, dict):  
                 data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
                 data_nested_output_ds_ = data_nested_output_ds_[list(data_nested_output_ds_.keys())[0]]
-            data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds, data_nested_output_ds_ = self._check_ts_xrds_unit(
                 data_forcing_ds_, data_nested_output_ds_
             )
 
@@ -195,7 +201,7 @@ class NarxDataset(BaseDataset):
 
     def _create_lookup_table(self):
         """
-        
+        confused
         Returns
         -------
 
