@@ -457,6 +457,237 @@ class BaseDataset(Dataset):
         self.num_samples = len(self.lookup_table)
 
 
+class ObsForeDataset(BaseDataset):
+    """处理观测和预见期数据的混合数据集
+
+    这个类专门用于处理具有双维度预见期数据格式的数据集，其中 lead_time 和 time 都是独立维度。
+    适合表示不同发布时间对不同目标日期的预报。
+    """
+
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        """初始化观测和预见期混合数据集
+
+        Parameters
+        ----------
+        data_cfgs : dict
+            数据配置字典
+        is_tra_val_te : str
+            指定是训练集、验证集还是测试集
+        """
+        # 调用父类初始化方法
+        super(ObsForeDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+        # 记录预见期数据的起始索引
+        self.forecast_start_idx = None
+
+    def _load_data(self):
+        """重写加载数据方法，添加预见期数据处理"""
+        self._pre_load_data()
+        self._read_xyc()
+        # 检查是否需要添加预见期数据
+        if self.data_cfgs.get("use_forecast_data", False):
+            self._append_forecast_data()
+        # normalization
+        norm_x, norm_y, norm_c = self._normalize()
+        self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)
+        self._trans2nparr()
+        self._create_lookup_table()
+
+    def _append_forecast_data(self):
+        """添加预见期数据到现有数据集
+
+        从预见期数据源中读取数据，并添加到时间序列末端
+        """
+        forecast_cfg = self.data_cfgs.get("forecast_cfg", {})
+        if not forecast_cfg:
+            LOGGER.warning("forecast_cfg 未找到，跳过预见期数据添加")
+            return
+
+        # 获取预见期数据配置
+        forecast_source_path = forecast_cfg.get("source_path")
+        forecast_source_name = forecast_cfg.get(
+            "source_name", self.data_cfgs["source_cfgs"]["source_name"]
+        )
+        num_samples = forecast_cfg.get("num_samples", 5)  # 默认添加5个样本
+        lead_time_selector = forecast_cfg.get(
+            "lead_time_selector"
+        )  # 可以是函数或固定值列表
+
+        if not forecast_source_path:
+            LOGGER.warning("forecast_source_path 未指定，跳过预见期数据添加")
+            return
+
+        # 读取预见期数据
+        self._read_forecast_data(
+            forecast_source_path, forecast_source_name, num_samples, lead_time_selector
+        )
+
+    def _read_forecast_data(
+        self,
+        forecast_source_path,
+        forecast_source_name,
+        num_samples,
+        lead_time_selector,
+    ):
+        """读取预见期数据并合并到现有数据中
+
+        Parameters
+        ----------
+        forecast_source_path : str
+            预见期数据源路径
+        forecast_source_name : str
+            预见期数据源名称
+        num_samples : int
+            需要添加的样本数量
+        lead_time_selector : callable or list
+            选择lead_time的函数或固定值列表
+        """
+        # 创建预见期数据源
+        other_settings = self.data_cfgs["source_cfgs"].get("other_settings", {})
+        forecast_data_source = data_sources_dict[forecast_source_name](
+            forecast_source_path, **other_settings
+        )
+
+        # 获取最后一个时间点作为预见期数据的起始点
+        end_date = self.t_s_dict["t_final_range"][1]
+        date_format = detect_date_format(end_date)
+        end_date_dt = datetime.strptime(end_date, date_format)
+
+        # 获取预见期数据加载模式
+        forecast_cfg = self.data_cfgs.get("forecast_cfg", {})
+        forecast_mode = forecast_cfg.get("forecast_mode", "forecast_matrix")
+
+        # 读取预见期数据
+        forecast_forcing_ds = forecast_data_source.read_forecast_xrdataset(
+            self.t_s_dict["sites_id"],
+            end_date_dt,
+            self.data_cfgs["relevant_cols"],
+            lead_time_selector=lead_time_selector,
+            num_samples=num_samples,
+            forecast_mode=forecast_mode,
+        )
+
+        # 读取预见期目标数据（如果有）
+        forecast_output_ds = None
+        if self.data_cfgs.get("forecast_target_available", False):
+            forecast_output_ds = forecast_data_source.read_forecast_xrdataset(
+                self.t_s_dict["sites_id"],
+                end_date_dt,
+                self.data_cfgs["target_cols"],
+                lead_time_selector=lead_time_selector,
+                num_samples=num_samples,
+                forecast_mode=forecast_mode,
+            )
+
+        # 处理预报矩阵模式
+        if forecast_mode == "forecast_matrix":
+            # 选择特定的预报路径
+            lead_time_idx = forecast_cfg.get("lead_time_idx", -1)  # 默认选择最新的预报
+
+            # 从预报矩阵中选择特定的预报路径
+            selected_forecast = forecast_forcing_ds.isel(lead_time=lead_time_idx)
+
+            # 将选定的预报数据转换为时间序列格式
+            forecast_x = selected_forecast.to_array(dim="variable")
+
+            # 如果有预见期目标数据，也进行相同的处理
+            forecast_y = None
+            if forecast_output_ds is not None:
+                selected_output = forecast_output_ds.isel(lead_time=lead_time_idx)
+                forecast_y = selected_output.to_array(dim="variable")
+        else:
+            # 将预见期数据转换为与现有数据相同的格式
+            forecast_x, forecast_y, _ = self._to_dataarray_with_unit(
+                forecast_forcing_ds, forecast_output_ds, None
+            )
+
+        # 记录预见期数据的起始索引
+        self.forecast_start_idx = self.x_origin.sizes["time"]
+
+        # 将预见期数据添加到现有数据中
+        self.x_origin = xr.concat([self.x_origin, forecast_x], dim="time")
+
+        # 如果有预见期目标数据，也添加到现有数据中
+        if forecast_y is not None:
+            self.y_origin = xr.concat([self.y_origin, forecast_y], dim="time")
+        else:
+            # 如果没有预见期目标数据，用NaN填充
+            dummy_y = xr.full_like(
+                self.y_origin.isel(time=slice(-1, None))
+                .expand_dims("time", axis=1)
+                .repeat(forecast_x.sizes["time"], dim="time"),
+                np.nan,
+            )
+            self.y_origin = xr.concat([self.y_origin, dummy_y], dim="time")
+
+        # 标记哪些数据是预见期数据
+        self.is_forecast = np.zeros(self.x_origin.sizes["time"], dtype=bool)
+        self.is_forecast[self.forecast_start_idx :] = True
+
+    def __getitem__(self, item: int):
+        """获取数据集中的一个样本
+
+        Parameters
+        ----------
+        item : int
+            样本索引
+
+        Returns
+        -------
+        tuple
+            (x, y) 数据对，其中 x 包含输入特征和预见期标志，y 包含目标值
+        """
+        # 获取基础数据
+        if not self.train_mode:
+            x = self.x[item, :, :]
+            y = self.y[item, :, :]
+
+            # 创建预见期标志
+            forecast_flag = np.zeros((x.shape[0], 1))
+
+            # 如果存在forecast_start_idx属性，使用它标记预见期数据
+            if (
+                hasattr(self, "forecast_start_idx")
+                and self.forecast_start_idx is not None
+            ):
+                forecast_flag[self.forecast_start_idx :] = 1.0
+
+            # 添加预见期标志到输入特征
+            if self.c is None or self.c.shape[-1] == 0:
+                xc = np.concatenate((x, forecast_flag), axis=1)
+            else:
+                c = self.c[item, :]
+                c = np.repeat(c, x.shape[0], axis=0).reshape(x.shape[0], -1).T
+                xc = np.concatenate((x, c, forecast_flag), axis=1)
+
+            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+
+        # 训练模式
+        basin, idx = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+
+        # 创建预见期标志
+        forecast_flag = np.zeros((x.shape[0], 1))
+
+        # 如果有预见期数据，标记它们
+        if hasattr(self, "forecast_start_idx") and self.forecast_start_idx is not None:
+            forecast_start_pos = max(0, self.forecast_start_idx - (idx - warmup_length))
+            if forecast_start_pos < x.shape[0]:
+                forecast_flag[forecast_start_pos:] = 1.0
+
+        # 添加预见期标志到输入特征
+        if self.c is None or self.c.shape[-1] == 0:
+            xc = np.concatenate((x, forecast_flag), axis=1)
+        else:
+            c = self.c[basin, :]
+            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xc = np.concatenate((x, c, forecast_flag), axis=1)
+
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+
+
 class BasinSingleFlowDataset(BaseDataset):
     """one time length output for each grid in a batch"""
 
