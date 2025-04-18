@@ -37,7 +37,7 @@ class NarxDataset(BaseDataset):
                 "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
             )
         self.b_nestedness = self.data_cfgs["b_nestedness"]
-        self.basin_list = None
+        self.nested_model = None
         # load and preprocess data
         self._load_data()
 
@@ -205,9 +205,8 @@ class NarxDataset(BaseDataset):
             # return all related basins, cal_order and basin tree
             # make forcing dataset containing nested basin streamflow for each input gauge.
             # cal_order
-            basin_tree, max_order, basin_list, order_list = basin_tree_.get_basin_trees()
-            self.basin_list = basin_list
-            basin_order = order_list   #
+            self.nested_model = basin_tree_.get_basin_trees()
+            basin_list = self.nested_model["basin_list"]
             # x
             data_forcing_ds_ = self.data_source.read_ts_xrdataset(
                 basin_list,

@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from datasets.narxdataset import NarxDataset
-from basintree import BasinTree
+from models.basintree import BasinTree
 
 
 class Narx(nn.Module):
@@ -58,7 +58,9 @@ class Narx(nn.Module):
     def forward(self, x):
         """
         forward propagation function
-
+        /home/yulili/.conda/envs/torchhydro/lib/python3.13/site-packages/torch/nn/modules/module.py
+        /torchhydro/trainers/train_utils.py  torch_single_train() model.train()
+        /torchhydro/torchhydro/trainers/train_utils.py  model_infer() output = model(*xs)
         Parameters
         ----------
         x
@@ -107,13 +109,13 @@ class NestedNarx(nn.Module):
             feedback_delay: int,
             # num_layers: int = 10,
             close_loop: bool = False,
-            basintree: BasinTree = None,
+            nested_model: dict = None,
         ):
         """Initialize NestedNarx model
         
         """
         super(NestedNarx, self).__init__()
-        self.dl_model = Narx(
+        self.dl_model = Narx(   # 
             n_input_features,
             n_output_features,
             n_hidden_states,
@@ -122,11 +124,29 @@ class NestedNarx(nn.Module):
             # num_layers,
             close_loop,
         )
-        self.Nested_model = basintree
+        self.Nested_model = nested_model
+        self.basin_trees = self.Nested_model["basin_tree"]
+        self.basin_tree_max_order = self.Nested_model["basin_tree_max_order"]
+        self.basin_list = self.Nested_model["basin_list"]
+        self.order_list = self.Nested_model["order_list"]
 
-    def forward(self, x, z):
+    def forward(self, x):
         """
-        
+        implement netsed calculation here.
+        x
+            input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
         """
-        y = self.dl_model(x)
+        n_step, n_basin, n_item = x.size()
+        n_basintrees = len(self.basintress)
+        # calculate along basintree
+        basin_tree_i = [BasinTree]
+        for i in range(n_basintrees):
+            # root, limb, single_basin
+            basin_tree_i = self.basin_trees[i]
+            n_basin_i = len(basin_tree_i)
+            max_order_i = basin_tree_i[-1].basin_order
+            for j in range(max_order_i):
+                y = self.dl_model(x)  # streamflow
+
+
 

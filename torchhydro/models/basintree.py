@@ -83,10 +83,16 @@ class BasinTree:
 
         # basin_id_list
         self.basin_id_list = basin_id_list
-        self.basin_tree = None
-        self.basin_tree_max_order = 0
-        self.basin_list = None
-        self.order_list = None
+        # self.basin_tree = None
+        # self.basin_tree_max_order = 0
+        # self.basin_list = None
+        # self.order_list = None
+        self.nested_model = {
+            "basin_tree": None,
+            "basin_tree_max_order": 0,
+            "basin_list": None,
+            "order_list": None,
+        }
         
 
     def _region_basin_type(self):
@@ -428,12 +434,17 @@ class BasinTree:
         basin_list = basin_list + single_basin
         order_list = order_list + order_list_i
 
-        self.basin_tree = basin_trees
-        self.basin_tree_max_order = max_order
-        self.basin_list = basin_list
-        self.order_list = order_list
+        # self.basin_tree = basin_trees
+        # self.basin_tree_max_order = max_order
+        # self.basin_list = basin_list
+        # self.order_list = order_list
+        self.nested_model["basin_tree"] = basin_trees
+        self.nested_model["basin_tree_max_order"] = max_order
+        self.nested_model["basin_list"] = basin_list
+        self.nested_model["order_list"] = order_list
 
-        return basin_trees, max_order, basin_list, order_list
+        # return basin_trees, max_order, basin_list, order_list
+        return self.nested_model
 
     def get_cal_order(self, basin_trees: list = None):
         """

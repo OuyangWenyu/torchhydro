@@ -21,7 +21,7 @@ class TestDatasource:
 
         return 0
 
-def test_read_xyc_specified_time():
+def test_NarxDataset():
     """
 
     Returns
@@ -80,6 +80,7 @@ def test_read_xyc_specified_time():
     }
     is_tra_val_te = "train"
     dataset = NarxDataset(data_cfgs, is_tra_val_te)
+    print(dataset)
 
 # test_narxdataset.py Finish Normalization
 
