@@ -3,6 +3,9 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+from datasets.narxdataset import NarxDataset
+from basintree import BasinTree
+
 
 class Narx(nn.Module):
     """
@@ -66,7 +69,7 @@ class Narx(nn.Module):
         out
             the output sequence of model.
         """
-        nt, ngrid, nx = x.shape  # (time,basins, features)
+        nt, ngrid, nx = x.shape  # (time, basins, features(forcing, streamflow))
         out = torch.zeros(nt, ngrid, self.ny)  # (time,basins, output_features)
         for t in range(self.max_delay):
             out[t, :, :] = x[t, :, -self.ny:]
@@ -89,3 +92,41 @@ class Narx(nn.Module):
             if self.close_loop:
                 x[t+1, :, -self.ny:] = yt
         return out
+
+
+class NestedNarx(nn.Module):
+    """NestedNarx model
+
+    """
+    def __init__(
+            self,
+            n_input_features: int,
+            n_output_features: int,
+            n_hidden_states: int,
+            input_delay: int,
+            feedback_delay: int,
+            # num_layers: int = 10,
+            close_loop: bool = False,
+            basintree: BasinTree = None,
+        ):
+        """Initialize NestedNarx model
+        
+        """
+        super(NestedNarx, self).__init__()
+        self.dl_model = Narx(
+            n_input_features,
+            n_output_features,
+            n_hidden_states,
+            input_delay,
+            feedback_delay,
+            # num_layers,
+            close_loop,
+        )
+        self.Nested_model = basintree
+
+    def forward(self, x, z):
+        """
+        
+        """
+        y = self.dl_model(x)
+

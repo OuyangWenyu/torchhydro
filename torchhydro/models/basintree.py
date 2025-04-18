@@ -425,7 +425,7 @@ class BasinTree:
             single_basin_object.append(basin)
             single_basin_order.append(1)
         basin_trees.append(single_basin_object)
-        basin_list = basin_list + basin_list_i
+        basin_list = basin_list + single_basin
         order_list = order_list + order_list_i
 
         self.basin_tree = basin_trees
