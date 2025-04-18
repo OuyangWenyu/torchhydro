@@ -92,6 +92,7 @@ class BasinTree:
             "basin_tree_max_order": 0,
             "basin_list": None,
             "order_list": None,
+            "n_basin_per_order" : None,  # the basin number per order
         }
         
 
@@ -228,7 +229,7 @@ class BasinTree:
         n_basin = len(basin)
 
         # generate basin object, containing the basin node.
-        basin_object = []
+        basin_object = [Basin]
         for i in range(n_basin):
             basin_id = basin[i]
             basin_i = self.generate_basin_object(basin_id)
@@ -255,6 +256,9 @@ class BasinTree:
 
         # upstream basin of directly linking to this basin.
         for i in range(n_basin):
+            basin_object[i].set_max_order_of_tree(max_order)
+            basin_object[i].refresh_cal_order()
+
             basin_i = basin[i]
             basin_ds = self.get_downstream_basin(basin_i)
             basin_ds_index = self._get_basin_index(basin_ds, basin)
@@ -280,8 +284,9 @@ class BasinTree:
             basin_list.append(basin_object[order_index[i]].basin_id)
             order_list.append(basin_object[order_index[i]].basin_order)
         # basin list and order list
-
-        return basin_tree, max_order, basin_list, order_list
+        # todor：
+        
+        return basin_tree, max_order, basin_list, order_list, 
 
     def generate_basin_object(self, basin_id: str = None):
         """generate a basin object"""
@@ -442,6 +447,7 @@ class BasinTree:
         self.nested_model["basin_tree_max_order"] = max_order
         self.nested_model["basin_list"] = basin_list
         self.nested_model["order_list"] = order_list
+        self.nested_model["n_basin_per_order"] = None  # todo:
 
         # return basin_trees, max_order, basin_list, order_list
         return self.nested_model

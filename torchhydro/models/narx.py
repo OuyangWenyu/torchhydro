@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from datasets.narxdataset import NarxDataset
-from models.basintree import BasinTree
+from models.basintree import Basin, BasinTree
 
 
 class Narx(nn.Module):
@@ -115,7 +115,7 @@ class NestedNarx(nn.Module):
         
         """
         super(NestedNarx, self).__init__()
-        self.dl_model = Narx(   # 
+        self.dl_model = Narx(
             n_input_features,
             n_output_features,
             n_hidden_states,
@@ -136,10 +136,15 @@ class NestedNarx(nn.Module):
         x
             input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
         """
-        n_step, n_basin, n_item = x.size()
+        n_step, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list
+        basin_list_x = []
+        if n_basin == len(self.basin_list):
+            for i in range(n_basin):
+                x_i = x[:, i, :]   # time|(prcp,pet,streamflow)
+                basin_list_x.append(x_i)
         n_basintrees = len(self.basintress)
         # calculate along basintree
-        basin_tree_i = [BasinTree]
+        basin_tree_i = [Basin]
         for i in range(n_basintrees):
             # root, limb, single_basin
             basin_tree_i = self.basin_trees[i]
