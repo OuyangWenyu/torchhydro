@@ -269,6 +269,7 @@ class BasinTree:
         basin_tree = []
         basin_list = []
         order_list = []
+        n_basin_per_order = [0]*max_order
         order_index = list(range(n_basin))
         for i in range(n_basin):
             for j in range(n_basin-1-i):
@@ -279,14 +280,20 @@ class BasinTree:
                     temp_order_index = order_index[j+1]
                     order_index[j+1] = order_index[j]
                     order_index[j] = temp_order_index
+        k = 1
+        j = 0
         for i in range(n_basin):
             basin_tree.append(basin_object[order_index[i]])
             basin_list.append(basin_object[order_index[i]].basin_id)
             order_list.append(basin_object[order_index[i]].basin_order)
-        # basin list and order list
-        # todor：
-        
-        return basin_tree, max_order, basin_list, order_list, 
+            if basin_object[order_index[i]].basin_order == k:
+                n_basin_per_order[j] = n_basin_per_order[j] + 1
+            else:
+                k = basin_object[order_index[i]].basin_order
+                j = j + 1
+                n_basin_per_order[j] = n_basin_per_order[j] + 1
+
+        return basin_tree, basin_list, order_list, max_order, n_basin_per_order
 
     def generate_basin_object(self, basin_id: str = None):
         """generate a basin object"""
@@ -416,14 +423,16 @@ class BasinTree:
         basin_trees = []
         basin_list = []
         order_list = []
+        n_basin_per_order_list = []
         # root basin
         max_order = 1
         for i in range(n_root_basin):
             basin_i = root_basin[i]
-            basin_tree_i, max_order_i, basin_list_i, order_list_i = self.basin_tree_and_order(basin_i)
+            basin_tree_i, basin_list_i, order_list_i, max_order_i, n_basin_per_order_i = self.basin_tree_and_order(basin_i)
             basin_trees.append(basin_tree_i)
             basin_list = basin_list + basin_list_i
             order_list = order_list + order_list_i
+            n_basin_per_order_list.append(n_basin_per_order_i)  # todo: may can handled better.
             if max_order_i > max_order:
                 max_order = max_order_i
 
@@ -447,7 +456,7 @@ class BasinTree:
         self.nested_model["basin_tree_max_order"] = max_order
         self.nested_model["basin_list"] = basin_list
         self.nested_model["order_list"] = order_list
-        self.nested_model["n_basin_per_order"] = None  # todo:
+        self.nested_model["n_basin_per_order"] = n_basin_per_order_list  # todo:
 
         # return basin_trees, max_order, basin_list, order_list
         return self.nested_model

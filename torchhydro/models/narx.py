@@ -144,6 +144,9 @@ class NestedNarx(nn.Module):
                 basin_list_x.append(x_i)
         n_basintrees = len(self.basintress)
         # calculate along basintree
+        # basins with a same order calculate together
+        # meanwhile take the link relationship between basins into count.
+        # means call narx for each basin
         basin_tree_i = [Basin]
         for i in range(n_basintrees):
             # root, limb, single_basin
