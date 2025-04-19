@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from datasets.narxdataset import NarxDataset
-from models.basintree import Basin, BasinTree
+from torchhydro.datasets.narxdataset import NarxDataset
+from torchhydro.models.basintree import Basin, BasinTree
 
 
 class Narx(nn.Module):
@@ -124,6 +124,8 @@ class NestedNarx(nn.Module):
             # num_layers,
             close_loop,
         )
+        self.nx = n_input_features
+        self.ny = n_output_features
         self.Nested_model = nested_model
         self.basin_trees = self.Nested_model["basin_tree"]  # 
         self.basin_tree_max_order = self.Nested_model["basin_tree_max_order"]
@@ -199,11 +201,14 @@ class NestedNarx(nn.Module):
                 basin_list_x.append(x_i)
             k = 0
             for i in n_basintrees:
-                basin_tree_i = self.basin_trees[i]
-                n_basin_i = len(basin_tree_i)
+                n_basin_i = len(self.basin_trees[i])
                 for j in range(n_basin_i):
-                    self.basin_trees[i][j].set_x_data(basin_list_x[k][:,:])
+                    self.basin_trees[i][j].set_x_data(basin_list_x[k][:,:self.nx])
+                    self.basin_trees[i][j].set_y_data(basin_list_x[k][:,-self.ny:])
                     k = k + 1
+            
+        else:
+            raise ValueError("Error: The dimension of input data x dismatch with basintree, please check both.")
 
         basin_trees_x = []
         n_basin_ii = 0

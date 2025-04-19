@@ -252,7 +252,7 @@ class BasinTree:
         n_basin = len(basin)
 
         # generate basin object, containing the basin node.
-        basin_object = [Basin]
+        basin_object = []
         for i in range(n_basin):
             basin_id = basin[i]
             basin_i = self.generate_basin_object(basin_id)
@@ -462,7 +462,7 @@ class BasinTree:
             if max_order_i > max_order:
                 max_order = max_order_i
             if i == 0:
-                n_basin_per_order.append(n_basin_per_order_i)
+                n_basin_per_order = n_basin_per_order_i
             elif max_order > len(n_basin_per_order):
                 for j in range(len(n_basin_per_order)):
                     n_basin_per_order[j] = n_basin_per_order[j] + n_basin_per_order_i[j]

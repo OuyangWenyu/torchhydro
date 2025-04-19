@@ -198,7 +198,7 @@ class NarxDataset(BaseDataset):
             end time
         """
         if not self.b_nestedness:
-            raise ValueError("naxrdataset needs nestedness information.")
+            raise ValueError("Error: naxrdataset needs nestedness information.")
         else:
             nestedness_info = self.data_source.read_nestedness_csv()
             basin_tree_ = BasinTree(nestedness_info, self.basins)
