@@ -1,13 +1,14 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-01-12 14:57:18
+LastEditTime: 2025-04-17 21:08:24
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
+FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
+import bisect
 import copy
 import os
 from abc import ABC, abstractmethod
@@ -299,9 +300,15 @@ class DeepHydro(DeepHydroInterface):
         elif isinstance(lr_scheduler_cfg, dict) and all(
             isinstance(epoch, int) for epoch in lr_scheduler_cfg
         ):
-            scheduler = LambdaLR(
-                opt, lr_lambda=lambda epoch: lr_scheduler_cfg.get(epoch, 1.0)
-            )
+            # piecewise constant learning rate
+            epochs = sorted(lr_scheduler_cfg.keys())
+            values = [lr_scheduler_cfg[e] for e in epochs]
+
+            def lr_lambda(epoch):
+                idx = bisect.bisect_right(epochs, epoch) - 1
+                return 1.0 if idx < 0 else values[idx]
+
+            scheduler = LambdaLR(opt, lr_lambda=lr_lambda)
         elif "lr_factor" in lr_scheduler_cfg and "lr_patience" not in lr_scheduler_cfg:
             scheduler = ExponentialLR(opt, gamma=lr_scheduler_cfg["lr_factor"])
         elif "lr_factor" in lr_scheduler_cfg:
