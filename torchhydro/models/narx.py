@@ -128,7 +128,10 @@ class NestedNarx(nn.Module):
         self.basin_trees = self.Nested_model["basin_tree"]
         self.basin_tree_max_order = self.Nested_model["basin_tree_max_order"]
         self.basin_list = self.Nested_model["basin_list"]
+        self.basin_list_array = self.Nested_model["basin_list_array"]
         self.order_list = self.Nested_model["order_list"]
+        self.n_basin_per_order_list = self.Nested_model["n_basin_per_order_list"]
+        self.n_basin_per_order = self.Nested_model["n_basin_per_order"]
 
     def forward(self, x):
         """
@@ -143,6 +146,16 @@ class NestedNarx(nn.Module):
                 x_i = x[:, i, :]   # time|(prcp,pet,streamflow)
                 basin_list_x.append(x_i)
         n_basintrees = len(self.basintress)
+        basin_trees_x = []
+        n_basin_ii = 0
+        for i in range(n_basintrees):
+            # root, limb, single_basin
+            basin_tree_i = self.basin_trees[i]
+            n_basin_i = len(basin_tree_i)
+            basin_tree_x_i = x[:, n_basin_ii:n_basin_i, :]
+            basin_trees_x.append(basin_tree_x_i)
+            n_basin_ii = n_basin_ii + n_basin_i
+
         # calculate along basintree
         # basins with a same order calculate together
         # meanwhile take the link relationship between basins into count.
@@ -152,9 +165,17 @@ class NestedNarx(nn.Module):
             # root, limb, single_basin
             basin_tree_i = self.basin_trees[i]
             n_basin_i = len(basin_tree_i)
+            basin_list = self.basin_list_array[i]
             max_order_i = basin_tree_i[-1].basin_order
-            for j in range(max_order_i):
-                y = self.dl_model(x)  # streamflow
+            n_basin_per_order = self.n_basin_per_order_list[i]
+            basin_tree_x_i = basin_trees_x[i]
+            for j in range(max_order_i, -1, -1):
+                n_basin_per_order_j = n_basin_per_order[j]
+                x_j = basin_tree_x_i[]
+                y_j = []*n_basin_per_order_j
+                for k in range(n_basin_per_order_j):
+                    x_k = x_j[k]
+                    y_j[k] = self.dl_model(x)  # streamflow
 
 
 
