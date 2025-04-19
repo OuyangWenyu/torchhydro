@@ -13,13 +13,23 @@ class Node:
         self.node_id = node_id
         self.basin_ds = basin_id  # downstream basin
         self.basin_us = []  # upstream basin
+        self.n_basin_us = 0
+        self.y_input = []
+        self.y_output = []
 
     def add_basin_us(self, basin_id):
         self.basin_us.append(basin_id)
 
     def amount_basin_us(self):
-        n_basin_us = len(self.basin_us)
-        return n_basin_us
+        self.n_basin_us = len(self.basin_us)
+        return self.n_basin_us
+    
+    def refresh_y_input(self):
+        for i in range(self.n_basin_us):
+            self.y_input.append(self.basin_us[i].y)  # todo:
+
+    def refresh_y_output(self):
+        self.y_output = self.y_input
 
 
 class Basin:
@@ -33,6 +43,9 @@ class Basin:
         self.basin_order = -1  # basin order, similar to river order
         self.max_order_of_tree = -1
         self.cal_order = self.max_order_of_tree - self.basin_order
+        self.x = None  # forcing data (prce,pet)
+        self.y = None  # target data (streamflow)
+        self.y_us = None  # input data of upstream (streamflow)
 
     def set_basin_type(self, basin_type):
         self.basin_type = basin_type
@@ -48,6 +61,15 @@ class Basin:
 
     def refresh_cal_order(self):
         self.cal_order = self.max_order_of_tree - self.basin_order
+
+    def set_x_data(self, x):
+        self.x = x
+    
+    def set_y_data(self, y):
+        self.y = y
+
+    def set_y_us_data(self):
+        self.y_us = self.node.y_output
 
 
 class BasinTree:

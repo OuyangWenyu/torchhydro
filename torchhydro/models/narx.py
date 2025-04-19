@@ -125,15 +125,15 @@ class NestedNarx(nn.Module):
             close_loop,
         )
         self.Nested_model = nested_model
-        self.basin_trees = self.Nested_model["basin_tree"]
+        self.basin_trees = self.Nested_model["basin_tree"]  # 
         self.basin_tree_max_order = self.Nested_model["basin_tree_max_order"]
-        self.basin_list = self.Nested_model["basin_list"]
-        self.basin_list_array = self.Nested_model["basin_list_array"]
-        self.order_list = self.Nested_model["order_list"]
-        self.n_basin_per_order_list = self.Nested_model["n_basin_per_order_list"]
-        self.n_basin_per_order = self.Nested_model["n_basin_per_order"]
+        self.basin_list = self.Nested_model["basin_list"]  # basin_id list, one dimension.
+        self.basin_list_array = self.Nested_model["basin_list_array"]  # basin_id list, 2 dimension.
+        self.order_list = self.Nested_model["order_list"]  # order list, one dimension.
+        self.n_basin_per_order_list = self.Nested_model["n_basin_per_order_list"]  # 2 dimension
+        self.n_basin_per_order = self.Nested_model["n_basin_per_order"]  # 1 dimension
 
-    def forward(self, x):
+    def _forward(self, x):
         """
         implement netsed calculation here.
         x
@@ -160,6 +160,7 @@ class NestedNarx(nn.Module):
         # basins with a same order calculate together
         # meanwhile take the link relationship between basins into count.
         # means call narx for each basin
+        # seems need to object
         basin_tree_i = [Basin]
         for i in range(n_basintrees):
             # root, limb, single_basin
@@ -169,13 +170,40 @@ class NestedNarx(nn.Module):
             max_order_i = basin_tree_i[-1].basin_order
             n_basin_per_order = self.n_basin_per_order_list[i]
             basin_tree_x_i = basin_trees_x[i]
+            n_basin_per_order_jj = 0
             for j in range(max_order_i, -1, -1):
-                n_basin_per_order_j = n_basin_per_order[j]
-                x_j = basin_tree_x_i[]
-                y_j = []*n_basin_per_order_j
-                for k in range(n_basin_per_order_j):
-                    x_k = x_j[k]
-                    y_j[k] = self.dl_model(x)  # streamflow
+                if j == max_order_i:  # no upstream basin
+                    n_basin_per_order_j = n_basin_per_order[j]
+                    basin_j = basin_tree_i[-n_basin_per_order_j:-n_basin_per_order_jj]  # Basin object
+                    x_j = basin_tree_x_i[:, -n_basin_per_order_j:-n_basin_per_order_jj, :]
+                    n_basin_per_order_jj = n_basin_per_order_jj + n_basin_per_order_j
+                    y_j = []*n_basin_per_order_j
+                    for k in range(n_basin_per_order_j):
+                        x_k = x_j[k]
+                        y_j[k] = self.dl_model(x_k)  # streamflow
+                # else:  # 
 
 
+    def forward(self, x):
+        """
+        implement netsed calculation here.
+        x
+            input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
+        """
+        n_step, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list
+        n_basintrees = len(self.basintress)
+        basin_list_x = []
+        if n_basin == len(self.basin_list):
+            for i in range(n_basin):
+                x_i = x[:, i, :]   # time|(prcp,pet,streamflow)
+                basin_list_x.append(x_i)
+            k = 0
+            for i in n_basintrees:
+                basin_tree_i = self.basin_trees[i]
+                n_basin_i = len(basin_tree_i)
+                for j in range(n_basin_i):
+                    self.basin_trees[i][j].set_x_data(basin_list_x[k][:,:])
+                    k = k + 1
 
+        basin_trees_x = []
+        n_basin_ii = 0

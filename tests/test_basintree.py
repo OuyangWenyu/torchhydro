@@ -338,7 +338,7 @@ def test_get_basin_tree():
 # <torchhydro.models.basintree.Basin object at 0x7fa6f32479b0>, <torchhydro.models.basintree.Basin object at 0x7fa6f3858270>, 
 # <torchhydro.models.basintree.Basin object at 0x7fa6f38d7c50>, <torchhydro.models.basintree.Basin object at 0x7fa6f3b075b0>], 
 # [<torchhydro.models.basintree.Basin object at 0x7fa6f3226820>, <torchhydro.models.basintree.Basin object at 0x7fa6f38c81d0>], 
-# [<torchhydro.models.basintree.Basin object at 0x7fa6f38c8050>]]
+# [<torchhydro.models.basintree.Basin object at 0x7fa6f38c8050>]]    17
 # --max_order--
 # 6
 # --basin_list--
