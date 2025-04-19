@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-04-17 21:07:02
+LastEditTime: 2025-04-19 11:41:02
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: /torchhydro/torchhydro/configs/config.py
+FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/configs/config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -103,6 +103,18 @@ def default_config_file():
             "hindcast_length": 30,
             # the length of the forecast data
             "forecast_length": 1,
+            # config for data of "forecast_length" part
+            # for each batch, we fix length of hindcast and forecast length.
+            # data from different lead time with a number representing the lead time,
+            # for example, now is 2020-09-30, our min_time_interval is 1 day, hindcast length is 30 and forecast length is 1,
+            # lead_time = 3 means 2020-09-01 to 2020-09-30, and the forecast data is 2020-10-01 from 2020-09-28
+            # for forecast data, we have two different configurations:
+            # 1st, we can set a same lead time for all forecast time
+            # 2020-09-30now, 30hindcast, 2forecast, 3leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 forecast data from 2020-09-28 and 2020-10-02 forecast data from 2020-09-29
+            # 2nd, we can set a increasing lead time for each forecast time
+            # 2020-09-30now, 30hindcast, 2forecast, [1, 2]leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 to 2010-10-02 forecast data from 2020-09-30
+            "lead_time_type": "fixed",  # must be fixed or increasing
+            "lead_time_start": 1,
             # the min time step of the input data
             "min_time_unit": "D",
             # the min time interval of the input data
@@ -153,6 +165,12 @@ def default_config_file():
                 "geol_porostiy",
                 "geol_permeability",
             ],
+            # for forecast variables such as data from GFS
+            # for each period, they have multiple forecast data with different lead time
+            # hence we list them as a seperate type
+            "forecast_cols": None,
+            # global variables such as ENSO indictors are used in some long term models
+            "global_cols": None,
             # specify the data source of each variable
             "var_to_source_map": None,
             # {
@@ -164,8 +182,6 @@ def default_config_file():
             "constant_rm_nan": True,
             # if constant_only, we will only use constant data as DL models' input: this is only for dpl models now
             "constant_only": False,
-            # more other cols, use dict to express!
-            "other_cols": None,
             # only numerical scaler: for categorical vars, they are transformed to numerical vars when reading them
             "scaler": "StandardScaler",
             # Some parameters for the chosen scaler function, default is DapengScaler's
@@ -208,7 +224,7 @@ def default_config_file():
                 "pbm_norm": False,
             },
             # For scaler from sklearn, we need to specify the stat_dict_file for three different parts:
-            # target_vars, relevant_vars and constant_vars, and the sequence must be target_vars, relevant_vars, constant_vars
+            # target_cols, relevant_vars and constant_cols, and the sequence must be target_cols, relevant_cols, constant_cols
             # the seperator of three stat_dict_file is ";"
             # for example: "stat_dict_file": "target_stat_dict_file;relevant_stat_dict_file;constant_stat_dict_file"
             "stat_dict_file": None,
@@ -335,6 +351,8 @@ def cmd(
     forecast_history=None,
     hindcast_length=None,
     forecast_length=None,
+    lead_time_type=None,
+    lead_time_start=None,
     train_mode=None,
     train_epoch=None,
     save_epoch=None,
@@ -353,7 +371,8 @@ def cmd(
     dropout=None,
     weight_path_add=None,
     var_t_type=None,
-    var_o=None,
+    var_f=None,
+    var_g=None,
     var_out=None,
     var_to_source_map=None,
     out_rm_nan=0,
@@ -590,6 +609,20 @@ def cmd(
         type=int,
     )
     parser.add_argument(
+        "--lead_time_type",
+        dest="lead_time_type",
+        help="fixed or increasing",
+        default=lead_time_type,
+        type=str,
+    )
+    parser.add_argument(
+        "--lead_time_start",
+        dest="lead_time_start",
+        help="the start lead time",
+        default=lead_time_start,
+        type=int,
+    )
+    parser.add_argument(
         "--model_type",
         dest="model_type",
         help="The type of DL model",
@@ -683,10 +716,17 @@ def cmd(
         nargs="+",
     )
     parser.add_argument(
-        "--var_o",
-        dest="var_o",
-        help="more other inputs except for var_c and var_t",
-        default=var_o,
+        "--var_f",
+        dest="var_f",
+        help="forecast variables such as precipitation from GFS",
+        default=var_f,
+        type=json.loads,
+    )
+    parser.add_argument(
+        "--var_g",
+        dest="var_g",
+        help="global variables such as ENSO indicators",
+        default=var_g,
         type=json.loads,
     )
     parser.add_argument(
@@ -969,11 +1009,7 @@ def update_cfg(cfg_file, new_args):
             cfg_file["training_cfgs"]["optim_params"] = {}
     if new_args.var_c is not None:
         # I don't find a method to receive empty list for argparse, so if we input "None" or "" or " ", we treat it as []
-        if (
-            new_args.var_c == ["None"]
-            or new_args.var_c == [""]
-            or new_args.var_c == [" "]
-        ):
+        if new_args.var_c in [["None"], [""], [" "]]:
             cfg_file["data_cfgs"]["constant_cols"] = []
         else:
             cfg_file["data_cfgs"]["constant_cols"] = new_args.var_c
@@ -987,8 +1023,10 @@ def update_cfg(cfg_file, new_args):
     if new_args.var_t_type is not None:
         cfg_file["data_cfgs"]["relevant_types"] = new_args.var_t_type
     cfg_file["data_cfgs"]["relevant_rm_nan"] = bool(new_args.t_rm_nan != 0)
-    if new_args.var_o is not None:
-        cfg_file["data_cfgs"]["other_cols"] = new_args.var_o
+    if new_args.var_f is not None:
+        cfg_file["data_cfgs"]["forecast_cols"] = new_args.var_f
+    if new_args.var_g is not None:
+        cfg_file["data_cfgs"]["global_cols"] = new_args.var_g
     if new_args.var_out is not None:
         cfg_file["data_cfgs"]["target_cols"] = new_args.var_out
         print(
@@ -1073,9 +1111,10 @@ def update_cfg(cfg_file, new_args):
         cfg_file["evaluation_cfgs"]["model_loader"] = new_args.model_loader
     if new_args.warmup_length > 0:
         cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
-        if "warmup_length" in new_args.model_hyperparam.keys() and (
-            not cfg_file["data_cfgs"]["warmup_length"]
-            == new_args.model_hyperparam["warmup_length"]
+        if (
+            "warmup_length" in new_args.model_hyperparam.keys()
+            and cfg_file["data_cfgs"]["warmup_length"]
+            != new_args.model_hyperparam["warmup_length"]
         ):
             raise RuntimeError(
                 "Please set same warmup_length in model_cfgs and data_cfgs"
@@ -1090,6 +1129,13 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["hindcast_length"] = new_args.forecast_history
     if new_args.forecast_length is not None:
         cfg_file["data_cfgs"]["forecast_length"] = new_args.forecast_length
+    if new_args.lead_time_type is not None:
+        if new_args.lead_time_type not in ["fixed", "increasing"]:
+            raise ValueError("lead_time_type must be 'fixed' or 'increasing'")
+        cfg_file["data_cfgs"]["lead_time_type"] = new_args.lead_time_type
+        if new_args.lead_time_start is None:
+            raise ValueError("lead_time_start must be set when lead_time_type is set")
+        cfg_file["data_cfgs"]["lead_time_start"] = new_args.lead_time_start
     if new_args.start_epoch > 1:
         cfg_file["training_cfgs"]["start_epoch"] = new_args.start_epoch
     if new_args.stat_dict_file is not None:
@@ -1097,9 +1143,9 @@ def update_cfg(cfg_file, new_args):
         if len(stat_dict_file.split(";")) > 1:
             target_, relevant_, constant_ = stat_dict_file.split(";")
             stat_dict_file = {
-                "target_vars": target_,
-                "relevant_vars": relevant_,
-                "constant_vars": constant_,
+                "target_cols": target_,
+                "relevant_cols": relevant_,
+                "constant_cols": constant_,
             }
         cfg_file["data_cfgs"]["stat_dict_file"] = stat_dict_file
     if new_args.num_workers is not None and new_args.num_workers > 0:

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-01-12 14:56:22
+LastEditTime: 2025-04-18 08:46:07
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
-FilePath: \torchhydro\torchhydro\trainers\train_utils.py
+FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/trainers/train_utils.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -433,7 +433,8 @@ def torch_single_train(
         if loss > 100:
             print("Warning: high loss detected")
         if torch.isnan(loss):
-            continue
+            raise ValueError("nan loss detected")
+            # continue
         loss.backward()  # Backpropagate to compute the current gradient
         opt.step()  # Update network parameters based on gradients
         model.zero_grad()  # clear gradient

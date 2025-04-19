@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-04-17 08:55:40
+LastEditTime: 2025-04-19 13:50:03
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/datasets/data_sets.py
@@ -249,36 +249,67 @@ class BaseDataset(Dataset):
 
     def _load_data(self):
         self._pre_load_data()
-        self._read_xyc()
+        origin_data = self._read_xyc()
         # normalization
-        norm_x, norm_y, norm_c = self._normalize()
-        self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)
-        self._trans2nparr()
+        norm_data = self._normalize(origin_data)
+        origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
+        self._trans2nparr(origin_data_wonan, norm_data_wonan)
         self._create_lookup_table()
 
-    def _trans2nparr(self):
+    def _trans2nparr(self, origin_data, norm_data):
         """To make __getitem__ more efficient,
         we transform x, y, c to numpy array with shape (nsample, nt, nvar)
         """
-        self.x = self.x.transpose("basin", "time", "variable").to_numpy()
-        self.y = self.y.transpose("basin", "time", "variable").to_numpy()
-        if self.c is not None and self.c.shape[-1] > 0:
-            self.c = self.c.transpose("basin", "variable").to_numpy()
-            self.c_origin = self.c_origin.transpose("basin", "variable").to_numpy()
-        self.x_origin = self.x_origin.transpose("basin", "time", "variable").to_numpy()
-        self.y_origin = self.y_origin.transpose("basin", "time", "variable").to_numpy()
+        for key in origin_data.keys():
+            _origin = origin_data[key]
+            _norm = norm_data[key]
+            norm_arr = _norm.to_numpy()
+            origin_arr = _origin.to_numpy()
+            if key == "relevant_cols":
+                self.x_origin = origin_arr
+                self.x = norm_arr
+            elif key == "target_cols":
+                self.y_origin = origin_arr
+                self.y = norm_arr
+            elif key == "constant_cols":
+                self.c_origin = origin_arr
+                self.c = norm_arr
+            elif key == "forecast_cols":
+                self.f_origin = origin_arr
+                self.f = norm_arr
+            elif key == "global_cols":
+                self.g_origin = origin_arr
+                self.g = norm_arr
+            else:
+                raise ValueError(
+                    f"Unknown data type {key} in origin_data, "
+                    "it should be one of relevant_cols, target_cols, constant_cols"
+                )
 
-    def _normalize(self):
+    def _normalize(
+        self,
+        origin_data,
+    ):
+        """_summary_
+
+        Parameters
+        ----------
+        origin_data : dict
+            data with key as data type
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
         scaler_hub = ScalerHub(
-            self.y_origin,
-            self.x_origin,
-            self.c_origin,
+            origin_data,
             data_cfgs=self.data_cfgs,
             is_tra_val_te=self.is_tra_val_te,
             data_source=self.data_source,
         )
         self.target_scaler = scaler_hub.target_scaler
-        return scaler_hub.x, scaler_hub.y, scaler_hub.c
+        return scaler_hub.norm_data
 
     def denormalize(self, norm_data, rolling=0):
         """Denormalize the norm_data
@@ -324,7 +355,22 @@ class BaseDataset(Dataset):
         return set_unit_to_var(denorm_xr_ds)
 
     def _to_dataarray_with_unit(self, data_forcing_ds, data_output_ds, data_attr_ds):
-        # trans to dataarray to better use xbatch
+        """trans xarray dataset to xarray dataarray and set units for each variable
+
+        Parameters
+        ----------
+        data_forcing_ds : _type_
+            _description_
+        data_output_ds : _type_
+            _description_
+        data_attr_ds : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
         if data_output_ds is not None:
             data_output = self._trans2da_and_setunits(data_output_ds)
         else:
@@ -379,13 +425,13 @@ class BaseDataset(Dataset):
 
         Returns
         -------
-        tuple[xr.Dataset, xr.Dataset, xr.Dataset]
-            x, y, c data
+        dict
+            data with key as data type
         """
         # x
         start_date = self.t_s_dict["t_final_range"][0]
         end_date = self.t_s_dict["t_final_range"][1]
-        self._read_xyc_specified_time(start_date, end_date)
+        return self._read_xyc_specified_time(start_date, end_date)
 
     def _read_xyc_specified_time(self, start_date, end_date):
         """Read x, y, c data from data source with specified time range
@@ -425,9 +471,16 @@ class BaseDataset(Dataset):
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
-        self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
+        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, data_attr_ds
         )
+        # set a type name for each dataset to avoid confusion
+        origin_data = {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": c_origin.transpose("basin", "variable"),
+        }
+        return origin_data
 
     def _trans2da_and_setunits(self, ds):
         """Set units for dataarray transfromed from dataset"""
@@ -440,30 +493,61 @@ class BaseDataset(Dataset):
         result.attrs["units"] = units_dict
         return result
 
-    def _kill_nan(self, x, y, c):
+    def _kill_nan(self, origin_data, norm_data):
+        """This function is used to remove NaN values in the original data and its normalized data.
+
+        Parameters
+        ----------
+        origin_data : dict
+            the original data
+        norm_data : dict
+            the normalized data
+
+        Returns
+        -------
+        dict, dict
+            the original data and normalized data after removing NaN values
+        """
         data_cfgs = self.data_cfgs
-        y_rm_nan = data_cfgs["target_rm_nan"]
-        x_rm_nan = data_cfgs["relevant_rm_nan"]
-        c_rm_nan = data_cfgs["constant_rm_nan"]
-        if x_rm_nan:
-            x = self._kill_1type_nan(
-                x,
-                "interpolate",
-                "original forcing data",
-                "nan_filled forcing data",
-            )
-        if y_rm_nan:
-            y = self._kill_1type_nan(
-                y, "interpolate", "original output data", "nan_filled output data"
-            )
-        if c_rm_nan:
-            c = self._kill_1type_nan(
-                c, "mean", "original attribute data", "nan_filled attribute data"
-            )
-        warn_if_nan(x, nan_mode="any", data_name="nan_filled forcing data")
-        warn_if_nan(y, nan_mode="all", data_name="output data")
-        warn_if_nan(c, nan_mode="any", data_name="nan_filled attribute data")
-        return x, y, c
+        origins_wonan = {}
+        norms_wonan = {}
+        for key in origin_data.keys():
+            _origin = origin_data[key]
+            _norm = norm_data[key]
+            kill_way = "interpolate"
+            if key == "relevant_cols":
+                rm_nan = data_cfgs["relevant_rm_nan"]
+            elif key == "target_cols":
+                rm_nan = data_cfgs["target_rm_nan"]
+            elif key == "constant_cols":
+                rm_nan = data_cfgs["constant_rm_nan"]
+                kill_way = "mean"
+
+            if rm_nan:
+                norm = self._kill_1type_nan(
+                    _norm,
+                    kill_way,
+                    "original data",
+                    "nan_filled data",
+                )
+                origin = self._kill_1type_nan(
+                    _origin,
+                    kill_way,
+                    "original data",
+                    "nan_filled data",
+                )
+            else:
+                norm = _norm
+                origin = _origin
+            if key == "target_cols":
+                warn_if_nan(origin, nan_mode="all", data_name="nan_filled target data")
+                warn_if_nan(norm, nan_mode="all", data_name="nan_filled target data")
+            else:
+                warn_if_nan(origin, nan_mode="any", data_name="nan_filled input data")
+                warn_if_nan(norm, nan_mode="any", data_name="nan_filled input data")
+            origins_wonan[key] = origin
+            norms_wonan[key] = norm
+        return origins_wonan, norms_wonan
 
     def _kill_1type_nan(self, the_data, fill_nan, data_name_before, data_name_after):
         is_any_nan = warn_if_nan(the_data, data_name=data_name_before)
@@ -520,153 +604,57 @@ class ObsForeDataset(BaseDataset):
         """
         # 调用父类初始化方法
         super(ObsForeDataset, self).__init__(data_cfgs, is_tra_val_te)
+        # for each batch, we fix length of hindcast and forecast length.
+        # data from different lead time with a number representing the lead time,
+        # for example, now is 2020-09-30, our min_time_interval is 1 day, hindcast length is 30 and forecast length is 1,
+        # lead_time = 3 means 2020-09-01 to 2020-09-30, and the forecast data is 2020-10-01 from 2020-09-28
+        # for forecast data, we have two different configurations:
+        # 1st, we can set a same lead time for all forecast time
+        # 2020-09-30now, 30hindcast, 2forecast, 3leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 forecast data from 2020-09-28 and 2020-10-02 forecast data from 2020-09-29
+        # 2nd, we can set a increasing lead time for each forecast time
+        # 2020-09-30now, 30hindcast, 2forecast, [1, 2]leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 to 2010-10-02 forecast data from 2020-09-30
+        self.lead_time_type = self.data_cfgs["lead_time_type"]
+        if self.lead_time_type not in ["fixed", "increasing"]:
+            raise ValueError(
+                "lead_time_type must be one of 'fixed' or 'increasing', "
+                f"but got {self.lead_time_type}"
+            )
+        self.lead_time_start = self.data_cfgs["lead_time_start"]
+        horizon = self.data_cfgs["forecast_length"]
+        offset = np.zeros((horizon,), dtype=int)
+        if self.lead_time_type == "fixed":
+            offset = offset + self.lead_time_start
+        elif self.lead_time_type == "increasing":
+            offset = offset + np.arange(
+                self.lead_time_start, self.lead_time_start + horizon
+            )
+        self.horizon_offset = offset
 
-        # 记录预见期数据的起始索引
-        self.forecast_start_idx = None
-
-    def _load_data(self):
-        """重写加载数据方法，添加预见期数据处理"""
-        self._pre_load_data()
-        self._read_xyc()
-        # 检查是否需要添加预见期数据
-        if self.data_cfgs.get("use_forecast_data", False):
-            self._append_forecast_data()
-        # normalization
-        norm_x, norm_y, norm_c = self._normalize()
-        self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)
-        self._trans2nparr()
-        self._create_lookup_table()
-
-    def _append_forecast_data(self):
+    def _read_xyc_specified_time(self, start_date, end_date):
         """添加预见期数据到现有数据集
 
         从预见期数据源中读取数据，并添加到时间序列末端
         """
-        forecast_cfg = self.data_cfgs.get("forecast_cfg", {})
-        if not forecast_cfg:
-            LOGGER.warning("forecast_cfg 未找到，跳过预见期数据添加")
-            return
-
-        # 获取预见期数据配置
-        forecast_source_path = forecast_cfg.get("source_path")
-        forecast_source_name = forecast_cfg.get(
-            "source_name", self.data_cfgs["source_cfgs"]["source_name"]
-        )
-        num_samples = forecast_cfg.get("num_samples", 5)  # 默认添加5个样本
-        lead_time_selector = forecast_cfg.get(
-            "lead_time_selector"
-        )  # 可以是函数或固定值列表
-
-        if not forecast_source_path:
-            LOGGER.warning("forecast_source_path 未指定，跳过预见期数据添加")
-            return
-
-        # 读取预见期数据
-        self._read_forecast_data(
-            forecast_source_path, forecast_source_name, num_samples, lead_time_selector
-        )
-
-    def _read_forecast_data(
-        self,
-        forecast_source_path,
-        forecast_source_name,
-        num_samples,
-        lead_time_selector,
-    ):
-        """读取预见期数据并合并到现有数据中
-
-        Parameters
-        ----------
-        forecast_source_path : str
-            预见期数据源路径
-        forecast_source_name : str
-            预见期数据源名称
-        num_samples : int
-            需要添加的样本数量
-        lead_time_selector : callable or list
-            选择lead_time的函数或固定值列表
-        """
-        # 创建预见期数据源
-        other_settings = self.data_cfgs["source_cfgs"].get("other_settings", {})
-        forecast_data_source = data_sources_dict[forecast_source_name](
-            forecast_source_path, **other_settings
-        )
-
-        # 获取最后一个时间点作为预见期数据的起始点
-        end_date = self.t_s_dict["t_final_range"][1]
-        date_format = detect_date_format(end_date)
-        end_date_dt = datetime.strptime(end_date, date_format)
-
-        # 获取预见期数据加载模式
-        forecast_cfg = self.data_cfgs.get("forecast_cfg", {})
-        forecast_mode = forecast_cfg.get("forecast_mode", "forecast_matrix")
-
-        # 读取预见期数据
-        forecast_forcing_ds = forecast_data_source.read_forecast_xrdataset(
+        x_origin, y_origin, c_origin = super(
+            ObsForeDataset, self
+        )._read_xyc_specified_time(start_date, end_date)
+        f_origin = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
-            end_date_dt,
-            self.data_cfgs["relevant_cols"],
-            lead_time_selector=lead_time_selector,
-            num_samples=num_samples,
-            forecast_mode=forecast_mode,
+            [start_date, end_date],
+            self.data_cfgs["forecast_cols"],
+            forecast_mode=True,
         )
+        return x_origin, y_origin, c_origin, f_origin
 
-        # 读取预见期目标数据（如果有）
-        forecast_output_ds = None
-        if self.data_cfgs.get("forecast_target_available", False):
-            forecast_output_ds = forecast_data_source.read_forecast_xrdataset(
-                self.t_s_dict["sites_id"],
-                end_date_dt,
-                self.data_cfgs["target_cols"],
-                lead_time_selector=lead_time_selector,
-                num_samples=num_samples,
-                forecast_mode=forecast_mode,
-            )
-
-        # 处理预报矩阵模式
-        if forecast_mode == "forecast_matrix":
-            # 选择特定的预报路径
-            lead_time_idx = forecast_cfg.get("lead_time_idx", -1)  # 默认选择最新的预报
-
-            # 从预报矩阵中选择特定的预报路径
-            selected_forecast = forecast_forcing_ds.isel(lead_time=lead_time_idx)
-
-            # 将选定的预报数据转换为时间序列格式
-            forecast_x = selected_forecast.to_array(dim="variable")
-
-            # 如果有预见期目标数据，也进行相同的处理
-            forecast_y = None
-            if forecast_output_ds is not None:
-                selected_output = forecast_output_ds.isel(lead_time=lead_time_idx)
-                forecast_y = selected_output.to_array(dim="variable")
-        else:
-            # 将预见期数据转换为与现有数据相同的格式
-            forecast_x, forecast_y, _ = self._to_dataarray_with_unit(
-                forecast_forcing_ds, forecast_output_ds, None
-            )
-
-        # 记录预见期数据的起始索引
-        self.forecast_start_idx = self.x_origin.sizes["time"]
-
-        # 将预见期数据添加到现有数据中
-        self.x_origin = xr.concat([self.x_origin, forecast_x], dim="time")
-
-        # 如果有预见期目标数据，也添加到现有数据中
-        if forecast_y is not None:
-            self.y_origin = xr.concat([self.y_origin, forecast_y], dim="time")
-        else:
-            # 如果没有预见期目标数据，用NaN填充
-            dummy_y = xr.full_like(
-                self.y_origin.isel(time=slice(-1, None))
-                .expand_dims("time", axis=1)
-                .repeat(forecast_x.sizes["time"], dim="time"),
-                np.nan,
-            )
-            self.y_origin = xr.concat([self.y_origin, dummy_y], dim="time")
-
-        # 标记哪些数据是预见期数据
-        self.is_forecast = np.zeros(self.x_origin.sizes["time"], dtype=bool)
-        self.is_forecast[self.forecast_start_idx :] = True
+    def _normalize(self):
+        scaler_hub = ScalerHub(
+            [self.y_origin, self.x_origin, self.c_origin, self.f_origin],
+            data_cfgs=self.data_cfgs,
+            is_tra_val_te=self.is_tra_val_te,
+            data_source=self.data_source,
+        )
+        self.target_scaler = scaler_hub.target_scaler
+        return scaler_hub.x, scaler_hub.y, scaler_hub.c, scaler_hub.f
 
     def __getitem__(self, item: int):
         """获取数据集中的一个样本
@@ -685,24 +673,14 @@ class ObsForeDataset(BaseDataset):
         if not self.train_mode:
             x = self.x[item, :, :]
             y = self.y[item, :, :]
-
-            # 创建预见期标志
-            forecast_flag = np.zeros((x.shape[0], 1))
-
-            # 如果存在forecast_start_idx属性，使用它标记预见期数据
-            if (
-                hasattr(self, "forecast_start_idx")
-                and self.forecast_start_idx is not None
-            ):
-                forecast_flag[self.forecast_start_idx :] = 1.0
-
+            f = self.f[item, :, :]
             # 添加预见期标志到输入特征
             if self.c is None or self.c.shape[-1] == 0:
-                xc = np.concatenate((x, forecast_flag), axis=1)
+                xc = np.concatenate((x, f), axis=1)
             else:
                 c = self.c[item, :]
                 c = np.repeat(c, x.shape[0], axis=0).reshape(x.shape[0], -1).T
-                xc = np.concatenate((x, c, forecast_flag), axis=1)
+                xc = np.concatenate((x, c, f), axis=1)
 
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
 
@@ -712,24 +690,18 @@ class ObsForeDataset(BaseDataset):
         x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
         y = self.y[basin, idx : idx + self.rho + self.horizon, :]
 
-        # 创建预见期标志
-        forecast_flag = np.zeros((x.shape[0], 1))
-
-        # 如果有预见期数据，标记它们
-        if hasattr(self, "forecast_start_idx") and self.forecast_start_idx is not None:
-            forecast_start_pos = max(0, self.forecast_start_idx - (idx - warmup_length))
-            if forecast_start_pos < x.shape[0]:
-                forecast_flag[forecast_start_pos:] = 1.0
+        # use offset to get forecast data
+        f = self.f[basin, idx : idx + self.rho + self.horizon, :]
 
         # 添加预见期标志到输入特征
         if self.c is None or self.c.shape[-1] == 0:
-            xc = np.concatenate((x, forecast_flag), axis=1)
+            xfc = np.concatenate((x, f), axis=1)
         else:
             c = self.c[basin, :]
             c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xc = np.concatenate((x, c, forecast_flag), axis=1)
+            xfc = np.concatenate((x, c, f), axis=1)
 
-        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        return torch.from_numpy(xfc).float(), torch.from_numpy(y).float()
 
 
 class BasinSingleFlowDataset(BaseDataset):
@@ -893,9 +865,8 @@ class FlexibleDataset(BaseDataset):
         if "streamflow" in y:
             area = data_source_.camels.read_area(self.t_s_dict["sites_id"])
             y.update(streamflow_unit_conv(y[["streamflow"]], area))
-        self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
-            x, y, c
-        )
+        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(x, y, c)
+        return x_origin, y_origin, c_origin
 
     def _normalize(self):
         var_to_source_map = self.data_cfgs["var_to_source_map"]
@@ -951,7 +922,7 @@ class Seq2SeqDataset(BaseDataset):
             )
         else:
             raise ValueError(f"Unsupported time unit: {time_unit}")
-        self._read_xyc_specified_time(start_date, adjusted_end_date)
+        return self._read_xyc_specified_time(start_date, adjusted_end_date)
 
     def _normalize(self):
         x, y, c = super()._normalize()

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-05-27 13:33:08
-LastEditTime: 2024-11-05 18:20:19
+LastEditTime: 2025-04-19 07:54:43
 LastEditors: Wenyu Ouyang
 Description: Unit test for datasets
-FilePath: \torchhydro\tests\test_data_sets.py
+FilePath: /torchhydro/tests/test_data_sets.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -17,10 +17,6 @@ import xarray as xr
 import pickle
 from sklearn.preprocessing import StandardScaler
 from torchhydro.datasets.data_sets import BaseDataset, Seq2SeqDataset
-from torchhydro.datasets.data_source import (
-    SelfMadeForecastDataset,
-    SelfMadeForecastDataset_P,
-)
 from torchhydro.datasets.data_sources import data_sources_dict
 
 
