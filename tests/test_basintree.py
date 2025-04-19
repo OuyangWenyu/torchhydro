@@ -368,15 +368,15 @@ def test_get_basin_tree():
 # ['A550061001', 'A369011001', 'A330010001']
 # --basin_trees--
 # 3
-# [[<torchhydro.models.basintree.Basin object at 0x7fb477fa7b60>, <torchhydro.models.basintree.Basin object at 0x7fb477d02350>, 
-# <torchhydro.models.basintree.Basin object at 0x7fb476e67d40>, <torchhydro.models.basintree.Basin object at 0x7fb476e788a0>, 
-# <torchhydro.models.basintree.Basin object at 0x7fb477cc0f30>, <torchhydro.models.basintree.Basin object at 0x7fb476e67f20>, 
-# <torchhydro.models.basintree.Basin object at 0x7fb477d01950>, <torchhydro.models.basintree.Basin object at 0x7fb476e75e50>, 
-# <torchhydro.models.basintree.Basin object at 0x7fb476e1e350>, <torchhydro.models.basintree.Basin object at 0x7fb476e78b00>, 
-# <torchhydro.models.basintree.Basin object at 0x7fb476e7d130>, <torchhydro.models.basintree.Basin object at 0x7fb477cc0af0>, 
-# <torchhydro.models.basintree.Basin object at 0x7fb476e75c50>, <torchhydro.models.basintree.Basin object at 0x7fb476e1fa10>], 
-# [<torchhydro.models.basintree.Basin object at 0x7fb476e8c6d0>, <torchhydro.models.basintree.Basin object at 0x7fb477c94ad0>], 
-# [<torchhydro.models.basintree.Basin object at 0x7fb477e7a450>]]
+# [[<torchhydro.models.basintree.Basin object at 0x7f69a8ac3b60>, <torchhydro.models.basintree.Basin object at 0x7f69a881e350>, 
+# <torchhydro.models.basintree.Basin object at 0x7f69a798fe30>, <torchhydro.models.basintree.Basin object at 0x7f69a79948a0>, 
+# <torchhydro.models.basintree.Basin object at 0x7f69a87d87c0>, <torchhydro.models.basintree.Basin object at 0x7f69a79a4050>, 
+# <torchhydro.models.basintree.Basin object at 0x7f69a881dbd0>, <torchhydro.models.basintree.Basin object at 0x7f69a7992650>, 
+# <torchhydro.models.basintree.Basin object at 0x7f69a793a970>, <torchhydro.models.basintree.Basin object at 0x7f69a7994b00>, 
+# <torchhydro.models.basintree.Basin object at 0x7f69a799d5b0>, <torchhydro.models.basintree.Basin object at 0x7f69a8a879b0>, 
+# <torchhydro.models.basintree.Basin object at 0x7f69a7992450>, <torchhydro.models.basintree.Basin object at 0x7f69a793ba10>], 
+# [<torchhydro.models.basintree.Basin object at 0x7f69a880fd40>, <torchhydro.models.basintree.Basin object at 0x7f69a8992210>], 
+# [<torchhydro.models.basintree.Basin object at 0x7f69a87ac4d0>]]
 # --max_order--
 # 6
 # --basin_list_array--
@@ -388,7 +388,7 @@ def test_get_basin_tree():
 # --order_list--
 # [1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 6, 1, 2, 1, 2]
 # --n_basin_per_order_list--
-# [[3, 3, 3, 3, 4, 1], [1, 1], 1]
+# [[1, 2, 3, 3, 4, 1], [1, 1], [1]]
 # --n_basin_per_order--
 # [3, 3, 3, 3, 4, 1]
 

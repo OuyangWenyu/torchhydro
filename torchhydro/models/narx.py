@@ -200,12 +200,23 @@ class NestedNarx(nn.Module):
                 x_i = x[:, i, :]   # time|(prcp,pet,streamflow)
                 basin_list_x.append(x_i)
             k = 0
-            for i in n_basintrees:
+            for i in range(n_basintrees):
                 n_basin_i = len(self.basin_trees[i])
                 for j in range(n_basin_i):
                     self.basin_trees[i][j].set_x_data(basin_list_x[k][:,:self.nx])
                     self.basin_trees[i][j].set_y_data(basin_list_x[k][:,-self.ny:])
+                    self.basin_trees[i][j].set_model(self.dl_model)
                     k = k + 1
+            #
+            for i in range(n_basintrees):
+                max_order_i = len(self.n_basin_per_order_list[i])
+                n_basin_i = len(self.basin_trees[i])
+                for j in range(max_order_i, -1, -1):
+                    n_basin_j = self.n_basin_per_order_list[i][j]
+                    for k in range(n_basin_j):
+                        self.basin_trees[i]  # 
+
+
             
         else:
             raise ValueError("Error: The dimension of input data x dismatch with basintree, please check both.")

@@ -3,6 +3,7 @@ generate basin tree.
 """
 import pandas as pd
 from pandas import DataFrame as df
+from narx import Narx
 
 
 class Node:
@@ -46,6 +47,7 @@ class Basin:
         self.x = None  # forcing data (prce,pet)
         self.y = None  # target data (streamflow)
         self.y_us = None  # input data of upstream (streamflow)
+        self.model = None  # dl model
 
     def set_basin_type(self, basin_type):
         self.basin_type = basin_type
@@ -70,6 +72,9 @@ class Basin:
 
     def set_y_us_data(self):
         self.y_us = self.node.y_output
+
+    def set_model(self, model: Narx = None):
+        self.model = model
 
 
 class BasinTree:
@@ -448,21 +453,27 @@ class BasinTree:
         basin_list_array = []
         order_list = []
         n_basin_per_order = []
-        n_basin_per_order_list = []
+        n_single_basin = len(single_basin)
+        n_basin_per_order_list = [[]] * (n_root_basin + 1)  # default n_single_basin > 0
         # root basin
         max_order = 1
         for i in range(n_root_basin):
             basin_i = root_basin[i]
+            basin_tree_i = []
+            basin_list_i = []
+            order_list_i = []
+            max_order_i= []
+            n_basin_per_order_i = []
             basin_tree_i, basin_list_i, order_list_i, max_order_i, n_basin_per_order_i = self.basin_tree_and_order(basin_i)
             basin_trees.append(basin_tree_i)
             basin_list = basin_list + basin_list_i  # use of dataset
             basin_list_array.append(basin_list_i)  # use of nestednarx model
-            order_list = order_list + order_list_i
-            n_basin_per_order_list.append(n_basin_per_order_i)
+            order_list = order_list + order_list_i[:]  # todo: copy problem.
+            n_basin_per_order_list[i] = n_basin_per_order_i[:]
             if max_order_i > max_order:
                 max_order = max_order_i
             if i == 0:
-                n_basin_per_order = n_basin_per_order_i
+                n_basin_per_order = n_basin_per_order_i[:]
             elif max_order > len(n_basin_per_order):
                 for j in range(len(n_basin_per_order)):
                     n_basin_per_order[j] = n_basin_per_order[j] + n_basin_per_order_i[j]
@@ -483,7 +494,7 @@ class BasinTree:
         basin_list = basin_list + single_basin
         basin_list_array.append(single_basin)
         order_list = order_list + order_list_i
-        n_basin_per_order_list.append(n_single_basin)
+        n_basin_per_order_list[-1] = [n_single_basin]
         n_basin_per_order[0] = n_basin_per_order[0] + n_single_basin
 
         # self.basin_tree = basin_trees
