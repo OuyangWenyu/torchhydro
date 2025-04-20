@@ -277,6 +277,8 @@ class BaseDataset(Dataset):
 
     def _pre_load_data(self):
         self.train_mode = self.is_tra_val_te == "train"
+        self.valid_mode = self.is_tra_val_te == "valid"
+        self.test_mode = self.is_tra_val_te == "test"
         self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
         self.rho = self.data_cfgs["hindcast_length"]
         self.warmup_length = self.data_cfgs["warmup_length"]
@@ -680,6 +682,24 @@ class ObsForeDataset(BaseDataset):
                 self.lead_time_start, self.lead_time_start + horizon
             )
         self.horizon_offset = offset
+        feature_mapping = self.data_cfgs["feature_mapping"]
+        #
+        xf_var_indices = {}
+        for obs_var, fore_var in feature_mapping.items():
+            # 找到x中需要被替换的变量索引
+            x_var_indice = [
+                i
+                for i, var in enumerate(self.data_cfgs["relevant_cols"])
+                if var == obs_var
+            ][0]
+            # 找到f中对应的变量索引
+            f_var_indice = [
+                i
+                for i, var in enumerate(self.data_cfgs["forecast_cols"])
+                if var == fore_var
+            ][0]
+            xf_var_indices[x_var_indice] = f_var_indice
+        self.xf_var_indices = xf_var_indices
 
     def _read_xyc_specified_time(self, start_date, end_date, **kwargs):
         """read f data from data source with specified time range and add it to the whole dict"""
@@ -707,19 +727,18 @@ class ObsForeDataset(BaseDataset):
         Parameters
         ----------
         item : int
-            样本索引
+            index of sample
 
         Returns
         -------
         tuple
-            (x, y) 数据对，其中 x 包含输入特征和预见期标志，y 包含目标值
+            A pair of (x, y) data, where x contains input features and lead time flags,
+            and y contains target values
         """
-        # 获取基础数据
-        if not self.train_mode:
+        if not (self.train_mode and self.valid_mode):
             x = self.x[item, :, :]
             y = self.y[item, :, :]
             f = self.f[item, :, :]
-            # 添加预见期标志到输入特征
             if self.c is None or self.c.shape[-1] == 0:
                 xc = np.concatenate((x, f), axis=1)
             else:
@@ -729,24 +748,46 @@ class ObsForeDataset(BaseDataset):
 
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
 
-        # 训练模式
+        # train mode
         basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length
+        # for x, we only chose data before horizon, but we may need forecast data for not all variables
+        # hence, to avoid nan values for some variables without forecast in horizon
+        # we still get data from the first time to the end of horizon
         x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+        # for y, we chose data after warmup_length
         y = self.y[basin, idx : idx + self.rho + self.horizon, :]
-
         # use offset to get forecast data
-        f = self.f[basin, idx : idx + self.rho + self.horizon, :]
-
-        # 添加预见期标志到输入特征
+        offset = self.horizon_offset
+        if self.lead_time_type == "fixed":
+            # Fixed lead_time mode - All forecast steps use the same lead_step
+            f = self.f[
+                basin, idx + self.rho : idx + self.rho + self.horizon, offset[0], :
+            ]
+        else:
+            # Increasing lead_time mode - Each forecast step uses a different lead_step
+            f = self.f[basin, idx + self.rho, offset, :]
+        xf = self._concat_xf(x, f)
         if self.c is None or self.c.shape[-1] == 0:
-            xfc = np.concatenate((x, f), axis=1)
+            xfc = xf
         else:
             c = self.c[basin, :]
-            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xfc = np.concatenate((x, c, f), axis=1)
+            c = np.repeat(c, xf.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xfc = np.concatenate((xf, c), axis=1)
 
         return torch.from_numpy(xfc).float(), torch.from_numpy(y).float()
+
+    def _concat_xf(self, x, f):
+        # Create a copy of x to avoid modifying the original data
+        x_combined = x.copy()
+
+        # Iterate through the variable mapping relationship
+        for x_idx, f_idx in self.xf_var_indices.items():
+            # Replace the variables in the forecast period of x with the forecast variables in f
+            # The forecast period of x starts from the rho position
+            x_combined[self.rho :, x_idx] = f[:, f_idx]
+
+        return x_combined
 
 
 class BasinSingleFlowDataset(BaseDataset):

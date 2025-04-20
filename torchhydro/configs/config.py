@@ -170,6 +170,11 @@ def default_config_file():
             # hence we list them as a seperate type
             "forecast_cols": None,
             "forecast_rm_nan": True,
+            # same variable but different names for obs and forecast
+            # key is obs and value is forecast
+            "feature_mapping": {
+                "total_precipitation_hourly": "total_precipitation_surface",
+            },
             # global variables such as ENSO indictors are used in some long term models
             "global_cols": None,
             # specify the data source of each variable
@@ -373,11 +378,12 @@ def cmd(
     weight_path_add=None,
     var_t_type=None,
     var_f=None,
+    f_rm_nan=None,
+    feature_mapping=None,
     var_g=None,
     var_out=None,
     var_to_source_map=None,
     out_rm_nan=None,
-    f_rm_nan=None,
     target_as_input=None,
     constant_only=None,
     gage_id_screen=None,
@@ -725,6 +731,12 @@ def cmd(
         type=json.loads,
     )
     parser.add_argument(
+        "--feature_mapping",
+        type=json.loads,
+        help="same variables from obs and forecast",
+        default=feature_mapping,
+    )
+    parser.add_argument(
         "--var_g",
         dest="var_g",
         help="global variables such as ENSO indicators",
@@ -1049,6 +1061,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["target_rm_nan"] = bool(new_args.out_rm_nan > 0)
     if new_args.f_rm_nan is not None:
         cfg_file["data_cfgs"]["forecast_rm_nan"] = bool(new_args.f_rm_nan > 0)
+    if new_args.feature_mapping is not None:
+        cfg_file["data_cfgs"]["feature_mapping"] = new_args.feature_mapping
     if new_args.target_as_input is not None:
         cfg_file["data_cfgs"]["target_as_input"] = bool(new_args.target_as_input > 0)
     if new_args.constant_only is not None:
