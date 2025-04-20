@@ -1,9 +1,10 @@
 """
 generate basin tree.
 """
+import torch
 import pandas as pd
 from pandas import DataFrame as df
-from narx import Narx
+# from torchhydro.models.narx import Narx
 
 
 class Node:
@@ -48,6 +49,7 @@ class Basin:
         self.y = None  # target data (streamflow)
         self.y_us = None  # input data of upstream (streamflow)
         self.model = None  # dl model
+        self.input_x = None
 
     def set_basin_type(self, basin_type):
         self.basin_type = basin_type
@@ -73,8 +75,20 @@ class Basin:
     def set_y_us_data(self):
         self.y_us = self.node.y_output
 
-    def set_model(self, model: Narx = None):
+    def set_model(self, model = None):
         self.model = model
+
+    def set_input_x(self):
+        if (self.x != None) and (self.y_us != None):
+            self.input_x = torch.cat([self.x, self.y_us], dim=-1)  # along column
+        else:
+            self.input_x = self.x.copy()
+        if (self.input_x != None) and (self.y != None):
+            self.input_x = torch.cat([self.input_x, self.y], dim=-1)
+    
+    def run_model(self):
+        if self.input_x != None:
+            out = self.model(self.input_x)
 
 
 class BasinTree:
@@ -115,7 +129,7 @@ class BasinTree:
         # self.basin_list = None
         # self.order_list = None
         self.nested_model = {
-            "basin_tree": None,
+            "basin_trees": None,
             "basin_tree_max_order": 0,
             "basin_list": None,
             "order_list": None,
@@ -294,8 +308,8 @@ class BasinTree:
                 basin_object[basin_ds_index].node.add_basin_us(basin[i])
 
         # sort along order
-        basin_tree = []
-        basin_list = []
+        basin_tree_ = []
+        basin_list_ = []
         order_list = []
         n_basin_per_order = [0]*max_order
         order_index = list(range(n_basin))
@@ -311,8 +325,8 @@ class BasinTree:
         k = 1
         j = 0
         for i in range(n_basin):
-            basin_tree.append(basin_object[order_index[i]])
-            basin_list.append(basin_object[order_index[i]].basin_id)
+            basin_tree_.append(basin_object[order_index[i]])
+            basin_list_.append(basin_object[order_index[i]].basin_id)
             order_list.append(basin_object[order_index[i]].basin_order)
             if basin_object[order_index[i]].basin_order == k:
                 n_basin_per_order[j] = n_basin_per_order[j] + 1
@@ -321,7 +335,18 @@ class BasinTree:
                 j = j + 1
                 n_basin_per_order[j] = n_basin_per_order[j] + 1
 
-        return basin_tree, basin_list, order_list, max_order, n_basin_per_order
+        # group by order
+        basin_tree = [[]]*max_order
+        basin_list = [[]]*max_order
+        k = 0
+        for i in range(max_order):
+            n_basin_order_i = n_basin_per_order[i]
+            k_i = k + n_basin_order_i
+            basin_tree[i] = basin_tree_[k:k_i]
+            basin_list[i] = basin_list_[k:k_i]
+            k = k_i
+
+        return basin_tree, basin_list, basin_list_, order_list, max_order, n_basin_per_order
 
     def generate_basin_object(self, basin_id: str = None):
         """generate a basin object"""
@@ -450,6 +475,7 @@ class BasinTree:
 
         basin_trees = []
         basin_list = []
+        basin_list_ = []
         basin_list_array = []
         order_list = []
         n_basin_per_order = []
@@ -464,9 +490,9 @@ class BasinTree:
             order_list_i = []
             max_order_i= []
             n_basin_per_order_i = []
-            basin_tree_i, basin_list_i, order_list_i, max_order_i, n_basin_per_order_i = self.basin_tree_and_order(basin_i)
+            basin_tree_i, basin_list_i, basin_list__i, order_list_i, max_order_i, n_basin_per_order_i = self.basin_tree_and_order(basin_i)
             basin_trees.append(basin_tree_i)
-            basin_list = basin_list + basin_list_i  # use of dataset
+            basin_list = basin_list + basin_list__i  # use of dataset
             basin_list_array.append(basin_list_i)  # use of nestednarx model
             order_list = order_list + order_list_i[:]  # todo: copy problem.
             n_basin_per_order_list[i] = n_basin_per_order_i[:]
@@ -501,7 +527,7 @@ class BasinTree:
         # self.basin_tree_max_order = max_order
         # self.basin_list = basin_list
         # self.order_list = order_list
-        self.nested_model["basin_tree"] = basin_trees
+        self.nested_model["basin_trees"] = basin_trees
         self.nested_model["basin_tree_max_order"] = max_order
         self.nested_model["basin_list"] = basin_list
         self.nested_model["basin_list_array"] = basin_list_array

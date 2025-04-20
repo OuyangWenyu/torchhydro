@@ -46,11 +46,11 @@ def var_t():
         # "tsd_swe_isba",
         # "tsd_temp_min",
         # "tsd_temp_max",
-        "streamflow",
+        # "streamflow",
     ]
 
 @pytest.fixture
-def camelsfrnarx_arg(var_c, var_t):
+def camelsfr_narx_arg(var_c, var_t):
     project_name = os.path.join("test_camels", "narx_camelsfr")
     # camels-fr time_range: ["1970-01-01", "2022-01-01"]
     train_period = ["2017-10-01", "2018-10-01"]
@@ -70,8 +70,8 @@ def camelsfrnarx_arg(var_c, var_t):
         model_hyperparam={
             "n_input_features": len(var_c) + len(var_t),
             "n_output_features": 1,
-            "n_hidden_states": 256,
-            "input_delay": 1,
+            "n_hidden_states": 64,
+            "input_delay": 2,
             "feedback_delay": 1,
             # "num_layers": 1,
             "close_loop": False,
@@ -136,8 +136,8 @@ def camelsfrnarx_arg(var_c, var_t):
     )
 
 
-def test_camelsfrnarx(camelsfrnarx_args):
+def test_camelsfr_narx(camelsfr_narx_arg):
     config_data = default_config_file()
-    update_cfg(config_data, camelsfrnarx_args)
+    update_cfg(config_data, camelsfr_narx_arg)
     train_and_evaluate(config_data)
     print("All processes are finished!")

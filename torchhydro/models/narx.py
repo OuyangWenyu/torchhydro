@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from torchhydro.datasets.narxdataset import NarxDataset
+# from torchhydro.datasets.narxdataset import NarxDataset
 from torchhydro.models.basintree import Basin, BasinTree
 
 
@@ -127,7 +127,7 @@ class NestedNarx(nn.Module):
         self.nx = n_input_features
         self.ny = n_output_features
         self.Nested_model = nested_model
-        self.basin_trees = self.Nested_model["basin_tree"]  # 
+        self.basin_trees = self.Nested_model["basin_trees"]  # 
         self.basin_tree_max_order = self.Nested_model["basin_tree_max_order"]
         self.basin_list = self.Nested_model["basin_list"]  # basin_id list, one dimension.
         self.basin_list_array = self.Nested_model["basin_list_array"]  # basin_id list, 2 dimension.
@@ -211,10 +211,13 @@ class NestedNarx(nn.Module):
             for i in range(n_basintrees):
                 max_order_i = len(self.n_basin_per_order_list[i])
                 n_basin_i = len(self.basin_trees[i])
+                m = 0
                 for j in range(max_order_i, -1, -1):
                     n_basin_j = self.n_basin_per_order_list[i][j]
                     for k in range(n_basin_j):
-                        self.basin_trees[i]  # 
+                        self.basin_trees[i][m].set_input_x()
+                        self.basin_trees[i][m].run_model()
+                        
 
 
             

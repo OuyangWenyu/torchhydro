@@ -239,7 +239,7 @@ def test_get_basin_tree():
     # ]
     basin_id_list = ["A550061001", "A369011001", "A330010001"]
     nested_model = basin_tree.get_basin_trees(basin_id_list)
-    basin_trees = nested_model["basin_tree"]
+    basin_trees = nested_model["basin_trees"]
     max_order = nested_model["basin_tree_max_order"]
     basin_list = nested_model["basin_list"]
     basin_list_array = nested_model["basin_list_array"]
@@ -264,124 +264,27 @@ def test_get_basin_tree():
     print(n_basin_per_order_list)
     print("--n_basin_per_order--")
     print(n_basin_per_order)
-# --basin_trees--
-# 14
-# [[<torchhydro.models.basintree.Basin object at 0x000001DEEE5CD790>, <torchhydro.models.basintree.Basin object at 0x000001DEEE5CD100>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEC0DAA20>, <torchhydro.models.basintree.Basin object at 0x000001DEEE4AC080>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE4AD0A0>, <torchhydro.models.basintree.Basin object at 0x000001DEE96F1610>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEC016000>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DED916E990>, <torchhydro.models.basintree.Basin object at 0x000001DEE9779460>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEE507CB0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69DB20>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69DAC0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69DC10>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69DAF0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69DC70>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69C050>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69DF40>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEE69E030>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69E000>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69DEE0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69DDF0>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69D8E0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69DBE0>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69C500>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69DBB0>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69DA00>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEE69C350>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69C440>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEE69D460>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69D880>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69D7C0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69D5B0>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEE69D3D0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69E210>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69E780>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69E420>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69E5A0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69E810>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69D0D0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69E6F0>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69E8A0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69E2D0>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69E4B0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69E3C0>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69E660>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69E930>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEE69E9C0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69EA50>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69EAE0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69EB70>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEE69EC00>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69EC90>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEE69ED20>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69EDB0>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEE69EE40>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69EED0>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEE69EF60>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69F020>],
-# [<torchhydro.models.basintree.Basin object at 0x000001DEEE69F0B0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69F140>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69F1D0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69F260>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69F2F0>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69F380>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69F410>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69F4A0>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69F530>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69F5C0>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69F650>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69F6E0>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69F770>, <torchhydro.models.basintree.Basin object at 0x000001DEEE69F800>,
-# <torchhydro.models.basintree.Basin object at 0x000001DEEE69F890>]]
-# --max_order--
-# 6
-# total basin 73
-
-# [[<torchhydro.models.basintree.Basin object at 0x000002223411F1D0>, <torchhydro.models.basintree.Basin object at 0x000002223411C680>,
-# <torchhydro.models.basintree.Basin object at 0x00000222342C1310>, <torchhydro.models.basintree.Basin object at 0x000002223411F290>,
-# <torchhydro.models.basintree.Basin object at 0x00000222342C1340>, <torchhydro.models.basintree.Basin object at 0x00000222342C12B0>,
-# <torchhydro.models.basintree.Basin object at 0x000002223411F350>, <torchhydro.models.basintree.Basin object at 0x00000222342C1370>,
-# <torchhydro.models.basintree.Basin object at 0x00000222342C1250>, <torchhydro.models.basintree.Basin object at 0x000002223411EF00>,
-# <torchhydro.models.basintree.Basin object at 0x00000222342C1280>, <torchhydro.models.basintree.Basin object at 0x00000222342C1520>,
-# <torchhydro.models.basintree.Basin object at 0x00000222342C1430>, <torchhydro.models.basintree.Basin object at 0x00000222342C11F0>], []]
-# --basin_trees--
-# 2
-# --max_order--
-# 6
-
-# basin_id_list = [
-#     "A116003002",
-#     "A140202001",
-#     "A550061001",
-# ]
-# --basin_trees--
-# 3
-# [[<torchhydro.models.basintree.Basin object at 0x0000025D89F8EDB0>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8EF30>,
-# <torchhydro.models.basintree.Basin object at 0x0000025D89F8E870>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8ECF0>,
-# <torchhydro.models.basintree.Basin object at 0x0000025D89F8EB10>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8E990>,
-# <torchhydro.models.basintree.Basin object at 0x0000025D89F8ED20>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8EA50>,
-# <torchhydro.models.basintree.Basin object at 0x0000025D89F8E450>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8EE10>,
-# <torchhydro.models.basintree.Basin object at 0x0000025D89F8EC90>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8EC60>,
-# <torchhydro.models.basintree.Basin object at 0x0000025D89F8E930>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8E8D0>],
-# [<torchhydro.models.basintree.Basin object at 0x0000025D89F8E270>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8E120>,
-# <torchhydro.models.basintree.Basin object at 0x0000025D89F8E750>, <torchhydro.models.basintree.Basin object at 0x0000025D89F8E2D0>],
-# [<torchhydro.models.basintree.Basin object at 0x0000025D89F8E690>]]  19
-# --max_order--
-# 6
 
 # test_--basin_id_list--
 # ['A550061001', 'A369011001', 'A330010001']
 # --basin_trees--
 # 3
-# [[<torchhydro.models.basintree.Basin object at 0x7fa6f3984ec0>, <torchhydro.models.basintree.Basin object at 0x7fa6f3ba2c10>, 
-# <torchhydro.models.basintree.Basin object at 0x7fa6f38b77a0>, <torchhydro.models.basintree.Basin object at 0x7fa6f3887a80>, 
-# <torchhydro.models.basintree.Basin object at 0x7fa6f38dc6b0>, <torchhydro.models.basintree.Basin object at 0x7fa6f38b73e0>, 
-# <torchhydro.models.basintree.Basin object at 0x7fa6f3ba3250>, <torchhydro.models.basintree.Basin object at 0x7fa6f38d7e50>, 
-# <torchhydro.models.basintree.Basin object at 0x7fa6f3b07150>, <torchhydro.models.basintree.Basin object at 0x7fa6f3887ce0>, 
-# <torchhydro.models.basintree.Basin object at 0x7fa6f32479b0>, <torchhydro.models.basintree.Basin object at 0x7fa6f3858270>, 
-# <torchhydro.models.basintree.Basin object at 0x7fa6f38d7c50>, <torchhydro.models.basintree.Basin object at 0x7fa6f3b075b0>], 
-# [<torchhydro.models.basintree.Basin object at 0x7fa6f3226820>, <torchhydro.models.basintree.Basin object at 0x7fa6f38c81d0>], 
-# [<torchhydro.models.basintree.Basin object at 0x7fa6f38c8050>]]    17
-# --max_order--
-# 6
-# --basin_list--
-# [['A550061001', 'A511061001', 'A543101001', 'A443064001', 'A542201001', 'A526102003', 'A436203001', 'A524201001', 'A420063001', 
-# 'A417301001', 'A405062001', 'A433301001', 'A414020202', 'A402061001'], 
-# ['A369011001', 'A361011001'], 
-# ['A330010001']]
-# order_list
-# [[1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 6], [1, 2], [1]]
-
-
-# test_--basin_id_list--
-# ['A550061001', 'A369011001', 'A330010001']
-# --basin_trees--
-# 3
-# [[<torchhydro.models.basintree.Basin object at 0x7f69a8ac3b60>, <torchhydro.models.basintree.Basin object at 0x7f69a881e350>, 
-# <torchhydro.models.basintree.Basin object at 0x7f69a798fe30>, <torchhydro.models.basintree.Basin object at 0x7f69a79948a0>, 
-# <torchhydro.models.basintree.Basin object at 0x7f69a87d87c0>, <torchhydro.models.basintree.Basin object at 0x7f69a79a4050>, 
-# <torchhydro.models.basintree.Basin object at 0x7f69a881dbd0>, <torchhydro.models.basintree.Basin object at 0x7f69a7992650>, 
-# <torchhydro.models.basintree.Basin object at 0x7f69a793a970>, <torchhydro.models.basintree.Basin object at 0x7f69a7994b00>, 
-# <torchhydro.models.basintree.Basin object at 0x7f69a799d5b0>, <torchhydro.models.basintree.Basin object at 0x7f69a8a879b0>, 
-# <torchhydro.models.basintree.Basin object at 0x7f69a7992450>, <torchhydro.models.basintree.Basin object at 0x7f69a793ba10>], 
-# [<torchhydro.models.basintree.Basin object at 0x7f69a880fd40>, <torchhydro.models.basintree.Basin object at 0x7f69a8992210>], 
-# [<torchhydro.models.basintree.Basin object at 0x7f69a87ac4d0>]]
+# [[[<torchhydro.models.basintree.Basin object at 0x7f03138bfb60>], 
+# [<torchhydro.models.basintree.Basin object at 0x7f0312f2ce10>, <torchhydro.models.basintree.Basin object at 0x7f0312fadf40>], 
+# [<torchhydro.models.basintree.Basin object at 0x7f031357fce0>, <torchhydro.models.basintree.Basin object at 0x7f03135dcd10>, 
+# <torchhydro.models.basintree.Basin object at 0x7f0312fae120>], 
+# [<torchhydro.models.basintree.Basin object at 0x7f0312f2cf50>, <torchhydro.models.basintree.Basin object at 0x7f0312fb1050>, 
+# <torchhydro.models.basintree.Basin object at 0x7f0312f899b0>], 
+# [<torchhydro.models.basintree.Basin object at 0x7f0312fb8050>, <torchhydro.models.basintree.Basin object at 0x7f0312f7bd10>, 
+# <torchhydro.models.basintree.Basin object at 0x7f03135dcaf0>, <torchhydro.models.basintree.Basin object at 0x7f0312fb0e50>], 
+# [<torchhydro.models.basintree.Basin object at 0x7f0312f8a890>]], 
+# [[<torchhydro.models.basintree.Basin object at 0x7f0313607450>], [<torchhydro.models.basintree.Basin object at 0x7f03135a8650>]], 
+# [<torchhydro.models.basintree.Basin object at 0x7f031378e390>]]
 # --max_order--
 # 6
 # --basin_list_array--
-# [['A550061001', 'A511061001', 'A543101001', 'A443064001', 'A542201001', 'A526102003', 'A436203001', 'A524201001', 'A420063001', 
-# 'A417301001', 'A405062001', 'A433301001', 'A414020202', 'A402061001'], ['A369011001', 'A361011001'], ['A330010001']]
+# [[['A550061001'], ['A511061001', 'A543101001'], ['A443064001', 'A542201001', 'A526102003'], ['A436203001', 'A524201001', 'A420063001'], ['A417301001', 'A405062001', 'A433301001', 'A414020202'], ['A402061001']], 
+# [['A369011001'], ['A361011001']], ['A330010001']]
 # --basin_list--
 # ['A550061001', 'A511061001', 'A543101001', 'A443064001', 'A542201001', 'A526102003', 'A436203001', 'A524201001', 'A420063001', 
 # 'A417301001', 'A405062001', 'A433301001', 'A414020202', 'A402061001', 'A369011001', 'A361011001', 'A330010001']
