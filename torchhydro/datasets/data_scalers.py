@@ -66,7 +66,10 @@ class ScalerHub(object):
         Parameters
         ----------
         vars_data
-            data for all variables used
+            data for all variables used.
+            the dim must be (basin, time, lead_step, var) for 4-d array;
+            the dim must be (basin, time, var) for 3-d array;
+            the dim must be (basin, time) for 2-d array;
         data_cfgs
             configs for reading data
         is_tra_val_te
@@ -77,21 +80,13 @@ class ScalerHub(object):
             other optional parameters for ScalerHub
         """
         self.data_cfgs = data_cfgs
-        vars_data_map = {
-            key: (
-                var_data.transpose("basin", "time", "variable")
-                if var_data.ndim == 3
-                else var_data.transpose("basin", "variable")
-            )
-            for key, var_data in vars_data.items()
-        }
         scaler_type = data_cfgs["scaler"]
         pbm_norm = data_cfgs["scaler_params"]["pbm_norm"]
         if scaler_type == "DapengScaler":
             gamma_norm_cols = data_cfgs["scaler_params"]["gamma_norm_cols"]
             prcp_norm_cols = data_cfgs["scaler_params"]["prcp_norm_cols"]
             scaler = DapengScaler(
-                vars_data_map,
+                vars_data,
                 data_cfgs,
                 is_tra_val_te,
                 prcp_norm_cols=prcp_norm_cols,
@@ -101,7 +96,7 @@ class ScalerHub(object):
             )
         elif scaler_type in SCALER_DICT.keys():
             scaler = SklearnScaler(
-                vars_data_map,
+                vars_data,
                 data_cfgs,
                 is_tra_val_te,
                 pbm_norm=pbm_norm,
@@ -110,7 +105,7 @@ class ScalerHub(object):
             raise NotImplementedError(
                 "We don't provide this Scaler now!!! Please choose another one: DapengScaler or key in SCALER_DICT"
             )
-        self.norm_data = scaler.load_norm_data(vars_data_map)
+        self.norm_data = scaler.load_norm_data(vars_data)
         # we will use target_scaler during denormalization
         self.target_scaler = scaler
         print("Finish Normalization\n")

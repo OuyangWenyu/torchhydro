@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-04-19 13:50:03
+LastEditTime: 2025-04-19 17:35:29
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/datasets/data_sets.py
+FilePath: /torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -24,6 +24,7 @@ from hydrodatasource.utils.utils import streamflow_unit_conv
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
+from tqdm import tqdm
 
 from torchhydro.datasets.data_utils import (
     set_unit_to_var,
@@ -72,6 +73,40 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
         # fill interpolation
         for i in range(da.shape[0]):
             da[i] = da[i].interpolate_na(dim="time", fill_value="extrapolate")
+    elif fill_nan == "lead_step":
+        # for forecast data, we use interpolation to fill NaN values for lead step small than the maximum lead step of each forecast performing
+        for i in tqdm(range(da.shape[0]), desc="Processing basins", unit="basin"):
+            # first dim must be basin
+            # 对于每个时间点(time)，找到最后一个非空的lead_step
+            basin_data = da[i]
+            for t_idx in range(basin_data.shape[0]):  # 遍历每个时间点
+                time_slice = basin_data[t_idx]  # 获取当前时间点的数据
+                non_nan_mask = ~np.isnan(time_slice.values.squeeze())
+                non_nan_lead_steps = time_slice.lead_step[non_nan_mask]
+                if len(non_nan_lead_steps) == 0:
+                    # 如果全部都是空值，则跳过不处理
+                    continue
+                max_lead_step = non_nan_lead_steps.max().values
+                # 修改这里：手动实现有限制的插值
+                values = time_slice.values.squeeze()
+                lead_steps = time_slice.lead_step.values
+                valid_mask = (lead_steps <= max_lead_step) & np.isnan(values)
+                if np.any(valid_mask):
+                    # 只对有效范围内的NaN值进行插值
+                    valid_values = values[
+                        ~np.isnan(values) & (lead_steps <= max_lead_step)
+                    ]
+                    valid_lead_steps = lead_steps[
+                        ~np.isnan(values) & (lead_steps <= max_lead_step)
+                    ]
+                    if len(valid_values) > 1:
+                        # 使用线性插值
+                        interp_values = np.interp(
+                            lead_steps[valid_mask], valid_lead_steps, valid_values
+                        )
+                        values[valid_mask] = interp_values
+                        basin_data[t_idx].values = values.reshape(-1, 1)
+            da[i] = basin_data
     else:
         raise NotImplementedError(f"fill_nan {fill_nan} not implemented")
     return da
@@ -354,37 +389,27 @@ class BaseDataset(Dataset):
         )
         return set_unit_to_var(denorm_xr_ds)
 
-    def _to_dataarray_with_unit(self, data_forcing_ds, data_output_ds, data_attr_ds):
-        """trans xarray dataset to xarray dataarray and set units for each variable
+    def _to_dataarray_with_unit(self, *args):
+        """Convert xarray datasets to xarray data arrays and set units for each variable.
 
         Parameters
         ----------
-        data_forcing_ds : _type_
-            _description_
-        data_output_ds : _type_
-            _description_
-        data_attr_ds : _type_
-            _description_
+        *args : xr.Dataset
+            Any number of xarray dataset inputs.
 
         Returns
         -------
-        _type_
-            _description_
+        tuple
+            A tuple of converted data arrays, with the same number as the input parameters.
         """
-        if data_output_ds is not None:
-            data_output = self._trans2da_and_setunits(data_output_ds)
-        else:
-            data_output = None
-        if data_forcing_ds is not None:
-            data_forcing = self._trans2da_and_setunits(data_forcing_ds)
-        else:
-            data_forcing = None
-        if data_attr_ds is not None:
-            # firstly, we should transform some str type data to float type
-            data_attr = self._trans2da_and_setunits(data_attr_ds)
-        else:
-            data_attr = None
-        return data_forcing, data_output, data_attr
+        results = []
+        for ds in args:
+            if ds is not None:
+                # First convert some string-type data to floating-point type
+                results.append(self._trans2da_and_setunits(ds))
+            else:
+                results.append(None)
+        return tuple(results)
 
     def _check_ts_xrds_unit(self, data_forcing_ds, data_output_ds):
         """Check timeseries xarray dataset unit and convert if necessary
@@ -427,11 +452,33 @@ class BaseDataset(Dataset):
         -------
         dict
             data with key as data type
+            the dim must be (basin, time, lead_step, variable) for 4-d xr array;
+            the dim must be (basin, time, variable) for 3-d xr array;
+            the dim must be (basin, variable) for 2-d xr array;
         """
         # x
         start_date = self.t_s_dict["t_final_range"][0]
         end_date = self.t_s_dict["t_final_range"][1]
         return self._read_xyc_specified_time(start_date, end_date)
+
+    def _rm_timeunit_key(self, data_output_ds_):
+        """this means the data source return a dict with key as time_unit
+            in this BaseDataset, we only support unified time range for all basins, so we chose the first key
+            TODO: maybe this could be refactored better
+
+        Parameters
+        ----------
+        data_output_ds_ : dict
+            the output data with time_unit as key
+
+        Returns
+        ----------
+        data_output_ds_ : xr.Dataset
+            the output data without time_unit
+        """
+        if isinstance(data_output_ds_, dict):
+            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
+        return data_output_ds_
 
     def _read_xyc_specified_time(self, start_date, end_date):
         """Read x, y, c data from data source with specified time range
@@ -456,12 +503,8 @@ class BaseDataset(Dataset):
             [start_date, end_date],
             self.data_cfgs["target_cols"],
         )
-        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
-            # this means the data source return a dict with key as time_unit
-            # in this BaseDataset, we only support unified time range for all basins, so we chose the first key
-            # TODO: maybe this could be refactored better
-            data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
-            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
+        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
+        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
             data_forcing_ds_, data_output_ds_
         )
@@ -474,13 +517,11 @@ class BaseDataset(Dataset):
         x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, data_attr_ds
         )
-        # set a type name for each dataset to avoid confusion
-        origin_data = {
+        return {
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
             "target_cols": y_origin.transpose("basin", "time", "variable"),
             "constant_cols": c_origin.transpose("basin", "variable"),
         }
-        return origin_data
 
     def _trans2da_and_setunits(self, ds):
         """Set units for dataarray transfromed from dataset"""
@@ -522,6 +563,16 @@ class BaseDataset(Dataset):
             elif key == "constant_cols":
                 rm_nan = data_cfgs["constant_rm_nan"]
                 kill_way = "mean"
+            elif key == "forecast_cols":
+                rm_nan = data_cfgs["forecast_rm_nan"]
+                kill_way = "lead_step"
+            elif key == "global_cols":
+                rm_nan = data_cfgs["global_rm_nan"]
+            else:
+                raise ValueError(
+                    f"Unknown data type {key} in origin_data, "
+                    "it should be one of relevant_cols, target_cols, constant_cols, forecast_cols and global_cols"
+                )
 
             if rm_nan:
                 norm = self._kill_1type_nan(
@@ -630,31 +681,25 @@ class ObsForeDataset(BaseDataset):
             )
         self.horizon_offset = offset
 
-    def _read_xyc_specified_time(self, start_date, end_date):
-        """添加预见期数据到现有数据集
-
-        从预见期数据源中读取数据，并添加到时间序列末端
-        """
-        x_origin, y_origin, c_origin = super(
-            ObsForeDataset, self
-        )._read_xyc_specified_time(start_date, end_date)
+    def _read_xyc_specified_time(self, start_date, end_date, **kwargs):
+        """read f data from data source with specified time range and add it to the whole dict"""
+        data_dict = super(ObsForeDataset, self)._read_xyc_specified_time(
+            start_date, end_date
+        )
+        lead_time = kwargs.get("lead_time", None)
         f_origin = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             [start_date, end_date],
             self.data_cfgs["forecast_cols"],
             forecast_mode=True,
+            lead_time=lead_time,
         )
-        return x_origin, y_origin, c_origin, f_origin
-
-    def _normalize(self):
-        scaler_hub = ScalerHub(
-            [self.y_origin, self.x_origin, self.c_origin, self.f_origin],
-            data_cfgs=self.data_cfgs,
-            is_tra_val_te=self.is_tra_val_te,
-            data_source=self.data_source,
+        f_origin_ = self._rm_timeunit_key(f_origin)
+        f_data = self._trans2da_and_setunits(f_origin_)
+        data_dict["forecast_cols"] = f_data.transpose(
+            "basin", "time", "lead_step", "variable"
         )
-        self.target_scaler = scaler_hub.target_scaler
-        return scaler_hub.x, scaler_hub.y, scaler_hub.c, scaler_hub.f
+        return data_dict
 
     def __getitem__(self, item: int):
         """获取数据集中的一个样本

@@ -127,7 +127,7 @@ def default_config_file():
             "t_range_test": ["1993-01-01", "1994-01-01"],
             # the output
             "target_cols": [Q_CAMELS_US_NAME],
-            "target_rm_nan": True,
+            "target_rm_nan": False,
             # only for cases in which target data will be used as input:
             # data assimilation -- use streamflow from period 0 to t-1 (TODO: not included now)
             # for physics-based model -- use streamflow to calibrate models
@@ -169,6 +169,7 @@ def default_config_file():
             # for each period, they have multiple forecast data with different lead time
             # hence we list them as a seperate type
             "forecast_cols": None,
+            "forecast_rm_nan": True,
             # global variables such as ENSO indictors are used in some long term models
             "global_cols": None,
             # specify the data source of each variable
@@ -346,7 +347,7 @@ def cmd(
     lr_scheduler=None,
     opt_param=None,
     batch_size=None,
-    warmup_length=0,
+    warmup_length=None,
     # forecast_history will be deprecated in the future
     forecast_history=None,
     hindcast_length=None,
@@ -362,9 +363,9 @@ def cmd(
     weight_path=None,
     continue_train=None,
     var_c=None,
-    c_rm_nan=1,
+    c_rm_nan=None,
     var_t=None,
-    t_rm_nan=1,
+    t_rm_nan=None,
     n_output=None,
     loss_func=None,
     model_hyperparam=None,
@@ -375,9 +376,10 @@ def cmd(
     var_g=None,
     var_out=None,
     var_to_source_map=None,
-    out_rm_nan=0,
-    target_as_input=0,
-    constant_only=0,
+    out_rm_nan=None,
+    f_rm_nan=None,
+    target_as_input=None,
+    constant_only=None,
     gage_id_screen=None,
     loss_param=None,
     metrics=None,
@@ -385,11 +387,11 @@ def cmd(
     explainer=None,
     rolling=None,
     calc_metrics=None,
-    start_epoch=1,
+    start_epoch=None,
     stat_dict_file=None,
     num_workers=None,
     which_first_tensor=None,
-    ensemble=0,
+    ensemble=None,
     ensemble_items=None,
     early_stopping=None,
     patience=None,
@@ -747,6 +749,13 @@ def cmd(
         type=int,
     )
     parser.add_argument(
+        "--f_rm_nan",
+        dest="f_rm_nan",
+        help="if true, we remove NaN value for var_f data when scaling",
+        default=f_rm_nan,
+        type=int,
+    )
+    parser.add_argument(
         "--target_as_input",
         dest="target_as_input",
         help="if true, we will use target data as input for data assimilation or physics-based models",
@@ -1013,7 +1022,8 @@ def update_cfg(cfg_file, new_args):
             cfg_file["data_cfgs"]["constant_cols"] = []
         else:
             cfg_file["data_cfgs"]["constant_cols"] = new_args.var_c
-    cfg_file["data_cfgs"]["constant_rm_nan"] = bool(new_args.c_rm_nan != 0)
+    if new_args.c_rm_nan is not None:
+        cfg_file["data_cfgs"]["constant_rm_nan"] = bool(new_args.c_rm_nan > 0)
     if new_args.var_t is not None:
         cfg_file["data_cfgs"]["relevant_cols"] = new_args.var_t
         print(
@@ -1022,7 +1032,8 @@ def update_cfg(cfg_file, new_args):
         print("If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-")
     if new_args.var_t_type is not None:
         cfg_file["data_cfgs"]["relevant_types"] = new_args.var_t_type
-    cfg_file["data_cfgs"]["relevant_rm_nan"] = bool(new_args.t_rm_nan != 0)
+    if new_args.t_rm_nan is not None:
+        cfg_file["data_cfgs"]["relevant_rm_nan"] = bool(new_args.t_rm_nan > 0)
     if new_args.var_f is not None:
         cfg_file["data_cfgs"]["forecast_cols"] = new_args.var_f
     if new_args.var_g is not None:
@@ -1034,10 +1045,14 @@ def update_cfg(cfg_file, new_args):
         )
     if new_args.var_to_source_map is not None:
         cfg_file["data_cfgs"]["var_to_source_map"] = new_args.var_to_source_map
-    cfg_file["data_cfgs"]["target_rm_nan"] = bool(new_args.out_rm_nan != 0)
-    if new_args.target_as_input == 0:
-        cfg_file["data_cfgs"]["target_as_input"] = False
-        cfg_file["data_cfgs"]["constant_only"] = bool(new_args.constant_only != 0)
+    if new_args.out_rm_nan is not None:
+        cfg_file["data_cfgs"]["target_rm_nan"] = bool(new_args.out_rm_nan > 0)
+    if new_args.f_rm_nan is not None:
+        cfg_file["data_cfgs"]["forecast_rm_nan"] = bool(new_args.f_rm_nan > 0)
+    if new_args.target_as_input is not None:
+        cfg_file["data_cfgs"]["target_as_input"] = bool(new_args.target_as_input > 0)
+    if new_args.constant_only is not None:
+        cfg_file["data_cfgs"]["constant_only"] = bool(new_args.constant_only > 0)
     else:
         cfg_file["data_cfgs"]["target_as_input"] = True
     if new_args.calc_metrics is not None:
@@ -1055,7 +1070,7 @@ def update_cfg(cfg_file, new_args):
     if new_args.weight_path is not None:
         cfg_file["model_cfgs"]["weight_path"] = new_args.weight_path
         continue_train = bool(
-            new_args.continue_train is not None and new_args.continue_train != 0
+            new_args.continue_train is not None and new_args.continue_train > 0
         )
         cfg_file["model_cfgs"]["continue_train"] = continue_train
     if new_args.weight_path_add is not None:
@@ -1109,7 +1124,7 @@ def update_cfg(cfg_file, new_args):
         cfg_file["evaluation_cfgs"]["rolling"] = new_args.rolling
     if new_args.model_loader is not None:
         cfg_file["evaluation_cfgs"]["model_loader"] = new_args.model_loader
-    if new_args.warmup_length > 0:
+    if new_args.warmup_length is not None:
         cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
         if (
             "warmup_length" in new_args.model_hyperparam.keys()
@@ -1136,7 +1151,7 @@ def update_cfg(cfg_file, new_args):
         if new_args.lead_time_start is None:
             raise ValueError("lead_time_start must be set when lead_time_type is set")
         cfg_file["data_cfgs"]["lead_time_start"] = new_args.lead_time_start
-    if new_args.start_epoch > 1:
+    if new_args.start_epoch is not None:
         cfg_file["training_cfgs"]["start_epoch"] = new_args.start_epoch
     if new_args.stat_dict_file is not None:
         stat_dict_file = new_args.stat_dict_file
