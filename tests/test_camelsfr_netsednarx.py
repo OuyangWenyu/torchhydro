@@ -49,15 +49,6 @@ def var_t():
         # "streamflow",
     ]
 
-# def generate_basintrees():
-#     nestedness_info = self.data_source.read_nestedness_csv()
-#     basin_tree_ = BasinTree(nestedness_info, self.basins)
-#     # return all related basins, cal_order and basin tree
-#     # make forcing dataset containing nested basin streamflow for each input gauge.
-#     # cal_order
-#     self.nested_model = basin_tree_.get_basin_trees()
-#     basin_list = self.nested_model["basin_list"]
-
 @pytest.fixture
 def camelsfr_narx_arg(var_c, var_t):
     project_name = os.path.join("test_camels", "narx_camelsfr")
@@ -152,3 +143,5 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
     update_cfg(config_data, camelsfr_narx_arg)
     train_and_evaluate(config_data)
     print("All processes are finished!")
+
+#   0%|          | 0/5055 [00:00<?, ?it/s]

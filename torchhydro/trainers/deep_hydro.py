@@ -231,7 +231,9 @@ class DeepHydro(DeepHydroInterface):
         return dataset
 
     def model_train(self) -> None:
-        """train a hydrological DL model"""
+        """train a hydrological DL model
+        train and valid.
+        """
         # A dictionary of the necessary parameters for training
         training_cfgs = self.cfgs["training_cfgs"]
         # The file path to load model weights from; defaults to "model_save"
@@ -250,7 +252,7 @@ class DeepHydro(DeepHydroInterface):
             training_cfgs, data_cfgs
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
-        for epoch in range(start_epoch, max_epochs + 1):
+        for epoch in range(start_epoch, max_epochs + 1):  # train and valid for every single epoch.
             with logger.log_epoch_train(epoch) as train_logs:
                 total_loss, n_iter_ep = torch_single_train(
                     self.model,
@@ -263,6 +265,7 @@ class DeepHydro(DeepHydroInterface):
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
 
+            # valid
             valid_loss = None
             valid_metrics = None
             if data_cfgs["t_range_valid"] is not None:

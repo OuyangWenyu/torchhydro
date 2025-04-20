@@ -59,7 +59,7 @@ def model_infer(seq_first, device, model, xs, ys):
     if type(xs) is list:
         xs = [
             (
-                data_tmp.permute([1, 0, 2]).to(device)
+                data_tmp.permute([1, 0, 2]).to(device)  # [batch, sequence, features]
                 if seq_first and data_tmp.ndim == 3
                 else data_tmp.to(device)
             )
@@ -78,7 +78,7 @@ def model_infer(seq_first, device, model, xs, ys):
         if seq_first and ys.ndim == 3
         else ys.to(device)
     )
-    output = model(*xs)
+    output = model(*xs)  # call model in   /models/model_dict_function.py/pytorch_model_dict
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
@@ -408,10 +408,10 @@ def torch_single_train(
     running_loss = 0.0
     which_first_tensor = kwargs["which_first_tensor"]
     seq_first = which_first_tensor != "batch"
-    pbar = tqdm(data_loader)
+    pbar = tqdm(data_loader)  # load data  todo:
 
-    for _, (src, trg) in enumerate(pbar):
-        trg, output = model_infer(seq_first, device, model, src, trg)
+    for _, (src, trg) in enumerate(pbar):  # todo: how to solit?
+        trg, output = model_infer(seq_first, device, model, src, trg)  # src, forcing data, e.g. prce|pet  trg, target data, e.g. streamflow.
 
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
