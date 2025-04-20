@@ -315,7 +315,7 @@ class DapengScaler(object):
         """
         if prcp_norm_cols is None:
             prcp_norm_cols = [
-                # "streamflow",
+                "streamflow",
             ]
         if gamma_norm_cols is None:
             gamma_norm_cols = [

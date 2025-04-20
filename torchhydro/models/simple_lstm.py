@@ -35,6 +35,24 @@ class SimpleLSTM(nn.Module):
         return self.linearOut(out_lstm_dr)
 
 
+# class SimpleLSTM(nn.Module):
+#     def __init__(self, input_size, output_size, hidden_size, dr=0.0):
+#         super(SimpleLSTM, self).__init__()
+#         self.linearIn = nn.Linear(input_size, hidden_size)
+#         self.lstm = nn.LSTM(
+#             hidden_size,
+#             hidden_size,
+#             1,
+#             dropout=dr,
+#         )
+#         self.linearOut = nn.Linear(hidden_size, output_size)
+
+#     def forward(self, x):
+#         x0 = F.relu(self.linearIn(x))
+#         out_lstm, (hn, cn) = self.lstm(x0)
+#         return self.linearOut(out_lstm)
+
+
 class HoLSTM(nn.Module):
     def __init__(self, input_size, output_size, hidden_size, dr=0.0):
         super(HoLSTM, self).__init__()
@@ -324,49 +342,6 @@ class SimpleLSTMForecast(SimpleLSTM):
         full_output = super(SimpleLSTMForecast, self).forward(x)
 
         return full_output[-self.forecast_length :, :, :]
-
-
-class SimpleLSTMForecastWithStreamflowLinear(nn.Module):
-    def __init__(
-        self,
-        input_size,
-        output_size,
-        hidden_size,
-        streamflow_input_length,
-        stremflow_output_size,
-        forecast_length,
-        dr=0.0,
-    ):
-        super(SimpleLSTMForecastWithStreamflowLinear, self).__init__()
-        self.linearIn = nn.Linear(input_size + stremflow_output_size - 1, hidden_size)
-        self.lstm = nn.LSTM(hidden_size, hidden_size, 1, dropout=dr)
-        self.linearOut = nn.Linear(hidden_size, output_size)
-        self.extra_input_linear = nn.Linear(
-            streamflow_input_length, stremflow_output_size
-        )
-        self.forecast_length = forecast_length
-
-    def forward(self, *src):
-        x, specific_input = src
-        # trans (specific_length, batch_size, 1) to (1, batch_size, 1)
-        specific_input = specific_input.squeeze(-1)  # (specific_length, batch_size)
-        specific_transformed = self.extra_input_linear(
-            specific_input.permute(1, 0)
-        )  # (batch_size, 1)
-        specific_transformed = specific_transformed.unsqueeze(0)  # (1, batch_size, 1)
-
-        seq_length = x.size(0)
-        specific_expanded = specific_transformed.expand(
-            seq_length, -1, -1
-        )  # (seq_length, batch_size, 1)
-
-        x = torch.cat(
-            [x, specific_expanded], dim=2
-        )  # (seq_length, batch_size, input_size)
-
-        x0 = F.relu(self.linearIn(x))
-        out_lstm, (hn, cn) = self.lstm(x0)
-        return self.linearOut(out_lstm)[-self.forecast_length :, :, :]
 
 
 class SlowLSTM(nn.Module):

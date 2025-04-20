@@ -24,7 +24,6 @@ from torchhydro.models.simple_lstm import (
     MultiLayerLSTM,
     SimpleLSTM,
     SimpleLSTMForecast,
-    SimpleLSTMForecastWithStreamflowLinear,
     FoLSTM,
     HoLSTM,
     HFLSTM,
@@ -99,7 +98,6 @@ pytorch_model_dict = {
     "DplAnnGr4j": DplAnnGr4j,
     "SimpleLSTM": SimpleLSTM,
     "LinearSimpleLSTMModel": LinearSimpleLSTMModel,
-    "SimpleLSTMForecastWithStreamflowLinear": SimpleLSTMForecastWithStreamflowLinear,
     "MultiLayerLSTM": MultiLayerLSTM,
     "LinearMultiLayerLSTMModel": LinearMultiLayerLSTMModel,
 }
