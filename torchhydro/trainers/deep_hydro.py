@@ -143,13 +143,13 @@ class DeepHydro(DeepHydroInterface):
         super().__init__(cfgs)
         self.device_num = cfgs["training_cfgs"]["device"]
         self.device = get_the_device(self.device_num)
-        self.pre_model = pre_model
-        self.model = self.load_model()
         if cfgs["training_cfgs"]["train_mode"]:
             self.traindataset = self.make_dataset("train")
             if cfgs["data_cfgs"]["t_range_valid"] is not None:
                 self.validdataset = self.make_dataset("valid")
         self.testdataset: BaseDataset = self.make_dataset("test")
+        self.pre_model = pre_model
+        self.model = self.load_model()
         print(f"Torch is using {str(self.device)}")
 
     def load_model(self, mode="train"):
@@ -222,6 +222,8 @@ class DeepHydro(DeepHydroInterface):
 
         if dataset_name in list(datasets_dict.keys()):
             dataset = datasets_dict[dataset_name](data_cfgs, is_tra_val_te)
+            if dataset.data_educed_model:
+                self.cfgs["model_cfgs"]["model_hyperparam"]["nested_model"] = dataset.data_educed_model
         else:
             raise NotImplementedError(
                 f"Error the dataset {str(dataset_name)} was not found in the dataset dict. Please add it."
@@ -445,7 +447,10 @@ class DeepHydro(DeepHydroInterface):
         )
 
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
-        if mode == "infer":
+        """get DataLoader
+        
+        """
+        if mode == "infer":  # test period
             ngrid = self.testdataset.ngrid
             if data_cfgs["sampler"] != "BasinBatchSampler":
                 # TODO: this case should be tested more
@@ -467,6 +472,7 @@ class DeepHydro(DeepHydroInterface):
                 drop_last=False,
                 timeout=0,
             )
+        # train period
         worker_num = 0
         pin_memory = False
         if "num_workers" in training_cfgs:
@@ -485,7 +491,7 @@ class DeepHydro(DeepHydroInterface):
             pin_memory=pin_memory,
             timeout=0,
         )
-        if data_cfgs["t_range_valid"] is not None:
+        if data_cfgs["t_range_valid"] is not None:  # valid period
             validation_data_loader = DataLoader(
                 self.validdataset,
                 batch_size=training_cfgs["batch_size"],

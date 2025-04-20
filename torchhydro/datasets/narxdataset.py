@@ -30,14 +30,17 @@ class NarxDataset(BaseDataset):
         """
         super(NarxDataset, self).__init__(data_cfgs, is_tra_val_te)
         self.data_cfgs = data_cfgs
+        self.b_nestedness = self.data_cfgs["b_nestedness"]
+        self.data_educed_model = None  # only nested_model now
+        self.basin_list = None
+        self._pre_load_data()
+        self._generate_data_educed_model()
         if is_tra_val_te in {"train", "valid", "test"}:
             self.is_tra_val_te = is_tra_val_te
         else:
             raise ValueError(
                 "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
             )
-        self.b_nestedness = self.data_cfgs["b_nestedness"]
-        self.nested_model = None
         # load and preprocess data
         self._load_data()
 
@@ -85,6 +88,15 @@ class NarxDataset(BaseDataset):
             the default options of :class:`torch.utils.data.DataLoader`.
         """
         return self.num_samples if self.train_mode else self.ngrid  # ngrid means nbasin
+
+    def _generate_data_educed_model(self):
+        if not self.b_nestedness:
+            raise ValueError("Error: naxrdataset needs nestedness information.")
+        else:
+            nestedness_info = self.data_source.read_nestedness_csv()
+            basin_tree_ = BasinTree(nestedness_info, self.basins)
+            self.data_educed_model = basin_tree_.get_basin_trees()
+            self.basin_list = self.data_educed_model["basin_list"]
 
     def _pre_load_data(self):
         """preload data.
@@ -197,42 +209,29 @@ class NarxDataset(BaseDataset):
         end_date : str
             end time
         """
-        if not self.b_nestedness:
-            raise ValueError("Error: naxrdataset needs nestedness information.")
-        else:
-            nestedness_info = self.data_source.read_nestedness_csv()
-            basin_tree_ = BasinTree(nestedness_info, self.basins)
-            # return all related basins, cal_order and basin tree
-            # make forcing dataset containing nested basin streamflow for each input gauge.
-            # cal_order
-            self.nested_model = basin_tree_.get_basin_trees()
-            basin_list = self.nested_model["basin_list"]
-            # x
-            data_forcing_ds_ = self.data_source.read_ts_xrdataset(
-                basin_list,
-                [start_date, end_date],
-                self.data_cfgs["relevant_cols"],  # forcing data
-            )
-            # y
-            data_nested_output_ds_ = self.data_source.read_ts_xrdataset(
-                basin_list,
-                [start_date, end_date],
-                self.data_cfgs["target_cols"],  # target data, streamflow.
-            )
-            # handle cal order
-
-            # turn dict into list
-            if isinstance(data_nested_output_ds_, dict) or isinstance(data_forcing_ds_, dict):  
-                data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
-                data_nested_output_ds_ = data_nested_output_ds_[list(data_nested_output_ds_.keys())[0]]
-            data_forcing_ds, data_nested_output_ds_ = self._check_ts_xrds_unit(
-                data_forcing_ds_, data_nested_output_ds_
-            )
-            data_attr_ds = None
-            self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(   # origin data
-                data_forcing_ds, data_nested_output_ds_, data_attr_ds
-            )
-            
+        # x
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.basin_list,
+            [start_date, end_date],
+            self.data_cfgs["relevant_cols"],  # forcing data
+        )
+        # y
+        data_nested_output_ds_ = self.data_source.read_ts_xrdataset(
+            self.basin_list,
+            [start_date, end_date],
+            self.data_cfgs["target_cols"],  # target data, streamflow.
+        )
+        # turn dict into list
+        if isinstance(data_nested_output_ds_, dict) or isinstance(data_forcing_ds_, dict):  
+            data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
+            data_nested_output_ds_ = data_nested_output_ds_[list(data_nested_output_ds_.keys())[0]]
+        data_forcing_ds, data_nested_output_ds_ = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_nested_output_ds_
+        )
+        data_attr_ds = None
+        self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(   # origin data
+            data_forcing_ds, data_nested_output_ds_, data_attr_ds
+        )
 
     def _create_lookup_table(self):
         """

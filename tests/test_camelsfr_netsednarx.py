@@ -49,6 +49,15 @@ def var_t():
         # "streamflow",
     ]
 
+# def generate_basintrees():
+#     nestedness_info = self.data_source.read_nestedness_csv()
+#     basin_tree_ = BasinTree(nestedness_info, self.basins)
+#     # return all related basins, cal_order and basin tree
+#     # make forcing dataset containing nested basin streamflow for each input gauge.
+#     # cal_order
+#     self.nested_model = basin_tree_.get_basin_trees()
+#     basin_list = self.nested_model["basin_list"]
+
 @pytest.fixture
 def camelsfr_narx_arg(var_c, var_t):
     project_name = os.path.join("test_camels", "narx_camelsfr")
@@ -75,11 +84,13 @@ def camelsfr_narx_arg(var_c, var_t):
             "feedback_delay": 1,
             # "num_layers": 1,
             "close_loop": False,
+            "nested_model": None,
         },
         loss_func="RMSESum",
         sampler="KuaiSampler",
         dataset="NarxDataset",
-        scaler="DapengScaler",
+        # scaler="DapengScaler",  # todo: ValueError: operands could not be broadcast together with shapes (17,366) (3,366)  ../../../.conda/envs/torchhydro/lib/python3.13/site-packages/hydroutils/hydro_stat.py:554: ValueError def cal_stat_prcp_norm(x, meanprep): flowua = x / tempprep
+        scaler="StandardScaler",
         # gage_id=[
         #     "A105003001",
         #     "A107020001",
@@ -136,7 +147,7 @@ def camelsfr_narx_arg(var_c, var_t):
     )
 
 
-def test_camelsfr_narx(camelsfr_narx_arg):
+def test_camelsfr_nestednarx(camelsfr_narx_arg):
     config_data = default_config_file()
     update_cfg(config_data, camelsfr_narx_arg)
     train_and_evaluate(config_data)

@@ -135,55 +135,55 @@ class NestedNarx(nn.Module):
         self.n_basin_per_order_list = self.Nested_model["n_basin_per_order_list"]  # 2 dimension
         self.n_basin_per_order = self.Nested_model["n_basin_per_order"]  # 1 dimension
 
-    def _forward(self, x):
-        """
-        implement netsed calculation here.
-        x
-            input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
-        """
-        n_step, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list
-        basin_list_x = []
-        if n_basin == len(self.basin_list):
-            for i in range(n_basin):
-                x_i = x[:, i, :]   # time|(prcp,pet,streamflow)
-                basin_list_x.append(x_i)
-        n_basintrees = len(self.basintress)
-        basin_trees_x = []
-        n_basin_ii = 0
-        for i in range(n_basintrees):
-            # root, limb, single_basin
-            basin_tree_i = self.basin_trees[i]
-            n_basin_i = len(basin_tree_i)
-            basin_tree_x_i = x[:, n_basin_ii:n_basin_i, :]
-            basin_trees_x.append(basin_tree_x_i)
-            n_basin_ii = n_basin_ii + n_basin_i
+    # def _forward(self, x):
+    #     """
+    #     implement netsed calculation here.
+    #     x
+    #         input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
+    #     """
+    #     n_step, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list
+    #     basin_list_x = []
+    #     if n_basin == len(self.basin_list):
+    #         for i in range(n_basin):
+    #             x_i = x[:, i, :]   # time|(prcp,pet,streamflow)
+    #             basin_list_x.append(x_i)
+    #     n_basintrees = len(self.basintrees)
+    #     basin_trees_x = []
+    #     n_basin_ii = 0
+    #     for i in range(n_basintrees):
+    #         # root, limb, single_basin
+    #         basin_tree_i = self.basin_trees[i]
+    #         n_basin_i = len(basin_tree_i)
+    #         basin_tree_x_i = x[:, n_basin_ii:n_basin_i, :]
+    #         basin_trees_x.append(basin_tree_x_i)
+    #         n_basin_ii = n_basin_ii + n_basin_i
 
-        # calculate along basintree
-        # basins with a same order calculate together
-        # meanwhile take the link relationship between basins into count.
-        # means call narx for each basin
-        # seems need to object
-        basin_tree_i = [Basin]
-        for i in range(n_basintrees):
-            # root, limb, single_basin
-            basin_tree_i = self.basin_trees[i]
-            n_basin_i = len(basin_tree_i)
-            basin_list = self.basin_list_array[i]
-            max_order_i = basin_tree_i[-1].basin_order
-            n_basin_per_order = self.n_basin_per_order_list[i]
-            basin_tree_x_i = basin_trees_x[i]
-            n_basin_per_order_jj = 0
-            for j in range(max_order_i, -1, -1):
-                if j == max_order_i:  # no upstream basin
-                    n_basin_per_order_j = n_basin_per_order[j]
-                    basin_j = basin_tree_i[-n_basin_per_order_j:-n_basin_per_order_jj]  # Basin object
-                    x_j = basin_tree_x_i[:, -n_basin_per_order_j:-n_basin_per_order_jj, :]
-                    n_basin_per_order_jj = n_basin_per_order_jj + n_basin_per_order_j
-                    y_j = []*n_basin_per_order_j
-                    for k in range(n_basin_per_order_j):
-                        x_k = x_j[k]
-                        y_j[k] = self.dl_model(x_k)  # streamflow
-                # else:  # 
+    #     # calculate along basintree
+    #     # basins with a same order calculate together
+    #     # meanwhile take the link relationship between basins into count.
+    #     # means call narx for each basin
+    #     # seems need to object
+    #     basin_tree_i = [Basin]
+    #     for i in range(n_basintrees):
+    #         # root, limb, single_basin
+    #         basin_tree_i = self.basin_trees[i]
+    #         n_basin_i = len(basin_tree_i)
+    #         basin_list = self.basin_list_array[i]
+    #         max_order_i = basin_tree_i[-1].basin_order
+    #         n_basin_per_order = self.n_basin_per_order_list[i]
+    #         basin_tree_x_i = basin_trees_x[i]
+    #         n_basin_per_order_jj = 0
+    #         for j in range(max_order_i, -1, -1):
+    #             if j == max_order_i:  # no upstream basin
+    #                 n_basin_per_order_j = n_basin_per_order[j]
+    #                 basin_j = basin_tree_i[-n_basin_per_order_j:-n_basin_per_order_jj]  # Basin object
+    #                 x_j = basin_tree_x_i[:, -n_basin_per_order_j:-n_basin_per_order_jj, :]
+    #                 n_basin_per_order_jj = n_basin_per_order_jj + n_basin_per_order_j
+    #                 y_j = []*n_basin_per_order_j
+    #                 for k in range(n_basin_per_order_j):
+    #                     x_k = x_j[k]
+    #                     y_j[k] = self.dl_model(x_k)  # streamflow
+    #             # else:  # 
 
 
     def forward(self, x):
@@ -193,7 +193,7 @@ class NestedNarx(nn.Module):
             input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
         """
         n_step, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list
-        n_basintrees = len(self.basintress)
+        n_basintrees = len(self.basin_trees)
         basin_list_x = []
         if n_basin == len(self.basin_list):
             for i in range(n_basin):
@@ -222,7 +222,7 @@ class NestedNarx(nn.Module):
 
             
         else:
-            raise ValueError("Error: The dimension of input data x dismatch with basintree, please check both.")
+            raise ValueError("Error: The dimension of input data x dismatch with basintree, please check both.")  # todo: n_basin = 1
 
         basin_trees_x = []
         n_basin_ii = 0
