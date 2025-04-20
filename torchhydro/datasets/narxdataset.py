@@ -54,7 +54,7 @@ class NarxDataset(BaseDataset):
         /home/yulili/.conda/envs/torchhydro/lib/python3.13/site-packages/torch/utils/data/dataloader.py  _next_data(self)
         Parameters
         ----------
-        item: batch/basins
+        item: batch/basins  586 ?  todo: 
 
         Returns
         -------
@@ -69,7 +69,7 @@ class NarxDataset(BaseDataset):
             c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
             xc = np.concatenate((x, c), axis=1)
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-        basin, idx = self.lookup_table[item]  # 
+        basin, idx = self.lookup_table[item]  # 220
         warmup_length = self.warmup_length  #
         x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]  # [batch(basin), time, features]
         y = self.y[basin, idx: idx + self.rho + self.horizon, :]
@@ -113,13 +113,13 @@ class NarxDataset(BaseDataset):
         """load data to make dataset.
         
         """
-        self._pre_load_data()
+        # self._pre_load_data()
         self._read_xyc()
         # normalization
         norm_x, norm_y, norm_c = self._normalize()
         self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)  # deal with nan value
         self._trans2nparr()
-        self._create_lookup_table()  #
+        self._create_lookup_table()  # todo：
 
     def _trans2nparr(self):
         """To make __getitem__ more efficient,
@@ -236,13 +236,15 @@ class NarxDataset(BaseDataset):
     def _create_lookup_table(self):
         """
         create lookup table.
+
         Returns
         -------
 
         """
         lookup = []
         # list to collect basins ids of basins without a single training sample
-        basin_coordinates = len(self.t_s_dict["sites_id"])
+        # basin_coordinates = len(self.t_s_dict["sites_id"])  # 
+        basin_coordinates = len(self.basin_list)
         rho = self.rho  # forcast_history
         warmup_length = self.warmup_length
         horizon = self.horizon  # forcast_length
@@ -256,7 +258,7 @@ class NarxDataset(BaseDataset):
             else:
                 # some dataloader load data with warmup period, so leave some periods for it
                 # [warmup_len] -> time_start -> [rho] -> [horizon]
-                nan_array = np.isnan(self.y[basin, :, :])
+                nan_array = np.isnan(self.y[basin, :, :])  # nan value
                 lookup.extend(
                     (basin, f)
                     for f in range(warmup_length, max_time_length - rho - horizon + 1)

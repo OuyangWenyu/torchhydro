@@ -410,7 +410,7 @@ def torch_single_train(
     seq_first = which_first_tensor != "batch"
     pbar = tqdm(data_loader)  # load data  todo:
 
-    for _, (src, trg) in enumerate(pbar):  # todo: how to solit?
+    for _, (src, trg) in enumerate(pbar):  # todo: how to split?   call __getitem__ in NarxDataset class
         trg, output = model_infer(seq_first, device, model, src, trg)  # src, forcing data, e.g. prce|pet  trg, target data, e.g. streamflow.
 
         loss = compute_loss(trg, output, criterion, **kwargs)

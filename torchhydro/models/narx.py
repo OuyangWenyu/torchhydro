@@ -127,7 +127,7 @@ class NestedNarx(nn.Module):
         self.nx = n_input_features
         self.ny = n_output_features
         self.Nested_model = nested_model
-        self.basin_trees = self.Nested_model["basin_trees"]  # 
+        self.basin_trees = self.Nested_model["basin_trees"]  # 3 dimension
         self.basin_tree_max_order = self.Nested_model["basin_tree_max_order"]
         self.basin_list = self.Nested_model["basin_list"]  # basin_id list, one dimension.
         self.basin_list_array = self.Nested_model["basin_list_array"]  # basin_id list, 2 dimension.
@@ -196,21 +196,24 @@ class NestedNarx(nn.Module):
         n_basintrees = len(self.basin_trees)
         basin_list_x = []
         if n_basin == len(self.basin_list):
+            # split data
             for i in range(n_basin):
                 x_i = x[:, i, :]   # time|(prcp,pet,streamflow)
                 basin_list_x.append(x_i)
-            k = 0
-            for i in range(n_basintrees):
-                n_basin_i = len(self.basin_trees[i])
-                for j in range(n_basin_i):
-                    self.basin_trees[i][j].set_x_data(basin_list_x[k][:,:self.nx])
-                    self.basin_trees[i][j].set_y_data(basin_list_x[k][:,-self.ny:])
-                    self.basin_trees[i][j].set_model(self.dl_model)
-                    k = k + 1
-            #
+            # set data
+            m = 0
+            for i in range(n_basintrees):  # basintrees
+                n_order_i = len(self.basin_trees[i])
+                for j in range(n_order_i):  # order
+                    n_basin_j = len(self.basin_trees[i][j])
+                    for k in range(n_basin_j):  # per order
+                        self.basin_trees[i][j][k].set_x_data(basin_list_x[m][:,:self.nx])
+                        self.basin_trees[i][j][k].set_y_data(basin_list_x[m][:,-self.ny:])
+                        self.basin_trees[i][j][k].set_model(self.dl_model)
+                        m = m + 1
+            # run model
             for i in range(n_basintrees):
                 max_order_i = len(self.n_basin_per_order_list[i])
-                n_basin_i = len(self.basin_trees[i])
                 m = 0
                 for j in range(max_order_i, -1, -1):
                     n_basin_j = self.n_basin_per_order_list[i][j]

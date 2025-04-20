@@ -224,6 +224,7 @@ class DeepHydro(DeepHydroInterface):
             dataset = datasets_dict[dataset_name](data_cfgs, is_tra_val_te)
             if dataset.data_educed_model:
                 self.cfgs["model_cfgs"]["model_hyperparam"]["nested_model"] = dataset.data_educed_model
+                self.cfgs["training_cfgs"]["batch_size"] = len(dataset.basin_list)
         else:
             raise NotImplementedError(
                 f"Error the dataset {str(dataset_name)} was not found in the dataset dict. Please add it."
