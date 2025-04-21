@@ -93,7 +93,7 @@ class Basin:
 
     def make_input_x(self):
         if (self.x != None) and (self.y_us != None):
-            self.input_x = torch.cat([self.x, self.y_us], dim=-1)  # along column
+            self.input_x = torch.cat([self.x, self.y_us], dim=-1)  # along column  RuntimeError: Tensors must have same number of dimensions: got 2 and 3   todo: data dimension problem
         else:
             self.input_x = self.x  #.copy_()
         if (self.input_x != None) and (self.y != None):
@@ -111,7 +111,7 @@ class Basin:
         if self.node_ds.y_input is not None:
             self.node_ds.y_input = torch.act((self.node_ds.y_input, self.output_y), dim = 1)  
         else:
-            self.node_ds.y_input = self.output_y
+            self.node_ds.y_input = self.output_y  # todo: check copy problem
 
 
 
