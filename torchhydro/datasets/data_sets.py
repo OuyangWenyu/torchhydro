@@ -300,7 +300,7 @@ class BaseDataset(Dataset):
         return times_
 
     def __len__(self):
-        return self.num_samples if self.train_mode else self.ngrid
+        return self.num_samples
 
     def __getitem__(self, item: int):
         basin, idx = self.lookup_table[item]
@@ -818,9 +818,6 @@ class BasinSingleFlowDataset(BaseDataset):
         y = ys[-1, :]
         return xc, y
 
-    def __len__(self):
-        return self.num_samples
-
 
 class DplDataset(BaseDataset):
     """pytorch dataset for Differential parameter learning"""
@@ -885,9 +882,6 @@ class DplDataset(BaseDataset):
             torch.from_numpy(x_train).float(),
             z_train,
         ), torch.from_numpy(y_train).float()
-
-    def __len__(self):
-        return self.num_samples if self.train_mode else len(self.t_s_dict["sites_id"])
 
 
 class FlexibleDataset(BaseDataset):
@@ -998,9 +992,6 @@ class Seq2SeqDataset(BaseDataset):
         x, y, c = super()._normalize()
         # TODO: this work for minio? maybe better to move to basedataset
         return x.compute(), y.compute(), c.compute()
-
-    def __len__(self):
-        return self.num_samples
 
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]

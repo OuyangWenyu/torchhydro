@@ -482,18 +482,20 @@ def compute_validation(
     seq_first = kwargs["which_first_tensor"] != "batch"
     obs = []
     preds = []
+    valid_loss = 0.0
     with torch.no_grad():
         for src, trg in data_loader:
             trg, output = model_infer(seq_first, device, model, src, trg)
             obs.append(trg)
             preds.append(output)
+            valid_loss_ = compute_loss(trg, output, criterion)
+            valid_loss = valid_loss + valid_loss_.item()
             # clear memory to save GPU memory
             torch.cuda.empty_cache()
         # first dim is batch
         obs_final = torch.cat(obs, dim=0)
         pred_final = torch.cat(preds, dim=0)
-
-        valid_loss = compute_loss(obs_final, pred_final, criterion)
+    valid_loss = valid_loss / len(data_loader)
     y_obs = obs_final.detach().cpu().numpy()
     y_pred = pred_final.detach().cpu().numpy()
     return y_obs, y_pred, valid_loss
