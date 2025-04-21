@@ -532,7 +532,7 @@ def compute_validation(
     data_loader: DataLoader,
     device: torch.device = None,
     **kwargs,
-) -> float:
+):
     """
     Function to compute the validation loss metrics
 
@@ -557,21 +557,34 @@ def compute_validation(
     obs = []
     preds = []
     valid_loss = 0.0
+    obs_final = None
+    pred_final = None
     with torch.no_grad():
+        iter_num = 0
         for src, trg in data_loader:
             trg, output = model_infer(seq_first, device, model, src, trg)
             obs.append(trg)
             preds.append(output)
             valid_loss_ = compute_loss(trg, output, criterion)
+            if torch.isnan(valid_loss_):
+                # for not-train mode, we may get all nan data for trg
+                # so we skip this batch
+                continue
             valid_loss = valid_loss + valid_loss_.item()
+            iter_num = iter_num + 1
             # clear memory to save GPU memory
+            if obs_final is None:
+                obs_final = trg.detach().cpu()
+                pred_final = output.detach().cpu()
+            else:
+                obs_final = torch.cat([obs_final, trg.detach().cpu()], dim=0)
+                pred_final = torch.cat([pred_final, output.detach().cpu()], dim=0)
+            del trg, output
             torch.cuda.empty_cache()
         # first dim is batch
-        obs_final = torch.cat(obs, dim=0)
-        pred_final = torch.cat(preds, dim=0)
-    valid_loss = valid_loss / len(data_loader)
-    y_obs = obs_final.detach().cpu().numpy()
-    y_pred = pred_final.detach().cpu().numpy()
+    valid_loss = valid_loss / iter_num
+    y_obs = obs_final.numpy()
+    y_pred = pred_final.numpy()
     return y_obs, y_pred, valid_loss
 
 
