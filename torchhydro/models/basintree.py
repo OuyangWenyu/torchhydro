@@ -26,13 +26,15 @@ class Node:
         self.n_basin_us = len(self.basin_us)
         return self.n_basin_us
     
-    def refresh_y_input(self):
-        self.n_basin_us = len(self.basin_us)
-        for i in range(self.n_basin_us):
-            self.y_input.append(self.basin_us[i].y)  # todo:
+    # def refresh_y_input(self):
+    #     self.n_basin_us = len(self.basin_us)
+    #     for i in range(self.n_basin_us):
+    #         self.y_input.append(self.basin_us[i].y)  # todo:
 
     def refresh_y_output(self):
-        self.y_output = self.y_input
+        _, n_basin = self.y_input.size()
+        if n_basin == len(self.basin_us):
+            self.y_output = self.y_input
 
 
 class Basin:
@@ -49,9 +51,10 @@ class Basin:
         self.cal_order = self.max_order_of_tree - self.basin_order
         self.x = None  # forcing data (prce,pet)
         self.y = None  # target data (streamflow)
-        self.y_us = None  # input data of upstream (streamflow)
+        self.y_us = None  # input data / inflow from upstream (streamflow)
         self.model = None  # dl model
         self.input_x = None  # input data for model
+        self.output_y = None  # output data from model
 
     def set_basin_type(self, basin_type):
         self.basin_type = basin_type
@@ -77,8 +80,9 @@ class Basin:
     def set_y_data(self, y):
         self.y = y
 
-    def set_y_us_data(self):
-        self.y_us = self.node.y_output
+    def get_y_us_data(self):
+        """get inflow coming from upstream basins via node_us """
+        self.y_us = self.node_us.y_output  # todo: may appear memory problem here
 
     def set_model(self, model = None):
         self.model = model
@@ -95,7 +99,13 @@ class Basin:
     def run_model(self):
         self.make_input_x()
         if self.input_x != None:
-            out = self.model(self.input_x)
+            self.output_y = self.model(self.input_x)
+        return self.output_y  # todo: dimension problem
+    
+    def set_output(self):
+        """outflow to node_ds"""
+        self.node_ds.y_input.append(self.output_y)
+
 
 
 class BasinTree:

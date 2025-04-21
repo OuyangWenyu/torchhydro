@@ -93,14 +93,6 @@ def test_NarxDataset():
 #   0%|          | 0/3 [00:00<?, ?it/s]
 # 100%|██████████| 3/3 [00:00<00:00, 1245.34it/s]
 
-# ============================= test session starts ==============================
-# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
-# rootdir: /home/yulili/code/torchhydro/tests
-# configfile: ../setup.cfg
-# plugins: mock-3.14.0
-# Backend tkagg is interactive backend. Turning interactive mode on.
-# collected 1 item
-
 # test_camelsfr_netsednarx.py update config file
 # !!!!!!NOTE!!!!!!!!
 # -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
@@ -110,17 +102,15 @@ def test_NarxDataset():
 # Finish Normalization
 
 
-#   0%|          | 0/3 [00:00<?, ?it/s]
-# 100%|██████████| 3/3 [00:00<00:00, 979.90it/s]
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 1255.47it/s]
 # Finish Normalization
 
 
-#   0%|          | 0/3 [00:00<?, ?it/s]
-# 100%|██████████| 3/3 [00:00<00:00, 9072.03it/s]
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 580.73it/s]
 # Finish Normalization
 
 
-#   0%|          | 0/3 [00:00<?, ?it/s]
-# 100%|██████████| 3/3 [00:00<00:00, 11184.81it/s]
-# Torch is using cpu
-
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 13739.30it/s]
