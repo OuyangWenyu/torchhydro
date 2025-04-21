@@ -1269,6 +1269,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
     if new_args.valid_batch_mode is not None:
         cfg_file["training_cfgs"]["valid_batch_mode"] = new_args.valid_batch_mode
+    if new_args.evaluator is not None:
+        cfg_file["evaluation_cfgs"]["evaluator"] = new_args.evaluator
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 

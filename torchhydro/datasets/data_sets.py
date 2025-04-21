@@ -654,6 +654,7 @@ class BaseDataset(Dataset):
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
             if not self.train_mode:
                 # we don't need to ignore those with full nan in target vars for prediction without loss calculation
+                # all samples should be included so that we can recover results to specified basins easily
                 lookup.extend(
                     (basin, f)
                     for f in range(warmup_length, max_time_length - rho - horizon + 1)
