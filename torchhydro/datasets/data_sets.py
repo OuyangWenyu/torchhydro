@@ -125,25 +125,73 @@ def detect_date_format(date_str):
 class BaseDataset(Dataset):
     """Base data set class to load and preprocess data (batch-first) using PyTorch's Dataset"""
 
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
         """
         Parameters
         ----------
-        data_cfgs
-            parameters for reading source data
+        cfgs
+            configs, including data and training + evaluation settings
+            which will be used for organizing batch data
         is_tra_val_te
             train, vaild or test
         """
         super(BaseDataset, self).__init__()
-        self.data_cfgs = data_cfgs
+        self.data_cfgs = cfgs["data_cfgs"]
+        self.training_cfgs = cfgs["training_cfgs"]
+        self.evaluation_cfgs = cfgs["evaluation_cfgs"]
+        self._pre_load_data(is_tra_val_te)
+        # load and preprocess data
+        self._load_data()
+
+    def _pre_load_data(self, is_tra_val_te):
+        """
+        some preprocessing before loading data, such as
+        setting the way to organize batch data
+
+        Parameters
+        ----------
+        is_tra_val_te: bool
+            train, valid or test
+
+        Raises
+        ------
+        ValueError
+            _description_
+        """
         if is_tra_val_te in {"train", "valid", "test"}:
             self.is_tra_val_te = is_tra_val_te
         else:
             raise ValueError(
                 "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
             )
-        # load and preprocess data
-        self._load_data()
+        self.train_mode = self.is_tra_val_te == "train"
+        self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
+        self.rho = self.training_cfgs["hindcast_length"]
+        self.warmup_length = self.training_cfgs["warmup_length"]
+        self.horizon = self.training_cfgs["forecast_length"]
+        valid_batch_mode = self.training_cfgs["valid_batch_mode"]
+        # train + valid with valid_mode is train means we will use the same batch data for train and valid
+        self.is_new_batch_way = (
+            is_tra_val_te != "valid" or valid_batch_mode != "train"
+        ) and is_tra_val_te != "train"
+        rolling = self.evaluation_cfgs.get("rolling", 0)
+        if self.evaluation_cfgs["hrwin"] is None:
+            hrwin = self.rho
+        else:
+            hrwin = self.evaluation_cfgs["hrwin"]
+        if self.evaluation_cfgs["frwin"] is None:
+            frwin = self.horizon
+        else:
+            frwin = self.evaluation_cfgs["frwin"]
+        current_idx = self.evaluation_cfgs["current_idx"]
+        if rolling == 0:
+            hrwin = current_idx
+            frwin = self.nt - current_idx
+        if self.is_new_batch_way:
+            # we will set the batch data for valid and test
+            self.rolling = rolling
+            self.rho = hrwin
+            self.horizon = frwin
 
     @property
     def data_source(self):
@@ -255,15 +303,6 @@ class BaseDataset(Dataset):
         return self.num_samples if self.train_mode else self.ngrid
 
     def __getitem__(self, item: int):
-        if not self.train_mode:
-            x = self.x[item, :, :]
-            y = self.y[item, :, :]
-            if self.c is None or self.c.shape[-1] == 0:
-                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-            c = self.c[item, :]
-            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xc = np.concatenate((x, c), axis=1)
-            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
         basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length
         x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
@@ -275,17 +314,7 @@ class BaseDataset(Dataset):
         xc = np.concatenate((x, c), axis=1)
         return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
 
-    def _pre_load_data(self):
-        self.train_mode = self.is_tra_val_te == "train"
-        self.valid_mode = self.is_tra_val_te == "valid"
-        self.test_mode = self.is_tra_val_te == "test"
-        self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
-        self.rho = self.data_cfgs["hindcast_length"]
-        self.warmup_length = self.data_cfgs["warmup_length"]
-        self.horizon = self.data_cfgs["forecast_length"]
-
     def _load_data(self):
-        self._pre_load_data()
         origin_data = self._read_xyc()
         # normalization
         norm_data = self._normalize(origin_data)
@@ -371,7 +400,7 @@ class BaseDataset(Dataset):
             units = {**units, **target_data.attrs["units"]}
         if rolling > 0:
             hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
-            rho = target_scaler.data_cfgs["hindcast_length"]
+            rho = target_scaler.training_cfgs["hindcast_length"]
             # TODO: -1 because seq2seqdataset has one more time, hence we need to cut it, as rolling will be refactored, we will modify it later
             selected_time_points = target_data.coords["time"][
                 rho - hindcast_output_window : -1
@@ -620,7 +649,8 @@ class BaseDataset(Dataset):
         horizon = self.horizon
         max_time_length = self.nt
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
-            if self.is_tra_val_te != "train":
+            if not self.train_mode:
+                # we don't need to ignore those with full nan in target vars for prediction without loss calculation
                 lookup.extend(
                     (basin, f)
                     for f in range(warmup_length, max_time_length - rho - horizon + 1)
@@ -645,18 +675,18 @@ class ObsForeDataset(BaseDataset):
     适合表示不同发布时间对不同目标日期的预报。
     """
 
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
         """初始化观测和预见期混合数据集
 
         Parameters
         ----------
-        data_cfgs : dict
-            数据配置字典
+        cfgs : dict
+            all configs
         is_tra_val_te : str
             指定是训练集、验证集还是测试集
         """
         # 调用父类初始化方法
-        super(ObsForeDataset, self).__init__(data_cfgs, is_tra_val_te)
+        super(ObsForeDataset, self).__init__(cfgs, is_tra_val_te)
         # for each batch, we fix length of hindcast and forecast length.
         # data from different lead time with a number representing the lead time,
         # for example, now is 2020-09-30, our min_time_interval is 1 day, hindcast length is 30 and forecast length is 1,
@@ -666,14 +696,14 @@ class ObsForeDataset(BaseDataset):
         # 2020-09-30now, 30hindcast, 2forecast, 3leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 forecast data from 2020-09-28 and 2020-10-02 forecast data from 2020-09-29
         # 2nd, we can set a increasing lead time for each forecast time
         # 2020-09-30now, 30hindcast, 2forecast, [1, 2]leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 to 2010-10-02 forecast data from 2020-09-30
-        self.lead_time_type = self.data_cfgs["lead_time_type"]
+        self.lead_time_type = self.training_cfgs["lead_time_type"]
         if self.lead_time_type not in ["fixed", "increasing"]:
             raise ValueError(
                 "lead_time_type must be one of 'fixed' or 'increasing', "
                 f"but got {self.lead_time_type}"
             )
-        self.lead_time_start = self.data_cfgs["lead_time_start"]
-        horizon = self.data_cfgs["forecast_length"]
+        self.lead_time_start = self.training_cfgs["lead_time_start"]
+        horizon = self.horizon
         offset = np.zeros((horizon,), dtype=int)
         if self.lead_time_type == "fixed":
             offset = offset + self.lead_time_start
@@ -735,19 +765,6 @@ class ObsForeDataset(BaseDataset):
             A pair of (x, y) data, where x contains input features and lead time flags,
             and y contains target values
         """
-        if not (self.train_mode and self.valid_mode):
-            x = self.x[item, :, :]
-            y = self.y[item, :, :]
-            f = self.f[item, :, :]
-            if self.c is None or self.c.shape[-1] == 0:
-                xc = np.concatenate((x, f), axis=1)
-            else:
-                c = self.c[item, :]
-                c = np.repeat(c, x.shape[0], axis=0).reshape(x.shape[0], -1).T
-                xc = np.concatenate((x, c, f), axis=1)
-
-            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-
         # train mode
         basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length
@@ -793,8 +810,8 @@ class ObsForeDataset(BaseDataset):
 class BasinSingleFlowDataset(BaseDataset):
     """one time length output for each grid in a batch"""
 
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(BasinSingleFlowDataset, self).__init__(data_cfgs, is_tra_val_te)
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        super(BasinSingleFlowDataset, self).__init__(cfgs, is_tra_val_te, **kwargs)
 
     def __getitem__(self, index):
         xc, ys = super(BasinSingleFlowDataset, self).__getitem__(index)
@@ -808,25 +825,25 @@ class BasinSingleFlowDataset(BaseDataset):
 class DplDataset(BaseDataset):
     """pytorch dataset for Differential parameter learning"""
 
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
         """
         Parameters
         ----------
-        data_cfgs
-            configs for reading source data
+        cfgs
+            all configs
         is_tra_val_te
             train, vaild or test
         """
-        super(DplDataset, self).__init__(data_cfgs, is_tra_val_te)
+        super(DplDataset, self).__init__(cfgs, is_tra_val_te)
         # we don't use y_un_norm as its name because in the main function we will use "y"
         # For physical hydrological models, we need warmup, hence the target values should exclude data in warmup period
-        self.warmup_length = data_cfgs["warmup_length"]
-        self.target_as_input = data_cfgs["target_as_input"]
-        self.constant_only = data_cfgs["constant_only"]
+        self.warmup_length = self.training_cfgs["warmup_length"]
+        self.target_as_input = self.data_cfgs["target_as_input"]
+        self.constant_only = self.data_cfgs["constant_only"]
         if self.target_as_input and (not self.train_mode):
             # if the target is used as input and train_mode is False,
             # we need to get the target data in training period to generate pbm params
-            self.train_dataset = DplDataset(data_cfgs, is_tra_val_te="train")
+            self.train_dataset = DplDataset(cfgs, is_tra_val_te="train")
 
     def __getitem__(self, item):
         """
@@ -848,55 +865,22 @@ class DplDataset(BaseDataset):
         warmup = self.warmup_length
         rho = self.rho
         horizon = self.horizon
-        if self.train_mode:
-            xc_norm, _ = super(DplDataset, self).__getitem__(item)
-            basin, time = self.lookup_table[item]
-            if self.target_as_input:
-                # y_morn and xc_norm are concatenated and used for DL model
-                y_norm = torch.from_numpy(
-                    self.y[basin, time - warmup : time + rho + horizon, :]
-                ).float()
-                # the order of xc_norm and y_norm matters, please be careful!
-                z_train = torch.cat((xc_norm, y_norm), -1)
-            elif self.constant_only:
-                # only use attributes data for DL model
-                z_train = torch.from_numpy(self.c[basin, :]).float()
-            else:
-                z_train = xc_norm.float()
-            x_train = self.x_origin[basin, time - warmup : time + rho + horizon, :]
-            y_train = self.y_origin[basin, time : time + rho + horizon, :]
+        xc_norm, _ = super(DplDataset, self).__getitem__(item)
+        basin, time = self.lookup_table[item]
+        if self.target_as_input:
+            # y_morn and xc_norm are concatenated and used for DL model
+            y_norm = torch.from_numpy(
+                self.y[basin, time - warmup : time + rho + horizon, :]
+            ).float()
+            # the order of xc_norm and y_norm matters, please be careful!
+            z_train = torch.cat((xc_norm, y_norm), -1)
+        elif self.constant_only:
+            # only use attributes data for DL model
+            z_train = torch.from_numpy(self.c[basin, :]).float()
         else:
-            x_norm = self.x[item, :, :]
-            if self.target_as_input:
-                # when target_as_input is True,
-                # we need to use training data to generate pbm params
-                x_norm = self.train_dataset.x[item, :, :]
-            if self.c is None or self.c.shape[-1] == 0:
-                xc_norm = torch.from_numpy(x_norm).float()
-            else:
-                c_norm = self.c[item, :]
-                c_norm = (
-                    np.repeat(c_norm, x_norm.shape[0], axis=0)
-                    .reshape(c_norm.shape[0], -1)
-                    .T
-                )
-                xc_norm = torch.from_numpy(
-                    np.concatenate((x_norm, c_norm), axis=1)
-                ).float()
-            if self.target_as_input:
-                # when target_as_input is True,
-                # we need to use training data to generate pbm params
-                # when used as input, warmup_length not included for y
-                y_norm = torch.from_numpy(self.train_dataset.y[item, :, :]).float()
-                # the order of xc_norm and y_norm matters, please be careful!
-                z_train = torch.cat((xc_norm, y_norm), -1)
-            elif self.constant_only:
-                # only use attributes data for DL model
-                z_train = torch.from_numpy(self.c[item, :]).float()
-            else:
-                z_train = xc_norm
-            x_train = self.x_origin[item, :, :]
-            y_train = self.y_origin[item, warmup:, :]
+            z_train = xc_norm.float()
+        x_train = self.x_origin[basin, time - warmup : time + rho + horizon, :]
+        y_train = self.y_origin[basin, time : time + rho + horizon, :]
         return (
             torch.from_numpy(x_train).float(),
             z_train,
@@ -909,8 +893,8 @@ class DplDataset(BaseDataset):
 class FlexibleDataset(BaseDataset):
     """A dataset whose datasources are from multiple sources according to the configuration"""
 
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(FlexibleDataset, self).__init__(data_cfgs, is_tra_val_te)
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        super(FlexibleDataset, self).__init__(cfgs, is_tra_val_te)
 
     @property
     def data_source(self):
@@ -974,8 +958,8 @@ class FlexibleDataset(BaseDataset):
 
 
 class Seq2SeqDataset(BaseDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(Seq2SeqDataset, self).__init__(data_cfgs, is_tra_val_te)
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        super(Seq2SeqDataset, self).__init__(cfgs, is_tra_val_te)
 
     def _read_xyc(self):
         """

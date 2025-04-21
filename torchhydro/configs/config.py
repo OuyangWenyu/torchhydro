@@ -95,26 +95,6 @@ def default_config_file():
                 "source_paths": ["../../example/camels_us"],
             },
             "case_dir": None,
-            "batch_size": 100,
-            # we generally have three times: [warmup, hindcast_length, forecast_length]
-            # For physics-based models, we need warmup; default is 0 as DL models generally don't need it
-            "warmup_length": 0,
-            # the length of the history data for forecasting
-            "hindcast_length": 30,
-            # the length of the forecast data
-            "forecast_length": 1,
-            # config for data of "forecast_length" part
-            # for each batch, we fix length of hindcast and forecast length.
-            # data from different lead time with a number representing the lead time,
-            # for example, now is 2020-09-30, our min_time_interval is 1 day, hindcast length is 30 and forecast length is 1,
-            # lead_time = 3 means 2020-09-01 to 2020-09-30, and the forecast data is 2020-10-01 from 2020-09-28
-            # for forecast data, we have two different configurations:
-            # 1st, we can set a same lead time for all forecast time
-            # 2020-09-30now, 30hindcast, 2forecast, 3leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 forecast data from 2020-09-28 and 2020-10-02 forecast data from 2020-09-29
-            # 2nd, we can set a increasing lead time for each forecast time
-            # 2020-09-30now, 30hindcast, 2forecast, [1, 2]leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 to 2010-10-02 forecast data from 2020-09-30
-            "lead_time_type": "fixed",  # must be fixed or increasing
-            "lead_time_start": 1,
             # the min time step of the input data
             "min_time_unit": "D",
             # the min time interval of the input data
@@ -244,6 +224,29 @@ def default_config_file():
             "port": "12335",
             # if train_mode is False, don't train and evaluate
             "train_mode": True,
+            "batch_size": 100,
+            # we generally have three times: [warmup, hindcast_length, forecast_length]
+            # warmup period means no observation will be used to calculate loss for it.
+            # For physics-based models, we generally need warmup to get a better initial state
+            # its default is 0 as DL models generally don't need it
+            "warmup_length": 0,
+            # the length of the history data to forecast
+            "hindcast_length": 30,
+            # the length of the forecast data
+            "forecast_length": 1,
+            # for each batch, we fix length of hindcast and forecast length.
+            # data from different lead time with a number representing the lead time,
+            # for example, now is 2020-09-30, our min_time_interval is 1 day, hindcast length is 30 and forecast length is 1,
+            # lead_time = 3 means 2020-09-01 to 2020-09-30, and the forecast data is 2020-10-01 from 2020-09-28
+            # for forecast data, we have two different configurations:
+            # 1st, we can set a same lead time for all forecast time
+            # 2020-09-30now, 30hindcast, 2forecast, 3leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 forecast data from 2020-09-28 and 2020-10-02 forecast data from 2020-09-29
+            # 2nd, we can set a increasing lead time for each forecast time
+            # 2020-09-30now, 30hindcast, 2forecast, [1, 2]leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 to 2010-10-02 forecast data from 2020-09-30
+            "lead_time_type": "fixed",  # must be fixed or increasing
+            "lead_time_start": 1,
+            # valid batch can be organized as same way with training or testing
+            "valid_batch_mode": "test",
             "criterion": "RMSE",
             "criterion_params": None,
             # "weight_decay": None, a regularization term in loss func
@@ -278,7 +281,6 @@ def default_config_file():
             # when we train a model for long time, some accidents may interrupt our training.
             # Then we need retrain the model with saved weights, and the start_epoch is not 1 yet.
             "start_epoch": 1,
-            "batch_size": 100,
             "random_seed": 1234,
             "device": [0, 1, 2],
             "multi_targets": 1,
@@ -315,11 +317,20 @@ def default_config_file():
             "metrics": ["NSE", "RMSE", "R2", "KGE", "FHV", "FLV"],
             "fill_nan": "no",
             "explainer": None,
-            # rolling is 0 means decoder-only model's prediction -- each period has one prediction
+            # rolling is stride, 0 means each period has only one prediction.
             # when rolling>0, such as 1, means perform forecasting each step after 1 period.
             # For example, at 8:00am we perform one forecasting and our time-step is 3h,
             # rolling=1 means 11:00, 14:00, 17:00 ..., we will perform forecasting
+            # when rolling>0, we will perform rolling forecast, for each forecasting,
+            # a rolling window (rwin) can be chosen:
+            # hindcast (hrwin) and forecast (frwin) length in rwin need to be chosen
+            # and then rwin = hrwin + frwin
             "rolling": 0,
+            "hrwin": None,
+            "frwin": None,
+            # current_idx means we assume a current period in testing periods,
+            # 0 means all testing periods belong to forecast periods without hindcast part
+            "current_idx": 0,
             "calc_metrics": True,
         },
     }
@@ -392,6 +403,9 @@ def cmd(
     fill_nan=None,
     explainer=None,
     rolling=None,
+    current_idx=None,
+    hrwin=None,
+    frwin=None,
     calc_metrics=None,
     start_epoch=None,
     stat_dict_file=None,
@@ -403,6 +417,7 @@ def cmd(
     patience=None,
     min_time_unit=None,
     min_time_interval=None,
+    valid_batch_mode=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -825,6 +840,27 @@ def cmd(
         type=int,
     )
     parser.add_argument(
+        "--current_idx",
+        dest="current_idx",
+        help="current_idx",
+        default=current_idx,
+        type=int,
+    )
+    parser.add_argument(
+        "--hrwin",
+        dest="hrwin",
+        help="hrwin",
+        default=hrwin,
+        type=int,
+    )
+    parser.add_argument(
+        "--frwin",
+        dest="frwin",
+        help="frwin",
+        default=frwin,
+        type=int,
+    )
+    parser.add_argument(
         "--model_loader",
         dest="model_loader",
         help="the way to load weights of trained model",
@@ -915,6 +951,12 @@ def cmd(
         help="The min time interval of the input data",
         default=min_time_interval,
         type=int,
+    )
+    parser.add_argument(
+        "--valid_batch_mode",
+        dest="valid_batch_mode",
+        help="The batch organization mode of valid data, train means same as train; test means same as test",
+        default=valid_batch_mode,
     )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
@@ -1098,18 +1140,20 @@ def update_cfg(cfg_file, new_args):
     if new_args.model_hyperparam is not None:
         # raise AttributeError("Please set the model_hyperparam!!!")
         cfg_file["model_cfgs"]["model_hyperparam"] = new_args.model_hyperparam
-        if "batch_size" in new_args.model_hyperparam.keys():
-            # TODO: batch_size's setting may conflict with batch_size's direct setting
-            cfg_file["data_cfgs"]["batch_size"] = new_args.model_hyperparam[
-                "batch_size"
-            ]
-            cfg_file["training_cfgs"]["batch_size"] = new_args.model_hyperparam[
-                "batch_size"
-            ]
-        if "forecast_length" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["forecast_length"] = new_args.model_hyperparam[
-                "forecast_length"
-            ]
+        if (
+            "batch_size" in new_args.model_hyperparam.keys()
+            and new_args.model_hyperparam["batch_size"] != new_args.batch_size
+        ):
+            raise RuntimeError(
+                "Please set same batch_size in model_cfgs and training_cfgs"
+            )
+        if (
+            "forecast_length" in new_args.model_hyperparam.keys()
+            and new_args.forecast_length != new_args.model_hyperparam["forecast_length"]
+        ):
+            raise RuntimeError(
+                "Please set same forecast_length in model_cfgs and training_cfgs"
+            )
         # The following two configurations are for encoder-decoder models' seq2seqdataset
         if "hindcast_output_window" in new_args.model_hyperparam.keys():
             cfg_file["data_cfgs"]["hindcast_output_window"] = new_args.model_hyperparam[
@@ -1118,10 +1162,7 @@ def update_cfg(cfg_file, new_args):
         else:
             cfg_file["data_cfgs"]["hindcast_output_window"] = 0
     if new_args.batch_size is not None:
-        # raise AttributeError("Please set the batch_size!!!")
-        batch_size = new_args.batch_size
-        cfg_file["data_cfgs"]["batch_size"] = batch_size
-        cfg_file["training_cfgs"]["batch_size"] = batch_size
+        cfg_file["training_cfgs"]["batch_size"] = new_args.batch_size
     if new_args.min_time_unit is not None:
         if new_args.min_time_unit not in ["h", "D"]:
             raise ValueError("min_time_unit must be 'h' (HOURLY) or 'D' (DAILY)")
@@ -1136,35 +1177,40 @@ def update_cfg(cfg_file, new_args):
         cfg_file["evaluation_cfgs"]["explainer"] = new_args.explainer
     if new_args.rolling is not None:
         cfg_file["evaluation_cfgs"]["rolling"] = new_args.rolling
+    if new_args.current_idx is not None:
+        cfg_file["evaluation_cfgs"]["current_idx"] = new_args.current_idx
+    if new_args.hrwin is not None:
+        cfg_file["evaluation_cfgs"]["hrwin"] = new_args.hrwin
+    if new_args.frwin is not None:
+        cfg_file["evaluation_cfgs"]["frwin"] = new_args.frwin
     if new_args.model_loader is not None:
         cfg_file["evaluation_cfgs"]["model_loader"] = new_args.model_loader
     if new_args.warmup_length is not None:
-        cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
+        cfg_file["training_cfgs"]["warmup_length"] = new_args.warmup_length
         if (
             "warmup_length" in new_args.model_hyperparam.keys()
-            and cfg_file["data_cfgs"]["warmup_length"]
-            != new_args.model_hyperparam["warmup_length"]
+            and new_args.warmup_length != new_args.model_hyperparam["warmup_length"]
         ):
             raise RuntimeError(
                 "Please set same warmup_length in model_cfgs and data_cfgs"
             )
     if new_args.hindcast_length is not None:
-        cfg_file["data_cfgs"]["hindcast_length"] = new_args.hindcast_length
+        cfg_file["training_cfgs"]["hindcast_length"] = new_args.hindcast_length
     if new_args.hindcast_length is None and new_args.forecast_history is not None:
         # forecast_history will be deprecated in the future
         warnings.warn(
             "forecast_history will be deprecated in the future, please use hindcast_length instead"
         )
-        cfg_file["data_cfgs"]["hindcast_length"] = new_args.forecast_history
+        cfg_file["training_cfgs"]["hindcast_length"] = new_args.forecast_history
     if new_args.forecast_length is not None:
-        cfg_file["data_cfgs"]["forecast_length"] = new_args.forecast_length
+        cfg_file["training_cfgs"]["forecast_length"] = new_args.forecast_length
     if new_args.lead_time_type is not None:
         if new_args.lead_time_type not in ["fixed", "increasing"]:
             raise ValueError("lead_time_type must be 'fixed' or 'increasing'")
-        cfg_file["data_cfgs"]["lead_time_type"] = new_args.lead_time_type
+        cfg_file["training_cfgs"]["lead_time_type"] = new_args.lead_time_type
         if new_args.lead_time_start is None:
             raise ValueError("lead_time_start must be set when lead_time_type is set")
-        cfg_file["data_cfgs"]["lead_time_start"] = new_args.lead_time_start
+        cfg_file["training_cfgs"]["lead_time_start"] = new_args.lead_time_start
     if new_args.start_epoch is not None:
         cfg_file["training_cfgs"]["start_epoch"] = new_args.start_epoch
     if new_args.stat_dict_file is not None:
@@ -1193,6 +1239,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["early_stopping"] = new_args.early_stopping
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
+    if new_args.valid_batch_mode is not None:
+        cfg_file["training_cfgs"]["valid_batch_mode"] = new_args.valid_batch_mode
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 

@@ -258,7 +258,7 @@ def evaluate_validation(
         target_scaler = validation_data_loader.dataset.target_scaler
         target_data = target_scaler.data_target
         basin_num = len(target_data.basin)
-        horizon = target_scaler.data_cfgs["forecast_length"]
+        horizon = target_scaler.training_cfgs["forecast_length"]
         hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
         for i, col in enumerate(target_col):
             delayed_tasks = []

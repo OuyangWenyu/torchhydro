@@ -107,7 +107,6 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
         new_cfg["data_cfgs"]["t_range_test"] = value[1]
     elif key == "batch_sizes":
         new_cfg["training_cfgs"]["batch_size"] = value
-        new_cfg["data_cfgs"]["batch_size"] = value
     elif key == "seeds":
         new_cfg["training_cfgs"]["random_seed"] = value
     elif key == "expdir":
