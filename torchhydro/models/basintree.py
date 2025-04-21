@@ -16,8 +16,8 @@ class Node:
         self.basin_ds = basin_id  # downstream basin     a node need to attached to a basin of its downsteam when initialization.
         self.basin_us = []  # upstream basin
         self.n_basin_us = 0
-        self.y_input = []
-        self.y_output = []
+        self.y_input = None
+        self.y_output = None
 
     def add_basin_us(self, basin_id):
         self.basin_us.append(basin_id)
@@ -32,7 +32,11 @@ class Node:
     #         self.y_input.append(self.basin_us[i].y)  # todo:
 
     def refresh_y_output(self):
-        _, n_basin = self.y_input.size()
+        n_basin = None  # the basin number of upstream
+        # if isinstance(self.y_input, list):
+        #     _, n_basin = self.y_input.size()  #
+        if isinstance(self.y_input, torch.Tensor):
+            n_basin = self.y_input.size(dim=1)  # (time, basin, features(streamflow))
         if n_basin == len(self.basin_us):
             self.y_output = self.y_input
 
@@ -104,7 +108,10 @@ class Basin:
     
     def set_output(self):
         """outflow to node_ds"""
-        self.node_ds.y_input.append(self.output_y)
+        if self.node_ds.y_input is not None:
+            self.node_ds.y_input = torch.act((self.node_ds.y_input, self.output_y), dim = 1)  
+        else:
+            self.node_ds.y_input = self.output_y
 
 
 
