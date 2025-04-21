@@ -117,6 +117,7 @@ class NarxDataset(BaseDataset):
         norm_x, norm_y, norm_c = self._normalize()
         self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)  # deal with nan value
         self._trans2nparr()
+        self.x = np.concatenate((self.x, self.y), axis=2)  # notice: for narx model, the input features need to contain the history output(target) features data in train and test period, so concatenate y into x here.
         self._create_lookup_table()  # todo：
 
     def _trans2nparr(self):
@@ -214,21 +215,21 @@ class NarxDataset(BaseDataset):
             self.data_cfgs["relevant_cols"],  # forcing data
         )
         # y
-        data_nested_output_ds_ = self.data_source.read_ts_xrdataset(
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
             self.basin_list,
             [start_date, end_date],
             self.data_cfgs["target_cols"],  # target data, streamflow.
         )
         # turn dict into list
-        if isinstance(data_nested_output_ds_, dict) or isinstance(data_forcing_ds_, dict):  
+        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):  
             data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
-            data_nested_output_ds_ = data_nested_output_ds_[list(data_nested_output_ds_.keys())[0]]
-        data_forcing_ds, data_nested_output_ds_ = self._check_ts_xrds_unit(
-            data_forcing_ds_, data_nested_output_ds_
+            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
+        data_forcing_ds, data_output_ds_ = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
         )
         data_attr_ds = None
         self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(   # origin data
-            data_forcing_ds, data_nested_output_ds_, data_attr_ds
+            data_forcing_ds, data_output_ds_, data_attr_ds
         )
 
     def _create_lookup_table(self):

@@ -71,7 +71,7 @@ class Narx(nn.Module):
         out
             the output sequence of model.
         """
-        nt, ngrid, nx = x.shape  # (time, basins, features(forcing, streamflow))
+        nt, ngrid, nx = x.shape  # (time, basins, features(forcing, streamflow))  nx = self.nx + self.ny
         out = torch.zeros(nt, ngrid, self.ny)  # (time, basins, output_features)
         for t in range(self.max_delay):
             out[t, :, :] = x[t, :, -self.ny:]
@@ -145,17 +145,17 @@ class NestedNarx(nn.Module):
         basins with a same order calculate together
         meanwhile take the link relationship between basins into count.
         means call narx for each basin
-        seems need to object
         x
             input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
         """
-        n_step, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list
+        n_t, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list    n_feature = self.nx + self.ny
         n_basintrees = len(self.basin_trees)
         basin_list_x = []
         if n_basin == len(self.basin_list):
             # split data
             for i in range(n_basin):
                 x_i = x[:, i, :]   # time|(prcp,pet,streamflow)
+                x_i = torch.unsqueeze(x_i, 1)  # unify the data dimension=3 for single basin, add a basin dimension.
                 basin_list_x.append(x_i)
             # set data
             m = 0
@@ -164,8 +164,8 @@ class NestedNarx(nn.Module):
                 for j in range(n_order_i):  # order
                     n_basin_j = len(self.basin_trees[i][j])
                     for k in range(n_basin_j):  # per order
-                        self.basin_trees[i][j][k].set_x_data(basin_list_x[m][:,:self.nx])
-                        self.basin_trees[i][j][k].set_y_data(basin_list_x[m][:,-self.ny:])
+                        self.basin_trees[i][j][k].set_x_data(basin_list_x[m][:, :, :self.nx])
+                        self.basin_trees[i][j][k].set_y_data(basin_list_x[m][:, :, -self.ny:])
                         self.basin_trees[i][j][k].set_model(self.dl_model)
                         m = m + 1
             # run model
@@ -174,13 +174,12 @@ class NestedNarx(nn.Module):
                 for j in range(max_order_i - 1, -1, -1):  # order
                     n_basin_j = self.n_basin_per_order_list[i][j]
                     for k in range(n_basin_j):  # per order
-                        self.basin_trees[i][j][k].node_us.refresh_y_output()  # 
+                        self.basin_trees[i][j][k].node_us.refresh_y_output()
                         self.basin_trees[i][j][k].get_y_us_data()  # inflow coming from upstream basin
-                        out = self.basin_trees[i][j][k].run_model()  # try, call narx for each basin.
-                        self.basin_trees[i][j][k].set_output()  # basin output
-                    # link relationship
-
-
+                        out = self.basin_trees[i][j][k].run_model()  # call narx for each basin.
+                        if k < (n_basin_j - 1):
+                            # the last/root basin outflow directly, no node_ds.
+                            self.basin_trees[i][j][k].set_output()  # basin output
             return out
                         
 

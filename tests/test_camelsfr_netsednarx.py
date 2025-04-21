@@ -46,7 +46,7 @@ def var_t():
         # "tsd_swe_isba",
         # "tsd_temp_min",
         # "tsd_temp_max",
-        "streamflow",
+        # "streamflow",
     ]
 
 @pytest.fixture

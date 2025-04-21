@@ -33,8 +33,6 @@ class Node:
 
     def refresh_y_output(self):
         n_basin = None  # the basin number of upstream
-        # if isinstance(self.y_input, list):
-        #     _, n_basin = self.y_input.size()  #
         if isinstance(self.y_input, torch.Tensor):
             n_basin = self.y_input.size(dim=1)  # (time, basin, features(streamflow))
         if n_basin == len(self.basin_us):
@@ -93,12 +91,11 @@ class Basin:
 
     def make_input_x(self):
         if (self.x != None) and (self.y_us != None):
-            self.input_x = torch.cat([self.x, self.y_us], dim=-1)  # along column  RuntimeError: Tensors must have same number of dimensions: got 2 and 3   todo: data dimension problem
+            self.input_x = torch.cat([self.x, self.y_us], dim=-1)  # along the last dimension
         else:
-            self.input_x = self.x  #.copy_()
+            self.input_x = self.x  #.copy_()  # todo: check copy problem
         if (self.input_x != None) and (self.y != None):
             self.input_x = torch.cat([self.input_x, self.y], dim=-1)
-        self.input_x = torch.unsqueeze(self.input_x, 1)  # [time，features] -> [time, basin, features]
     
     def run_model(self):
         self.make_input_x()
@@ -109,7 +106,7 @@ class Basin:
     def set_output(self):
         """outflow to node_ds"""
         if self.node_ds.y_input is not None:
-            self.node_ds.y_input = torch.act((self.node_ds.y_input, self.output_y), dim = 1)  
+            self.node_ds.y_input = torch.cat((self.node_ds.y_input, self.output_y), dim = -1)  
         else:
             self.node_ds.y_input = self.output_y  # todo: check copy problem
 
