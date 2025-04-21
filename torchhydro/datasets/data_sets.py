@@ -220,6 +220,16 @@ class BaseDataset(Dataset):
         return len(self.basins)
 
     @property
+    def noutputvar(self):
+        """How many output variables in the dataset
+        Returns
+        -------
+        int
+            number of variables
+        """
+        return len(self.data_cfgs["target_cols"])
+
+    @property
     def nt(self):
         """length of longest time series in all basins
 
@@ -377,15 +387,17 @@ class BaseDataset(Dataset):
         self.target_scaler = scaler_hub.target_scaler
         return scaler_hub.norm_data
 
-    def denormalize(self, norm_data, rolling=0):
+    def denormalize(self, norm_data, is_real_time=True):
         """Denormalize the norm_data
 
         Parameters
         ----------
         norm_data : np.ndarray
             batch-first data
-        rolling: int
-            default 0, if rolling is used, perform forecasting using rolling window size
+        is_real_time : bool, optional
+            whether the data is real time data, by default True
+            sometimes we may have multiple results for one time period and we flatten them
+            so we need a temp time to replace real one
 
         Returns
         -------
@@ -398,17 +410,8 @@ class BaseDataset(Dataset):
         units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
         if target_scaler.pbm_norm:
             units = {**units, **target_data.attrs["units"]}
-        if rolling > 0:
-            hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
-            rho = target_scaler.training_cfgs["hindcast_length"]
-            # TODO: -1 because seq2seqdataset has one more time, hence we need to cut it, as rolling will be refactored, we will modify it later
-            selected_time_points = target_data.coords["time"][
-                rho - hindcast_output_window : -1
-            ]
-        else:
-            warmup_length = self.warmup_length
-            selected_time_points = target_data.coords["time"][warmup_length:]
-
+        warmup_length = self.warmup_length
+        selected_time_points = target_data.coords["time"][warmup_length:]
         selected_data = target_data.sel(time=selected_time_points)
         denorm_xr_ds = target_scaler.inverse_transform(
             xr.DataArray(

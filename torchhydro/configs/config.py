@@ -332,6 +332,26 @@ def default_config_file():
             # 0 means all testing periods belong to forecast periods without hindcast part
             "current_idx": 0,
             "calc_metrics": True,
+            # we provide some different evaluators:
+            # 1st -- once: for each time each var and each basin, only one result is evaluated
+            # stride means if rolling is true, after evaluating, we need a stride to skip some periods
+            # 2nd -- 1pace: we only chose one pace from results to evaluate
+            # -1 means we chose the final result of each sample which will be used in hindcast-only/forecast-only model inference
+            # 1 means we chose the first result of each sample which will be used in hindcast-forecast model inference
+            # 3rd -- rolling: we perform evaluation for each sample of each basin,
+            # stride means we will perform evaluation for each sample after stride periods
+            "evaluator": {
+                "eval_way": "once",
+                "stride": 0,
+            },
+            # "evaluator": {
+            #     "eval_way": "1pace",
+            #     "pace_idx": -1,
+            # },
+            # "evaluator": {
+            # "eval_way": "rolling",
+            # "stride": 1,
+            # },
         },
     }
 
@@ -418,6 +438,7 @@ def cmd(
     min_time_unit=None,
     min_time_interval=None,
     valid_batch_mode=None,
+    evaluator=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -957,6 +978,13 @@ def cmd(
         dest="valid_batch_mode",
         help="The batch organization mode of valid data, train means same as train; test means same as test",
         default=valid_batch_mode,
+    )
+    parser.add_argument(
+        "--evaluator",
+        dest="evaluator",
+        help="evaluation way",
+        default=evaluator,
+        type=json.loads,
     )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905

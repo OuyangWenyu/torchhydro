@@ -34,11 +34,11 @@ from hydroutils.hydro_file import (
 from torchhydro.models.crits import GaussianLoss
 
 
-def rolling_evaluate(
+def _rolling_once_evaluate(
     batch_shape,
     rho,
     forecast_length,
-    rolling,
+    rolling_stride,
     hindcast_output_window,
     the_array,
 ):
@@ -58,8 +58,8 @@ def rolling_evaluate(
         The length of the historical window.
     forecast_length : int
         The length of the forecast.
-    rolling : int
-        The length of the rolling window, which should be equal to the forecast length.
+    rolling_stride : int
+        The stride of the rolling
     hindcast_output_window : int
         The length of the hindcast output window.
     the_array : np.ndarray
@@ -77,7 +77,7 @@ def rolling_evaluate(
         Raised when the rolling window length is not equal to the forecast length.
     """
     ngrid, nt, nf = batch_shape
-    if rolling != forecast_length:
+    if rolling_stride != forecast_length:
         # TODO: now we only guarantee each time has only one value,
         # so we directly reshape the data rather than a real rolling
         raise NotImplementedError(
@@ -221,6 +221,103 @@ def calculate_and_record_metrics(
     return eval_log
 
 
+def get_evaluation(
+    valorte_data_loader,
+    evaluation_cfgs,
+    output,
+    labels,
+):
+    """
+    Get evaluation results:
+    the denormalized data without metrics by different eval ways
+
+    Parameters
+    ----------
+    valorte_data_loader : DataLoader
+        validation or test data loader
+    evaluation_cfgs : dict
+        evaluation configs
+    output : np.ndarray
+        model output
+    labels : np.ndarray
+        model target
+
+    Returns
+    -------
+    tuple
+        _description_
+    """
+    evaluator = evaluation_cfgs["evaluator"]
+    batch_size = valorte_data_loader.batch_size
+    target_scaler = valorte_data_loader.dataset.target_scaler
+    target_data = target_scaler.data_target
+    horizon = valorte_data_loader.dataset.horizon
+    hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
+    nf = valorte_data_loader.dataset.noutputvar  # number of features
+    nt = valorte_data_loader.dataset.nt  # number of time steps
+    basin_num = len(target_data.basin)
+    if evaluator["eval_way"] == "once":
+        stride = evaluator["stride"]
+        if stride < 1:
+            # means we directly use the data to perform denorm and metrics cal
+            # as the results may be got by performing rolling prediction
+            # then there are many results for each timestep and we flatten them
+            # so, to perform denormlization with xarray, we need to reset time
+            # and we also need to reshape the data to (basin_num, times, nf)
+            is_real_time = True
+            if labels.shape[0] > nt:
+                # 0 dim means time dim
+                is_real_time = False
+                # TODO: to be implemented
+                raise NotImplementedError(
+                    "we only support the case that the length of labels is equal to nt"
+                )
+            obss_xr = valorte_data_loader.dataset.denormalize(
+                labels.reshape(basin_num, -1, nf), is_real_time
+            )
+            preds_xr = valorte_data_loader.dataset.denormalize(
+                output.reshape(basin_num, -1, nf), is_real_time
+            )
+        else:
+            # TODO: need more test
+            obss_xr = _rolling_once_evaluate(
+                (basin_num, horizon, nf),
+                target_scaler.rho,
+                evaluation_cfgs["forecast_length"],
+                stride,
+                hindcast_output_window,
+                target_data.reshape(basin_num, horizon, nf),
+            )
+            preds_xr = _rolling_once_evaluate(
+                (basin_num, horizon, nf),
+                target_scaler.rho,
+                evaluation_cfgs["forecast_length"],
+                stride,
+                hindcast_output_window,
+                output.reshape(batch_size, horizon, nf),
+            )
+    elif evaluator["eval_way"] == "1pace":
+        # TODO: to be implemented
+        # in this case, you should set calc_metrics = False in the evaluation config or use BasinBatchSampler in your data config
+        # baceuse we need to calculate the metrics for each time step
+        # but we have multi-outputs for each time step in this case
+        o = output[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
+        l = labels[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
+        valdataset = valorte_data_loader.dataset
+        preds_xr = valdataset.denormalize(output)
+        obss_xr = valdataset.denormalize(labels)
+        obs = obss_xr[col].to_numpy()
+        pred = preds_xr[col].to_numpy()
+    elif evaluator["eval_way"] == "rolling":
+        # TODO: to be implemented
+        raise NotImplementedError(
+            "we will implement this function in the future, please choose 1pace or once now"
+        )
+    else:
+        raise ValueError("eval_way should be rolling or 1pace")
+    return obss_xr, preds_xr
+
+
 def evaluate_validation(
     validation_data_loader,
     output,
@@ -251,88 +348,26 @@ def evaluate_validation(
     if isinstance(fill_nan, list) and len(fill_nan) != len(target_col):
         raise ValueError("Length of fill_nan must be equal to length of target_col.")
     eval_log = {}
-    batch_size = validation_data_loader.batch_size
     evaluation_metrics = evaluation_cfgs["metrics"]
-    if evaluation_cfgs["rolling"] > 0:
-        # TODO: For rolling case, we need to calculate the metrics for each time step, need more check
-        target_scaler = validation_data_loader.dataset.target_scaler
-        target_data = target_scaler.data_target
-        basin_num = len(target_data.basin)
-        horizon = target_scaler.training_cfgs["forecast_length"]
-        hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
-        for i, col in enumerate(target_col):
-            delayed_tasks = []
-            for length in range(horizon):
-                delayed_task = len_denormalize_delayed(
-                    hindcast_output_window,
-                    length,
-                    output,
-                    labels,
-                    basin_num,
-                    batch_size,
-                    target_col,
-                    validation_data_loader,
-                    col,
-                    evaluation_cfgs["rolling"],
-                )
-                delayed_tasks.append(delayed_task)
-            obs_pred_results = dask.compute(*delayed_tasks)
-            obs_list, pred_list = zip(*obs_pred_results)
-            obs = np.concatenate(obs_list, axis=1)
-            pred = np.concatenate(pred_list, axis=1)
-            eval_log = calculate_and_record_metrics(
-                obs,
-                pred,
-                evaluation_metrics,
-                col,
-                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
-                eval_log,
-            )
-
-    else:
-        valdataset = validation_data_loader.dataset
-        preds_xr = valdataset.denormalize(output)
-        obss_xr = valdataset.denormalize(labels)
-        for i, col in enumerate(target_col):
-            obs = obss_xr[col].to_numpy()
-            pred = preds_xr[col].to_numpy()
-            eval_log = calculate_and_record_metrics(
-                obs,
-                pred,
-                evaluation_metrics,
-                col,
-                fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
-                eval_log,
-            )
+    obss_xr, preds_xr = get_evaluation(
+        validation_data_loader,
+        evaluation_cfgs,
+        output,
+        labels,
+    )
+    for i, col in enumerate(target_col):
+        obs = obss_xr[col].to_numpy()
+        pred = preds_xr[col].to_numpy()
+        # eval_log will be updated rather than completely replaced, no need to use eval_log["key"]
+        eval_log = calculate_and_record_metrics(
+            obs,
+            pred,
+            evaluation_metrics,
+            col,
+            fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
+            eval_log,
+        )
     return eval_log
-
-
-@dask.delayed
-def len_denormalize_delayed(
-    prec,
-    length,
-    output,
-    labels,
-    basin_num,
-    batch_size,
-    target_col,
-    validation_data_loader,
-    col,
-    rolling,
-):
-    # batch_size != output.shape[0]
-    # TODO: if you meet an error here, it probably means that you are using forecast_length > 1 and rolling = True
-    # in this case, you should set calc_metrics = False in the evaluation config or use BasinBatchSampler in your data config
-    # baceuse we need to calculate the metrics for each time step
-    # but we have multi-outputs for each time step in this case
-    o = output[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
-    l = labels[:, length + prec, :].reshape(basin_num, batch_size, len(target_col))
-    valdataset = validation_data_loader.dataset
-    preds_xr = valdataset.denormalize(o, rolling)
-    obss_xr = valdataset.denormalize(l, rolling)
-    obs = obss_xr[col].to_numpy()
-    pred = preds_xr[col].to_numpy()
-    return obs, pred
 
 
 def compute_loss(

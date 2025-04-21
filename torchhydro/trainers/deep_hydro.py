@@ -43,13 +43,13 @@ from torchhydro.models.model_utils import get_the_device
 from torchhydro.trainers.train_logger import TrainLogger
 from torchhydro.trainers.train_utils import (
     EarlyStopper,
-    rolling_evaluate,
     average_weights,
     evaluate_validation,
     compute_validation,
     model_infer,
     read_pth_from_model_loader,
     torch_single_train,
+    get_evaluation,
 )
 
 
@@ -377,7 +377,6 @@ class DeepHydro(DeepHydroInterface):
         """infer using trained model and unnormalized results"""
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
-        evaluation_cfgs = self.cfgs["evaluation_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
         test_dataloader = self._get_dataloader(training_cfgs, data_cfgs, mode="infer")
         seq_first = training_cfgs["which_first_tensor"] == "sequence"
@@ -404,33 +403,13 @@ class DeepHydro(DeepHydroInterface):
             # params of reshape should be (basin size, time length)
             pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
             obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
-
-        if evaluation_cfgs["rolling"] > 0:
-            ngrid = self.testdataset.ngrid
-            nt = self.testdataset.nt
-            nf = len(data_cfgs["target_cols"])
-            rolling = evaluation_cfgs["rolling"]
-            forecast_length = training_cfgs["forecast_length"]
-            hindcast_output_window = data_cfgs["hindcast_output_window"]
-            rho = training_cfgs["hindcast_length"]
-            pred = rolling_evaluate(
-                (ngrid, nt, nf),
-                rho,
-                forecast_length,
-                rolling,
-                hindcast_output_window,
-                pred,
-            )
-            obs = rolling_evaluate(
-                (ngrid, nt, nf),
-                rho,
-                forecast_length,
-                rolling,
-                hindcast_output_window,
-                obs,
-            )
-        pred_xr = self.testdataset.denormalize(pred, rolling=evaluation_cfgs["rolling"])
-        obs_xr = self.testdataset.denormalize(obs, rolling=evaluation_cfgs["rolling"])
+        evaluation_cfgs = self.cfgs["evaluation_cfgs"]
+        obs_xr, pred_xr = get_evaluation(
+            test_dataloader,
+            evaluation_cfgs,
+            pred,
+            obs,
+        )
         return pred_xr, obs_xr
 
     def _get_optimizer(self, training_cfgs):
@@ -457,26 +436,15 @@ class DeepHydro(DeepHydroInterface):
 
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         if mode == "infer":
-            ngrid = self.testdataset.ngrid
-            if data_cfgs["sampler"] != "BasinBatchSampler":
-                # TODO: this case should be tested more
-                return DataLoader(
-                    self.testdataset,
-                    batch_size=training_cfgs["batch_size"],
-                    shuffle=False,
-                    sampler=None,
-                    batch_sampler=None,
-                    drop_last=False,
-                    timeout=0,
-                    worker_init_fn=None,
-                )
-            test_num_samples = self.testdataset.num_samples
             return DataLoader(
                 self.testdataset,
-                batch_size=test_num_samples // ngrid,
+                batch_size=training_cfgs["batch_size"],
                 shuffle=False,
+                sampler=None,
+                batch_sampler=None,
                 drop_last=False,
                 timeout=0,
+                worker_init_fn=None,
             )
         worker_num = 0
         pin_memory = False
