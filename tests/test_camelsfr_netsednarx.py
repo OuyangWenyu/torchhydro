@@ -107,6 +107,7 @@ def camelsfr_narx_arg(var_c, var_t):
         gage_id = [
             "A550061001",
             "A369011001",
+            "A284020001",
             "A330010001",
         ],
         batch_size=3,

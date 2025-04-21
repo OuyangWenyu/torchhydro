@@ -237,7 +237,7 @@ def test_get_basin_tree():
     #     "A140202001",
     #     "A550061001",
     # ]
-    basin_id_list = ["A550061001", "A369011001", "A330010001"]
+    basin_id_list = ["A550061001", "A369011001", "A284020001", "A330010001"]
     nested_model = basin_tree.get_basin_trees(basin_id_list)
     basin_trees = nested_model["basin_trees"]
     max_order = nested_model["basin_tree_max_order"]
@@ -266,35 +266,42 @@ def test_get_basin_tree():
     print(n_basin_per_order)
 
 # test_--basin_id_list--
-# ['A550061001', 'A369011001', 'A330010001']
+# ['A550061001', 'A369011001', 'A284020001', 'A330010001']
 # --basin_trees--
 # 3
-# [[[<torchhydro.models.basintree.Basin object at 0x7f03138bfb60>], 
-# [<torchhydro.models.basintree.Basin object at 0x7f0312f2ce10>, <torchhydro.models.basintree.Basin object at 0x7f0312fadf40>], 
-# [<torchhydro.models.basintree.Basin object at 0x7f031357fce0>, <torchhydro.models.basintree.Basin object at 0x7f03135dcd10>, 
-# <torchhydro.models.basintree.Basin object at 0x7f0312fae120>], 
-# [<torchhydro.models.basintree.Basin object at 0x7f0312f2cf50>, <torchhydro.models.basintree.Basin object at 0x7f0312fb1050>, 
-# <torchhydro.models.basintree.Basin object at 0x7f0312f899b0>], 
-# [<torchhydro.models.basintree.Basin object at 0x7f0312fb8050>, <torchhydro.models.basintree.Basin object at 0x7f0312f7bd10>, 
-# <torchhydro.models.basintree.Basin object at 0x7f03135dcaf0>, <torchhydro.models.basintree.Basin object at 0x7f0312fb0e50>], 
-# [<torchhydro.models.basintree.Basin object at 0x7f0312f8a890>]], 
-# [[<torchhydro.models.basintree.Basin object at 0x7f0313607450>], [<torchhydro.models.basintree.Basin object at 0x7f03135a8650>]], 
-# [<torchhydro.models.basintree.Basin object at 0x7f031378e390>]]
+# [[[<torchhydro.models.basintree.Basin object at 0x7fc7550596a0>], 
+# [<torchhydro.models.basintree.Basin object at 0x7fc754c4c410>, <torchhydro.models.basintree.Basin object at 0x7fc754e56b70>], 
+# [<torchhydro.models.basintree.Basin object at 0x7fc7550b3bb0>, <torchhydro.models.basintree.Basin object at 0x7fc754c049e0>, 
+# <torchhydro.models.basintree.Basin object at 0x7fc754e56d50>], 
+# [<torchhydro.models.basintree.Basin object at 0x7fc755139e50>, <torchhydro.models.basintree.Basin object at 0x7fc754c01950>, 
+# <torchhydro.models.basintree.Basin object at 0x7fc754e96510>], 
+# [<torchhydro.models.basintree.Basin object at 0x7fc754e0f100>, <torchhydro.models.basintree.Basin object at 0x7fc754c17d10>, 
+# <torchhydro.models.basintree.Basin object at 0x7fc754c047c0>, <torchhydro.models.basintree.Basin object at 0x7fc754c01750>], 
+# [<torchhydro.models.basintree.Basin object at 0x7fc754e482f0>]], 
+# [[<torchhydro.models.basintree.Basin object at 0x7fc754c3e410>], 
+# [<torchhydro.models.basintree.Basin object at 0x7fc754e40710>]], 
+# [[<torchhydro.models.basintree.Basin object at 0x7fc754e40890>, <torchhydro.models.basintree.Basin object at 0x7fc755005ff0>]]]
 # --max_order--
 # 6
 # --basin_list_array--
-# [[['A550061001'], ['A511061001', 'A543101001'], ['A443064001', 'A542201001', 'A526102003'], ['A436203001', 'A524201001', 'A420063001'], ['A417301001', 'A405062001', 'A433301001', 'A414020202'], ['A402061001']], 
-# [['A369011001'], ['A361011001']], ['A330010001']]
+# [[['A550061001'], 
+# ['A511061001', 'A543101001'], 
+# ['A443064001', 'A542201001', 'A526102003'], 
+# ['A436203001', 'A524201001', 'A420063001'], 
+# ['A417301001', 'A405062001', 'A433301001', 'A414020202'], 
+# ['A402061001']], 
+# [['A369011001'], 
+# ['A361011001']], 
+# [['A284020001', 'A330010001']]]
 # --basin_list--
 # ['A550061001', 'A511061001', 'A543101001', 'A443064001', 'A542201001', 'A526102003', 'A436203001', 'A524201001', 'A420063001', 
-# 'A417301001', 'A405062001', 'A433301001', 'A414020202', 'A402061001', 'A369011001', 'A361011001', 'A330010001']
+# 'A417301001', 'A405062001', 'A433301001', 'A414020202', 'A402061001', 'A369011001', 'A361011001', 'A284020001', 'A330010001']
 # --order_list--
 # [1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 6, 1, 2, 1, 2]
 # --n_basin_per_order_list--
-# [[1, 2, 3, 3, 4, 1], [1, 1], [1]]
+# [[1, 2, 3, 3, 4, 1], [1, 1], [2]]
 # --n_basin_per_order--
-# [3, 3, 3, 3, 4, 1]
-
+# [4, 3, 3, 3, 4, 1]
 
 # >>>PYTHON-EXEC-OUTPUT
 # Running pytest with args: ['-p', 'vscode_pytest', '--rootdir=/home/yulili/code/torchhydro/tests', '/home/yulili/code/torchhydro/tests/test_basintree.py::test_Basin']

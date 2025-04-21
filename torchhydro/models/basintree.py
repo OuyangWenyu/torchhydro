@@ -13,7 +13,7 @@ class Node:
     """
     def __init__(self, node_id, basin_id):
         self.node_id = node_id
-        self.basin_ds = basin_id  # downstream basin
+        self.basin_ds = basin_id  # downstream basin     a node need to attached to a basin of its downsteam when initialization.
         self.basin_us = []  # upstream basin
         self.n_basin_us = 0
         self.y_input = []
@@ -27,6 +27,7 @@ class Node:
         return self.n_basin_us
     
     def refresh_y_input(self):
+        self.n_basin_us = len(self.basin_us)
         for i in range(self.n_basin_us):
             self.y_input.append(self.basin_us[i].y)  # todo:
 
@@ -41,7 +42,8 @@ class Basin:
     def __init__(self, basin_id):
         self.basin_id = basin_id
         self.basin_type = ""
-        self.node = None
+        self.node_us = None  # upstream node
+        self.node_ds = None  # downstream node
         self.basin_order = -1  # basin order, similar to river order
         self.max_order_of_tree = -1
         self.cal_order = self.max_order_of_tree - self.basin_order
@@ -49,13 +51,16 @@ class Basin:
         self.y = None  # target data (streamflow)
         self.y_us = None  # input data of upstream (streamflow)
         self.model = None  # dl model
-        self.input_x = None
+        self.input_x = None  # input data for model
 
     def set_basin_type(self, basin_type):
         self.basin_type = basin_type
 
-    def set_node(self, node: Node = None):
-        self.node = node
+    def set_node_us(self, node: Node = None):
+        self.node_us = node
+
+    def set_node_ds(self, node: Node = None):
+        self.node_ds = node
 
     def set_basin_order(self, basin_order):
         self.basin_order = basin_order
@@ -78,15 +83,17 @@ class Basin:
     def set_model(self, model = None):
         self.model = model
 
-    def set_input_x(self):
+    def make_input_x(self):
         if (self.x != None) and (self.y_us != None):
             self.input_x = torch.cat([self.x, self.y_us], dim=-1)  # along column
         else:
-            self.input_x = self.x.copy()
+            self.input_x = self.x  #.copy_()
         if (self.input_x != None) and (self.y != None):
             self.input_x = torch.cat([self.input_x, self.y], dim=-1)
+        self.input_x = torch.unsqueeze(self.input_x, 1)  # [time，features] -> [time, basin, features]
     
     def run_model(self):
+        self.make_input_x()
         if self.input_x != None:
             out = self.model(self.input_x)
 
@@ -305,7 +312,8 @@ class BasinTree:
             basin_ds = self.get_downstream_basin(basin_i)
             basin_ds_index = self._get_basin_index(basin_ds, basin)
             if basin_ds_index >= 0:
-                basin_object[basin_ds_index].node.add_basin_us(basin[i])
+                basin_object[basin_ds_index].node_us.add_basin_us(basin[i])
+                basin_object[i].set_node_ds(basin_object[basin_ds_index].node_us)
 
         # sort along order
         basin_tree_ = []
@@ -354,7 +362,7 @@ class BasinTree:
         basin.basin_type = self.get_basin_type(basin_id)
         node_id = "node_" + basin_id
         node = Node(node_id, basin_id)
-        basin.set_node(node)
+        basin.set_node_us(node)
 
         return basin
 
@@ -516,9 +524,9 @@ class BasinTree:
             basin = self.generate_basin_object(basin_id)
             single_basin_object.append(basin)
             single_basin_order.append(1)
-        basin_trees.append(single_basin_object)
+        basin_trees.append([single_basin_object])
         basin_list = basin_list + single_basin
-        basin_list_array.append(single_basin)
+        basin_list_array.append([single_basin])
         order_list = order_list + order_list_i
         n_basin_per_order_list[-1] = [n_single_basin]
         n_basin_per_order[0] = n_basin_per_order[0] + n_single_basin

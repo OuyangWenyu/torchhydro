@@ -47,14 +47,12 @@ class NarxDataset(BaseDataset):
     def __getitem__(self, item: int):
         """
         DataLoader load data from here and deliver into model.
-        deal with data order
-        how to implement changeable batch size
         fetch and deliver into model
         /home/yulili/.conda/envs/torchhydro/lib/python3.13/site-packages/torch/utils/data/_utils/fetch.py  class _MapDatasetFetcher(_BaseDatasetFetcher) call this method.
         /home/yulili/.conda/envs/torchhydro/lib/python3.13/site-packages/torch/utils/data/dataloader.py  _next_data(self)
         Parameters
         ----------
-        item: batch/basins  586 ?  todo: 
+        item: batch/basins  ?  todo: 
 
         Returns
         -------
