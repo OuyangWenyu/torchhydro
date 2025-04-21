@@ -164,7 +164,7 @@ class SklearnScaler(object):
                     },
                     dims=["basin", "time", "variable"],
                 )
-            else:
+            elif v.ndim == 2:
                 num_instances, num_features = v.shape
                 v_np = v.to_numpy().reshape(-1, num_features)
                 scaler, data_norm = self._sklearn_scale(
@@ -178,6 +178,30 @@ class SklearnScaler(object):
                         "variable": v.coords["variable"],
                     },
                     dims=["basin", "variable"],
+                )
+            elif v.ndim == 4:
+                # for forecast data
+                num_instances, num_time_steps, num_lead_steps, num_features = v.shape
+                v_np = v.to_numpy().reshape(-1, num_features)
+                scaler, data_norm = self._sklearn_scale(
+                    self.data_cfgs, self.is_tra_val_te, scaler, k, v_np
+                )
+                data_norm = data_norm.reshape(
+                    num_instances, num_time_steps, num_lead_steps, num_features
+                )
+                norm_xrarray = xr.DataArray(
+                    data_norm,
+                    coords={
+                        "basin": v.coords["basin"],
+                        "time": v.coords["time"],
+                        "lead_step": v.coords["lead_step"],
+                        "variable": v.coords["variable"],
+                    },
+                    dims=["basin", "time", "lead_step", "variable"],
+                )
+            else:
+                raise NotImplementedError(
+                    "Please check your data, the dim of data must be 2, 3 or 4"
                 )
 
             norm_dict[k] = norm_xrarray
