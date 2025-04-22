@@ -51,7 +51,7 @@ def var_t():
 
 @pytest.fixture
 def camelsfr_narx_arg(var_c, var_t):
-    project_name = os.path.join("test_camels", "narx_camelsfr")
+    project_name = os.path.join("test_camels", "NestedNarx_camelsfr")
     # camels-fr time_range: ["1970-01-01", "2022-01-01"]
     train_period = ["2017-10-01", "2018-10-01"]
     valid_period = ["2018-10-01", "2019-10-01"]
@@ -180,3 +180,8 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
 # using 0 workers
 
 #   0%|          | 0/13 [00:00<?, ?it/s]
+# Frame skipped from debugging during step-in.
+# Note: may have been skipped because of "justMyCode" option (default == true). Try setting "justMyCode": false in the debug configuration (e.g., launch.json).
+#   8%|▊         | 1/13 [06:35<1:19:02, 395.23s/it]
+#   8%|▊         | 1/13 [06:56<1:23:19, 416.59s/it]
+# F

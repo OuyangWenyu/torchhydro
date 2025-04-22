@@ -168,18 +168,23 @@ class NestedNarx(nn.Module):
                         self.basin_trees[i][j][k].set_model(self.dl_model)
                         m = m + 1
             # run model
-            m = 0
-            for i in range(n_basintrees):  # basintrees
-                max_order_i = len(self.n_basin_per_order_list[i])
-                for j in range(max_order_i - 1, -1, -1):  # order
-                    n_basin_j = self.n_basin_per_order_list[i][j]
-                    for k in range(n_basin_j-1, -1, -1):  # per order
-                        self.basin_trees[i][j][k].node_us.refresh_y_output()
-                        self.basin_trees[i][j][k].get_y_us_data()  # inflow coming from upstream basin
-                        y = self.basin_trees[i][j][k].run_model()  # call narx for each basin.
-                        out = torch.cat((out, y), dim=1)               
-                        m = m + 1
-                        if j > 0 :
-                            # the last/root basin outflow directly, no node_ds.
-                            self.basin_trees[i][j][k].set_output()  # basin output
-            return out  
+            try:
+                m = 0
+                for i in range(n_basintrees):  # basintrees
+                    max_order_i = len(self.n_basin_per_order_list[i])
+                    for j in range(max_order_i - 1, -1, -1):  # order
+                        n_basin_j = self.n_basin_per_order_list[i][j]
+                        for k in range(n_basin_j-1, -1, -1):  # per order
+                            self.basin_trees[i][j][k].node_us.refresh_y_output()
+                            self.basin_trees[i][j][k].get_y_us_data()  # inflow coming from upstream basin
+                            y = self.basin_trees[i][j][k].run_model()  # call narx for each basin.
+                            out = torch.cat((out, y), dim=1)               
+                            m = m + 1
+                            if j > 0 :
+                                # the last/root basin outflow directly, no node_ds.
+                                self.basin_trees[i][j][k].set_output()  # basin output
+                return out
+            except:
+                raise RuntimeError("backward error.")
+
+            

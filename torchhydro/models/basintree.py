@@ -110,7 +110,7 @@ class Basin:
     def set_output(self):
         """outflow to node_ds"""
         try:
-            if self.node_ds.devic == None:
+            if self.node_ds.device == None:
                 self.node_ds.set_device(self.device)
             # if self.node_ds.y_input is not None:
             self.node_ds.y_input = torch.cat((self.node_ds.y_input, self.output_y), dim = -1).to(self.node_ds.device)  
