@@ -1082,44 +1082,6 @@ class Seq2SeqDataset(BaseDataset):
         ], torch.from_numpy(y).float()
 
 
-class Seq2SeqDataset2(Seq2SeqDataset):
-    def __init__(self, data_cfgs, is_tra_val_te):
-        super().__init__(data_cfgs, is_tra_val_te)
-
-    def __getitem__(self, item: int):
-        basin, time = self.lookup_table[item]
-        rho = self.rho
-        horizon = self.horizon
-        hindcast_output_window = self.data_cfgs.get("hindcast_output_window", 0)
-
-        q = self.x[basin, time : time + rho, -1].reshape(-1, 1)
-        others = self.x[basin, time + 1 : time + rho + horizon + 1, :-1]
-        xe_ = np.concatenate((q, others[:rho]), axis=1)
-
-        if self.c is None or self.c.shape[-1] == 0:
-            xe = xe_
-        else:
-            c = self.c[basin, :]
-            c = np.tile(c, (rho + horizon, 1))
-            xe = np.concatenate((xe_, c[:rho]), axis=1)
-        xd = np.concatenate((others[rho:], c[rho:]), axis=1)
-        # y cover specified encoder size (hindcast_output_window) and all decoder periods
-        y = self.y[
-            basin, time + rho - hindcast_output_window + 1 : time + rho + horizon + 1, :
-        ]
-
-        if self.is_tra_val_te == "train":
-            return [
-                torch.from_numpy(xe).float(),
-                torch.from_numpy(xd).float(),
-                torch.from_numpy(y).float(),
-            ], torch.from_numpy(y).float()
-        return [
-            torch.from_numpy(xe).float(),
-            torch.from_numpy(xd).float(),
-        ], torch.from_numpy(y).float()
-
-
 class SeqForecastDataset(Seq2SeqDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         super(SeqForecastDataset, self).__init__(data_cfgs, is_tra_val_te)
