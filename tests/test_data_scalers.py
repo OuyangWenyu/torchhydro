@@ -62,9 +62,7 @@ def sample_data():
 def test_dapeng_scaler_initialization(sample_data):
     target_vars, relevant_vars, constant_vars, data_cfgs = sample_data
     scaler = DapengScaler(
-        target_vars=target_vars,
-        relevant_vars=relevant_vars,
-        constant_vars=constant_vars,
+        vars_data=[target_vars, relevant_vars, constant_vars],
         data_cfgs=data_cfgs,
         is_tra_val_te="train",
     )
@@ -77,9 +75,7 @@ def test_dapeng_scaler_initialization(sample_data):
 def test_dapeng_scaler_cal_stat_all(sample_data):
     target_vars, relevant_vars, constant_vars, data_cfgs = sample_data
     scaler = DapengScaler(
-        target_vars=target_vars,
-        relevant_vars=relevant_vars,
-        constant_vars=constant_vars,
+        vars_data=[target_vars, relevant_vars, constant_vars],
         data_cfgs=data_cfgs,
         is_tra_val_te="train",
         data_source=SelfMadeHydroDataset(
@@ -96,9 +92,7 @@ def test_dapeng_scaler_cal_stat_all(sample_data):
 def test_dapeng_scaler_load_data_and_denorm(sample_data):
     target_vars, relevant_vars, constant_vars, data_cfgs = sample_data
     scaler = DapengScaler(
-        target_vars=target_vars,
-        relevant_vars=relevant_vars,
-        constant_vars=constant_vars,
+        [target_vars, relevant_vars, constant_vars],
         data_cfgs=data_cfgs,
         is_tra_val_te="train",
         data_source=SelfMadeHydroDataset(
@@ -134,9 +128,7 @@ def test_dapeng_scaler_load_data_and_denorm(sample_data):
 def test_sklearn_scale_train_mode(sample_data):
     target_vars, relevant_vars, constant_vars, data_cfgs = sample_data
     scaler_hub = ScalerHub(
-        target_vars=target_vars,
-        relevant_vars=relevant_vars,
-        constant_vars=constant_vars,
+        vars_data=[target_vars, relevant_vars, constant_vars],
         data_cfgs=data_cfgs,
         is_tra_val_te="train",
     )
@@ -161,9 +153,7 @@ def test_sklearn_scale_train_mode(sample_data):
 def test_sklearn_scale_test_mode_with_existing_scaler(sample_data):
     target_vars, relevant_vars, constant_vars, data_cfgs = sample_data
     scaler_hub = ScalerHub(
-        target_vars=target_vars,
-        relevant_vars=relevant_vars,
-        constant_vars=constant_vars,
+        vars_data=[target_vars, relevant_vars, constant_vars],
         data_cfgs=data_cfgs,
         is_tra_val_te="train",
     )
@@ -189,9 +179,7 @@ def test_sklearn_scale_test_mode_with_existing_scaler(sample_data):
 def test_sklearn_scale_test_mode_without_scaler_file(sample_data):
     target_vars, relevant_vars, constant_vars, data_cfgs = sample_data
     scaler_hub = ScalerHub(
-        target_vars=target_vars,
-        relevant_vars=relevant_vars,
-        constant_vars=constant_vars,
+        vars_data=[target_vars, relevant_vars, constant_vars],
         data_cfgs=data_cfgs,
         is_tra_val_te="test",
     )

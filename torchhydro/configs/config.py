@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-04-17 21:07:02
+LastEditTime: 2025-04-19 11:41:02
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: /torchhydro/torchhydro/configs/config.py
+FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/configs/config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -95,14 +95,6 @@ def default_config_file():
                 "source_paths": ["../../example/camels_us"],
             },
             "case_dir": None,
-            "batch_size": 100,
-            # we generally have three times: [warmup, hindcast_length, forecast_length]
-            # For physics-based models, we need warmup; default is 0 as DL models generally don't need it
-            "warmup_length": 0,
-            # the length of the history data for forecasting
-            "hindcast_length": 30,
-            # the length of the forecast data
-            "forecast_length": 1,
             # the min time step of the input data
             "min_time_unit": "D",
             # the min time interval of the input data
@@ -115,7 +107,7 @@ def default_config_file():
             "t_range_test": ["1993-01-01", "1994-01-01"],
             # the output
             "target_cols": [Q_CAMELS_US_NAME],
-            "target_rm_nan": True,
+            "target_rm_nan": False,
             # only for cases in which target data will be used as input:
             # data assimilation -- use streamflow from period 0 to t-1 (TODO: not included now)
             # for physics-based model -- use streamflow to calibrate models
@@ -153,6 +145,18 @@ def default_config_file():
                 "geol_porostiy",
                 "geol_permeability",
             ],
+            # for forecast variables such as data from GFS
+            # for each period, they have multiple forecast data with different lead time
+            # hence we list them as a seperate type
+            "forecast_cols": None,
+            "forecast_rm_nan": True,
+            # same variable but different names for obs and forecast
+            # key is obs and value is forecast
+            "feature_mapping": {
+                "total_precipitation_hourly": "total_precipitation_surface",
+            },
+            # global variables such as ENSO indictors are used in some long term models
+            "global_cols": None,
             # specify the data source of each variable
             "var_to_source_map": None,
             # {
@@ -164,8 +168,6 @@ def default_config_file():
             "constant_rm_nan": True,
             # if constant_only, we will only use constant data as DL models' input: this is only for dpl models now
             "constant_only": False,
-            # more other cols, use dict to express!
-            "other_cols": None,
             # only numerical scaler: for categorical vars, they are transformed to numerical vars when reading them
             "scaler": "StandardScaler",
             # Some parameters for the chosen scaler function, default is DapengScaler's
@@ -208,7 +210,7 @@ def default_config_file():
                 "pbm_norm": False,
             },
             # For scaler from sklearn, we need to specify the stat_dict_file for three different parts:
-            # target_vars, relevant_vars and constant_vars, and the sequence must be target_vars, relevant_vars, constant_vars
+            # target_cols, relevant_vars and constant_cols, and the sequence must be target_cols, relevant_cols, constant_cols
             # the seperator of three stat_dict_file is ";"
             # for example: "stat_dict_file": "target_stat_dict_file;relevant_stat_dict_file;constant_stat_dict_file"
             "stat_dict_file": None,
@@ -222,6 +224,29 @@ def default_config_file():
             "port": "12335",
             # if train_mode is False, don't train and evaluate
             "train_mode": True,
+            "batch_size": 100,
+            # we generally have three times: [warmup, hindcast_length, forecast_length]
+            # warmup period means no observation will be used to calculate loss for it.
+            # For physics-based models, we generally need warmup to get a better initial state
+            # its default is 0 as DL models generally don't need it
+            "warmup_length": 0,
+            # the length of the history data to forecast
+            "hindcast_length": 30,
+            # the length of the forecast data
+            "forecast_length": 1,
+            # for each batch, we fix length of hindcast and forecast length.
+            # data from different lead time with a number representing the lead time,
+            # for example, now is 2020-09-30, our min_time_interval is 1 day, hindcast length is 30 and forecast length is 1,
+            # lead_time = 3 means 2020-09-01 to 2020-09-30, and the forecast data is 2020-10-01 from 2020-09-28
+            # for forecast data, we have two different configurations:
+            # 1st, we can set a same lead time for all forecast time
+            # 2020-09-30now, 30hindcast, 2forecast, 3leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 forecast data from 2020-09-28 and 2020-10-02 forecast data from 2020-09-29
+            # 2nd, we can set a increasing lead time for each forecast time
+            # 2020-09-30now, 30hindcast, 2forecast, [1, 2]leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 to 2010-10-02 forecast data from 2020-09-30
+            "lead_time_type": "fixed",  # must be fixed or increasing
+            "lead_time_start": 1,
+            # valid batch can be organized as same way with training or testing
+            "valid_batch_mode": "test",
             "criterion": "RMSE",
             "criterion_params": None,
             # "weight_decay": None, a regularization term in loss func
@@ -256,7 +281,6 @@ def default_config_file():
             # when we train a model for long time, some accidents may interrupt our training.
             # Then we need retrain the model with saved weights, and the start_epoch is not 1 yet.
             "start_epoch": 1,
-            "batch_size": 100,
             "random_seed": 1234,
             "device": [0, 1, 2],
             "multi_targets": 1,
@@ -293,12 +317,41 @@ def default_config_file():
             "metrics": ["NSE", "RMSE", "R2", "KGE", "FHV", "FLV"],
             "fill_nan": "no",
             "explainer": None,
-            # rolling is 0 means decoder-only model's prediction -- each period has one prediction
+            # rolling is stride, 0 means each period has only one prediction.
             # when rolling>0, such as 1, means perform forecasting each step after 1 period.
             # For example, at 8:00am we perform one forecasting and our time-step is 3h,
             # rolling=1 means 11:00, 14:00, 17:00 ..., we will perform forecasting
+            # when rolling>0, we will perform rolling forecast, for each forecasting,
+            # a rolling window (rwin) can be chosen:
+            # hindcast (hrwin) and forecast (frwin) length in rwin need to be chosen
+            # and then rwin = hrwin + frwin
             "rolling": 0,
+            "hrwin": None,
+            "frwin": None,
+            # current_idx means we assume a current period in testing periods,
+            # 0 means all testing periods belong to forecast periods without hindcast part
+            "current_idx": 0,
             "calc_metrics": True,
+            # we provide some different evaluators:
+            # 1st -- once: for each time each var and each basin, only one result is evaluated
+            # stride means if rolling is true, after evaluating, we need a stride to skip some periods
+            # 2nd -- 1pace: we only chose one pace from results to evaluate
+            # -1 means we chose the final result of each sample which will be used in hindcast-only/forecast-only model inference
+            # 1 means we chose the first result of each sample which will be used in hindcast-forecast model inference
+            # 3rd -- rolling: we perform evaluation for each sample of each basin,
+            # stride means we will perform evaluation for each sample after stride periods
+            "evaluator": {
+                "eval_way": "once",
+                "stride": 0,
+            },
+            # "evaluator": {
+            #     "eval_way": "1pace",
+            #     "pace_idx": -1,
+            # },
+            # "evaluator": {
+            # "eval_way": "rolling",
+            # "stride": 1,
+            # },
         },
     }
 
@@ -330,11 +383,13 @@ def cmd(
     lr_scheduler=None,
     opt_param=None,
     batch_size=None,
-    warmup_length=0,
+    warmup_length=None,
     # forecast_history will be deprecated in the future
     forecast_history=None,
     hindcast_length=None,
     forecast_length=None,
+    lead_time_type=None,
+    lead_time_start=None,
     train_mode=None,
     train_epoch=None,
     save_epoch=None,
@@ -344,38 +399,46 @@ def cmd(
     weight_path=None,
     continue_train=None,
     var_c=None,
-    c_rm_nan=1,
+    c_rm_nan=None,
     var_t=None,
-    t_rm_nan=1,
+    t_rm_nan=None,
     n_output=None,
     loss_func=None,
     model_hyperparam=None,
     dropout=None,
     weight_path_add=None,
     var_t_type=None,
-    var_o=None,
+    var_f=None,
+    f_rm_nan=None,
+    feature_mapping=None,
+    var_g=None,
     var_out=None,
     var_to_source_map=None,
-    out_rm_nan=0,
-    target_as_input=0,
-    constant_only=0,
+    out_rm_nan=None,
+    target_as_input=None,
+    constant_only=None,
     gage_id_screen=None,
     loss_param=None,
     metrics=None,
     fill_nan=None,
     explainer=None,
     rolling=None,
+    current_idx=None,
+    hrwin=None,
+    frwin=None,
     calc_metrics=None,
-    start_epoch=1,
+    start_epoch=None,
     stat_dict_file=None,
     num_workers=None,
     which_first_tensor=None,
-    ensemble=0,
+    ensemble=None,
     ensemble_items=None,
     early_stopping=None,
     patience=None,
     min_time_unit=None,
     min_time_interval=None,
+    valid_batch_mode=None,
+    evaluator=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -590,6 +653,20 @@ def cmd(
         type=int,
     )
     parser.add_argument(
+        "--lead_time_type",
+        dest="lead_time_type",
+        help="fixed or increasing",
+        default=lead_time_type,
+        type=str,
+    )
+    parser.add_argument(
+        "--lead_time_start",
+        dest="lead_time_start",
+        help="the start lead time",
+        default=lead_time_start,
+        type=int,
+    )
+    parser.add_argument(
         "--model_type",
         dest="model_type",
         help="The type of DL model",
@@ -683,10 +760,23 @@ def cmd(
         nargs="+",
     )
     parser.add_argument(
-        "--var_o",
-        dest="var_o",
-        help="more other inputs except for var_c and var_t",
-        default=var_o,
+        "--var_f",
+        dest="var_f",
+        help="forecast variables such as precipitation from GFS",
+        default=var_f,
+        type=json.loads,
+    )
+    parser.add_argument(
+        "--feature_mapping",
+        type=json.loads,
+        help="same variables from obs and forecast",
+        default=feature_mapping,
+    )
+    parser.add_argument(
+        "--var_g",
+        dest="var_g",
+        help="global variables such as ENSO indicators",
+        default=var_g,
         type=json.loads,
     )
     parser.add_argument(
@@ -704,6 +794,13 @@ def cmd(
         dest="out_rm_nan",
         help="if true, we remove NaN value for var_out data when scaling",
         default=out_rm_nan,
+        type=int,
+    )
+    parser.add_argument(
+        "--f_rm_nan",
+        dest="f_rm_nan",
+        help="if true, we remove NaN value for var_f data when scaling",
+        default=f_rm_nan,
         type=int,
     )
     parser.add_argument(
@@ -761,6 +858,27 @@ def cmd(
         dest="rolling",
         help="0 means no rolling; rolling>0, such as 1, means perform forecasting once after 1 period. For example, at 8:00am we perform one forecasting and our time-step is 3h, rolling=1 means 11:00, 14:00, 17:00 ..., we will perform forecasting",
         default=rolling,
+        type=int,
+    )
+    parser.add_argument(
+        "--current_idx",
+        dest="current_idx",
+        help="current_idx",
+        default=current_idx,
+        type=int,
+    )
+    parser.add_argument(
+        "--hrwin",
+        dest="hrwin",
+        help="hrwin",
+        default=hrwin,
+        type=int,
+    )
+    parser.add_argument(
+        "--frwin",
+        dest="frwin",
+        help="frwin",
+        default=frwin,
         type=int,
     )
     parser.add_argument(
@@ -854,6 +972,19 @@ def cmd(
         help="The min time interval of the input data",
         default=min_time_interval,
         type=int,
+    )
+    parser.add_argument(
+        "--valid_batch_mode",
+        dest="valid_batch_mode",
+        help="The batch organization mode of valid data, train means same as train; test means same as test",
+        default=valid_batch_mode,
+    )
+    parser.add_argument(
+        "--evaluator",
+        dest="evaluator",
+        help="evaluation way",
+        default=evaluator,
+        type=json.loads,
     )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
@@ -969,15 +1100,12 @@ def update_cfg(cfg_file, new_args):
             cfg_file["training_cfgs"]["optim_params"] = {}
     if new_args.var_c is not None:
         # I don't find a method to receive empty list for argparse, so if we input "None" or "" or " ", we treat it as []
-        if (
-            new_args.var_c == ["None"]
-            or new_args.var_c == [""]
-            or new_args.var_c == [" "]
-        ):
+        if new_args.var_c in [["None"], [""], [" "]]:
             cfg_file["data_cfgs"]["constant_cols"] = []
         else:
             cfg_file["data_cfgs"]["constant_cols"] = new_args.var_c
-    cfg_file["data_cfgs"]["constant_rm_nan"] = bool(new_args.c_rm_nan != 0)
+    if new_args.c_rm_nan is not None:
+        cfg_file["data_cfgs"]["constant_rm_nan"] = bool(new_args.c_rm_nan > 0)
     if new_args.var_t is not None:
         cfg_file["data_cfgs"]["relevant_cols"] = new_args.var_t
         print(
@@ -986,9 +1114,12 @@ def update_cfg(cfg_file, new_args):
         print("If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-")
     if new_args.var_t_type is not None:
         cfg_file["data_cfgs"]["relevant_types"] = new_args.var_t_type
-    cfg_file["data_cfgs"]["relevant_rm_nan"] = bool(new_args.t_rm_nan != 0)
-    if new_args.var_o is not None:
-        cfg_file["data_cfgs"]["other_cols"] = new_args.var_o
+    if new_args.t_rm_nan is not None:
+        cfg_file["data_cfgs"]["relevant_rm_nan"] = bool(new_args.t_rm_nan > 0)
+    if new_args.var_f is not None:
+        cfg_file["data_cfgs"]["forecast_cols"] = new_args.var_f
+    if new_args.var_g is not None:
+        cfg_file["data_cfgs"]["global_cols"] = new_args.var_g
     if new_args.var_out is not None:
         cfg_file["data_cfgs"]["target_cols"] = new_args.var_out
         print(
@@ -996,10 +1127,16 @@ def update_cfg(cfg_file, new_args):
         )
     if new_args.var_to_source_map is not None:
         cfg_file["data_cfgs"]["var_to_source_map"] = new_args.var_to_source_map
-    cfg_file["data_cfgs"]["target_rm_nan"] = bool(new_args.out_rm_nan != 0)
-    if new_args.target_as_input == 0:
-        cfg_file["data_cfgs"]["target_as_input"] = False
-        cfg_file["data_cfgs"]["constant_only"] = bool(new_args.constant_only != 0)
+    if new_args.out_rm_nan is not None:
+        cfg_file["data_cfgs"]["target_rm_nan"] = bool(new_args.out_rm_nan > 0)
+    if new_args.f_rm_nan is not None:
+        cfg_file["data_cfgs"]["forecast_rm_nan"] = bool(new_args.f_rm_nan > 0)
+    if new_args.feature_mapping is not None:
+        cfg_file["data_cfgs"]["feature_mapping"] = new_args.feature_mapping
+    if new_args.target_as_input is not None:
+        cfg_file["data_cfgs"]["target_as_input"] = bool(new_args.target_as_input > 0)
+    if new_args.constant_only is not None:
+        cfg_file["data_cfgs"]["constant_only"] = bool(new_args.constant_only > 0)
     else:
         cfg_file["data_cfgs"]["target_as_input"] = True
     if new_args.calc_metrics is not None:
@@ -1017,7 +1154,7 @@ def update_cfg(cfg_file, new_args):
     if new_args.weight_path is not None:
         cfg_file["model_cfgs"]["weight_path"] = new_args.weight_path
         continue_train = bool(
-            new_args.continue_train is not None and new_args.continue_train != 0
+            new_args.continue_train is not None and new_args.continue_train > 0
         )
         cfg_file["model_cfgs"]["continue_train"] = continue_train
     if new_args.weight_path_add is not None:
@@ -1031,18 +1168,20 @@ def update_cfg(cfg_file, new_args):
     if new_args.model_hyperparam is not None:
         # raise AttributeError("Please set the model_hyperparam!!!")
         cfg_file["model_cfgs"]["model_hyperparam"] = new_args.model_hyperparam
-        if "batch_size" in new_args.model_hyperparam.keys():
-            # TODO: batch_size's setting may conflict with batch_size's direct setting
-            cfg_file["data_cfgs"]["batch_size"] = new_args.model_hyperparam[
-                "batch_size"
-            ]
-            cfg_file["training_cfgs"]["batch_size"] = new_args.model_hyperparam[
-                "batch_size"
-            ]
-        if "forecast_length" in new_args.model_hyperparam.keys():
-            cfg_file["data_cfgs"]["forecast_length"] = new_args.model_hyperparam[
-                "forecast_length"
-            ]
+        if (
+            "batch_size" in new_args.model_hyperparam.keys()
+            and new_args.model_hyperparam["batch_size"] != new_args.batch_size
+        ):
+            raise RuntimeError(
+                "Please set same batch_size in model_cfgs and training_cfgs"
+            )
+        if (
+            "forecast_length" in new_args.model_hyperparam.keys()
+            and new_args.forecast_length != new_args.model_hyperparam["forecast_length"]
+        ):
+            raise RuntimeError(
+                "Please set same forecast_length in model_cfgs and training_cfgs"
+            )
         # The following two configurations are for encoder-decoder models' seq2seqdataset
         if "hindcast_output_window" in new_args.model_hyperparam.keys():
             cfg_file["data_cfgs"]["hindcast_output_window"] = new_args.model_hyperparam[
@@ -1051,10 +1190,7 @@ def update_cfg(cfg_file, new_args):
         else:
             cfg_file["data_cfgs"]["hindcast_output_window"] = 0
     if new_args.batch_size is not None:
-        # raise AttributeError("Please set the batch_size!!!")
-        batch_size = new_args.batch_size
-        cfg_file["data_cfgs"]["batch_size"] = batch_size
-        cfg_file["training_cfgs"]["batch_size"] = batch_size
+        cfg_file["training_cfgs"]["batch_size"] = new_args.batch_size
     if new_args.min_time_unit is not None:
         if new_args.min_time_unit not in ["h", "D"]:
             raise ValueError("min_time_unit must be 'h' (HOURLY) or 'D' (DAILY)")
@@ -1069,37 +1205,50 @@ def update_cfg(cfg_file, new_args):
         cfg_file["evaluation_cfgs"]["explainer"] = new_args.explainer
     if new_args.rolling is not None:
         cfg_file["evaluation_cfgs"]["rolling"] = new_args.rolling
+    if new_args.current_idx is not None:
+        cfg_file["evaluation_cfgs"]["current_idx"] = new_args.current_idx
+    if new_args.hrwin is not None:
+        cfg_file["evaluation_cfgs"]["hrwin"] = new_args.hrwin
+    if new_args.frwin is not None:
+        cfg_file["evaluation_cfgs"]["frwin"] = new_args.frwin
     if new_args.model_loader is not None:
         cfg_file["evaluation_cfgs"]["model_loader"] = new_args.model_loader
-    if new_args.warmup_length > 0:
-        cfg_file["data_cfgs"]["warmup_length"] = new_args.warmup_length
-        if "warmup_length" in new_args.model_hyperparam.keys() and (
-            not cfg_file["data_cfgs"]["warmup_length"]
-            == new_args.model_hyperparam["warmup_length"]
+    if new_args.warmup_length is not None:
+        cfg_file["training_cfgs"]["warmup_length"] = new_args.warmup_length
+        if (
+            "warmup_length" in new_args.model_hyperparam.keys()
+            and new_args.warmup_length != new_args.model_hyperparam["warmup_length"]
         ):
             raise RuntimeError(
                 "Please set same warmup_length in model_cfgs and data_cfgs"
             )
     if new_args.hindcast_length is not None:
-        cfg_file["data_cfgs"]["hindcast_length"] = new_args.hindcast_length
+        cfg_file["training_cfgs"]["hindcast_length"] = new_args.hindcast_length
     if new_args.hindcast_length is None and new_args.forecast_history is not None:
         # forecast_history will be deprecated in the future
         warnings.warn(
             "forecast_history will be deprecated in the future, please use hindcast_length instead"
         )
-        cfg_file["data_cfgs"]["hindcast_length"] = new_args.forecast_history
+        cfg_file["training_cfgs"]["hindcast_length"] = new_args.forecast_history
     if new_args.forecast_length is not None:
-        cfg_file["data_cfgs"]["forecast_length"] = new_args.forecast_length
-    if new_args.start_epoch > 1:
+        cfg_file["training_cfgs"]["forecast_length"] = new_args.forecast_length
+    if new_args.lead_time_type is not None:
+        if new_args.lead_time_type not in ["fixed", "increasing"]:
+            raise ValueError("lead_time_type must be 'fixed' or 'increasing'")
+        cfg_file["training_cfgs"]["lead_time_type"] = new_args.lead_time_type
+        if new_args.lead_time_start is None:
+            raise ValueError("lead_time_start must be set when lead_time_type is set")
+        cfg_file["training_cfgs"]["lead_time_start"] = new_args.lead_time_start
+    if new_args.start_epoch is not None:
         cfg_file["training_cfgs"]["start_epoch"] = new_args.start_epoch
     if new_args.stat_dict_file is not None:
         stat_dict_file = new_args.stat_dict_file
         if len(stat_dict_file.split(";")) > 1:
             target_, relevant_, constant_ = stat_dict_file.split(";")
             stat_dict_file = {
-                "target_vars": target_,
-                "relevant_vars": relevant_,
-                "constant_vars": constant_,
+                "target_cols": target_,
+                "relevant_cols": relevant_,
+                "constant_cols": constant_,
             }
         cfg_file["data_cfgs"]["stat_dict_file"] = stat_dict_file
     if new_args.num_workers is not None and new_args.num_workers > 0:
@@ -1118,6 +1267,10 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["early_stopping"] = new_args.early_stopping
     if new_args.lr_scheduler is not None:
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
+    if new_args.valid_batch_mode is not None:
+        cfg_file["training_cfgs"]["valid_batch_mode"] = new_args.valid_batch_mode
+    if new_args.evaluator is not None:
+        cfg_file["evaluation_cfgs"]["evaluator"] = new_args.evaluator
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 

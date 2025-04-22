@@ -106,7 +106,7 @@ class BasinBatchSampler(Sampler[int]):
         return len(self.dataset)
 
     def __iter__(self) -> Iterator[int]:
-        n = self.dataset.data_cfgs["batch_size"]
+        n = self.dataset.training_cfgs["batch_size"]
         basin_number = len(self.dataset.data_cfgs["object_ids"])
         basin_range = len(self.dataset) // basin_number
         if n > basin_range:

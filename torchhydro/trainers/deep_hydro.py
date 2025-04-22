@@ -43,13 +43,13 @@ from torchhydro.models.model_utils import get_the_device
 from torchhydro.trainers.train_logger import TrainLogger
 from torchhydro.trainers.train_utils import (
     EarlyStopper,
-    rolling_evaluate,
     average_weights,
     evaluate_validation,
     compute_validation,
     model_infer,
     read_pth_from_model_loader,
     torch_single_train,
+    get_evaluation,
 )
 
 
@@ -226,7 +226,7 @@ class DeepHydro(DeepHydroInterface):
         dataset_name = data_cfgs["dataset"]
 
         if dataset_name in list(datasets_dict.keys()):
-            dataset = datasets_dict[dataset_name](data_cfgs, is_tra_val_te)
+            dataset = datasets_dict[dataset_name](self.cfgs, is_tra_val_te)
         else:
             raise NotImplementedError(
                 f"Error the dataset {str(dataset_name)} was not found in the dataset dict. Please add it."
@@ -377,7 +377,6 @@ class DeepHydro(DeepHydroInterface):
         """infer using trained model and unnormalized results"""
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
-        evaluation_cfgs = self.cfgs["evaluation_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
         test_dataloader = self._get_dataloader(training_cfgs, data_cfgs, mode="infer")
         seq_first = training_cfgs["which_first_tensor"] == "sequence"
@@ -404,33 +403,13 @@ class DeepHydro(DeepHydroInterface):
             # params of reshape should be (basin size, time length)
             pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
             obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
-
-        if evaluation_cfgs["rolling"] > 0:
-            ngrid = self.testdataset.ngrid
-            nt = self.testdataset.nt
-            nf = len(data_cfgs["target_cols"])
-            rolling = evaluation_cfgs["rolling"]
-            forecast_length = data_cfgs["forecast_length"]
-            hindcast_output_window = data_cfgs["hindcast_output_window"]
-            rho = data_cfgs["hindcast_length"]
-            pred = rolling_evaluate(
-                (ngrid, nt, nf),
-                rho,
-                forecast_length,
-                rolling,
-                hindcast_output_window,
-                pred,
-            )
-            obs = rolling_evaluate(
-                (ngrid, nt, nf),
-                rho,
-                forecast_length,
-                rolling,
-                hindcast_output_window,
-                obs,
-            )
-        pred_xr = self.testdataset.denormalize(pred, rolling=evaluation_cfgs["rolling"])
-        obs_xr = self.testdataset.denormalize(obs, rolling=evaluation_cfgs["rolling"])
+        evaluation_cfgs = self.cfgs["evaluation_cfgs"]
+        obs_xr, pred_xr = get_evaluation(
+            test_dataloader,
+            evaluation_cfgs,
+            pred,
+            obs,
+        )
         return pred_xr, obs_xr
 
     def _get_optimizer(self, training_cfgs):
@@ -457,26 +436,15 @@ class DeepHydro(DeepHydroInterface):
 
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         if mode == "infer":
-            ngrid = self.testdataset.ngrid
-            if data_cfgs["sampler"] != "BasinBatchSampler":
-                # TODO: this case should be tested more
-                return DataLoader(
-                    self.testdataset,
-                    batch_size=training_cfgs["batch_size"],
-                    shuffle=False,
-                    sampler=None,
-                    batch_sampler=None,
-                    drop_last=False,
-                    timeout=0,
-                    worker_init_fn=None,
-                )
-            test_num_samples = self.testdataset.num_samples
             return DataLoader(
                 self.testdataset,
-                batch_size=test_num_samples // ngrid,
+                batch_size=training_cfgs["batch_size"],
                 shuffle=False,
+                sampler=None,
+                batch_sampler=None,
                 drop_last=False,
                 timeout=0,
+                worker_init_fn=None,
             )
         worker_num = 0
         pin_memory = False
@@ -486,7 +454,7 @@ class DeepHydro(DeepHydroInterface):
         if "pin_memory" in training_cfgs:
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
-        sampler = self._get_sampler(data_cfgs, self.traindataset)
+        sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
         data_loader = DataLoader(
             self.traindataset,
             batch_size=training_cfgs["batch_size"],
@@ -509,7 +477,7 @@ class DeepHydro(DeepHydroInterface):
 
         return data_loader, None
 
-    def _get_sampler(self, data_cfgs, train_dataset):
+    def _get_sampler(self, data_cfgs, training_cfgs, train_dataset):
         """
         return data sampler based on the provided configuration and training dataset.
 
@@ -517,17 +485,19 @@ class DeepHydro(DeepHydroInterface):
         ----------
         data_cfgs : dict
             Configuration dictionary containing parameters for data sampling. Expected keys are:
-            - "batch_size": int, size of each batch.
-            - "hindcast_length": int, number of past time steps to consider.
-            - "warmup_length": int, length of the warmup period.
-            - "forecast_length": int, number of future time steps to predict.
             - "sampler": dict, containing:
             - "name": str, name of the sampler to use.
             - "sampler_hyperparam": dict, optional hyperparameters for the sampler.
+        training_cfgs: dict
+            Configuration dictionary containing parameters for training. Expected keys are:
+            - "batch_size": int, size of each batch.
         train_dataset : Dataset
             The training dataset object which contains the data to be sampled. Expected attributes are:
             - ngrid: int, number of grids in the dataset.
             - nt: int, number of time steps in the dataset.
+            - rho: int, length of the input sequence.
+            - warmup_length: int, length of the warmup period.
+            - horizon: int, length of the forecast horizon.
 
         Returns
         -------
@@ -541,10 +511,10 @@ class DeepHydro(DeepHydroInterface):
         """
         if data_cfgs["sampler"] is None:
             return None
-        batch_size = data_cfgs["batch_size"]
-        rho = data_cfgs["hindcast_length"]
-        warmup_length = data_cfgs["warmup_length"]
-        horizon = data_cfgs["forecast_length"]
+        batch_size = training_cfgs["batch_size"]
+        rho = train_dataset.rho
+        warmup_length = train_dataset.warmup_length
+        horizon = train_dataset.horizon
         ngrid = train_dataset.ngrid
         nt = train_dataset.nt
         sampler_name = data_cfgs["sampler"]

@@ -200,41 +200,45 @@ class TrainLogger:
             torch model
         """
         # input4modelplot = torch.randn(
-        #     self.data_cfgs["batch_size"],
-        #     self.data_cfgs["hindcast_length"],
+        #     self.training_cfgs["batch_size"],
+        #     self.training_cfgs["hindcast_length"],
         #     # self.model_cfgs["model_hyperparam"]["n_input_features"],
         #     self.model_cfgs["model_hyperparam"]["input_size"],
         # )
         if self.data_cfgs["model_mode"] == "single":
             input4modelplot = [
                 torch.randn(
-                    self.data_cfgs["batch_size"],
-                    self.data_cfgs["hindcast_length"],
+                    self.training_cfgs["batch_size"],
+                    self.training_cfgs["hindcast_length"],
                     self.data_cfgs["input_features"] - 1,
                 ),
                 torch.randn(
-                    self.data_cfgs["batch_size"],
-                    self.data_cfgs["hindcast_length"],
+                    self.training_cfgs["batch_size"],
+                    self.training_cfgs["hindcast_length"],
                     self.data_cfgs["cnn_size"],
                 ),
                 torch.rand(
-                    self.data_cfgs["batch_size"], 1, self.data_cfgs["output_features"]
+                    self.training_cfgs["batch_size"],
+                    1,
+                    self.data_cfgs["output_features"],
                 ),
             ]
         else:
             input4modelplot = [
                 torch.randn(
-                    self.data_cfgs["batch_size"],
-                    self.data_cfgs["hindcast_length"],
+                    self.training_cfgs["batch_size"],
+                    self.training_cfgs["hindcast_length"],
                     self.data_cfgs["input_features"],
                 ),
                 torch.randn(
-                    self.data_cfgs["batch_size"],
-                    self.data_cfgs["hindcast_length"],
+                    self.training_cfgs["batch_size"],
+                    self.training_cfgs["hindcast_length"],
                     self.data_cfgs["input_size_encoder2"],
                 ),
                 torch.rand(
-                    self.data_cfgs["batch_size"], 1, self.data_cfgs["output_features"]
+                    self.training_cfgs["batch_size"],
+                    1,
+                    self.data_cfgs["output_features"],
                 ),
             ]
         self.tb.add_graph(model, input4modelplot)
