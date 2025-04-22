@@ -1084,3 +1084,314 @@ class TransformerDataset(Seq2SeqDataset):
             torch.from_numpy(x).float(),
             torch.from_numpy(x_h).float(),
         ], torch.from_numpy(y).float()
+
+
+class BaseDatasetValidSame(BaseDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(BaseDatasetValidSame, self).__init__(data_cfgs, is_tra_val_te)
+
+    def __getitem__(self, item):
+        basin, idx = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        if self.c is None or self.c.shape[-1] == 0:
+            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+
+
+class HoDataset(BaseDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(HoDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    @property
+    def streamflow_input_name(self):
+        return self.data_cfgs["relevant_cols"][-1]
+
+    def __getitem__(self, item: int):
+        if not self.train_mode:
+            xf = self.x[item, 1:, :-1]
+            # xq = self.x[item, :-1, -1]
+            # xq = xq.reshape(xq.size, 1)
+            # x = np.concatenate((xf, xq), axis=1)
+            x = xf
+            y = self.y[item, :, :]
+            if self.c is None or self.c.shape[-1] == 0:
+                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            c = self.c[item, :]
+            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xc = np.concatenate((x, c), axis=1)
+            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        basin, idx = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        xf = self.x[
+            basin,
+            idx - warmup_length + 1 : idx + self.rho + self.horizon + 1,
+            :-1,
+        ]
+        xq = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, -1]
+        xq = xq.reshape(xq.size, 1)
+        # x = np.concatenate((xf, xq), axis=1)
+        x = xf
+        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        if self.c is None or self.c.shape[-1] == 0:
+            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+        return [
+            torch.from_numpy(xc).float(),
+            torch.from_numpy(xq).float(),
+        ], torch.from_numpy(y).float()
+
+    def _read_xyc_specified_time(self, start_date, end_date):
+        """Read x, y, c data from data source with specified time range
+        We set this function as sometimes we need adjust the time range for some specific dataset,
+        such as seq2seq dataset (it needs one more period for the end of the time range)
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+        """
+        date_format = detect_date_format(start_date)
+        time_unit = self.data_cfgs["min_time_unit"]
+        horizon = self.horizon
+        start_date_dt = datetime.strptime(start_date, date_format)
+        if time_unit == "h":
+            adjusted_start_date = (start_date_dt - timedelta(hours=1)).strftime(
+                date_format
+            )
+        elif time_unit == "D":
+            adjusted_start_date = (start_date_dt - timedelta(days=1)).strftime(
+                date_format
+            )
+        else:
+            raise ValueError(f"Unsupported time unit: {time_unit}")
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [adjusted_start_date, end_date],
+            self.data_cfgs["relevant_cols"],
+        )
+        # y
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["target_cols"],
+        )
+        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
+            # this means the data source return a dict with key as time_unit
+            # in this BaseDataset, we only support unified time range for all basins, so we chose the first key
+            # TODO: maybe this could be refactored better
+            data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
+            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
+        )
+        # c
+        data_attr_ds = self.data_source.read_attr_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.data_cfgs["constant_cols"],
+            all_number=True,
+        )
+        self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
+            data_forcing_ds, data_output_ds, data_attr_ds
+        )
+
+    def _check_ts_xrds_unit(self, data_forcing_ds, data_output_ds):
+        """Check timeseries xarray dataset unit and convert if necessary
+
+        Parameters
+        ----------
+        data_forcing_ds : xr.Dataset
+            the forcing data
+        data_output_ds : xr.Dataset
+            outputs including streamflow data
+        """
+
+        def standardize_unit(unit):
+            unit = unit.lower()  # convert to lower case
+            unit = re.sub(r"day", "d", unit)
+            unit = re.sub(r"hour", "h", unit)
+            return unit
+
+        streamflow_unit = data_output_ds[self.streamflow_name].attrs["units"]
+        prcp_unit = data_forcing_ds[self.precipitation_name].attrs["units"]
+
+        standardized_streamflow_unit = standardize_unit(streamflow_unit)
+        standardized_prcp_unit = standardize_unit(prcp_unit)
+        if standardized_streamflow_unit != standardized_prcp_unit:
+            streamflow_dataset = data_output_ds[[self.streamflow_name]]
+            converted_streamflow_dataset = streamflow_unit_conv(
+                streamflow_dataset,
+                self.data_source.read_area(self.t_s_dict["sites_id"]),
+                target_unit=prcp_unit,
+            )
+            data_output_ds[self.streamflow_name] = converted_streamflow_dataset[
+                self.streamflow_name
+            ]
+            streamflow_input_dataset = data_forcing_ds[[self.streamflow_input_name]]
+            converted_streamflow_input_dataset = streamflow_unit_conv(
+                streamflow_input_dataset,
+                self.data_source.read_area(self.t_s_dict["sites_id"]),
+                target_unit=prcp_unit,
+            )
+            data_forcing_ds[self.streamflow_input_name] = (
+                converted_streamflow_input_dataset[self.streamflow_input_name]
+            )
+
+        return data_forcing_ds, data_output_ds
+
+
+class HoEvalWithValidStreamflowDataset(HoDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(HoEvalWithValidStreamflowDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    def __getitem__(self, item: int):
+        if not self.train_mode:
+            xf = self.x[item, 1:, :-1]
+            xq = self.x[item, :-1, -1]
+            xq = xq.reshape(xq.size, 1)
+            x = np.concatenate((xf, xq), axis=1)
+            # x = xf
+            y = self.y[item, :, :]
+            if self.c is None or self.c.shape[-1] == 0:
+                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            c = self.c[item, :]
+            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xc = np.concatenate((x, c), axis=1)
+            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        basin, idx = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        xf = self.x[
+            basin,
+            idx - warmup_length + 1 : idx + self.rho + self.horizon + 1,
+            :-1,
+        ]
+        xq = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, -1]
+        xq = xq.reshape(xq.size, 1)
+        x = np.concatenate((xf, xq), axis=1)
+        # x = xf
+        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        if self.c is None or self.c.shape[-1] == 0:
+            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+
+
+class FoDataset(HoDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(FoDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    def __getitem__(self, item: int):
+        if not self.train_mode:
+            x = self.x[item, 1:, :-1]
+            y = self.y[item, :, :]
+            if self.c is None or self.c.shape[-1] == 0:
+                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            c = self.c[item, :]
+            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xc = np.concatenate((x, c), axis=1)
+            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        basin, idx = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        x = self.x[
+            basin,
+            idx - warmup_length + 1 : idx + self.rho + self.horizon + 1,
+            :-1,
+        ]
+        xy = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, -1]
+        xy = xy.reshape(xy.size, 1)
+        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        if self.c is None or self.c.shape[-1] == 0:
+            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+        return [
+            torch.from_numpy(xc).float(),
+            torch.from_numpy(xy).float(),
+        ], torch.from_numpy(y).float()
+
+
+class HFDataset(HoDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(HFDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    def __getitem__(self, item: int):
+        if not self.train_mode:
+            # 先把forcing都取出来
+            xf = self.x[item, 1:, :-1]
+            xf = xf.reshape(1, xf.shape[0], xf.shape[1])
+            # 再把hindcast输入的streamflow取出来
+            xq = self.x[item, : self.rho, -1]
+            xq = xq.reshape(xq.size, 1)
+            # 取hindcast部分的forcing
+            xf_hind = xf[:, : self.rho, :]
+            # 取forecast部分的forcing
+            xf_fore = xf[:, self.rho :, :]
+            # 取y
+            y = self.y[item, :, :]
+            # 取c
+            c = self.c[item, :]
+            # 转到二维
+            xf_hind = xf_hind.squeeze(0)
+            xf_fore = xf_fore.squeeze(0)
+            # hindcast部分和c拼接
+            hind_c = np.repeat(c, xf_hind.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xf_hind_c = np.concatenate((xf_hind, hind_c), axis=1)
+            x_hind_c = np.concatenate((xf_hind_c, xq), axis=-1)
+            # forecast部分和c拼接
+            fore_c = np.repeat(c, xf_fore.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xf_fore_c = np.concatenate((xf_fore, fore_c), axis=1)
+            return [
+                torch.from_numpy(x_hind_c).float(),
+                torch.from_numpy(xf_fore_c).float(),
+            ], torch.from_numpy(y).float()
+        basin, idx = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        # 先把hindcast和forecast的forcing取出来
+        xf = self.x[
+            basin,
+            idx - warmup_length + 1 : idx + self.rho + self.horizon + 1,
+            :-1,
+        ]
+        xf = xf.reshape(1, xf.shape[0], xf.shape[1])
+        xf_hind = xf[:, : self.rho, :]
+        xf_fore = xf[:, self.rho :, :]
+        # 再把hindcast和forecast输入的streamflow取出来
+        xq = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, -1]
+        xq = xq.reshape(1, xq.size, 1)
+        # 取hindcast部分的流量
+        xq_hind = xq[:, : self.rho, :]
+        # 取forecast部分的流量
+        xq_fore = xq[:, : self.rho, :]
+        # 取c
+        c = self.c[basin, :]
+        # 取y
+        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        # 转到二维
+        xf_hind = xf_hind.squeeze(0)
+        xf_fore = xf_fore.squeeze(0)
+        xq_hind = xq_hind.squeeze(0)
+        xq_fore = xq_fore.squeeze(0)
+        # hindcast部分和c拼接
+        hind_c = np.repeat(c, xf_hind.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xf_hind_c = np.concatenate((xf_hind, hind_c), axis=1)
+        x_hind_c = np.concatenate((xf_hind_c, xq_hind), axis=-1)
+        # forecast部分和c拼接
+        fore_c = np.repeat(c, xf_fore.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xf_fore_c = np.concatenate((xf_fore, fore_c), axis=1)
+
+        return [
+            torch.from_numpy(x_hind_c).float(),
+            torch.from_numpy(xf_fore_c).float(),
+            torch.from_numpy(xq_fore).float(),
+        ], torch.from_numpy(y).float()
