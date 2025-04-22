@@ -4,7 +4,6 @@ generate basin tree.
 import torch
 import pandas as pd
 from pandas import DataFrame as df
-# from torchhydro.models.narx import Narx
 
 
 class Node:
@@ -16,6 +15,7 @@ class Node:
         self.basin_ds = basin_id  # downstream basin     a node need to attached to a basin of its downsteam when initialization.
         self.basin_us = []  # upstream basin
         self.n_basin_us = 0
+        self.device = None
         self.y_input = None
         self.y_output = None
 
@@ -25,18 +25,16 @@ class Node:
     def amount_basin_us(self):
         self.n_basin_us = len(self.basin_us)
         return self.n_basin_us
-    
-    # def refresh_y_input(self):
-    #     self.n_basin_us = len(self.basin_us)
-    #     for i in range(self.n_basin_us):
-    #         self.y_input.append(self.basin_us[i].y)  # todo:
+
+    def set_device(self, device):
+        self.device = device
 
     def refresh_y_output(self):
         n_basin = None  # the basin number of upstream
         if isinstance(self.y_input, torch.Tensor):
             n_basin = self.y_input.size(dim=1)  # (time, basin, features(streamflow))
         if n_basin == len(self.basin_us):
-            self.y_output = self.y_input
+            self.y_output = self.y_input.to(self.device)
 
 
 class Basin:
@@ -51,6 +49,7 @@ class Basin:
         self.basin_order = -1  # basin order, similar to river order
         self.max_order_of_tree = -1
         self.cal_order = self.max_order_of_tree - self.basin_order
+        self.device = None
         self.x = None  # forcing data (prce,pet)
         self.y = None  # target data (streamflow)
         self.y_us = None  # input data / inflow from upstream (streamflow)
@@ -75,19 +74,22 @@ class Basin:
 
     def refresh_cal_order(self):
         self.cal_order = self.max_order_of_tree - self.basin_order
+    
+    def set_device(self, device):
+        self.device = device
 
     def set_x_data(self, x):
-        self.x = x
+        self.x = x.to(self.device)
     
     def set_y_data(self, y):
-        self.y = y
+        self.y = y.to(self.device)
 
     def get_y_us_data(self):
         """get inflow coming from upstream basins via node_us """
-        self.y_us = self.node_us.y_output  # todo: may appear memory problem here
+        self.y_us = self.node_us.y_output.to(self.device)  # todo: may appear memory problem here
 
     def set_model(self, model = None):
-        self.model = model
+        self.model = model.to(self.device)
 
     def make_input_x(self):
         if (self.x != None) and (self.y_us != None):
@@ -96,6 +98,7 @@ class Basin:
             self.input_x = self.x  #.copy_()  # todo: check copy problem
         if (self.input_x != None) and (self.y != None):
             self.input_x = torch.cat([self.input_x, self.y], dim=-1)
+        self.input_x = self.input_x.to(self.device)
     
     def run_model(self):
         self.make_input_x()
@@ -105,10 +108,15 @@ class Basin:
     
     def set_output(self):
         """outflow to node_ds"""
-        if self.node_ds.y_input is not None:
-            self.node_ds.y_input = torch.cat((self.node_ds.y_input, self.output_y), dim = -1)  
-        else:
-            self.node_ds.y_input = self.output_y  # todo: check copy problem
+        try:
+            if self.node_ds.y_input is not None:
+                self.node_ds.y_input = torch.cat((self.node_ds.y_input, self.output_y), dim = -1)  
+            else:
+                if self.node_ds.devic == None:
+                    self.node_ds.set_device(self.device)
+                self.node_ds.y_input = self.output_y.to(self.device)  # todo: check copy problem
+        except AttributeError:
+            raise AttributeError("'NoneType' object has no attribute 'y_input'")
 
 
 
@@ -145,10 +153,6 @@ class BasinTree:
 
         # basin_id_list
         self.basin_id_list = basin_id_list
-        # self.basin_tree = None
-        # self.basin_tree_max_order = 0
-        # self.basin_list = None
-        # self.order_list = None
         self.nested_model = {
             "basin_trees": None,
             "basin_tree_max_order": 0,
@@ -497,7 +501,7 @@ class BasinTree:
 
         basin_trees = []
         basin_list = []
-        basin_list_ = []
+        # basin_list_ = []
         basin_list_array = []
         order_list = []
         n_basin_per_order = []
@@ -545,10 +549,6 @@ class BasinTree:
         n_basin_per_order_list[-1] = [n_single_basin]
         n_basin_per_order[0] = n_basin_per_order[0] + n_single_basin
 
-        # self.basin_tree = basin_trees
-        # self.basin_tree_max_order = max_order
-        # self.basin_list = basin_list
-        # self.order_list = order_list
         self.nested_model["basin_trees"] = basin_trees
         self.nested_model["basin_tree_max_order"] = max_order
         self.nested_model["basin_list"] = basin_list
@@ -557,7 +557,6 @@ class BasinTree:
         self.nested_model["n_basin_per_order_list"] = n_basin_per_order_list
         self.nested_model["n_basin_per_order"] = n_basin_per_order
 
-        # return basin_trees, max_order, basin_list, order_list
         return self.nested_model
 
     def get_cal_order(self, basin_trees: list = None):

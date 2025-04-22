@@ -3,8 +3,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-# from torchhydro.datasets.narxdataset import NarxDataset
-from torchhydro.models.basintree import Basin, BasinTree
+# from torchhydro.models.basintree import Basin, BasinTree
 
 
 class Narx(nn.Module):
@@ -140,23 +139,31 @@ class NestedNarx(nn.Module):
     def forward(self, x):
         """
         implement netsed calculation here.
-        deal with data order
-        calculate along basintree
-        basins with a same order calculate together
-        meanwhile take the link relationship between basins into count.
-        means call narx for each basin
+        deal with data order -> done.
+        calculate along basintree -> may can calculate by order 
+        basins with a same order calculate together -> for each tree
+        meanwhile take the link relationship between basins into count.  -> done. use basin, node and basintree.
+        means call narx for each basin -> may can call naxr for each order
+        fit to tensor and backforward
         x
             input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
         """
+        nested_model_device = x.device
+
         n_t, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list    n_feature = self.nx + self.ny
         n_basintrees = len(self.basin_trees)
-        basin_list_x = []
-        if n_basin == len(self.basin_list):
+        if n_basin != len(self.basin_list):
+            raise ValueError("Error: The dimension of input data x dismatch with basintree, please check both.")
+        else:
+            out = None
             # split data
+            basin_list_x = []
+            basin_list_x = torch.Tensro(basin_list_x)
             for i in range(n_basin):
                 x_i = x[:, i, :]   # time|(prcp,pet,streamflow)
                 x_i = torch.unsqueeze(x_i, 1)  # unify the data dimension=3 for single basin, add a basin dimension.
-                basin_list_x.append(x_i)
+                basin_list_x = torch.cat((basin_list_x, x_i), dim=1)
+            basin_list_x.to(nested_model_device)
             # set data
             m = 0
             for i in range(n_basintrees):  # basintrees
@@ -164,29 +171,27 @@ class NestedNarx(nn.Module):
                 for j in range(n_order_i):  # order
                     n_basin_j = len(self.basin_trees[i][j])
                     for k in range(n_basin_j):  # per order
+                        self.basin_trees[i][j][k].set_device(nested_model_device)
                         self.basin_trees[i][j][k].set_x_data(basin_list_x[m][:, :, :self.nx])
                         self.basin_trees[i][j][k].set_y_data(basin_list_x[m][:, :, -self.ny:])
                         self.basin_trees[i][j][k].set_model(self.dl_model)
                         m = m + 1
             # run model
+            m = 0
             for i in range(n_basintrees):  # basintrees
                 max_order_i = len(self.n_basin_per_order_list[i])
                 for j in range(max_order_i - 1, -1, -1):  # order
                     n_basin_j = self.n_basin_per_order_list[i][j]
-                    for k in range(n_basin_j):  # per order
+                    for k in range(n_basin_j-1, -1, -1):  # per order
                         self.basin_trees[i][j][k].node_us.refresh_y_output()
                         self.basin_trees[i][j][k].get_y_us_data()  # inflow coming from upstream basin
-                        out = self.basin_trees[i][j][k].run_model()  # call narx for each basin.
-                        if k < (n_basin_j - 1):
+                        y = self.basin_trees[i][j][k].run_model()  # call narx for each basin.
+                        if out is not None:
+                            out = torch.cat((out, y), dim=1)
+                        else:
+                            out = y                 
+                        m = m + 1
+                        if j > 0 :
                             # the last/root basin outflow directly, no node_ds.
                             self.basin_trees[i][j][k].set_output()  # basin output
-            return out
-                        
-
-
-            
-        else:
-            raise ValueError("Error: The dimension of input data x dismatch with basintree, please check both.")  # todo: n_basin = 1
-
-        basin_trees_x = []
-        n_basin_ii = 0
+            return out  
