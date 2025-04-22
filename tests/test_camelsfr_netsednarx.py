@@ -175,13 +175,11 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
 #   0%|          | 0/18 [00:00<?, ?it/s]
 # 100%|██████████| 18/18 [00:00<00:00, 32388.45it/s]
 # Torch is using cpu
-# I0422 17:13:55.419000 1841 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpyxg7o5dl
-# I0422 17:13:55.423000 1841 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpyxg7o5dl/_remote_module_non_scriptable.py
+# I0422 21:30:20.475000 24631 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpiqnlxmuz
+# I0422 21:30:20.480000 24631 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpiqnlxmuz/_remote_module_non_scriptable.py
 # using 0 workers
 
 #   0%|          | 0/13 [00:00<?, ?it/s]
-# Frame skipped from debugging during step-in.
-# Note: may have been skipped because of "justMyCode" option (default == true). Try setting "justMyCode": false in the debug configuration (e.g., launch.json).
-#   8%|▊         | 1/13 [06:35<1:19:02, 395.23s/it]
-#   8%|▊         | 1/13 [06:56<1:23:19, 416.59s/it]
+#   8%|▊         | 1/13 [00:44<08:57, 44.79s/it]
+#   8%|▊         | 1/13 [03:05<37:07, 185.60s/it]
 # F

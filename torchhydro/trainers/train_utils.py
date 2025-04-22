@@ -410,7 +410,7 @@ def torch_single_train(
     seq_first = which_first_tensor != "batch"
     pbar = tqdm(data_loader)  # load data  todo:
 
-    for _, (src, trg) in enumerate(pbar):  # todo: how to split?   call __getitem__ in NarxDataset class
+    for _, (src, trg) in enumerate(pbar):  # call __getitem__ in NarxDataset class
         trg, output = model_infer(seq_first, device, model, src, trg)  # src, forcing data, e.g. prce|pet  trg, target data, e.g. streamflow.
 
         loss = compute_loss(trg, output, criterion, **kwargs)
@@ -418,7 +418,8 @@ def torch_single_train(
             print("Warning: high loss detected")
         if torch.isnan(loss):
             continue
-        loss.backward()  # Backpropagate to compute the current gradient
+        # loss.backward()  # Backpropagate to compute the current gradient   # todo: temp comments.
+        loss.backward(retain_graph=True)   # todo: temp modify.  loss.backward(retain_graph=True)
         opt.step()  # Update network parameters based on gradients
         model.zero_grad()  # clear gradient
         if loss == float("inf"):

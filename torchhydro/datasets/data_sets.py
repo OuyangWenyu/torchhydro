@@ -221,6 +221,9 @@ class BaseDataset(Dataset):
         return self.num_samples if self.train_mode else self.ngrid
 
     def __getitem__(self, item: int):
+        """
+        class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):
+        """
         if not self.train_mode:
             x = self.x[item, :, :]
             y = self.y[item, :, :]

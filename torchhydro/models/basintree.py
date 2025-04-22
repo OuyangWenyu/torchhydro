@@ -28,7 +28,7 @@ class Node:
         return self.n_basin_us
 
     def set_device(self, device):
-        self.device = device
+        self.device = device  # ?
 
     def refresh_y_output(self):
         n_basin = None  # the basin number of upstream

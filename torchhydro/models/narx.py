@@ -144,6 +144,7 @@ class NestedNarx(nn.Module):
         meanwhile take the link relationship between basins into count.  -> done. use basin, node and basintree.
         means call narx for each basin -> may can call naxr for each order
         fit to tensor and backforward
+        backforward 
         x
             input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
         """
@@ -185,6 +186,8 @@ class NestedNarx(nn.Module):
                                 self.basin_trees[i][j][k].set_output()  # basin output
                 return out
             except:
-                raise RuntimeError("backward error.")
+                raise RuntimeError("backward error.")   # 
 
-            
+# RuntimeError: one of the variables needed for gradient computation has been modified by an inplace operation: [torch.FloatTensor [64, 1]], 
+# which is output 0 of AsStridedBackward0, is at version 2; expected version 1 instead. Hint: enable anomaly detection to find the operation that 
+# failed to compute its gradient, with torch.autograd.set_detect_anomaly(True).
