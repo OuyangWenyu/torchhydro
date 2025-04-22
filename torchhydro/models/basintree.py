@@ -1,6 +1,7 @@
 """
 generate basin tree.
 """
+
 import torch
 import pandas as pd
 from pandas import DataFrame as df
@@ -16,8 +17,8 @@ class Node:
         self.basin_us = []  # upstream basin
         self.n_basin_us = 0
         self.device = None
-        self.y_input = None
-        self.y_output = None
+        self.y_input = torch.Tensor([])
+        self.y_output = torch.Tensor([])
 
     def add_basin_us(self, basin_id):
         self.basin_us.append(basin_id)
@@ -31,8 +32,8 @@ class Node:
 
     def refresh_y_output(self):
         n_basin = None  # the basin number of upstream
-        if isinstance(self.y_input, torch.Tensor):
-            n_basin = self.y_input.size(dim=1)  # (time, basin, features(streamflow))
+        if self.y_input.ndim > 1:
+            n_t, n_basin, n_y = self.y_input.shape  # (time, basin, features(streamflow))  # todo:
         if n_basin == len(self.basin_us):
             self.y_output = self.y_input.to(self.device)
 
@@ -50,12 +51,12 @@ class Basin:
         self.max_order_of_tree = -1
         self.cal_order = self.max_order_of_tree - self.basin_order
         self.device = None
-        self.x = None  # forcing data (prce,pet)
-        self.y = None  # target data (streamflow)
-        self.y_us = None  # input data / inflow from upstream (streamflow)
+        self.x = torch.Tensor([])  # forcing data (prce,pet)
+        self.y = torch.Tensor([])  # target data (streamflow)
+        self.y_us = torch.Tensor([])  # input data / inflow from upstream (streamflow)
         self.model = None  # dl model
-        self.input_x = None  # input data for model
-        self.output_y = None  # output data from model
+        self.input_x = torch.Tensor([])  # input data for model
+        self.output_y = torch.Tensor([])  # output data from model
 
     def set_basin_type(self, basin_type):
         self.basin_type = basin_type
@@ -92,29 +93,29 @@ class Basin:
         self.model = model.to(self.device)
 
     def make_input_x(self):
-        if (self.x != None) and (self.y_us != None):
+        if (self.x.ndim > 1) and (self.y_us.ndim > 1):
             self.input_x = torch.cat([self.x, self.y_us], dim=-1)  # along the last dimension
         else:
             self.input_x = self.x  #.copy_()  # todo: check copy problem
-        if (self.input_x != None) and (self.y != None):
+        if (self.input_x.ndim > 1) and (self.y.ndim > 1):
             self.input_x = torch.cat([self.input_x, self.y], dim=-1)
         self.input_x = self.input_x.to(self.device)
     
     def run_model(self):
         self.make_input_x()
-        if self.input_x != None:
+        if self.input_x.ndim > 1:
             self.output_y = self.model(self.input_x)
-        return self.output_y  # todo: dimension problem
+        return self.output_y
     
     def set_output(self):
         """outflow to node_ds"""
         try:
-            if self.node_ds.y_input is not None:
-                self.node_ds.y_input = torch.cat((self.node_ds.y_input, self.output_y), dim = -1)  
-            else:
-                if self.node_ds.devic == None:
-                    self.node_ds.set_device(self.device)
-                self.node_ds.y_input = self.output_y.to(self.device)  # todo: check copy problem
+            if self.node_ds.devic == None:
+                self.node_ds.set_device(self.device)
+            # if self.node_ds.y_input is not None:
+            self.node_ds.y_input = torch.cat((self.node_ds.y_input, self.output_y), dim = -1).to(self.node_ds.device)  
+            # else:
+            # self.node_ds.y_input = self.output_y.to(self.device)  # todo: check copy problem
         except AttributeError:
             raise AttributeError("'NoneType' object has no attribute 'y_input'")
 

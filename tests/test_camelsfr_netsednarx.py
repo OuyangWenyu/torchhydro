@@ -145,4 +145,38 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
     train_and_evaluate(config_data)
     print("All processes are finished!")
 
-#   0%|          | 0/5055 [00:00<?, ?it/s]
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# Backend tkagg is interactive backend. Turning interactive mode on.
+# collected 1 item
+
+# test_camelsfr_netsednarx.py update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Finish Normalization
+
+
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 1282.49it/s]
+# Finish Normalization
+
+
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 2798.48it/s]
+# Finish Normalization
+
+
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 32388.45it/s]
+# Torch is using cpu
+# I0422 17:13:55.419000 1841 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpyxg7o5dl
+# I0422 17:13:55.423000 1841 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpyxg7o5dl/_remote_module_non_scriptable.py
+# using 0 workers
+
+#   0%|          | 0/13 [00:00<?, ?it/s]

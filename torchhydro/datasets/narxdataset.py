@@ -27,6 +27,8 @@ class NarxDataset(BaseDataset):
         ----------
         data_cfgs: data configures, setting via console.
         is_tra_val_te: three mode, train, validate and test.
+
+        batch_size may need redressal.
         """
         super(NarxDataset, self).__init__(data_cfgs, is_tra_val_te)
         self.data_cfgs = data_cfgs
@@ -52,7 +54,7 @@ class NarxDataset(BaseDataset):
         /home/yulili/.conda/envs/torchhydro/lib/python3.13/site-packages/torch/utils/data/dataloader.py  _next_data(self)
         Parameters
         ----------
-        item: batch/basins  ?  todo: 
+        item: the locate in lookup_table of basin need to read.
 
         Returns
         -------
@@ -67,8 +69,8 @@ class NarxDataset(BaseDataset):
             c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
             xc = np.concatenate((x, c), axis=1)
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-        basin, idx = self.lookup_table[item]  # 220
-        warmup_length = self.warmup_length  #
+        basin, idx = self.lookup_table[item]
+        warmup_length = self.warmup_length
         x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]  # [batch(basin), time, features]
         y = self.y[basin, idx: idx + self.rho + self.horizon, :]
         if self.c is None or self.c.shape[-1] == 0:
@@ -76,7 +78,6 @@ class NarxDataset(BaseDataset):
         c = self.c[basin, :]
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T  # repeat the attributes for each tim-step.
         xc = np.concatenate((x, c), axis=1)  # incorporate, as the input of model.
-        # where to handle cal order? 
 
         return torch.from_numpy(xc).float(), torch.from_numpy(y).float()  # deliver into model prcp, pet, attributes and streamflow etc.  DataLoader
 
@@ -124,7 +125,7 @@ class NarxDataset(BaseDataset):
         """To make __getitem__ more efficient,
         we transform x, y, c to numpy array with shape (nsample, nt, nvar).    means [batch(basin), time, features]
         """
-        self.x = self.x.transpose("basin", "time", "variable").to_numpy()  # tanspose, 转置。 means T.  batch first here
+        self.x = self.x.transpose("basin", "time", "variable").to_numpy()  # tanspose, means T.  batch first here
         self.y = self.y.transpose("basin", "time", "variable").to_numpy()
         if self.c is not None and self.c.shape[-1] > 0:
             self.c = self.c.transpose("basin", "variable").to_numpy()
@@ -242,7 +243,6 @@ class NarxDataset(BaseDataset):
         """
         lookup = []
         # list to collect basins ids of basins without a single training sample
-        # basin_coordinates = len(self.t_s_dict["sites_id"])  # 
         basin_coordinates = len(self.basin_list)
         rho = self.rho  # forcast_history
         warmup_length = self.warmup_length
