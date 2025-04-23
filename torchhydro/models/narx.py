@@ -159,9 +159,9 @@ class NestedNarx(nn.Module):
         n_basintrees = len(self.basin_trees)
         if n_basin != len(self.basin_list):
             raise ValueError("The dimension of input data x dismatch with basintree, please check both." \
-            "\n self.n_call_froward = " + format(self.n_call_froward, 'd') \
-            "\n n_basin = " + format(n_basin, 'd') \
-            "\n len(self.basin_list) = " + format(len(self.basin_list), 'd'))
+            "\nself.n_call_froward = " + format(self.n_call_froward, 'd') + \
+            "\nn_basin = " + format(n_basin, 'd') + \
+            "\nlen(self.basin_list) = " + format(len(self.basin_list), 'd'))
         else:
             # remove data in basin before calculation.
             m = 0

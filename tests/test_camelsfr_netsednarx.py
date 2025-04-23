@@ -169,34 +169,53 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
 
 
 #   0%|          | 0/18 [00:00<?, ?it/s]
-# 100%|██████████| 18/18 [00:00<00:00, 1072.42it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 896.61it/s]
 # Finish Normalization
 
 
 #   0%|          | 0/18 [00:00<?, ?it/s]
-# 100%|██████████| 18/18 [00:00<00:00, 2561.67it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 1823.96it/s]
 # Finish Normalization
 
 
 #   0%|          | 0/18 [00:00<?, ?it/s]
-# 100%|██████████| 18/18 [00:00<00:00, 25514.52it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 29071.03it/s]
 # Torch is using cpu
-# I0423 19:25:18.045000 17152 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmp4aa4r4rb
-# I0423 19:25:18.050000 17152 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmp4aa4r4rb/_remote_module_non_scriptable.py
+# I0423 20:24:41.245000 24589 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmp5oqniugw
+# I0423 20:24:41.249000 24589 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmp5oqniugw/_remote_module_non_scriptable.py
 # using 0 workers
 
-#   0%|          | 0/13 [00:00<?, ?it/s]    forcast_length=30,  365/30=12.17   = 13
-#   8%|▊         | 1/13 [00:07<01:30,  7.56s/it]
-#  15%|█▌        | 2/13 [00:19<01:49,  9.92s/it]
-#  23%|██▎       | 3/13 [00:22<01:09,  6.97s/it]
-#  31%|███       | 4/13 [00:26<00:50,  5.62s/it]
-#  38%|███▊      | 5/13 [00:29<00:38,  4.86s/it]
-#  46%|████▌     | 6/13 [00:32<00:29,  4.28s/it]
-#  54%|█████▍    | 7/13 [00:36<00:23,  3.93s/it]
-#  62%|██████▏   | 8/13 [00:39<00:19,  3.82s/it]
-#  69%|██████▉   | 9/13 [00:43<00:15,  3.79s/it]
-#  77%|███████▋  | 10/13 [00:47<00:11,  3.81s/it]
-#  85%|████████▍ | 11/13 [00:50<00:07,  3.72s/it]
-#  92%|█████████▏| 12/13 [01:03<00:06,  6.34s/it]
-#  92%|█████████▏| 12/13 [01:15<00:06,  6.27s/it]
+#   0%|          | 0/12 [00:00<?, ?it/s]
+#   8%|▊         | 1/12 [00:02<00:27,  2.46s/it]
+#  17%|█▋        | 2/12 [00:04<00:21,  2.13s/it]
+#  25%|██▌       | 3/12 [00:05<00:15,  1.68s/it]
+#  33%|███▎      | 4/12 [00:06<00:12,  1.51s/it]
+#  42%|████▏     | 5/12 [00:07<00:09,  1.37s/it]
+#  50%|█████     | 6/12 [00:09<00:08,  1.35s/it]
+#  58%|█████▊    | 7/12 [00:10<00:06,  1.32s/it]
+#  67%|██████▋   | 8/12 [00:11<00:05,  1.33s/it]
+#  75%|███████▌  | 9/12 [00:12<00:03,  1.26s/it]
+#  83%|████████▎ | 10/12 [00:14<00:02,  1.23s/it]
+#  92%|█████████▏| 11/12 [00:15<00:01,  1.21s/it]
+# 100%|██████████| 12/12 [00:17<00:00,  1.60s/it]
+# 100%|██████████| 12/12 [00:17<00:00,  1.48s/it]
+# Epoch 1 Loss 1.0545 time 19.59 lr 1.0
+# NestedNarx(
+#   (dl_model): Narx(
+#     (linearIn): Linear(in_features=5, out_features=64, bias=True)
+#     (narx): RNNCell(64, 64)
+#     (linearOut): Linear(in_features=64, out_features=1, bias=True)
+#   )
+# )
 # F
+
+
+#         if n_basin != len(self.basin_list):
+# >           raise ValueError("The dimension of input data x dismatch with basintree, please check both." \
+#             "\nself.n_call_froward = " + format(self.n_call_froward, 'd') + \
+#             "\nn_basin = " + format(n_basin, 'd') + \
+#             "\nlen(self.basin_list) = " + format(len(self.basin_list), 'd'))
+# E           ValueError: The dimension of input data x dismatch with basintree, please check both.
+# E           self.n_call_froward = 13
+# E           n_basin = 4
+# E           len(self.basin_list) = 18
