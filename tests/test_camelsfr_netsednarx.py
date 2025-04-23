@@ -56,7 +56,7 @@ def var_t():
 def camelsfr_narx_arg(var_c, var_t):
     project_name = os.path.join("test_camels", "NestedNarx_camelsfr")
     # camels-fr time_range: ["1970-01-01", "2022-01-01"]
-    train_period = ["2017-10-01", "2018-10-01"]
+    train_period = ["2017-07-01", "2018-07-11"]
     valid_period = ["2018-10-01", "2019-10-01"]
     test_period = ["2019-10-01", "2020-10-01"]
     return cmd(
@@ -115,7 +115,7 @@ def camelsfr_narx_arg(var_c, var_t):
         ],
         batch_size=3,
         forecast_history=0,
-        forecast_length=30,
+        forecast_length=10,
         var_t=var_t,
         var_c=var_c,
         var_out=["streamflow"],
@@ -183,7 +183,7 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
 # Torch is using cpu
 # I0423 20:24:41.245000 24589 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmp5oqniugw
 # I0423 20:24:41.249000 24589 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmp5oqniugw/_remote_module_non_scriptable.py
-# using 0 workers
+# using 0 work
 
 #   0%|          | 0/12 [00:00<?, ?it/s]
 #   8%|▊         | 1/12 [00:02<00:27,  2.46s/it]
@@ -199,7 +199,7 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
 #  92%|█████████▏| 11/12 [00:15<00:01,  1.21s/it]
 # 100%|██████████| 12/12 [00:17<00:00,  1.60s/it]
 # 100%|██████████| 12/12 [00:17<00:00,  1.48s/it]
-# Epoch 1 Loss 1.0545 time 19.59 lr 1.0
+# Epoch 1  Loss  1.0545 time 19.59 lr 1.0
 # NestedNarx(
 #   (dl_model): Narx(
 #     (linearIn): Linear(in_features=5, out_features=64, bias=True)

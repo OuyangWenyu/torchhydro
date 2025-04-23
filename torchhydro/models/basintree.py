@@ -1,5 +1,6 @@
 """
 Author:
+LastEditors:
 generate basin tree.
 """
 
@@ -84,7 +85,7 @@ class Basin:
         self.cal_order = self.max_order_of_tree - self.basin_order
     
     def set_device(self, device):
-        self.device = device
+        self.device = device  # ?
 
     def set_x_data(self, x):
         self.x = x.to(self.device)
@@ -103,7 +104,7 @@ class Basin:
         if (self.x.ndim > 1) and (self.y_us.ndim > 1):
             self.input_x = torch.cat([self.x, self.y_us], dim=-1)  # along the last dimension
         else:
-            self.input_x = self.x  #.copy_()  # todo: check copy problem
+            self.input_x = self.x  # todo: check copy problem
         if (self.input_x.ndim > 1) and (self.y.ndim > 1):
             self.input_x = torch.cat([self.input_x, self.y], dim=-1)
         self.input_x = self.input_x.to(self.device)
@@ -111,7 +112,7 @@ class Basin:
     def run_model(self):
         self.make_input_x()
         if self.input_x.ndim > 1:
-            self.output_y = torch.cat((self.output_y, self.model(self.input_x)), dim = 2)  # todo: dim
+            self.output_y = torch.cat((self.output_y, self.model(self.input_x)), dim = 2)
         return torch.unsqueeze(self.output_y[:, :, -1], 2)  # (time, basin, features)
     
     def set_output(self):

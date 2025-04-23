@@ -212,6 +212,55 @@ class NestedNarx(nn.Module):
             # except:
             #     raise RuntimeError("backward error.")   #
 
-# RuntimeError: one of the variables needed for gradient computation has been modified by an inplace operation: [torch.FloatTensor [64, 1]], 
-# which is output 0 of AsStridedBackward0, is at version 2; expected version 1 instead. Hint: enable anomaly detection to find the operation that 
-# failed to compute its gradient, with torch.autograd.set_detect_anomaly(True).
+# E           ValueError: The dimension of input data x dismatch with basintree, please check both.
+# E           self.n_call_froward = 1
+# E           n_basin = 12
+# E           len(self.basin_list) = 18
+# seems the data problem. perhaps caused by nan values.
+
+# E           ValueError: The dimension of input data x dismatch with basintree, please check both.
+# E           self.n_call_froward = 2
+# E           n_basin = 12
+# E           len(self.basin_list) = 18
+
+# E           ValueError: The dimension of input data x dismatch with basintree, please check both.
+# E           self.n_call_froward = 3
+# E           n_basin = 15
+# E           len(self.basin_list) = 18
+
+# using 0 workers
+
+#   0%|          | 0/38 [00:00<?, ?it/s]
+#   5%|▌         | 2/38 [00:00<00:02, 13.89it/s]
+#  11%|█         | 4/38 [00:00<00:02, 13.89it/s]
+#  16%|█▌        | 6/38 [00:00<00:02, 12.96it/s]
+#  21%|██        | 8/38 [00:00<00:02, 13.53it/s]
+#  26%|██▋       | 10/38 [00:00<00:01, 14.42it/s]
+#  32%|███▏      | 12/38 [00:00<00:01, 15.40it/s]
+#  37%|███▋      | 14/38 [00:00<00:01, 15.52it/s]
+#  42%|████▏     | 16/38 [00:01<00:01, 15.01it/s]
+#  47%|████▋     | 18/38 [00:01<00:01, 14.95it/s]
+#  53%|█████▎    | 20/38 [00:01<00:01, 14.71it/s]
+#  58%|█████▊    | 22/38 [00:01<00:01, 14.90it/s]
+#  63%|██████▎   | 24/38 [00:01<00:00, 14.79it/s]
+#  68%|██████▊   | 26/38 [00:01<00:00, 14.58it/s]
+#  74%|███████▎  | 28/38 [00:01<00:00, 14.73it/s]
+#  79%|███████▉  | 30/38 [00:02<00:00, 14.94it/s]
+#  84%|████████▍ | 32/38 [00:02<00:00, 14.70it/s]
+#  89%|████████▉ | 34/38 [00:02<00:00, 15.13it/s]
+#  95%|█████████▍| 36/38 [00:02<00:00, 14.80it/s]
+# 100%|██████████| 38/38 [00:02<00:00, 14.27it/s]
+# 100%|██████████| 38/38 [00:02<00:00, 14.60it/s]
+# Epoch 1 Loss 1.0455 time 14.95 lr 1.0
+# NestedNarx(
+#   (dl_model): Narx(
+#     (linearIn): Linear(in_features=5, out_features=64, bias=True)
+#     (narx): RNNCell(64, 64)
+#     (linearOut): Linear(in_features=64, out_features=1, bias=True)
+#   )
+# )
+# F
+# E           ValueError: The dimension of input data x dismatch with basintree, please check both.
+# E           self.n_call_froward = 39
+# E           n_basin = 4
+# E           len(self.basin_list) = 18
