@@ -35,238 +35,102 @@ class SimpleLSTM(nn.Module):
         return self.linearOut(out_lstm_dr)
 
 
-# class SimpleLSTM(nn.Module):
-#     def __init__(self, input_size, output_size, hidden_size, dr=0.0):
-#         super(SimpleLSTM, self).__init__()
-#         self.linearIn = nn.Linear(input_size, hidden_size)
-#         self.lstm = nn.LSTM(
-#             hidden_size,
-#             hidden_size,
-#             1,
-#             dropout=dr,
-#         )
-#         self.linearOut = nn.Linear(hidden_size, output_size)
-
-#     def forward(self, x):
-#         x0 = F.relu(self.linearIn(x))
-#         out_lstm, (hn, cn) = self.lstm(x0)
-#         return self.linearOut(out_lstm)
-
-
-class HoLSTM(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size, dr=0.0):
-        super(HoLSTM, self).__init__()
-        self.linearIn = nn.Linear(input_size, hidden_size)
-        self.lstm = nn.LSTM(
-            hidden_size,
-            hidden_size,
-            1,
-            dropout=dr,
-        )
-        self.output_size = output_size
-        self.hidden_size = hidden_size
-        self.linearOut = nn.Linear(hidden_size, output_size)
-
-    def forward(self, *x):
-        if len(x) != 2:
-            return self._eval_forward(*x)
-        xf, xy = x
-        x = torch.cat((xf, xy), dim=-1)
-        x0 = F.relu(self.linearIn(x))
-        out_lstm, (hn, cn) = self.lstm(x0)
-        return self.linearOut(out_lstm)
-
-    def _eval_forward(self, *x):
-        x = x[0]
-        seq_len, batch_size, _ = x.size()
-        outputs = torch.zeros(seq_len, batch_size, self.output_size).to(x.device)
-        h_n = torch.randn(1, batch_size, self.hidden_size).to(x.device) * 0.1
-        c_n = torch.randn(1, batch_size, self.hidden_size).to(x.device) * 0.1
-
-        # Initialize the previous output with zeros for the first time step
-        prev_output = torch.randn(1, batch_size, self.output_size).to(x.device) * 0.1
-
-        for t in range(seq_len):
-            input_concat = torch.cat((x[t : t + 1, :, :], prev_output), dim=-1)
-
-            # Pass through the initial linear layer
-            x0 = F.relu(self.linearIn(input_concat))
-
-            # LSTM step
-            out_lstm, (h_n, c_n) = self.lstm(x0, (h_n, c_n))
-
-            # Generate the current output
-            prev_output = self.linearOut(out_lstm)
-            outputs[t, :, :] = prev_output.squeeze(0)
-
-        return outputs
-
-
-class FoLSTM(nn.Module):
-    def __init__(
-        self, input_size, output_size, hidden_size, dr=0.0, teacher_forcing_ratio=0
-    ):
-        super(FoLSTM, self).__init__()
-        self.input_size = input_size
-        self.output_size = output_size
-        self.hidden_size = hidden_size
-        self.dr = dr
-        self.teacher_forcing_ratio = teacher_forcing_ratio
-
-        self.linearIn = nn.Linear(
-            input_size, hidden_size
-        )  # Input now includes previous output
-        self.lstm = nn.LSTM(
-            hidden_size,
-            hidden_size,
-            1,
-            dropout=dr,
-        )
-        self.linearOut = nn.Linear(hidden_size, output_size)
-
-    def forward(self, *x):
-        """
-        Args:
-            x (torch.Tensor): Input sequence of shape (seq_len, batch_size, input_size)
-
-        Returns:
-            torch.Tensor: Output sequence of shape (seq_len, batch_size, output_size)
-        """
-        if len(x) == 2:
-            x, xy = x
-        else:
-            x = x[0]
-            device = x.device
-            xy = torch.full(
-                (
-                    x.shape[0],  # seq
-                    x.shape[1],  # batch_size
-                    self.output_size,  # features
-                ),
-                float("nan"),
-            ).to(device)
-        seq_len, batch_size, _ = x.size()
-        outputs = torch.zeros(seq_len, batch_size, self.output_size).to(x.device)
-        h_n = torch.randn(1, batch_size, self.hidden_size).to(x.device) * 0.1
-        c_n = torch.randn(1, batch_size, self.hidden_size).to(x.device) * 0.1
-
-        # Initialize the previous output with zeros for the first time step
-        prev_output = torch.randn(1, batch_size, self.output_size).to(x.device) * 0.1
-        valid_mask = ~torch.isnan(xy)
-        random_vals = torch.rand_like(valid_mask, dtype=torch.float)
-        use_teacher_forcing = (random_vals < self.teacher_forcing_ratio) * valid_mask
-
-        for t in range(seq_len):
-            # Concatenate the current input with the previous output
-            real_streamflow_input = xy[t : t + 1, :, :]
-            prev_output = torch.where(
-                use_teacher_forcing[t : t + 1, :, :], real_streamflow_input, prev_output
-            )
-            input_concat = torch.cat((x[t : t + 1, :, :], prev_output), dim=-1)
-
-            # Pass through the initial linear layer
-            x0 = F.relu(self.linearIn(input_concat))
-
-            # LSTM step
-            out_lstm, (h_n, c_n) = self.lstm(x0, (h_n, c_n))
-
-            # Generate the current output
-            prev_output = self.linearOut(out_lstm)
-            outputs[t, :, :] = prev_output.squeeze(0)
-
-        return outputs
-
-
 class HFLSTM(nn.Module):
     def __init__(
-        self, input_size, output_size, hidden_size, dr=0.0, teacher_forcing_ratio=0
+        self,
+        input_size,
+        output_size,
+        hidden_size,
+        dr=0.0,
+        teacher_forcing_ratio=0,
+        hindcast_with_output=True,
     ):
-        super(HFLSTM, self).__init__()
-        self.input_size = input_size
-        self.output_size = output_size
-        self.hidden_size = hidden_size
-        self.dr = dr
-        self.teacher_forcing_ratio = teacher_forcing_ratio
-        self.linearIn = nn.Linear(input_size, hidden_size)
+        """
 
-        self.fc_hidden = nn.Linear(hidden_size, hidden_size)
-        self.fc_cell = nn.Linear(hidden_size, hidden_size)
+        Parameters
+        ----------
+        input_size : int
+            without streamflow
+        output_size : int
+            streamflow
+        hidden_size : int
+        dr : float, optional
+            dropout, by default 0.0
+        teacher_forcing_ratio : float, optional
+            by default 0
+        hindcast_with_output : bool, optional
+            whether to use the output of the model as input for the next time step, by default True
+        """
+        super(HFLSTM, self).__init__()
+        self.linearIn = nn.Linear(input_size, hidden_size)
         self.lstm = nn.LSTM(
             hidden_size,
             hidden_size,
-            1,
-            dropout=dr,
         )
+        self.dropout = nn.Dropout(p=dr)
         self.linearOut = nn.Linear(hidden_size, output_size)
+        self.teacher_forcing_ratio = teacher_forcing_ratio
+        self.hindcast_with_output = hindcast_with_output
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+
+    def _teacher_forcing_preparation(self, xq_hor):
+        # teacher forcing preparation
+        valid_mask = ~torch.isnan(xq_hor)
+        random_vals = torch.rand_like(valid_mask, dtype=torch.float)
+        return (random_vals < self.teacher_forcing_ratio) * valid_mask
+
+    def _rho_forward(self, x_rho):
+        x0_rho = F.relu(self.linearIn(x_rho))
+        out_lstm_rho, (hn_rho, cn_rho) = self.lstm(x0_rho)
+        out_lstm_rho_dr = self.dropout(out_lstm_rho)
+        out_lstm_rho_lnout = self.linearOut(out_lstm_rho_dr)
+        prev_output = out_lstm_rho_lnout[-1:, :, :]
+        return out_lstm_rho_lnout, hn_rho, cn_rho, prev_output
 
     def forward(self, *x):
-        # train
-        if len(x) == 3:
-            x_hind, xf_fore, xq_fore = x
-            x0_hind = F.relu(self.linearIn(x_hind))
-            hind_out, (h_n, c_n) = self.lstm(x0_hind)
-            hind_out_streamflow = self.linearOut(hind_out)
-            prev_output = hind_out_streamflow[-1, :, :].unsqueeze(0)
-            seq_len, batch_size, _ = xf_fore.size()
-            outputs = torch.zeros(seq_len, batch_size, self.output_size).to(
-                xf_fore.device
-            )
-            h_n = torch.tanh(self.fc_hidden(h_n))
-            c_n = torch.tanh(self.fc_cell(c_n))
+        xfc_rho, xfc_hor, xq_rho, xq_hor = x
 
-            valid_mask = ~torch.isnan(xq_fore)
-            random_vals = torch.rand_like(valid_mask, dtype=torch.float)
-            use_teacher_forcing = (
-                random_vals < self.teacher_forcing_ratio
-            ) * valid_mask
+        x_rho = torch.cat((xfc_rho, xq_rho), dim=-1)
+        seq_len, batch_size, _ = xfc_hor.size()
 
-            for t in range(seq_len):
-                # Concatenate the current input with the previous output
-                real_streamflow_input = xq_fore[t : t + 1, :, :]
-                prev_output = torch.where(
-                    use_teacher_forcing[t : t + 1, :, :],
-                    real_streamflow_input,
-                    prev_output,
-                )
-                input_concat = torch.cat(
-                    (xf_fore[t : t + 1, :, :], prev_output), dim=-1
-                )
+        use_teacher_forcing = self._teacher_forcing_preparation(xq_hor)
 
-                # Pass through the initial linear layer
-                x0 = F.relu(self.linearIn(input_concat))
-
-                # LSTM step
-                out_lstm, (h_n, c_n) = self.lstm(x0, (h_n, c_n))
-
-                # Generate the current output
-                prev_output = self.linearOut(out_lstm)
-                outputs[t, :, :] = prev_output.squeeze(0)
+        # hindcast-forecast, we do not have forecast-hindcast situation
+        # do rho forward first, prev_output is the last output of rho (seq_length = 1, batch_size, feature = output_size)
+        if self.hindcast_with_output:
+            _, h_n, c_n, prev_output = self._rho_forward(x_rho)
         else:
-            x_hind, xf_fore = x
-            x0_hind = F.relu(self.linearIn(x_hind))
-            hind_out, (h_n, c_n) = self.lstm(x0_hind)
-            hind_out_streamflow = self.linearOut(hind_out)
-            prev_output = hind_out_streamflow[-1, :, :].unsqueeze(0)
-            seq_len, batch_size, _ = xf_fore.size()
-            outputs = torch.zeros(seq_len, batch_size, self.output_size).to(
-                xf_fore.device
+            # TODO: need more test
+            seq_len = xfc_rho.shape[0] + seq_len
+            h_n = torch.randn(1, batch_size, self.hidden_size).to(xfc_rho.device) * 0.1
+            c_n = torch.randn(1, batch_size, self.hidden_size).to(xfc_rho.device) * 0.1
+            prev_output = (
+                torch.randn(1, batch_size, self.output_size).to(x.device) * 0.1
             )
-            for t in range(seq_len):
-                input_concat = torch.cat(
-                    (xf_fore[t : t + 1, :, :], prev_output), dim=-1
-                )
 
-                # Pass through the initial linear layer
-                x0 = F.relu(self.linearIn(input_concat))
+        # do hor forward
+        outputs = torch.zeros(seq_len, batch_size, self.output_size).to(xfc_rho.device)
+        # TODO: too slow here when seq_len is large, need to optimize
+        for t in range(seq_len):
+            real_streamflow_input = xq_hor[t : t + 1, :, :]
+            prev_output = torch.where(
+                use_teacher_forcing[t : t + 1, :, :],
+                real_streamflow_input,
+                prev_output,
+            )
+            input_concat = torch.cat((xfc_hor[t : t + 1, :, :], prev_output), dim=-1)
 
-                # LSTM step
-                out_lstm, (h_n, c_n) = self.lstm(x0, (h_n, c_n))
+            # Pass through the initial linear layer
+            x0 = F.relu(self.linearIn(input_concat))
 
-                # Generate the current output
-                prev_output = self.linearOut(out_lstm)
-                outputs[t, :, :] = prev_output.squeeze(0)
+            # LSTM step
+            out_lstm, (h_n, c_n) = self.lstm(x0, (h_n, c_n))
 
-        outputs = torch.cat((hind_out_streamflow, outputs), dim=0)
+            # Generate the current output
+            prev_output = self.linearOut(out_lstm)
+            outputs[t, :, :] = prev_output.squeeze(0)
+        # Return the outputs
         return outputs
 
 

@@ -350,7 +350,10 @@ def _recover_samples_to_basin(arr_3d, valorte_data_loader, pace_idx):
         # Take the value at the last time step of this sample (at the position of rho + horizon)
         value = arr_3d[sample_idx, pace_idx, :]
         # Calculate the time position in the result array
-        result_time_idx = start_time + warmup_len + rho + horizon + pace_idx
+        if pace_idx < 0:
+            result_time_idx = start_time + warmup_len + rho + horizon + pace_idx
+        else:
+            result_time_idx = start_time + warmup_len + rho + pace_idx
         # Fill in the corresponding position
         basin_array[basin, result_time_idx, :] = value
 

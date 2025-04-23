@@ -1103,49 +1103,13 @@ class BaseDatasetValidSame(BaseDataset):
         return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
 
 
-class HoDataset(BaseDataset):
+class HFDataset(BaseDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(HoDataset, self).__init__(data_cfgs, is_tra_val_te)
+        super(HFDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     @property
     def streamflow_input_name(self):
         return self.data_cfgs["relevant_cols"][-1]
-
-    def __getitem__(self, item: int):
-        if not self.train_mode:
-            xf = self.x[item, 1:, :-1]
-            # xq = self.x[item, :-1, -1]
-            # xq = xq.reshape(xq.size, 1)
-            # x = np.concatenate((xf, xq), axis=1)
-            x = xf
-            y = self.y[item, :, :]
-            if self.c is None or self.c.shape[-1] == 0:
-                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-            c = self.c[item, :]
-            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xc = np.concatenate((x, c), axis=1)
-            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-        basin, idx = self.lookup_table[item]
-        warmup_length = self.warmup_length
-        xf = self.x[
-            basin,
-            idx - warmup_length + 1 : idx + self.rho + self.horizon + 1,
-            :-1,
-        ]
-        xq = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, -1]
-        xq = xq.reshape(xq.size, 1)
-        # x = np.concatenate((xf, xq), axis=1)
-        x = xf
-        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
-        if self.c is None or self.c.shape[-1] == 0:
-            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-        c = self.c[basin, :]
-        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-        xc = np.concatenate((x, c), axis=1)
-        return [
-            torch.from_numpy(xc).float(),
-            torch.from_numpy(xq).float(),
-        ], torch.from_numpy(y).float()
 
     def _read_xyc_specified_time(self, start_date, end_date):
         """Read x, y, c data from data source with specified time range
@@ -1161,16 +1125,23 @@ class HoDataset(BaseDataset):
         """
         date_format = detect_date_format(start_date)
         time_unit = self.data_cfgs["min_time_unit"]
-        horizon = self.horizon
         start_date_dt = datetime.strptime(start_date, date_format)
         if time_unit == "h":
             adjusted_start_date = (start_date_dt - timedelta(hours=1)).strftime(
                 date_format
             )
+            adjusted_start_date_y = (
+                start_date_dt
+                + timedelta(hours=self.horizon * self.data_cfgs["min_time_interval"])
+            ).strftime(date_format)
         elif time_unit == "D":
-            adjusted_start_date = (start_date_dt - timedelta(days=1)).strftime(
-                date_format
-            )
+            adjusted_start_date = (
+                start_date_dt - timedelta(days=self.data_cfgs["min_time_interval"])
+            ).strftime(date_format)
+            adjusted_start_date_y = (
+                start_date_dt
+                + timedelta(days=self.horizon * self.data_cfgs["min_time_interval"])
+            ).strftime(date_format)
         else:
             raise ValueError(f"Unsupported time unit: {time_unit}")
         data_forcing_ds_ = self.data_source.read_ts_xrdataset(
@@ -1252,25 +1223,7 @@ class HoDataset(BaseDataset):
 
         return data_forcing_ds, data_output_ds
 
-
-class HoEvalWithValidStreamflowDataset(HoDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(HoEvalWithValidStreamflowDataset, self).__init__(data_cfgs, is_tra_val_te)
-
     def __getitem__(self, item: int):
-        if not self.train_mode:
-            xf = self.x[item, 1:, :-1]
-            xq = self.x[item, :-1, -1]
-            xq = xq.reshape(xq.size, 1)
-            x = np.concatenate((xf, xq), axis=1)
-            # x = xf
-            y = self.y[item, :, :]
-            if self.c is None or self.c.shape[-1] == 0:
-                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-            c = self.c[item, :]
-            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xc = np.concatenate((x, c), axis=1)
-            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
         basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length
         xf = self.x[
@@ -1280,123 +1233,19 @@ class HoEvalWithValidStreamflowDataset(HoDataset):
         ]
         xq = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, -1]
         xq = xq.reshape(xq.size, 1)
-        x = np.concatenate((xf, xq), axis=1)
-        # x = xf
-        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
-        if self.c is None or self.c.shape[-1] == 0:
-            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        xf_rho = xf[: self.rho, :]
+        xf_hor = xf[self.rho :, :]
+        xq_rho = xq[: self.rho, :]
+        xq_hor = xq[self.rho :, :]
+        y = self.y[basin, idx + self.rho : idx + self.rho + self.horizon, :]
         c = self.c[basin, :]
-        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-        xc = np.concatenate((x, c), axis=1)
-        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-
-
-class FoDataset(HoDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(FoDataset, self).__init__(data_cfgs, is_tra_val_te)
-
-    def __getitem__(self, item: int):
-        if not self.train_mode:
-            x = self.x[item, 1:, :-1]
-            y = self.y[item, :, :]
-            if self.c is None or self.c.shape[-1] == 0:
-                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-            c = self.c[item, :]
-            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xc = np.concatenate((x, c), axis=1)
-            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-        basin, idx = self.lookup_table[item]
-        warmup_length = self.warmup_length
-        x = self.x[
-            basin,
-            idx - warmup_length + 1 : idx + self.rho + self.horizon + 1,
-            :-1,
-        ]
-        xy = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, -1]
-        xy = xy.reshape(xy.size, 1)
-        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
-        if self.c is None or self.c.shape[-1] == 0:
-            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-        c = self.c[basin, :]
-        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-        xc = np.concatenate((x, c), axis=1)
+        c_rho = np.repeat(c, xf_rho.shape[0], axis=0).reshape(c.shape[0], -1).T
+        c_hor = np.repeat(c, xf_hor.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xfc_rho = np.concatenate((xf_rho, c_rho), axis=1)
+        xfc_hor = np.concatenate((xf_hor, c_hor), axis=1)
         return [
-            torch.from_numpy(xc).float(),
-            torch.from_numpy(xy).float(),
-        ], torch.from_numpy(y).float()
-
-
-class HFDataset(HoDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(HFDataset, self).__init__(data_cfgs, is_tra_val_te)
-
-    def __getitem__(self, item: int):
-        if not self.train_mode:
-            # 先把forcing都取出来
-            xf = self.x[item, 1:, :-1]
-            xf = xf.reshape(1, xf.shape[0], xf.shape[1])
-            # 再把hindcast输入的streamflow取出来
-            xq = self.x[item, : self.rho, -1]
-            xq = xq.reshape(xq.size, 1)
-            # 取hindcast部分的forcing
-            xf_hind = xf[:, : self.rho, :]
-            # 取forecast部分的forcing
-            xf_fore = xf[:, self.rho :, :]
-            # 取y
-            y = self.y[item, :, :]
-            # 取c
-            c = self.c[item, :]
-            # 转到二维
-            xf_hind = xf_hind.squeeze(0)
-            xf_fore = xf_fore.squeeze(0)
-            # hindcast部分和c拼接
-            hind_c = np.repeat(c, xf_hind.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xf_hind_c = np.concatenate((xf_hind, hind_c), axis=1)
-            x_hind_c = np.concatenate((xf_hind_c, xq), axis=-1)
-            # forecast部分和c拼接
-            fore_c = np.repeat(c, xf_fore.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xf_fore_c = np.concatenate((xf_fore, fore_c), axis=1)
-            return [
-                torch.from_numpy(x_hind_c).float(),
-                torch.from_numpy(xf_fore_c).float(),
-            ], torch.from_numpy(y).float()
-        basin, idx = self.lookup_table[item]
-        warmup_length = self.warmup_length
-        # 先把hindcast和forecast的forcing取出来
-        xf = self.x[
-            basin,
-            idx - warmup_length + 1 : idx + self.rho + self.horizon + 1,
-            :-1,
-        ]
-        xf = xf.reshape(1, xf.shape[0], xf.shape[1])
-        xf_hind = xf[:, : self.rho, :]
-        xf_fore = xf[:, self.rho :, :]
-        # 再把hindcast和forecast输入的streamflow取出来
-        xq = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, -1]
-        xq = xq.reshape(1, xq.size, 1)
-        # 取hindcast部分的流量
-        xq_hind = xq[:, : self.rho, :]
-        # 取forecast部分的流量
-        xq_fore = xq[:, : self.rho, :]
-        # 取c
-        c = self.c[basin, :]
-        # 取y
-        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
-        # 转到二维
-        xf_hind = xf_hind.squeeze(0)
-        xf_fore = xf_fore.squeeze(0)
-        xq_hind = xq_hind.squeeze(0)
-        xq_fore = xq_fore.squeeze(0)
-        # hindcast部分和c拼接
-        hind_c = np.repeat(c, xf_hind.shape[0], axis=0).reshape(c.shape[0], -1).T
-        xf_hind_c = np.concatenate((xf_hind, hind_c), axis=1)
-        x_hind_c = np.concatenate((xf_hind_c, xq_hind), axis=-1)
-        # forecast部分和c拼接
-        fore_c = np.repeat(c, xf_fore.shape[0], axis=0).reshape(c.shape[0], -1).T
-        xf_fore_c = np.concatenate((xf_fore, fore_c), axis=1)
-
-        return [
-            torch.from_numpy(x_hind_c).float(),
-            torch.from_numpy(xf_fore_c).float(),
-            torch.from_numpy(xq_fore).float(),
+            torch.from_numpy(xfc_rho).float(),
+            torch.from_numpy(xfc_hor).float(),
+            torch.from_numpy(xq_rho).float(),
+            torch.from_numpy(xq_hor).float(),
         ], torch.from_numpy(y).float()

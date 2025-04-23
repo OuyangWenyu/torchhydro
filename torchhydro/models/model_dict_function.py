@@ -24,8 +24,6 @@ from torchhydro.models.simple_lstm import (
     MultiLayerLSTM,
     SimpleLSTM,
     SimpleLSTMForecast,
-    FoLSTM,
-    HoLSTM,
     HFLSTM,
 )
 from torchhydro.models.seqforecast import SequentialForecastLSTM
@@ -81,8 +79,6 @@ pytorch_model_dict = {
     "LinearMultiLayerLSTMModel": LinearMultiLayerLSTMModel,
     "SPPLSTM": SPP_LSTM_Model,
     "SimpleLSTMForecast": SimpleLSTMForecast,
-    "HoLSTM": HoLSTM,
-    "FoLSTM": FoLSTM,
     "HFLSTM": HFLSTM,
     "SPPLSTM2": SPP_LSTM_Model_2,
     "SeqForecastLSTM": SequentialForecastLSTM,
