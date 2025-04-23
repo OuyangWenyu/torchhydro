@@ -133,6 +133,7 @@ class NestedNarx(nn.Module):
         self.order_list = self.Nested_model["order_list"]  # order list, one dimension.
         self.n_basin_per_order_list = self.Nested_model["n_basin_per_order_list"]  # 2 dimension
         self.n_basin_per_order = self.Nested_model["n_basin_per_order"]  # 1 dimension
+        self.n_call_froward = 0
 
 
     def forward(self, x):
@@ -148,12 +149,19 @@ class NestedNarx(nn.Module):
         x
             input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
         """
+        self.n_call_froward = self.n_call_froward + 1
+        # if self.n_call_froward == 12:
+        #     print("self.n_call_froward == 12")
+
         nested_model_device = x.device
 
         n_t, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list    n_feature = self.nx + self.ny
         n_basintrees = len(self.basin_trees)
         if n_basin != len(self.basin_list):
-            raise ValueError("Error: The dimension of input data x dismatch with basintree, please check both.")
+            raise ValueError("The dimension of input data x dismatch with basintree, please check both." \
+            "\n self.n_call_froward = " + format(self.n_call_froward, 'd') \
+            "\n n_basin = " + format(n_basin, 'd') \
+            "\n len(self.basin_list) = " + format(len(self.basin_list), 'd'))
         else:
             # remove data in basin before calculation.
             m = 0

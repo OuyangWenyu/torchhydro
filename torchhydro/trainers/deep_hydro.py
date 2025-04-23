@@ -493,6 +493,7 @@ class DeepHydro(DeepHydroInterface):
             sampler=sampler,
             num_workers=worker_num,
             pin_memory=pin_memory,
+            # drop_last = True,   # todo: temp modify.  drop_last = True, add this.
             timeout=0,
         )
         if data_cfgs["t_range_valid"] is not None:  # valid period
