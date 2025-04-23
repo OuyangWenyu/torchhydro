@@ -1,4 +1,5 @@
 """
+Author:
 generate basin tree.
 """
 
@@ -16,7 +17,7 @@ class Node:
         self.basin_ds = basin_id  # downstream basin     a node need to attached to a basin of its downsteam when initialization.
         self.basin_us = []  # upstream basin
         self.n_basin_us = 0
-        self.device = None
+        self.device = None  # ?
         self.y_input = torch.Tensor([])
         self.y_output = torch.Tensor([])
 
@@ -104,8 +105,8 @@ class Basin:
     def run_model(self):
         self.make_input_x()
         if self.input_x.ndim > 1:
-            self.output_y = self.model(self.input_x)
-        return self.output_y
+            self.output_y = torch.cat((self.output_y, self.model(self.input_x)), dim = 2)  # todo: dim
+        return self.output_y[:, :, -1]
     
     def set_output(self):
         """outflow to node_ds"""

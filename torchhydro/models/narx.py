@@ -87,7 +87,7 @@ class Narx(nn.Module):
             xt = torch.cat([x0_t, y0_t], dim=-1)  # (basins, features)  single step, no time dimension.
             x_l = F.relu(self.linearIn(xt))
             out_t = self.narx(x_l)  # single step
-            yt = self.linearOut(out_t)  # (basins, output_features) single step output value, e.g. streamflow
+            yt = self.linearOut(out_t)  # (basins, output_features) single step output value, e.g. streamflow  # todo:
             out[t, :, :] = yt
             if self.close_loop:
                 x[t+1, :, -self.ny:] = yt
@@ -169,24 +169,26 @@ class NestedNarx(nn.Module):
                         self.basin_trees[i][j][k].set_model(self.dl_model)
                         m = m + 1
             # run model
-            try:
-                m = 0
-                for i in range(n_basintrees):  # basintrees
-                    max_order_i = len(self.n_basin_per_order_list[i])
-                    for j in range(max_order_i - 1, -1, -1):  # order
-                        n_basin_j = self.n_basin_per_order_list[i][j]
-                        for k in range(n_basin_j-1, -1, -1):  # per order
-                            self.basin_trees[i][j][k].node_us.refresh_y_output()
-                            self.basin_trees[i][j][k].get_y_us_data()  # inflow coming from upstream basin
-                            y = self.basin_trees[i][j][k].run_model()  # call narx for each basin.
-                            out = torch.cat((out, y), dim=1)               
-                            m = m + 1
-                            if j > 0 :
-                                # the last/root basin outflow directly, no node_ds.
-                                self.basin_trees[i][j][k].set_output()  # basin output
-                return out
-            except:
-                raise RuntimeError("backward error.")   # 
+            # try:
+            y = torch.zeros(n_t, n_basin, self.ny)
+            m = 0
+            for i in range(n_basintrees):  # basintrees
+                max_order_i = len(self.n_basin_per_order_list[i])
+                for j in range(max_order_i - 1, -1, -1):  # order
+                    n_basin_j = self.n_basin_per_order_list[i][j]
+                    for k in range(n_basin_j-1, -1, -1):  # per order
+                        self.basin_trees[i][j][k].node_us.refresh_y_output()
+                        self.basin_trees[i][j][k].get_y_us_data()  # inflow coming from upstream basin
+                        # y[:, m, :] = self.basin_trees[i][j][k].run_model()  # call narx for each basin.   # todo: RuntimeError
+                        # out = torch.cat((out, y[:, m, :]), dim=1)
+                        out = torch.cat((out, self.basin_trees[i][j][k].run_model()), dim=1)               
+                        m = m + 1
+                        if j > 0 :
+                            # the last/root basin outflow directly, no node_ds.
+                            self.basin_trees[i][j][k].set_output()  # basin output
+            return out
+            # except:
+            #     raise RuntimeError("backward error.")   #
 
 # RuntimeError: one of the variables needed for gradient computation has been modified by an inplace operation: [torch.FloatTensor [64, 1]], 
 # which is output 0 of AsStridedBackward0, is at version 2; expected version 1 instead. Hint: enable anomaly detection to find the operation that 

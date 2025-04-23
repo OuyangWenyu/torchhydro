@@ -1,9 +1,12 @@
+
 import os
+import pytest
+import torch
 
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-import pytest
+
 
 @pytest.fixture
 def var_c():
@@ -142,7 +145,8 @@ def camelsfr_narx_arg(var_c, var_t):
 def test_camelsfr_nestednarx(camelsfr_narx_arg):
     config_data = default_config_file()
     update_cfg(config_data, camelsfr_narx_arg)
-    train_and_evaluate(config_data)
+    with torch.autograd.set_detect_anomaly(True):
+        train_and_evaluate(config_data)
     print("All processes are finished!")
 
 # ============================= test session starts ==============================

@@ -419,7 +419,7 @@ def torch_single_train(
         if torch.isnan(loss):
             continue
         # loss.backward()  # Backpropagate to compute the current gradient   # todo: temp comments.
-        loss.backward(retain_graph=True)   # todo: temp modify.  loss.backward(retain_graph=True)
+        loss.backward(retain_graph=True)   # todo: temp modify.
         opt.step()  # Update network parameters based on gradients
         model.zero_grad()  # clear gradient
         if loss == float("inf"):
