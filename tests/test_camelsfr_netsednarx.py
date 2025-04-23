@@ -149,6 +149,47 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
         train_and_evaluate(config_data)
     print("All processes are finished!")
 
+
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# Backend tkagg is interactive backend. Turning interactive mode on.
+# collected 1 item
+
+# test_camelsfr_netsednarx.py update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Finish Normalization
+
+
+#   0%|          | 0/18 [00:00<?, ?it/s]   # 18 basins
+# 100%|██████████| 18/18 [00:00<00:00, 1222.22it/s]
+# Finish Normalization
+
+
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 3001.53it/s]
+# Finish Normalization
+
+
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 30018.88it/s]
+# Torch is using cpu
+# I0423 14:04:51.786000 18584 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmp4ga8nc56
+# I0423 14:04:51.805000 18584 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmp4ga8nc56/_remote_module_non_scriptable.py
+# using 0 workers
+
+#   0%|          | 0/13 [00:00<?, ?it/s]   forcast_length=30,  365/30=12.17   = 13
+#   8%|▊         | 1/13 [00:08<01:36,  8.07s/it]
+#   8%|▊         | 1/13 [00:24<04:59, 24.93s/it]
+
+
+
 # ============================= test session starts ==============================
 # platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
 # rootdir: /home/yulili/code/torchhydro/tests
@@ -167,23 +208,30 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
 
 
 #   0%|          | 0/18 [00:00<?, ?it/s]
-# 100%|██████████| 18/18 [00:00<00:00, 1282.49it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 1303.19it/s]
 # Finish Normalization
 
 
 #   0%|          | 0/18 [00:00<?, ?it/s]
-# 100%|██████████| 18/18 [00:00<00:00, 2798.48it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 3443.44it/s]
 # Finish Normalization
 
 
 #   0%|          | 0/18 [00:00<?, ?it/s]
-# 100%|██████████| 18/18 [00:00<00:00, 32388.45it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 27364.07it/s]
 # Torch is using cpu
-# I0422 21:30:20.475000 24631 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpiqnlxmuz
-# I0422 21:30:20.480000 24631 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpiqnlxmuz/_remote_module_non_scriptable.py
+# I0423 17:08:11.409000 4188 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpxqzbrq1n
+# I0423 17:08:11.428000 4188 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpxqzbrq1n/_remote_module_non_scriptable.py
 # using 0 workers
 
 #   0%|          | 0/13 [00:00<?, ?it/s]
-#   8%|▊         | 1/13 [00:44<08:57, 44.79s/it]
-#   8%|▊         | 1/13 [03:05<37:07, 185.60s/it]
+#   8%|▊         | 1/13 [00:12<02:29, 12.48s/it]
+#  15%|█▌        | 2/13 [00:28<02:37, 14.31s/it]
+#  23%|██▎       | 3/13 [00:42<02:21, 14.17s/it]
+#  31%|███       | 4/13 [00:51<01:51, 12.38s/it]
+#  38%|███▊      | 5/13 [01:00<01:28, 11.07s/it]
+#  46%|████▌     | 6/13 [01:09<01:12, 10.37s/it]
+#  54%|█████▍    | 7/13 [01:18<00:59,  9.88s/it]
+#  62%|██████▏   | 8/13 [01:27<00:47,  9.59s/it]
+#  62%|██████▏   | 8/13 [01:37<01:00, 12.18s/it]
 # F

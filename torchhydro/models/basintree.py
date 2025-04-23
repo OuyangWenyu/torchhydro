@@ -37,6 +37,12 @@ class Node:
             n_t, n_basin, n_y = self.y_input.shape  # (time, basin, features(streamflow))  # todo:
         if n_basin == len(self.basin_us):
             self.y_output = self.y_input.to(self.device)
+    
+    def remove_data(self):
+        if self.y_input.ndim > 1:
+            self.y_input = torch.Tensor([])
+        # if self.y_output.ndim > 1:
+        #     self.y_output = torch.Tensor([])
 
 
 class Basin:
@@ -106,7 +112,7 @@ class Basin:
         self.make_input_x()
         if self.input_x.ndim > 1:
             self.output_y = torch.cat((self.output_y, self.model(self.input_x)), dim = 2)  # todo: dim
-        return self.output_y[:, :, -1]
+        return torch.unsqueeze(self.output_y[:, :, -1], 2)  # (time, basin, features)
     
     def set_output(self):
         """outflow to node_ds"""
@@ -114,11 +120,18 @@ class Basin:
             if self.node_ds.device == None:
                 self.node_ds.set_device(self.device)
             # if self.node_ds.y_input is not None:
-            self.node_ds.y_input = torch.cat((self.node_ds.y_input, self.output_y), dim = -1).to(self.node_ds.device)  
+            self.node_ds.y_input = torch.cat((self.node_ds.y_input, torch.unsqueeze(self.output_y[:, :, -1], dim=2)), dim = -1).to(self.node_ds.device)  
             # else:
             # self.node_ds.y_input = self.output_y.to(self.device)  # todo: check copy problem
         except AttributeError:
             raise AttributeError("'NoneType' object has no attribute 'y_input'")
+        
+    def remove_data(self):
+        """remove the data saved in tensors."""
+        if self.input_x.ndim > 1:
+            self.input_x = torch.Tensor([])
+        if self.output_y.ndim > 1:
+            self.output_y = torch.Tensor([]) 
 
 
 

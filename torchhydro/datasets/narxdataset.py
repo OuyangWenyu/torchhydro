@@ -69,10 +69,10 @@ class NarxDataset(BaseDataset):
             c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
             xc = np.concatenate((x, c), axis=1)
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-        basin, idx = self.lookup_table[item]
-        warmup_length = self.warmup_length
-        x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]  # [batch(basin), time, features]
-        y = self.y[basin, idx: idx + self.rho + self.horizon, :]
+        basin, idx = self.lookup_table[item]  # [1972, 3569, 2907, 894, 442, 3341, 2420, 3443, 4291, 1303, 2368, 2954, 4125, 2773, 2832, 3836, 1948, 120]
+        warmup_length = self.warmup_length  # warmup_length = 0
+        x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]  # [batch(basin), time, features]  rho = 0, horizon = 30
+        y = self.y[basin, idx: idx + self.rho + self.horizon, :]  # idx - warmup_length ?  why do not subtraction warmup_length here?
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float()
         c = self.c[basin, :]
@@ -249,12 +249,12 @@ class NarxDataset(BaseDataset):
         horizon = self.horizon  # forcast_length
         max_time_length = self.nt  # length of longest time series in all basins
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
-            if self.is_tra_val_te != "train":
+            if self.is_tra_val_te != "train":  # validate and test period
                 lookup.extend(
                     (basin, f)
                     for f in range(warmup_length, max_time_length - rho - horizon + 1)
                 )
-            else:
+            else:  # train period
                 # some dataloader load data with warmup period, so leave some periods for it
                 # [warmup_len] -> time_start -> [rho] -> [horizon]
                 nan_array = np.isnan(self.y[basin, :, :])  # nan value

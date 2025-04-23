@@ -155,6 +155,19 @@ class NestedNarx(nn.Module):
         if n_basin != len(self.basin_list):
             raise ValueError("Error: The dimension of input data x dismatch with basintree, please check both.")
         else:
+            # remove data in basin before calculation.
+            m = 0
+            for i in range(n_basintrees):  # basintrees
+                max_order_i = len(self.n_basin_per_order_list[i])
+                for j in range(max_order_i - 1, -1, -1):  # order
+                    n_basin_j = self.n_basin_per_order_list[i][j]
+                    for k in range(n_basin_j-1, -1, -1):  # per order
+                        self.basin_trees[i][j][k].remove_data()  # inflow coming from upstream basin             
+                        m = m + 1
+                        if j > 0 :
+                            # the last/root basin outflow directly, no node_ds.
+                            self.basin_trees[i][j][k].node_ds.remove_data()  # basin output
+
             out = torch.Tensor([])
             # set data
             m = 0
@@ -170,7 +183,7 @@ class NestedNarx(nn.Module):
                         m = m + 1
             # run model
             # try:
-            y = torch.zeros(n_t, n_basin, self.ny)
+            # y = torch.zeros(n_t, n_basin, self.ny)
             m = 0
             for i in range(n_basintrees):  # basintrees
                 max_order_i = len(self.n_basin_per_order_list[i])
@@ -186,6 +199,7 @@ class NestedNarx(nn.Module):
                         if j > 0 :
                             # the last/root basin outflow directly, no node_ds.
                             self.basin_trees[i][j][k].set_output()  # basin output
+            # return result
             return out
             # except:
             #     raise RuntimeError("backward error.")   #
