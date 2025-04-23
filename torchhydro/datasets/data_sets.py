@@ -1199,9 +1199,14 @@ class HoDataset(BaseDataset):
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
-        self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
+        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, data_attr_ds
         )
+        return {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": c_origin.transpose("basin", "variable"),
+        }
 
     def _check_ts_xrds_unit(self, data_forcing_ds, data_output_ds):
         """Check timeseries xarray dataset unit and convert if necessary
