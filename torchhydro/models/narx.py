@@ -154,10 +154,6 @@ class NestedNarx(nn.Module):
 
         n_t, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list    n_feature = self.nx + self.ny
         self.n_call_froward = self.n_call_froward + 1
-        # if self.n_call_froward > 12:
-        #     print("self.n_call_froward > 12" )
-        #     print("n_basin = " + format(n_basin, 'd'))
-        #     print("len(self.basin_list) = " + format(len(self.basin_list), 'd'))
         n_basintrees = len(self.basin_trees)
         if n_basin != len(self.basin_list):
             raise ValueError("The dimension of input data x dismatch with basintree, please check both." \
@@ -192,8 +188,6 @@ class NestedNarx(nn.Module):
                         self.basin_trees[i][j][k].set_model(self.dl_model)
                         m = m + 1
             # run model
-            # try:
-            # y = torch.zeros(n_t, n_basin, self.ny)
             m = 0
             for i in range(n_basintrees):  # basintrees
                 max_order_i = len(self.n_basin_per_order_list[i])
@@ -202,8 +196,6 @@ class NestedNarx(nn.Module):
                     for k in range(n_basin_j-1, -1, -1):  # per order
                         self.basin_trees[i][j][k].node_us.refresh_y_output()
                         self.basin_trees[i][j][k].get_y_us_data()  # inflow coming from upstream basin
-                        # y[:, m, :] = self.basin_trees[i][j][k].run_model()  # call narx for each basin.   # todo: RuntimeError
-                        # out = torch.cat((out, y[:, m, :]), dim=1)
                         out = torch.cat((out, self.basin_trees[i][j][k].run_model()), dim=1)               
                         m = m + 1
                         if j > 0 :
@@ -211,15 +203,7 @@ class NestedNarx(nn.Module):
                             self.basin_trees[i][j][k].set_output()  # basin output
             # return result
             return out
-            # except:
-            #     raise RuntimeError("backward error.")   #
 
-
-# -- chack the configuration --   seems the batch_size.  when load data.
-# train period:
-# kuaisampler n_basin=18
-# valid period:
-# SequentiaSampler  n_basin=4
 
 # using 0 workers
 

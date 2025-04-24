@@ -140,11 +140,11 @@ def camelsfr_narx_arg(var_c, var_t):
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=10,
+        train_epoch=2,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 10,
+            "test_epoch": 2,
         },
         # the gage_id.txt file is set by the user, it must be the format like:
         # GAUGE_ID

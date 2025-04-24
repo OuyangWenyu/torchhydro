@@ -35,15 +35,13 @@ class Node:
     def refresh_y_output(self):
         n_basin = None  # the basin number of upstream
         if self.y_input.ndim > 1:
-            n_t, n_basin, n_y = self.y_input.shape  # (time, basin, features(streamflow))  # todo:
+            n_t, n_basin, n_y = self.y_input.shape  # (time, basin, features(streamflow))
         if n_basin == len(self.basin_us):
             self.y_output = self.y_input.to(self.device)
     
     def remove_data(self):
         if self.y_input.ndim > 1:
             self.y_input = torch.Tensor([])
-        # if self.y_output.ndim > 1:
-        #     self.y_output = torch.Tensor([])
 
 
 class Basin:
@@ -120,10 +118,7 @@ class Basin:
         try:
             if self.node_ds.device == None:
                 self.node_ds.set_device(self.device)
-            # if self.node_ds.y_input is not None:
             self.node_ds.y_input = torch.cat((self.node_ds.y_input, torch.unsqueeze(self.output_y[:, :, -1], dim=2)), dim = -1).to(self.node_ds.device)  
-            # else:
-            # self.node_ds.y_input = self.output_y.to(self.device)  # todo: check copy problem
         except AttributeError:
             raise AttributeError("'NoneType' object has no attribute 'y_input'")
         
@@ -575,20 +570,3 @@ class BasinTree:
 
         return self.nested_model
 
-    def get_cal_order(self, basin_trees: list = None):
-        """
-            set the calculate order of basin_id_list and its tree
-        Parameters
-        ----------
-        basin_id_list
-        basin_trees
-
-        Returns
-        -------
-
-        """
-        
-
-        cal_order = 0
-
-        return cal_order
