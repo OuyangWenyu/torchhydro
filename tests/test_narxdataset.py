@@ -37,7 +37,7 @@ def test_NarxDataset():
         },
         "test_path": str(temp_test_path),
         "object_ids": [
-            "A550061001", "A369011001", "A330010001"
+            "A550061001", "A369011001", "A284020001", "A330010001", 
         ],  # Add this line with the actual object IDs
         "t_range_train": [
             "2017-10-01", 
@@ -74,7 +74,24 @@ def test_NarxDataset():
         "target_rm_nan": True,
         "relevant_rm_nan": True,
         "constant_rm_nan": True,
-        "scaler": "StandardScaler",  # Add the scaler configuration here
+        # "scaler": "StandardScaler",  # Add the scaler configuration here
+        "scaler": "DapengScaler",
+        "scaler_params": {
+            "prcp_norm_cols": [
+                "streamflow",
+            ],
+            "gamma_norm_cols": [
+                "tsd_prec",
+                "pr",
+                "total_precipitation",
+                "potential_evaporation",
+                "ET",
+                "tsd_pet_ou",
+                "ET_sum",
+                "ssm",
+            ],
+            "pbm_norm": True,
+        },
         "stat_dict_file": None,  # Added the missing configuration
         "b_nestedness": True,
     }
@@ -82,35 +99,18 @@ def test_NarxDataset():
     dataset = NarxDataset(data_cfgs, is_tra_val_te)
     print(dataset)
 
+
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# Backend tkagg is interactive backend. Turning interactive mode on.
+# collected 1 item
+
 # test_narxdataset.py Finish Normalization
 
 
-#   0%|          | 0/3 [00:00<?, ?it/s]
-# 100%|██████████| 3/3 [00:00<00:00, 850.71it/s]
-# Finish Normalization
-
-
-#   0%|          | 0/3 [00:00<?, ?it/s]
-# 100%|██████████| 3/3 [00:00<00:00, 1245.34it/s]
-
-# test_camelsfr_netsednarx.py update config file
-# !!!!!!NOTE!!!!!!!!
-# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
-# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
-# !!!!!!NOTE!!!!!!!!
-# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
-# Finish Normalization
-
-
 #   0%|          | 0/18 [00:00<?, ?it/s]
-# 100%|██████████| 18/18 [00:00<00:00, 1255.47it/s]
-# Finish Normalization
-
-
-#   0%|          | 0/18 [00:00<?, ?it/s]
-# 100%|██████████| 18/18 [00:00<00:00, 580.73it/s]
-# Finish Normalization
-
-
-#   0%|          | 0/18 [00:00<?, ?it/s]
-# 100%|██████████| 18/18 [00:00<00:00, 13739.30it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 548.94it/s]
+# <torchhydro.datasets.narxdataset.NarxDataset object at 0x7fd4cc0efcb0>

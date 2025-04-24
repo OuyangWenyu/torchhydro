@@ -37,6 +37,7 @@ class NarxDataset(BaseDataset):
         # self.basin_list = None
         self._pre_load_data()
         self._generate_data_educed_model()
+        self.data_cfgs["batch_size"] = len(self.basin_list)
         if is_tra_val_te in {"train", "valid", "test"}:
             self.is_tra_val_te = is_tra_val_te
         else:

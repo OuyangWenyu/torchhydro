@@ -83,8 +83,24 @@ def camelsfr_narx_arg(var_c, var_t):
         loss_func="RMSESum",
         sampler="KuaiSampler",
         dataset="NarxDataset",
-        # scaler="DapengScaler",  # todo: ValueError: operands could not be broadcast together with shapes (17,366) (3,366)  ../../../.conda/envs/torchhydro/lib/python3.13/site-packages/hydroutils/hydro_stat.py:554: ValueError def cal_stat_prcp_norm(x, meanprep): flowua = x / tempprep
-        scaler="StandardScaler",
+        # scaler="StandardScaler",
+        scaler="DapengScaler",
+        scaler_params={
+            "prcp_norm_cols": [
+                "streamflow",
+            ],
+            "gamma_norm_cols": [
+                "tsd_prec",
+                "pr",
+                "total_precipitation",
+                "potential_evaporation",
+                "ET",
+                "tsd_pet_ou",
+                "ET_sum",
+                "ssm",
+            ],
+            "pbm_norm": True,
+        },
         # gage_id=[
         #     "A105003001",
         #     "A107020001",
@@ -124,11 +140,11 @@ def camelsfr_narx_arg(var_c, var_t):
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=2,
+        train_epoch=10,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 2,
+            "test_epoch": 10,
         },
         # the gage_id.txt file is set by the user, it must be the format like:
         # GAUGE_ID
