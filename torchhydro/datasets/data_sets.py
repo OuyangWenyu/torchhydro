@@ -102,6 +102,7 @@ class BaseDataset(Dataset):
         super(BaseDataset, self).__init__()
         self.data_cfgs = data_cfgs
         self.data_educed_model = None
+        self.basin_list = None  # todo: temp add
         if is_tra_val_te in {"train", "valid", "test"}:
             self.is_tra_val_te = is_tra_val_te
         else:
@@ -182,7 +183,8 @@ class BaseDataset(Dataset):
     @property
     def basins(self):
         """Return the basins of the dataset"""
-        return self.t_s_dict["sites_id"]
+        # return self.t_s_dict["sites_id"]  # todo: temp add
+        return self.basin_list
 
     @property
     def times(self):

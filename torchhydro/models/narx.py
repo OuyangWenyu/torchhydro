@@ -174,7 +174,7 @@ class NestedNarx(nn.Module):
                     for k in range(n_basin_j-1, -1, -1):  # per order
                         self.basin_trees[i][j][k].remove_data()  # inflow coming from upstream basin             
                         m = m + 1
-                        if j > 0 :
+                        if j > 0:
                             # the last/root basin outflow directly, no node_ds.
                             self.basin_trees[i][j][k].node_ds.remove_data()  # basin output
 
@@ -287,3 +287,44 @@ class NestedNarx(nn.Module):
 #             # first dim is batch
 # >           obs_final = torch.cat(obs, dim=0)
 # E           RuntimeError: torch.cat(): expected a non-empty list of Tensors
+
+# -- chack the configuration --   seems the batch_size.  when load data.
+# train period:
+# kuaisampler n_basin=18
+# valid period:
+# SequentiaSampler  n_basin=4
+
+
+# using 0 workers
+
+#   0%|          | 0/12 [00:00<?, ?it/s]
+#   8%|▊         | 1/12 [00:02<00:25,  2.30s/it]
+#  17%|█▋        | 2/12 [00:02<00:10,  1.07s/it]
+#  25%|██▌       | 3/12 [00:02<00:06,  1.47it/s]
+#  33%|███▎      | 4/12 [00:02<00:04,  1.99it/s]
+#  42%|████▏     | 5/12 [00:03<00:02,  2.49it/s]
+#  50%|█████     | 6/12 [00:03<00:02,  2.91it/s]
+#  58%|█████▊    | 7/12 [00:03<00:01,  3.25it/s]
+#  67%|██████▋   | 8/12 [00:03<00:01,  3.58it/s]
+#  75%|███████▌  | 9/12 [00:04<00:00,  3.75it/s]
+#  83%|████████▎ | 10/12 [00:04<00:00,  3.96it/s]
+#  92%|█████████▏| 11/12 [00:04<00:00,  4.12it/s]
+# 100%|██████████| 12/12 [00:04<00:00,  4.23it/s]
+# 100%|██████████| 12/12 [00:04<00:00,  2.52it/s]
+# Epoch 1 Loss 0.8252 time 11.50 lr 1.0
+# NestedNarx(
+#   (dl_model): Narx(
+#     (linearIn): Linear(in_features=2, out_features=64, bias=True)
+#     (narx): RNNCell(64, 64)
+#     (linearOut): Linear(in_features=64, out_features=1, bias=True)
+#   )
+# )
+# self.n_call_froward > 12
+# n_basin = 4
+# len(self.basin_list) = 18
+# F
+
+#            ValueError: The dimension of input data x dismatch with basintree, please check both.
+# E           self.n_call_froward = 13
+# E           n_basin = 4
+# E           len(self.basin_list) = 18

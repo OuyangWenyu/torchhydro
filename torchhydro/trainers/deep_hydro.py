@@ -502,9 +502,10 @@ class DeepHydro(DeepHydroInterface):
                 self.validdataset,
                 batch_size=training_cfgs["batch_size"],
                 shuffle=False,
+                # sampler=sampler,   # todo: temp modify.  sampler=sampler,  add this.
                 num_workers=worker_num,
                 pin_memory=pin_memory,
-                drop_last = True,   # todo: temp modify.  drop_last = True, add this.
+                # drop_last = True,   # todo: temp modify.  drop_last = True, add this.
                 timeout=0,
             )
             return data_loader, validation_data_loader
