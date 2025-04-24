@@ -154,10 +154,10 @@ class NestedNarx(nn.Module):
 
         n_t, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list    n_feature = self.nx + self.ny
         self.n_call_froward = self.n_call_froward + 1
-        if self.n_call_froward > 12:
-            print("self.n_call_froward > 12" )
-            print("n_basin = " + format(n_basin, 'd'))
-            print("len(self.basin_list) = " + format(len(self.basin_list), 'd'))
+        # if self.n_call_froward > 12:
+        #     print("self.n_call_froward > 12" )
+        #     print("n_basin = " + format(n_basin, 'd'))
+        #     print("len(self.basin_list) = " + format(len(self.basin_list), 'd'))
         n_basintrees = len(self.basin_trees)
         if n_basin != len(self.basin_list):
             raise ValueError("The dimension of input data x dismatch with basintree, please check both." \
@@ -214,79 +214,6 @@ class NestedNarx(nn.Module):
             # except:
             #     raise RuntimeError("backward error.")   #
 
-# using 0 workers
-
-#   0%|          | 0/38 [00:00<?, ?it/s]
-#   5%|▌         | 2/38 [00:00<00:02, 13.89it/s]
-#  11%|█         | 4/38 [00:00<00:02, 13.89it/s]
-#  16%|█▌        | 6/38 [00:00<00:02, 12.96it/s]
-#  21%|██        | 8/38 [00:00<00:02, 13.53it/s]
-#  26%|██▋       | 10/38 [00:00<00:01, 14.42it/s]
-#  32%|███▏      | 12/38 [00:00<00:01, 15.40it/s]
-#  37%|███▋      | 14/38 [00:00<00:01, 15.52it/s]
-#  42%|████▏     | 16/38 [00:01<00:01, 15.01it/s]
-#  47%|████▋     | 18/38 [00:01<00:01, 14.95it/s]
-#  53%|█████▎    | 20/38 [00:01<00:01, 14.71it/s]
-#  58%|█████▊    | 22/38 [00:01<00:01, 14.90it/s]
-#  63%|██████▎   | 24/38 [00:01<00:00, 14.79it/s]
-#  68%|██████▊   | 26/38 [00:01<00:00, 14.58it/s]
-#  74%|███████▎  | 28/38 [00:01<00:00, 14.73it/s]
-#  79%|███████▉  | 30/38 [00:02<00:00, 14.94it/s]
-#  84%|████████▍ | 32/38 [00:02<00:00, 14.70it/s]
-#  89%|████████▉ | 34/38 [00:02<00:00, 15.13it/s]
-#  95%|█████████▍| 36/38 [00:02<00:00, 14.80it/s]
-# 100%|██████████| 38/38 [00:02<00:00, 14.27it/s]
-# 100%|██████████| 38/38 [00:02<00:00, 14.60it/s]
-# Epoch 1 Loss 1.0455 time 14.95 lr 1.0
-# NestedNarx(
-#   (dl_model): Narx(
-#     (linearIn): Linear(in_features=5, out_features=64, bias=True)
-#     (narx): RNNCell(64, 64)
-#     (linearOut): Linear(in_features=64, out_features=1, bias=True)
-#   )
-# )
-# F
-# E           ValueError: The dimension of input data x dismatch with basintree, please check both.
-# E           self.n_call_froward = 39
-# E           n_basin = 4
-# E           len(self.basin_list) = 18
-
-# Torch is using cpu
-# I0424 11:49:32.086000 14708 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmph3zbu7dy
-# I0424 11:49:32.090000 14708 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmph3zbu7dy/_remote_module_non_scriptable.py
-# using 0 workers
-
-#   0%|          | 0/12 [00:00<?, ?it/s]
-#   8%|▊         | 1/12 [00:02<00:22,  2.03s/it]
-#  17%|█▋        | 2/12 [00:02<00:12,  1.29s/it]
-#  25%|██▌       | 3/12 [00:03<00:09,  1.06s/it]
-#  33%|███▎      | 4/12 [00:04<00:07,  1.06it/s]
-#  42%|████▏     | 5/12 [00:05<00:06,  1.15it/s]
-#  50%|█████     | 6/12 [00:05<00:04,  1.22it/s]
-#  58%|█████▊    | 7/12 [00:06<00:04,  1.19it/s]
-#  67%|██████▋   | 8/12 [00:07<00:03,  1.28it/s]
-#  75%|███████▌  | 9/12 [00:08<00:02,  1.34it/s]
-#  83%|████████▎ | 10/12 [00:09<00:01,  1.22it/s]
-#  92%|█████████▏| 11/12 [00:09<00:00,  1.30it/s]
-# self.n_call_froward = 12
-# n_basin = 18
-# len(self.basin_list) = 18
-
-# 100%|██████████| 12/12 [00:14<00:00,  2.12s/it]
-# 100%|██████████| 12/12 [00:14<00:00,  1.24s/it]
-# Epoch 1 Loss 0.8252 time 28.11 lr 1.0
-# NestedNarx(
-#   (dl_model): Narx(
-#     (linearIn): Linear(in_features=2, out_features=64, bias=True)
-#     (narx): RNNCell(64, 64)
-#     (linearOut): Linear(in_features=64, out_features=1, bias=True)
-#   )
-# )
-# F
-
-#             # first dim is batch
-# >           obs_final = torch.cat(obs, dim=0)
-# E           RuntimeError: torch.cat(): expected a non-empty list of Tensors
 
 # -- chack the configuration --   seems the batch_size.  when load data.
 # train period:
@@ -328,3 +255,76 @@ class NestedNarx(nn.Module):
 # E           self.n_call_froward = 13
 # E           n_basin = 4
 # E           len(self.basin_list) = 18
+
+# using 0 workers
+
+#   0%|          | 0/55 [00:00<?, ?it/s]
+#   2%|▏         | 1/55 [00:03<03:02,  3.38s/it]
+#   4%|▎         | 2/55 [00:03<01:20,  1.52s/it]
+#   5%|▌         | 3/55 [00:03<00:48,  1.08it/s]
+#   7%|▋         | 4/55 [00:04<00:32,  1.56it/s]
+#   9%|▉         | 5/55 [00:04<00:24,  2.07it/s]
+#  11%|█         | 6/55 [00:04<00:18,  2.61it/s]
+#  13%|█▎        | 7/55 [00:04<00:15,  3.03it/s]
+#  15%|█▍        | 8/55 [00:04<00:13,  3.45it/s]
+#  16%|█▋        | 9/55 [00:05<00:12,  3.80it/s]
+#  18%|█▊        | 10/55 [00:05<00:11,  4.09it/s]
+#  20%|██        | 11/55 [00:05<00:10,  4.32it/s]
+#  22%|██▏       | 12/55 [00:05<00:09,  4.44it/s]
+#  24%|██▎       | 13/55 [00:05<00:09,  4.65it/s]
+#  25%|██▌       | 14/55 [00:06<00:08,  4.90it/s]
+#  27%|██▋       | 15/55 [00:06<00:08,  4.87it/s]
+#  29%|██▉       | 16/55 [00:06<00:07,  4.93it/s]
+#  31%|███       | 17/55 [00:06<00:07,  4.94it/s]
+#  33%|███▎      | 18/55 [00:06<00:07,  4.80it/s]
+#  35%|███▍      | 19/55 [00:07<00:07,  4.81it/s]
+#  36%|███▋      | 20/55 [00:07<00:07,  4.77it/s]
+#  38%|███▊      | 21/55 [00:07<00:07,  4.74it/s]
+#  40%|████      | 22/55 [00:07<00:07,  4.63it/s]
+#  42%|████▏     | 23/55 [00:07<00:07,  4.55it/s]
+#  44%|████▎     | 24/55 [00:08<00:06,  4.59it/s]
+#  45%|████▌     | 25/55 [00:08<00:06,  4.56it/s]
+#  47%|████▋     | 26/55 [00:08<00:06,  4.32it/s]
+#  49%|████▉     | 27/55 [00:08<00:06,  4.29it/s]
+#  51%|█████     | 28/55 [00:09<00:06,  4.45it/s]
+#  53%|█████▎    | 29/55 [00:09<00:05,  4.40it/s]
+#  55%|█████▍    | 30/55 [00:09<00:05,  4.36it/s]
+#  56%|█████▋    | 31/55 [00:09<00:05,  4.35it/s]
+#  58%|█████▊    | 32/55 [00:10<00:05,  4.31it/s]
+#  60%|██████    | 33/55 [00:10<00:05,  4.25it/s]
+#  62%|██████▏   | 34/55 [00:10<00:04,  4.20it/s]
+#  64%|██████▎   | 35/55 [00:10<00:04,  4.21it/s]
+#  65%|██████▌   | 36/55 [00:10<00:04,  4.26it/s]
+#  67%|██████▋   | 37/55 [00:11<00:04,  4.26it/s]
+#  69%|██████▉   | 38/55 [00:11<00:04,  4.23it/s]
+#  71%|███████   | 39/55 [00:11<00:03,  4.26it/s]
+#  73%|███████▎  | 40/55 [00:11<00:03,  4.23it/s]
+#  75%|███████▍  | 41/55 [00:12<00:03,  4.30it/s]
+#  76%|███████▋  | 42/55 [00:12<00:02,  4.35it/s]
+#  78%|███████▊  | 43/55 [00:12<00:02,  4.30it/s]
+#  80%|████████  | 44/55 [00:12<00:02,  4.33it/s]
+#  82%|████████▏ | 45/55 [00:13<00:02,  4.30it/s]
+#  84%|████████▎ | 46/55 [00:13<00:02,  4.09it/s]
+#  85%|████████▌ | 47/55 [00:13<00:01,  4.13it/s]
+#  87%|████████▋ | 48/55 [00:13<00:01,  4.22it/s]
+#  89%|████████▉ | 49/55 [00:14<00:01,  4.29it/s]
+#  91%|█████████ | 50/55 [00:14<00:01,  4.29it/s]
+#  93%|█████████▎| 51/55 [00:14<00:00,  4.40it/s]
+#  95%|█████████▍| 52/55 [00:14<00:00,  4.37it/s]
+#  96%|█████████▋| 53/55 [00:14<00:00,  4.43it/s]
+#  98%|█████████▊| 54/55 [00:15<00:00,  4.41it/s]
+# 100%|██████████| 55/55 [00:15<00:00,  4.39it/s]
+# 100%|██████████| 55/55 [00:15<00:00,  3.57it/s]
+# Epoch 1 Loss 0.9221 time 40.41 lr 1.0
+# NestedNarx(
+#   (dl_model): Narx(
+#     (linearIn): Linear(in_features=2, out_features=64, bias=True)
+#     (narx): RNNCell(64, 64)
+#     (linearOut): Linear(in_features=64, out_features=1, bias=True)
+#   )
+# )
+# F
+
+#         target_scaler = eval_dataloader.dataset.target_scaler
+# >       target_data = target_scaler.data_target
+# E       AttributeError: 'StandardScaler' object has no attribute 'data_target'

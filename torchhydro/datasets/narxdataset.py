@@ -34,7 +34,7 @@ class NarxDataset(BaseDataset):
         self.data_cfgs = data_cfgs
         self.b_nestedness = self.data_cfgs["b_nestedness"]
         self.data_educed_model = None  # only nested_model now
-        self.basin_list = None
+        # self.basin_list = None
         self._pre_load_data()
         self._generate_data_educed_model()
         if is_tra_val_te in {"train", "valid", "test"}:

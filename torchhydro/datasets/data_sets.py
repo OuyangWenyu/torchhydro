@@ -136,7 +136,7 @@ class BaseDataset(Dataset):
         int
             number of basins/grids
         """
-        return len(self.basins)
+        return len(self.basin_list)
 
     @property
     def nt(self):
@@ -183,8 +183,7 @@ class BaseDataset(Dataset):
     @property
     def basins(self):
         """Return the basins of the dataset"""
-        # return self.t_s_dict["sites_id"]  # todo: temp add
-        return self.basin_list
+        return self.t_s_dict["sites_id"]  # todo: temp add
 
     @property
     def times(self):
