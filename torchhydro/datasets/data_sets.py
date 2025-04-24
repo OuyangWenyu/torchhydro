@@ -1086,15 +1086,15 @@ class TransformerDataset(Seq2SeqDataset):
         ], torch.from_numpy(y).float()
 
 
-class BaseDatasetValidSame(BaseDataset):
+class ForecastDataset(BaseDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(BaseDatasetValidSame, self).__init__(data_cfgs, is_tra_val_te)
+        super(ForecastDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     def __getitem__(self, item):
         basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length
         x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
-        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx + self.rho : idx + self.rho + self.horizon, :]
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float()
         c = self.c[basin, :]
