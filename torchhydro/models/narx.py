@@ -149,13 +149,15 @@ class NestedNarx(nn.Module):
         x
             input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
         """
-        self.n_call_froward = self.n_call_froward + 1
-        # if self.n_call_froward == 12:
-        #     print("self.n_call_froward == 12")
 
         nested_model_device = x.device
 
         n_t, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list    n_feature = self.nx + self.ny
+        self.n_call_froward = self.n_call_froward + 1
+        if self.n_call_froward == 12:
+            print("self.n_call_froward = 12" )
+            print("n_basin = " + format(n_basin, 'd'))
+            print("len(self.basin_list) = " + format(len(self.basin_list), 'd'))
         n_basintrees = len(self.basin_trees)
         if n_basin != len(self.basin_list):
             raise ValueError("The dimension of input data x dismatch with basintree, please check both." \
@@ -227,6 +229,7 @@ class NestedNarx(nn.Module):
 # E           self.n_call_froward = 3
 # E           n_basin = 15
 # E           len(self.basin_list) = 18
+# seems the data problem. perhaps caused by nan values.
 
 # using 0 workers
 

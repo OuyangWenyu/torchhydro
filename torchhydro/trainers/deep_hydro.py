@@ -464,7 +464,8 @@ class DeepHydro(DeepHydroInterface):
                     shuffle=False,
                     sampler=None,
                     batch_sampler=None,
-                    drop_last=False,
+                    # drop_last=False,  # todo: temp comments.
+                    drop_last=True,  # todo: temp modify.  drop_last =True, add this.
                     timeout=0,
                     worker_init_fn=None,
                 )
@@ -503,6 +504,7 @@ class DeepHydro(DeepHydroInterface):
                 shuffle=False,
                 num_workers=worker_num,
                 pin_memory=pin_memory,
+                drop_last = True,   # todo: temp modify.  drop_last = True, add this.
                 timeout=0,
             )
             return data_loader, validation_data_loader

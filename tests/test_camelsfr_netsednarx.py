@@ -35,7 +35,7 @@ def var_c():
 def var_t():
     return [
         "tsd_prec",
-        "tsd_pet_ou",
+        # "tsd_pet_ou",
         # "tsd_prec_solid_frac",
         # "tsd_temp",
         # "tsd_pet_pe",
@@ -56,9 +56,9 @@ def var_t():
 def camelsfr_narx_arg(var_c, var_t):
     project_name = os.path.join("test_camels", "NestedNarx_camelsfr")
     # camels-fr time_range: ["1970-01-01", "2022-01-01"]
-    train_period = ["2017-07-01", "2018-07-11"]
-    valid_period = ["2018-10-01", "2019-10-01"]
-    test_period = ["2019-10-01", "2020-10-01"]
+    train_period = ["2018-10-01", "2019-10-01"]
+    valid_period = ["2019-10-01", "2020-10-01"]
+    test_period = ["2020-10-01", "2021-10-01"]
     return cmd(
         sub=project_name,
         source_cfgs={
@@ -115,7 +115,7 @@ def camelsfr_narx_arg(var_c, var_t):
         ],
         batch_size=3,
         forecast_history=0,
-        forecast_length=10,
+        forecast_length=30,
         var_t=var_t,
         var_c=var_c,
         var_out=["streamflow"],
