@@ -154,8 +154,8 @@ class NestedNarx(nn.Module):
 
         n_t, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list    n_feature = self.nx + self.ny
         self.n_call_froward = self.n_call_froward + 1
-        if self.n_call_froward == 12:
-            print("self.n_call_froward = 12" )
+        if self.n_call_froward > 12:
+            print("self.n_call_froward > 12" )
             print("n_basin = " + format(n_basin, 'd'))
             print("len(self.basin_list) = " + format(len(self.basin_list), 'd'))
         n_basintrees = len(self.basin_trees)
@@ -214,23 +214,6 @@ class NestedNarx(nn.Module):
             # except:
             #     raise RuntimeError("backward error.")   #
 
-# E           ValueError: The dimension of input data x dismatch with basintree, please check both.
-# E           self.n_call_froward = 1
-# E           n_basin = 12
-# E           len(self.basin_list) = 18
-# seems the data problem. perhaps caused by nan values.
-
-# E           ValueError: The dimension of input data x dismatch with basintree, please check both.
-# E           self.n_call_froward = 2
-# E           n_basin = 12
-# E           len(self.basin_list) = 18
-
-# E           ValueError: The dimension of input data x dismatch with basintree, please check both.
-# E           self.n_call_froward = 3
-# E           n_basin = 15
-# E           len(self.basin_list) = 18
-# seems the data problem. perhaps caused by nan values.
-
 # using 0 workers
 
 #   0%|          | 0/38 [00:00<?, ?it/s]
@@ -267,3 +250,40 @@ class NestedNarx(nn.Module):
 # E           self.n_call_froward = 39
 # E           n_basin = 4
 # E           len(self.basin_list) = 18
+
+# Torch is using cpu
+# I0424 11:49:32.086000 14708 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmph3zbu7dy
+# I0424 11:49:32.090000 14708 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmph3zbu7dy/_remote_module_non_scriptable.py
+# using 0 workers
+
+#   0%|          | 0/12 [00:00<?, ?it/s]
+#   8%|▊         | 1/12 [00:02<00:22,  2.03s/it]
+#  17%|█▋        | 2/12 [00:02<00:12,  1.29s/it]
+#  25%|██▌       | 3/12 [00:03<00:09,  1.06s/it]
+#  33%|███▎      | 4/12 [00:04<00:07,  1.06it/s]
+#  42%|████▏     | 5/12 [00:05<00:06,  1.15it/s]
+#  50%|█████     | 6/12 [00:05<00:04,  1.22it/s]
+#  58%|█████▊    | 7/12 [00:06<00:04,  1.19it/s]
+#  67%|██████▋   | 8/12 [00:07<00:03,  1.28it/s]
+#  75%|███████▌  | 9/12 [00:08<00:02,  1.34it/s]
+#  83%|████████▎ | 10/12 [00:09<00:01,  1.22it/s]
+#  92%|█████████▏| 11/12 [00:09<00:00,  1.30it/s]
+# self.n_call_froward = 12
+# n_basin = 18
+# len(self.basin_list) = 18
+
+# 100%|██████████| 12/12 [00:14<00:00,  2.12s/it]
+# 100%|██████████| 12/12 [00:14<00:00,  1.24s/it]
+# Epoch 1 Loss 0.8252 time 28.11 lr 1.0
+# NestedNarx(
+#   (dl_model): Narx(
+#     (linearIn): Linear(in_features=2, out_features=64, bias=True)
+#     (narx): RNNCell(64, 64)
+#     (linearOut): Linear(in_features=64, out_features=1, bias=True)
+#   )
+# )
+# F
+
+#             # first dim is batch
+# >           obs_final = torch.cat(obs, dim=0)
+# E           RuntimeError: torch.cat(): expected a non-empty list of Tensors
