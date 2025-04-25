@@ -121,7 +121,8 @@ class Resulter:
         # types of observations
         target_col = self.cfgs["data_cfgs"]["target_cols"]
         evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
-        basin_ids = self.cfgs["data_cfgs"]["object_ids"]
+        # basin_ids = self.cfgs["data_cfgs"]["object_ids"]
+        basin_ids = preds_xr.basin.data.tolist()
         test_path = self.cfgs["data_cfgs"]["test_path"]
         # Assume object_ids like ['changdian_61561']
         # fill_nan: "no" means ignoring the NaN value;

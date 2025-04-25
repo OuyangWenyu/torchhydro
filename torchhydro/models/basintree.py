@@ -14,7 +14,7 @@ class Node:
     basin node, similar to river node.
     """
     def __init__(self, node_id, basin_id):
-        self.node_id = node_id
+        self.node_id = "node_" + node_id
         self.basin_ds = basin_id  # downstream basin     a node need to attached to a basin of its downsteam when initialization.
         self.basin_us = []  # upstream basin
         self.n_basin_us = 0
@@ -42,6 +42,13 @@ class Node:
     def remove_data(self):
         if self.y_input.ndim > 1:
             self.y_input = torch.Tensor([])
+        if self.y_output.ndim > 1:
+            self.y_output = torch.Tensor([])
+
+    def remove_device(self):
+        "remove device"
+        if self.device is not None:
+            self.device = None
 
 
 class Basin:
@@ -60,7 +67,7 @@ class Basin:
         self.x = torch.Tensor([])  # forcing data (prce,pet)
         self.y = torch.Tensor([])  # target data (streamflow)
         self.y_us = torch.Tensor([])  # input data / inflow from upstream (streamflow)
-        self.model = None  # dl model
+        self.model = None  # dl model     perhaps some dl or pb model here.
         self.input_x = torch.Tensor([])  # input data for model
         self.output_y = torch.Tensor([])  # output data from model
 
@@ -96,7 +103,7 @@ class Basin:
         self.y_us = self.node_us.y_output.to(self.device)  # todo: may appear memory problem here
 
     def set_model(self, model = None):
-        self.model = model   # .to(self.device)   # todo；
+        self.model = model   # .to(self.device)   # todo:
 
     def make_input_x(self):
         if (self.x.ndim > 1) and (self.y_us.ndim > 1):
@@ -116,8 +123,6 @@ class Basin:
     def set_output(self):
         """outflow to node_ds"""
         try:
-            if self.node_ds.device == None:
-                self.node_ds.set_device(self.device)
             self.node_ds.y_input = torch.cat((self.node_ds.y_input, torch.unsqueeze(self.output_y[:, :, -1], dim=2)), dim = -1).to(self.node_ds.device)  
         except AttributeError:
             raise AttributeError("'NoneType' object has no attribute 'y_input'")
@@ -128,6 +133,8 @@ class Basin:
             self.x = torch.Tensor([])
         if self.y.ndim > 1:
             self.y = torch.Tensor([])
+        if self.y_us.ndim > 1:
+            self.y_us = torch.Tensor([])
         if self.input_x.ndim > 1:
             self.input_x = torch.Tensor([])
         if self.output_y.ndim > 1:
@@ -137,7 +144,11 @@ class Basin:
         "remove model"
         if self.model is not None:
             self.model = None
-
+    
+    def remove_device(self):
+        "remove device"
+        if self.device is not None:
+            self.device = None
 
 
 class BasinTree:
@@ -182,10 +193,7 @@ class BasinTree:
             "n_basin_per_order" : None,  # the basin number per order
         }
         
-
-
-
-
+        
     def _region_basin_type(self):
         """
         figure out the type for each basin. basin type: single_river, leaf, limb, river_tree_root.
@@ -401,7 +409,7 @@ class BasinTree:
         """generate a basin object"""
         basin = Basin(basin_id)
         basin.basin_type = self.get_basin_type(basin_id)
-        node_id = "node_" + basin_id
+        node_id = basin_id
         node = Node(node_id, basin_id)
         basin.set_node_us(node)
 

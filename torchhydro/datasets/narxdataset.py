@@ -20,7 +20,7 @@ class NarxDataset(BaseDataset):
     """
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         """
-        Initialize the Narx dataset.  for fr in camels.
+        Initialize the Narx dataset.
         narx model is more suitable for nested catchment flood prediction,
         while only fr have the nestedness information in camels, so choose fr to make dataset.
         Parameters
@@ -50,9 +50,7 @@ class NarxDataset(BaseDataset):
     def __getitem__(self, item: int):
         """
         DataLoader load data from here and deliver into model.
-        fetch and deliver into model
-        /home/yulili/.conda/envs/torchhydro/lib/python3.13/site-packages/torch/utils/data/_utils/fetch.py  class _MapDatasetFetcher(_BaseDatasetFetcher) call this method.
-        /home/yulili/.conda/envs/torchhydro/lib/python3.13/site-packages/torch/utils/data/dataloader.py  _next_data(self)
+
         Parameters
         ----------
         item: the locate in lookup_table of basin need to read.
@@ -70,7 +68,7 @@ class NarxDataset(BaseDataset):
             c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
             xc = np.concatenate((x, c), axis=1)
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-        basin, idx = self.lookup_table[item]  # [1972, 3569, 2907, 894, 442, 3341, 2420, 3443, 4291, 1303, 2368, 2954, 4125, 2773, 2832, 3836, 1948, 120]
+        basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length  # warmup_length = 0
         x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]  # [batch(basin), time, features]  rho = 0, horizon = 30
         y = self.y[basin, idx: idx + self.rho + self.horizon, :]  # idx - warmup_length ?  why do not subtraction warmup_length here?

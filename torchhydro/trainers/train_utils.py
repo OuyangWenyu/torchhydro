@@ -408,7 +408,7 @@ def torch_single_train(
     running_loss = 0.0
     which_first_tensor = kwargs["which_first_tensor"]
     seq_first = which_first_tensor != "batch"
-    pbar = tqdm(data_loader)  # load data  todo:
+    pbar = tqdm(data_loader)  # load data
 
     for _, (src, trg) in enumerate(pbar):  # call __getitem__ in NarxDataset class
         trg, output = model_infer(seq_first, device, model, src, trg)  # src, forcing data, e.g. prce|pet  trg, target data, e.g. streamflow.

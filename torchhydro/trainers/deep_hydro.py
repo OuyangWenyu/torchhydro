@@ -279,7 +279,8 @@ class DeepHydro(DeepHydroInterface):
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
             )
-            # self.model.remove_model_and_memory()
+            if epoch == max_epochs:
+                self._remove_model_memory()
             logger.save_model_and_params(self.model, epoch, self.cfgs)
             if es and not es.check_loss(
                 self.model,
@@ -465,8 +466,7 @@ class DeepHydro(DeepHydroInterface):
                     shuffle=False,
                     sampler=None,
                     batch_sampler=None,
-                    # drop_last=False,  # todo: temp comments.
-                    drop_last=True,  # todo: temp modify.  drop_last =True, add this.
+                    drop_last=False,
                     timeout=0,
                     worker_init_fn=None,
                 )
@@ -495,7 +495,6 @@ class DeepHydro(DeepHydroInterface):
             sampler=sampler,
             num_workers=worker_num,
             pin_memory=pin_memory,
-            drop_last = True,   # todo: temp modify.  drop_last = True, add this.
             timeout=0,
         )
         if data_cfgs["t_range_valid"] is not None:  # valid period
@@ -503,10 +502,8 @@ class DeepHydro(DeepHydroInterface):
                 self.validdataset,
                 batch_size=training_cfgs["batch_size"],
                 shuffle=False,
-                # sampler=sampler,   # todo: temp modify.  sampler=sampler,  add this.
                 num_workers=worker_num,
                 pin_memory=pin_memory,
-                # drop_last = True,   # todo: temp modify.  drop_last = True, add this.
                 timeout=0,
             )
             return data_loader, validation_data_loader
@@ -565,6 +562,10 @@ class DeepHydro(DeepHydroInterface):
                 "nt": nt,
             }
         return sampler_class(train_dataset, **sampler_hyperparam)
+    
+    def _remove_model_memory(self):
+        if self.cfgs["model_cfgs"]["model_name"] == "NestedNarx":
+            self.model.remove_model_and_memory()
 
 
 class FedLearnHydro(DeepHydro):
