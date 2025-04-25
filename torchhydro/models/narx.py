@@ -247,6 +247,38 @@ class NestedNarx(nn.Module):
             return out
 
 
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# Backend tkagg is interactive backend. Turning interactive mode on.
+# collected 1 item
+
+# test_camelsfr_netsednarx.py update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Finish Normalization
+
+
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 1021.22it/s]
+# Finish Normalization
+
+
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 17954.21it/s]
+# Finish Normalization
+
+
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 18113.60it/s]
+# Torch is using cpu
+# I0425 17:00:49.431000 10034 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpoky0yy_p
+# I0425 17:00:49.435000 10034 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpoky0yy_p/_remote_module_non_scriptable.py
 #   0%|          | 0/54 [00:00<?, ?it/s]
 #   2%|▏         | 1/54 [00:00<00:07,  7.16it/s]
 #   4%|▎         | 2/54 [00:00<00:09,  5.21it/s]
