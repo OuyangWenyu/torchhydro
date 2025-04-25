@@ -100,7 +100,7 @@ class Basin:
 
     def get_y_us_data(self):
         """get inflow coming from upstream basins via node_us """
-        self.y_us = self.node_us.y_output.to(self.device)  # todo: may appear memory problem here
+        self.y_us = self.node_us.y_output.to(self.device)
 
     def set_model(self, model = None):
         self.model = model   # .to(self.device)   # todo:
@@ -109,7 +109,7 @@ class Basin:
         if (self.x.ndim > 1) and (self.y_us.ndim > 1):
             self.input_x = torch.cat([self.x, self.y_us], dim=-1)  # along the last dimension
         else:
-            self.input_x = self.x  # todo: check copy problem
+            self.input_x = self.x
         if (self.input_x.ndim > 1) and (self.y.ndim > 1):
             self.input_x = torch.cat([self.input_x, self.y], dim=-1)
         self.input_x = self.input_x.to(self.device)
@@ -551,7 +551,7 @@ class BasinTree:
             basin_trees.append(basin_tree_i)
             basin_list = basin_list + basin_list__i  # use of dataset
             basin_list_array.append(basin_list_i)  # use of nestednarx model
-            order_list = order_list + order_list_i[:]  # todo: copy problem.
+            order_list = order_list + order_list_i[:]  # 
             n_basin_per_order_list[i] = n_basin_per_order_i[:]
             if max_order_i > max_order:
                 max_order = max_order_i

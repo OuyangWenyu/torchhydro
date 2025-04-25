@@ -71,11 +71,11 @@ class NarxDataset(BaseDataset):
         basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length  # warmup_length = 0
         x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]  # [batch(basin), time, features]  rho = 0, horizon = 30
-        y = self.y[basin, idx: idx + self.rho + self.horizon, :]  # idx - warmup_length ?  why do not subtraction warmup_length here?
+        y = self.y[basin, idx: idx + self.rho + self.horizon, :]  # warmup period only used to warmup model, no need to compare the y calculated with the y observed. no need to subtract warmup_length here. see dpl4sac.
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float()
         c = self.c[basin, :]
-        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T  # repeat the attributes for each tim-step.
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T  # repeat the attributes for each time-step.
         xc = np.concatenate((x, c), axis=1)  # incorporate, as the input of model.
 
         return torch.from_numpy(xc).float(), torch.from_numpy(y).float()  # deliver into model prcp, pet, attributes and streamflow etc.  DataLoader
@@ -118,7 +118,7 @@ class NarxDataset(BaseDataset):
         self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)  # deal with nan value
         self._trans2nparr()
         self.x = np.concatenate((self.x, self.y), axis=2)  # notice: for narx model, the input features need to contain the history output(target) features data in train and test period, so concatenate y into x here.
-        self._create_lookup_table()  # todo：
+        self._create_lookup_table()
 
     def _trans2nparr(self):
         """To make __getitem__ more efficient,
@@ -228,7 +228,7 @@ class NarxDataset(BaseDataset):
             data_forcing_ds_, data_output_ds_
         )
         data_attr_ds = None
-        self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(   # origin data
+        self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds_, data_attr_ds
         )
 

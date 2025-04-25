@@ -56,9 +56,7 @@ class Narx(nn.Module):
     def forward(self, x):
         """
         forward propagation function
-        /home/yulili/.conda/envs/torchhydro/lib/python3.13/site-packages/torch/nn/modules/module.py
-        /torchhydro/trainers/train_utils.py  torch_single_train() model.train()
-        /torchhydro/torchhydro/trainers/train_utils.py  model_infer() output = model(*xs)
+ 
         Parameters
         ----------
         x
@@ -203,10 +201,10 @@ class NestedNarx(nn.Module):
         """
         implement netsed calculation here.
         deal with data order -> done.
-        calculate along basintree -> may can calculate by order 
+        calculate along basintree -> may can calculate by order   seems cannot.
         basins with a same order calculate together -> for each tree
         meanwhile take the link relationship between basins into count.  -> done. use basin, node and basintree.
-        means call narx for each basin -> may can call naxr for each order
+        means call narx for each basin -> may can call naxr for each order   seems cannot.
         x
             input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
         """
