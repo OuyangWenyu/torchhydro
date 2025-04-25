@@ -293,6 +293,7 @@ def default_config_file():
             # for example, data is |1|2|3|4|  time_window=2 then the samples are |1|2|, |2|3| and |3|4|
             "rolling": False,
             "calc_metrics": True,
+            "close_loop": False,  # used for narx model in test/forecasting period.
         },
     }
 
@@ -368,6 +369,7 @@ def cmd(
     min_time_unit=None,
     min_time_interval=None,
     b_nestedness=None,
+    close_loop=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -840,6 +842,13 @@ def cmd(
         default=b_nestedness,
         type=bool,
     )
+    parser.add_argument(
+        "--close_loop",
+        dest="close_loop",
+        help="close loop or not for narx model.",
+        default=close_loop,
+        type=bool,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -1089,6 +1098,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["lr_scheduler"] = new_args.lr_scheduler
     if new_args.b_nestedness is not None:
         cfg_file["data_cfgs"]["b_nestedness"] = new_args.b_nestedness
+    if new_args.close_loop is not None:
+        cfg_file["evaluation_cfgs"]["close_loop"] = new_args.close_loop
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 

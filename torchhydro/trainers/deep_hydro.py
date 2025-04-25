@@ -197,6 +197,7 @@ class DeepHydro(DeepHydroInterface):
         weight_path = self.weight_path
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
+        self._update_model_hyperparam(model_name)
         model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
         checkpoint = torch.load(weight_path, map_location=self.device)
         model.load_state_dict(checkpoint)
@@ -566,6 +567,10 @@ class DeepHydro(DeepHydroInterface):
     def _remove_model_memory(self):
         if self.cfgs["model_cfgs"]["model_name"] == "NestedNarx":
             self.model.remove_model_and_memory()
+
+    def _update_model_hyperparam(self, model_name):
+        if model_name == "NestedNarx":
+            self.cfgs["model_cfgs"]["model_hyperparam"]["close_loop"] = self.cfgs["evaluation_cfgs"]["close_loop"]
 
 
 class FedLearnHydro(DeepHydro):
