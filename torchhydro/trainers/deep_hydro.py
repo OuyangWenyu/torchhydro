@@ -279,6 +279,7 @@ class DeepHydro(DeepHydroInterface):
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
             )
+            self.model.remove_memory()
             logger.save_model_and_params(self.model, epoch, self.cfgs)
             if es and not es.check_loss(
                 self.model,

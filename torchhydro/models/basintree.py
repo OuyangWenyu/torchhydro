@@ -96,7 +96,7 @@ class Basin:
         self.y_us = self.node_us.y_output.to(self.device)  # todo: may appear memory problem here
 
     def set_model(self, model = None):
-        self.model = model.to(self.device)
+        self.model = model   # .to(self.device)   # todo；
 
     def make_input_x(self):
         if (self.x.ndim > 1) and (self.y_us.ndim > 1):
@@ -124,6 +124,10 @@ class Basin:
         
     def remove_data(self):
         """remove the data saved in tensors."""
+        if self.x.ndim > 1:
+            self.x = torch.Tensor([])
+        if self.y.ndim > 1:
+            self.y = torch.Tensor([])
         if self.input_x.ndim > 1:
             self.input_x = torch.Tensor([])
         if self.output_y.ndim > 1:
@@ -173,6 +177,9 @@ class BasinTree:
             "n_basin_per_order" : None,  # the basin number per order
         }
         
+
+
+
 
     def _region_basin_type(self):
         """

@@ -133,8 +133,49 @@ class NestedNarx(nn.Module):
         self.order_list = self.Nested_model["order_list"]  # order list, one dimension.
         self.n_basin_per_order_list = self.Nested_model["n_basin_per_order_list"]  # 2 dimension
         self.n_basin_per_order = self.Nested_model["n_basin_per_order"]  # 1 dimension
-        self.n_call_froward = 0
+        self.n_basintrees = len(self.basin_trees)
+        self.device = None
+        # self.b_set_dl_model = False
+        self.b_set_device = False
+        self.set_dl_model()
 
+    def remove_memory(self):
+        m = 0
+        for i in range(self.n_basintrees):  # basintrees
+            max_order_i = len(self.n_basin_per_order_list[i])
+            for j in range(max_order_i - 1, -1, -1):  # order
+                n_basin_j = self.n_basin_per_order_list[i][j]
+                for k in range(n_basin_j-1, -1, -1):  # per order
+                    self.basin_trees[i][j][k].remove_data()  # inflow coming from upstream basin             
+                    m = m + 1
+                    if j > 0:
+                        # the last/root basin outflow directly, no node_ds.
+                        self.basin_trees[i][j][k].node_ds.remove_data()  # basin output
+
+    def set_dl_model(self):
+        """set dl model into each basin"""
+        m = 0
+        for i in range(self.n_basintrees):  # basintrees
+            n_order_i = len(self.basin_trees[i])
+            for j in range(n_order_i):  # order
+                n_basin_j = len(self.basin_trees[i][j])
+                for k in range(n_basin_j):  # per order
+                    # self.basin_trees[i][j][k].set_device(self.device)
+                    self.basin_trees[i][j][k].set_model(self.dl_model)
+                    m = m + 1
+        # self.b_set_dl_model = True
+
+    def set_device(self):
+        """set device into each basin"""
+        m = 0
+        for i in range(self.n_basintrees):  # basintrees
+            n_order_i = len(self.basin_trees[i])
+            for j in range(n_order_i):  # order
+                n_basin_j = len(self.basin_trees[i][j])
+                for k in range(n_basin_j):  # per order
+                    self.basin_trees[i][j][k].set_device(self.device)
+                    m = m + 1
+        self.b_set_device = True
 
     def forward(self, x):
         """
@@ -150,46 +191,38 @@ class NestedNarx(nn.Module):
             input data.  (forcing, target)/(prcp,pet,streamflow)   [sequence, batch, feature]/[time, basin, (prcp,pet,streamflow)]  sequence first.
         """
 
-        nested_model_device = x.device
+        self.device = x.device
+        # nestednarx_device = x.device
+
+        if not self.b_set_device:
+            self.set_device()
+        # if not self.b_set_dl_model:
+        #     self.set_dl_model()
 
         n_t, n_basin, n_feature = x.size()  # split in basin dimension.  self.basin_list    n_feature = self.nx + self.ny
-        self.n_call_froward = self.n_call_froward + 1
-        n_basintrees = len(self.basin_trees)
         if n_basin != len(self.basin_list):
-            raise ValueError("The dimension of input data x dismatch with basintree, please check both." \
-            "\nself.n_call_froward = " + format(self.n_call_froward, 'd') + \
-            "\nn_basin = " + format(n_basin, 'd') + \
-            "\nlen(self.basin_list) = " + format(len(self.basin_list), 'd'))
+            raise ValueError("The dimension of input data x dismatch with basintree, please check both.")
         else:
             # remove data in basin before calculation.
-            m = 0
-            for i in range(n_basintrees):  # basintrees
-                max_order_i = len(self.n_basin_per_order_list[i])
-                for j in range(max_order_i - 1, -1, -1):  # order
-                    n_basin_j = self.n_basin_per_order_list[i][j]
-                    for k in range(n_basin_j-1, -1, -1):  # per order
-                        self.basin_trees[i][j][k].remove_data()  # inflow coming from upstream basin             
-                        m = m + 1
-                        if j > 0:
-                            # the last/root basin outflow directly, no node_ds.
-                            self.basin_trees[i][j][k].node_ds.remove_data()  # basin output
+            self.remove_memory()
 
             out = torch.Tensor([])
             # set data
             m = 0
-            for i in range(n_basintrees):  # basintrees
+            for i in range(self.n_basintrees):  # basintrees
                 n_order_i = len(self.basin_trees[i])
                 for j in range(n_order_i):  # order
                     n_basin_j = len(self.basin_trees[i][j])
                     for k in range(n_basin_j):  # per order
-                        self.basin_trees[i][j][k].set_device(nested_model_device)
+                        # self.basin_trees[i][j][k].set_device(nestednarx_device)
+                        # self.basin_trees[i][j][k].set_device(self.device)
                         self.basin_trees[i][j][k].set_x_data(torch.unsqueeze(x[:, m, :self.nx], 1))
                         self.basin_trees[i][j][k].set_y_data(torch.unsqueeze(x[:, m, -self.ny:], 1))
-                        self.basin_trees[i][j][k].set_model(self.dl_model)
+                        # self.basin_trees[i][j][k].set_model(self.dl_model)
                         m = m + 1
             # run model
             m = 0
-            for i in range(n_basintrees):  # basintrees
+            for i in range(self.n_basintrees):  # basintrees
                 max_order_i = len(self.n_basin_per_order_list[i])
                 for j in range(max_order_i - 1, -1, -1):  # order
                     n_basin_j = self.n_basin_per_order_list[i][j]
