@@ -132,6 +132,11 @@ class Basin:
             self.input_x = torch.Tensor([])
         if self.output_y.ndim > 1:
             self.output_y = torch.Tensor([]) 
+    
+    def remove_model(self):
+        "remove model"
+        if self.model is not None:
+            self.model = None
 
 
 

@@ -139,19 +139,6 @@ class NestedNarx(nn.Module):
         self.b_set_device = False
         self.set_dl_model()
 
-    def remove_memory(self):
-        m = 0
-        for i in range(self.n_basintrees):  # basintrees
-            max_order_i = len(self.n_basin_per_order_list[i])
-            for j in range(max_order_i - 1, -1, -1):  # order
-                n_basin_j = self.n_basin_per_order_list[i][j]
-                for k in range(n_basin_j-1, -1, -1):  # per order
-                    self.basin_trees[i][j][k].remove_data()  # inflow coming from upstream basin             
-                    m = m + 1
-                    if j > 0:
-                        # the last/root basin outflow directly, no node_ds.
-                        self.basin_trees[i][j][k].node_ds.remove_data()  # basin output
-
     def set_dl_model(self):
         """set dl model into each basin"""
         m = 0
@@ -176,6 +163,36 @@ class NestedNarx(nn.Module):
                     self.basin_trees[i][j][k].set_device(self.device)
                     m = m + 1
         self.b_set_device = True
+
+    def remove_dl_model(self):
+        """remove dl model of each basin"""
+        m = 0
+        for i in range(self.n_basintrees):  # basintrees
+            n_order_i = len(self.basin_trees[i])
+            for j in range(n_order_i):  # order
+                n_basin_j = len(self.basin_trees[i][j])
+                for k in range(n_basin_j):  # per order
+                    # self.basin_trees[i][j][k].set_device(self.device)
+                    self.basin_trees[i][j][k].remove_model()
+                    m = m + 1
+    
+    def remove_memory(self):
+        m = 0
+        for i in range(self.n_basintrees):  # basintrees
+            max_order_i = len(self.n_basin_per_order_list[i])
+            for j in range(max_order_i - 1, -1, -1):  # order
+                n_basin_j = self.n_basin_per_order_list[i][j]
+                for k in range(n_basin_j-1, -1, -1):  # per order
+                    self.basin_trees[i][j][k].remove_data()  # inflow coming from upstream basin             
+                    m = m + 1
+                    if j > 0:
+                        # the last/root basin outflow directly, no node_ds.
+                        self.basin_trees[i][j][k].node_ds.remove_data()  # basin output
+
+    def remove_model_and_memory(self):
+        self.remove_dl_model()
+        self.remove_memory()
+
 
     def forward(self, x):
         """
