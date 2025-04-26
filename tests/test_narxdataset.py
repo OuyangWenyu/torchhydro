@@ -5,22 +5,6 @@ from torchhydro.datasets.data_sources import data_sources_dict
 from torchhydro.datasets.narxdataset import NarxDataset
 
 
-class TestDatasource:
-    """
-    a calss for testing the narxdataset.
-    """
-    def __init__(self, source_cfgs, time_unit="1D"):
-        self.ngrid = 2
-        self.nt = 366
-        self.data_cfgs = source_cfgs
-
-    def read_ts_xrdataset(self, basin_id, t_range, var_lst):
-        """
-        
-        """
-
-        return 0
-
 def test_NarxDataset():
     """
 
