@@ -47,6 +47,8 @@ from torchhydro.models.dpl4gr4j import DplLstmGr4j, DplAnnGr4j
 from torchhydro.models.dpl4sac import DplAnnSac, DplLstmSac
 from torchhydro.models.dpl4tank import DplAnnTank, DplLstmTank
 from torchhydro.models.narx import Narx, NestedNarx
+from torchhydro.models.slstm import sLSTM
+
 """
 Utility dictionaries to map a string to a class.
 """
@@ -77,6 +79,7 @@ pytorch_model_dict = {
     "DplLstmTank": DplLstmTank,
     "Narx": Narx,
     "NestedNarx": NestedNarx,
+    "sLstm": sLSTM,
 }
 
 pytorch_criterion_dict = {
