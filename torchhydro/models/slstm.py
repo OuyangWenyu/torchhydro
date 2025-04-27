@@ -3,6 +3,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.modules.rnn import RNNBase
+from torch import Tensor
+from torch.nn import Parameter
 
 class sLSTM(nn.Module):
     """
@@ -73,4 +76,65 @@ class MI_STL_sLSTM(nn.Module):
         dtype
         """
         super(MI_STL_sLSTM, self).__init__()
-        self.slstm = nn.Linear(input_size, hidden_size)
+        self.slstm = sLSTM(input_size, output_size, hidden_size, num_layers, dropout)
+
+
+class pcLSTM(RNNBase):
+    """
+    
+    """
+    def __init__(
+        self,
+        # mode: str = "LSTM",
+        input_size: int,
+        hidden_size: int,
+        num_layers: int = 1,
+        nonlinearity: str = "tanh",
+        bias: bool = True,
+        batch_first: bool = False,
+        dropout: float = 0.0,
+        bidirectional: bool = False,
+    ) -> None:
+        """
+
+        Parameters
+        ----------
+        input_size
+        hidden_size
+        num_layers
+        nonlinearity
+        bias
+        batch_first
+        dropout
+        bidirectional
+        """
+        super(pcLSTM, self).__init__("LSTM")
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.nonlinearity = nonlinearity
+        self.bias = bias
+        self.dropout = dropout
+        self.batch_first = batch_first
+        self.bidirectional = bidirectional
+        self.gate_size = 4 * hidden_size  # lstm 4
+
+        # self.w_ih = Parameter(torch.Tensor(hidden_size * 4, input_size))
+        # self.w_hh = Parameter(torch.Tensor(hidden_size * 4, hidden_size))
+        # self.b_ih = Parameter(torch.Tensor(hidden_size * 4))
+        # self.b_hh = Parameter(torch.Tensor(hidden_size * 4))
+    def forward(self, input, hx=None):
+        """
+        narx forward function
+        Parameters
+        ----------
+        input
+            input time series
+        hx
+            hidden state
+        Returns
+        -------
+
+        """
+        gates = F.linear(input, hx, self.b_ih) + F.linear(h0, w_hh, self.b_hh)
+        gate_i, gate_f, gate_c, gate_o = gates.chunk(4, 1)
