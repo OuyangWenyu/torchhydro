@@ -79,7 +79,7 @@ pytorch_model_dict = {
     "DplLstmTank": DplLstmTank,
     "Narx": Narx,
     "NestedNarx": NestedNarx,
-    "sLstm": sLSTM,
+    "sLSTM": sLSTM,
 }
 
 pytorch_criterion_dict = {
