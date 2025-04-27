@@ -81,7 +81,7 @@ class MI_STL_sLSTM(nn.Module):
 
 class pcLSTM(RNNBase):
     """
-    
+
     """
     def __init__(
         self,
@@ -136,5 +136,24 @@ class pcLSTM(RNNBase):
         -------
 
         """
+        if self.bidirectional:
+            num_directions = 2
+        else:
+            num_directions = 1
+        h = torch.zeros(  # hidden space
+            self.num_layers * num_directions,
+            self.batch_size,
+            self.hidden_size,
+            dtype=input.dtype,
+            device=input.device,
+        )
+        c = torch.zeros(  # cell space
+            self.num_layers * num_directions,
+            self.batch_size,
+            self.hidden_size,
+            dtype=input.dtype,
+            device=input.device,
+        )
+        b = None
         gates = F.linear(input, hx, self.b_ih) + F.linear(h0, w_hh, self.b_hh)
         gate_i, gate_f, gate_c, gate_o = gates.chunk(4, 1)
