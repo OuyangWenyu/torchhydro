@@ -78,9 +78,9 @@ def arg_camelsus_slstm(
         # model_name="CpuLSTM",
         model_name="sLSTM",
         model_hyperparam={
-            "n_input_features": len(var_c) + len(var_t),  # 17 + 7 = 24
-            "n_output_features": 1,
-            "n_hidden_states": 256,
+            "input_size": len(var_c) + len(var_t),  # 17 + 7 = 24
+            "output_size": 1,
+            "hidden_size": 256,
         },
         loss_func="RMSESum",
         sampler="KuaiSampler",

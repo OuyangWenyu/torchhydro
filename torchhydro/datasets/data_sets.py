@@ -102,7 +102,7 @@ class BaseDataset(Dataset):
         super(BaseDataset, self).__init__()
         self.data_cfgs = data_cfgs
         self.data_educed_model = None
-        self.basin_list = None  # todo: temp add
+        # self.basin_list = None  # todo: temp add
         if is_tra_val_te in {"train", "valid", "test"}:
             self.is_tra_val_te = is_tra_val_te
         else:
@@ -110,7 +110,7 @@ class BaseDataset(Dataset):
                 "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
             )
         # load and preprocess data
-        # self._load_data()  # todo: temp comments
+        self._load_data()  # todo: temp comments
 
     @property
     def data_source(self):
@@ -136,7 +136,8 @@ class BaseDataset(Dataset):
         int
             number of basins/grids
         """
-        return len(self.basin_list)
+        return len(self.basins)
+        # return len(self.basin_list)
 
     @property
     def nt(self):

@@ -13,7 +13,7 @@ class sLSTM(nn.Module):
         input_size: int,
         output_size: int,
         hidden_size: int,
-        num_layers: int = 10,
+        num_layers: int = 2,
         dropout: float = 0.0,
         device=None,
         dtype=None,
@@ -73,4 +73,4 @@ class MI_STL_sLSTM(nn.Module):
         dtype
         """
         super(MI_STL_sLSTM, self).__init__()
-        self.linearIn = nn.Linear(input_size, hidden_size)
+        self.slstm = nn.Linear(input_size, hidden_size)
