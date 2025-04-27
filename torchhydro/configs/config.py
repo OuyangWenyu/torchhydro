@@ -237,11 +237,11 @@ def default_config_file():
             # for each batch, we fix length of hindcast and forecast length.
             # data from different lead time with a number representing the lead time,
             # for example, now is 2020-09-30, our min_time_interval is 1 day, hindcast length is 30 and forecast length is 1,
-            # lead_time = 3 means 2020-09-01 to 2020-09-30, and the forecast data is 2020-10-01 from 2020-09-28
+            # lead_time = 3 means 2020-09-01 to 2020-09-30, and the forecast data is 2020-10-01 forecast-performed at 2020-09-28
             # for forecast data, we have two different configurations:
-            # 1st, we can set a same lead time for all forecast time
+            # 1st "fixed", we can set a same lead time for all forecast time
             # 2020-09-30now, 30hindcast, 2forecast, 3leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 forecast data from 2020-09-28 and 2020-10-02 forecast data from 2020-09-29
-            # 2nd, we can set a increasing lead time for each forecast time
+            # 2nd "increasing", we can set a increasing lead time for each forecast time
             # 2020-09-30now, 30hindcast, 2forecast, [1, 2]leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 to 2010-10-02 forecast data from 2020-09-30
             "lead_time_type": "fixed",  # must be fixed or increasing
             "lead_time_start": 1,

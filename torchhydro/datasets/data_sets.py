@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-04-19 17:35:29
+LastEditTime: 2025-04-27 14:28:24
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /torchhydro/torchhydro/datasets/data_sets.py
+FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -806,7 +806,7 @@ class ObsForeDataset(BaseDataset):
         for x_idx, f_idx in self.xf_var_indices.items():
             # Replace the variables in the forecast period of x with the forecast variables in f
             # The forecast period of x starts from the rho position
-            x_combined[self.rho :, x_idx] = f[:, f_idx]
+            x_combined[self.warmup_length + self.rho :, x_idx] = f[:, f_idx]
 
         return x_combined
 
