@@ -125,8 +125,8 @@ def arg_camelsus_slstm(
         # 01022500
         # ......
         # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-        gage_id_file = "D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt",
-        # gage_id_file="/mnt/d/minio/waterism/datasets-origin/camels/camels_us/gage_id.txt",
+        # gage_id_file = "D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt",
+        gage_id_file="/mnt/d/minio/waterism/datasets-origin/camels/camels_us/gage_id.txt",
         which_first_tensor="sequence",
     )
 
@@ -135,3 +135,17 @@ def test_camels_slstm(arg_camelsus_slstm):
     update_cfg(config_data, arg_camelsus_slstm)
     train_and_evaluate(config_data)
     print("All processes are finished!")
+
+
+#   0%|          | 0/1 [00:00<?, ?it/s]
+# 100%|██████████| 1/1 [00:08<00:00,  8.20s/it]
+# 100%|██████████| 1/1 [00:08<00:00,  8.20s/it]
+# Epoch 10 Loss 0.9405 time 8.20 lr 1.0
+# sLSTM(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (lstm): LSTM(256, 256, num_layers=2)
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 10 Valid Loss 1.0060 Valid Metric {'NSE of streamflow': [0.07402777671813965, 0.1263355016708374, 0.11079108715057373, 0.10311484336853027, 0.03889620304107666, 0.038914501667022705, 0.044403791427612305, 0.06203585863113403, 0.09444379806518555, 0.19090330600738525], 'RMSE of streamflow': [0.8716039657592773, 0.9061514139175415, 1.029007077217102, 1.114901065826416, 1.0154814720153809, 0.938567042350769, 0.9940662384033203, 1.0335123538970947, 1.0223698616027832, 1.1063952445983887], 'R2 of streamflow': [0.07402777671813965, 0.1263355016708374, 0.11079108715057373, 0.10311484336853027, 0.03889620304107666, 0.038914501667022705, 0.044403791427612305, 0.06203585863113403, 0.09444379806518555, 0.19090330600738525], 'KGE of streamflow': [-0.4832414944018626, -0.2376370494556348, -0.3934577790686893, -1.3003097650355921, -0.37078001956519735, -0.2418014119723999, -0.28205195314132214, -0.3978283554578177, -18.08721203372654, 0.06895197920580176], 'FHV of streamflow': [-91.04109191894531, -88.24144744873047, -90.98316955566406, -92.9381103515625, -92.77046966552734, -89.93744659423828, -92.46479034423828, -93.42033386230469, -97.32059478759766, -95.19478607177734], 'FLV of streamflow': [-80.96578979492188, -79.16915893554688, -84.00558471679688, -83.20077514648438, -80.06905364990234, -93.80562591552734, -87.9083251953125, -83.9924545288086, -67.64541625976562, -74.35592651367188]}
+# Weights sucessfully loaded
+# All processes are finished!
