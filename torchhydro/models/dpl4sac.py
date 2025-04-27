@@ -493,6 +493,6 @@ class DplLstmSac(nn.Module):
         if self.param_test_way != MODEL_PARAM_TEST_WAY["time_varying"]:
             params = params[-1, :, :]
         # Please put p in the first location and pet in the second
-        q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)  # seems fetch a whole sequence.  !  todo: 
+        q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)  # seems fetch a whole sequence.  !  todo:
         # return torch.cat([q, e], dim=-1)
         return q

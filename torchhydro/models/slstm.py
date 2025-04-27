@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class sLSTM(nn.module):
+class sLSTM(nn.Module):
     """
     stacked lstm model.
     """

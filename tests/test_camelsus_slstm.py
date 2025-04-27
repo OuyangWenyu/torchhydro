@@ -44,7 +44,7 @@ def var_t():
         "vp",
     ]
 
-
+@pytest.fixture
 def arg_camelsus_slstm(
     var_c,
     var_t,
@@ -91,7 +91,7 @@ def arg_camelsus_slstm(
                 "streamflow",
             ],
             "gamma_norm_cols": [
-                "precipitation_AWAP",
+                "prcp",
                 "pr",
                 "total_precipitation",
                 "potential_evaporation",
