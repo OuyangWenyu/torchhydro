@@ -1,11 +1,11 @@
 """slstm model"""
 
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.modules.rnn import RNNBase
 from torch import Tensor
-from torch.nn import Parameter
+from torch.nn import Module, Parameter
 
 class sLSTM(nn.Module):
     """
@@ -79,21 +79,27 @@ class MI_STL_sLSTM(nn.Module):
         self.slstm = sLSTM(input_size, output_size, hidden_size, num_layers, dropout)
 
 
-class pcLSTM(RNNBase):
-    """
-
+class pcLSTMCell(Module):
+    r"""
+    single step LSTM cell.
+    .. math::
+        \begin{array}{ll} \\
+            i_t = \sigma(W_{ii} x_t + b_{ii} + W_{hi} h_{t-1} + b_{hi} + W_{ci} c_{t-1}) \\  input gate
+            f_t = \sigma(W_{if} x_t + b_{if} + W_{hf} h_{t-1} + b_{hf} + W_{cf} c_{t-1}) \\  forget gate
+            g_t = \tanh(W_{ig} x_t + b_{ig} + W_{hg} h_{t-1} + b_{hg}) \\  input operate
+            o_t = \sigma(W_{io} x_t + b_{io} + W_{ho} h_{t-1} + b_{ho} + W_{co} c_{t-1}) \\  output gate
+            c_t = f_t \odot c_{t-1} + i_t \odot g_t \\  output, cell state
+            h_t = o_t \odot \tanh(c_t) \\  output，hidden state
+        \end{array}
     """
     def __init__(
         self,
-        # mode: str = "LSTM",
         input_size: int,
         hidden_size: int,
+        # batch_size: int,
         num_layers: int = 1,
-        nonlinearity: str = "tanh",
         bias: bool = True,
-        batch_first: bool = False,
         dropout: float = 0.0,
-        bidirectional: bool = False,
     ) -> None:
         """
 
@@ -102,28 +108,51 @@ class pcLSTM(RNNBase):
         input_size
         hidden_size
         num_layers
-        nonlinearity
         bias
-        batch_first
         dropout
-        bidirectional
         """
-        super(pcLSTM, self).__init__("LSTM")
+        super(pcLSTMCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
+        # self.batch_size = batch_size
         self.num_layers = num_layers
-        self.nonlinearity = nonlinearity
         self.bias = bias
         self.dropout = dropout
-        self.batch_first = batch_first
-        self.bidirectional = bidirectional
-        self.gate_size = 4 * hidden_size  # lstm 4
 
-        # self.w_ih = Parameter(torch.Tensor(hidden_size * 4, input_size))
-        # self.w_hh = Parameter(torch.Tensor(hidden_size * 4, hidden_size))
-        # self.b_ih = Parameter(torch.Tensor(hidden_size * 4))
-        # self.b_hh = Parameter(torch.Tensor(hidden_size * 4))
-    def forward(self, input, hx=None):
+        # input to hidden weights
+        self.w_xi = Parameter(Tensor(hidden_size, input_size))
+        self.w_xf = Parameter(Tensor(hidden_size, input_size))
+        self.w_xo = Parameter(Tensor(hidden_size, input_size))
+        self.w_xc = Parameter(Tensor(hidden_size, input_size))
+        # hidden to hidden weights
+        self.w_hi = Parameter(Tensor(hidden_size, hidden_size))
+        self.w_hf = Parameter(Tensor(hidden_size, hidden_size))
+        self.w_ho = Parameter(Tensor(hidden_size, hidden_size))
+        self.w_hc = Parameter(Tensor(hidden_size, hidden_size))
+        # bias terms
+        self.b_i = Tensor(hidden_size).fill_(0)
+        self.b_f = Tensor(hidden_size).fill_(0)
+        self.b_o = Tensor(hidden_size).fill_(0)
+        self.b_c = Tensor(hidden_size).fill_(0)
+        # cell stat weight
+        self.c_i = Parameter(Tensor(hidden_size, input_size))   # todo: pay attention to dimension match
+        self.c_f = Parameter(Tensor(hidden_size, hidden_size))
+        self.c_o = Parameter(Tensor(hidden_size, hidden_size))
+
+        # Wrap biases as parameters if desired, else as variables without gradients
+        W = Parameter if bias else (lambda x: Parameter(x, requires_grad=False))
+        self.b_i = W(self.b_i)
+        self.b_f = W(self.b_f)
+        self.b_o = W(self.b_o)
+        self.b_c = W(self.b_c)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        std = 1.0 / math.sqrt(self.hidden_size)
+        for w in self.parameters():
+            w.data.uniform_(-std, std)  # uniform distribution
+
+    def forward(self, x: Tensor, hx: Tensor) -> Tensor:
         """
         narx forward function
         Parameters
@@ -134,26 +163,92 @@ class pcLSTM(RNNBase):
             hidden state
         Returns
         -------
+        neural network
+        weight spac, data space in python
+        parameter space
+        h, b
+        data space
 
         """
-        if self.bidirectional:
-            num_directions = 2
-        else:
-            num_directions = 1
-        h = torch.zeros(  # hidden space
-            self.num_layers * num_directions,
-            self.batch_size,
-            self.hidden_size,
-            dtype=input.dtype,
-            device=input.device,
+        # if self.bidirectional:
+        #     num_directions = 2
+        # else:
+        #     num_directions = 1
+        batch_size = x.size(0)
+        h, c = hx
+        if h is None:
+            h = torch.zeros(  # hidden space
+                batch_size,
+                self.hidden_size,
+                dtype=x.dtype,
+                device=x.device,
+                requires_grad=False
+            )
+            c = torch.zeros(  # cell space
+                batch_size,
+                self.hidden_size,
+                dtype=x.dtype,
+                device=x.device,
+                requires_grad=False,
+            )
+        h = h.view(h.size(0), -1)
+        c = c.view(h.size(0), -1)
+        x = x.view(x.size(0), -1)
+        # forget gate
+        f_t = torch.mm(x, self.w_xf) + torch.mm(h, self.w_hf) + torch.mm(c, self.c_f) + self.b_f
+        f_t.sigmoid_()
+        # input gate
+        i_t = torch.mm(x, self.w_xi) + torch.mm(h, self.w_hi) + torch.mm(c, self.c_i) + self.b_i
+        i_t.sigmoid_()
+        # cell computations
+        g_t = torch.mm(x, self.w_xc) + torch.mm(h, self.w_hc) + self.b_c
+        g_t.tanh_()
+        c_t = torch.mul(c, f_t) + torch.mul(i_t, g_t)
+        # output gate
+        o_t = torch.mm(x, self.w_xo) + torch.mm(h, self.w_ho) + torch.mm(c_t, self.c_o) + self.b_o
+        o_t.sigmoid_()
+        h_t = torch.mul(o_t, torch.tanh(c_t))    # hidden state update
+        # Reshape for compatibility
+        h_t = h_t.view(h_t.size(0), 1, -1)
+        c_t = c_t.view(c_t.size(0), 1, -1)
+        if self.dropout > 0.0:
+            F.dropout(h_t, p=self.dropout, training=self.training, inplace=True)
+
+        h_t = torch.squeeze(h_t, dim=1)
+        c_t = torch.squeeze(c_t, dim=1)
+
+        return h_t, c_t
+
+class pcLSTM(Module):
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        hidden_size: int,
+        num_layers: int = 1,
+        # nonlinearity: str = "tanh",
+        bias: bool = True,
+        # batch_first: bool = False,
+        dropout: float = 0.0,
+        # bidirectional: bool = False,
+    ):
+        super(pcLSTM, self).__init__()
+        self.nx = input_size
+        self.ny = output_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        # self.nonlinearity = nonlinearity
+        self.bias = bias
+        # self.batch_first = batch_first
+        self.dropout = dropout
+        # self.bidirectional = bidirectional
+        self.linearIn = torch.nn.Linear(self.nx, self.hidden_size)
+        self.lstm = pcLSTMCell(
+            input_size=self.hidden_size,
+            hidden_size=self.hidden_size,
+            num_layers=self.num_layers,
+            dropout=self.dropout,
         )
-        c = torch.zeros(  # cell space
-            self.num_layers * num_directions,
-            self.batch_size,
-            self.hidden_size,
-            dtype=input.dtype,
-            device=input.device,
-        )
-        b = None
-        gates = F.linear(input, hx, self.b_ih) + F.linear(h0, w_hh, self.b_hh)
-        gate_i, gate_f, gate_c, gate_o = gates.chunk(4, 1)
+        self.linearOut = torch.nn.Linear(self.hidden_size, self.ny)
+
+
