@@ -17,7 +17,7 @@ class Narx(nn.Module):
         n_hidden_states: int,
         input_delay: int,
         feedback_delay: int,
-        # num_layers: int = 10,
+        num_layers: int = 10,
         close_loop: bool = False,
     ):
         """
@@ -36,7 +36,7 @@ class Narx(nn.Module):
         super(Narx, self).__init__()
         self.nx = n_input_features
         self.ny = n_output_features  # n_output_features = n_feedback_features in narx nn model
-        # self.num_layers = num_layers
+        self.num_layers = num_layers
         self.hidden_size = n_hidden_states
         self.input_delay = input_delay
         self.feedback_delay = feedback_delay
@@ -44,10 +44,14 @@ class Narx(nn.Module):
         self.close_loop = close_loop
         in_features = (self.nx-self.ny) * (self.input_delay + 1) + self.ny * (self.feedback_delay + 1)
         self.linearIn = nn.Linear(in_features, self.hidden_size)
-        self.narx = nn.RNNCell(
-            input_size=self.hidden_size,
-            hidden_size=self.hidden_size,
-        )
+        self.narx = []
+        for i in range(self.num_layers):
+            self.narx.append(
+                nn.RNNCell(
+                    input_size=self.hidden_size,
+                    hidden_size=self.hidden_size,
+                )
+            )
         self.linearOut = nn.Linear(self.hidden_size, self.ny)
 
     def close_loop(self):
@@ -56,7 +60,7 @@ class Narx(nn.Module):
     def forward(self, x):
         """
         forward propagation function
- 
+
         Parameters
         ----------
         x
@@ -84,8 +88,13 @@ class Narx(nn.Module):
                 y0_t = torch.cat((y0_t, y0i), dim=-1)
             xt = torch.cat([x0_t, y0_t], dim=-1)  # (basins, features)  single step, no time dimension.
             x_l = F.relu(self.linearIn(xt))
-            out_t = self.narx(x_l)  # single step
-            yt = self.linearOut(out_t)  # (basins, output_features) single step output value, e.g. streamflow
+            h_t = None
+            for i in range(self.num_layers):
+                if i == 0:
+                    h_t = self.narx[i](x_l)
+                else:
+                    h_t = self.narx[i](h_t)  # single step  #
+            yt = self.linearOut(h_t)  # (basins, output_features) single step output value, e.g. streamflow
             out[t, :, :] = yt
             if self.close_loop:
                 if t < (nt-1):
@@ -109,7 +118,7 @@ class NestedNarx(nn.Module):
             nested_model: dict = None,
         ):
         """Initialize NestedNarx model
-        
+
         """
         super(NestedNarx, self).__init__()
         self.dl_model = Narx(
@@ -156,7 +165,7 @@ class NestedNarx(nn.Module):
                     self.basin_trees[i][j][k].set_device(self.device)
                     if j > 0:
                         # the last/root basin outflow directly, no node_ds.
-                        self.basin_trees[i][j][k].node_ds.set_device(self.device)  # basin output  
+                        self.basin_trees[i][j][k].node_ds.set_device(self.device)  # basin output
         self.b_set_device = True
 
     def remove_dl_model(self):
@@ -178,16 +187,16 @@ class NestedNarx(nn.Module):
                     self.basin_trees[i][j][k].remove_device()
                     if j > 0:
                         # the last/root basin outflow directly, no node_ds.
-                        self.basin_trees[i][j][k].node_ds.remove_device()  # basin output  
+                        self.basin_trees[i][j][k].node_ds.remove_device()  # basin output
         self.b_set_device = False
-    
+
     def remove_memory(self):
         for i in range(self.n_basintrees):  # basintrees
             max_order_i = len(self.n_basin_per_order_list[i])
             for j in range(max_order_i - 1, -1, -1):  # order
                 n_basin_j = self.n_basin_per_order_list[i][j]
                 for k in range(n_basin_j-1, -1, -1):  # per order
-                    self.basin_trees[i][j][k].remove_data()  # inflow coming from upstream basin             
+                    self.basin_trees[i][j][k].remove_data()  # inflow coming from upstream basin
                     if j > 0:
                         # the last/root basin outflow directly, no node_ds.
                         self.basin_trees[i][j][k].node_ds.remove_data()  # basin output
@@ -240,7 +249,7 @@ class NestedNarx(nn.Module):
                     for k in range(n_basin_j-1, -1, -1):  # per order
                         self.basin_trees[i][j][k].node_us.refresh_y_output()
                         self.basin_trees[i][j][k].get_y_us_data()  # inflow coming from upstream basin
-                        out = torch.cat((out, self.basin_trees[i][j][k].run_model()), dim=1)               
+                        out = torch.cat((out, self.basin_trees[i][j][k].run_model()), dim=1)
                         if j > 0:
                             # the last/root basin outflow directly, no node_ds.
                             self.basin_trees[i][j][k].set_output()  # basin output
