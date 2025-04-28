@@ -19,6 +19,14 @@ class STL():
         self.residuals = None  # residuals item
         self.x = x  # the original data
         self.mode = "addition"
+        self.parity = None
+
+    def _get_parity(self):
+        """get the parity of frequency"""
+        if self.frequency % 2 == 0:
+            self.parity = 0  # even
+        else:
+            self.parity = 1  # odd
 
     def _get_t_range(self, t):
         """get the scope of time period t"""
@@ -65,8 +73,12 @@ class STL():
         c_s = self.x - self.trend
         return c_s
 
-    def _get_n_range(self):
+    def _get_n_range(self, t):
         """get the number of time period"""
+        t_start = 1
+        t_end = self.frequency
+        n = 0
+        t_i = t + n * self.frequency
 
     def _seasonal_t(self, t):
         """the season of specified time period """
