@@ -97,7 +97,7 @@ class pcLSTMCell(Module):
         input_size: int,
         hidden_size: int,
         # batch_size: int,
-        num_layers: int = 1,
+        # num_layers: int = 1,
         bias: bool = True,
         dropout: float = 0.0,
     ) -> None:
@@ -115,7 +115,7 @@ class pcLSTMCell(Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         # self.batch_size = batch_size
-        self.num_layers = num_layers
+        # self.num_layers = num_layers
         self.bias = bias
         self.dropout = dropout
 
@@ -225,7 +225,7 @@ class pcLSTM(Module):
         input_size: int,
         output_size: int,
         hidden_size: int,
-        num_layers: int = 1,
+        num_layers: int = 3,
         # nonlinearity: str = "tanh",
         bias: bool = True,
         # batch_first: bool = False,
@@ -243,12 +243,23 @@ class pcLSTM(Module):
         self.dropout = dropout
         # self.bidirectional = bidirectional
         self.linearIn = torch.nn.Linear(self.nx, self.hidden_size)
-        self.lstm = pcLSTMCell(
+        self.lstm = []
+        pclstmcell = pcLSTMCell(
             input_size=self.hidden_size,
             hidden_size=self.hidden_size,
-            num_layers=self.num_layers,
             dropout=self.dropout,
         )
+        for i in range(self.num_layers):
+            self.lstm.append(pclstmcell)
+        print("pclstmcell model list")
+        for i in range(self.num_layers):
+            print(self.lstm[i])
         self.linearOut = torch.nn.Linear(self.hidden_size, self.ny)
 
 
+
+# Epoch 2 Valid Loss 0.7846 Valid Metric {'NSE of streamflow': [-0.07179832458496094, 0.6020937860012054, 0.3605666160583496, 0.49114787578582764, 0.5146141648292542, 0.5641768872737885, 0.4332682490348816, 0.5208058059215546, 0.3445504307746887, 0.5849301815032959], 'RMSE of streamflow': [0.937727689743042, 0.6115314364433289, 0.8725977540016174, 0.8397765159606934, 0.721656322479248, 0.6320325136184692, 0.7655382752418518, 0.7387174367904663, 0.8698011636734009, 0.7924478054046631], 'R2 of streamflow': [-0.07179832458496094, 0.6020937860012054, 0.3605666160583496, 0.49114787578582764, 0.5146141648292542, 0.5641768872737885, 0.4332682490348816, 0.5208058059215546, 0.3445504307746887, 0.5849301815032959], 'KGE of streamflow': [-4.17055214968388, 0.2613345451191861, -4.6996091150268215, -12.4683304821144, 0.1698882335962545, 0.5628409933861886, -0.1697408942596299, -0.04265819030779183, -48.41112055692167, -0.047906949678860444], 'FHV of streamflow': [-19.597141444683075, -30.103501677513123, -24.726715683937073, -41.080063581466675, -47.5444495677948, -44.422733783721924, -58.1508994102478, -52.74372100830078, -60.483938455581665, -42.67994165420532], 'FLV of streamflow': [-119.58931684494019, -55.743175745010376, -75.80413222312927, -61.86025142669678, -23.665884137153625, -44.34462785720825, -18.388770520687103, -29.776406288146973, -8.400652557611465, -50.57823061943054]}
+# Weights sucessfully loaded
+# All processes are finished!
+# 100%|██████████| 44/44 [02:15<00:00,  3.08s/it]
+# 100%|██████████| 44/44 [00:37<00:00,  1.17it/s]
