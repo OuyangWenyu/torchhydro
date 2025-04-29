@@ -177,10 +177,13 @@ class GeneralSeq2Seq(nn.Module):
                 ),
                 float("nan"),
             ).to(device)
-        encoder_outputs, hidden_, cell_ = self.encoder(encoder_input)
+        trgs_q = trgs[:, :, :1]
+        trgs_s = trgs[:, :, 1:]
+        trgs = torch.cat((trgs_s, trgs_q), dim=2)  # sq
+        encoder_outputs, hidden_, cell_ = self.encoder(encoder_input)  # sq
         hidden, cell = self.transfer(hidden_, cell_)
         outputs = []
-        prev_output = encoder_outputs[-1, :, :].unsqueeze(0)
+        prev_output = encoder_outputs[-1, :, :].unsqueeze(0)  # sq
         _, batch_size, _ = decoder_input.size()
 
         outputs = torch.zeros(self.trg_len, batch_size, self.output_size).to(
@@ -191,17 +194,20 @@ class GeneralSeq2Seq(nn.Module):
             pc = decoder_input[t : t + 1, :, :]  # sq
             obs = trgs[self.hindcast_output_window + t, :, :].unsqueeze(0)  # sq
             safe_obs = torch.where(torch.isnan(obs), torch.zeros_like(obs), obs)
-            prev_output = torch.where(
+            prev_output = torch.where(  # sq
                 use_teacher_forcing[t : t + 1, :, :],
                 safe_obs,
                 prev_output,
             )
             current_input = torch.cat((pc, prev_output), dim=2)  # pcsq
             output, hidden, cell = self.decoder(current_input, hidden, cell)
-            outputs[t, :, :] = output.squeeze(0)
+            outputs[t, :, :] = output.squeeze(0)  # sq
         if self.hindcast_output_window > 0:
             prec_outputs = encoder_outputs[-self.hindcast_output_window :, :, :]
             outputs = torch.cat((prec_outputs, outputs), dim=0)
+        outputs_s = outputs[:, :, :1]
+        outputs_q = outputs[:, :, 1:]
+        outputs = torch.cat((outputs_q, outputs_s), dim=2)  # qs
         return outputs
 
 

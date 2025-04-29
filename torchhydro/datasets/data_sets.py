@@ -1056,10 +1056,10 @@ class Seq2SeqDataset(BaseDataset):
         # y cover specified encoder size (hindcast_output_window) and all decoder periods
         y = self.y[
             basin, time + rho - hindcast_output_window + 1 : time + rho + horizon + 1, :
-        ]
-        y_q = y[:, :1]
-        y_s = y[:, 1:]
-        y = np.concatenate((y_q, y_s), axis=1)
+        ]  # qs
+        # y_q = y[:, :1]
+        # y_s = y[:, 1:]
+        # y = np.concatenate((y_s, y_q), axis=1)
 
         if self.is_tra_val_te == "train":
             return [
