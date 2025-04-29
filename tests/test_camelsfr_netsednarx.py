@@ -194,7 +194,8 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
 #  92%|█████████▏| 11/12 [00:15<00:01,  1.21s/it]
 # 100%|██████████| 12/12 [00:17<00:00,  1.60s/it]
 # 100%|██████████| 12/12 [00:17<00:00,  1.48s/it]
-# Epoch 1  Loss  1.0545 time 19.59 lr 1.0                           this=2/3
+# photographer
+# Epoch 1  Loss  1.0545 time 19.59 lr 1.0                           this=2/3  first
 # NestedNarx(
 #   (dl_model): Narx(
 #     (linearIn): Linear(in_features=5, out_features=64, bias=True)
@@ -214,3 +215,4 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
 # E           self.n_call_froward = 13
 # E           n_basin = 4
 # E           len(self.basin_list) = 18
+# help = [1/2, 2/3]

@@ -371,7 +371,7 @@ class DplAnnSac(nn.Module):
         """
         Differential parameter learning
 
-        z (normalized input) -> ANN -> param -> + x (not normalized) -> sac -> q
+        z (normalized input) -> ANN + benefit -> param -> + x (not normalized) -> sac -> q
 
         Parameters
         ----------
@@ -460,7 +460,7 @@ class DplLstmSac(nn.Module):
         """
         Differential parameter learning
 
-        z (normalized input) -> lstm -> param -> + x (not normalized) -> sac -> q
+        z (normalized input) -> lstm + benefit -> param -> + x (not normalized) -> sac -> q
         Parameters will be denormalized in sac model
 
         Parameters
