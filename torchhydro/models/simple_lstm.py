@@ -92,22 +92,25 @@ class HFLSTM(nn.Module):
         xfc_rho, xfc_hor, xq_rho, xq_hor = x
 
         x_rho = torch.cat((xfc_rho, xq_rho), dim=-1)
-        seq_len, batch_size, _ = xfc_hor.size()
-
-        use_teacher_forcing = self._teacher_forcing_preparation(xq_hor)
+        hor_len, batch_size, _ = xfc_hor.size()
 
         # hindcast-forecast, we do not have forecast-hindcast situation
         # do rho forward first, prev_output is the last output of rho (seq_length = 1, batch_size, feature = output_size)
         if self.hindcast_with_output:
             _, h_n, c_n, prev_output = self._rho_forward(x_rho)
+            seq_len = hor_len
         else:
             # TODO: need more test
-            seq_len = xfc_rho.shape[0] + seq_len
+            seq_len = xfc_rho.shape[0] + hor_len
+            xfc_hor = torch.cat((xfc_rho, xfc_hor), dim=0)
+            xq_hor = torch.cat((xq_rho, xq_hor), dim=0)
             h_n = torch.randn(1, batch_size, self.hidden_size).to(xfc_rho.device) * 0.1
             c_n = torch.randn(1, batch_size, self.hidden_size).to(xfc_rho.device) * 0.1
             prev_output = (
-                torch.randn(1, batch_size, self.output_size).to(x.device) * 0.1
+                torch.randn(1, batch_size, self.output_size).to(xfc_rho.device) * 0.1
             )
+
+        use_teacher_forcing = self._teacher_forcing_preparation(xq_hor)
 
         # do hor forward
         outputs = torch.zeros(seq_len, batch_size, self.output_size).to(xfc_rho.device)
@@ -131,7 +134,7 @@ class HFLSTM(nn.Module):
             prev_output = self.linearOut(out_lstm)
             outputs[t, :, :] = prev_output.squeeze(0)
         # Return the outputs
-        return outputs
+        return outputs[-hor_len:, :, :]
 
 
 class MultiLayerLSTM(nn.Module):

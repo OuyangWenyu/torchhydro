@@ -976,26 +976,57 @@ class Seq2SeqDataset(BaseDataset):
         time_unit = self.data_cfgs["min_time_unit"]
 
         # Determine the date format
-        date_format = detect_date_format(end_date)
+        date_format = detect_date_format(start_date)
 
         # Adjust the end date based on the time unit
-        end_date_dt = datetime.strptime(end_date, date_format)
+        start_date_dt = datetime.strptime(start_date, date_format)
         if time_unit == "h":
-            adjusted_end_date = (end_date_dt + timedelta(hours=interval)).strftime(
+            adjusted_start_date = (start_date_dt - timedelta(hours=interval)).strftime(
                 date_format
             )
         elif time_unit == "D":
-            adjusted_end_date = (end_date_dt + timedelta(days=interval)).strftime(
+            adjusted_start_date = (start_date_dt - timedelta(days=interval)).strftime(
                 date_format
             )
         else:
             raise ValueError(f"Unsupported time unit: {time_unit}")
-        return self._read_xyc_specified_time(start_date, adjusted_end_date)
+        return self._read_xyc_specified_time(adjusted_start_date, end_date)
 
-    def _normalize(self):
-        x, y, c = super()._normalize()
-        # TODO: this work for minio? maybe better to move to basedataset
-        return x.compute(), y.compute(), c.compute()
+    def denormalize(self, norm_data, is_real_time=True):
+        """Denormalize the norm_data
+
+        Parameters
+        ----------
+        norm_data : np.ndarray
+            batch-first data
+        is_real_time : bool, optional
+            whether the data is real time data, by default True
+            sometimes we may have multiple results for one time period and we flatten them
+            so we need a temp time to replace real one
+
+        Returns
+        -------
+        xr.Dataset
+            denormlized data
+        """
+        target_scaler = self.target_scaler
+        target_data = target_scaler.data_target
+        # the units are dimensionless for pure DL models
+        units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
+        if target_scaler.pbm_norm:
+            units = {**units, **target_data.attrs["units"]}
+        warmup_length = self.warmup_length
+        selected_time_points = target_data.coords["time"][warmup_length:-1]
+        selected_data = target_data.sel(time=selected_time_points)
+        denorm_xr_ds = target_scaler.inverse_transform(
+            xr.DataArray(
+                norm_data,
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
+        )
+        return set_unit_to_var(denorm_xr_ds)
 
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
@@ -1003,20 +1034,21 @@ class Seq2SeqDataset(BaseDataset):
         horizon = self.horizon
         hindcast_output_window = self.data_cfgs.get("hindcast_output_window", 0)
         # p cover all encoder-decoder periods; +1 means the period while +0 means start of the current period
-        p = self.x[basin, time + 1 : time + rho + horizon + 1, 0].reshape(-1, 1)
+        p = self.x[basin, time + 1 : time + rho + horizon + 1, :1]
         # s only cover encoder periods
         s = self.x[basin, time : time + rho, 1:]
-        x = np.concatenate((p[:rho], s), axis=1)
+        # xe = np.concatenate((p[:rho], s), axis=1)
 
         if self.c is None or self.c.shape[-1] == 0:
-            xc = x
+            pc = p
         else:
             c = self.c[basin, :]
             c = np.tile(c, (rho + horizon, 1))
-            xc = np.concatenate((x, c[:rho]), axis=1)
+            pc = np.concatenate((p[:rho], c[:rho]), axis=1)
+        xe = np.concatenate((pc[:rho], s), axis=1)
         # xh cover decoder periods
         try:
-            xh = np.concatenate((p[rho:], c[rho:]), axis=1)
+            xd = np.concatenate((p[rho:], c[rho:]), axis=1)
         except ValueError as e:
             print(f"Error in np.concatenate: {e}")
             print(f"p[rho:].shape: {p[rho:].shape}, c[rho:].shape: {c[rho:].shape}")
@@ -1024,17 +1056,20 @@ class Seq2SeqDataset(BaseDataset):
         # y cover specified encoder size (hindcast_output_window) and all decoder periods
         y = self.y[
             basin, time + rho - hindcast_output_window + 1 : time + rho + horizon + 1, :
-        ]
+        ]  # qs
+        # y_q = y[:, :1]
+        # y_s = y[:, 1:]
+        # y = np.concatenate((y_s, y_q), axis=1)
 
         if self.is_tra_val_te == "train":
             return [
-                torch.from_numpy(xc).float(),
-                torch.from_numpy(xh).float(),
+                torch.from_numpy(xe).float(),
+                torch.from_numpy(xd).float(),
                 torch.from_numpy(y).float(),
             ], torch.from_numpy(y).float()
         return [
-            torch.from_numpy(xc).float(),
-            torch.from_numpy(xh).float(),
+            torch.from_numpy(xe).float(),
+            torch.from_numpy(xd).float(),
         ], torch.from_numpy(y).float()
 
 
@@ -1086,15 +1121,15 @@ class TransformerDataset(Seq2SeqDataset):
         ], torch.from_numpy(y).float()
 
 
-class BaseDatasetValidSame(BaseDataset):
+class ForecastDataset(BaseDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        super(BaseDatasetValidSame, self).__init__(data_cfgs, is_tra_val_te)
+        super(ForecastDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     def __getitem__(self, item):
         basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length
         x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
-        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx + self.rho : idx + self.rho + self.horizon, :]
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float()
         c = self.c[basin, :]

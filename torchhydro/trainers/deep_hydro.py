@@ -385,7 +385,9 @@ class DeepHydro(DeepHydroInterface):
         test_preds = []
         obss = []
         with torch.no_grad():
-            for xs, ys in test_dataloader:
+            for xs, ys in tqdm(
+                test_dataloader, desc="Processing", total=len(test_dataloader)
+            ):
                 # here the a batch doesn't mean a basin; it is only an index in lookup table
                 # for NtoN mode, only basin is index in lookup table, so the batch is same as basin
                 # for Nto1 mode, batch is only an index
