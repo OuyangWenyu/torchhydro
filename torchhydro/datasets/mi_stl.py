@@ -2,8 +2,6 @@
 import numpy as np
 import pandas as pd
 
-
-
 class STL():
     """
     Seasonal-Trend decomposition using LOESS
@@ -24,6 +22,7 @@ class STL():
         self.compound_season = None
         self.u = 0
         self.mutation = None
+        self.cycle_subseries = None
 
     def _get_parity(self):
         """get the parity of frequency"""
@@ -141,11 +140,11 @@ class STL():
         """calculate robustness weights, """
         data = np.absolute(data, axis=2)
         h = np.median(data, axis=2) * 6
-        u = data / h
+        u = data / h  # np.divide()
         r = np.where(
-            u > 1,
+            u >= 1,
             0,
-            (1 - u * u) * (1 - u * u)
+            (1 - u ** 2) ** 2
         )
         return r
 
@@ -153,4 +152,6 @@ class STL():
         """get the residuals of series"""
         self.residuals = self.x - self.trend - self.season
 
-    def 
+    def external_loop(self):
+        """external loop of stl"""
+
