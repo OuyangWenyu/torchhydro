@@ -22,6 +22,8 @@ class STL():
         self.mode = "addition"
         self.parity = None
         self.compound_season = None
+        self.u = 0
+        self.mutation = None
 
     def _get_parity(self):
         """get the parity of frequency"""
@@ -52,19 +54,9 @@ class STL():
     def _trend_t_odd(self, t):
         """
         get the trend of specified time period
-        Parameters
-        ----------
-        x
-
-        Returns
-        -------
-
         """
-        # length = x.shape[0]   # (time,basin,features)
         t_range = self._get_t_range_odd(t)
         data = self._get_data(t_range)
-        # if length != self.length:
-        #     raise ValueError("Length mismatch")
         trend_t = np.sum(data, axis=2)/self.frequency
 
         return trend_t
@@ -94,15 +86,18 @@ class STL():
         self.trend = np.array(trend)
 
     def _compound_season(self):
-        """get the compound season"""
+        """get the compound season, detrending"""
         c_s = self.x - self.trend
         self.compound_season = c_s
 
     def _get_n_range(self, t):
-        """get the number of time period"""
+        """
+        get the number of time period when calculate season item at specified time period
+        circle-subseries
+        """
         t_start = 1
         t_end = self.frequency
-        n = 0
+        n = max(n, n <= self.length/self.frequency)
         t_i = t + n * self.frequency
         n_range = 0
 
@@ -123,9 +118,11 @@ class STL():
     def _seasonal_t(self, t):
         """the season of specified time period """
         n_range = self._get_n_range(t)
-        t_range = self._get_t_range_season(t, n_range)
-        data = self._get_c_s_data(self._get_c_s_data(t_range))
+        t_range = self._get_t_range_season(t, n_range)  # todo:
+        data = self._get_c_s_data(self._get_c_s_data(t_range))  # todo:
         season_t = np.sum(data, axis=2)/self.frequency
+        # circle-subseries smoothing, Loess method
+
         return season_t
 
     def _season(self):
@@ -136,6 +133,24 @@ class STL():
             season.append(season_i)
         self.season = season
 
+    def deseasonalizing(self):
+        """detach season item"""
+
+
+    def _get_robustness_weights(self, data):
+        """calculate robustness weights, """
+        data = np.absolute(data, axis=2)
+        h = np.median(data, axis=2) * 6
+        u = data / h
+        r = np.where(
+            u > 1,
+            0,
+            (1 - u * u) * (1 - u * u)
+        )
+        return r
+
     def _residuals(self):
         """get the residuals of series"""
         self.residuals = self.x - self.trend - self.season
+
+    def 
