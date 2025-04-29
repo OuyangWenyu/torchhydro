@@ -38,7 +38,7 @@ class Node:
             n_t, n_basin, n_y = self.y_input.shape  # (time, basin, features(streamflow))
         if n_basin == len(self.basin_us):
             self.y_output = self.y_input.to(self.device)
-    
+
     def remove_data(self):
         if self.y_input.ndim > 1:
             self.y_input = torch.Tensor([])
@@ -64,7 +64,7 @@ class Basin:
         self.max_order_of_tree = -1
         self.cal_order = self.max_order_of_tree - self.basin_order
         self.device = None
-        self.x = torch.Tensor([])  # forcing data (prce,pet)
+        self.x = torch.Tensor([])  # forcing data (prcp,pet)
         self.y = torch.Tensor([])  # target data (streamflow)
         self.y_us = torch.Tensor([])  # input data / inflow from upstream (streamflow)
         self.model = None  # dl model     perhaps some dl or pb model here.
@@ -88,13 +88,13 @@ class Basin:
 
     def refresh_cal_order(self):
         self.cal_order = self.max_order_of_tree - self.basin_order
-    
+
     def set_device(self, device):
         self.device = device  # ?
 
     def set_x_data(self, x):
         self.x = x.to(self.device)
-    
+
     def set_y_data(self, y):
         self.y = y.to(self.device)
 
@@ -113,20 +113,20 @@ class Basin:
         if (self.input_x.ndim > 1) and (self.y.ndim > 1):
             self.input_x = torch.cat([self.input_x, self.y], dim=-1)
         self.input_x = self.input_x.to(self.device)
-    
+
     def run_model(self):
         self.make_input_x()
         if self.input_x.ndim > 1:
             self.output_y = torch.cat((self.output_y, self.model(self.input_x)), dim = 2)
         return torch.unsqueeze(self.output_y[:, :, -1], 2)  # (time, basin, features)
-    
+
     def set_output(self):
         """outflow to node_ds"""
         try:
-            self.node_ds.y_input = torch.cat((self.node_ds.y_input, torch.unsqueeze(self.output_y[:, :, -1], dim=2)), dim = -1).to(self.node_ds.device)  
+            self.node_ds.y_input = torch.cat((self.node_ds.y_input, torch.unsqueeze(self.output_y[:, :, -1], dim=2)), dim = -1).to(self.node_ds.device)
         except AttributeError:
             raise AttributeError("'NoneType' object has no attribute 'y_input'")
-        
+
     def remove_data(self):
         """remove the data saved in tensors."""
         if self.x.ndim > 1:
@@ -138,13 +138,13 @@ class Basin:
         if self.input_x.ndim > 1:
             self.input_x = torch.Tensor([])
         if self.output_y.ndim > 1:
-            self.output_y = torch.Tensor([]) 
-    
+            self.output_y = torch.Tensor([])
+
     def remove_model(self):
         "remove model"
         if self.model is not None:
             self.model = None
-    
+
     def remove_device(self):
         "remove device"
         if self.device is not None:
@@ -192,8 +192,8 @@ class BasinTree:
             "n_basin_per_order_list": None,
             "n_basin_per_order" : None,  # the basin number per order
         }
-        
-        
+
+
     def _region_basin_type(self):
         """
         figure out the type for each basin. basin type: single_river, leaf, limb, river_tree_root.
@@ -203,7 +203,7 @@ class BasinTree:
 
         """
         self.nestedness = pd.concat([
-                self.nestedness, 
+                self.nestedness,
                 pd.DataFrame(columns=[
                     "type_single_river",
                     "type_leaf",
@@ -211,7 +211,7 @@ class BasinTree:
                     "type_river_tree_root",
                     "basin_type"
                 ])],
-            axis=1, 
+            axis=1,
             sort=False
         )
 
@@ -551,7 +551,7 @@ class BasinTree:
             basin_trees.append(basin_tree_i)
             basin_list = basin_list + basin_list__i  # use of dataset
             basin_list_array.append(basin_list_i)  # use of nestednarx model
-            order_list = order_list + order_list_i[:]  # 
+            order_list = order_list + order_list_i[:]  #
             n_basin_per_order_list[i] = n_basin_per_order_i[:]
             if max_order_i > max_order:
                 max_order = max_order_i
