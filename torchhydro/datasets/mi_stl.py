@@ -6,6 +6,7 @@ class STL():
     """
     Seasonal-Trend decomposition using LOESS
     Loess   circle-subseries
+    y_t = T_t + S_t + R_t
     """
     def __init__(self, x):
         """
@@ -23,6 +24,8 @@ class STL():
         self.u = 0
         self.mutation = None
         self.cycle_subseries = None
+        self.window_length = 5
+        self.cycle_length = 4
 
     def _get_parity(self):
         """get the parity of frequency"""
@@ -96,7 +99,7 @@ class STL():
         """
         t_start = 1
         t_end = self.frequency
-        n = max(n, n <= self.length/self.frequency)
+        n = max(n, n <= self.length/self.frequency)  # todo；
         t_i = t + n * self.frequency
         n_range = 0
 
@@ -152,6 +155,33 @@ class STL():
         """get the residuals of series"""
         self.residuals = self.x - self.trend - self.season
 
-    def external_loop(self):
+    def outer_loop(self):
         """external loop of stl"""
 
+
+    def _weight_x(self, x):
+        """calculate weights within window"""
+        length = int(self.window_length / 2)
+        distance = []
+        weigth = []
+        for i in range(self.window_length):
+            d_i = np.absolute(i - (length + 1)) / 2
+            distance.append(d_i)
+            w_i = (1 - d_i ** 3) ** 3
+            weigth.append(w_i)
+        return weigth
+
+    def polynomial_regressive(self):
+        """polynomial regressive"""
+        
+
+    def cycle_subseries(self):
+        """divide cycle subseries"""
+        n_subseries = int(self.length / self.cycle_length)
+        subseries = [[]]*n_subseries
+        for i in range(n_subseries):
+            for j in range(self.cycle_length):
+                i_index = j + i * self.cycle_length
+                subseries_i = self.x[i_index, :, :]
+                subseries[i].append(subseries_i)
+        self.cycle_subseries = subseries
