@@ -190,9 +190,10 @@ class GeneralSeq2Seq(nn.Module):
         for t in range(self.trg_len):
             pc = decoder_input[t : t + 1, :, :]  # sq
             obs = trgs[self.hindcast_output_window + t, :, :].unsqueeze(0)  # sq
+            safe_obs = torch.where(torch.isnan(obs), torch.zeros_like(obs), obs)
             prev_output = torch.where(
                 use_teacher_forcing[t : t + 1, :, :],
-                obs,
+                safe_obs,
                 prev_output,
             )
             current_input = torch.cat((pc, prev_output), dim=2)  # pcsq
