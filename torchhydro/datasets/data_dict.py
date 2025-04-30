@@ -10,7 +10,7 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 
 from torchhydro.datasets.data_sets import (
     BaseDataset,
-    BaseDatasetValidSame,
+    ForecastDataset,
     HFDataset,
     BasinSingleFlowDataset,
     DplDataset,
@@ -24,7 +24,7 @@ from torchhydro.datasets.data_sets import (
 
 datasets_dict = {
     "StreamflowDataset": BaseDataset,
-    "BaseDatasetValidSame": BaseDatasetValidSame,
+    "ForecastDataset": ForecastDataset,
     "HFDataset": HFDataset,
     "SingleflowDataset": BasinSingleFlowDataset,
     "DplDataset": DplDataset,

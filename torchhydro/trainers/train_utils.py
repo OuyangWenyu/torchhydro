@@ -392,13 +392,13 @@ def _recover_samples_to_basin(arr_3d, valorte_data_loader, pace_idx):
     for sample_idx in range(arr_3d.shape[0]):
         # Get the basin and start time index corresponding to this sample
         basin, start_time = dataset.lookup_table[sample_idx]
-        # Take the value at the last time step of this sample (at the position of rho + horizon)
-        value = arr_3d[sample_idx, pace_idx, :]
         # Calculate the time position in the result array
         if pace_idx < 0:
+            value = arr_3d[sample_idx, pace_idx, :]
             result_time_idx = start_time + warmup_len + rho + horizon + pace_idx
         else:
-            result_time_idx = start_time + warmup_len + rho + pace_idx
+            value = arr_3d[sample_idx, pace_idx - 1, :]
+            result_time_idx = start_time + warmup_len + rho + pace_idx - 1
         # Fill in the corresponding position
         basin_array[basin, result_time_idx, :] = value
 
@@ -609,7 +609,7 @@ def compute_validation(
     pred_final = None
     with torch.no_grad():
         iter_num = 0
-        for src, trg in data_loader:
+        for src, trg in tqdm(data_loader, desc="Processing", total=len(data_loader)):
             trg, output = model_infer(seq_first, device, model, src, trg)
             obs.append(trg)
             preds.append(output)
