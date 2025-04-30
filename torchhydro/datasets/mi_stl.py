@@ -19,13 +19,20 @@ class STL():
         self.residuals = None  # residuals item
         self.x = x  # the original data
         self.mode = "addition"
-        self.parity = None
+        self.parity = None  # the parity of frequency
         self.compound_season = None
         self.u = 0
         self.mutation = None
         self.cycle_subseries = None
-        self.window_length = 5
         self.cycle_length = 4
+        self.window_length = 5
+        self.t_window = 15 # need to be odd
+        self.t_degress = 0 # 1 or 2
+        self.s_window = 5  # need to be odd
+        self.s_degress = 1 # 1 or 2
+        self.robust = True # True of False
+        self.degress = 1 # 1 or 2, locally-linear or locally-quadratic
+
 
     def _get_parity(self):
         """get the parity of frequency"""
@@ -155,25 +162,36 @@ class STL():
         """get the residuals of series"""
         self.residuals = self.x - self.trend - self.season
 
-    def outer_loop(self):
-        """external loop of stl"""
 
-
-    def _weight_x(self, x):
-        """calculate weights within window"""
+    def _neighborhood_weight(self):
+        """calculate neighborhood weights within window"""
         length = int(self.window_length / 2)
-        distance = []
         weigth = []
         for i in range(self.window_length):
-            d_i = np.absolute(i - (length + 1)) / 2
-            distance.append(d_i)
-            w_i = (1 - d_i ** 3) ** 3
+            d_i = np.absolute((i + 1) - (length + 1)) / 2
+            if d_i >= 1:
+                w_i = 0
+            else:
+                w_i = (1 - d_i ** 3) ** 3
             weigth.append(w_i)
         return weigth
 
+    def _neighborhood_weight_x(self, xi, x):
+        weigth = self._neighborhood_weight()
+        v_xi = weigth * np.absolute(xi - x)/((self.window_length - 1)/2)
+        return v_xi
+
+
     def polynomial_regressive(self):
-        """polynomial regressive"""
-        
+        """polynomial regressive, least-squares, locally fit"""
+        x = 0  # independence variable
+        xi = 0
+        v_i = self._neighborhood_weight_x(xi, x)
+        d = self.degress  # degree
+        q = 0
+        a = 0
+        c = 0
+        g_x = a * x ** d + c
 
     def cycle_subseries(self):
         """divide cycle subseries"""
@@ -181,7 +199,24 @@ class STL():
         subseries = [[]]*n_subseries
         for i in range(n_subseries):
             for j in range(self.cycle_length):
-                i_index = j + i * self.cycle_length
-                subseries_i = self.x[i_index, :, :]
+                index = j + i * self.cycle_length
+                subseries_i = self.x[index, :, :]
                 subseries[i].append(subseries_i)
         self.cycle_subseries = subseries
+
+    def inner_loop(self):
+        """
+        the inner loop
+
+        Returns
+        -------
+
+        """
+
+    def outer_loop(self):
+        """
+        the outer loop of stl
+        Returns
+        -------
+
+        """
