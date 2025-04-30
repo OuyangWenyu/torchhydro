@@ -26,7 +26,7 @@ class ystl():
         self.data = data.streamflow.data[0].T
         # print(self.data)
 
-def test_read_dat():
+def test_read_data():
     x = ystl().data
     print(x)
 # [165.8 164.1 158.8 ...  73.2  71.1  71.3]
@@ -35,4 +35,5 @@ def test_cycle_subseries():
     x = ystl().data
     stl = STL(x)
     stl._cycle_subseries()
-    print(stl.cycle_subseries)
+    print(len(stl.cycle_subseries))
+# PASSED                      [100%]365

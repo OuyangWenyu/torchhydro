@@ -24,7 +24,7 @@ class STL():
         self.u = 0
         self.mutation = None
         self.cycle_subseries = None
-        self.cycle_length = 90
+        self.cycle_length = 365
         self.window_length = 5
         self.t_window = 15 # need to be odd
         self.t_degress = 0 # 1 or 2
@@ -196,15 +196,26 @@ class STL():
         g_x = a * x ** d + c
 
     def _cycle_subseries(self):
-        """divide cycle subseries"""
-        n_subseries = int(self.length / self.cycle_length)
-        subseries = [[]]*n_subseries
+        """
+        divide cycle subseries
+        4 year date, (1990,1991,1992,1993). 1992 is leap year.
+        cycle_length = 365
+        reject 1992-02-29
+        Returns
+        -------
+
+        """
+        n_subseries = self.cycle_length
+        len_subseries = int(self.length / n_subseries)  # 4
+        subseries = [[]] * n_subseries
+        subseries_i = [0] * len_subseries
         for i in range(n_subseries):
-            for j in range(self.cycle_length):
-                index = j + i * self.cycle_length
-                # subseries_i = self.x[index, :, :]
-                subseries_i = self.x[index]
-                subseries[i].append(subseries_i)
+            for j in range(len_subseries):
+                index = i + j * n_subseries
+                # subseries_ij = self.x[index, :, :]
+                subseries_ij = self.x[index]
+                subseries_i[j] = subseries_ij
+            subseries[i] = subseries_i[:]
         self.cycle_subseries = subseries
 
     def inner_loop(self):
