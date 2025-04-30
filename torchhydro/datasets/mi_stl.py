@@ -12,19 +12,19 @@ class STL():
         """
         initiate a STL model
         """
+        self.x = x  # the original data
         self.frequency = 1  # the frequency of time series
-        self.length = x.size  # the length of time series
+        self.length = len(x)  # the length of time series
         self.trend = None  # trend item
         self.season = None  # season item
         self.residuals = None  # residuals item
-        self.x = x  # the original data
         self.mode = "addition"
         self.parity = None  # the parity of frequency
         self.compound_season = None
         self.u = 0
         self.mutation = None
         self.cycle_subseries = None
-        self.cycle_length = 4
+        self.cycle_length = 90
         self.window_length = 5
         self.t_window = 15 # need to be odd
         self.t_degress = 0 # 1 or 2
@@ -32,6 +32,8 @@ class STL():
         self.s_degress = 1 # 1 or 2
         self.robust = True # True of False
         self.degress = 1 # 1 or 2, locally-linear or locally-quadratic
+
+        self._get_parity()
 
 
     def _get_parity(self):
@@ -200,7 +202,8 @@ class STL():
         for i in range(n_subseries):
             for j in range(self.cycle_length):
                 index = j + i * self.cycle_length
-                subseries_i = self.x[index, :, :]
+                # subseries_i = self.x[index, :, :]
+                subseries_i = self.x[index]
                 subseries[i].append(subseries_i)
         self.cycle_subseries = subseries
 
