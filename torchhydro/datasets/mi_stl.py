@@ -12,8 +12,8 @@ class STL():
         """
         initiate a STL model
         """
-        self.frequency = 6  # the frequency of time series
-        self.length = 4 * 30  # the length of time series
+        self.frequency = 1  # the frequency of time series
+        self.length = x.size  # the length of time series
         self.trend = None  # trend item
         self.season = None  # season item
         self.residuals = None  # residuals item
@@ -193,7 +193,7 @@ class STL():
         c = 0
         g_x = a * x ** d + c
 
-    def cycle_subseries(self):
+    def _cycle_subseries(self):
         """divide cycle subseries"""
         n_subseries = int(self.length / self.cycle_length)
         subseries = [[]]*n_subseries
