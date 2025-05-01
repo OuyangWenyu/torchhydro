@@ -60,6 +60,14 @@ def test_recover_series():
 # 365
 # [165.8, 164.1, 158.8, 158.0, 156.2, 144.8, 137.6, 134.6, 130.3, 128.2]
 
+def test_neighborhood_weight():
+    x = ystl().data
+    stl = STL(x)
+    weight = stl._neighborhood_weight()
+    print(weight)
+# [0, np.float64(0.669921875), np.float64(1.0), np.float64(0.669921875), 0]
+# [0.0, 0.669921875, 1.0, 0.669921875, 0.0]
+
 def test_moving_average_smoothing():
     x = ystl().data
     stl = STL(x)

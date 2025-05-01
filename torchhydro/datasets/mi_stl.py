@@ -7,6 +7,7 @@ class STL():
     Seasonal-Trend decomposition using LOESS
     Loess   circle-subseries
     y_t = T_t + S_t + R_t
+    todo: unify the data type.
     """
     def __init__(self, x):
     # def __init__(self):
@@ -228,9 +229,9 @@ class STL():
         for i in range(self.window_length):
             d_i = np.absolute((i + 1) - (length + 1)) / 2
             if d_i >= 1:
-                w_i = 0
+                w_i = 0.0
             else:
-                w_i = (1 - d_i ** 3) ** 3
+                w_i = float((1 - d_i ** 3) ** 3)
             weigth.append(w_i)
         return weigth
 
