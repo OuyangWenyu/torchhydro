@@ -66,4 +66,10 @@ def test_moving_average_smoothing():
     result = stl.moving_average_smoothing(7, x)
     print(result[:10])
 
-
+def test_weight_least_squares():
+    x = ystl().data
+    stl = STL(x)
+    xx = [1, 2, 3, 4, 5]
+    y = x[:5]
+    yy = stl.weight_least_squares(xx, y)
+    print(yy)

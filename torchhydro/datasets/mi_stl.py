@@ -30,11 +30,11 @@ class STL():
         self.cycle_length = 365
         self.window_length = 5  # window width, span
         self.t_window = 15 # need to be odd
-        self.t_degress = 0 # 1 or 2
+        self.t_degree = 0 # 1 or 2
         self.s_window = 5  # need to be odd
-        self.s_degress = 1 # 1 or 2
+        self.s_degree = 1 # 1 or 2
         self.robust = True # True of False
-        self.degress = 1 # 1 or 2, locally-linear or locally-quadratic
+        self.degree = 1 # 1 or 2, locally-linear or locally-quadratic
 
         self._get_parity()
 
@@ -253,15 +253,44 @@ class STL():
         x = 0  # independence variable
         xi = 0
         v_i = self._neighborhood_weight_x(xi, x)
-        d = self.degress  # degree
+        d = self.degree  # degree
         q = 0
         a = 0
         c = 0
         g_x = a * x ** d + c
 
-    def weigtht_least_squares(self):
-        """least squares estimate"""
+    def weight_least_squares(self, x, y):
+        """
+        least squares estimate
+        Parameters
+        ----------
+        x
+        y
 
+        Returns
+        -------
+
+        """
+        degree = 1
+        x = x
+        y = y
+        length = len(x)
+        weight = self._neighborhood_weight()
+        xt = np.transpose(x)
+        a = xt * weight * x
+        a = np.linalg.inv(a)
+        y_ = x * a * xt * weight * y
+        return y_
+
+    def robustness_weights(self):
+        """robustness weights"""
+        length = self.length
+        x = list(range(length))
+        y = self.x  # todo
+        y_ = self.weight_least_squares(x, y)
+        error = y - y_  # residual error
+        abs_error = np.absolute(error)
+        s = np.median(abs_error)
 
 
     def loess(self, n, x):
