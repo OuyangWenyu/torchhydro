@@ -49,3 +49,19 @@ def test_weight_function():
     print(w)
 # [0, 0.5625, 1, 0.5625, 0]
 # [0, 0.669921875, 1, 0.669921875, 0]
+
+def test_recover_series():
+    x = ystl().data
+    stl = STL()
+    stl._cycle_subseries()
+    print(len(stl.cycle_subseries))
+    series = stl._recover_series()
+    print(series[:10])
+
+def test_moving_average_smoothing():
+    x = ystl().data
+    stl = STL()
+    result = stl.moving_average_smoothing(7, x)
+    print(result[:10])
+
+

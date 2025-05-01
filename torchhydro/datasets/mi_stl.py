@@ -151,6 +151,39 @@ class STL():
         """detach season item"""
 
 
+    def _cycle_subseries(self, x):
+        """
+        divide cycle subseries
+        4 year date, (1990,1991,1992,1993). 1992 is leap year.
+        cycle_length = 365
+        reject 1992-02-29
+        Returns
+        -------
+
+        """
+        n_subseries = self.cycle_length
+        len_subseries = int(self.length / n_subseries)  # 4
+        subseries = [[]] * n_subseries
+        subseries_i = [0] * len_subseries
+        for i in range(n_subseries):
+            for j in range(len_subseries):
+                index = i + j * n_subseries
+                # subseries_ij = self.x[index, :, :]
+                subseries_ij = x[index]
+                subseries_i[j] = subseries_ij
+            subseries[i] = subseries_i[:]
+        return subseries
+
+    def _recover_series(self, subseries):
+        """recover series from cycle subseries"""
+        n_subseries = self.cycle_length
+        len_subseries = int(self.length / n_subseries)
+        series = []
+        for j in range(len_subseries):
+            series_j = subseries[:,j]
+            series.append(series_j)
+        return series
+
     def _get_robustness_weights(self, data):
         """calculate robustness weights, """
         data = np.absolute(data, axis=2)
@@ -222,31 +255,28 @@ class STL():
         c = 0
         g_x = a * x ** d + c
 
-    def _cycle_subseries(self, x):
-        """
-        divide cycle subseries
-        4 year date, (1990,1991,1992,1993). 1992 is leap year.
-        cycle_length = 365
-        reject 1992-02-29
-        Returns
-        -------
+    def weigtht_least_squares(self):
+        """least squares estimate"""
 
-        """
-        n_subseries = self.cycle_length
-        len_subseries = int(self.length / n_subseries)  # 4
-        subseries = [[]] * n_subseries
-        subseries_i = [0] * len_subseries
-        for i in range(n_subseries):
-            for j in range(len_subseries):
-                index = i + j * n_subseries
-                # subseries_ij = self.x[index, :, :]
-                subseries_ij = x[index]
-                subseries_i[j] = subseries_ij
-            subseries[i] = subseries_i[:]
-        return subseries
+
 
     def loess(self, n, x):
         """loess """
+        c = 0
+        return c
+
+    def moving_average_smoothing(self, width, x):
+        """moving average smoothing """
+        length = len(x)
+        start = int(width/2 + 1)
+        k = int(width/2)
+        result = []*length
+        result[:start] = x[:start]
+        for i in range(start, length-start+1):
+            x_i = np.sum(x[i-k,i+k])/width
+            result[i] = x_i
+        result[length-start+1:] = x[length-start+1:]
+        return result
 
     def inner_loop(self, y, trend):
         """
@@ -262,11 +292,30 @@ class STL():
         nt
         """
         ns = 5
+        nl = 3
+        nt = 7
+        k = 7
+
         y = y - trend
+
         subseries = self._cycle_subseries(y)
+        cycle = []
         for i in range(self.cycle_length):
             subseries_i = subseries[i]
             extend_subseries_i = self.loess(ns, subseries_i)
+            cycle.append(extend_subseries_i)
+
+        lowf = self.moving_average_smoothing(k, cycle)
+        lowf = self.moving_average_smoothing(k, lowf)
+        lowf = self.moving_average_smoothing(3, lowf)
+        lowf = self.loess(nl, lowf)
+
+        s = cycle - lowf
+
+        trend = y - s
+
+        trend = self.loess(nt, trend)
+
 
 
     def outer_loop(self):
