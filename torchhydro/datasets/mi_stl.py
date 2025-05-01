@@ -8,16 +8,16 @@ class STL():
     Loess   circle-subseries
     y_t = T_t + S_t + R_t
     """
-    # def __init__(self, x):
-    def __init__(self):
+    def __init__(self, x):
+    # def __init__(self):
         """
         initiate a STL model
         """
-        # self.x = x  # the original data
-        self.x = None
+        self.x = x  # the original data
+        # self.x = None
         self.frequency = 1  # the frequency of time series
-        # self.length = len(x)  # the length of time series
-        self.length = None
+        self.length = len(x)  # the length of time series
+        # self.length = None
         self.trend = None  # trend item
         self.season = None  # season item
         self.residuals = None  # residuals item
@@ -172,16 +172,20 @@ class STL():
                 subseries_ij = x[index]
                 subseries_i[j] = subseries_ij
             subseries[i] = subseries_i[:]
-        return subseries
+        self.cycle_subseries = subseries
+        # return subseries
 
     def _recover_series(self, subseries):
         """recover series from cycle subseries"""
         n_subseries = self.cycle_length
         len_subseries = int(self.length / n_subseries)
         series = []
+        series_j = [0]*n_subseries
         for j in range(len_subseries):
-            series_j = subseries[:,j]
-            series.append(series_j)
+            for i in range(n_subseries):
+                series_ji = float(subseries[i][j])
+                series_j[i] = series_ji
+            series = series + series_j[:]
         return series
 
     def _get_robustness_weights(self, data):
