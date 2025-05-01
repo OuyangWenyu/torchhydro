@@ -37,3 +37,15 @@ def test_cycle_subseries():
     stl._cycle_subseries()
     print(len(stl.cycle_subseries))
 # PASSED                      [100%]365
+
+def test_weight_function():
+    u = [1, 0.5, 0, 0.5, 1]
+    n = 5
+    w = []
+    stl = STL()
+    for i in range(n):
+        w_i = stl.weight_function(u[i], 3)
+        w.append(w_i)
+    print(w)
+# [0, 0.5625, 1, 0.5625, 0]
+# [0, 0.669921875, 1, 0.669921875, 0]

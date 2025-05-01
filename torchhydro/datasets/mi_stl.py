@@ -8,13 +8,16 @@ class STL():
     Loess   circle-subseries
     y_t = T_t + S_t + R_t
     """
-    def __init__(self, x):
+    # def __init__(self, x):
+    def __init__(self):
         """
         initiate a STL model
         """
-        self.x = x  # the original data
+        # self.x = x  # the original data
+        self.x = None
         self.frequency = 1  # the frequency of time series
-        self.length = len(x)  # the length of time series
+        # self.length = len(x)  # the length of time series
+        self.length = None
         self.trend = None  # trend item
         self.season = None  # season item
         self.residuals = None  # residuals item
