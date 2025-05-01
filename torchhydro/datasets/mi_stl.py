@@ -25,7 +25,7 @@ class STL():
         self.mutation = None
         self.cycle_subseries = None
         self.cycle_length = 365
-        self.window_length = 5
+        self.window_length = 5  # window width, span
         self.t_window = 15 # need to be odd
         self.t_degress = 0 # 1 or 2
         self.s_window = 5  # need to be odd
@@ -164,6 +164,22 @@ class STL():
         """get the residuals of series"""
         self.residuals = self.x - self.trend - self.season
 
+    def weight_function(self, u, d: int = 2,):
+        """
+        quadratic/cubic weight  function
+        Parameters
+        ----------
+        u
+        d, int, degree, 2 or 3.
+
+        Returns
+        -------
+
+        """
+        if np.absolute(u) < 1:
+            return (1 - u ** d) ** d
+        else:
+            return 0
 
     def _neighborhood_weight(self):
         """calculate neighborhood weights within window"""
@@ -185,7 +201,15 @@ class STL():
 
 
     def polynomial_regressive(self):
-        """polynomial regressive, least-squares, locally fit"""
+        """
+        polynomial regressive, least-squares, locally fit
+        1 degree linear or 2 degree quadratic polynomial
+        minimize the square summation of weight residual error -> parameters of polynomial -> estimate value
+
+        Returns
+        -------
+
+        """
         x = 0  # independence variable
         xi = 0
         v_i = self._neighborhood_weight_x(xi, x)
@@ -195,7 +219,7 @@ class STL():
         c = 0
         g_x = a * x ** d + c
 
-    def _cycle_subseries(self):
+    def _cycle_subseries(self, x):
         """
         divide cycle subseries
         4 year date, (1990,1991,1992,1993). 1992 is leap year.
@@ -213,19 +237,34 @@ class STL():
             for j in range(len_subseries):
                 index = i + j * n_subseries
                 # subseries_ij = self.x[index, :, :]
-                subseries_ij = self.x[index]
+                subseries_ij = x[index]
                 subseries_i[j] = subseries_ij
             subseries[i] = subseries_i[:]
-        self.cycle_subseries = subseries
+        return subseries
 
-    def inner_loop(self):
+    def loess(self, n, x):
+        """loess """
+
+    def inner_loop(self, y, trend):
         """
         the inner loop
-
         Returns
         -------
 
+        trend
+        calculate seasonal item
+        ni
+        ns
+        nl
+        nt
         """
+        ns = 5
+        y = y - trend
+        subseries = self._cycle_subseries(y)
+        for i in range(self.cycle_length):
+            subseries_i = subseries[i]
+            extend_subseries_i = self.loess(ns, subseries_i)
+
 
     def outer_loop(self):
         """
@@ -233,4 +272,7 @@ class STL():
         Returns
         -------
 
+        adjust robustness weights
+        no
         """
+
