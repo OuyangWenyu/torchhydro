@@ -224,22 +224,28 @@ class STL():
 
     def _neighborhood_weight(self):
         """calculate neighborhood weights within window"""
+        degree = 2
         length = int(self.window_length / 2)
         weigth = []
         for i in range(self.window_length):
             d_i = np.absolute((i + 1) - (length + 1)) / length
-            if d_i >= 1:
-                w_i = 0.0
-            else:
-                w_i = float((1 - d_i ** 3) ** 3)
+            w_i = self.weight_function(d_i, degree)
             weigth.append(w_i)
         return weigth
 
     def _neighborhood_weight_x(self, xi, x):
+        """"""
         weight = self._neighborhood_weight()
         v_xi = weight * np.absolute(xi - x)/((self.window_length - 1)/2)
         return v_xi
 
+    def robustness_neighborhood_weights_x(self, v_xi):
+        """robustness neighborhood weights"""
+        # todo: ki
+        ki = 0
+        rho = 1/ki
+        rw_xi = rho*v_xi
+        return rw_xi
 
     def polynomial_regressive(self):
         """
@@ -263,22 +269,22 @@ class STL():
     def weight_least_squares(self, x, y):
         """
         least squares estimate
+        numerical analysis page 67-71.
+        degree = 1
         Parameters
         ----------
-        x
-        y
-
+        x, independent variable
+        y, dependent variable
         Returns
         -------
 
         """
-        degree = 1
         length = len(x)
         x1 = [1]*length
         At = np.array([x1, x])
         A = np.transpose(At)
         Y = y
-        weight = self._neighborhood_weight()
+        weight = self._neighborhood_weight()  # todo: use robustness_neighborhood_weights
         W = np.diag(weight)
         B = np.matmul(At, W)
         B = np.matmul(B, A)
@@ -286,7 +292,11 @@ class STL():
         a = np.matmul(B_1, At)
         a = np.matmul(a, W)
         a = np.matmul(a, Y)
-        return a
+
+        i = int(length/2 + 1)
+        yy = a[0] + a[1] * x[i]
+
+        return yy
 
     def robustness_weights(self):
         """robustness weights"""
@@ -300,7 +310,23 @@ class STL():
 
 
     def loess(self, n, x):
-        """loess """
+        """
+        loess
+        robustnes
+        calculate loess curve for a series
+        Parameters
+        ----------
+        n, window length
+        x, data need to smoothing.
+        Returns
+        -------
+
+        """
+        length = len(x)
+        xx = list(range(n))
+        for i in range(length):
+            y = x[i:i+n]
+            y_ = self.weight_least_squares(xx, y)
         c = 0
         return c
 
@@ -349,9 +375,9 @@ class STL():
         lowf = self.moving_average_smoothing(3, lowf)
         lowf = self.loess(nl, lowf)
 
-        s = cycle - lowf
+        season = cycle - lowf
 
-        trend = y - s
+        trend = y - season
 
         trend = self.loess(nt, trend)
 
