@@ -174,7 +174,7 @@ class Sac4Dpl(nn.Module):
         rgs_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         rgp_ = torch.full((n_step, n_basin), 0.0).to(sac_device)
         # generate runoff
-        for i in range(n_step):  # https://zhuanlan.zhihu.com/p/490501696
+        for i in range(n_step):
             p = torch.clamp(prcp[i, :], min=0.0)
             e = torch.nan_to_num(pet[i, :], nan=0.0, posinf=0.0, neginf=0.0)
             e = torch.clamp(e, min=0.0)

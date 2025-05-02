@@ -269,7 +269,6 @@ class STL():
     def weight_least_squares(self, x, y):
         """
         least squares estimate
-        numerical analysis page 67-71.
         degree = 1
         Parameters
         ----------
