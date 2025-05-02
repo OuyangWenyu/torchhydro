@@ -71,13 +71,26 @@ def test_neighborhood_weight():
 def test_moving_average_smoothing():
     x = ystl().data
     stl = STL(x)
-    result = stl.moving_average_smoothing(7, x)
-    print(result[:10])
-
+    xx = x[:365]
+    result1 = stl.moving_average_smoothing(7, xx)
+    result2 = stl.moving_average_smoothing(7, result1)
+    result3 = stl.moving_average_smoothing(3, result2)
+    print("\nresult1")
+    print(result1)
+    print("\nresult2")
+    print(result2)
+    print("\nresult3")
+    print(result3)
+# [165.8, 164.1, 158.8, 158.0, 131.35714285714283, 127.14285714285714, 123.07142857142857, 118.81428571428572, 114.74285714285715,
+# 112.12857142857145, 110.55714285714285, 108.42857142857144, 106.5, 105.07142857142857, 103.38571428571429, 101.42857142857143,
+# 99.45714285714284, 97.64285714285714, 96.02857142857144, 93.74285714285715, 91.47142857142858, 89.42857142857143, 87.12857142857145,
+# 85.34285714285714, 83.6, 82.3, 81.38571428571429, 82.22857142857143, 90.57142857142857, 102.5, 113.74285714285715, 123.47142857142856,
+# 131.1, 136.12857142857143, 133.4857142857143, 127.08571428571427]
 def test_weight_least_squares():
     x = ystl().data
     stl = STL(x)
     xx = [1, 2, 3, 4, 5]
     y = x[:5]
-    yy = stl.weight_least_squares(xx, y)
-    print(yy)
+    a = stl.weight_least_squares(xx, y)
+    print(a)
+    # [169.23839733 - 3.05]

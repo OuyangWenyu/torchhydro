@@ -227,7 +227,7 @@ class STL():
         length = int(self.window_length / 2)
         weigth = []
         for i in range(self.window_length):
-            d_i = np.absolute((i + 1) - (length + 1)) / 2
+            d_i = np.absolute((i + 1) - (length + 1)) / length
             if d_i >= 1:
                 w_i = 0.0
             else:
@@ -236,8 +236,8 @@ class STL():
         return weigth
 
     def _neighborhood_weight_x(self, xi, x):
-        weigth = self._neighborhood_weight()
-        v_xi = weigth * np.absolute(xi - x)/((self.window_length - 1)/2)
+        weight = self._neighborhood_weight()
+        v_xi = weight * np.absolute(xi - x)/((self.window_length - 1)/2)
         return v_xi
 
 
@@ -273,15 +273,20 @@ class STL():
 
         """
         degree = 1
-        x = x
-        y = y
         length = len(x)
+        x1 = [1]*length
+        At = np.array([x1, x])
+        A = np.transpose(At)
+        Y = y
         weight = self._neighborhood_weight()
-        xt = np.transpose(x)
-        a = xt * weight * x
-        a = np.linalg.inv(a)
-        y_ = x * a * xt * weight * y
-        return y_
+        W = np.diag(weight)
+        B = np.matmul(At, W)
+        B = np.matmul(B, A)
+        B_1 = np.linalg.inv(B)
+        a = np.matmul(B_1, At)
+        a = np.matmul(a, W)
+        a = np.matmul(a, Y)
+        return a
 
     def robustness_weights(self):
         """robustness weights"""
@@ -304,10 +309,10 @@ class STL():
         length = len(x)
         start = int(width/2 + 1)
         k = int(width/2)
-        result = []*length
+        result = [0]*length
         result[:start] = x[:start]
         for i in range(start, length-start+1):
-            x_i = np.sum(x[i-k,i+k])/width
+            x_i = np.sum(x[i-k:i+k])/width
             result[i] = x_i
         result[length-start+1:] = x[length-start+1:]
         return result
