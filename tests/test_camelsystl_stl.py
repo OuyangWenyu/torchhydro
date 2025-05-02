@@ -96,3 +96,10 @@ def test_weight_least_squares():
     print(y_)
     # [169.23839733 - 3.05]
     # 157.03839732888136
+
+def test_loess():
+    x = ystl().data
+    stl = STL(x)
+    xx = x[:365]
+    result = stl.loess(5, xx)
+    print(result)

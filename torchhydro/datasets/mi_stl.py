@@ -309,26 +309,31 @@ class STL():
         s = np.median(abs_error)
 
 
-    def loess(self, n, x):
+    def loess(self, width, x):
         """
         loess
         robustnes
         calculate loess curve for a series
         Parameters
         ----------
-        n, window length
-        x, data need to smoothing.
+        width, window length
+        x, series need to smoothing.
         Returns
         -------
 
         """
         length = len(x)
-        xx = list(range(n))
-        for i in range(length):
-            y = x[i:i+n]
-            y_ = self.weight_least_squares(xx, y)
-        c = 0
-        return c
+        xx = list(range(width))
+        start = int(width / 2 + 1)
+        k = int(width / 2)
+        result = [0] * length
+        result[:start] = x[:start]
+        for i in range(width, length-width+1):
+            y = x[i-k:i+k]
+            y_i = self.weight_least_squares(xx, y)
+            result[i] = y_i
+        result[length - start + 1:] = x[length - start + 1:]
+        return result
 
     def moving_average_smoothing(self, width, x):
         """moving average smoothing """
