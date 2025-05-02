@@ -228,7 +228,7 @@ class STL():
         length = int(self.window_length / 2)
         weigth = []
         for i in range(self.window_length):
-            d_i = np.absolute((i + 1) - (length + 1)) / length
+            d_i = np.absolute((i + 1) - (length + 1)) / (length + 1)
             w_i = self.weight_function(d_i, degree)
             weigth.append(w_i)
         return weigth
@@ -328,8 +328,8 @@ class STL():
         k = int(width / 2)
         result = [0] * length
         result[:start] = x[:start]
-        for i in range(width, length-width+1):
-            y = x[i-k:i+k]
+        for i in range(start, length-start+1):
+            y = x[i-k:i+k+1]
             y_i = self.weight_least_squares(xx, y)
             result[i] = y_i
         result[length - start + 1:] = x[length - start + 1:]
@@ -343,7 +343,7 @@ class STL():
         result = [0]*length
         result[:start] = x[:start]
         for i in range(start, length-start+1):
-            x_i = np.sum(x[i-k:i+k])/width
+            x_i = np.sum(x[i-k:i+k+1])/width
             result[i] = x_i
         result[length-start+1:] = x[length-start+1:]
         return result
@@ -386,6 +386,13 @@ class STL():
 
         trend = self.loess(nt, trend)
 
+        return trend, season
+
+    def rho_weight(self, residuals):
+        rho = [0]*self.length
+        for i in range(self.length):
+            rho[i] = self.weight_function(residuals[i], 2)
+        return rho
 
 
     def outer_loop(self):
@@ -397,4 +404,31 @@ class STL():
         adjust robustness weights
         no
         """
+        no = 10
+        ni = 1
+        trend = [0]*self.length
+        season = [0]*self.length
+        trend_i0 = []
+        season_i0 = []
+        trend_ij0 = []
+        season_ij0 = []
+        for i in range(no):
+            if i == 0:
+                trend_i0 = trend
+                season_i0 = season
+            for j in range(ni):
+                if j == 0:
+                    trend_ij0 = trend_i0[:]
+                    season_ij0 = season_i0[:]
+                trend_i, season_i = self.inner_loop(trend_ij0)
+                trend_ij0 = trend_i[:]
+                season_ij0 = season_i[:]
+            trend_i0 = trend_ij0[:]
+            season_i0 = season_ij0[:]
+            residuals = self.x - trend_i0 - season_i0
+            abs_residuals = np.absolute(residuals)
+            h = 6 * np.median(abs_residuals)
+            abs_residuals_h = abs_residuals / h
+            rho_weight = self.rho_weight(abs_residuals_h)
+
 
