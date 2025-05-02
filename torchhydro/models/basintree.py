@@ -53,7 +53,7 @@ class Node:
 
 class Basin:
     """
-    basin object, similar to river.
+    basin object, reference to river.
     """
     def __init__(self, basin_id):
         self.basin_id = basin_id
