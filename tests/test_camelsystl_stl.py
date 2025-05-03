@@ -70,6 +70,27 @@ def test_weight_function():
 # [0, 0.5625, 1, 0.5625, 0]
 # [0, 0.669921875, 1, 0.669921875, 0]
 
+def test_extend_subseries():
+    x = ystl().data
+    stl = STL(x)
+    subseries = stl._cycle_subseries(x)
+    extend_subseries = stl._extend_subseries(subseries)
+    print(len(extend_subseries))
+    print(len(extend_subseries[0]))
+# 365
+# 18
+
+def test_de_extend_subseries():
+    x = ystl().data
+    stl = STL(x)
+    subseries = stl._cycle_subseries(x)
+    extend_subseries = stl._extend_subseries(subseries)
+    de_extend_subseries = stl._de_extend_subseries(extend_subseries)
+    print(len(de_extend_subseries))
+    print(len(de_extend_subseries[0]))
+# 365
+# 16
+
 def test_recover_series():
     x = ystl().data
     stl = STL(x)
@@ -130,6 +151,7 @@ def test_loess():
     #  98.32191355118182, 96.5792282700819, 94.78967652321306, 93.5114841322158, 93.15851539692999, 96.06652462567094,
     #  113.67811940860719, 145.21504614370463, 170.2376777474338
 
+
 def test_inner_loop():
     x = ystl().data
     stl = STL(x)
@@ -138,4 +160,3 @@ def test_inner_loop():
     trend_i, season_i = stl.inner_loop(x, trend)
     print(trend_i)
     print(season_i)
-

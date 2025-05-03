@@ -105,18 +105,18 @@ class STL():
         c_s = self.x - self.trend
         self.compound_season = c_s
 
-    def _get_n_range(self, t):
-        """
-        get the number of time period when calculate season item at specified time period
-        circle-subseries
-        """
-        t_start = 1
-        t_end = self.frequency
-        n = max(n, n <= self.length/self.frequency)  # todo；
-        t_i = t + n * self.frequency
-        n_range = 0
-
-        return n_range
+    # def _get_n_range(self, t):
+    #     """
+    #     get the number of time period when calculate season item at specified time period
+    #     circle-subseries
+    #     """
+    #     t_start = 1
+    #     t_end = self.frequency
+    #     n = max(n, n <= self.length/self.frequency)  # todo；
+    #     t_i = t + n * self.frequency
+    #     n_range = 0
+    #
+    #     return n_range
 
     def _get_t_range_season(self, t, n):
         """get the range of time period"""
@@ -148,10 +148,6 @@ class STL():
             season.append(season_i)
         self.season = season
 
-    def deseasonalizing(self):
-        """detach season item"""
-
-
     def _cycle_subseries(self, x):
         """
         divide cycle subseries
@@ -174,6 +170,28 @@ class STL():
                 subseries_i[j] = subseries_ij
             subseries[i] = subseries_i[:]
         # self.cycle_subseries = subseries
+        return subseries
+
+    def _extend_subseries(self, subseries):
+        len_subseries = int(self.length/self.cycle_length)
+        len_extend_subseries = len_subseries + 2
+        extend_subseries = [[]] * self.cycle_length
+        extend_subseries_i = [0] * len_extend_subseries
+        for i in range(self.cycle_length):
+            extend_subseries_i[0] = subseries[i][0]
+            extend_subseries_i[1:len_extend_subseries-1] = subseries[i][:]
+            extend_subseries_i[-1] = subseries[i][-1]
+            extend_subseries[i] = extend_subseries_i[:]
+        return extend_subseries
+
+    def _de_extend_subseries(self, extend_subseries):
+        len_subseries = int(self.length/self.cycle_length)
+        len_extend_subseries = len_subseries + 2
+        subseries = [[]] * self.cycle_length
+        subseries_i = []
+        for i in range(self.cycle_length):
+            subseries_i = extend_subseries[i][1:-1]
+            subseries[i] = subseries_i[:]
         return subseries
 
     def _recover_series(self, subseries):
@@ -222,21 +240,23 @@ class STL():
         else:
             return 0
 
-    def _neighborhood_weight(self):
+    def _neighborhood_weight(self, width):
         """calculate neighborhood weights within window"""
         degree = 2
-        length = int(self.window_length / 2)
-        weigth = []
-        for i in range(self.window_length):
+        # length = int(self.window_length / 2)
+        length = int(width / 2)
+        weight = []
+        for i in range(width):
             d_i = np.absolute((i + 1) - (length + 1)) / (length + 1)
             w_i = self.weight_function(d_i, degree)
-            weigth.append(w_i)
-        return weigth
+            weight.append(w_i)
+        return weight
 
     def _neighborhood_weight_x(self, xi, x):
         """"""
-        weight = self._neighborhood_weight()
-        v_xi = weight * np.absolute(xi - x)/((self.window_length - 1)/2)
+        width = len(x)
+        weight = self._neighborhood_weight(width)
+        v_xi = weight * np.absolute(xi - x)/((width - 1)/2)
         return v_xi
 
     def robustness_neighborhood_weights_x(self, v_xi):
@@ -284,7 +304,7 @@ class STL():
         At = np.array([x1, x])
         A = np.transpose(At)
         Y = y
-        weight = self._neighborhood_weight()  # todo: use robustness_neighborhood_weights
+        weight = self._neighborhood_weight(length)  # todo: use robustness_neighborhood_weights
         W = np.diag(weight)
         B = np.matmul(At, W)
         B = np.matmul(B, A)
@@ -361,20 +381,22 @@ class STL():
         nl
         nt
         """
-        ns = 5
+        ns = 5  # q
         nl = 3
         nt = 7
         k = 7
-
+        # detrending
         y = np.array(y) - np.array(trend)
-
+        # cycle-subseries smoothing
         subseries = self._cycle_subseries(y)
+        extend_subseries = self._extend_subseries(subseries)
         cycle = []
         for i in range(self.cycle_length):
-            subseries_i = subseries[i]
-            extend_subseries_i = self.loess(ns, subseries_i)
+            extend_subseries_i = extend_subseries[i]
+            extend_subseries_i = self.loess(ns, extend_subseries_i)  # q = ns, d = 1
             cycle.append(extend_subseries_i)
 
+        # low-pass filtering of smoothed cycle-subseries
         lowf = []
         for i in range(self.cycle_length):
             cycle_i = cycle[i]
@@ -392,15 +414,17 @@ class STL():
             lowf_i = lowf[i]
             lowf_i = self.loess(nl, lowf_i)
             lowf[i] = lowf_i[:]
-        # lowf = self.moving_average_smoothing(k, cycle)
-        # lowf = self.moving_average_smoothing(k, lowf)
-        # lowf = self.moving_average_smoothing(3, lowf)
-        # lowf = self.loess(nl, lowf)
 
-        season = cycle - lowf
+        # detrending if smoothed cycle-subseries
+        cycle = np.array(cycle)
+        lowf = np.array(lowf)
+        extend_subseason = cycle - lowf
+        subseason = self._de_extend_subseries(extend_subseason)
+        season = self._recover_series(subseason)
 
+        # deseasonalizing
         trend = y - season
-
+        # Trend Smoothing
         trend = self.loess(nt, trend)
 
         return trend, season
