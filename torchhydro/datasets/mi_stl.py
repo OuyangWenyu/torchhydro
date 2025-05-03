@@ -105,19 +105,6 @@ class STL():
         c_s = self.x - self.trend
         self.compound_season = c_s
 
-    # def _get_n_range(self, t):
-    #     """
-    #     get the number of time period when calculate season item at specified time period
-    #     circle-subseries
-    #     """
-    #     t_start = 1
-    #     t_end = self.frequency
-    #     n = max(n, n <= self.length/self.frequency)  # todo；
-    #     t_i = t + n * self.frequency
-    #     n_range = 0
-    #
-    #     return n_range
-
     def _get_t_range_season(self, t, n):
         """get the range of time period"""
         t_start = 1
@@ -267,27 +254,11 @@ class STL():
         rw_xi = rho*v_xi
         return rw_xi
 
-    def polynomial_regressive(self):
+    def weight_least_squares(self, x, y):
         """
         polynomial regressive, least-squares, locally fit
         1 degree linear or 2 degree quadratic polynomial
         minimize the square summation of weight residual error -> parameters of polynomial -> estimate value
-
-        Returns
-        -------
-
-        """
-        x = 0  # independence variable
-        xi = 0
-        v_i = self._neighborhood_weight_x(xi, x)
-        d = self.degree  # degree
-        q = 0
-        a = 0
-        c = 0
-        g_x = a * x ** d + c
-
-    def weight_least_squares(self, x, y):
-        """
         least squares estimate
         numerical analysis page 67-71.
         degree = 1
@@ -344,15 +315,15 @@ class STL():
         """
         length = len(x)
         xx = list(range(width))
-        start = int(width / 2 + 1)
+        start = int(width / 2)
         k = int(width / 2)
         result = [0] * length
         result[:start] = x[:start]
-        for i in range(start, length-start+1):
+        for i in range(start, length-start):
             y = x[i-k:i+k+1]
             y_i = self.weight_least_squares(xx, y)
             result[i] = y_i
-        result[length - start + 1:] = x[length - start + 1:]
+        result[length - start:] = x[length - start:]
         return result
 
     def moving_average_smoothing(self, width, x):
@@ -429,10 +400,11 @@ class STL():
 
         return trend, season
 
-    def rho_weight(self, residuals):
+    def rho_weight(self, u):
+        """robustness weights"""
         rho = [0]*self.length
         for i in range(self.length):
-            rho[i] = self.weight_function(residuals[i], 2)
+            rho[i] = self.weight_function(u[i], 2)
         return rho
 
 
@@ -453,17 +425,18 @@ class STL():
         season_i0 = []
         trend_ij0 = []
         season_ij0 = []
-        for i in range(no):
+        for i in range(no):  # outer loop
             if i == 0:
                 trend_i0 = trend
                 season_i0 = season
-            for j in range(ni):
+            for j in range(ni):  # inner loop
                 if j == 0:
                     trend_ij0 = trend_i0[:]
                     season_ij0 = season_i0[:]
                 trend_i, season_i = self.inner_loop(trend_ij0)
                 trend_ij0 = trend_i[:]
                 season_ij0 = season_i[:]
+
             trend_i0 = trend_ij0[:]
             season_i0 = season_ij0[:]
             residuals = self.x - trend_i0 - season_i0
