@@ -173,8 +173,8 @@ class STL():
                 subseries_ij = x[index]
                 subseries_i[j] = subseries_ij
             subseries[i] = subseries_i[:]
-        self.cycle_subseries = subseries
-        # return subseries
+        # self.cycle_subseries = subseries
+        return subseries
 
     def _recover_series(self, subseries):
         """recover series from cycle subseries"""
@@ -366,7 +366,7 @@ class STL():
         nt = 7
         k = 7
 
-        y = y - trend
+        y = np.array(y) - np.array(trend)
 
         subseries = self._cycle_subseries(y)
         cycle = []
@@ -375,10 +375,27 @@ class STL():
             extend_subseries_i = self.loess(ns, subseries_i)
             cycle.append(extend_subseries_i)
 
-        lowf = self.moving_average_smoothing(k, cycle)
-        lowf = self.moving_average_smoothing(k, lowf)
-        lowf = self.moving_average_smoothing(3, lowf)
-        lowf = self.loess(nl, lowf)
+        lowf = []
+        for i in range(self.cycle_length):
+            cycle_i = cycle[i]
+            lowf_i = self.moving_average_smoothing(k, cycle_i)
+            lowf.append(lowf_i)
+        for i in range(self.cycle_length):
+            lowf_i = lowf[i]
+            lowf_i = self.moving_average_smoothing(k, lowf_i)
+            lowf[i] = lowf_i[:]
+        for i in range(self.cycle_length):
+            lowf_i = lowf[i]
+            lowf_i = self.moving_average_smoothing(3, lowf_i)
+            lowf[i] = lowf_i[:]
+        for i in range(self.cycle_length):
+            lowf_i = lowf[i]
+            lowf_i = self.loess(nl, lowf_i)
+            lowf[i] = lowf_i[:]
+        # lowf = self.moving_average_smoothing(k, cycle)
+        # lowf = self.moving_average_smoothing(k, lowf)
+        # lowf = self.moving_average_smoothing(3, lowf)
+        # lowf = self.loess(nl, lowf)
 
         season = cycle - lowf
 

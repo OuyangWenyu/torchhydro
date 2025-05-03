@@ -13,7 +13,7 @@ class ystl():
         self.datasource = CamelsYstl()
         self.basin = ["1000",]
         self.time_range = ["1990-01-01","1994-01-01"]
-        self.var_list = ["streamflow",]
+        self.var_list = ["streamflow", "discharge_vol1", "discharge_vol2", "discharge_vol3",]
         self.data = None
         self.read_data()
 
@@ -23,7 +23,27 @@ class ystl():
             self.time_range,
             self.var_list,
         )
-        self.data = data.streamflow.data[0].T
+        # data1 = data.streamflow.data[0].T
+        # data2 = data.discharge_vol1.data[0].T
+        # data3 = data.discharge_vol2.data[0].T
+        # data4 = data.discharge_vol3.data[0].T
+        data1 = data.streamflow.to_dataframe()
+        data2 = data.discharge_vol1.to_dataframe()
+        data3 = data.discharge_vol2.to_dataframe()
+        data4 = data.discharge_vol3.to_dataframe()
+        # data1.set_index("time", inplace=True)
+        # data2.set_index("time", inplace=True)
+        # data3.set_index("time", inplace=True)
+        # data4.set_index("time", inplace=True)
+        data1.drop(axis=0, index=("1000","1992-02-29"), inplace=True)
+        data2.drop(axis=0, index=("1000","1992-02-29"), inplace=True)
+        data3.drop(axis=0, index=("1000","1992-02-29"), inplace=True)
+        data4.drop(axis=0, index=("1000","1992-02-29"), inplace=True)
+        data1 = data1.values[:, 0]
+        data2 = data2.values[:, 0]
+        data3 = data3.values[:, 0]
+        data4 = data4.values[:, 0]
+        self.data = data1.tolist() + data2.tolist() + data3.tolist() + data4.tolist()
         # print(self.data)
 
 def test_read_data():
@@ -109,3 +129,13 @@ def test_loess():
     #  111.21521800546185, 108.2443167906582, 105.11882945663429, 102.34115265090874, 100.20908983896787,
     #  98.32191355118182, 96.5792282700819, 94.78967652321306, 93.5114841322158, 93.15851539692999, 96.06652462567094,
     #  113.67811940860719, 145.21504614370463, 170.2376777474338
+
+def test_inner_loop():
+    x = ystl().data
+    stl = STL(x)
+    trend = [0]*stl.length
+    ni = 2
+    trend_i, season_i = stl.inner_loop(x, trend)
+    print(trend_i)
+    print(season_i)
+
