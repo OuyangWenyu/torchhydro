@@ -113,7 +113,7 @@ def test_moving_average_smoothing():
     x = ystl().data
     stl = STL(x)
     xx = x[:365]
-    result1 = stl.moving_average_smoothing(7, xx)
+    result1 = stl.moving_average_smoothing(15, xx)
     result2 = stl.moving_average_smoothing(7, result1)
     result3 = stl.moving_average_smoothing(3, result2)
     print("\nresult1")
@@ -141,8 +141,9 @@ def test_weight_least_squares():
 def test_loess():
     x = ystl().data
     stl = STL(x)
-    xx = x
-    result = stl.loess(5, xx)
+    xx = x[:365]
+    result = stl.loess(7, xx)
+    print(xx)
     print(result)
     # [165.8, 164.1, 158.8, 153.6181773236651, 146.47608061022692, 138.93107166399847, 133.79015679442506,
     #  130.69068179677933, 128.53937046802895, 127.30696157830303, 126.77608296449756, 124.81859167529898,

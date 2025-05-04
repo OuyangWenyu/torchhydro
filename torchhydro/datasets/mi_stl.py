@@ -352,13 +352,13 @@ class STL():
         nl
         nt
         """
-        ns = 5  # q
+        ns = 5  # q  35
         nl = 3
         nt = 7
-        k = 7
+        k = 5
         # detrending
         y = np.array(y) - np.array(trend)
-        # cycle-subseries smoothing
+        # 2 cycle-subseries smoothing
         subseries = self._cycle_subseries(y)
         extend_subseries = self._extend_subseries(subseries)
         cycle = []
@@ -395,7 +395,7 @@ class STL():
 
         # deseasonalizing
         trend = y - season
-        # Trend Smoothing
+        # 6 Trend Smoothing
         trend = self.loess(nt, trend)
 
         return trend, season
@@ -407,6 +407,11 @@ class STL():
             rho[i] = self.weight_function(u[i], 2)
         return rho
 
+    def extend_cycle_sub_rho_weight(self, rho_weight):
+        """cycle sub-robustness weights for robustness cycle-subseries smoothing"""
+        sub_rho_weight = self._cycle_subseries(rho_weight)
+        extend_sub_rho_weight = self._extend_subseries(sub_rho_weight)
+        return extend_sub_rho_weight
 
     def outer_loop(self):
         """
@@ -421,15 +426,18 @@ class STL():
         ni = 1
         trend = [0]*self.length
         season = [0]*self.length
-        trend_i0 = []
-        season_i0 = []
         trend_ij0 = []
         season_ij0 = []
-        for i in range(no):  # outer loop
+        # outer loop
+        for i in range(no):
             if i == 0:
                 trend_i0 = trend
                 season_i0 = season
-            for j in range(ni):  # inner loop
+            # else:
+            #     trend_i0 = trend_ij0
+            #     season_i0 = season_ij0
+            # inner loop
+            for j in range(ni):
                 if j == 0:
                     trend_ij0 = trend_i0[:]
                     season_ij0 = season_i0[:]
@@ -444,5 +452,7 @@ class STL():
             h = 6 * np.median(abs_residuals)
             abs_residuals_h = abs_residuals / h
             rho_weight = self.rho_weight(abs_residuals_h)
+            extend_sub_rho_weight = self.extend_cycle_sub_rho_weight(rho_weight)
+
 
 
