@@ -192,4 +192,5 @@ def test_outer_loop():
     print(season)
     print("\nresiduals")
     print(residuals)
-
+# residuals
+# [0.10385388 0.14531884 0.04918184 ... 0.01569811 0.00147881 0.00119412]

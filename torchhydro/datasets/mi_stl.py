@@ -137,7 +137,7 @@ class STL():
 
     def _cycle_subseries(self, x):
         """
-        divide cycle subseries
+        divide series into cycle subseries
         4 year date, (1990,1991,1992,1993). 1992 is leap year.
         cycle_length = 365
         reject 1992-02-29
@@ -160,6 +160,7 @@ class STL():
         return subseries
 
     def _extend_subseries(self, subseries):
+        """extend cycle subseries"""
         len_subseries = int(self.length/self.cycle_length)
         len_extend_subseries = len_subseries + 2
         extend_subseries = [[]] * self.cycle_length
@@ -172,6 +173,7 @@ class STL():
         return extend_subseries
 
     def _de_extend_subseries(self, extend_subseries):
+        """remove extend cycle subseries"""
         len_subseries = int(self.length/self.cycle_length)
         len_extend_subseries = len_subseries + 2
         subseries = [[]] * self.cycle_length
@@ -193,22 +195,6 @@ class STL():
                 series_j[i] = series_ji
             series = series + series_j[:]
         return series
-
-    def _get_robustness_weights(self, data):
-        """calculate robustness weights, """
-        data = np.absolute(data, axis=2)
-        h = np.median(data, axis=2) * 6
-        u = data / h  # np.divide()
-        r = np.where(
-            u >= 1,
-            0,
-            (1 - u ** 2) ** 2
-        )
-        return r
-
-    def _residuals(self):
-        """get the residuals of series"""
-        self.residuals = self.x - self.trend - self.season
 
     def weight_function(self, u, d: int = 2,):
         """
@@ -245,14 +231,6 @@ class STL():
         weight = self._neighborhood_weight(width)
         v_xi = weight * np.absolute(xi - x)/((width - 1)/2)
         return v_xi
-
-    def robustness_neighborhood_weights_x(self, v_xi):
-        """robustness neighborhood weights"""
-        # todo: ki
-        ki = 0
-        rho = 1/ki
-        rw_xi = rho*v_xi
-        return rw_xi
 
     def weight_least_squares(self, x, y, rho_weight):
         """
