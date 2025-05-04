@@ -254,7 +254,7 @@ class STL():
         rw_xi = rho*v_xi
         return rw_xi
 
-    def weight_least_squares(self, x, y):
+    def weight_least_squares(self, x, y, rho_weight):
         """
         polynomial regressive, least-squares, locally fit
         1 degree linear or 2 degree quadratic polynomial
@@ -266,6 +266,7 @@ class STL():
         ----------
         x, independent variable
         y, dependent variable
+        rho_weight, robustness weights
         Returns
         -------
 
@@ -275,11 +276,15 @@ class STL():
         At = np.array([x1, x])
         A = np.transpose(At)
         Y = y
-        weight = self._neighborhood_weight(length)  # todo: use robustness_neighborhood_weights
+        weight = self._neighborhood_weight(length)
+        weight = np.multiply(weight, rho_weight)
         W = np.diag(weight)
         B = np.matmul(At, W)
         B = np.matmul(B, A)
-        B_1 = np.linalg.inv(B)
+        try:
+            B_1 = np.linalg.inv(B)
+        except np.linalg.LinAlgError:
+            raise np.linalg.LinAlgError("Singular matrix")
         a = np.matmul(B_1, At)
         a = np.matmul(a, W)
         a = np.matmul(a, Y)
@@ -289,18 +294,12 @@ class STL():
 
         return yy
 
-    def robustness_weights(self):
-        """robustness weights"""
-        length = self.length
-        x = list(range(length))
-        y = self.x  # todo
-        y_ = self.weight_least_squares(x, y)
-        error = y - y_  # residual error
-        abs_error = np.absolute(error)
-        s = np.median(abs_error)
-
-
-    def loess(self, width, x):
+    def loess(
+        self,
+        width,
+        x,
+        rho_weight: list = None,
+    ):
         """
         loess
         robustnes
@@ -314,6 +313,10 @@ class STL():
 
         """
         length = len(x)
+        if rho_weight is None:
+            rho_w = [1]*length
+        else:
+            rho_w = rho_weight
         xx = list(range(width))
         start = int(width / 2)
         k = int(width / 2)
@@ -321,7 +324,8 @@ class STL():
         result[:start] = x[:start]
         for i in range(start, length-start):
             y = x[i-k:i+k+1]
-            y_i = self.weight_least_squares(xx, y)
+            rw_i = rho_w[i-k:i+k+1]
+            y_i = self.weight_least_squares(xx, y, rw_i)
             result[i] = y_i
         result[length - start:] = x[length - start:]
         return result
@@ -339,7 +343,13 @@ class STL():
         result[length-start+1:] = x[length-start+1:]
         return result
 
-    def inner_loop(self, y, trend):
+    def inner_loop(
+        self,
+        y,
+        trend,
+        sub_rho_weight,
+        rho_weight,
+    ):
         """
         the inner loop
         Returns
@@ -354,7 +364,7 @@ class STL():
         """
         ns = 5  # q  35
         nl = 3
-        nt = 7
+        nt = 5
         k = 5
         # detrending
         y = np.array(y) - np.array(trend)
@@ -364,7 +374,8 @@ class STL():
         cycle = []
         for i in range(self.cycle_length):
             extend_subseries_i = extend_subseries[i]
-            extend_subseries_i = self.loess(ns, extend_subseries_i)  # q = ns, d = 1
+            sub_rho_weight_i = sub_rho_weight[i]
+            extend_subseries_i = self.loess(ns, extend_subseries_i, sub_rho_weight_i)  # q = ns, d = 1
             cycle.append(extend_subseries_i)
 
         # low-pass filtering of smoothed cycle-subseries
@@ -396,7 +407,7 @@ class STL():
         # deseasonalizing
         trend = y - season
         # 6 Trend Smoothing
-        trend = self.loess(nt, trend)
+        trend = self.loess(nt, trend, rho_weight)
 
         return trend, season
 
@@ -422,37 +433,43 @@ class STL():
         adjust robustness weights
         no
         """
-        no = 10
+        no = 3
         ni = 1
         trend = [0]*self.length
         season = [0]*self.length
         trend_ij0 = []
         season_ij0 = []
+        rho_weight = [1]*self.length
         # outer loop
         for i in range(no):
             if i == 0:
                 trend_i0 = trend
                 season_i0 = season
-            # else:
-            #     trend_i0 = trend_ij0
-            #     season_i0 = season_ij0
+            extend_sub_rho_weight = self.extend_cycle_sub_rho_weight(rho_weight)
             # inner loop
             for j in range(ni):
                 if j == 0:
                     trend_ij0 = trend_i0[:]
-                    season_ij0 = season_i0[:]
-                trend_i, season_i = self.inner_loop(trend_ij0)
+                    # season_ij0 = season_i0[:]
+                trend_i, season_i = self.inner_loop(self.x, trend_ij0, extend_sub_rho_weight, rho_weight)
                 trend_ij0 = trend_i[:]
                 season_ij0 = season_i[:]
 
             trend_i0 = trend_ij0[:]
             season_i0 = season_ij0[:]
-            residuals = self.x - trend_i0 - season_i0
+            residuals = np.array(self.x) - np.array(trend_i0) - np.array(season_i0)
             abs_residuals = np.absolute(residuals)
             h = 6 * np.median(abs_residuals)
             abs_residuals_h = abs_residuals / h
             rho_weight = self.rho_weight(abs_residuals_h)
-            extend_sub_rho_weight = self.extend_cycle_sub_rho_weight(rho_weight)
 
+        return trend_i0, season_i0, residuals
+
+
+    def season_post_smoothing(self, season):
+        """post-smoothing of the seasonal"""
+        ns = 7
+        season = self.loess(ns, season)
+        return season
 
 

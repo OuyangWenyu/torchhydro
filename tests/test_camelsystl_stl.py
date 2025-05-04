@@ -15,7 +15,10 @@ class ystl():
         self.time_range = ["1990-01-01","1994-01-01"]
         self.var_list = ["streamflow", "discharge_vol1", "discharge_vol2", "discharge_vol3",]
         self.data = None
-        self.read_data()
+        # self.read_data()
+        self.pet = None
+        self.pet_list = ["pet"]
+        self.read_pet()
 
     def read_data(self):
         data = self.datasource.read_ts_xrdataset(
@@ -45,6 +48,17 @@ class ystl():
         data4 = data4.values[:, 0]
         self.data = data1.tolist() + data2.tolist() + data3.tolist() + data4.tolist()
         # print(self.data)
+
+    def read_pet(self):
+        data = self.datasource.read_ts_xrdataset(
+            self.basin,
+            self.time_range,
+            self.pet_list
+        )
+        data = data.pet.to_dataframe()
+        data.drop(axis=0, index=("1000", "1992-02-29"), inplace=True)
+        data = data.values[:, 0]
+        self.pet = data.tolist() + data.tolist() + data.tolist() + data.tolist()
 
 def test_read_data():
     x = ystl().data
@@ -166,3 +180,16 @@ def test_inner_loop():
 # 83.2122625967781, 80.24603476363518, 77.55473379197005, 75.16664415298915, 72.9937418115444, 71.4692646445855, 71.16668204417813, 71.94585155934128,
 # 73.23464587263436, 74.33493364446744, 74.97696990580846, 77.69157673072425, 85.67355032146186, 97.9056209327276, 109.50081442747407, 115.65118651916113,
 # 114.92302464599325, 110.21141633508216, 105.57688065472742, 102.973535785042, 103.73671137632715, 109.04560034616493]
+
+
+def test_outer_loop():
+    x = ystl().pet
+    stl = STL(x)
+    trend, season, residuals = stl.outer_loop()
+    print("\ntrend")
+    print(trend)
+    print("\nseason")
+    print(season)
+    print("\nresiduals")
+    print(residuals)
+
