@@ -7,7 +7,6 @@ def test_dataset():
     basin = camelsystl.gage
     print(basin)
 
-
 class ystl():
     def __init__(self):
         self.datasource = CamelsYstl()
@@ -26,18 +25,10 @@ class ystl():
             self.time_range,
             self.var_list,
         )
-        # data1 = data.streamflow.data[0].T
-        # data2 = data.discharge_vol1.data[0].T
-        # data3 = data.discharge_vol2.data[0].T
-        # data4 = data.discharge_vol3.data[0].T
         data1 = data.streamflow.to_dataframe()
         data2 = data.discharge_vol1.to_dataframe()
         data3 = data.discharge_vol2.to_dataframe()
         data4 = data.discharge_vol3.to_dataframe()
-        # data1.set_index("time", inplace=True)
-        # data2.set_index("time", inplace=True)
-        # data3.set_index("time", inplace=True)
-        # data4.set_index("time", inplace=True)
         data1.drop(axis=0, index=("1000","1992-02-29"), inplace=True)
         data2.drop(axis=0, index=("1000","1992-02-29"), inplace=True)
         data3.drop(axis=0, index=("1000","1992-02-29"), inplace=True)
@@ -166,7 +157,6 @@ def test_loess():
     #  98.32191355118182, 96.5792282700819, 94.78967652321306, 93.5114841322158, 93.15851539692999, 96.06652462567094,
     #  113.67811940860719, 145.21504614370463, 170.2376777474338
 
-
 def test_inner_loop():
     x = ystl().data
     stl = STL(x)
@@ -180,7 +170,6 @@ def test_inner_loop():
 # 83.2122625967781, 80.24603476363518, 77.55473379197005, 75.16664415298915, 72.9937418115444, 71.4692646445855, 71.16668204417813, 71.94585155934128,
 # 73.23464587263436, 74.33493364446744, 74.97696990580846, 77.69157673072425, 85.67355032146186, 97.9056209327276, 109.50081442747407, 115.65118651916113,
 # 114.92302464599325, 110.21141633508216, 105.57688065472742, 102.973535785042, 103.73671137632715, 109.04560034616493]
-
 
 def test_outer_loop():
     x = ystl().pet
