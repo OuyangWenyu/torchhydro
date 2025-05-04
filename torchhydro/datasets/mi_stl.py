@@ -117,16 +117,6 @@ class STL():
         data = self.compound_season[t_range[0]:t_range[1], :, :]
         return data
 
-    def _seasonal_t(self, t):
-        """the season of specified time period """
-        n_range = self._get_n_range(t)
-        t_range = self._get_t_range_season(t, n_range)  # todo:
-        data = self._get_c_s_data(self._get_c_s_data(t_range))  # todo:
-        season_t = np.sum(data, axis=2)/self.frequency
-        # circle-subseries smoothing, Loess method
-
-        return season_t
-
     def _cycle_subseries(self, x):
         """
         divide series into cycle subseries
@@ -332,14 +322,15 @@ class STL():
 
         trend
         calculate seasonal item
-        ni
-        ns
-        nl
-        nt
+        ni, the number of inner loop, 1 or 2.
+        np, the sample number of a cycle.
+        ns, parameter of loess in step 2, the window width, >=7, odd.
+        nl, parameter of loess in step 3, the window width, min(>=np, odd).
+        nt, parameter of loess in step 6, the window width, np<nt<2np, odd.
         """
-        ns = 5  # q  35
-        nl = 3
-        nt = 5
+        ns = 7  # q  35
+        nl = 365
+        nt = 387
         k = 5
 
         # 1 detrending
@@ -408,13 +399,13 @@ class STL():
         Returns
         -------
         the relationship of original data, trend and season in inner loop
-        the rool of loop
-        more detials about parameters value.
+        the role of loop
+        more details about parameters value.
         robustness weights
-        no
+        no, the number of outer loop, 0<=no<=10.
         """
-        no = 3
-        ni = 10
+        no = 7
+        ni = 2
         trend = [0]*self.length
         trend_ij0 = []
         season_ij0 = []

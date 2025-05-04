@@ -1,3 +1,5 @@
+
+import pandas as pd
 from hydrodataset import CamelsYstl
 from torchhydro.datasets.mi_stl import STL
 
@@ -175,11 +177,20 @@ def test_outer_loop():
     x = ystl().pet
     stl = STL(x)
     trend, season, residuals = stl.outer_loop()
-    print("\ntrend")
-    print(trend)
-    print("\nseason")
-    print(season)
-    print("\nresiduals")
-    print(residuals)
-# residuals
-# [0.10385388 0.14531884 0.04918184 ... 0.01569811 0.00147881 0.00119412]
+    pet_stl = pd.DataFrame({"pet": x, "trend": trend, "season": season, "residuals": residuals})
+    file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_stl.csv"
+    pet_stl.to_csv(file_name, sep=" ")
+    print(pet_stl)
+# PASSED                           [100%]
+#       trend    season  residuals
+# 0     0.000000  0.000000   1.200000
+# 1     0.000000  0.000000   1.300000
+# 2     0.000000  0.000000   0.900000
+# 3     0.000000  0.000000   0.550000
+# 4     0.000000  0.000000   0.850000
+# ...        ...       ...        ...
+# 5835 -0.225402  0.128814   0.746588
+# 5836 -0.246027  0.124508   0.671519
+# 5837 -0.245015  0.120864   0.674150
+# 5838 -0.253250  0.109942   0.643308
+# 5839 -0.228512  0.098486   0.730026
