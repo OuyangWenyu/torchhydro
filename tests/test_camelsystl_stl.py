@@ -181,14 +181,27 @@ def test_outer_loop():
     print(pet_stl)
 # PASSED                           [100%]
 #       pet     trend    season  residuals
-# 0     1.20  3.761903 -0.926811  -1.635093
-# 1     1.30  3.761911 -0.926813  -1.535099
-# 2     0.90 -0.038914  0.009587   0.929327
-# 3     0.55 -0.038897  0.009583   0.579314
-# 4     0.85 -0.038875  0.009577   0.879297
+# 0     1.20 -1.986393  1.202126   1.984267
+# 1     1.30 -1.886360  1.202115   1.984245
+# 2     0.90  0.916757 -0.006245  -0.010511
+# 3     0.55  0.566789 -0.006256  -0.010533
+# 4     0.85  0.866821 -0.006267  -0.010554
 # ...    ...       ...       ...        ...
-# 5835  0.65 -0.299201  0.081689   0.867512
-# 5836  0.55 -0.299585  0.081793   0.767792
-# 5837  0.55 -0.299933  0.081886   0.768046
-# 5838  0.50 -0.300245  0.081970   0.718275
-# 5839  0.60 -0.300521  0.082044   0.818477
+# 5835  0.65  0.762961 -0.034448  -0.078512
+# 5836  0.55  0.662805 -0.034402  -0.078403
+# 5837  0.55  0.662647 -0.034355  -0.078292
+# 5838  0.50  0.612488 -0.034308  -0.078180
+# 5839  0.60  0.712327 -0.034260  -0.078067
+#
+# [5840 rows x 4 columns]
+
+
+def test_season_post_smoothing():
+    x = ystl().pet
+    stl = STL(x)
+    trend, season, residuals = stl.outer_loop()
+    post_season = stl.season_post_smoothing(season)
+    pet_post_season = pd.DataFrame({"pet": x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season})
+    file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_post_season.csv"
+    pet_post_season.to_csv(file_name, sep=" ")
+    print(pet_post_season)

@@ -30,7 +30,7 @@ class STL():
         self.cycle_subseries = None
         self.cycle_length = 365
         self.window_length = 5  # window width, span
-        self.t_window = 15 # need to be odd
+        self.t_window = 15  # need to be odd
         self.t_degree = 0 # 1 or 2
         self.s_window = 5  # need to be odd
         self.s_degree = 1 # 1 or 2
@@ -99,11 +99,6 @@ class STL():
             trend_i = self._trend_t_even(i)
             trend.append(trend_i)
         self.trend = np.array(trend)
-
-    def _compound_season(self):
-        """get the compound season, detrending"""
-        c_s = self.x - self.trend
-        self.compound_season = c_s
 
     def _cycle_subseries(self, x):
         """
@@ -311,15 +306,18 @@ class STL():
         trend
         calculate seasonal item
         ni, the number of inner loop, 1 or 2.
-        np, the sample number of a cycle.
+        np, the number of observations in each period, or cycle.
         ns, parameter of loess in step 2, the window width, >=7, odd.
         nl, parameter of loess in step 3, the window width, min(>=np, odd).
         nt, parameter of loess in step 6, the window width, np<nt<2np, odd.
         k,
+        N, the total number of observations in whole series.
         """
-        ns = 17  # q  35
+        ns = 35  # q  35
         nl = 365
-        nt = 457
+        nt = 573
+        n_p = 365
+
         k = 5  # todo
 
         # 1 detrending
@@ -337,12 +335,12 @@ class STL():
         cycle_v = self._recover_series(cycle)
 
         # 3 low-pass filtering of smoothed cycle-subseries
-        lowf = self.moving_average_smoothing(k, cycle_v)
-        lowf = self.moving_average_smoothing(k, lowf)
+        lowf = self.moving_average_smoothing(n_p, cycle_v)
+        lowf = self.moving_average_smoothing(n_p, lowf)
         lowf = self.moving_average_smoothing(3, lowf)
         lowf = self.loess(nl, lowf)
 
-        # 4 detrending if smoothed cycle-subseries
+        # 4 detrending of smoothed cycle-subseries
         cycle_v = np.array(cycle_v)
         lowf = np.array(lowf)
         season = cycle_v[self.cycle_length:-self.cycle_length] - lowf[self.cycle_length:-self.cycle_length]
@@ -375,13 +373,16 @@ class STL():
         -------
         the relationship of original data, trend and season in inner loop
         the role of loop
+
         more details about parameters value.
+
         robustness weights
         no, the number of outer loop, 0<=no<=10.
         """
         no = 7
         ni = 2
         trend = [0]*self.length
+        season = [0]*self.length
         trend_ij0 = []
         season_ij0 = []
         rho_weight = [1]*self.length
@@ -392,28 +393,35 @@ class STL():
         for i in range(no):
             if i == 0:
                 trend_i0 = trend
+                season_i0 = season
             extend_sub_rho_weight = self.extend_cycle_sub_rho_weight(rho_weight)
 
             # inner loop
             for j in range(ni):
                 if j == 0:
                     trend_ij0 = trend_i0[:]
+                    season_ij0 = season_i0[:]
                 trend_i, season_i = self.inner_loop(self.x, trend_ij0, extend_sub_rho_weight, rho_weight)
+                t_a = max(np.absolute(np.array(trend_ij0)-np.array(trend_i)))
+                t_b = max(trend_ij0)
+                t_c = min(trend_ij0)
+                terminate_trend = t_a / (t_b + t_c)
+                s_a = max(np.absolute(np.array(season_ij0)-np.array(season_i)))
+                s_b = max(season_ij0)
+                s_c = min(season_ij0)
+                terminate_season = s_a / (s_b + s_c)
+                if terminate_trend < 0.01 or terminate_season < 0.01:
+                    break
                 trend_ij0 = trend_i[:]
                 season_ij0 = season_i[:]
-                a = max(np.absolute(np.array(trend_ij0)-np.array(trend_i)))
-                b = max(trend_ij0)
-                c = min(trend_ij0)
-                if a/(b+c) < 0.01:
-                    break
 
-            trend_i0 = trend_ij0[:]
-            season_i0 = season_ij0[:]
+            trend_i0 = trend_i[:]
+            season_i0 = season_i[:]
             residuals = np.array(self.x) - np.array(trend_i0) - np.array(season_i0)
             abs_residuals = np.absolute(residuals)
             h = 6 * np.median(abs_residuals)
             abs_residuals_h = abs_residuals / h
-            rho_weight = self.rho_weight(abs_residuals_h)
+            rho_weight = self.rho_weight(abs_residuals_h)  # todo:
 
             d_residuals = np.sum(residuals-residuals0)/self.length
             if d_residuals < 0.01:
@@ -426,6 +434,6 @@ class STL():
 
     def season_post_smoothing(self, season):
         """post-smoothing of the seasonal"""
-        ns = 7
+        ns = 51
         season = self.loess(ns, season)
         return season
