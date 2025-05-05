@@ -117,6 +117,12 @@ class STL():
                 subseries_i[j] = subseries_ij
             subseries[i] = subseries_i[:]
         # self.cycle_subseries = subseries
+        pd_subseries = pd.DataFrame({
+            "subseries_" + str(i): subseries[i] for i in range(n_subseries)
+        })
+        pd_subseries.index.name = "time"
+        file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_subseries.csv"
+        pd_subseries.to_csv(file_name, sep=" ")
         return subseries
 
     def _extend_subseries(self, subseries):
@@ -130,6 +136,12 @@ class STL():
             extend_subseries_i[1:len_extend_subseries-1] = subseries[i][:]
             extend_subseries_i[-1] = subseries[i][-1]
             extend_subseries[i] = extend_subseries_i[:]
+        pd_extend_subseries = pd.DataFrame({
+            "ext_subser_" + str(i): extend_subseries[i] for i in range(self.cycle_length)
+        })
+        pd_extend_subseries.index.name = "time"
+        file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_extend_subseries.csv"
+        pd_extend_subseries.to_csv(file_name, sep=" ")
         return extend_subseries
 
     def _de_extend_subseries(self, extend_subseries):
@@ -149,11 +161,15 @@ class STL():
         len_subseries = int(self.length / n_subseries) + 2
         series = []
         series_i = [0]*n_subseries
-        for i in range(len_subseries):
-            for j in range(n_subseries):
+        for i in range(len_subseries):  # 18
+            for j in range(n_subseries):  # 365
                 series_ji = float(subseries[j][i])
-                series_i[i] = series_ji
+                series_i[j] = series_ji  # ! todo: !
             series = series + series_i[:]
+        pd_series = pd.DataFrame({"pet_loess": series})
+        pd_series.index.name = "time"
+        file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_loess_extend_cycle_v.csv"
+        pd_series.to_csv(file_name, sep=" ")
         return series
 
     def weight_function(self, u, d: int = 2,):
@@ -307,11 +323,13 @@ class STL():
         nt, parameter of loess in step 6, the window width, np<nt<2np, odd.
         k,
         N, the total number of observations in whole series.
+
+        low-pass, low-frequency power.
         """
         ns = 7  # q  35
         nl = 365
-        nt = 573
-        n_p = 21
+        nt = 365
+        n_p = 107
 
         k = 5  # todo
 
@@ -328,16 +346,26 @@ class STL():
             extend_subseries_i = self.loess(ns, extend_subseries_i, sub_rho_weight_i)  # q = ns, d = 1
             cycle.append(extend_subseries_i)
         cycle_v = self._recover_series(cycle)
+        pd_cycle = pd.DataFrame({
+            "cycle_" + str(i): cycle[i] for i in range(self.cycle_length)
+        })
+        pd_cycle.index.name = "time"
+        file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_cycle.csv"
+        pd_cycle.to_csv(file_name, sep=" ")
 
         # 3 low-pass filtering of smoothed cycle-subseries
-        lowf = self.moving_average_smoothing(107, cycle_v)  # n_p
-        lowf = self.moving_average_smoothing(107, lowf)
-        lowf = self.moving_average_smoothing(61, lowf)
-        lowf = self.loess(nl, lowf)
+        lowf1 = self.moving_average_smoothing(n_p, cycle_v)  # n_p
+        lowf2 = self.moving_average_smoothing(n_p, lowf1)
+        lowf3 = self.moving_average_smoothing(3, lowf2)
+        lowf4 = self.loess(nl, lowf3)
+        pd_lowf = pd.DataFrame({"lowf1": lowf1, "lowf2": lowf2, "lowf3": lowf3, "lowf4": lowf4})
+        pd_lowf.index.name = "time"
+        file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_lowf.csv"
+        pd_lowf.to_csv(file_name, sep=" ")
 
         # 4 detrending of smoothed cycle-subseries
         cycle_v = np.array(cycle_v)
-        lowf = np.array(lowf)
+        lowf = np.array(lowf4)
         season = cycle_v[self.cycle_length:-self.cycle_length] - lowf[self.cycle_length:-self.cycle_length]
 
         # 5 deseasonalizing
@@ -374,8 +402,8 @@ class STL():
         robustness weights
         no, the number of outer loop, 0<=no<=10.
         """
-        no = 7
-        ni = 3
+        no = 1
+        ni = 1
         trend = [0]*self.length
         season = [0]*self.length
         trend_ij0 = []

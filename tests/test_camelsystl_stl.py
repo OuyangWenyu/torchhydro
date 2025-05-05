@@ -59,10 +59,10 @@ def test_read_data():
 # [165.8 164.1 158.8 ...  73.2  71.1  71.3]
 
 def test_cycle_subseries():
-    x = ystl().data
+    x = ystl().pet
     stl = STL(x)
-    stl._cycle_subseries()
-    print(len(stl.cycle_subseries))
+    stl._cycle_subseries(x)
+    print(stl.cycle_subseries)
 # PASSED                      [100%]365
 
 def test_weight_function():
@@ -187,22 +187,23 @@ def test_outer_loop():
     stl = STL(x)
     trend, season, residuals = stl.outer_loop()
     pet_stl = pd.DataFrame({"pet": x, "trend": trend, "season": season, "residuals": residuals})
+    pet_stl.index.name = "time"
     file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_stl.csv"
     pet_stl.to_csv(file_name, sep=" ")
     print(pet_stl)
 # PASSED                           [100%]
-#       pet     trend    season  residuals
-# 0     1.20 -1.986393  1.202126   1.984267
-# 1     1.30 -1.886360  1.202115   1.984245
-# 2     0.90  0.916757 -0.006245  -0.010511
-# 3     0.55  0.566789 -0.006256  -0.010533
-# 4     0.85  0.866821 -0.006267  -0.010554
+# time  pet     trend    season  residuals
+# 0     1.20  1.733627 -0.533627        0.0
+# 1     1.30  1.728555 -0.428555        0.0
+# 2     0.90  1.723637 -0.823637        0.0
+# 3     0.55  1.718873 -1.168873        0.0
+# 4     0.85  1.714265 -0.864265        0.0
 # ...    ...       ...       ...        ...
-# 5835  0.65  0.762961 -0.034448  -0.078512
-# 5836  0.55  0.662805 -0.034402  -0.078403
-# 5837  0.55  0.662647 -0.034355  -0.078292
-# 5838  0.50  0.612488 -0.034308  -0.078180
-# 5839  0.60  0.712327 -0.034260  -0.078067
+# 5835  0.65  1.354457 -0.704457        0.0
+# 5836  0.55  1.354057 -0.804057        0.0
+# 5837  0.55  1.353730 -0.803730        0.0
+# 5838  0.50  1.353479 -0.853479        0.0
+# 5839  0.60  1.353301 -0.753301        0.0
 #
 # [5840 rows x 4 columns]
 
