@@ -113,10 +113,6 @@ class STL():
         t_range = [t_start, t_end]
         return t_range
 
-    def _get_c_s_data(self, t_range):
-        data = self.compound_season[t_range[0]:t_range[1], :, :]
-        return data
-
     def _cycle_subseries(self, x):
         """
         divide series into cycle subseries
@@ -168,14 +164,14 @@ class STL():
     def _recover_series(self, subseries):
         """recover series from cycle subseries"""
         n_subseries = self.cycle_length
-        len_subseries = int(self.length / n_subseries)
+        len_subseries = int(self.length / n_subseries) + 2
         series = []
-        series_j = [0]*n_subseries
-        for j in range(len_subseries):
-            for i in range(n_subseries):
-                series_ji = float(subseries[i][j])
-                series_j[i] = series_ji
-            series = series + series_j[:]
+        series_i = [0]*n_subseries
+        for i in range(len_subseries):
+            for j in range(n_subseries):
+                series_ji = float(subseries[j][i])
+                series_i[i] = series_ji
+            series = series + series_i[:]
         return series
 
     def weight_function(self, u, d: int = 2,):
@@ -328,9 +324,9 @@ class STL():
         nl, parameter of loess in step 3, the window width, min(>=np, odd).
         nt, parameter of loess in step 6, the window width, np<nt<2np, odd.
         """
-        ns = 7  # q  35
+        ns = 17  # q  35
         nl = 365
-        nt = 387
+        nt = 457
         k = 5
 
         # 1 detrending
@@ -345,32 +341,21 @@ class STL():
             sub_rho_weight_i = sub_rho_weight[i]
             extend_subseries_i = self.loess(ns, extend_subseries_i, sub_rho_weight_i)  # q = ns, d = 1
             cycle.append(extend_subseries_i)
+        c_v = self._recover_series(cycle)
 
         # 3 low-pass filtering of smoothed cycle-subseries
-        lowf = []
-        for i in range(self.cycle_length):
-            cycle_i = cycle[i]
-            lowf_i = self.moving_average_smoothing(k, cycle_i)
-            lowf.append(lowf_i)
-        for i in range(self.cycle_length):
-            lowf_i = lowf[i]
-            lowf_i = self.moving_average_smoothing(k, lowf_i)
-            lowf[i] = lowf_i[:]
-        for i in range(self.cycle_length):
-            lowf_i = lowf[i]
-            lowf_i = self.moving_average_smoothing(3, lowf_i)
-            lowf[i] = lowf_i[:]
-        for i in range(self.cycle_length):
-            lowf_i = lowf[i]
-            lowf_i = self.loess(nl, lowf_i)
-            lowf[i] = lowf_i[:]
+        lowf = self.moving_average_smoothing(k, c_v)
+        lowf = self.moving_average_smoothing(k, lowf)
+        lowf = self.moving_average_smoothing(3, lowf)
+        lowf = self.loess(nl, lowf)
 
         # 4 detrending if smoothed cycle-subseries
-        cycle = np.array(cycle)
+        c_v = np.array(c_v)
         lowf = np.array(lowf)
-        extend_subseason = cycle - lowf
-        subseason = self._de_extend_subseries(extend_subseason)
-        season = self._recover_series(subseason)
+        # extend_subseason = c_v - lowf
+        # subseason = self._de_extend_subseries(extend_subseason)
+        # len_subseries = len(subseries)
+        season = c_v[self.cycle_length:-self.cycle_length] - lowf[self.cycle_length:-self.cycle_length]
 
         # 5 deseasonalizing
         trend = y - season
@@ -412,11 +397,13 @@ class STL():
         rho_weight = [1]*self.length
         residuals0 = [0]*self.length
         residuals0 = np.array(residuals0)
+
         # outer loop
         for i in range(no):
             if i == 0:
                 trend_i0 = trend
             extend_sub_rho_weight = self.extend_cycle_sub_rho_weight(rho_weight)
+
             # inner loop
             for j in range(ni):
                 if j == 0:
@@ -424,6 +411,11 @@ class STL():
                 trend_i, season_i = self.inner_loop(self.x, trend_ij0, extend_sub_rho_weight, rho_weight)
                 trend_ij0 = trend_i[:]
                 season_ij0 = season_i[:]
+                a = max(np.absolute(np.array(trend_ij0)-np.array(trend_i)))
+                b = max(trend_ij0)
+                c = min(trend_ij0)
+                if a/(b+c) < 0.01:
+                    break
 
             trend_i0 = trend_ij0[:]
             season_i0 = season_ij0[:]
@@ -447,5 +439,3 @@ class STL():
         ns = 7
         season = self.loess(ns, season)
         return season
-
-
