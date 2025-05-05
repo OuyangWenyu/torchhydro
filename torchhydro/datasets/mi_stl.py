@@ -316,7 +316,7 @@ class STL():
         ns = 35  # q  35
         nl = 365
         nt = 573
-        n_p = 365
+        n_p = 21
 
         k = 5  # todo
 
@@ -380,7 +380,7 @@ class STL():
         no, the number of outer loop, 0<=no<=10.
         """
         no = 7
-        ni = 2
+        ni = 3
         trend = [0]*self.length
         season = [0]*self.length
         trend_ij0 = []
@@ -435,5 +435,6 @@ class STL():
     def season_post_smoothing(self, season):
         """post-smoothing of the seasonal"""
         ns = 51
+        d = 2  # todo:
         season = self.loess(ns, season)
         return season
