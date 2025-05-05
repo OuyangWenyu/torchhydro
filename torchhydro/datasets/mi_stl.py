@@ -105,14 +105,6 @@ class STL():
         c_s = self.x - self.trend
         self.compound_season = c_s
 
-    def _get_t_range_season(self, t, n):
-        """get the range of time period"""
-        t_start = 1
-        t_end = self.frequency
-
-        t_range = [t_start, t_end]
-        return t_range
-
     def _cycle_subseries(self, x):
         """
         divide series into cycle subseries
@@ -323,11 +315,12 @@ class STL():
         ns, parameter of loess in step 2, the window width, >=7, odd.
         nl, parameter of loess in step 3, the window width, min(>=np, odd).
         nt, parameter of loess in step 6, the window width, np<nt<2np, odd.
+        k,
         """
         ns = 17  # q  35
         nl = 365
         nt = 457
-        k = 5
+        k = 5  # todo
 
         # 1 detrending
         y = np.array(y) - np.array(trend)  # todo:
@@ -341,21 +334,18 @@ class STL():
             sub_rho_weight_i = sub_rho_weight[i]
             extend_subseries_i = self.loess(ns, extend_subseries_i, sub_rho_weight_i)  # q = ns, d = 1
             cycle.append(extend_subseries_i)
-        c_v = self._recover_series(cycle)
+        cycle_v = self._recover_series(cycle)
 
         # 3 low-pass filtering of smoothed cycle-subseries
-        lowf = self.moving_average_smoothing(k, c_v)
+        lowf = self.moving_average_smoothing(k, cycle_v)
         lowf = self.moving_average_smoothing(k, lowf)
         lowf = self.moving_average_smoothing(3, lowf)
         lowf = self.loess(nl, lowf)
 
         # 4 detrending if smoothed cycle-subseries
-        c_v = np.array(c_v)
+        cycle_v = np.array(cycle_v)
         lowf = np.array(lowf)
-        # extend_subseason = c_v - lowf
-        # subseason = self._de_extend_subseries(extend_subseason)
-        # len_subseries = len(subseries)
-        season = c_v[self.cycle_length:-self.cycle_length] - lowf[self.cycle_length:-self.cycle_length]
+        season = cycle_v[self.cycle_length:-self.cycle_length] - lowf[self.cycle_length:-self.cycle_length]
 
         # 5 deseasonalizing
         trend = y - season

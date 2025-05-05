@@ -123,12 +123,10 @@ def test_moving_average_smoothing():
     result1 = stl.moving_average_smoothing(15, xx)
     result2 = stl.moving_average_smoothing(7, result1)
     result3 = stl.moving_average_smoothing(3, result2)
-    print("\nresult1")
-    print(result1)
-    print("\nresult2")
-    print(result2)
-    print("\nresult3")
-    print(result3)
+    pet_mas = pd.DataFrame({"pet": xx, "result1": result1, "result2": result2, "result3": result3})
+    file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_moving_average_smoothing.csv"
+    pet_mas.to_csv(file_name, sep=" ")
+    print(pet_mas)
 # [165.8, 164.1, 158.8, 158.0, 131.35714285714283, 127.14285714285714, 123.07142857142857, 118.81428571428572, 114.74285714285715,
 # 112.12857142857145, 110.55714285714285, 108.42857142857144, 106.5, 105.07142857142857, 103.38571428571429, 101.42857142857143,
 # 99.45714285714284, 97.64285714285714, 96.02857142857144, 93.74285714285715, 91.47142857142858, 89.42857142857143, 87.12857142857145,
