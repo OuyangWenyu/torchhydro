@@ -61,11 +61,6 @@ class STL():
         t_range = [t_start, t_end]
         return t_range
 
-    def _get_data(self, t_range):
-        """get the data of specified time range"""
-        data = self.x[t_range[0]:t_range[1], :, :]
-        return data
-
     def _trend_t_odd(self, t):
         """
         get the trend of specified time period
@@ -313,7 +308,7 @@ class STL():
         k,
         N, the total number of observations in whole series.
         """
-        ns = 35  # q  35
+        ns = 7  # q  35
         nl = 365
         nt = 573
         n_p = 21
@@ -335,9 +330,9 @@ class STL():
         cycle_v = self._recover_series(cycle)
 
         # 3 low-pass filtering of smoothed cycle-subseries
-        lowf = self.moving_average_smoothing(n_p, cycle_v)
-        lowf = self.moving_average_smoothing(n_p, lowf)
-        lowf = self.moving_average_smoothing(3, lowf)
+        lowf = self.moving_average_smoothing(107, cycle_v)  # n_p
+        lowf = self.moving_average_smoothing(107, lowf)
+        lowf = self.moving_average_smoothing(61, lowf)
         lowf = self.loess(nl, lowf)
 
         # 4 detrending of smoothed cycle-subseries
