@@ -338,6 +338,13 @@ class STL():
         Suppose now that we need robustness iterations. We want to choose no large enough so that the robust estimates
         of the trend and seasonal components converge. taking ni = 1 is recommended, default.
         However, for the daily CO2 data in figure 1, convergence was slower and 10 iterations were required.
+        ns:
+        The choice of ns determines the variation in the data that makes up the seasonal component; the choice of the
+        appropriate variation depends critically on the characteristics of the series. It should be emphasized that
+        there is an intrinsic ambiguity in the definition of seasonal variation.
+        The additional variation in these seasonal values, compared with the seasonal values for ns = 35, appears to be
+        noise and not meaningful seasonal variation because the cycle in the CO2 series is caused mainly by the seasonal
+        cycle of foliage in the Northern Hemisphere, and one would expect a smooth evolution of this cycle over years.
         """
         ns = 15  # q  35
         nl = 365
