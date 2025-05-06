@@ -241,6 +241,8 @@ def test_decomposition():
     decomposition = stl.decomposition()
     print(decomposition)
 # PASSED                        [100%]
+# d_residuals < 0.01
+# outer loop = 0
 # time  pet     trend    season  residuals  post_season  post_residuals
 # 0     1.20  2.254720 -1.054720        0.0    -1.054720             0.0
 # 1     1.30  2.254874 -0.954874        0.0    -0.954874             0.0

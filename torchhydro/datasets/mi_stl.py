@@ -68,14 +68,6 @@ class STL():
 
         return trend_t
 
-    def _trend_t_even(self, t):
-        """return trend item when frequency is even"""
-        t_range = self._get_t_range_even(t)
-        data = self._get_data(t_range)
-        trend_t = (0.5 * (data[0, :, :] + data[-1, :, :]) + np.sum(data[1:-2, :, :], axis=2))/self.frequency
-
-        return trend_t
-
     def _cycle_subseries(self, x):
         """
         divide series into cycle subseries
@@ -320,7 +312,7 @@ class STL():
         n_p, the number of observations in each cycle of the seasonal component.
         ns, parameter of loess in step 2, the window width, >=7, odd.  the smoothing parameter for the seasonal component.
         nl, parameter of loess in step 3, the window width, min(>=n_p, odd).  the smoothing parameter for the low-pass filter.
-        nt, parameter of loess in step 6, the window width, np<nt<2np, odd.  the smoothing parameter for the trend component.
+        nt, parameter of loess in step 6, the window width, 1.5np<nt<2np, odd.  the smoothing parameter for the trend component.
         k,
         N, the total number of observations in whole series.
 
@@ -342,13 +334,17 @@ class STL():
         The choice of ns determines the variation in the data that makes up the seasonal component; the choice of the
         appropriate variation depends critically on the characteristics of the series. It should be emphasized that
         there is an intrinsic ambiguity in the definition of seasonal variation.
+        in many applications the final decision must be based on knowledge about the mechanism generating the series and
+        the goals of the analysis.
+        The ambiguity is true of all seasonal decomposition procedures, not just STL. A lucid discussion of this point
+        is given by Carlin and Dempster (1989).
         The additional variation in these seasonal values, compared with the seasonal values for ns = 35, appears to be
         noise and not meaningful seasonal variation because the cycle in the CO2 series is caused mainly by the seasonal
         cycle of foliage in the Northern Hemisphere, and one would expect a smooth evolution of this cycle over years.
         """
-        ns = 15  # q  35
+        ns = 11  # q  35  odd >=7  < 15
         nl = 365
-        nt = 421
+        nt = 367
         n_p = 365
 
         k = 5  # todo
@@ -422,7 +418,7 @@ class STL():
         robustness weights
         no, the number of outer loop, 0<=no<=10.
         """
-        no = 10
+        no = 30
         ni = 1
         trend = [0]*self.length
         season = [0]*self.length
@@ -454,6 +450,8 @@ class STL():
                 s_c = min(season_ij0)
                 terminate_season = s_a / (s_b + s_c)
                 if terminate_trend < 0.01 or terminate_season < 0.01:
+                    print("terminate_trend < 0.01 or terminate_season < 0.01")
+                    print("inner loop = " + str(j))
                     break
                 trend_ij0 = trend_i[:]
                 season_ij0 = season_i[:]
@@ -468,6 +466,8 @@ class STL():
 
             d_residuals = np.sum(residuals-residuals0)/self.length
             if d_residuals < 0.01:
+                print("d_residuals < 0.01")
+                print("outer loop = " + str(i))
                 break
             else:
                 residuals0 = residuals
@@ -477,7 +477,7 @@ class STL():
 
     def season_post_smoothing(self, season):
         """post-smoothing of the seasonal"""
-        ns = 15
+        ns = 13
         d = 2  # todo:
         season = self.loess(ns, season)
         return season
