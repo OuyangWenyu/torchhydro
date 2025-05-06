@@ -76,14 +76,6 @@ class STL():
 
         return trend_t
 
-    def _trend_odd(self):
-        """get the trend of series, frequency is odd"""
-        trend = []
-        for i in range(self.length):
-            trend_i = self._trend_t_odd(i)
-            trend.append(trend_i)
-        self.trend = np.array(trend)
-
     def _cycle_subseries(self, x):
         """
         divide series into cycle subseries
@@ -115,7 +107,16 @@ class STL():
         return subseries
 
     def _extend_subseries(self, subseries):
-        """extend cycle subseries"""
+        """
+        extend cycle subseries, extend one point in start and end of subseries separately.
+        Parameters
+        ----------
+        subseries
+
+        Returns
+        -------
+
+        """
         len_subseries = int(self.length/self.cycle_length)
         len_extend_subseries = len_subseries + 2
         extend_subseries = [[]] * self.cycle_length
@@ -145,7 +146,16 @@ class STL():
         return subseries
 
     def _recover_series(self, subseries):
-        """recover series from cycle subseries"""
+        """
+        recover series from extend cycle subseries,
+        Parameters
+        ----------
+        subseries
+
+        Returns
+        -------
+
+        """
         n_subseries = self.cycle_length
         len_subseries = int(self.length / n_subseries) + 2
         series = []
@@ -309,16 +319,23 @@ class STL():
         no, the number of robustness iterations of the outer loop.
         n_p, the number of observations in each cycle of the seasonal component.
         ns, parameter of loess in step 2, the window width, >=7, odd.  the smoothing parameter for the seasonal component.
-        nl, parameter of loess in step 3, the window width, min(>=np, odd).  the smoothing parameter for the low-pass filter.
+        nl, parameter of loess in step 3, the window width, min(>=n_p, odd).  the smoothing parameter for the low-pass filter.
         nt, parameter of loess in step 6, the window width, np<nt<2np, odd.  the smoothing parameter for the trend component.
         k,
         N, the total number of observations in whole series.
 
         low-pass, low-frequency power.
+        The STL robust estimation is needed when prior knowledge of the data or diagnostic checking indicates that
+        non-Gaussian behavior in the time-series leads to extreme transient variation. Otherwise we can omit the
+        robustness iterations and set no == 0.
+        In many cases, ni = 1 is sufficient, but we recommend ni = 2 to provide near certainty of convergence.
+        Suppose now that we need robustness iterations. We want to choose no large enough so that the robust estimates
+        of the trend and seasonal components converge. taking ni = 1 is recommended, default.
+        However, for the daily CO2 data in figure 1, convergence was slower and 10 iterations were required.
         """
         ns = 15  # q  35
-        nl = 25
-        nt = 31
+        nl = 365
+        nt = 421
         n_p = 365
 
         k = 5  # todo
@@ -392,7 +409,7 @@ class STL():
         robustness weights
         no, the number of outer loop, 0<=no<=10.
         """
-        no = 1
+        no = 10
         ni = 1
         trend = [0]*self.length
         season = [0]*self.length
