@@ -325,6 +325,12 @@ class STL():
         N, the total number of observations in whole series.
 
         low-pass, low-frequency power.
+        n_p:
+        It is entirely possible that a time series can have two or more periodic components. for example, a series
+        measured daily might have weekly and yearly periodicities. In such a case one can use STL to successively
+        estimate the components by proceeding from the shortest-period component to the longest-period component,
+        estimating each component, subtracting it out, and estimating the next component from the residuals.
+        no and ni:
         The STL robust estimation is needed when prior knowledge of the data or diagnostic checking indicates that
         non-Gaussian behavior in the time-series leads to extreme transient variation. Otherwise we can omit the
         robustness iterations and set no == 0.
