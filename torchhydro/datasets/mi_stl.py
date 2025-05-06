@@ -15,27 +15,24 @@ class STL():
         initiate a STL model
         """
         self.x = x  # the original data
-        # self.x = None
         self.frequency = 1  # the frequency of time series
         self.length = len(x)  # the length of time series
-        # self.length = None
         self.trend = None  # trend item
         self.season = None  # season item
         self.residuals = None  # residuals item
         self.mode = "addition"
         self.parity = None  # the parity of frequency
-        self.compound_season = None
         self.u = 0
         self.mutation = None
         self.cycle_subseries = None
         self.cycle_length = 365
         self.window_length = 5  # window width, span
         self.t_window = 15  # need to be odd
-        self.t_degree = 0 # 1 or 2
+        self.t_degree = 0  # 1 or 2
         self.s_window = 5  # need to be odd
-        self.s_degree = 1 # 1 or 2
-        self.robust = True # True of False
-        self.degree = 1 # 1 or 2, locally-linear or locally-quadratic
+        self.s_degree = 1  # 1 or 2
+        self.robust = True  # True of False
+        self.degree = 1  # 1 or 2, locally-linear or locally-quadratic
 
         self._get_parity()
 
@@ -84,14 +81,6 @@ class STL():
         trend = []
         for i in range(self.length):
             trend_i = self._trend_t_odd(i)
-            trend.append(trend_i)
-        self.trend = np.array(trend)
-
-    def _trend_even(self):
-        """get the trend of series, frequency is even"""
-        trend = []
-        for i in range(self.length):
-            trend_i = self._trend_t_even(i)
             trend.append(trend_i)
         self.trend = np.array(trend)
 
@@ -316,20 +305,21 @@ class STL():
 
         trend
         calculate seasonal item
-        ni, the number of inner loop, 1 or 2.
-        np, the number of observations in each period, or cycle.
-        ns, parameter of loess in step 2, the window width, >=7, odd.
-        nl, parameter of loess in step 3, the window width, min(>=np, odd).
-        nt, parameter of loess in step 6, the window width, np<nt<2np, odd.
+        ni, the number of passes through the inner loop, 1 or 2.
+        no, the number of robustness iterations of the outer loop.
+        n_p, the number of observations in each cycle of the seasonal component.
+        ns, parameter of loess in step 2, the window width, >=7, odd.  the smoothing parameter for the seasonal component.
+        nl, parameter of loess in step 3, the window width, min(>=np, odd).  the smoothing parameter for the low-pass filter.
+        nt, parameter of loess in step 6, the window width, np<nt<2np, odd.  the smoothing parameter for the trend component.
         k,
         N, the total number of observations in whole series.
 
         low-pass, low-frequency power.
         """
-        ns = 7  # q  35
-        nl = 365
-        nt = 365
-        n_p = 107
+        ns = 15  # q  35
+        nl = 25
+        nt = 31
+        n_p = 365
 
         k = 5  # todo
 
@@ -457,7 +447,21 @@ class STL():
 
     def season_post_smoothing(self, season):
         """post-smoothing of the seasonal"""
-        ns = 51
+        ns = 15
         d = 2  # todo:
         season = self.loess(ns, season)
         return season
+
+    def decomposition(self):
+        """"""
+        trend, season, residuals = self.outer_loop()
+        post_season = self.season_post_smoothing(season)
+        post_residuals = np.array(self.x) - trend - post_season
+        decomposition = pd.DataFrame({"pet": self.x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season, "post_residuals": post_residuals})
+        decomposition.index.name = "time"
+        file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_decomposition.csv"
+        decomposition.to_csv(file_name, sep=" ")
+        self.trend = trend
+        self.season = post_season
+        self.residuals = post_residuals
+        return decomposition

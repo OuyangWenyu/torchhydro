@@ -214,6 +214,44 @@ def test_season_post_smoothing():
     trend, season, residuals = stl.outer_loop()
     post_season = stl.season_post_smoothing(season)
     pet_post_season = pd.DataFrame({"pet": x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season})
+    pet_post_season.index.name = "time"
     file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_post_season.csv"
     pet_post_season.to_csv(file_name, sep=" ")
     print(pet_post_season)
+# PASSED                [100%]
+# time  pet     trend    season  residuals  post_season
+# 0     1.20  1.733627 -0.533627        0.0    -0.533627
+# 1     1.30  1.728555 -0.428555        0.0    -0.428555
+# 2     0.90  1.723637 -0.823637        0.0    -0.982103
+# 3     0.55  1.718873 -1.168873        0.0    -0.905982
+# 4     0.85  1.714265 -0.864265        0.0    -0.733111
+# ...    ...       ...       ...        ...          ...
+# 5835  0.65  1.354457 -0.704457        0.0    -0.767987
+# 5836  0.55  1.354057 -0.804057        0.0    -0.822173
+# 5837  0.55  1.353730 -0.803730        0.0    -0.818743
+# 5838  0.50  1.353479 -0.853479        0.0    -0.853479
+# 5839  0.60  1.353301 -0.753301        0.0    -0.753301
+#
+# [5840 rows x 5 columns]
+
+
+def test_decomposition():
+    x = ystl().pet
+    stl = STL(x)
+    decomposition = stl.decomposition()
+    print(decomposition)
+# PASSED                        [100%]
+# time  pet     trend    season  residuals  post_season  post_residuals
+# 0     1.20  2.250849 -1.050849        0.0    -1.050849             0.0
+# 1     1.30  2.250171 -0.950171        0.0    -0.950171             0.0
+# 2     0.90  2.249582 -1.349582        0.0    -1.349582             0.0
+# 3     0.55  2.249082 -1.699082        0.0    -1.699082             0.0
+# 4     0.85  2.248672 -1.398672        0.0    -1.398672             0.0
+# ...    ...       ...       ...        ...          ...             ...
+# 5835  0.65  1.607992 -0.957992        0.0    -0.957992             0.0
+# 5836  0.55  1.608195 -1.058195        0.0    -1.058195             0.0
+# 5837  0.55  1.608566 -1.058566        0.0    -1.058566             0.0
+# 5838  0.50  1.609149 -1.109149        0.0    -1.109149             0.0
+# 5839  0.60  1.609986 -1.009986        0.0    -1.009986             0.0
+#
+# [5840 rows x 6 columns]
