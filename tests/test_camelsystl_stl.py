@@ -145,14 +145,14 @@ def test_moving_average_smoothing():
 # [5840 rows x 4 columns]
 
 def test_weight_least_squares():
-    x = ystl().data
+    x = ystl().pet
     stl = STL(x)
     xx = [1, 2, 3, 4, 5]
     y = x[:5]
-    y_ = stl.weight_least_squares(xx, y)
+    y_ = stl.weight_least_squares(xx, y, degree=2)
     print(y_)
-    # [169.23839733 - 3.05]
-    # 157.03839732888136
+    # PASSED[100 %]
+    # 0.7283553118882566
 
 def test_loess():
     x = ystl().pet

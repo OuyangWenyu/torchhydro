@@ -162,7 +162,7 @@ class STL():
             return 0
 
     def _neighborhood_weight(self, width):
-        """calculate neighborhood weights within window"""
+        """calculate neighborhood weights within window"""  # todo:
         degree = 2
         # length = int(self.window_length / 2)
         length = int(width / 2)
@@ -206,11 +206,14 @@ class STL():
         """
         length = len(x)
 
+        if rho_weight is None:
+            rho_weight = [1]*length
+
         # construct matrix
-        At = np.array([])
-        for i in range(degree+1):
+        At = np.ones((1, length))
+        for i in range(1, degree+1):
             at_i = np.power(x, i)
-            At = np.append([At, at_i], axis=0)
+            At = np.concatenate([At, [at_i]], axis=0)
         A = np.transpose(At)
         Y = y
         weight = self._neighborhood_weight(length)
@@ -232,10 +235,10 @@ class STL():
         a = np.matmul(a, Y)
 
         # regressive
-        i = int(length/2 + 1)
+        ii = int(length/2 + 1)
         yy = 0
         for i in range(degree+1):
-            yy = yy + a[i] * np.power(x[i], i)
+            yy = yy + a[i] * np.power(x[ii], i)
 
         return yy
 
@@ -335,7 +338,7 @@ class STL():
 
 
     def moving_average_smoothing(self, width, x):
-        """moving average smoothing """  # todo:
+        """moving average smoothing """
         length = len(x)
         start = int(width/2 + 1)
         k = int(width/2)
