@@ -222,7 +222,10 @@ class STL():
         A = np.transpose(At)
         Y = y
         weight = self._neighborhood_weight(length)
-        weight = np.multiply(weight, rho_weight)
+        try:
+            weight = np.multiply(weight, rho_weight)
+        except ValueError:
+            raise ValueError("operands could not be broadcast together with shapes (7,) (6,)")
         W = np.diag(weight)
         B = np.matmul(At, W)
         B = np.matmul(B, A)
@@ -264,51 +267,51 @@ class STL():
             rho_w = rho_weight
 
         xx = list(range(width))
-        # start = int(width / 2)
         k = int(width / 2)
         result = [0] * length
-        # result[:start] = x[:start]
-        # for i in range(start, length-start):
         for i in range(length):
             if i < k:
                 m = k - i
                 # y
                 y1 = [x[i]]
                 y2 = x[i+1:i+k+1]
-                if m > 1:
-                    y0 = y2[-m:]
-                    y0.reverse()
-                else:
-                    y0 = [y2[-m]]
-                y = y0 + y1 + y2
                 # rw_i
                 rw_i1 = [rho_w[i]]
-                rw_i2 = [rho_w[i+1:i+k+1]]
-                if m > 1:
+                rw_i2 = rho_w[i+1:i+k+1]
+                if m == k:
+                    y0 = y2[-m:]
+                    y0.reverse()
+                    rw_i0 = rw_i2[-m:]
+                    rw_i0.reverse()
+                elif m > 1 and m < k:
+                    y3 = x[i-m:i]
+                    y0 = y2[-m:]
+                    y0.reverse()
+                    rw_i3 = rho_w[i-m:i]
                     rw_i0 = rw_i2[-m:]
                     rw_i0.reverse()
                 else:
+                    y0 = [y2[-m]]
                     rw_i0 = [rw_i2[-m]]
-                rw_i = rw_i0 + rw_i1 + rw_i2
+                y = y0 + y3 + y1 + y2
+                rw_i = rw_i0 + rw_i3 + rw_i1 + rw_i2
             elif abs(1 - (length-1)) < k:
                 m = k - abs(1 - (length-1))
                 # y
                 y1 = [x[i]]
                 y2 = x[i-k:i]
+                # rw_i
+                rw_i1 = [rho_w[i]]
+                rw_i0 = rho_w[i-k:i]
                 if m > 1:
                     y0 = y2[:m]
                     y0.reverse()
+                    rw_i2 = rw_i2[:m]
+                    rw_i2.reverse()
                 else:
                     y0 = [y2[m]]
+                    rw_i2 = [rw_i2[m]]
                 y = y0 + y1 + y2
-                # rw_i
-                rw_i1 = [rho_w[i]]
-                rw_i2 = [rho_w[i-k:i]]
-                if m > 1:
-                    rw_i0 = rw_i2[:m]
-                    rw_i0.reverse()
-                else:
-                    rw_i0 = [rw_i2[m]]
                 rw_i = rw_i0 + rw_i1 + rw_i2
             else:
                 y = x[i-k:i+k+1]

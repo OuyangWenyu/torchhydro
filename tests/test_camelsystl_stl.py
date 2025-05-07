@@ -155,7 +155,7 @@ def test_weight_least_squares():
     # 157.03839732888136
 
 def test_loess():
-    x = ystl().data
+    x = ystl().pet
     stl = STL(x)
     xx = x[:30]
     result = stl.loess(7, xx)
