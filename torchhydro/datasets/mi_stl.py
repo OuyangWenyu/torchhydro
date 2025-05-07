@@ -5,12 +5,11 @@ import pandas as pd
 class STL():
     """
     Seasonal-Trend decomposition using LOESS
-    Loess   circle-subseries
+    Loess     circle-subseries     low pass filter
     y_t = T_t + S_t + R_t
     todo: unify the data type.
     """
     def __init__(self, x):
-    # def __init__(self):
         """
         initiate a STL model
         """
@@ -22,7 +21,6 @@ class STL():
         self.residuals = None  # residuals item
         self.mode = "addition"
         self.parity = None  # the parity of frequency
-        self.u = 0
         self.mutation = None
         self.cycle_subseries = None
         self.cycle_length = 365
@@ -48,13 +46,6 @@ class STL():
         """get the range of time period t"""
         t_start = (self.frequency+self.length)/2
         t_end = self.length - (self.frequency-1)/2
-        t_range = [t_start, t_end]
-        return t_range
-
-    def _get_t_range_even(self, t):
-        """get the range of time period t"""
-        t_start = self.frequency/2 + 1
-        t_end = self.length - self.frequency/2
         t_range = [t_start, t_end]
         return t_range
 
@@ -145,7 +136,7 @@ class STL():
         for i in range(len_subseries):  # 18
             for j in range(n_subseries):  # 365
                 series_ji = float(subseries[j][i])
-                series_i[j] = series_ji  # ! todo: !
+                series_i[j] = series_ji
             series = series + series_i[:]
         pd_series = pd.DataFrame({"pet_loess": series})
         pd_series.index.name = "time"
@@ -214,7 +205,6 @@ class STL():
 
         """
         length = len(x)
-        xx = np.array(x)
 
         # construct matrix
         At = np.array([])
@@ -230,7 +220,7 @@ class STL():
             raise ValueError("operands could not be broadcast together with shapes (7,) (6,)")
         W = np.diag(weight)
 
-        # matrix operations,
+        # matrix operations, calculate the coefficient matrix.
         B = np.matmul(At, W)
         B = np.matmul(B, A)
         try:
@@ -257,7 +247,7 @@ class STL():
         rho_weight: list = None,
     ):
         """
-        loess
+        loess, locally estimated scatterplot smoothing.
         calculate loess curve for a series
         Parameters
         ----------
@@ -281,10 +271,8 @@ class STL():
             # start
             if i < k:
                 m = k - i
-                # y
                 y1 = [x[i]]
                 y2 = x[i+1:i+k+1]
-                # rw_i
                 rw_i1 = [rho_w[i]]
                 rw_i2 = rho_w[i+1:i+k+1]
                 if m == k:
@@ -311,10 +299,8 @@ class STL():
             # end
             elif abs(i - (length-1)) < k:
                 m = k - abs(i - (length-1))
-                # y
                 y1 = [x[i]]
                 y0 = x[i-k:i]
-                # rw_i
                 rw_i1 = [rho_w[i]]
                 rw_i0 = rho_w[i-k:i]
                 if m == k:
@@ -341,6 +327,7 @@ class STL():
             else:
                 y = x[i-k:i+k+1]
                 rw_i = rho_w[i-k:i+k+1]
+            #
             y_i = self.weight_least_squares(xx, y, degree, rw_i)
             result[i] = y_i
 
@@ -348,7 +335,7 @@ class STL():
 
 
     def moving_average_smoothing(self, width, x):
-        """moving average smoothing """
+        """moving average smoothing """  # todo:
         length = len(x)
         start = int(width/2 + 1)
         k = int(width/2)
@@ -501,7 +488,6 @@ class STL():
         season_ij0 = []
         rho_weight = [1]*self.length
         residuals0 = [0]*self.length
-        residuals0 = np.array(residuals0)
 
         # outer loop
         for i in range(no):
