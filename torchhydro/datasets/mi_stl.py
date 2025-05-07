@@ -58,16 +58,6 @@ class STL():
         t_range = [t_start, t_end]
         return t_range
 
-    def _trend_t_odd(self, t):
-        """
-        get the trend of specified time period
-        """
-        t_range = self._get_t_range_odd(t)
-        data = self._get_data(t_range)
-        trend_t = np.sum(data, axis=2)/self.frequency
-
-        return trend_t
-
     def _cycle_subseries(self, x):
         """
         divide series into cycle subseries
@@ -199,26 +189,38 @@ class STL():
         v_xi = weight * np.absolute(xi - x)/((width - 1)/2)
         return v_xi
 
-    def weight_least_squares(self, x, y, rho_weight):
+    def weight_least_squares(
+        self,
+        x,
+        y,
+        degree: int = 1,
+        rho_weight: list = None,
+    ):
         """
         polynomial regressive, least-squares, locally fit
-        1 degree linear or 2 degree quadratic polynomial
         minimize the square summation of weight residual error -> parameters of polynomial -> estimate value
         least squares estimate
         numerical analysis page 67-71.
         degree = 1
         Parameters
         ----------
-        x, independent variable
-        y, dependent variable
-        rho_weight, robustness weights
+        x: independent variable
+        y: dependent variable
+        degree: int, the number of polynomial degree. 0 degree for constant, 1 degree for linear, 2 degree for quadratic
+         polynomial.
+        rho_weight, robustness weights.
         Returns
         -------
 
         """
         length = len(x)
-        x1 = [1]*length
-        At = np.array([x1, x])
+        xx = np.array(x)
+
+        # construct matrix
+        At = np.array([])
+        for i in range(degree+1):
+            at_i = np.power(x, i)
+            At = np.append([At, at_i], axis=0)
         A = np.transpose(At)
         Y = y
         weight = self._neighborhood_weight(length)
@@ -227,6 +229,8 @@ class STL():
         except ValueError:
             raise ValueError("operands could not be broadcast together with shapes (7,) (6,)")
         W = np.diag(weight)
+
+        # matrix operations,
         B = np.matmul(At, W)
         B = np.matmul(B, A)
         try:
@@ -237,8 +241,11 @@ class STL():
         a = np.matmul(a, W)
         a = np.matmul(a, Y)
 
+        # regressive
         i = int(length/2 + 1)
-        yy = a[0] + a[1] * x[i]
+        yy = 0
+        for i in range(degree+1):
+            yy = yy + a[i] * np.power(x[i], i)
 
         return yy
 
@@ -246,6 +253,7 @@ class STL():
         self,
         width,
         x,
+        degree: int = 1,
         rho_weight: list = None,
     ):
         """
@@ -270,6 +278,7 @@ class STL():
         k = int(width / 2)
         result = [0] * length
         for i in range(length):
+            # start
             if i < k:
                 m = k - i
                 # y
@@ -279,46 +288,61 @@ class STL():
                 rw_i1 = [rho_w[i]]
                 rw_i2 = rho_w[i+1:i+k+1]
                 if m == k:
+                    y3 = []
                     y0 = y2[-m:]
                     y0.reverse()
+                    rw_i3 = []
                     rw_i0 = rw_i2[-m:]
                     rw_i0.reverse()
                 elif m > 1 and m < k:
-                    y3 = x[i-m:i]
+                    y3 = x[:i]
                     y0 = y2[-m:]
                     y0.reverse()
-                    rw_i3 = rho_w[i-m:i]
+                    rw_i3 = rho_w[:i]
                     rw_i0 = rw_i2[-m:]
                     rw_i0.reverse()
                 else:
+                    y3 = x[:i]
                     y0 = [y2[-m]]
+                    rw_i3 = rho_w[:i]
                     rw_i0 = [rw_i2[-m]]
                 y = y0 + y3 + y1 + y2
                 rw_i = rw_i0 + rw_i3 + rw_i1 + rw_i2
-            elif abs(1 - (length-1)) < k:
-                m = k - abs(1 - (length-1))
+            # end
+            elif abs(i - (length-1)) < k:
+                m = k - abs(i - (length-1))
                 # y
                 y1 = [x[i]]
-                y2 = x[i-k:i]
+                y0 = x[i-k:i]
                 # rw_i
                 rw_i1 = [rho_w[i]]
                 rw_i0 = rho_w[i-k:i]
-                if m > 1:
-                    y0 = y2[:m]
-                    y0.reverse()
-                    rw_i2 = rw_i2[:m]
+                if m == k:
+                    y3 = []
+                    y2 = y0[:m]
+                    y2.reverse()
+                    rw_i3 = []
+                    rw_i2 = rw_i0[:m]
+                    rw_i2.reverse()
+                elif m > 1 and m < k:
+                    y3 = x[i+1:]
+                    y2 = y0[:m]
+                    y2.reverse()
+                    rw_i3 = rho_w[i+1:]
+                    rw_i2 = rw_i0[:m]
                     rw_i2.reverse()
                 else:
-                    y0 = [y2[m]]
-                    rw_i2 = [rw_i2[m]]
-                y = y0 + y1 + y2
-                rw_i = rw_i0 + rw_i1 + rw_i2
+                    y3 = x[i+1:]
+                    y2 = [y0[m]]
+                    rw_i3 = rho_w[i+1:]
+                    rw_i2 = [rw_i0[m]]
+                y = y0 + y1 + y3 + y2
+                rw_i = rw_i0 + rw_i1 + rw_i3 + rw_i2
             else:
                 y = x[i-k:i+k+1]
                 rw_i = rho_w[i-k:i+k+1]
-            y_i = self.weight_least_squares(xx, y, rw_i)
+            y_i = self.weight_least_squares(xx, y, degree, rw_i)
             result[i] = y_i
-        # result[length - start:] = x[length - start:]
 
         return result
 
@@ -391,7 +415,7 @@ class STL():
         noise and not meaningful seasonal variation because the cycle in the CO2 series is caused mainly by the seasonal
         cycle of foliage in the Northern Hemisphere, and one would expect a smooth evolution of this cycle over years.
         """
-        ns = 7  # q  35  odd >=7  < 15
+        ns = 9  # q  35  odd >=7  < 15
         nl = 365
         nt = 421    # odd
         n_p = 365
@@ -435,6 +459,8 @@ class STL():
 
         # 5 deseasonalizing
         trend = y - season
+        trend = trend.tolist()
+        season = season.tolist()
 
         # 6 Trend Smoothing
         trend = self.loess(nt, trend, rho_weight)
@@ -467,7 +493,7 @@ class STL():
         robustness weights
         no, the number of outer loop, 0<=no<=10.
         """
-        no = 1
+        no = 30
         ni = 1
         trend = [0]*self.length
         season = [0]*self.length
@@ -534,9 +560,8 @@ class STL():
 
     def season_post_smoothing(self, season):
         """post-smoothing of the seasonal"""
-        ns = 13
-        d = 2  # todo:
-        season = self.loess(ns, season)
+        ns = 7
+        season = self.loess(ns, season, degree=2)
         return season
 
     def decomposition(self):
