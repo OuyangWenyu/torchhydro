@@ -257,22 +257,68 @@ class STL():
 
         """
         length = len(x)
+
         if rho_weight is None:
             rho_w = [1]*length
         else:
             rho_w = rho_weight
+
         xx = list(range(width))
-        start = int(width / 2)
+        # start = int(width / 2)
         k = int(width / 2)
         result = [0] * length
-        result[:start] = x[:start]
-        for i in range(start, length-start):
-            y = x[i-k:i+k+1]
-            rw_i = rho_w[i-k:i+k+1]
+        # result[:start] = x[:start]
+        # for i in range(start, length-start):
+        for i in range(length):
+            if i < k:
+                m = k - i
+                # y
+                y1 = [x[i]]
+                y2 = x[i+1:i+k+1]
+                if m > 1:
+                    y0 = y2[-m:]
+                    y0.reverse()
+                else:
+                    y0 = [y2[-m]]
+                y = y0 + y1 + y2
+                # rw_i
+                rw_i1 = [rho_w[i]]
+                rw_i2 = [rho_w[i+1:i+k+1]]
+                if m > 1:
+                    rw_i0 = rw_i2[-m:]
+                    rw_i0.reverse()
+                else:
+                    rw_i0 = [rw_i2[-m]]
+                rw_i = rw_i0 + rw_i1 + rw_i2
+            elif abs(1 - (length-1)) < k:
+                m = k - abs(1 - (length-1))
+                # y
+                y1 = [x[i]]
+                y2 = x[i-k:i]
+                if m > 1:
+                    y0 = y2[:m]
+                    y0.reverse()
+                else:
+                    y0 = [y2[m]]
+                y = y0 + y1 + y2
+                # rw_i
+                rw_i1 = [rho_w[i]]
+                rw_i2 = [rho_w[i-k:i]]
+                if m > 1:
+                    rw_i0 = rw_i2[:m]
+                    rw_i0.reverse()
+                else:
+                    rw_i0 = [rw_i2[m]]
+                rw_i = rw_i0 + rw_i1 + rw_i2
+            else:
+                y = x[i-k:i+k+1]
+                rw_i = rho_w[i-k:i+k+1]
             y_i = self.weight_least_squares(xx, y, rw_i)
             result[i] = y_i
-        result[length - start:] = x[length - start:]
+        # result[length - start:] = x[length - start:]
+
         return result
+
 
     def moving_average_smoothing(self, width, x):
         """moving average smoothing """
@@ -342,9 +388,9 @@ class STL():
         noise and not meaningful seasonal variation because the cycle in the CO2 series is caused mainly by the seasonal
         cycle of foliage in the Northern Hemisphere, and one would expect a smooth evolution of this cycle over years.
         """
-        ns = 11  # q  35  odd >=7  < 15
+        ns = 7  # q  35  odd >=7  < 15
         nl = 365
-        nt = 367
+        nt = 421    # odd
         n_p = 365
 
         k = 5  # todo
@@ -418,7 +464,7 @@ class STL():
         robustness weights
         no, the number of outer loop, 0<=no<=10.
         """
-        no = 30
+        no = 1
         ni = 1
         trend = [0]*self.length
         season = [0]*self.length
@@ -441,38 +487,46 @@ class STL():
                     trend_ij0 = trend_i0[:]
                     season_ij0 = season_i0[:]
                 trend_i, season_i = self.inner_loop(self.x, trend_ij0, extend_sub_rho_weight, rho_weight)
-                t_a = max(np.absolute(np.array(trend_ij0)-np.array(trend_i)))
-                t_b = max(trend_ij0)
-                t_c = min(trend_ij0)
-                terminate_trend = t_a / (t_b + t_c)
-                s_a = max(np.absolute(np.array(season_ij0)-np.array(season_i)))
-                s_b = max(season_ij0)
-                s_c = min(season_ij0)
-                terminate_season = s_a / (s_b + s_c)
-                if terminate_trend < 0.01 or terminate_season < 0.01:
-                    print("terminate_trend < 0.01 or terminate_season < 0.01")
-                    print("inner loop = " + str(j))
-                    break
-                trend_ij0 = trend_i[:]
-                season_ij0 = season_i[:]
+                if ni > 1:
+                    t_a = max(np.absolute(np.array(trend_ij0)-np.array(trend_i)))
+                    t_b = max(trend_ij0)
+                    t_c = min(trend_ij0)
+                    terminate_trend = t_a / (t_b + t_c)
+                    s_a = max(np.absolute(np.array(season_ij0)-np.array(season_i)))
+                    s_b = max(season_ij0)
+                    s_c = min(season_ij0)
+                    terminate_season = s_a / (s_b + s_c)
+                    if terminate_trend < 0.01 or terminate_season < 0.01:
+                        print("terminate_trend < 0.01 or terminate_season < 0.01")
+                        print("inner loop = " + str(j))
+                        break
+                    else:
+                        trend_ij0 = trend_i[:]
+                        season_ij0 = season_i[:]
 
-            trend_i0 = trend_i[:]
-            season_i0 = season_i[:]
-            residuals = np.array(self.x) - np.array(trend_i0) - np.array(season_i0)
+            residuals = np.array(self.x) - np.array(trend_i) - np.array(season_i)
             abs_residuals = np.absolute(residuals)
             h = 6 * np.median(abs_residuals)
             abs_residuals_h = abs_residuals / h
             rho_weight = self.rho_weight(abs_residuals_h)  # todo:
 
-            d_residuals = np.sum(residuals-residuals0)/self.length
-            if d_residuals < 0.01:
-                print("d_residuals < 0.01")
+            t_a = max(np.absolute(np.array(trend_i0) - np.array(trend_i)))
+            t_b = max(trend_i0)
+            t_c = min(trend_i0)
+            terminate_trend = t_a / (t_b + t_c)
+            s_a = max(np.absolute(np.array(season_i0) - np.array(season_i)))
+            s_b = max(season_i0)
+            s_c = min(season_i0)
+            terminate_season = s_a / (s_b + s_c)
+            if terminate_trend < 0.01 or terminate_season < 0.01:
+                print("terminate_trend < 0.01 or terminate_season < 0.01")
                 print("outer loop = " + str(i))
                 break
             else:
-                residuals0 = residuals
+                trend_i0 = trend_i[:]
+                season_i0 = season_i[:]
 
-        return trend_i0, season_i0, residuals
+        return trend_i, season_i, residuals
 
 
     def season_post_smoothing(self, season):
