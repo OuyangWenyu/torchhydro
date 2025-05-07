@@ -119,11 +119,23 @@ def test_neighborhood_weight():
 def test_moving_average_smoothing():
     x = ystl().pet
     stl = STL(x)
-    xx = x
-    result1 = stl.moving_average_smoothing(6, xx)
-    result2 = stl.moving_average_smoothing(5, result1)
-    result3 = stl.moving_average_smoothing(4, result2)
-    pet_mas = pd.DataFrame({"pet": xx, "result1": result1, "result2": result2, "result3": result3})
+    xx = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 35, 31]  # 17
+    result = stl.moving_average_smoothing(7, xx)
+    print(xx)
+    print(result)
+# PASSED             [100%]
+# [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 35, 31]
+# [5.0, 4.285714285714286, 3.857142857142857, 7.0, 9.285714285714286, 10.714285714285714, 13.285714285714286,
+#  14.714285714285714, 17.285714285714285, 18.714285714285715, 21.285714285714285, 22.714285714285715, 25.571428571428573,
+#  27.0, 27.571428571428573, 28.142857142857142, 17.428571428571427]
+
+def test_repetitious_moving_average_smoothing():
+    x = ystl().pet
+    stl = STL(x)
+    result1 = stl.moving_average_smoothing(31, x)
+    result2 = stl.moving_average_smoothing(21, result1)
+    result3 = stl.moving_average_smoothing(11, result2)
+    pet_mas = pd.DataFrame({"pet": x, "result1": result1, "result2": result2, "result3": result3})
     pet_mas.index.name = "time"
     file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_moving_average_smoothing.csv"
     pet_mas.to_csv(file_name, sep=" ")

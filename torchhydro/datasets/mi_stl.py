@@ -24,16 +24,15 @@ class STL():
         self.mutation = None
         self.cycle_subseries = None
         self.cycle_length = 365
-        self.window_length = 5  # window width, span
-        self.t_window = 15  # need to be odd
-        self.t_degree = 0  # 1 or 2
-        self.s_window = 5  # need to be odd
-        self.s_degree = 1  # 1 or 2
-        self.robust = True  # True of False
+        self.no = 10  # window width, span
+        self.ni = 1  # need to be odd
+        self.ns = 9  # odd >=7
+        self.nl = 365  # need to be odd
+        self.nt = 421  # 1 or 2
+        self.n_p = 365  # True of False
         self.degree = 1  # 1 or 2, locally-linear or locally-quadratic
 
         self._get_parity()
-
 
     def _get_parity(self):
         """get the parity of frequency"""
@@ -300,8 +299,8 @@ class STL():
                 y = y0 + y3 + y1 + y2
                 rw_i = rw_i0 + rw_i3 + rw_i1 + rw_i2
             # end
-            elif abs(i - (length-1)) < k:
-                m = k - abs(i - (length-1))
+            elif i > (length-1) - k:
+                m = k + i - (length-1)
                 y1 = [x[i]]
                 y0 = x[i-k:i]
                 rw_i1 = [rho_w[i]]
@@ -343,7 +342,7 @@ class STL():
         x
     ):
         """
-        moving_average_smoothing
+        moving average smoothing
         Parameters
         ----------
         width: int, window width.
@@ -354,14 +353,48 @@ class STL():
 
         """
         length = len(x)
-        start = int(width/2 + 1)
         k = int(width/2)
         result = [0]*length
-        result[:start] = x[:start]
-        for i in range(start, length-start+1):
-            x_i = np.sum(x[i-k:i+k+1])/width
+        for i in range(length):
+            # start
+            if i < k:
+                m = k - i
+                xx1 = [x[i]]
+                xx2 = x[i + 1:i + m + 1]
+                if m == k:
+                    xx0 = []
+                    xx3 = xx2
+                    xx3.reverse()
+                elif m > 1 and m < k:
+                    xx0 = x[:i]
+                    xx3 = xx2[-m:]
+                    xx3.reverse()
+                else:
+                    xx0 = x[:i]
+                    xx3 = [xx2[-m]]
+                xx = xx3 + xx0 + xx1 + xx2
+            # end
+            elif i > (length-1) - k:
+                m = k + i - (length-1)
+                xx1 = [x[i]]
+                xx0 = x[i-k:i]
+                if m == k:
+                    xx2 = x[i+1:]
+                    xx3 = []
+                elif m > 1 and m < k:
+                    xx2 = x[i+1:]
+                    xx3 = xx0[:m]
+                    xx3.reverse()
+                else:
+                    xx2 = x[i+1:]
+                    xx3 = [xx0[m]]
+                xx = xx0 + xx1 + xx2 + xx3
+            # middle
+            else:
+                xx = x[i-k:i+k+1]
+            x_i = np.sum(xx)/width
             result[i] = x_i
-        result[length-start+1:] = x[length-start+1:]
+
         return result
 
     def inner_loop(
@@ -419,10 +452,10 @@ class STL():
         noise and not meaningful seasonal variation because the cycle in the CO2 series is caused mainly by the seasonal
         cycle of foliage in the Northern Hemisphere, and one would expect a smooth evolution of this cycle over years.
         """
-        ns = 9  # q  35  odd >=7  < 15
-        nl = 365
-        nt = 421    # odd
-        n_p = 365
+        # ns = 9  # q  35  odd >=7  < 15
+        # nl = 365
+        # nt = 421    # odd
+        # n_p = 365
 
         k = 5  # todo
 
@@ -436,7 +469,7 @@ class STL():
         for i in range(self.cycle_length):
             extend_subseries_i = extend_subseries[i]
             sub_rho_weight_i = sub_rho_weight[i]
-            extend_subseries_i = self.loess(ns, extend_subseries_i, sub_rho_weight_i)  # q = ns, d = 1
+            extend_subseries_i = self.loess(self.ns, extend_subseries_i, sub_rho_weight_i)  # q = ns, d = 1
             cycle.append(extend_subseries_i)
         cycle_v = self._recover_series(cycle)
         pd_cycle = pd.DataFrame({
@@ -447,10 +480,10 @@ class STL():
         pd_cycle.to_csv(file_name, sep=" ")
 
         # 3 low-pass filtering of smoothed cycle-subseries
-        lowf1 = self.moving_average_smoothing(n_p, cycle_v)  # n_p
-        lowf2 = self.moving_average_smoothing(n_p, lowf1)
+        lowf1 = self.moving_average_smoothing(self.n_p, cycle_v)  # n_p
+        lowf2 = self.moving_average_smoothing(self.n_p, lowf1)
         lowf3 = self.moving_average_smoothing(3, lowf2)
-        lowf4 = self.loess(nl, lowf3)
+        lowf4 = self.loess(self.nl, lowf3)
         pd_lowf = pd.DataFrame({"lowf1": lowf1, "lowf2": lowf2, "lowf3": lowf3, "lowf4": lowf4})
         pd_lowf.index.name = "time"
         file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_lowf.csv"
@@ -467,7 +500,7 @@ class STL():
         season = season.tolist()
 
         # 6 Trend Smoothing
-        trend = self.loess(nt, trend, rho_weight)
+        trend = self.loess(self.nt, trend, rho_weight)
 
         return trend, season
 
@@ -504,7 +537,6 @@ class STL():
         trend_ij0 = []
         season_ij0 = []
         rho_weight = [1]*self.length
-        residuals0 = [0]*self.length
 
         # outer loop
         for i in range(no):
