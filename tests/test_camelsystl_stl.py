@@ -120,27 +120,27 @@ def test_moving_average_smoothing():
     x = ystl().pet
     stl = STL(x)
     xx = x
-    result1 = stl.moving_average_smoothing(101, xx)
-    result2 = stl.moving_average_smoothing(101, result1)
-    result3 = stl.moving_average_smoothing(61, result2)
+    result1 = stl.moving_average_smoothing(6, xx)
+    result2 = stl.moving_average_smoothing(5, result1)
+    result3 = stl.moving_average_smoothing(4, result2)
     pet_mas = pd.DataFrame({"pet": xx, "result1": result1, "result2": result2, "result3": result3})
     pet_mas.index.name = "time"
     file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_moving_average_smoothing.csv"
     pet_mas.to_csv(file_name, sep=" ")
     print(pet_mas)
 # PASSED             [100%]
-# time  pet  result1  result2  result3
-# 0     1.20     1.20     1.20     1.20
-# 1     1.30     1.30     1.30     1.30
-# 2     0.90     0.90     0.90     0.90
-# 3     0.55     0.55     0.55     0.55
-# 4     0.85     0.85     0.85     0.85
-# ...    ...      ...      ...      ...
-# 5835  0.65     0.65     0.65     0.65
-# 5836  0.55     0.55     0.55     0.55
-# 5837  0.55     0.55     0.55     0.55
-# 5838  0.50     0.50     0.50     0.50
-# 5839  0.60     0.60     0.60     0.60
+# time  pet   result1   result2   result3
+# 0     1.20  1.200000  1.200000  1.200000
+# 1     1.30  1.300000  1.300000  1.300000
+# 2     0.90  0.900000  0.900000  0.900000
+# 3     0.55  0.550000  0.963333  1.242083
+# 4     0.85  1.083333  0.893333  1.167917
+# ...    ...       ...       ...       ...
+# 5835  0.65  0.700000  0.671667  0.847083
+# 5836  0.55  0.708333  0.631667  0.783333
+# 5837  0.55  0.550000  0.611667  0.753750
+# 5838  0.50  0.500000  0.500000  0.500000
+# 5839  0.60  0.600000  0.600000  0.600000
 #
 # [5840 rows x 4 columns]
 

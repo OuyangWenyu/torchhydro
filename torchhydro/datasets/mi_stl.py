@@ -234,7 +234,7 @@ class STL():
         a = np.matmul(a, W)
         a = np.matmul(a, Y)
 
-        # regressive
+        # regressive, estimate value
         ii = int(length/2 + 1)
         yy = 0
         for i in range(degree+1):
@@ -337,8 +337,22 @@ class STL():
         return result
 
 
-    def moving_average_smoothing(self, width, x):
-        """moving average smoothing """
+    def moving_average_smoothing(
+        self,
+        width,
+        x
+    ):
+        """
+        moving_average_smoothing
+        Parameters
+        ----------
+        width: int, window width.
+        x: series need to smoothing.
+
+        Returns
+        -------
+
+        """
         length = len(x)
         start = int(width/2 + 1)
         k = int(width/2)
