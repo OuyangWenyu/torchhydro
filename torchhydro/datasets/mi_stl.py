@@ -160,14 +160,27 @@ class STL():
         else:
             return 0
 
-    def _neighborhood_weight(self, width):
-        """calculate neighborhood weights within window"""  # todo:
-        degree = 2
-        # length = int(self.window_length / 2)
-        length = int(width / 2)
+    def _neighborhood_weight(
+        self,
+        width: int,
+        degree: int = 2,
+    ):
+        """
+        calculate neighborhood weights within window
+        Parameters
+        ----------
+        width
+        degree
+
+        Returns
+        -------
+
+        """
+        # todo: !
+        k = int(width / 2)
         weight = []
         for i in range(width):
-            d_i = np.absolute((i + 1) - (length + 1)) / (length + 1)
+            d_i = np.absolute((i + 1) - (k + 1)) / (k + 1)
             w_i = self.weight_function(d_i, degree)
             weight.append(w_i)
         return weight
@@ -243,7 +256,7 @@ class STL():
 
     def loess(
         self,
-        width,
+        width: int,
         x,
         degree: int = 1,
         rho_weight: list = None,
@@ -253,7 +266,7 @@ class STL():
         calculate loess curve for a series
         Parameters
         ----------
-        width, window width
+        width, int, odd, window width.
         x, series need to smoothing.
         Returns
         -------
@@ -278,26 +291,26 @@ class STL():
                 rw_i1 = [rho_w[i]]
                 rw_i2 = rho_w[i+1:i+k+1]
                 if m == k:
-                    y3 = []
-                    y0 = y2[-m:]
-                    y0.reverse()
-                    rw_i3 = []
-                    rw_i0 = rw_i2[-m:]
-                    rw_i0.reverse()
-                elif m > 1 and m < k:
-                    y3 = x[:i]
-                    y0 = y2[-m:]
-                    y0.reverse()
-                    rw_i3 = rho_w[:i]
-                    rw_i0 = rw_i2[-m:]
-                    rw_i0.reverse()
+                    y0 = []
+                    y3 = y2[:]
+                    y3.reverse()
+                    rw_i0 = []
+                    rw_i3 = rw_i2[:]
+                    rw_i3.reverse()
+                elif (m > 1) and (m < k):
+                    y0 = x[:i]
+                    y3 = y2[-m:]
+                    y3.reverse()
+                    rw_i0 = rho_w[:i]
+                    rw_i3 = rw_i2[-m:]
+                    rw_i3.reverse()
                 else:
-                    y3 = x[:i]
-                    y0 = [y2[-m]]
-                    rw_i3 = rho_w[:i]
-                    rw_i0 = [rw_i2[-m]]
-                y = y0 + y3 + y1 + y2
-                rw_i = rw_i0 + rw_i3 + rw_i1 + rw_i2
+                    y0 = x[:i]
+                    y3 = [y2[-m]]
+                    rw_i0 = rho_w[:i]
+                    rw_i3 = [rw_i2[-m]]
+                y = y3 + y0 + y1 + y2
+                rw_i = rw_i3 + rw_i0 + rw_i1 + rw_i2
             # end
             elif i > (length-1) - k:
                 m = k + i - (length-1)
@@ -306,26 +319,26 @@ class STL():
                 rw_i1 = [rho_w[i]]
                 rw_i0 = rho_w[i-k:i]
                 if m == k:
-                    y3 = []
-                    y2 = y0[:m]
-                    y2.reverse()
-                    rw_i3 = []
-                    rw_i2 = rw_i0[:m]
-                    rw_i2.reverse()
-                elif m > 1 and m < k:
-                    y3 = x[i+1:]
-                    y2 = y0[:m]
-                    y2.reverse()
-                    rw_i3 = rho_w[i+1:]
-                    rw_i2 = rw_i0[:m]
-                    rw_i2.reverse()
+                    y2 = []
+                    y3 = y0[:]
+                    y3.reverse()
+                    rw_i2 = []
+                    rw_i3 = rw_i0[:]
+                    rw_i3.reverse()
+                elif (m > 1) and (m < k):
+                    y2 = x[i+1:]
+                    y3 = y0[:m]
+                    y3.reverse()
+                    rw_i2 = rho_w[i+1:]
+                    rw_i3 = rw_i0[:m]
+                    rw_i3.reverse()
                 else:
-                    y3 = x[i+1:]
-                    y2 = [y0[m]]
-                    rw_i3 = rho_w[i+1:]
-                    rw_i2 = [rw_i0[m]]
-                y = y0 + y1 + y3 + y2
-                rw_i = rw_i0 + rw_i1 + rw_i3 + rw_i2
+                    y2 = x[i+1:]
+                    y3 = [y0[m-1]]
+                    rw_i2 = rho_w[i+1:]
+                    rw_i3 = [rw_i0[m-1]]
+                y = y0 + y1 + y2 + y3
+                rw_i = rw_i0 + rw_i1 + rw_i2 + rw_i3
             else:
                 y = x[i-k:i+k+1]
                 rw_i = rho_w[i-k:i+k+1]
@@ -360,12 +373,12 @@ class STL():
             if i < k:
                 m = k - i
                 xx1 = [x[i]]
-                xx2 = x[i + 1:i + m + 1]
+                xx2 = x[i + 1:i + k + 1]
                 if m == k:
                     xx0 = []
-                    xx3 = xx2
+                    xx3 = xx2[:]
                     xx3.reverse()
-                elif m > 1 and m < k:
+                elif (m > 1) and (m < k):
                     xx0 = x[:i]
                     xx3 = xx2[-m:]
                     xx3.reverse()
@@ -379,9 +392,10 @@ class STL():
                 xx1 = [x[i]]
                 xx0 = x[i-k:i]
                 if m == k:
-                    xx2 = x[i+1:]
+                    xx2 = xx0[:]
+                    xx2.reverse()
                     xx3 = []
-                elif m > 1 and m < k:
+                elif (m > 1) and (m < k):
                     xx2 = x[i+1:]
                     xx3 = xx0[:m]
                     xx3.reverse()
@@ -469,7 +483,7 @@ class STL():
         for i in range(self.cycle_length):
             extend_subseries_i = extend_subseries[i]
             sub_rho_weight_i = sub_rho_weight[i]
-            extend_subseries_i = self.loess(self.ns, extend_subseries_i, sub_rho_weight_i)  # q = ns, d = 1
+            extend_subseries_i = self.loess(self.ns, extend_subseries_i, degree=1, rho_weight=sub_rho_weight_i)  # q = ns, d = 1
             cycle.append(extend_subseries_i)
         cycle_v = self._recover_series(cycle)
         pd_cycle = pd.DataFrame({
@@ -500,7 +514,7 @@ class STL():
         season = season.tolist()
 
         # 6 Trend Smoothing
-        trend = self.loess(self.nt, trend, rho_weight)
+        trend = self.loess(self.nt, trend, degree=1, rho_weight=rho_weight)
 
         return trend, season
 
