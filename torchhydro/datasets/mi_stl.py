@@ -179,7 +179,7 @@ class STL():
 
         weight = [0]*width
         for i in range(width):
-            u_i = np.absolute((i + 1) - (k + 1)) / width  # todo: ?
+            u_i = np.absolute((i + 1) - (k + 1)) / k  # (k + 1), focal point of the window  [0, 0.67, 1, 0.67, 0]  total= 2.34  todo: ?
             w_i = self.weight_function(u_i, degree)
             weight[i] = w_i
 
@@ -188,6 +188,7 @@ class STL():
     def _neighborhood_weight_start(
         self,
         width: int,
+        m: int,
         degree: int = 3,
     ):
         """
@@ -202,8 +203,18 @@ class STL():
 
         """
         k = int(width / 2)
-
+        q = 2*k - m
+        d = [0]*width
+        u = [0]*width
         weight = [0]*width
+        i_focal = 0
+        if m == k:
+            i_focal = 0
+        elif (m > 1) and (m < k):
+            i_focal = 1
+        else:
+            i_focal = 1
+        # (k + 1), focal point of the window
         for i in range(width):
             u_i = np.absolute((i + 1) - (k + 1)) / width
             w_i = self.weight_function(u_i, degree)
@@ -214,6 +225,7 @@ class STL():
     def _neighborhood_weight_end(
         self,
         width: int,
+        m: int,
         degree: int = 3,
     ):
         """
@@ -292,7 +304,7 @@ class STL():
         a = np.matmul(a, Y)
 
         # regressive, estimate value
-        ii = int(length/2 + 1)
+        ii = int(length/2 + 1)  # focal point of the window
         yy = 0
         for i in range(degree+1):
             yy = yy + a[i] * np.power(x[ii], i)
@@ -359,7 +371,7 @@ class STL():
                 # y = y3 + y0 + y1 + y2
                 # rw_i = rw_i3 + rw_i0 + rw_i1 + rw_i2
                 m = k - i
-                y1 = [x[i]]
+                y1 = [x[i]]  # focal point of the window
                 y2 = x[i+1:i+k+1]
                 rw_i1 = [rho_w[i]]
                 rw_i2 = rho_w[i+1:i+k+1]
@@ -374,10 +386,10 @@ class STL():
                     rw_i0 = x[:i]
                     rw_i3 = rho_w[i+k+1:i+k+1+m]
                 else:
-                    y0 = [x[m]]
-                    y3 = x[i+k+1:i+2*k+1-m]
-                    rw_i0 = [rho_w[m]]
-                    rw_i3 = rho_w[i+k+1:i+2*k+1-m]
+                    y0 = x[:i]
+                    y3 = [x[i+k+1]]
+                    rw_i0 = rho_w[:i]
+                    rw_i3 = [rho_w[i+k+1]]
 
                 y = y0 + y1 + y2 + y3
                 rw_i = rw_i0 + rw_i1 + rw_i2 + rw_i3
@@ -410,13 +422,31 @@ class STL():
                 # y = y0 + y1 + y2 + y3
                 # rw_i = rw_i0 + rw_i1 + rw_i2 + rw_i3
                 m = k + i - (length-1)
-
-
-                y_i = self.weight_least_squares(xx, y, degree, rw_i)
+                y1 = [x[i]]
+                y0 = x[i-k:i]
+                rw_i1 = [rho_w[i]]
+                rw_i0 = rho_w[i-k:i]
+                if m == k:
+                    y2 = []
+                    y3 = x[i-2*k:i-k]
+                    rw_i2 = []
+                    rw_i3 = rho_w[i-2*k:i-k]
+                elif (m > 1) and (m < k):
+                    y2 = x[i+1:]
+                    y3 = x[i-2*k+m:i-k]
+                    rw_i2 = rho_w[i+1:]
+                    rw_i3 = rho_w[i-2*k+m:i-k]
+                else:
+                    y2 = [x[i+m]]
+                    y3 = x[i-2*k+m:i-k]
+                    rw_i2 = [rho_w[i+m]]
+                    rw_i3 = rho_w[i-2*k+m:i-k]
+                y = y3 + y0 + y1 + y2
+                rw_i = rw_i3 + rw_i0 + rw_i1 + rw_i2
+            # middle
             else:
                 y = x[i-k:i+k+1]
                 rw_i = rho_w[i-k:i+k+1]
-
             #
             y_i = self.weight_least_squares(xx, y, degree, rw_i)
 
