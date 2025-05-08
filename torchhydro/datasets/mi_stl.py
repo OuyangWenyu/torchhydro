@@ -369,51 +369,56 @@ class STL():
                     rw_i0 = []
                     rw_i3 = rho_w[i+k+1:i+2*k+1]
                 elif (m > 1) and (m < k):
-                    y0 = x[m]
+                    y0 = x[:i]
+                    y3 = x[i+k+1:i+k+1+m]
+                    rw_i0 = x[:i]
+                    rw_i3 = rho_w[i+k+1:i+k+1+m]
                 else:
-                    y0 = x[m]
+                    y0 = [x[m]]
                     y3 = x[i+k+1:i+2*k+1-m]
-                    rw_i0 = rho_w[m]
+                    rw_i0 = [rho_w[m]]
                     rw_i3 = rho_w[i+k+1:i+2*k+1-m]
-                y = x[:width]
-                rw_i = rho_w[:width]
-                y_i = self.weight_least_squares(xx, y, degree, rw_i)
-            # end
-            elif i > (length-1) - k:
-                m = k + i - (length-1)
-                y1 = [x[i]]
-                y0 = x[i-k:i]
-                rw_i1 = [rho_w[i]]
-                rw_i0 = rho_w[i-k:i]
-                if m == k:
-                    y2 = []
-                    y3 = y0[:]
-                    y3.reverse()
-                    rw_i2 = []
-                    rw_i3 = rw_i0[:]
-                    rw_i3.reverse()
-                elif (m > 1) and (m < k):
-                    y2 = x[i+1:]
-                    y3 = y0[:m]
-                    y3.reverse()
-                    rw_i2 = rho_w[i+1:]
-                    rw_i3 = rw_i0[:m]
-                    rw_i3.reverse()
-                else:
-                    y2 = x[i+1:]
-                    y3 = [y0[m-1]]
-                    rw_i2 = rho_w[i+1:]
-                    rw_i3 = [rw_i0[m-1]]
+
                 y = y0 + y1 + y2 + y3
                 rw_i = rw_i0 + rw_i1 + rw_i2 + rw_i3
+            # end
+            elif i > (length-1) - k:
+                # m = k + i - (length-1)
+                # y1 = [x[i]]
+                # y0 = x[i-k:i]
+                # rw_i1 = [rho_w[i]]
+                # rw_i0 = rho_w[i-k:i]
+                # if m == k:
+                #     y2 = []
+                #     y3 = y0[:]
+                #     y3.reverse()
+                #     rw_i2 = []
+                #     rw_i3 = rw_i0[:]
+                #     rw_i3.reverse()
+                # elif (m > 1) and (m < k):
+                #     y2 = x[i+1:]
+                #     y3 = y0[:m]
+                #     y3.reverse()
+                #     rw_i2 = rho_w[i+1:]
+                #     rw_i3 = rw_i0[:m]
+                #     rw_i3.reverse()
+                # else:
+                #     y2 = x[i+1:]
+                #     y3 = [y0[m-1]]
+                #     rw_i2 = rho_w[i+1:]
+                #     rw_i3 = [rw_i0[m-1]]
+                # y = y0 + y1 + y2 + y3
+                # rw_i = rw_i0 + rw_i1 + rw_i2 + rw_i3
+                m = k + i - (length-1)
+
 
                 y_i = self.weight_least_squares(xx, y, degree, rw_i)
             else:
                 y = x[i-k:i+k+1]
                 rw_i = rho_w[i-k:i+k+1]
 
-                y_i = self.weight_least_squares(xx, y, degree, rw_i)
             #
+            y_i = self.weight_least_squares(xx, y, degree, rw_i)
 
             result[i] = y_i
 
