@@ -24,12 +24,12 @@ class STL():
         self.mutation = None
         self.cycle_subseries = None
         self.cycle_length = 365
-        self.no = 10  # window width, span
+        self.no = 30  # window width, span
         self.ni = 1  # need to be odd
-        self.ns = 9  # odd >=7
-        self.nl = 365  # need to be odd
-        self.nt = 421  # 1 or 2
-        self.n_p = 365  # True of False
+        self.ns = 11  # odd >=7
+        self.nl = 365  #
+        self.nt = 487  # 1 or 2
+        self.n_p = 365  #
         self.degree = 1  # 1 or 2, locally-linear or locally-quadratic
 
         self._get_parity()
@@ -40,13 +40,6 @@ class STL():
             self.parity = "even"
         else:
             self.parity = "odd"
-
-    def _get_t_range_odd(self, t):
-        """get the range of time period t"""
-        t_start = (self.frequency+self.length)/2
-        t_end = self.length - (self.frequency-1)/2
-        t_range = [t_start, t_end]
-        return t_range
 
     def _cycle_subseries(self, x):
         """
@@ -129,7 +122,7 @@ class STL():
 
         """
         n_subseries = self.cycle_length
-        len_subseries = int(self.length / n_subseries) + 2
+        len_subseries = int(self.length / n_subseries)  # + 2
         series = []
         series_i = [0]*n_subseries
         for i in range(len_subseries):  # 18
@@ -163,7 +156,7 @@ class STL():
     def _neighborhood_weight(
         self,
         width: int,
-        degree: int = 2,
+        degree: int = 3,
     ):
         """
         calculate neighborhood weights within window
@@ -174,23 +167,15 @@ class STL():
 
         Returns
         -------
-
+        weight: list, neighborhood weights
         """
-        # todo: !
         k = int(width / 2)
         weight = [0]*width
         for i in range(width):
-            d_i = np.absolute((i + 1) - (k + 1)) / (k + 1)
+            d_i = np.absolute((i + 1) - (k + 1)) / k  # (k+1)
             w_i = self.weight_function(d_i, degree)
             weight[i] = w_i
         return weight
-
-    def _neighborhood_weight_x(self, xi, x):
-        """the neighborhood weight of single point"""
-        width = len(x)
-        weight = self._neighborhood_weight(width)
-        v_xi = weight * np.absolute(xi - x)/((width - 1)/2)
-        return v_xi
 
     def weight_least_squares(
         self,
@@ -466,24 +451,18 @@ class STL():
         noise and not meaningful seasonal variation because the cycle in the CO2 series is caused mainly by the seasonal
         cycle of foliage in the Northern Hemisphere, and one would expect a smooth evolution of this cycle over years.
         """
-        # ns = 9  # q  35  odd >=7  < 15
-        # nl = 365
-        # nt = 421    # odd
-        # n_p = 365
-
-        k = 5  # todo
-
         # 1 detrending
         y = np.array(y) - np.array(trend)  # todo:
 
         # 2 cycle-subseries smoothing
         subseries = self._cycle_subseries(y)
-        extend_subseries = self._extend_subseries(subseries)
+        # extend_subseries = self._extend_subseries(subseries)
         cycle = []
         for i in range(self.cycle_length):
-            extend_subseries_i = extend_subseries[i]
+            # extend_subseries_i = extend_subseries[i]
+            subseries_i = subseries[i]
             sub_rho_weight_i = sub_rho_weight[i]
-            extend_subseries_i = self.loess(self.ns, extend_subseries_i, degree=1, rho_weight=sub_rho_weight_i)  # q = ns, d = 1
+            extend_subseries_i = self.loess(self.ns, subseries_i, degree=1, rho_weight=sub_rho_weight_i)  # q = ns, d = 1
             cycle.append(extend_subseries_i)
         cycle_v = self._recover_series(cycle)
         pd_cycle = pd.DataFrame({
@@ -506,7 +485,8 @@ class STL():
         # 4 detrending of smoothed cycle-subseries
         cycle_v = np.array(cycle_v)
         lowf = np.array(lowf4)
-        season = cycle_v[self.cycle_length:-self.cycle_length] - lowf[self.cycle_length:-self.cycle_length]
+        # season = cycle_v[self.cycle_length:-self.cycle_length] - lowf[self.cycle_length:-self.cycle_length]
+        season = cycle_v - lowf
 
         # 5 deseasonalizing
         trend = y - season
@@ -528,8 +508,9 @@ class STL():
     def extend_cycle_sub_rho_weight(self, rho_weight):
         """cycle sub-robustness weights for robustness cycle-subseries smoothing"""
         sub_rho_weight = self._cycle_subseries(rho_weight)
-        extend_sub_rho_weight = self._extend_subseries(sub_rho_weight)
-        return extend_sub_rho_weight
+        # extend_sub_rho_weight = self._extend_subseries(sub_rho_weight)
+        # return extend_sub_rho_weight
+        return sub_rho_weight
 
     def outer_loop(self):
         """
@@ -565,11 +546,12 @@ class STL():
                     trend_ij0 = trend_i0[:]
                     season_ij0 = season_i0[:]
                 trend_i, season_i = self.inner_loop(self.x, trend_ij0, extend_sub_rho_weight, rho_weight)
+                # trend_i, season_i = self.inner_loop(self.x, trend_ij0, rho_weight, rho_weight)
                 if ni > 1:
-                    t_a = max(np.absolute(np.array(trend_ij0)-np.array(trend_i)))
-                    t_b = max(trend_ij0)
-                    t_c = min(trend_ij0)
-                    terminate_trend = t_a / (t_b + t_c)
+                    t_a = np.max(np.absolute(np.array(trend_ij0)-np.array(trend_i)))
+                    t_b = np.max(trend_ij0)
+                    t_c = np.min(trend_ij0)
+                    terminate_trend = np.divide(t_a, (t_b + t_c))
                     s_a = max(np.absolute(np.array(season_ij0)-np.array(season_i)))
                     s_b = max(season_ij0)
                     s_c = min(season_ij0)
@@ -588,28 +570,29 @@ class STL():
             abs_residuals_h = abs_residuals / h
             rho_weight = self.rho_weight(abs_residuals_h)  # todo:
 
-            t_a = max(np.absolute(np.array(trend_i0) - np.array(trend_i)))
-            t_b = max(trend_i0)
-            t_c = min(trend_i0)
-            terminate_trend = t_a / (t_b + t_c)
-            s_a = max(np.absolute(np.array(season_i0) - np.array(season_i)))
-            s_b = max(season_i0)
-            s_c = min(season_i0)
-            terminate_season = s_a / (s_b + s_c)
-            if terminate_trend < 0.01 or terminate_season < 0.01:
-                print("terminate_trend < 0.01 or terminate_season < 0.01")
-                print("outer loop = " + str(i))
-                break
-            else:
-                trend_i0 = trend_i[:]
-                season_i0 = season_i[:]
+            if no > 1:
+                t_a = max(np.absolute(np.array(trend_i0) - np.array(trend_i)))
+                t_b = max(trend_i0)
+                t_c = min(trend_i0)
+                terminate_trend = t_a / (t_b + t_c)
+                s_a = max(np.absolute(np.array(season_i0) - np.array(season_i)))
+                s_b = max(season_i0)
+                s_c = min(season_i0)
+                terminate_season = s_a / (s_b + s_c)
+                if terminate_trend < 0.01 or terminate_season < 0.01:
+                    print("terminate_trend < 0.01 or terminate_season < 0.01")
+                    print("outer loop = " + str(i))
+                    break
+                else:
+                    trend_i0 = trend_i[:]
+                    season_i0 = season_i[:]
 
         return trend_i, season_i, residuals
 
 
     def season_post_smoothing(self, season):
         """post-smoothing of the seasonal"""
-        ns = 7
+        ns = 11
         season = self.loess(ns, season, degree=2)
         return season
 
