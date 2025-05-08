@@ -169,8 +169,8 @@ class STL():
         calculate neighborhood weights within window
         Parameters
         ----------
-        width
-        degree
+        width: int, odd, window width.
+        degree: int, 2 or 3, the degree of weight function.
 
         Returns
         -------
@@ -178,15 +178,15 @@ class STL():
         """
         # todo: !
         k = int(width / 2)
-        weight = []
+        weight = [0]*width
         for i in range(width):
             d_i = np.absolute((i + 1) - (k + 1)) / (k + 1)
             w_i = self.weight_function(d_i, degree)
-            weight.append(w_i)
+            weight[i] = w_i
         return weight
 
     def _neighborhood_weight_x(self, xi, x):
-        """"""
+        """the neighborhood weight of single point"""
         width = len(x)
         weight = self._neighborhood_weight(width)
         v_xi = weight * np.absolute(xi - x)/((width - 1)/2)
