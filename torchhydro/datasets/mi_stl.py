@@ -136,22 +136,28 @@ class STL():
         pd_series.to_csv(file_name, sep=" ")
         return series
 
-    def weight_function(self, u, d: int = 2,):
+    def weight_function(
+        self,
+        u: float,
+        d: int = 2,
+    ):
         """
         quadratic/cubic weight  function
         Parameters
         ----------
-        u
+        u: float
         d, int, degree, 2 or 3.
 
         Returns
         -------
-
+        weight
         """
         if np.absolute(u) < 1:
-            return (1 - u ** d) ** d
+            weight = (1 - u ** d) ** d
         else:
-            return 0
+            weight = 0
+
+        return weight
 
     def _neighborhood_weight(
         self,
@@ -170,11 +176,13 @@ class STL():
         weight: list, neighborhood weights
         """
         k = int(width / 2)
+
         weight = [0]*width
         for i in range(width):
-            d_i = np.absolute((i + 1) - (k + 1)) / k  # (k+1)
-            w_i = self.weight_function(d_i, degree)
+            u_i = np.absolute((i + 1) - (k + 1)) / k
+            w_i = self.weight_function(u_i, degree)
             weight[i] = w_i
+
         return weight
 
     def weight_least_squares(
@@ -253,9 +261,11 @@ class STL():
         ----------
         width, int, odd, window width.
         x, series need to smoothing.
+        degree: int, the number of polynomial degree.
+        rho_weight: list, robustness weights.
         Returns
         -------
-
+        result, the smoothed series by loess filter.
         """
         length = len(x)
 
@@ -348,7 +358,7 @@ class STL():
 
         Returns
         -------
-
+        result, the smoothed series by moving average filter.
         """
         length = len(x)
         k = int(width/2)

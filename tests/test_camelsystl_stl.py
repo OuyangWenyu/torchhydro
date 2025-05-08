@@ -109,12 +109,12 @@ def test_recover_series():
 # [165.8, 164.1, 158.8, 158.0, 156.2, 144.8, 137.6, 134.6, 130.3, 128.2]
 
 def test_neighborhood_weight():
-    x = ystl().data
+    x = ystl().pet
     stl = STL(x)
-    weight = stl._neighborhood_weight()
+    weight = stl._neighborhood_weight(7)
     print(weight)
-# [0, np.float64(0.669921875), np.float64(1.0), np.float64(0.669921875), 0]
-# [0.0, 0.669921875, 1.0, 0.669921875, 0.0]
+# PASSED                  [100%]
+# [0, 0.34847330183407005, 0.8929533099629123, 1.0, 0.8929533099629123, 0.34847330183407005, 0]
 
 def test_moving_average_smoothing():
     x = ystl().pet
@@ -132,9 +132,9 @@ def test_moving_average_smoothing():
 def test_repetitious_moving_average_smoothing():
     x = ystl().pet
     stl = STL(x)
-    result1 = stl.moving_average_smoothing(61, x)
+    result1 = stl.moving_average_smoothing(41, x)
     result2 = stl.moving_average_smoothing(51, result1)
-    result3 = stl.moving_average_smoothing(41, result2)
+    result3 = stl.moving_average_smoothing(61, result2)
     pet_mas = pd.DataFrame({"pet": x, "result1": result1, "result2": result2, "result3": result3})
     pet_mas.index.name = "time"
     file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_moving_average_smoothing.csv"
@@ -142,17 +142,17 @@ def test_repetitious_moving_average_smoothing():
     print(pet_mas)
 # PASSED [100%]
 # time  pet   result1   result2   result3
-# 0     1.20  0.977049  0.933655  0.939282
-# 1     1.30  0.967213  0.932915  0.940415
-# 2     0.90  0.980328  0.932289  0.941787
-# 3     0.55  0.979508  0.930874  0.943255
-# 4     0.85  0.977049  0.928833  0.944706
+# 0     1.20  0.936585  0.978288  0.956109
+# 1     1.30  0.939024  0.976997  0.955493
+# 2     0.90  0.965854  0.972238  0.955219
+# 3     0.55  1.006098  0.966308  0.955174
+# 4     0.85  1.056098  0.961549  0.955298
 # ...    ...       ...       ...       ...
-# 5835  0.65  0.704918  0.823353  0.851910
-# 5836  0.55  0.707377  0.816924  0.850179
-# 5837  0.55  0.722131  0.809338  0.848096
-# 5838  0.50  0.733607  0.801864  0.845484
-# 5839  0.60  0.736066  0.794857  0.842250
+# 5835  0.65  0.746341  0.757604  0.828124
+# 5836  0.55  0.750000  0.751961  0.823865
+# 5837  0.55  0.762195  0.747035  0.819445
+# 5838  0.50  0.774390  0.743424  0.814950
+# 5839  0.60  0.790244  0.740555  0.810459
 #
 # [5840 rows x 4 columns]
 
