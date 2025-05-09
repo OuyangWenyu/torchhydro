@@ -26,7 +26,7 @@ class STL():
         self.cycle_length = 365
         self.no = 1  # window width, span
         self.ni = 1  # need to be odd
-        self.ns = 13  # odd >=7
+        self.ns = 15  # odd >=7
         self.nl = 365  #
         self.nt = 487  # 1 or 2
         self.n_p = 365  #
