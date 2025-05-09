@@ -26,8 +26,8 @@ class STL():
         self.cycle_length = 365
         self.no = 1  # window width, span
         self.ni = 1  # need to be odd
-        self.ns = 15  # odd >=7
-        self.nl = 365  #
+        self.ns = 11  # odd >=7
+        self.nl = 531  #
         self.nt = 487  # 1 or 2
         self.n_p = 365  #
         self.degree = 1  # 1 or 2, locally-linear or locally-quadratic
@@ -130,10 +130,7 @@ class STL():
                 series_ji = float(subseries[j][i])
                 series_i[j] = series_ji
             series = series + series_i[:]
-        pd_series = pd.DataFrame({"pet_loess": series})
-        pd_series.index.name = "time"
-        file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_loess_extend_cycle_v.csv"
-        pd_series.to_csv(file_name, sep=" ")
+
         return series
 
     def weight_function(
@@ -596,12 +593,18 @@ class STL():
             extend_subseries_i = self.loess(self.ns, subseries_i, degree=1, rho_weight=sub_rho_weight_i)  # q = ns, d = 1
             cycle.append(extend_subseries_i)
         cycle_v = self._recover_series(cycle)
+
         pd_cycle = pd.DataFrame({
             "cycle_" + str(i): cycle[i] for i in range(self.cycle_length)
         })
         pd_cycle.index.name = "time"
         file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_cycle.csv"
         pd_cycle.to_csv(file_name, sep=" ")
+
+        pd_series = pd.DataFrame({"pet_loess": cycle_v})
+        pd_series.index.name = "time"
+        file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_loess_extend_cycle_v.csv"
+        pd_series.to_csv(file_name, sep=" ")
 
         # 3 low-pass filtering of smoothed cycle-subseries
         lowf1 = self.moving_average_smoothing(self.n_p, cycle_v)  # n_p
