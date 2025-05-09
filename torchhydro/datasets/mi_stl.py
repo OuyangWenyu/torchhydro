@@ -26,7 +26,7 @@ class STL():
         self.cycle_length = 365
         self.no = 1  # window width, span
         self.ni = 1  # need to be odd
-        self.ns = 11  # odd >=7
+        self.ns = 33  # odd >=7
         self.nl = 365  #
         self.nt = 531  # 1 or 2
         self.n_p = 365  #
@@ -178,9 +178,9 @@ class STL():
         # max distance
         if i_focal < k:
             q = (width - 1) - i_focal
-        elif i_focal > k:
-            # q = width - (i_focal - 1)
-            q = i_focal
+        # elif i_focal > k:
+        #     # q = width - (i_focal - 1)
+        #     q = i_focal
         else:
             q = i_focal
 
@@ -190,68 +190,6 @@ class STL():
             weight[i] = self.weight_function(u_i, degree)
 
         return weight
-
-    # def _neighborhood_weight_start(
-    #     self,
-    #     width: int,
-    #     m: int,
-    #     degree: int = 3,
-    # ):
-    #     """
-    #     calculate neighborhood weights of the start in a series.
-    #     Parameters
-    #     ----------
-    #     width: int, odd, window width.
-    #     degree: int, 2 or 3, the degree of weight function.
-    #
-    #     Returns
-    #     -------
-    #
-    #     """
-    #     k = int(width / 2)
-    #     q = k + m
-    #     d = [0]*width
-    #     u = [0]*width
-    #     weight = [0]*width
-    #     i_focal = k - m  # (k + 1), focal point of the window
-    #
-    #     for i in range(width):
-    #         d[i] = abs(i-i_focal)
-    #         u[i] = d[i] / q
-    #         weight[i] = self.weight_function(u[i], degree)
-    #
-    #     return weight
-    #
-    # def _neighborhood_weight_end(
-    #     self,
-    #     width: int,
-    #     m: int,
-    #     degree: int = 3,
-    # ):
-    #     """
-    #     calculate neighborhood weights of the end in a series.
-    #     Parameters
-    #     ----------
-    #     width: int, odd, window width.
-    #     degree: int, 2 or 3, the degree of weight function.
-    #
-    #     Returns
-    #     -------
-    #
-    #     """
-    #     k = int(width / 2)
-    #     q = k + m
-    #     d = [0]*width
-    #     u = [0]*width
-    #     weight = [0]*width
-    #     i_focal = (width - 1) - (k - m)  # (k + 1), focal point of the window
-    #
-    #     for i in range(width):
-    #         d[i] = abs(i-i_focal)
-    #         u[i] = d[i] / q
-    #         weight[i] = self.weight_function(u[i], degree)
-    #
-    #     return weight
 
     def weight_least_squares_fit(
         self,
@@ -349,83 +287,57 @@ class STL():
         for i in range(length):
             # start
             if i < k:
-                # m = k - i
-                # y1 = [x[i]]
-                # y2 = x[i+1:i+k+1]
-                # rw_i1 = [rho_w[i]]
-                # rw_i2 = rho_w[i+1:i+k+1]
-                # if m == k:
-                #     y0 = []
-                #     y3 = y2[:]
-                #     y3.reverse()
-                #     rw_i0 = []
-                #     rw_i3 = rw_i2[:]
-                #     rw_i3.reverse()
-                # elif (m > 1) and (m < k):
-                #     y0 = x[:i]
-                #     y3 = y2[-m:]
-                #     y3.reverse()
-                #     rw_i0 = rho_w[:i]
-                #     rw_i3 = rw_i2[-m:]
-                #     rw_i3.reverse()
-                # else:
-                #     y0 = x[:i]
-                #     y3 = [y2[-m]]
-                #     rw_i0 = rho_w[:i]
-                #     rw_i3 = [rw_i2[-m]]
-                # y = y3 + y0 + y1 + y2
-                # rw_i = rw_i3 + rw_i0 + rw_i1 + rw_i2
                 m = k - i
-                y1 = [x[i]]  # focal point of the window
+                y1 = [x[i]]
                 y2 = x[i+1:i+k+1]
                 rw_i1 = [rho_w[i]]
                 rw_i2 = rho_w[i+1:i+k+1]
                 if m == k:
                     y0 = []
-                    y3 = x[i+k+1:i+2*k+1]
+                    y3 = y2[:]
+                    y3.reverse()
                     rw_i0 = []
-                    rw_i3 = rho_w[i+k+1:i+2*k+1]
+                    rw_i3 = rw_i2[:]
+                    rw_i3.reverse()
                 elif (m > 1) and (m < k):
                     y0 = x[:i]
-                    y3 = x[i+k+1:i+k+1+m]
-                    rw_i0 = x[:i]
-                    rw_i3 = rho_w[i+k+1:i+k+1+m]
+                    y3 = y2[-m:]
+                    y3.reverse()
+                    rw_i0 = rho_w[:i]
+                    rw_i3 = rw_i2[-m:]
+                    rw_i3.reverse()
                 else:
                     y0 = x[:i]
-                    y3 = [x[i+k+m]]
+                    y3 = [y2[-m]]
                     rw_i0 = rho_w[:i]
-                    rw_i3 = [rho_w[i+k+m]]
-                y = y0 + y1 + y2 + y3
-                rw_i = rw_i0 + rw_i1 + rw_i2 + rw_i3
-                i_focal = k - m
-            # end
-            elif i > (length-1) - k:
-                # m = k + i - (length-1)
-                # y1 = [x[i]]
-                # y0 = x[i-k:i]
+                    rw_i3 = [rw_i2[-m]]
+                y = y3 + y0 + y1 + y2
+                rw_i = rw_i3 + rw_i0 + rw_i1 + rw_i2
+                # m = k - i
+                # y1 = [x[i]]  # focal point of the window
+                # y2 = x[i+1:i+k+1]
                 # rw_i1 = [rho_w[i]]
-                # rw_i0 = rho_w[i-k:i]
+                # rw_i2 = rho_w[i+1:i+k+1]
                 # if m == k:
-                #     y2 = []
-                #     y3 = y0[:]
-                #     y3.reverse()
-                #     rw_i2 = []
-                #     rw_i3 = rw_i0[:]
-                #     rw_i3.reverse()
+                #     y0 = []
+                #     y3 = x[i+k+1:i+2*k+1]
+                #     rw_i0 = []
+                #     rw_i3 = rho_w[i+k+1:i+2*k+1]
                 # elif (m > 1) and (m < k):
-                #     y2 = x[i+1:]
-                #     y3 = y0[:m]
-                #     y3.reverse()
-                #     rw_i2 = rho_w[i+1:]
-                #     rw_i3 = rw_i0[:m]
-                #     rw_i3.reverse()
+                #     y0 = x[:i]
+                #     y3 = x[i+k+1:i+k+1+m]
+                #     rw_i0 = x[:i]
+                #     rw_i3 = rho_w[i+k+1:i+k+1+m]
                 # else:
-                #     y2 = x[i+1:]
-                #     y3 = [y0[m-1]]
-                #     rw_i2 = rho_w[i+1:]
-                #     rw_i3 = [rw_i0[m-1]]
+                #     y0 = x[:i]
+                #     y3 = [x[i+k+m]]
+                #     rw_i0 = rho_w[:i]
+                #     rw_i3 = [rho_w[i+k+m]]
                 # y = y0 + y1 + y2 + y3
                 # rw_i = rw_i0 + rw_i1 + rw_i2 + rw_i3
+                # i_focal = k - m
+            # end
+            elif i > (length-1) - k:
                 m = k + i - (length-1)
                 y1 = [x[i]]
                 y0 = x[i-k:i]
@@ -433,28 +345,55 @@ class STL():
                 rw_i0 = rho_w[i-k:i]
                 if m == k:
                     y2 = []
-                    y3 = x[i-2*k:i-k]
+                    y3 = y0[:]
+                    y3.reverse()
                     rw_i2 = []
-                    rw_i3 = rho_w[i-2*k:i-k]
+                    rw_i3 = rw_i0[:]
+                    rw_i3.reverse()
                 elif (m > 1) and (m < k):
                     y2 = x[i+1:]
-                    y3 = x[i-k-m:i-k]
+                    y3 = y0[:m]
+                    y3.reverse()
                     rw_i2 = rho_w[i+1:]
-                    rw_i3 = rho_w[i-k-m:i-k]
+                    rw_i3 = rw_i0[:m]
+                    rw_i3.reverse()
                 else:
                     y2 = x[i+1:]
-                    y3 = [x[i-k-m]]
+                    y3 = [y0[m-1]]
                     rw_i2 = rho_w[i+1:]
-                    rw_i3 = [rho_w[i-k-m]]
-                y = y3 + y0 + y1 + y2
-                rw_i = rw_i3 + rw_i0 + rw_i1 + rw_i2
-                i_focal = (width - 1) - (k - m)
+                    rw_i3 = [rw_i0[m-1]]
+                y = y0 + y1 + y2 + y3
+                rw_i = rw_i0 + rw_i1 + rw_i2 + rw_i3
+                # m = k + i - (length-1)
+                # y1 = [x[i]]
+                # y0 = x[i-k:i]
+                # rw_i1 = [rho_w[i]]
+                # rw_i0 = rho_w[i-k:i]
+                # if m == k:
+                #     y2 = []
+                #     y3 = x[i-2*k:i-k]
+                #     rw_i2 = []
+                #     rw_i3 = rho_w[i-2*k:i-k]
+                # elif (m > 1) and (m < k):
+                #     y2 = x[i+1:]
+                #     y3 = x[i-k-m:i-k]
+                #     rw_i2 = rho_w[i+1:]
+                #     rw_i3 = rho_w[i-k-m:i-k]
+                # else:
+                #     y2 = x[i+1:]
+                #     y3 = [x[i-k-m]]
+                #     rw_i2 = rho_w[i+1:]
+                #     rw_i3 = [rho_w[i-k-m]]
+                # y = y3 + y0 + y1 + y2
+                # rw_i = rw_i3 + rw_i0 + rw_i1 + rw_i2
+                # i_focal = (width - 1) - (k - m)
             # middle
             else:
                 y = x[i-k:i+k+1]
                 rw_i = rho_w[i-k:i+k+1]
-                i_focal = k
+                # i_focal = k
             # fit
+            i_focal = k
             y_i = self.weight_least_squares_fit(xx, y, i_focal, degree, rw_i)
 
             result[i] = y_i
@@ -609,9 +548,10 @@ class STL():
         # 3 low-pass filtering of smoothed cycle-subseries
         lowf1 = self.moving_average_smoothing(self.n_p, cycle_v)  # n_p
         lowf2 = self.moving_average_smoothing(self.n_p, lowf1)
-        lowf3 = self.moving_average_smoothing(3, lowf2)
-        lowf4 = self.loess(self.nl, lowf3)
-        pd_lowf = pd.DataFrame({"lowf1": lowf1, "lowf2": lowf2, "lowf3": lowf3, "lowf4": lowf4})
+        lowf3 = self.moving_average_smoothing(self.n_p, lowf2)
+        lowf4 = self.moving_average_smoothing(2 * self.n_p, lowf3)
+        lowf5 = self.loess(self.nl, lowf4)
+        pd_lowf = pd.DataFrame({"lowf1": lowf1, "lowf2": lowf2, "lowf3": lowf3, "lowf4": lowf4, "lowf5": lowf5})
         pd_lowf.index.name = "time"
         file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_lowf.csv"
         pd_lowf.to_csv(file_name, sep=" ")
