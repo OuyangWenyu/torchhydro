@@ -139,21 +139,21 @@ class STL():
     def weight_function(
         self,
         u: float,
-        d: int = 2,
+        degree: int = 2,
     ):
         """
         quadratic/cubic weight  function
         Parameters
         ----------
         u: float
-        d, int, degree, 2 or 3.
+        degree, int, degree, 2 or 3.
 
         Returns
         -------
         weight
         """
         if np.absolute(u) < 1:
-            weight = (1 - u ** d) ** d
+            weight = (1 - u ** degree) ** degree
         else:
             weight = 0
 
@@ -162,6 +162,7 @@ class STL():
     def _neighborhood_weight(
         self,
         width: int,
+        i_focal: int,
         degree: int = 3,
     ):
         """
@@ -176,83 +177,89 @@ class STL():
         weight: list, neighborhood weights
         """
         k = int(width / 2)
-
         weight = [0]*width
-        for i in range(width):
-            u_i = np.absolute((i + 1) - (k + 1)) / k  # (k + 1), focal point of the window  [0, 0.67, 1, 0.67, 0]  total= 2.34  todo: ?
-            w_i = self.weight_function(u_i, degree)
-            weight[i] = w_i
-
-        return weight
-
-    def _neighborhood_weight_start(
-        self,
-        width: int,
-        m: int,
-        degree: int = 3,
-    ):
-        """
-        calculate neighborhood weights of the start in a series.
-        Parameters
-        ----------
-        width: int, odd, window width.
-        degree: int, 2 or 3, the degree of weight function.
-
-        Returns
-        -------
-
-        """
-        k = int(width / 2)
-        q = 2*k - m
-        d = [0]*width
-        u = [0]*width
-        weight = [0]*width
-        i_focal = 0
-        if m == k:
-            i_focal = 0
-        elif (m > 1) and (m < k):
-            i_focal = 1
+        # max distance
+        if i_focal < k:
+            q = (width - 1) - i_focal
+        elif i_focal > k:
+            q = width - (i_focal - 1)
         else:
-            i_focal = 1
-        # (k + 1), focal point of the window
+            q = i_focal
+
         for i in range(width):
-            u_i = np.absolute((i + 1) - (k + 1)) / width
-            w_i = self.weight_function(u_i, degree)
-            weight[i] = w_i
+            d_i = abs(i - i_focal)  # focal point of the window  [0, 0.67, 1, 0.67, 0]  total= 2.34  todo: ?
+            u_i = d_i / q
+            weight[i] = self.weight_function(u_i, degree)
 
         return weight
 
-    def _neighborhood_weight_end(
-        self,
-        width: int,
-        m: int,
-        degree: int = 3,
-    ):
-        """
-        calculate neighborhood weights of the end in a series.
-        Parameters
-        ----------
-        width: int, odd, window width.
-        degree: int, 2 or 3, the degree of weight function.
+    # def _neighborhood_weight_start(
+    #     self,
+    #     width: int,
+    #     m: int,
+    #     degree: int = 3,
+    # ):
+    #     """
+    #     calculate neighborhood weights of the start in a series.
+    #     Parameters
+    #     ----------
+    #     width: int, odd, window width.
+    #     degree: int, 2 or 3, the degree of weight function.
+    #
+    #     Returns
+    #     -------
+    #
+    #     """
+    #     k = int(width / 2)
+    #     q = k + m
+    #     d = [0]*width
+    #     u = [0]*width
+    #     weight = [0]*width
+    #     i_focal = k - m  # (k + 1), focal point of the window
+    #
+    #     for i in range(width):
+    #         d[i] = abs(i-i_focal)
+    #         u[i] = d[i] / q
+    #         weight[i] = self.weight_function(u[i], degree)
+    #
+    #     return weight
+    #
+    # def _neighborhood_weight_end(
+    #     self,
+    #     width: int,
+    #     m: int,
+    #     degree: int = 3,
+    # ):
+    #     """
+    #     calculate neighborhood weights of the end in a series.
+    #     Parameters
+    #     ----------
+    #     width: int, odd, window width.
+    #     degree: int, 2 or 3, the degree of weight function.
+    #
+    #     Returns
+    #     -------
+    #
+    #     """
+    #     k = int(width / 2)
+    #     q = k + m
+    #     d = [0]*width
+    #     u = [0]*width
+    #     weight = [0]*width
+    #     i_focal = (width - 1) - (k - m)  # (k + 1), focal point of the window
+    #
+    #     for i in range(width):
+    #         d[i] = abs(i-i_focal)
+    #         u[i] = d[i] / q
+    #         weight[i] = self.weight_function(u[i], degree)
+    #
+    #     return weight
 
-        Returns
-        -------
-
-        """
-        k = int(width / 2)
-
-        weight = [0]*width
-        for i in range(width):
-            u_i = np.absolute((i + 1) - (k + 1)) / width
-            w_i = self.weight_function(u_i, degree)
-            weight[i] = w_i
-
-        return weight
-
-    def weight_least_squares(
+    def weight_least_squares_fit(
         self,
         x,
         y,
+        i_focal: int,
         degree: int = 1,
         rho_weight: list = None,
     ):
@@ -285,9 +292,9 @@ class STL():
             At = np.concatenate([At, [at_i]], axis=0)
         A = np.transpose(At)
         Y = y
-        weight = self._neighborhood_weight(length)
+        neighbor_weight = self._neighborhood_weight(length, i_focal)
         try:
-            weight = np.multiply(weight, rho_weight)
+            weight = np.multiply(neighbor_weight, rho_weight)
         except ValueError:
             raise ValueError("operands could not be broadcast together with shapes (7,) (6,)")
         W = np.diag(weight)
@@ -304,10 +311,10 @@ class STL():
         a = np.matmul(a, Y)
 
         # regressive, estimate value
-        ii = int(length/2 + 1)  # focal point of the window
+        # ii = int(length/2 + 1)  # focal point of the window
         yy = 0
         for i in range(degree+1):
-            yy = yy + a[i] * np.power(x[ii], i)
+            yy = yy + a[i] * np.power(x[i_focal], i)
 
         return yy
 
@@ -387,12 +394,12 @@ class STL():
                     rw_i3 = rho_w[i+k+1:i+k+1+m]
                 else:
                     y0 = x[:i]
-                    y3 = [x[i+k+1]]
+                    y3 = [x[i+k+m]]
                     rw_i0 = rho_w[:i]
-                    rw_i3 = [rho_w[i+k+1]]
-
+                    rw_i3 = [rho_w[i+k+m]]
                 y = y0 + y1 + y2 + y3
                 rw_i = rw_i0 + rw_i1 + rw_i2 + rw_i3
+                i_focal = k - m
             # end
             elif i > (length-1) - k:
                 # m = k + i - (length-1)
@@ -433,22 +440,24 @@ class STL():
                     rw_i3 = rho_w[i-2*k:i-k]
                 elif (m > 1) and (m < k):
                     y2 = x[i+1:]
-                    y3 = x[i-2*k+m:i-k]
+                    y3 = x[i-k-m:i-k]
                     rw_i2 = rho_w[i+1:]
-                    rw_i3 = rho_w[i-2*k+m:i-k]
+                    rw_i3 = rho_w[i-k-m:i-k]
                 else:
-                    y2 = [x[i+m]]
-                    y3 = x[i-2*k+m:i-k]
-                    rw_i2 = [rho_w[i+m]]
-                    rw_i3 = rho_w[i-2*k+m:i-k]
+                    y2 = x[i+1:]
+                    y3 = [x[i-k-m]]
+                    rw_i2 = rho_w[i+1:]
+                    rw_i3 = [rho_w[i-k-m]]
                 y = y3 + y0 + y1 + y2
                 rw_i = rw_i3 + rw_i0 + rw_i1 + rw_i2
+                i_focal = (width - 1) - (k - m)
             # middle
             else:
                 y = x[i-k:i+k+1]
                 rw_i = rho_w[i-k:i+k+1]
-            #
-            y_i = self.weight_least_squares(xx, y, degree, rw_i)
+                i_focal = k
+            # fit
+            y_i = self.weight_least_squares_fit(xx, y, i_focal, degree, rw_i)
 
             result[i] = y_i
 
