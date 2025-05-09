@@ -24,9 +24,9 @@ class STL():
         self.mutation = None
         self.cycle_subseries = None
         self.cycle_length = 365
-        self.no = 30  # window width, span
+        self.no = 1  # window width, span
         self.ni = 1  # need to be odd
-        self.ns = 11  # odd >=7
+        self.ns = 13  # odd >=7
         self.nl = 365  #
         self.nt = 487  # 1 or 2
         self.n_p = 365  #
@@ -656,8 +656,6 @@ class STL():
         robustness weights
         no, the number of outer loop, 0<=no<=10.
         """
-        no = 30
-        ni = 1
         trend = [0]*self.length
         season = [0]*self.length
         trend_ij0 = []
@@ -665,20 +663,20 @@ class STL():
         rho_weight = [1]*self.length
 
         # outer loop
-        for i in range(no):
+        for i in range(self.no):
             if i == 0:
                 trend_i0 = trend
                 season_i0 = season
             extend_sub_rho_weight = self.extend_cycle_sub_rho_weight(rho_weight)
 
             # inner loop
-            for j in range(ni):
+            for j in range(self.ni):
                 if j == 0:
                     trend_ij0 = trend_i0[:]
                     season_ij0 = season_i0[:]
                 trend_i, season_i = self.inner_loop(self.x, trend_ij0, extend_sub_rho_weight, rho_weight)
                 # trend_i, season_i = self.inner_loop(self.x, trend_ij0, rho_weight, rho_weight)
-                if ni > 1:
+                if self.ni > 1:
                     t_a = np.max(np.absolute(np.array(trend_ij0)-np.array(trend_i)))
                     t_b = np.max(trend_ij0)
                     t_c = np.min(trend_ij0)
@@ -701,7 +699,7 @@ class STL():
             abs_residuals_h = abs_residuals / h
             rho_weight = self.rho_weight(abs_residuals_h)  # todo:
 
-            if no > 1:
+            if self.no > 1:
                 t_a = max(np.absolute(np.array(trend_i0) - np.array(trend_i)))
                 t_b = max(trend_i0)
                 t_c = min(trend_i0)
