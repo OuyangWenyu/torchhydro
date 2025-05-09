@@ -27,8 +27,8 @@ class STL():
         self.no = 1  # window width, span
         self.ni = 1  # need to be odd
         self.ns = 11  # odd >=7
-        self.nl = 531  #
-        self.nt = 487  # 1 or 2
+        self.nl = 365  #
+        self.nt = 531  # 1 or 2
         self.n_p = 365  #
         self.degree = 1  # 1 or 2, locally-linear or locally-quadratic
 
