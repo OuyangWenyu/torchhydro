@@ -182,7 +182,8 @@ class STL():
         if i_focal < k:
             q = (width - 1) - i_focal
         elif i_focal > k:
-            q = width - (i_focal - 1)
+            # q = width - (i_focal - 1)
+            q = i_focal
         else:
             q = i_focal
 
