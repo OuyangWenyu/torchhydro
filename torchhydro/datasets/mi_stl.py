@@ -28,7 +28,7 @@ class STL():
         self.ni = 1  # need to be odd
         self.ns = 33  # odd >=7
         self.nl = 365  #
-        self.nt = 531  # 1 or 2
+        self.nt = 729  # 1 or 2
         self.n_p = 365  #
         self.degree = 1  # 1 or 2, locally-linear or locally-quadratic
 
@@ -257,6 +257,7 @@ class STL():
     def loess(
         self,
         width: int,
+        # xi,
         x,
         degree: int = 1,
         rho_weight: list = None,
@@ -292,6 +293,8 @@ class STL():
                 y2 = x[i+1:i+k+1]
                 rw_i1 = [rho_w[i]]
                 rw_i2 = rho_w[i+1:i+k+1]
+                # xi1 = [xi[i]]
+                # xi2 = xi[i+1:i+k+1]
                 if m == k:
                     y0 = []
                     y3 = y2[:]
@@ -299,6 +302,9 @@ class STL():
                     rw_i0 = []
                     rw_i3 = rw_i2[:]
                     rw_i3.reverse()
+                    # xi0 = []
+                    # xi3 = xi2[:]
+                    # xi3.reverse()
                 elif (m > 1) and (m < k):
                     y0 = x[:i]
                     y3 = y2[-m:]
@@ -306,13 +312,19 @@ class STL():
                     rw_i0 = rho_w[:i]
                     rw_i3 = rw_i2[-m:]
                     rw_i3.reverse()
+                    # xi0 = xi[:i]
+                    # xi3 = xi2[-m:]
+                    # xi3.reverse()
                 else:
                     y0 = x[:i]
                     y3 = [y2[-m]]
                     rw_i0 = rho_w[:i]
                     rw_i3 = [rw_i2[-m]]
+                    # xi0 = xi[:i]
+                    # xi3 = xi2[-m:]
                 y = y3 + y0 + y1 + y2
                 rw_i = rw_i3 + rw_i0 + rw_i1 + rw_i2
+                # xxi = xi3 + xi0 + xi1 + xi2
                 # m = k - i
                 # y1 = [x[i]]  # focal point of the window
                 # y2 = x[i+1:i+k+1]
@@ -343,6 +355,8 @@ class STL():
                 y0 = x[i-k:i]
                 rw_i1 = [rho_w[i]]
                 rw_i0 = rho_w[i-k:i]
+                # xi1 = [xi[i]]
+                # xi0 = xi[i-k:i]
                 if m == k:
                     y2 = []
                     y3 = y0[:]
@@ -350,6 +364,9 @@ class STL():
                     rw_i2 = []
                     rw_i3 = rw_i0[:]
                     rw_i3.reverse()
+                    # xi2 = []
+                    # xi3 = xi0[:]
+                    # xi3.reverse()
                 elif (m > 1) and (m < k):
                     y2 = x[i+1:]
                     y3 = y0[:m]
@@ -357,13 +374,19 @@ class STL():
                     rw_i2 = rho_w[i+1:]
                     rw_i3 = rw_i0[:m]
                     rw_i3.reverse()
+                    # xi2 = xi[i+1:]
+                    # xi3 = xi0[:m]
+                    # xi3.reverse()
                 else:
                     y2 = x[i+1:]
                     y3 = [y0[m-1]]
                     rw_i2 = rho_w[i+1:]
                     rw_i3 = [rw_i0[m-1]]
+                    # xi2 = xi[i+1:]
+                    # xi3 = [xi0[m-1]]
                 y = y0 + y1 + y2 + y3
                 rw_i = rw_i0 + rw_i1 + rw_i2 + rw_i3
+                # xxi = xi0 + xi1 + xi2 + xi3
                 # m = k + i - (length-1)
                 # y1 = [x[i]]
                 # y0 = x[i-k:i]
@@ -391,6 +414,7 @@ class STL():
             else:
                 y = x[i-k:i+k+1]
                 rw_i = rho_w[i-k:i+k+1]
+                # xxi = xi[i-k:i+k+1]
                 # i_focal = k
             # fit
             i_focal = k
@@ -398,13 +422,21 @@ class STL():
 
             result[i] = y_i
 
+            # print(xxi)
+            # print(y)
+
         return result
 
+    def _negative(self, x):
+        negative_x = [- xi for xi in x]
+        return negative_x
 
     def moving_average_smoothing(
         self,
         width,
-        x
+        # xi,
+        x,
+        negative: bool = True,
     ):
         """
         moving average smoothing
@@ -412,7 +444,7 @@ class STL():
         ----------
         width: int, window width.
         x: series need to smoothing.
-
+        negative: bool, positive or negative.
         Returns
         -------
         result, the smoothed series by moving average filter.
@@ -426,40 +458,72 @@ class STL():
                 m = k - i
                 xx1 = [x[i]]
                 xx2 = x[i + 1:i + k + 1]
+                # xi1 = [xi[i]]
+                # xi2 = xi[i + 1:i + k + 1]
                 if m == k:
                     xx0 = []
                     xx3 = xx2[:]
                     xx3.reverse()
+                    if negative:
+                        xx3 = self._negative(xx3)
+                    # xi0 = []
+                    # xi3 = xi2[:]
+                    # xi3.reverse()
                 elif (m > 1) and (m < k):
                     xx0 = x[:i]
                     xx3 = xx2[-m:]
                     xx3.reverse()
+                    if negative:
+                        xx3 = self._negative(xx3)
+                    # xi0 = xi[:i]
+                    # xi3 = xi2[-m:]
+                    # xi3.reverse()
                 else:
                     xx0 = x[:i]
                     xx3 = [xx2[-m]]
+                    if negative:
+                        xx3 = self._negative(xx3)
+                    # xi0 = xi[:i]
+                    # xi3 = [xi2[-m]]
                 xx = xx3 + xx0 + xx1 + xx2
+                # xxi = xi3 + xi0 + xi1 + xi2
             # end
             elif i > (length-1) - k:
                 m = k + i - (length-1)
                 xx1 = [x[i]]
                 xx0 = x[i-k:i]
+                # xi1 = [xi[i]]
+                # xi0 = xi[i-k:i]
                 if m == k:
-                    xx2 = xx0[:]
-                    xx2.reverse()
-                    xx3 = []
+                    xx2 = []
+                    xx3 = xx0[:]
+                    xx3.reverse()
+                    # xi2 = []
+                    # xi3 = xi0[:]
+                    # xi3.reverse()
+
                 elif (m > 1) and (m < k):
                     xx2 = x[i+1:]
                     xx3 = xx0[:m]
                     xx3.reverse()
+                    # xi2 = xi[i+1:]
+                    # xi3 = xi0[:m]
+                    # xi3.reverse()
                 else:
                     xx2 = x[i+1:]
-                    xx3 = [xx0[m]]
+                    xx3 = [xx0[m-1]]
+                    # xi2 = xi[i+1:]
+                    # xi3 = [xi0[m-1]]
                 xx = xx0 + xx1 + xx2 + xx3
+                # xxi = xi0 + xi1 + xi2 + xi3
             # middle
             else:
                 xx = x[i-k:i+k+1]
+                # xxi = xi[i-k:i+k+1]
             x_i = np.sum(xx)/width
             result[i] = x_i
+            # print(xxi)
+            # print(xx)
 
         return result
 
