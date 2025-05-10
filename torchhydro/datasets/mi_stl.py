@@ -24,11 +24,12 @@ class STL():
         self.mutation = None
         self.cycle_subseries = None
         self.cycle_length = 365
+        self.extend_x = self._extend_original_series(self.x)
         self.no = 1  # window width, span
         self.ni = 1  # need to be odd
         self.ns = 33  # odd >=7
         self.nl = 365  #
-        self.nt = 729  # 1 or 2
+        self.nt = 421  # 1 or 2
         self.n_p = 365  #
         self.degree = 1  # 1 or 2, locally-linear or locally-quadratic
 
@@ -122,7 +123,7 @@ class STL():
 
         """
         n_subseries = self.cycle_length
-        len_subseries = int(self.length / n_subseries)  # + 2
+        len_subseries = int(self.length / n_subseries) + 2
         series = []
         series_i = [0]*n_subseries
         for i in range(len_subseries):  # 18
@@ -132,6 +133,22 @@ class STL():
             series = series + series_i[:]
 
         return series
+
+    def _extend_original_series(self, series):
+        """
+        extend original series
+        Parameters
+        ----------
+        series
+
+        Returns
+        -------
+
+        """
+        series_start = series[:self.cycle_length]
+        series_end = series[-self.cycle_length:]
+        extend_series = series_start + series + series_end
+        return extend_series
 
     def weight_function(
         self,
@@ -585,7 +602,7 @@ class STL():
         cycle of foliage in the Northern Hemisphere, and one would expect a smooth evolution of this cycle over years.
         """
         # 1 detrending
-        y = np.array(y) - np.array(trend)  # todo:
+        y = (np.array(y) - np.array(trend)).tolist()  # todo:
 
         # 2 cycle-subseries smoothing
         subseries = self._cycle_subseries(y)
@@ -597,7 +614,8 @@ class STL():
             sub_rho_weight_i = sub_rho_weight[i]
             extend_subseries_i = self.loess(self.ns, subseries_i, degree=1, rho_weight=sub_rho_weight_i)  # q = ns, d = 1
             cycle.append(extend_subseries_i)
-        cycle_v = self._recover_series(cycle)
+        extend_cycle = self._extend_subseries(cycle)
+        cycle_v = self._recover_series(extend_cycle)
 
         pd_cycle = pd.DataFrame({
             "cycle_" + str(i): cycle[i] for i in range(self.cycle_length)
@@ -630,11 +648,12 @@ class STL():
         lowf = np.array(lowf4)
         # season = cycle_v[self.cycle_length:-self.cycle_length] - lowf[self.cycle_length:-self.cycle_length]
         season = cycle_v - lowf
+        season = season.tolist()
 
         # 5 deseasonalizing
-        trend = y - season
+        trend = np.array(self.extend_x) - np.array(season)
         trend = trend.tolist()
-        season = season.tolist()
+
 
         # 6 Trend Smoothing
         trend = self.loess(self.nt, trend, degree=1, rho_weight=rho_weight)
@@ -673,6 +692,7 @@ class STL():
         trend_ij0 = []
         season_ij0 = []
         rho_weight = [1]*self.length
+        extend_rho_weight = self._extend_original_series(rho_weight)
 
         # outer loop
         for i in range(self.no):
@@ -686,7 +706,7 @@ class STL():
                 if j == 0:
                     trend_ij0 = trend_i0[:]
                     season_ij0 = season_i0[:]
-                trend_i, season_i = self.inner_loop(self.x, trend_ij0, extend_sub_rho_weight, rho_weight)
+                trend_i, season_i = self.inner_loop(self.x, trend_ij0, extend_sub_rho_weight, extend_rho_weight)
                 # trend_i, season_i = self.inner_loop(self.x, trend_ij0, rho_weight, rho_weight)
                 if self.ni > 1:
                     t_a = np.max(np.absolute(np.array(trend_ij0)-np.array(trend_i)))
@@ -705,11 +725,11 @@ class STL():
                         trend_ij0 = trend_i[:]
                         season_ij0 = season_i[:]
 
-            residuals = np.array(self.x) - np.array(trend_i) - np.array(season_i)
+            residuals = np.array(self.extend_x) - np.array(trend_i) - np.array(season_i)
             abs_residuals = np.absolute(residuals)
             h = 6 * np.median(abs_residuals)
             abs_residuals_h = abs_residuals / h
-            rho_weight = self.rho_weight(abs_residuals_h)  # todo:
+            extend_rho_weight = self.rho_weight(abs_residuals_h)  # todo:
 
             if self.no > 1:
                 t_a = max(np.absolute(np.array(trend_i0) - np.array(trend_i)))
@@ -741,13 +761,13 @@ class STL():
         """"""
         trend_, season_, residuals_ = self.outer_loop()
         post_season_ = self.season_post_smoothing(season_)
-        post_residuals_ = np.array(self.x) - trend_ - post_season_
+        post_residuals_ = np.array(self.extend_x) - trend_ - post_season_
         trend = trend_[self.cycle_length:-self.cycle_length]
         season = season_[self.cycle_length:-self.cycle_length]
         residuals = residuals_[self.cycle_length:-self.cycle_length]
         post_season = post_season_[self.cycle_length:-self.cycle_length]
         post_residuals = post_residuals_[self.cycle_length:-self.cycle_length]
-        x = self.x[self.cycle_length:-self.cycle_length]
+        x = self.extend_x[self.cycle_length:-self.cycle_length]
         decomposition = pd.DataFrame({"pet": x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season, "post_residuals": post_residuals})
         decomposition.index.name = "time"
         file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_decomposition.csv"
