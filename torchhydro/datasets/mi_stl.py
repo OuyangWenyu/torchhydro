@@ -434,7 +434,7 @@ class STL():
     def moving_average_smoothing(
         self,
         width,
-        xi,
+        # xi,
         x,
         negative: bool = False,
     ):
@@ -455,71 +455,76 @@ class STL():
         for i in range(length):
             # start
             if i < k:
-                m = k - i
-                xx1 = [x[i]]
-                xx2 = x[i + 1:i + k + 1]
-                xi1 = [xi[i]]
-                xi2 = xi[i + 1:i + k + 1]
-                if m == k:
-                    xx0 = []
-                    xx3 = xx2[:]
-                    xx3.reverse()
-                    xi0 = []
-                    xi3 = xi2[:]
-                    xi3.reverse()
-                elif (m > 1) and (m < k):
-                    xx0 = x[:i]
-                    xx3 = xx2[-m:]
-                    xx3.reverse()
-                    xi0 = xi[:i]
-                    xi3 = xi2[-m:]
-                    xi3.reverse()
-                else:
-                    xx0 = x[:i]
-                    xx3 = [xx2[-m]]
-                    xi0 = xi[:i]
-                    xi3 = [xi2[-m]]
-                if negative:
-                    xx3 = self._negative(xx3)
-                xx = xx3 + xx0 + xx1 + xx2
-                xxi = xi3 + xi0 + xi1 + xi2
+                # m = k - i
+                # xx1 = [x[i]]
+                # xx2 = x[i + 1:i + k + 1]
+                # # xi1 = [xi[i]]
+                # # xi2 = xi[i + 1:i + k + 1]
+                # if m == k:
+                #     xx0 = []
+                #     xx3 = xx2[:]
+                #     xx3.reverse()
+                #     # xi0 = []
+                #     # xi3 = xi2[:]
+                #     # xi3.reverse()
+                # elif (m > 1) and (m < k):
+                #     xx0 = x[:i]
+                #     xx3 = xx2[-m:]
+                #     xx3.reverse()
+                #     # xi0 = xi[:i]
+                #     # xi3 = xi2[-m:]
+                #     # xi3.reverse()
+                # else:
+                #     xx0 = x[:i]
+                #     xx3 = [xx2[-m]]
+                #     # xi0 = xi[:i]
+                #     # xi3 = [xi2[-m]]
+                # if negative:
+                #     xx3 = self._negative(xx3)
+                # xx = xx3 + xx0 + xx1 + xx2
+                # # xxi = xi3 + xi0 + xi1 + xi2
+                xx = x[:i+k+1]
+                n_xx = i+k+1
             # end
             elif i > (length-1) - k:
-                m = k + i - (length-1)
-                xx1 = [x[i]]
-                xx0 = x[i-k:i]
-                xi1 = [xi[i]]
-                xi0 = xi[i-k:i]
-                if m == k:
-                    xx2 = []
-                    xx3 = xx0[:]
-                    xx3.reverse()
-                    xi2 = []
-                    xi3 = xi0[:]
-                    xi3.reverse()
-                elif (m > 1) and (m < k):
-                    xx2 = x[i+1:]
-                    xx3 = xx0[:m]
-                    xx3.reverse()
-                    xi2 = xi[i+1:]
-                    xi3 = xi0[:m]
-                    xi3.reverse()
-                else:
-                    xx2 = x[i+1:]
-                    xx3 = [xx0[m-1]]
-                    xi2 = xi[i+1:]
-                    xi3 = [xi0[m-1]]
-                if negative:
-                    xx3 = self._negative(xx3)
-                xx = xx0 + xx1 + xx2 + xx3
-                xxi = xi0 + xi1 + xi2 + xi3
+                # m = k + i - (length-1)
+                # xx1 = [x[i]]
+                # xx0 = x[i-k:i]
+                # # xi1 = [xi[i]]
+                # # xi0 = xi[i-k:i]
+                # if m == k:
+                #     xx2 = []
+                #     xx3 = xx0[:]
+                #     xx3.reverse()
+                #     # xi2 = []
+                #     # xi3 = xi0[:]
+                #     # xi3.reverse()
+                # elif (m > 1) and (m < k):
+                #     xx2 = x[i+1:]
+                #     xx3 = xx0[:m]
+                #     xx3.reverse()
+                #     # xi2 = xi[i+1:]
+                #     # xi3 = xi0[:m]
+                #     # xi3.reverse()
+                # else:
+                #     xx2 = x[i+1:]
+                #     xx3 = [xx0[m-1]]
+                #     # xi2 = xi[i+1:]
+                #     # xi3 = [xi0[m-1]]
+                # if negative:
+                #     xx3 = self._negative(xx3)
+                # xx = xx0 + xx1 + xx2 + xx3
+                # # xxi = xi0 + xi1 + xi2 + xi3
+                xx = x[i-k:]
+                n_xx = length - i + k
             # middle
             else:
                 xx = x[i-k:i+k+1]
-                xxi = xi[i-k:i+k+1]
-            x_i = np.sum(xx)/width
+                n_xx = width
+                # xxi = xi[i-k:i+k+1]
+            x_i = np.sum(xx)/n_xx
             result[i] = x_i
-            print(xxi)
+            # print(xxi)
             # print(xx)
 
         return result
@@ -608,11 +613,14 @@ class STL():
 
         # 3 low-pass filtering of smoothed cycle-subseries
         lowf1 = self.moving_average_smoothing(self.n_p, cycle_v)  # n_p
+        # lowf12 = self.moving_average_smoothing(self.n_p, cycle_v,True)
+        # lowf1 = np.divide(np.array(lowf11) + np.array(lowf12), 2)
+        # lowf1 = lowf1.tolist()
         lowf2 = self.moving_average_smoothing(self.n_p, lowf1)
         lowf3 = self.moving_average_smoothing(self.n_p, lowf2)
         lowf4 = self.moving_average_smoothing(2 * self.n_p, lowf3)
         lowf5 = self.loess(self.nl, lowf4)
-        pd_lowf = pd.DataFrame({"lowf1": lowf1, "lowf2": lowf2, "lowf3": lowf3, "lowf4": lowf4, "lowf5": lowf5})
+        pd_lowf = pd.DataFrame({"lowf1": lowf1, "lowf2": lowf2, "lowf3": lowf3, "lowf4": lowf4, "lowf5": lowf5})  # "lowf11": lowf11, "lowf12": lowf12,
         pd_lowf.index.name = "time"
         file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_lowf.csv"
         pd_lowf.to_csv(file_name, sep=" ")
@@ -731,10 +739,16 @@ class STL():
 
     def decomposition(self):
         """"""
-        trend, season, residuals = self.outer_loop()
-        post_season = self.season_post_smoothing(season)
-        post_residuals = np.array(self.x) - trend - post_season
-        decomposition = pd.DataFrame({"pet": self.x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season, "post_residuals": post_residuals})
+        trend_, season_, residuals_ = self.outer_loop()
+        post_season_ = self.season_post_smoothing(season_)
+        post_residuals_ = np.array(self.x) - trend_ - post_season_
+        trend = trend_[self.cycle_length:-self.cycle_length]
+        season = season_[self.cycle_length:-self.cycle_length]
+        residuals = residuals_[self.cycle_length:-self.cycle_length]
+        post_season = post_season_[self.cycle_length:-self.cycle_length]
+        post_residuals = post_residuals_[self.cycle_length:-self.cycle_length]
+        x = self.x[self.cycle_length:-self.cycle_length]
+        decomposition = pd.DataFrame({"pet": x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season, "post_residuals": post_residuals})
         decomposition.index.name = "time"
         file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_decomposition.csv"
         decomposition.to_csv(file_name, sep=" ")
