@@ -434,9 +434,9 @@ class STL():
     def moving_average_smoothing(
         self,
         width,
-        # xi,
+        xi,
         x,
-        negative: bool = True,
+        negative: bool = False,
     ):
         """
         moving average smoothing
@@ -458,71 +458,68 @@ class STL():
                 m = k - i
                 xx1 = [x[i]]
                 xx2 = x[i + 1:i + k + 1]
-                # xi1 = [xi[i]]
-                # xi2 = xi[i + 1:i + k + 1]
+                xi1 = [xi[i]]
+                xi2 = xi[i + 1:i + k + 1]
                 if m == k:
                     xx0 = []
                     xx3 = xx2[:]
                     xx3.reverse()
-                    if negative:
-                        xx3 = self._negative(xx3)
-                    # xi0 = []
-                    # xi3 = xi2[:]
-                    # xi3.reverse()
+                    xi0 = []
+                    xi3 = xi2[:]
+                    xi3.reverse()
                 elif (m > 1) and (m < k):
                     xx0 = x[:i]
                     xx3 = xx2[-m:]
                     xx3.reverse()
-                    if negative:
-                        xx3 = self._negative(xx3)
-                    # xi0 = xi[:i]
-                    # xi3 = xi2[-m:]
-                    # xi3.reverse()
+                    xi0 = xi[:i]
+                    xi3 = xi2[-m:]
+                    xi3.reverse()
                 else:
                     xx0 = x[:i]
                     xx3 = [xx2[-m]]
-                    if negative:
-                        xx3 = self._negative(xx3)
-                    # xi0 = xi[:i]
-                    # xi3 = [xi2[-m]]
+                    xi0 = xi[:i]
+                    xi3 = [xi2[-m]]
+                if negative:
+                    xx3 = self._negative(xx3)
                 xx = xx3 + xx0 + xx1 + xx2
-                # xxi = xi3 + xi0 + xi1 + xi2
+                xxi = xi3 + xi0 + xi1 + xi2
             # end
             elif i > (length-1) - k:
                 m = k + i - (length-1)
                 xx1 = [x[i]]
                 xx0 = x[i-k:i]
-                # xi1 = [xi[i]]
-                # xi0 = xi[i-k:i]
+                xi1 = [xi[i]]
+                xi0 = xi[i-k:i]
                 if m == k:
                     xx2 = []
                     xx3 = xx0[:]
                     xx3.reverse()
-                    # xi2 = []
-                    # xi3 = xi0[:]
-                    # xi3.reverse()
-
+                    xi2 = []
+                    xi3 = xi0[:]
+                    xi3.reverse()
                 elif (m > 1) and (m < k):
                     xx2 = x[i+1:]
                     xx3 = xx0[:m]
                     xx3.reverse()
-                    # xi2 = xi[i+1:]
-                    # xi3 = xi0[:m]
-                    # xi3.reverse()
+                    xi2 = xi[i+1:]
+                    xi3 = xi0[:m]
+                    xi3.reverse()
                 else:
                     xx2 = x[i+1:]
                     xx3 = [xx0[m-1]]
-                    # xi2 = xi[i+1:]
-                    # xi3 = [xi0[m-1]]
+                    xi2 = xi[i+1:]
+                    xi3 = [xi0[m-1]]
+                if negative:
+                    xx3 = self._negative(xx3)
                 xx = xx0 + xx1 + xx2 + xx3
-                # xxi = xi0 + xi1 + xi2 + xi3
+                xxi = xi0 + xi1 + xi2 + xi3
             # middle
             else:
                 xx = x[i-k:i+k+1]
-                # xxi = xi[i-k:i+k+1]
+                xxi = xi[i-k:i+k+1]
             x_i = np.sum(xx)/width
             result[i] = x_i
-            # print(xxi)
+            print(xxi)
             # print(xx)
 
         return result
