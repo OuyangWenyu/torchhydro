@@ -20,8 +20,8 @@ class ystl():
         self.streamflow = None
         self.prcp = None
         self.pet = None
-        # self.read_streamflow()
-        # self.read_prcp()
+        self.read_streamflow()
+        self.read_prcp()
         self.read_pet()
 
     def read_streamflow(self):
@@ -378,7 +378,13 @@ def test_season_post_smoothing():
 def test_decomposition():
     x = ystl().pet
     stl = STL(x)
-    decomposition = stl.decomposition()
+    trend, season, residuals, post_season, post_residuals = stl.decomposition()
+    decomposition = pd.DataFrame(
+        {"pet": x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season,
+         "post_residuals": post_residuals})
+    decomposition.index.name = "time"
+    file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\series_decomposition.csv"
+    decomposition.to_csv(file_name, sep=" ")
     print(decomposition)
 # PASSED                        [100%]
 # time   pet     trend    season  residuals  post_season  post_residuals
@@ -497,41 +503,53 @@ def test_negative():
 def test_decomposition_streamflow():
     x = ystl().streamflow
     stl = STL(x)
-    decomposition = stl.decomposition()
+    trend, season, residuals, post_season, post_residuals = stl.decomposition()
+    decomposition = pd.DataFrame(
+        {"pet": x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season,
+         "post_residuals": post_residuals})
+    decomposition.index.name = "time"
+    file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\series_decomposition.csv"
+    decomposition.to_csv(file_name, sep=" ")
     print(decomposition)
-# PASSED                   [100%]
+# PASSED             [100%]
 # time   pet       trend      season  residuals  post_season  post_residuals
-# 0      48.5  322.745005 -238.268504 -35.976502  -248.082386      -26.162619
-# 1      47.4  322.809063 -238.870528 -36.538534  -241.358789      -34.050274
-# 2      50.2  322.872273 -239.819103 -32.853171  -237.357680      -35.314593
-# 3      50.0  322.934648 -240.002989 -32.931659  -236.624741      -36.309908
-# 4      50.8  322.996200 -233.410477 -38.785723  -236.708079      -35.488121
-# ...     ...         ...         ...        ...          ...             ...
-# 10945  13.6  225.195807 -255.380137  43.784330  -256.012730       44.416923
-# 10946  19.5  226.128116 -253.914401  47.286285  -255.734034       49.105918
-# 10947  22.0  227.066557 -254.376233  49.309676  -255.913882       50.847325
-# 10948  20.3  228.011035 -256.332345  48.621310  -254.327869       46.616834
-# 10949  19.9  228.961454 -256.947772  47.886318  -250.364312       41.302858
+# 0      167.6  318.601656 -239.431983  88.430327  -248.257325       97.255669
+# 1      165.0  319.680010 -240.100241  85.420231  -242.269446       87.589435
+# 2      160.6  320.762285 -240.847365  80.685080  -238.719000       78.556715
+# 3      158.0  321.848072 -241.129072  77.281000  -238.083354       74.235281
+# 4      158.0  322.936940 -235.300234  70.363294  -238.171508       73.234569
+# ...      ...         ...         ...        ...          ...             ...
+# 11675   75.7  417.704512 -255.427477 -86.577036  -256.079079      -85.925433
+# 11676   74.0  415.817652 -253.929831 -87.887821  -255.818388      -85.999264
+# 11677   71.2  413.912535 -254.490554 -88.221981  -256.062001      -86.650534
+# 11678   71.1  411.990530 -256.348772 -84.541758  -254.235105      -86.655425
+# 11679   68.0  410.053033 -256.998704 -85.054329  -249.742646      -92.310387
 #
-# [10950 rows x 6 columns]
+# [11680 rows x 6 columns]
 
 def test_decomposition_prcp():
     x = ystl().prcp
     stl = STL(x)
-    decomposition = stl.decomposition()
+    trend, season, residuals, post_season, post_residuals = stl.decomposition()
+    decomposition = pd.DataFrame(
+        {"pet": x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season,
+         "post_residuals": post_residuals})
+    decomposition.index.name = "time"
+    file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\series_decomposition.csv"
+    decomposition.to_csv(file_name, sep=" ")
     print(decomposition)
 # PASSED                   [100%]
 # time   pet     trend    season  residuals  post_season  post_residuals
-# 0      0.19  3.384192 -3.311447   0.117256    -3.169286       -0.024905
-# 1      0.26  3.385565 -3.293507   0.167942    -3.068149       -0.057416
-# 2      0.07  3.386934 -2.538321  -0.778613    -2.926613       -0.390321
-# 3      1.15  3.388300 -2.885097   0.646797    -2.902918        0.664619
-# 4      0.48  3.389662 -2.905025  -0.004637    -2.962489        0.052827
-# ...     ...       ...       ...        ...          ...             ...
-# 10945  0.63  3.008984 -2.718110   0.339127    -2.790925        0.411942
-# 10946  0.26  3.014923 -3.168953   0.414030    -2.898406        0.143483
-# 10947  0.11  3.020894 -3.294478   0.383583    -3.058642        0.147748
-# 10948  2.04  3.026898 -2.692003   1.705105    -3.188161        2.201263
-# 10949  0.00  3.032933 -3.360406   0.327473    -3.211105        0.178172
+# 0      0.0  3.207341 -3.299541   0.092199    -3.168793       -0.038548
+# 1      0.0  3.216307 -3.279715   0.063408    -3.077734       -0.138573
+# 2      0.0  3.225302 -2.612596  -0.612707    -2.941555       -0.283747
+# 3      0.0  3.234323 -2.867324  -0.366999    -2.914983       -0.319340
+# 4      0.0  3.243365 -2.921127  -0.322238    -2.972998       -0.270367
+# ...    ...       ...       ...        ...          ...             ...
+# 11675  0.0  3.941500 -2.643090  -1.298410    -2.722671       -1.218829
+# 11676  0.0  3.929213 -3.140227  -0.788987    -2.848158       -1.081055
+# 11677  0.0  3.916848 -3.288694  -0.628154    -3.030611       -0.886237
+# 11678  0.0  3.904413 -2.647311  -1.257102    -3.172870       -0.731543
+# 11679  0.0  3.891918 -3.353523  -0.538395    -3.197138       -0.694780
 #
-# [10950 rows x 6 columns]
+# [11680 rows x 6 columns]

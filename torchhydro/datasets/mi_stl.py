@@ -767,12 +767,13 @@ class STL():
         residuals = residuals_[self.cycle_length:-self.cycle_length]
         post_season = post_season_[self.cycle_length:-self.cycle_length]
         post_residuals = post_residuals_[self.cycle_length:-self.cycle_length]
-        x = self.extend_x[self.cycle_length:-self.cycle_length]
-        decomposition = pd.DataFrame({"pet": x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season, "post_residuals": post_residuals})
-        decomposition.index.name = "time"
-        file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_decomposition.csv"
-        decomposition.to_csv(file_name, sep=" ")
         self.trend = trend
         self.season = post_season
         self.residuals = post_residuals
-        return decomposition
+        return trend, season, residuals, post_season, post_residuals
+
+
+    class MutualInformation():
+        """mutual information"""
+        def __init__(self):
+            """ """
