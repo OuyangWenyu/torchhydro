@@ -771,7 +771,7 @@ class STL():
 
 
     class MutualInformation():
-        """mutual information"""
+        """mutual information/entropy"""
         def __init__(self, x, z):
             """
             probability
@@ -785,7 +785,7 @@ class STL():
             self.pxz = 0  # joint probability.
             self.length = len(self.x)
 
-        def probability(self):
+        def marginal_probability(self):
             """calculate the probability of a discrete variable"""
             return self.z / self.length
 
@@ -797,3 +797,7 @@ class STL():
         def joint_probability(self):
             """calculate the joint probability of two discrete variable"""
             return self.probability() / self.rank()
+
+        def mutual_information(self):
+            """calculate the mutual information of two discrete variables"""
+            return self.marginal_probability()
