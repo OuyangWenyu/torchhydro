@@ -195,9 +195,6 @@ class STL():
         # max distance
         if i_focal < k:
             q = (width - 1) - i_focal
-        # elif i_focal > k:
-        #     # q = width - (i_focal - 1)
-        #     q = i_focal
         else:
             q = i_focal
 
@@ -777,3 +774,12 @@ class STL():
         """mutual information"""
         def __init__(self):
             """ """
+            self.x = None
+            self.z = None
+            self.mi = 0
+            self.px = 0
+            self.pz = 0
+            self.pxz = 0
+
+        def probability(self):
+            """calculate the probability of a discrete variable"""
