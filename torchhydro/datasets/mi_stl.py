@@ -771,7 +771,7 @@ class STL():
 
 
     class MutualInformation():
-        """mutual information/entropy"""
+        """mutual information"""
         def __init__(self, x, z):
             """
             probability
