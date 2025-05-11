@@ -5,7 +5,7 @@ import pandas as pd
 class STL():
     """
     Seasonal-Trend decomposition using LOESS
-    Loess     circle-subseries     low pass filter
+    loess     circle-subseries    low pass filter
     y_t = T_t + S_t + R_t
     todo: unify the data type.
     """
@@ -773,13 +773,16 @@ class STL():
     class MutualInformation():
         """mutual information"""
         def __init__(self):
-            """ """
+            """
+            probability
+            joint probability
+            """
             self.x = None
             self.z = None
             self.mi = 0
             self.px = 0
             self.pz = 0
-            self.pxz = 0
+            self.pxz = 0  # joint probability.
 
         def probability(self):
             """calculate the probability of a discrete variable"""

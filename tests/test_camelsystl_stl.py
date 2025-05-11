@@ -44,7 +44,6 @@ class ystl():
         data4 = data4.values[:, 0]
         data_ = data1.tolist() + data2.tolist() + data3.tolist() + data4.tolist()
         self.streamflow = data_ + data_
-        # print(self.data)
 
     def read_pet(self):
         data = self.datasource.read_ts_xrdataset(
