@@ -772,17 +772,28 @@ class STL():
 
     class MutualInformation():
         """mutual information"""
-        def __init__(self):
+        def __init__(self, x, z):
             """
             probability
             joint probability
             """
-            self.x = None
-            self.z = None
+            self.x = x
+            self.z = z
             self.mi = 0
             self.px = 0
             self.pz = 0
             self.pxz = 0  # joint probability.
+            self.length = len(self.x)
 
         def probability(self):
             """calculate the probability of a discrete variable"""
+            return self.z / self.length
+
+        def rank(self):
+            """calculate the frequency and rank of a discrete variable"""
+
+            return self.length
+
+        def joint_probability(self):
+            """calculate the joint probability of two discrete variable"""
+            return self.probability() / self.rank()
