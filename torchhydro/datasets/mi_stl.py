@@ -797,16 +797,18 @@ class MutualInformation():
 
         return incident, counts, frequency
 
-    def probability(
+    def marginal_probability(
         self,
         x,
     ):
         """calculate the probability of a discrete variable"""
-        xx = np.sort(x)
-        incident, counts = np.unique(xx, return_counts=True)
+        # xx = np.sort(x)
+        incident, counts = np.unique(x, return_counts=True)
         frequency = np.divide(counts, self.length)
+        distribution_low = np.array([incident, frequency])
+        distribution_low = np.transpose(distribution_low)
 
-        return frequency
+        return distribution_low
 
     def joint_probability(
         self,
@@ -818,28 +820,39 @@ class MutualInformation():
         xy = np.transpose(xy)
         incident, counts = np.unique(xy, axis=0, return_counts=True)
         frequency = np.divide(counts, self.length)
+        frequency = np.transpose([frequency])
+        distribution_low = np.array([incident, frequency])
+        distribution_low = np.transpose(distribution_low)
 
-        return xy, incident, counts, frequency
-        # return frequency
+        # return xy, incident, counts, frequency
+        # return incident, frequency
+        return distribution_low
 
-    def marginal_probability(
+    # def marginal_probability(
+    #     self,
+    #     x,
+    #     y,
+    # ):
+    #     """calculate the marginal probability of two discrete variable"""
+    #     xy, incident, counts, frequency = self.joint_probability(x, y)
+    #     x_xy = xy[:, 0]
+    #     y_xy = xy[:, 1]
+    #
+    #     px = 0
+    #     return px
+
+    def mutual_information(
         self,
-        x,
-        y,
     ):
-        """calculate the marginal probability of a discrete variable"""
-        xy, incident, counts, frequency = self.joint_probability(x, y)
-        x_xy = xy[:, 0]
-        y_xy = xy[:, 1]
-
-        px = 0
-        return px
-
-    def mutual_information(self):
         """calculate the mutual information of two discrete variables"""
-        px = self.marginal_probability(self.x)
-        py = self.marginal_probability(self.y)
-        pxy = self.joint_probability(self.x, self.y)
-        mi = np.sum(pxy * np.log(np.divide(pxy, px * py)))
+        dl_x = self.marginal_probability(self.x)
+        dl_y = self.marginal_probability(self.y)
+        dl_xy = self.joint_probability(self.x, self.y)
+        n_dl_x = dl_x.shape[0]
+        n_dl_y = dl_y.shape[0]
+        n_dl_xy = dl_xy.shape[0]
+        for i in range(n_dl_xy):
+            for j in range(n_dl_y):
+                i = 0
 
-        return px, py, pxy, mi
+        return dl_x, dl_y, dl_xy

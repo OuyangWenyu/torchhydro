@@ -567,9 +567,11 @@ def test_marginal_probability_():
             0.07, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.81, 1.41, 4.34, 1.89]
     pet = [1.2, 1.3, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7, 0.8, 0.95, 1.05, 0.75, 0.6, 0.55, 1.1, 1.75, 1.3, 0.8,
            1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
+    # prcp = [0, 0, 0, 0, 0, 0, 0.07, 0.22, 0, 0]
+    # pet = [1.2, 1.2, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7]
     mi = MutualInformation(prcp, pet)
     prcp_incident, prcp_counts, prcp_frequency = mi.rank(prcp)
-    pet_incident, pet_counts, pet_frequency = mi.rank(prcp)
+    pet_incident, pet_counts, pet_frequency = mi.rank(pet)
     print("prcp")
     print(prcp)
     print("prcp_incident")
@@ -586,7 +588,7 @@ def test_marginal_probability_():
     print(pet_counts)
     print("pet_frequency")
     print(pet_frequency)
-# PASSED                    [100%]
+# PASSED                [100%]
 # prcp
 # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.07, 0.22, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 1.15, 0.0, 0.0, 0.04, 0.04, 0.0, 0.07, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.81, 1.41, 4.34, 1.89]
 # prcp_incident
@@ -594,38 +596,64 @@ def test_marginal_probability_():
 # prcp_counts
 # [20  3  2  1  1  1  1  1  1]
 # prcp_frequency
-# [0.64516129 0.09677419 0.06451613 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806]
+# [0.64516129 0.09677419 0.06451613 0.03225806 0.03225806 0.03225806
+#  0.03225806 0.03225806 0.03225806]
 # pet
 # [1.2, 1.3, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7, 0.8, 0.95, 1.05, 0.75, 0.6, 0.55, 1.1, 1.75, 1.3, 0.8, 1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
 # pet_incident
-# [0.   0.04 0.07 0.22 0.81 1.15 1.41 1.89 4.34]
+# [0.35 0.45 0.55 0.6  0.7  0.75 0.8  0.85 0.9  0.95 1.   1.05 1.1  1.15
+#  1.2  1.25 1.3  1.75 1.8  1.85]
 # pet_counts
-# [20  3  2  1  1  1  1  1  1]
+# [1 1 2 1 2 2 2 2 2 2 1 3 1 2 1 1 2 1 1 1]
 # pet_frequency
-# [0.64516129 0.09677419 0.06451613 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806]
+# [0.03225806 0.03225806 0.06451613 0.03225806 0.06451613 0.06451613
+#  0.06451613 0.06451613 0.06451613 0.06451613 0.03225806 0.09677419
+#  0.03225806 0.06451613 0.03225806 0.03225806 0.06451613 0.03225806
+#  0.03225806 0.03225806]
+
+# PASSED                [100%]
+# prcp
+# [0, 0, 0, 0, 0, 0, 0.07, 0.22, 0, 0]
+# prcp_incident
+# [0.   0.07 0.22]
+# prcp_counts
+# [8 1 1]
+# prcp_frequency
+# [0.8 0.1 0.1]
+# pet
+# [1.2, 1.2, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7]
+# pet_incident
+# [0.55 0.7  0.85 0.9  1.15 1.2 ]
+# pet_counts
+# [1 2 2 2 1 2]
+# pet_frequency
+# [0.1 0.2 0.2 0.2 0.1 0.2]
 
 
 def test_joint_probability():
-    prcp = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.07, 0.22, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 1.15, 0.0, 0.0, 0.04, 0.04, 0.0,
-            0.07, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.81, 1.41, 4.34, 1.89]
-    pet = [1.2, 1.3, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7, 0.8, 0.95, 1.05, 0.75, 0.6, 0.55, 1.1, 1.75, 1.3, 0.8,
-           1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
-    # prcp = [0, 0, 0, 0, 0, 0, 0.07, 0.22, 0, 0]
-    # pet = [1.2, 1.2, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7]
+    # prcp = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.07, 0.22, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 1.15, 0.0, 0.0, 0.04, 0.04, 0.0,
+    #         0.07, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.81, 1.41, 4.34, 1.89]
+    # pet = [1.2, 1.3, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7, 0.8, 0.95, 1.05, 0.75, 0.6, 0.55, 1.1, 1.75, 1.3, 0.8,
+    #        1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
+    prcp = [0, 0, 0, 0, 0, 0, 0.07, 0.22, 0, 0]
+    pet = [1.2, 1.2, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7]
     mi = MutualInformation(prcp, pet)
-    xy, incident, counts, frequency = mi.joint_probability(prcp, pet)
-    print("prcp")
-    print(prcp)
-    print("pet")
-    print(pet)
-    print("xy")
-    print(xy)
-    print("incident")
-    print(incident)
-    print("counts")
-    print(counts)
-    print("frequency")
-    print(frequency)
+    # xy, incident, counts, frequency = mi.joint_probability(prcp, pet)
+    distribution_low = mi.joint_probability(prcp, pet)
+    # print("prcp")
+    # print(prcp)
+    # print("pet")
+    # print(pet)
+    # print("xy")
+    # print(xy)
+    # print("incident")
+    # print(incident)
+    # print("counts")
+    # print(counts)
+    # print("frequency")
+    # print(frequency)
+    print("distribution_low")
+    print(distribution_low)
 # PASSED                    [100%]
 # xy
 # [[0.   1.2 ]
@@ -733,15 +761,25 @@ def test_marginal_probability():
     # pet = [1.2, 1.3, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7, 0.8, 0.95, 1.05, 0.75, 0.6, 0.55, 1.1, 1.75, 1.3, 0.8,
     #        1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
     mi = MutualInformation(prcp, pet)
-    px, py, pxy, mi_prcp_pet = mi.marginal_probability(prcp, pet)
-    print("px")
-    print(px)
-    print("py")
-    print(py)
-    print("pxy")
-    print(pxy)
-    print("mi_prcp_pet")
-    print(mi_prcp_pet)
+    distribution_low = mi.marginal_probability(pet)
+    # print("px")
+    # print(px)
+    # print("py")
+    # print(py)
+    # print("pxy")
+    # print(pxy)
+    # print("mi_prcp_pet")
+    # print(mi_prcp_pet)
+    print("distribution_low")
+    print(distribution_low)
+# PASSED                 [100%]
+# distribution_low
+# [[0.55 0.1 ]
+#  [0.7  0.2 ]
+#  [0.85 0.2 ]
+#  [0.9  0.2 ]
+#  [1.15 0.1 ]
+#  [1.2  0.2 ]]
 
 
 def test_mutual_information():
