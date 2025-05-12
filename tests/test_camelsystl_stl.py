@@ -9,7 +9,7 @@ def test_dataset():
     basin = camelsystl.gage
     print(basin)
 
-class ystl():
+class Ystl():
     def __init__(self):
         self.datasource = CamelsYstl()
         self.basin = ["1000",]
@@ -70,12 +70,12 @@ class ystl():
         self.prcp = prcp + prcp
 
 def test_read_data():
-    x = ystl().pet
+    x = Ystl().pet
     print(x)
 # [165.8 164.1 158.8 ...  73.2  71.1  71.3]
 
 def test_cycle_subseries():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     stl._cycle_subseries(x)
     print(stl.cycle_subseries)
@@ -94,7 +94,7 @@ def test_weight_function():
 # [0, 0.669921875, 1, 0.669921875, 0]
 
 def test_extend_subseries():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     subseries = stl._cycle_subseries(x)
     extend_subseries = stl._extend_subseries(subseries)
@@ -104,7 +104,7 @@ def test_extend_subseries():
 # 18
 
 def test_de_extend_subseries():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     subseries = stl._cycle_subseries(x)
     extend_subseries = stl._extend_subseries(subseries)
@@ -115,7 +115,7 @@ def test_de_extend_subseries():
 # 16
 
 def test_recover_series():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     stl._cycle_subseries(x)
     print(len(stl.cycle_subseries))
@@ -125,7 +125,7 @@ def test_recover_series():
 # [165.8, 164.1, 158.8, 158.0, 156.2, 144.8, 137.6, 134.6, 130.3, 128.2]
 
 def test_neighborhood_weight():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     i_focal = 3
     weight = stl._neighborhood_weight(13, i_focal=i_focal)
@@ -162,7 +162,7 @@ def test_neighborhood_weight():
 # 0.921167317, 0.976191488, 0.997002999, 1.0, 0.997002999, 0.976191488]
 
 def test_moving_average_smoothing():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     xx = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31]  # 17
     result = stl.moving_average_smoothing(7, xx)
@@ -175,7 +175,7 @@ def test_moving_average_smoothing():
 #  27.0, 27.571428571428573, 28.142857142857142, 30.428571428571427]
 
 def test_repetitious_moving_average_smoothing():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     result1 = stl.moving_average_smoothing(41, x)
     result2 = stl.moving_average_smoothing(51, result1)
@@ -202,7 +202,7 @@ def test_repetitious_moving_average_smoothing():
 # [5840 rows x 4 columns]
 
 def test_weight_least_squares():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     xx = [1, 2, 3, 4, 5]
     y = x[:5]
@@ -212,7 +212,7 @@ def test_weight_least_squares():
     # 0.7283553118882566
 
 def test_sample_loess():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     y = [1, 5, 3, 7, 11, 9, 13, 17, 15, 19, 23, 21, 25, 29, 27, 31, 35, 33]  # 18
     result = stl.loess(7, y)
@@ -225,7 +225,7 @@ def test_sample_loess():
 # 24.999999999999975, 26.861362741236682, 29.138637258763257, 30.97743212943223, 32.65893534046176, 34.41033858673253]
 
 def test_loess_subseries():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     y = [1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55]  # 18
     width = 15
@@ -253,7 +253,7 @@ def test_loess_subseries():
 # 0.8449054684661481, 0.8240669246878335, 0.802758564984388, 0.7820964437960396, 0.7614263384564299, 0.7391728782521003]
 
 def test_loess():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     xx = x[:200]
     result = stl.loess(37, xx)
@@ -294,7 +294,7 @@ def test_loess():
 # 2.9340911022088374]
 
 def test_inner_loop():
-    x = ystl().data
+    x = Ystl().pet
     stl = STL(x)
     trend = [0]*stl.length
     ni = 2
@@ -308,7 +308,7 @@ def test_inner_loop():
 # 114.92302464599325, 110.21141633508216, 105.57688065472742, 102.973535785042, 103.73671137632715, 109.04560034616493]
 
 def test_outer_loop():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     trend, season, residuals = stl.outer_loop()
     pet_stl = pd.DataFrame({"pet": x, "trend": trend, "season": season, "residuals": residuals})
@@ -334,7 +334,7 @@ def test_outer_loop():
 
 
 def test_season_post_smoothing():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     trend, season, residuals = stl.outer_loop()
     post_season = stl.season_post_smoothing(season)
@@ -361,7 +361,7 @@ def test_season_post_smoothing():
 
 
 def test_decomposition():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     trend, season, residuals, post_season, post_residuals = stl.decomposition()
     decomposition = pd.DataFrame(
@@ -388,7 +388,7 @@ def test_decomposition():
 # [11680 rows x 6 columns]
 
 def test_moving_average_smoothing_start_end():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     xi = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16",
           "x17"]
@@ -423,7 +423,7 @@ def test_moving_average_smoothing_start_end():
 # 28.714285714285715, 29.285714285714285, 30.142857142857142, 31.285714285714285]
 
 def test_sample_loess():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     xx = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16",
           "x17"]
@@ -459,7 +459,7 @@ def test_sample_loess():
 
 
 def test_negative():
-    x = ystl().pet
+    x = Ystl().pet
     stl = STL(x)
     xx = [1, 5, 3, 7, 11, 9, 13, 17, 15, 19, 23, 21, 25, 29, 27, 31, 35, 33]
     result = stl._negative(xx)
@@ -470,7 +470,7 @@ def test_negative():
 # [-1, -5, -3, -7, -11, -9, -13, -17, -15, -19, -23, -21, -25, -29, -27, -31, -35, -33]
 
 def test_decomposition_streamflow():
-    x = ystl().streamflow
+    x = Ystl().streamflow
     stl = STL(x)
     trend, season, residuals, post_season, post_residuals = stl.decomposition()
     decomposition = pd.DataFrame(
@@ -497,7 +497,7 @@ def test_decomposition_streamflow():
 # [11680 rows x 6 columns]
 
 def test_decomposition_prcp():
-    x = ystl().prcp
+    x = Ystl().prcp
     stl = STL(x)
     trend, season, residuals, post_season, post_residuals = stl.decomposition()
     decomposition = pd.DataFrame(
@@ -559,10 +559,187 @@ def test_marginal_probability():
 # PASSED                 [100%]
 # [0.25 0.25 0.5 ]
 
-def test_joint_probability():
-    ystl = ystl()
-    prcp = ystl.prcp
-    pet = ystl.pet
-    prcp = prcp[:31]
-    pet = pet[:31]
+def test_marginal_probability_():
+    # ystl = Ystl()
+    # prcp = ystl.prcp
+    # pet = ystl.pet
+    prcp = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.07, 0.22, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 1.15, 0.0, 0.0, 0.04, 0.04, 0.0,
+            0.07, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.81, 1.41, 4.34, 1.89]
+    pet = [1.2, 1.3, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7, 0.8, 0.95, 1.05, 0.75, 0.6, 0.55, 1.1, 1.75, 1.3, 0.8,
+           1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
     mi = MutualInformation(prcp, pet)
+    prcp_incident, prcp_counts, prcp_frequency = mi.rank(prcp)
+    pet_incident, pet_counts, pet_frequency = mi.rank(prcp)
+    print("prcp")
+    print(prcp)
+    print("prcp_incident")
+    print(prcp_incident)
+    print("prcp_counts")
+    print(prcp_counts)
+    print("prcp_frequency")
+    print(prcp_frequency)
+    print("pet")
+    print(pet)
+    print("pet_incident")
+    print(pet_incident)
+    print("pet_counts")
+    print(pet_counts)
+    print("pet_frequency")
+    print(pet_frequency)
+# PASSED                    [100%]
+# prcp
+# [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.07, 0.22, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 1.15, 0.0, 0.0, 0.04, 0.04, 0.0, 0.07, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.81, 1.41, 4.34, 1.89]
+# prcp_incident
+# [0.   0.04 0.07 0.22 0.81 1.15 1.41 1.89 4.34]
+# prcp_counts
+# [20  3  2  1  1  1  1  1  1]
+# prcp_frequency
+# [0.64516129 0.09677419 0.06451613 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806]
+# pet
+# [1.2, 1.3, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7, 0.8, 0.95, 1.05, 0.75, 0.6, 0.55, 1.1, 1.75, 1.3, 0.8, 1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
+# pet_incident
+# [0.   0.04 0.07 0.22 0.81 1.15 1.41 1.89 4.34]
+# pet_counts
+# [20  3  2  1  1  1  1  1  1]
+# pet_frequency
+# [0.64516129 0.09677419 0.06451613 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806]
+
+
+def test_joint_probability():
+    prcp = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.07, 0.22, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 1.15, 0.0, 0.0, 0.04, 0.04, 0.0,
+            0.07, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.81, 1.41, 4.34, 1.89]
+    pet = [1.2, 1.3, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7, 0.8, 0.95, 1.05, 0.75, 0.6, 0.55, 1.1, 1.75, 1.3, 0.8,
+           1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
+    # prcp = [0, 0, 0, 0, 0, 0, 0.07, 0.22, 0, 0]
+    # pet = [1.2, 1.2, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7]
+    mi = MutualInformation(prcp, pet)
+    xy, incident, counts, frequency = mi.joint_probability(prcp, pet)
+    print("prcp")
+    print(prcp)
+    print("pet")
+    print(pet)
+    print("xy")
+    print(xy)
+    print("incident")
+    print(incident)
+    print("counts")
+    print(counts)
+    print("frequency")
+    print(frequency)
+# PASSED                    [100%]
+# xy
+# [[0.   1.2 ]
+#  [0.   1.2 ]
+#  [0.   0.9 ]
+#  [0.   0.55]
+#  [0.   0.85]
+#  [0.   1.15]
+#  [0.07 0.9 ]
+#  [0.22 0.85]
+#  [0.   0.7 ]
+#  [0.   0.7 ]]
+# incident
+# [[0.   0.55]
+#  [0.   0.7 ]
+#  [0.   0.85]
+#  [0.   0.9 ]
+#  [0.   1.15]
+#  [0.   1.2 ]
+#  [0.07 0.9 ]
+#  [0.22 0.85]]
+# counts
+# [1 2 1 1 1 2 1 1]
+# frequency
+# [0.1 0.2 0.1 0.1 0.1 0.2 0.1 0.1]
+# PASSED                    [100%]
+# prcp
+# [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.07, 0.22, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 1.15, 0.0, 0.0, 0.04, 0.04, 0.0, 0.07, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.81, 1.41, 4.34, 1.89]
+# pet
+# [1.2, 1.3, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7, 0.8, 0.95, 1.05, 0.75, 0.6, 0.55, 1.1, 1.75, 1.3, 0.8, 1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
+# xy
+# [[0.   1.2 ]
+#  [0.   1.3 ]
+#  [0.   0.9 ]
+#  [0.   0.55]
+#  [0.   0.85]
+#  [0.   1.15]
+#  [0.07 0.9 ]
+#  [0.22 0.85]
+#  [0.   0.7 ]
+#  [0.   0.7 ]
+#  [0.04 0.8 ]
+#  [0.   0.95]
+#  [0.   1.05]
+#  [0.   0.75]
+#  [1.15 0.6 ]
+#  [0.   0.55]
+#  [0.   1.1 ]
+#  [0.04 1.75]
+#  [0.04 1.3 ]
+#  [0.   0.8 ]
+#  [0.07 1.05]
+#  [0.   1.15]
+#  [0.   1.25]
+#  [0.   1.85]
+#  [0.   1.8 ]
+#  [0.   1.  ]
+#  [0.   0.75]
+#  [0.81 0.45]
+#  [1.41 0.35]
+#  [4.34 0.95]
+#  [1.89 1.05]]
+# incident
+# [[0.   0.55]
+#  [0.   0.7 ]
+#  [0.   0.75]
+#  [0.   0.8 ]
+#  [0.   0.85]
+#  [0.   0.9 ]
+#  [0.   0.95]
+#  [0.   1.  ]
+#  [0.   1.05]
+#  [0.   1.1 ]
+#  [0.   1.15]
+#  [0.   1.2 ]
+#  [0.   1.25]
+#  [0.   1.3 ]
+#  [0.   1.8 ]
+#  [0.   1.85]
+#  [0.04 0.8 ]
+#  [0.04 1.3 ]
+#  [0.04 1.75]
+#  [0.07 0.9 ]
+#  [0.07 1.05]
+#  [0.22 0.85]
+#  [0.81 0.45]
+#  [1.15 0.6 ]
+#  [1.41 0.35]
+#  [1.89 1.05]
+#  [4.34 0.95]]
+# counts
+# [2 2 2 1 1 1 1 1 1 1 2 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1]
+# frequency
+# [0.06451613 0.06451613 0.06451613 0.03225806 0.03225806 0.03225806
+#  0.03225806 0.03225806 0.03225806 0.03225806 0.06451613 0.03225806
+#  0.03225806 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806
+#  0.03225806 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806
+#  0.03225806 0.03225806 0.03225806]
+
+
+def test_mutual_information():
+    prcp = [0, 0, 0, 0, 0, 0, 0.07, 0.22, 0, 0]
+    pet = [1.2, 1.2, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7]
+    # prcp = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.07, 0.22, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 1.15, 0.0, 0.0, 0.04, 0.04, 0.0,
+    #         0.07, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.81, 1.41, 4.34, 1.89]
+    # pet = [1.2, 1.3, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7, 0.8, 0.95, 1.05, 0.75, 0.6, 0.55, 1.1, 1.75, 1.3, 0.8,
+    #        1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
+    mi = MutualInformation(prcp, pet)
+    px, py, pxy, mi_prcp_pet = mi.mutual_information()
+    print("px")
+    print(px)
+    print("py")
+    print(py)
+    print("pxy")
+    print(pxy)
+    print("mi_prcp_pet")
+    print(mi_prcp_pet)

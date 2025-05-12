@@ -772,13 +772,13 @@ class STL():
 
 class MutualInformation():
     """mutual information"""
-    def __init__(self, x):  # , z
+    def __init__(self, x, y):  #
         """
         probability
         joint probability
         """
         self.x = x
-        # self.z = z
+        self.y = y
         self.length = len(self.x)
         self.mi = 0
         self.px = 0
@@ -795,15 +795,18 @@ class MutualInformation():
         incident, counts = np.unique(xx, return_counts=True)
         frequency = np.divide(counts, self.length)
 
-        return frequency
+        return incident, counts, frequency
 
     def marginal_probability(
         self,
         x,
     ):
         """calculate the probability of a discrete variable"""
-        px = self.rank(x)
-        return px
+        xx = np.sort(x)
+        incident, counts = np.unique(xx, return_counts=True)
+        frequency = np.divide(counts, self.length)
+
+        return frequency
 
     def joint_probability(
         self,
@@ -811,11 +814,18 @@ class MutualInformation():
         y,
     ):
         """calculate the joint probability of two discrete variable"""
-        px = self.rank(x)
-        py = self.rank(y)
-        return px, py
+        xy = np.array([x, y])
+        xy = np.transpose(xy)
+        incident, counts = np.unique(xy, axis=0, return_counts=True)
+        frequency = np.divide(counts, self.length)
+
+        # return xy, incident, counts, frequency
+        return frequency
 
     def mutual_information(self):
         """calculate the mutual information of two discrete variables"""
-
-        return self.marginal_probability()
+        px = self.marginal_probability(self.x)
+        py = self.marginal_probability(self.y)
+        pxy = self.joint_probability(self.x, self.y)
+        mi = np.sum(pxy * np.log(np.divide(pxy, px * py)))
+        return px, py, pxy, mi
