@@ -824,7 +824,7 @@ class MutualInformation():
 
         return distribution_low
 
-    def c(
+    def mutual_information(
         self,
     ):
         """calculate the mutual information of two discrete variables"""
