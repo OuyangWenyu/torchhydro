@@ -812,7 +812,8 @@ class MutualInformation():
     ):
         """calculate the joint probability of two discrete variable"""
         px = self.rank(x)
-        return px
+        py = self.rank(y)
+        return px, py
 
     def mutual_information(self):
         """calculate the mutual information of two discrete variables"""

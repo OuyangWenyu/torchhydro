@@ -70,7 +70,7 @@ class ystl():
         self.prcp = prcp + prcp
 
 def test_read_data():
-    x = ystl().data
+    x = ystl().pet
     print(x)
 # [165.8 164.1 158.8 ...  73.2  71.1  71.3]
 
@@ -94,7 +94,7 @@ def test_weight_function():
 # [0, 0.669921875, 1, 0.669921875, 0]
 
 def test_extend_subseries():
-    x = ystl().data
+    x = ystl().pet
     stl = STL(x)
     subseries = stl._cycle_subseries(x)
     extend_subseries = stl._extend_subseries(subseries)
@@ -104,7 +104,7 @@ def test_extend_subseries():
 # 18
 
 def test_de_extend_subseries():
-    x = ystl().data
+    x = ystl().pet
     stl = STL(x)
     subseries = stl._cycle_subseries(x)
     extend_subseries = stl._extend_subseries(subseries)
@@ -115,7 +115,7 @@ def test_de_extend_subseries():
 # 16
 
 def test_recover_series():
-    x = ystl().data
+    x = ystl().pet
     stl = STL(x)
     stl._cycle_subseries(x)
     print(len(stl.cycle_subseries))
@@ -559,3 +559,10 @@ def test_marginal_probability():
 # PASSED                 [100%]
 # [0.25 0.25 0.5 ]
 
+def test_joint_probability():
+    ystl = ystl()
+    prcp = ystl.prcp
+    pet = ystl.pet
+    prcp = prcp[:31]
+    pet = pet[:31]
+    mi = MutualInformation(prcp, pet)
