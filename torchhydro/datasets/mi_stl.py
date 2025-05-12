@@ -802,7 +802,6 @@ class MutualInformation():
         x,
     ):
         """calculate the probability of a discrete variable"""
-        # xx = np.sort(x)
         incident, counts = np.unique(x, return_counts=True)
         frequency = np.divide(counts, self.length)
         distribution_low = np.array([incident, frequency])
@@ -823,40 +822,25 @@ class MutualInformation():
         frequency = np.transpose([frequency])
         distribution_low = np.concatenate((incident, frequency), axis=1)
 
-        # return xy, incident, counts, frequency
-        # return incident, frequency
         return distribution_low
 
-    # def marginal_probability(
-    #     self,
-    #     x,
-    #     y,
-    # ):
-    #     """calculate the marginal probability of two discrete variable"""
-    #     xy, incident, counts, frequency = self.joint_probability(x, y)
-    #     x_xy = xy[:, 0]
-    #     y_xy = xy[:, 1]
-    #
-    #     px = 0
-    #     return px
-
-    def mutual_information(
+    def c(
         self,
     ):
         """calculate the mutual information of two discrete variables"""
         dl_x = self.marginal_probability(self.x)
         dl_y = self.marginal_probability(self.y)
         dl_xy = self.joint_probability(self.x, self.y)
-        n_dl_x = dl_x.shape[0]
-        n_dl_y = dl_y.shape[0]
         n_dl_xy = dl_xy.shape[0]
         mi = 0
         for i in range(n_dl_xy):
             x_i = dl_xy[i][0]
             y_i = dl_xy[i][1]
             pxy_i = dl_xy[i][2]
-            px_i = np.where(dl_x[0]==x_i)[1]
-            py_i = np.where(dl_y[0]==y_i)[1]
+            px_ii = np.where(dl_x == x_i)
+            px_i = dl_x[px_ii[0], 1]
+            py_ii = np.where(dl_y == y_i)
+            py_i = dl_y[py_ii[0], 1]
             mi_i = pxy_i * np.log(pxy_i / (px_i * py_i))
             mi = mi + mi_i
 
