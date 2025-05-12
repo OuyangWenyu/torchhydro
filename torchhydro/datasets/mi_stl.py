@@ -770,34 +770,51 @@ class STL():
         return trend, season, residuals, post_season, post_residuals
 
 
-    class MutualInformation():
-        """mutual information"""
-        def __init__(self, x, z):
-            """
-            probability
-            joint probability
-            """
-            self.x = x
-            self.z = z
-            self.mi = 0
-            self.px = 0
-            self.pz = 0
-            self.pxz = 0  # joint probability.
-            self.length = len(self.x)
+class MutualInformation():
+    """mutual information"""
+    def __init__(self, x):  # , z
+        """
+        probability
+        joint probability
+        """
+        self.x = x
+        # self.z = z
+        self.length = len(self.x)
+        self.mi = 0
+        self.px = 0
+        self.py = 0
+        self.pxy = 0  # joint probability.
 
-        def marginal_probability(self):
-            """calculate the probability of a discrete variable"""
-            return self.z / self.length
 
-        def rank(self):
-            """calculate the frequency and rank of a discrete variable"""
+    def rank(
+        self,
+        x,
+    ):
+        """calculate the frequency and rank of a discrete variable"""
+        xx = np.sort(x)
+        incident, counts = np.unique(xx, return_counts=True)
+        frequency = np.divide(counts, self.length)
 
-            return self.length
+        return frequency
 
-        def joint_probability(self):
-            """calculate the joint probability of two discrete variable"""
-            return self.probability() / self.rank()
+    def marginal_probability(
+        self,
+        x,
+    ):
+        """calculate the probability of a discrete variable"""
+        px = self.rank(x)
+        return px
 
-        def mutual_information(self):
-            """calculate the mutual information of two discrete variables"""
-            return self.marginal_probability()
+    def joint_probability(
+        self,
+        x,
+        y,
+    ):
+        """calculate the joint probability of two discrete variable"""
+        px = self.rank(x)
+        return px
+
+    def mutual_information(self):
+        """calculate the mutual information of two discrete variables"""
+
+        return self.marginal_probability()

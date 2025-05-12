@@ -1,7 +1,7 @@
 
 import pandas as pd
 from hydrodataset import CamelsYstl
-from torchhydro.datasets.mi_stl import STL
+from torchhydro.datasets.mi_stl import STL, MutualInformation
 
 
 def test_dataset():
@@ -522,3 +522,40 @@ def test_decomposition_prcp():
 # 11679  0.0  3.891918 -3.353523  -0.538395    -3.197138       -0.694780
 #
 # [11680 rows x 6 columns]
+
+
+
+def test_rank():
+    x = [1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55]  # 16
+    mi = MutualInformation(x)
+    xx, incident, counts, frequency = mi.rank()
+    print("x")
+    print(x)
+    print("xx")
+    print(xx)
+    print("incident")
+    print(incident)
+    print("counts")
+    print(counts)
+    print("frequency")
+    print(frequency)
+# PASSED                                 [100%]
+# x
+# [1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55]
+# xx
+# [0.5  0.5  0.5  0.5  0.55 0.55 0.55 0.55 1.2  1.2  1.2  1.2  1.2  1.2  1.2  1.2 ]
+# incident
+# [0.5  0.55 1.2 ]
+# counts
+# [4 4 8]
+# frequency
+# [0.25 0.25 0.5 ]
+
+def test_marginal_probability():
+    x = [1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55]  # 16
+    mi = MutualInformation(x)
+    px = mi.marginal_probability(x)
+    print(px)
+# PASSED                 [100%]
+# [0.25 0.25 0.5 ]
+
