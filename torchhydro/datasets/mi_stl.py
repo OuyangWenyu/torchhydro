@@ -821,8 +821,7 @@ class MutualInformation():
         incident, counts = np.unique(xy, axis=0, return_counts=True)
         frequency = np.divide(counts, self.length)
         frequency = np.transpose([frequency])
-        distribution_low = np.array([incident, frequency])
-        distribution_low = np.transpose(distribution_low)
+        distribution_low = np.concatenate((incident, frequency), axis=1)
 
         # return xy, incident, counts, frequency
         # return incident, frequency
@@ -851,8 +850,14 @@ class MutualInformation():
         n_dl_x = dl_x.shape[0]
         n_dl_y = dl_y.shape[0]
         n_dl_xy = dl_xy.shape[0]
+        mi = 0
         for i in range(n_dl_xy):
-            for j in range(n_dl_y):
-                i = 0
+            x_i = dl_xy[i][0]
+            y_i = dl_xy[i][1]
+            pxy_i = dl_xy[i][2]
+            px_i = np.where(dl_x[0]==x_i)[1]
+            py_i = np.where(dl_y[0]==y_i)[1]
+            mi_i = pxy_i * np.log(pxy_i / (px_i * py_i))
+            mi = mi + mi_i
 
-        return dl_x, dl_y, dl_xy
+        return dl_x, dl_y, dl_xy, mi
