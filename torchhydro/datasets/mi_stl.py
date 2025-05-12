@@ -780,10 +780,10 @@ class MutualInformation():
         self.x = x
         self.y = y
         self.length = len(self.x)
-        self.mi = 0
         self.px = 0
         self.py = 0
         self.pxy = 0  # joint probability.
+        self.mi = 0  # mutual information
 
 
     def rank(
@@ -843,5 +843,10 @@ class MutualInformation():
             py_i = dl_y[py_ii[0], 1]
             mi_i = pxy_i * np.log(pxy_i / (px_i * py_i))
             mi = mi + mi_i
+
+        self.px = dl_x
+        self.py = dl_y
+        self.pxy = dl_xy
+        self.mi = mi
 
         return dl_x, dl_y, dl_xy, mi
