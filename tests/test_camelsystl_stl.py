@@ -805,6 +805,10 @@ def test_mutual_information():
     #        1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
     mi = MutualInformation(prcp, pet)
     dl_x, dl_y, dl_xy, mi = mi.mutual_information()
+    print("prcp")
+    print(len(prcp))
+    print("pet")
+    print(len(pet))
     print("dl_x")
     print(dl_x.shape[0])
     print("dl_y")
@@ -897,12 +901,100 @@ def test_mutual_information():
 #  [4.34       0.95       0.03225806]]
 # mi
 # [1.02030703]
-# PASSED                   [100%]
+
+
+def test_mutual_information_p_e():
+    ystl = Ystl()
+    prcp = ystl.prcp
+    pet = ystl.pet
+    mi = MutualInformation(prcp, pet)
+    dl_x, dl_y, dl_xy, mi = mi.mutual_information()
+    print("prcp")
+    print(len(prcp))
+    print("pet")
+    print(len(pet))
+    print("dl_x")
+    print(dl_x.shape)
+    print("dl_y")
+    print(dl_y.shape)
+    print("dl_xy")
+    print(dl_xy.shape)
+    print("mi")
+    print(mi)
+# PASSED               [100%]
+# prcp
+# 11680
+# pet
+# 11680
 # dl_x
-# 381
+# (381, 2)
 # dl_y
-# 128
+# (128, 2)
 # dl_xy
-# 894
+# (894, 3)
 # mi
 # [1.76120705]
+
+def test_mutual_information_p_q():
+    ystl = Ystl()
+    prcp = ystl.prcp
+    streamflow = ystl.streamflow
+    mi = MutualInformation(prcp, streamflow)
+    dl_x, dl_y, dl_xy, mi = mi.mutual_information()
+    print("prcp")
+    print(len(prcp))
+    print("streamflow")
+    print(len(streamflow))
+    print("dl_x")
+    print(dl_x.shape)
+    print("dl_y")
+    print(dl_y.shape)
+    print("dl_xy")
+    print(dl_xy.shape)
+    print("mi")
+    print(mi)
+# PASSED                  [100%]
+# prcp
+# 11680
+# streamflow
+# 11680
+# dl_x
+# (381, 2)
+# dl_y
+# (3244, 2)
+# dl_xy
+# (4714, 3)
+# mi
+# [3.1592755]
+
+def test_mutual_information_e_q():
+    ystl = Ystl()
+    pet = ystl.pet
+    streamflow = ystl.streamflow
+    mi = MutualInformation(pet, streamflow)
+    dl_x, dl_y, dl_xy, mi = mi.mutual_information()
+    print("pet")
+    print(len(pet))
+    print("streamflow")
+    print(len(streamflow))
+    print("dl_x")
+    print(dl_x.shape)
+    print("dl_y")
+    print(dl_y.shape)
+    print("dl_xy")
+    print(dl_xy.shape)
+    print("mi")
+    print(mi)
+# PASSED               [100%]
+# pet
+# 11680
+# streamflow
+# 11680
+# dl_x
+# (128, 2)
+# dl_y
+# (3244, 2)
+# dl_xy
+# (5439, 3)
+# mi
+# [3.68717948]
