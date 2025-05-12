@@ -797,7 +797,7 @@ class MutualInformation():
 
         return incident, counts, frequency
 
-    def marginal_probability(
+    def probability(
         self,
         x,
     ):
@@ -819,8 +819,21 @@ class MutualInformation():
         incident, counts = np.unique(xy, axis=0, return_counts=True)
         frequency = np.divide(counts, self.length)
 
-        # return xy, incident, counts, frequency
-        return frequency
+        return xy, incident, counts, frequency
+        # return frequency
+
+    def marginal_probability(
+        self,
+        x,
+        y,
+    ):
+        """calculate the marginal probability of a discrete variable"""
+        xy, incident, counts, frequency = self.joint_probability(x, y)
+        x_xy = xy[:, 0]
+        y_xy = xy[:, 1]
+
+        px = 0
+        return px
 
     def mutual_information(self):
         """calculate the mutual information of two discrete variables"""
@@ -828,4 +841,5 @@ class MutualInformation():
         py = self.marginal_probability(self.y)
         pxy = self.joint_probability(self.x, self.y)
         mi = np.sum(pxy * np.log(np.divide(pxy, px * py)))
+
         return px, py, pxy, mi

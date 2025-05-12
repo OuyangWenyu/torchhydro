@@ -551,10 +551,10 @@ def test_rank():
 # frequency
 # [0.25 0.25 0.5 ]
 
-def test_marginal_probability():
+def test_probability():
     x = [1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55]  # 16
     mi = MutualInformation(x)
-    px = mi.marginal_probability(x)
+    px = mi.probability(x)
     print(px)
 # PASSED                 [100%]
 # [0.25 0.25 0.5 ]
@@ -724,6 +724,24 @@ def test_joint_probability():
 #  0.03225806 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806
 #  0.03225806 0.03225806 0.03225806 0.03225806 0.03225806 0.03225806
 #  0.03225806 0.03225806 0.03225806]
+
+def test_marginal_probability():
+    prcp = [0, 0, 0, 0, 0, 0, 0.07, 0.22, 0, 0]
+    pet = [1.2, 1.2, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7]
+    # prcp = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.07, 0.22, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 1.15, 0.0, 0.0, 0.04, 0.04, 0.0,
+    #         0.07, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.81, 1.41, 4.34, 1.89]
+    # pet = [1.2, 1.3, 0.9, 0.55, 0.85, 1.15, 0.9, 0.85, 0.7, 0.7, 0.8, 0.95, 1.05, 0.75, 0.6, 0.55, 1.1, 1.75, 1.3, 0.8,
+    #        1.05, 1.15, 1.25, 1.85, 1.8, 1.0, 0.75, 0.45, 0.35, 0.95, 1.05]
+    mi = MutualInformation(prcp, pet)
+    px, py, pxy, mi_prcp_pet = mi.marginal_probability(prcp, pet)
+    print("px")
+    print(px)
+    print("py")
+    print(py)
+    print("pxy")
+    print(pxy)
+    print("mi_prcp_pet")
+    print(mi_prcp_pet)
 
 
 def test_mutual_information():
