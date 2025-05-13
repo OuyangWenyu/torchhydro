@@ -296,6 +296,13 @@ class StlDataset(BaseDataset):
         # load and preprocess data
         self._load_data()
 
+    def __len__(self):
+        """
+            expected to return the size of the dataset by many:class:`torch.utils.data.Sampler` implementations and
+            the default options of :class:`torch.utils.data.DataLoader`.
+        """
+        return self.num_samples if self.train_mode else self.ngrid  # ngrid means nbasin
+
     def _pre_load_data(self):
         """preload data.
         some arguments setting.
