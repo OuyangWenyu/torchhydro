@@ -112,7 +112,7 @@ def test_stl_decomposition():
         "test_path": str(temp_test_path),
         "object_ids": [
             "01013500",
-            # # "01022500",
+            "01022500",
             # # "01030500",
             # # "01031500",
             # # "01047000",
@@ -134,14 +134,8 @@ def test_stl_decomposition():
             # "02092500",  # 02108000 -> 02092500
             # "02108000",
         ],  # Add this line with the actual object IDs
-        "t_range_train": [
-            "1985-10-01",
-            "1988-10-01",
-        ],  # Add this line with the actual start and end dates for training.
-        "t_range_test": [
-            "1988-10-01",
-            "1989-10-01"
-        ],  # Add this line with the actual start and end dates for validation.
+        "t_range_train": ["1980-10-01","1990-10-01"],  # Add this line with the actual start and end dates for training.
+        "t_range_test": ["2013-10-01","2014-10-01"],  # Add this line with the actual start and end dates for validation.
         "relevant_cols": [
             # List the relevant column names here.
             "prcp",
@@ -174,7 +168,7 @@ def test_stl_decomposition():
         ],
         "forecast_history": 0,
         "warmup_length": 0,
-        "forecast_length": 365,
+        "forecast_length": 1095,
         "min_time_unit": "D",
         "min_time_interval": 1,
         "target_rm_nan": True,
@@ -187,11 +181,11 @@ def test_stl_decomposition():
                 "streamflow",
             ],
             "gamma_norm_cols": [
-                "tsd_prec",
+                "prcp",
                 "pr",
                 "total_precipitation",
                 "potential_evaporation",
-                "ET",
+                "PET",
                 "tsd_pet_ou",
                 "ET_sum",
                 "ssm",
@@ -199,15 +193,12 @@ def test_stl_decomposition():
             "pbm_norm": True,
         },
         "stat_dict_file": None,  # Added the missing configuration
-        "b_nestedness": True,
     }
     is_tra_val_te = "train"
     dataset = StlDataset(data_cfgs, is_tra_val_te)
     y, trend, season, residuals, post_season, post_residuals = dataset._stl_decomposition()
-    decomposition = pd.DataFrame(
-        {"streamflow": y, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season,
-         "post_residuals": post_residuals})
+    decomposition = pd.DataFrame({"streamflow": y, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season,"post_residuals": post_residuals})
     decomposition.index.name = "time"
-    file_name = r"D:\torchhydro\tests\results\test_camels\narxdataset_camelsfr_stl\series_decomposition.csv"
+    file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\series_decomposition.csv"
     decomposition.to_csv(file_name, sep=" ")
     print(decomposition)

@@ -13,7 +13,7 @@ from torchhydro.datasets.data_utils import (
 )
 from torchhydro.models.basintree import BasinTree
 from torchhydro.datasets.data_scalers import ScalerHub
-from mi_stl import STL as stl
+from torchhydro.datasets.mi_stl import STL as stl
 
 class NarxDataset(BaseDataset):
     """
@@ -302,12 +302,9 @@ class StlDataset(BaseDataset):
         """
         self.train_mode = self.is_tra_val_te == "train"
         self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
-        self.rho = self.data_cfgs[
-            "forecast_history"]  # the length of the history data for forecasting, the rho in LSTM.
-        self.warmup_length = self.data_cfgs[
-            "warmup_length"]  # For physics-based models, we need warmup; default is 0 as DL models generally don't need it
+        self.rho = self.data_cfgs["forecast_history"]  # the length of the history data for forecasting, the rho in LSTM.
+        self.warmup_length = self.data_cfgs["warmup_length"]  # For physics-based models, we need warmup; default is 0 as DL models generally don't need it
         self.horizon = self.data_cfgs["forecast_length"]
-        self.b_nestedness = self.data_cfgs["b_nestedness"]
 
     def _load_data(self):
         """load data to make dataset.
@@ -318,11 +315,71 @@ class StlDataset(BaseDataset):
         # seasonal and trend decomposition loess
 
         # normalization
-        norm_x, norm_y, norm_c = self._normalize()
-        self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)  # deal with nan value
-        self._trans2nparr()
-        self.x = np.concatenate((self.x, self.y), axis=2)
-        self._create_lookup_table()
+        # norm_x, norm_y, norm_c = self._normalize()
+        # self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)  # deal with nan value
+        # self._trans2nparr()
+        # self.x = np.concatenate((self.x, self.y), axis=2)
+        # self._create_lookup_table()
+
+    def _read_xyc(self):
+        """Read x, y, c data from data source
+
+        Returns
+        -------
+        tuple[xr.Dataset, xr.Dataset, xr.Dataset]
+            x, y, c data
+        """
+        # x
+        start_date = self.t_s_dict["t_final_range"][0]
+        end_date = self.t_s_dict["t_final_range"][1]
+        self._read_xyc_specified_time(start_date, end_date)
+
+    def _read_xyc_specified_time(self, start_date, end_date):
+        """Read x, y, c data from data source with specified time range
+        We set this function as sometimes we need adjust the time range for some specific dataset,
+        such as seq2seq dataset (it needs one more period for the end of the time range)
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+        """
+        # x
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["relevant_cols"],
+        )
+        # y
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["target_cols"],
+        )
+        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
+            # this means the data source return a dict with key as time_unit
+            # in this BaseDataset, we only support unified time range for all basins, so we chose the first key
+            # TODO: maybe this could be refactored better
+            data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
+            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
+        # data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+        #     data_forcing_ds_, data_output_ds_
+        # )
+        # c
+        data_attr_ds = self.data_source.read_attr_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.data_cfgs["constant_cols"],
+            all_number=True,
+        )
+        # self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
+        #     data_forcing_ds_, data_output_ds_, data_attr_ds
+        # )
+        self.x_origin = data_forcing_ds_
+        self.y_origin = data_output_ds_
+        self.c_origin = data_attr_ds
+
 
     def _stl_decomposition(self):
         """
@@ -331,8 +388,16 @@ class StlDataset(BaseDataset):
         -------
 
         """
-        n = len(self.basin_list)
-        y = self.y_origin[0]
-        y_stl = stl(y)
+        n = len(self.basins)
+        data1 = self.y_origin.streamflow[0]
+        data2 = self.y_origin.streamflow[1]
+        # data1 = data1.to_dataframe()
+        # data2 = data2.to_dataframe()
+        data1 = data1.values
+        data2 = data2.values
+        data1 = data1.tolist()
+        data2 = data2.tolist()
+        yy = data2[:1095]
+        y_stl = stl(yy)
         trend, season, residuals, post_season, post_residuals = y_stl.decomposition()
-        return y, trend, season, residuals, post_season, post_residuals
+        return yy, trend, season, residuals, post_season, post_residuals
