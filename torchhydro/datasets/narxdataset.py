@@ -270,6 +270,7 @@ class NarxDataset(BaseDataset):
 class StlDataset(BaseDataset):
     """
     a dataset for stl model.
+    decomposition -> normalization
     """
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         """
@@ -387,6 +388,19 @@ class StlDataset(BaseDataset):
         self.y_origin = data_output_ds_
         self.c_origin = data_attr_ds
 
+    def pick_leap_year(self):
+        start_date = self.t_s_dict["t_final_range"][0]
+        end_date = self.t_s_dict["t_final_range"][1]
+        year_start = start_date.split("-")[0]
+        year_end = end_date.split("-")[0]
+        n = year_end - year_start
+        year = list(range(year_start, year_end + 1))
+        leap_year = []
+        for i in range(n):
+            remainder = year[i] % 4
+            if remainder == 0:
+                leap_year.append(year[i])
+        return leap_year
 
     def _stl_decomposition(self):
         """

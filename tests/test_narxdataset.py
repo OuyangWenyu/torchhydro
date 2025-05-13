@@ -233,3 +233,28 @@ def test_stl_decomposition():
 # 11679       137.0  1335.167812  ... -1044.596524     -153.571288
 #
 # [11680 rows x 6 columns]
+
+
+def pick_leap_year(start_date, end_date):
+    # start_date = self.t_s_dict["t_final_range"][0]
+    # end_date = self.t_s_dict["t_final_range"][1]
+    year_start = start_date.split("-")
+    year_end = end_date.split("-")
+    year_start = int(year_start[0])
+    year_end = int(year_end[0])
+    n = year_end - year_start
+    year = list(range(year_start, year_end + 1))
+    leap_year = []
+    for i in range(n):
+        remainder = year[i] % 4
+        if remainder == 0:
+            leap_year.append(year[i])
+    return leap_year
+
+def test_pick_leap_year():
+    start_date = "1980-10-01"
+    end_date = "2014-10-01"
+    leap_year = pick_leap_year(start_date, end_date)
+    print(leap_year)
+# PASSED                          [100%]
+# [1980, 1984, 1988, 1992, 1996, 2000, 2004, 2008, 2012]
