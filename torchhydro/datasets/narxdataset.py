@@ -273,20 +273,17 @@ class StlDataset(BaseDataset):
     """
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         """
-        Initialize the Narx dataset.
-        narx model is more suitable for nested catchment flood prediction,
-        while only fr have the nestedness information in camels, so choose fr to make dataset.
+        Initialize the Stl dataset.
+
         Parameters
         ----------
         data_cfgs: data configures, setting via console.
         is_tra_val_te: three mode, train, validate and test.
 
-        batch_size may need redressal.
         """
         super(StlDataset, self).__init__(data_cfgs, is_tra_val_te)
         self.data_cfgs = data_cfgs
         self._pre_load_data()
-        # self.data_cfgs["batch_size"] = len(self.basin_list)
         if is_tra_val_te in {"train", "valid", "test"}:
             self.is_tra_val_te = is_tra_val_te
         else:

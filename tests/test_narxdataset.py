@@ -100,6 +100,7 @@ def test_NarxDataset():
 # 100%|██████████| 18/18 [00:00<00:00, 548.94it/s]
 # <torchhydro.datasets.narxdataset.NarxDataset object at 0x7fd4cc0efcb0>
 
+
 def test_stl_decomposition():
     temp_test_path = r"D:\torchhydro\tests\results\test_camels\stldataset_camelsus"
     os.makedirs(temp_test_path, exist_ok=True)
@@ -171,9 +172,9 @@ def test_stl_decomposition():
             # "geol_porostiy",
             # "geol_permeability",
         ],
-        "forecast_history": 365,
+        "forecast_history": 0,
         "warmup_length": 0,
-        "forecast_length": 1,
+        "forecast_length": 365,
         "min_time_unit": "D",
         "min_time_interval": 1,
         "target_rm_nan": True,
