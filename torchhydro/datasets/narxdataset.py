@@ -398,13 +398,22 @@ class StlDataset(BaseDataset):
         n = len(self.basins)
         data1 = self.y_origin.streamflow[0]
         data2 = self.y_origin.streamflow[1]
-        # data1 = data1.to_dataframe()
-        # data2 = data2.to_dataframe()
-        data1 = data1.values
-        data2 = data2.values
+        data1 = data1.to_dataframe()
+        data2 = data2.to_dataframe()
+        data1 = self.remove_leap_years(data1)
+        data2 = self.remove_leap_years(data2)
+        data1 = data1.streamflow.values
+        data2 = data2.streamflow.values
         data1 = data1.tolist()
         data2 = data2.tolist()
-        yy = data2[:1095]
+        yy = data1[:11680]
         y_stl = stl(yy)
         trend, season, residuals, post_season, post_residuals = y_stl.decomposition()
         return yy, trend, season, residuals, post_season, post_residuals
+
+    def remove_leap_years(self, data):
+        leap_years = ["1984-02-29", "1988-02-29", "1992-02-29", "1996-02-29", "2000-02-29", "2004-02-29", "2008-02-29", "2012-02-29",]
+        n = len(leap_years)
+        for i in range(n):
+            data.drop(axis=0, index=leap_years[i], inplace=True)
+        return data
