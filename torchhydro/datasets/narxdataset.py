@@ -13,6 +13,7 @@ from torchhydro.datasets.data_utils import (
 )
 from torchhydro.models.basintree import BasinTree
 from torchhydro.datasets.data_scalers import ScalerHub
+from mi_stl import STL as stl
 
 class NarxDataset(BaseDataset):
     """
@@ -82,7 +83,7 @@ class NarxDataset(BaseDataset):
 
     def __len__(self):
         """
-            expected to return the size of the dataset by many:class:`torch.utils.data.Sampler` implementations and 
+            expected to return the size of the dataset by many:class:`torch.utils.data.Sampler` implementations and
             the default options of :class:`torch.utils.data.DataLoader`.
         """
         return self.num_samples if self.train_mode else self.ngrid  # ngrid means nbasin
@@ -109,7 +110,7 @@ class NarxDataset(BaseDataset):
 
     def _load_data(self):
         """load data to make dataset.
-        
+
         """
         # self._pre_load_data()
         self._read_xyc()
@@ -182,7 +183,7 @@ class NarxDataset(BaseDataset):
                 self.streamflow_name
             ]
         return data_forcing_ds, data_output_ds
-    
+
     def _read_xyc(self):
         """Read x, y, c data from data source
 
@@ -191,7 +192,7 @@ class NarxDataset(BaseDataset):
         tuple[xr.Dataset, xr.Dataset, xr.Dataset]
             x, y, c data. forcing, target(streamflow), attributions.
         """
-        
+
         start_date = self.t_s_dict["t_final_range"][0]
         end_date = self.t_s_dict["t_final_range"][1]
         self._read_xyc_specified_time(start_date, end_date)
@@ -221,7 +222,7 @@ class NarxDataset(BaseDataset):
             self.data_cfgs["target_cols"],  # target data, streamflow.
         )
         # turn dict into list
-        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):  
+        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
             data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
             data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
         data_forcing_ds, data_output_ds_ = self._check_ts_xrds_unit(
@@ -264,3 +265,77 @@ class NarxDataset(BaseDataset):
                 )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
+
+
+class StlDataset(BaseDataset):
+    """
+    a dataset for stl model.
+    """
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        """
+        Initialize the Narx dataset.
+        narx model is more suitable for nested catchment flood prediction,
+        while only fr have the nestedness information in camels, so choose fr to make dataset.
+        Parameters
+        ----------
+        data_cfgs: data configures, setting via console.
+        is_tra_val_te: three mode, train, validate and test.
+
+        batch_size may need redressal.
+        """
+        super(StlDataset, self).__init__(data_cfgs, is_tra_val_te)
+        self.data_cfgs = data_cfgs
+        self._pre_load_data()
+        # self.data_cfgs["batch_size"] = len(self.basin_list)
+        if is_tra_val_te in {"train", "valid", "test"}:
+            self.is_tra_val_te = is_tra_val_te
+        else:
+            raise ValueError(
+                "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
+            )
+        self.y_trend = None
+        self.y_season = None
+        self.y_residual = None
+        # load and preprocess data
+        self._load_data()
+
+    def _pre_load_data(self):
+        """preload data.
+        some arguments setting.
+        """
+        self.train_mode = self.is_tra_val_te == "train"
+        self.t_s_dict = wrap_t_s_dict(self.data_cfgs, self.is_tra_val_te)
+        self.rho = self.data_cfgs[
+            "forecast_history"]  # the length of the history data for forecasting, the rho in LSTM.
+        self.warmup_length = self.data_cfgs[
+            "warmup_length"]  # For physics-based models, we need warmup; default is 0 as DL models generally don't need it
+        self.horizon = self.data_cfgs["forecast_length"]
+        self.b_nestedness = self.data_cfgs["b_nestedness"]
+
+    def _load_data(self):
+        """load data to make dataset.
+
+        """
+        # self._pre_load_data()
+        self._read_xyc()
+        # seasonal and trend decomposition loess
+
+        # normalization
+        norm_x, norm_y, norm_c = self._normalize()
+        self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)  # deal with nan value
+        self._trans2nparr()
+        self.x = np.concatenate((self.x, self.y), axis=2)
+        self._create_lookup_table()
+
+    def _stl_decomposition(self):
+        """
+        use seasonal and trend decomposition using loess
+        Returns
+        -------
+
+        """
+        n = len(self.basin_list)
+        y = self.y_origin[0]
+        y_stl = stl(y)
+        trend, season, residuals, post_season, post_residuals = y_stl.decomposition()
+        return y, trend, season, residuals, post_season, post_residuals

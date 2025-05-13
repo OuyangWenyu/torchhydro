@@ -786,17 +786,6 @@ class MutualInformation():
         self.mi = 0  # mutual information
 
 
-    def rank(
-        self,
-        x,
-    ):
-        """calculate the frequency and rank of a discrete variable"""
-        xx = np.sort(x)
-        incident, counts = np.unique(xx, return_counts=True)
-        frequency = np.divide(counts, self.length)
-
-        return incident, counts, frequency
-
     def marginal_probability(
         self,
         x,
