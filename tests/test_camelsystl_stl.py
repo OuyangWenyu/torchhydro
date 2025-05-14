@@ -1025,12 +1025,12 @@ def marge_time_range(
     if t_range_test is not None:
         t_range_list.append(t_range_test)
     t_n = len(t_range_list)
-    t_m = len(t_range_list[0])
-    t_range_num = []
-    for i in range(t_n):
-        for j in range(t_m):
-            date_num = date_string2number(t_range_list[i][j])
-            t_range_num.append(date_num)
+    for i in range(t_n-1):
+        if t_range_list[i][1] != t_range_list[i+1][0]:
+            raise ValueError("t_range_list and t_range_list must be equal")
+    time_range = [t_range_list[0][0], t_range_list[-1][-1]]
+
+    return time_range
 
 
 def test_date_string2number():
@@ -1043,7 +1043,10 @@ def test_marge_time_range():
     t_range_train = ["1980-10-01", "2012-10-01"]
     t_range_valid = ["2012-10-01", "2013-10-01"]
     t_range_test = ["2013-10-01", "2014-10-01"]
-    t_range_num = marge_time_range(
+    t_range_str, t_range_num = marge_time_range(
         t_range_train, t_range_valid, t_range_test
     )
+    print(t_range_str)
     print(t_range_num)
+# ['1980-10-01', '2014-10-01']
+# [[1980, 10, 1], [2014, 10, 1]]

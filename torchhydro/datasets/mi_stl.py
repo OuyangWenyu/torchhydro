@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 from typing import Dict
 
+from torchhydro.datasets.data_sources import data_sources_dict
+from torchhydro.datasets.data_utils import wrap_t_s_dict
+
 class STL():
     """
     Seasonal-Trend decomposition using LOESS
@@ -10,13 +13,13 @@ class STL():
     y_t = T_t + S_t + R_t
     todo: unify the data type.
     """
-    def __init__(self, x):
+    def __init__(self):
         """
         initiate a STL model
         """
-        self.x = x  # the original data
-        self.frequency = 1  # the frequency of time series
-        self.length = len(x)  # the length of time series
+        self.x = None  # the original data
+        self.frequency = None  # the frequency of time series
+        self.length = None  # the length of time series
         self.trend = None  # trend item
         self.season = None  # season item
         self.residuals = None  # residuals item
@@ -24,8 +27,8 @@ class STL():
         self.parity = None  # the parity of frequency
         self.mutation = None
         self.cycle_subseries = None
-        self.cycle_length = 365
-        self.extend_x = self._extend_original_series(self.x)
+        self.cycle_length = None
+        self.extend_x = None
         self.no = 1  # window width, span
         self.ni = 1  # need to be odd
         self.ns = 33  # odd >=7
@@ -42,6 +45,38 @@ class STL():
             self.parity = "even"
         else:
             self.parity = "odd"
+
+    def reset_stl(
+        self,
+        x,
+        frequency,
+        cycle_length,
+        no: int = 1,
+        ni: int = 1,
+        ns: int = 33,
+        nl: int = 365,
+        nt: int = 421,
+        n_p: int = 365,
+        degree: int = 1,
+    ):
+        self.x = x
+        self.frequency = frequency
+        self.length = len(x)
+        self.extend_x = self._extend_original_series(self.x)
+        self.cycle_length = cycle_length
+        self.cycle_subseries = None
+        self.trend = None
+        self.season = None
+        self.residuals = None
+        self.no = no
+        self.ni = ni
+        self.ns = ns
+        self.nl = nl
+        self.nt = nt
+        self.n_p = n_p
+        self.degree = degree
+
+        self._get_parity()
 
     def _cycle_subseries(self, x):
         """
@@ -770,6 +805,41 @@ class STL():
         self.residuals = post_residuals
         return trend, season, residuals, post_season, post_residuals
 
+    def decompose(
+        self,
+        x,
+        frequency,
+        cycle_length,
+        no: int = 1,
+        ni: int = 1,
+        ns: int = 33,
+        nl: int = 365,
+        nt: int = 421,
+        n_p: int = 365,
+        degree: int = 1,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        frequency
+        cycle_length
+        no
+        ni
+        ns
+        nl
+        nt
+        n_p
+        degree
+
+        Returns
+        -------
+
+        """
+        self.reset_stl(x, frequency, cycle_length, no, ni, ns, nl, nt, n_p, degree)
+        self.decomposition()
+        return self.trend, self.season, self.residuals
 
 class MutualInformation():
     """mutual information"""
@@ -853,37 +923,52 @@ class Decomposition():
         self.t_range_valid = data_cfgs["t_range_valid"]
         self.t_range_test = data_cfgs["t_range_test"]
         self.time_range = None
+        self.basin = self.data_cfgs["object_ids"]
+        self.n_basin = len(self.basin)
+        self.x_origin = None
+        self.y_origin = None
+        self.c_origin = None
+        self.y_decomposed = None
 
     def date_string2number(self, date_str):
         str_list = date_str.split("-")
         date_num = [int(s) for s in str_list]
         return date_num
 
-    def marge_time_range(self):
+    def marge_time_range(
+        self,
+        t_range_train: list = None,
+        t_range_valid: list = None,
+        t_range_test: list = None,
+    ):
         """marge time range"""
         t_range_list = []
-        if self.t_range_train is not None:
-            t_range_list.append(self.t_range_train)
-        if self.t_range_valid is not None:
-            t_range_list.append(self.t_range_valid)
-        if self.t_range_test is not None:
-            t_range_list.append(self.t_range_test)
+        if t_range_train is not None:
+            t_range_list.append(t_range_train)
+        if t_range_valid is not None:
+            t_range_list.append(t_range_valid)
+        if t_range_test is not None:
+            t_range_list.append(t_range_test)
         t_n = len(t_range_list)
-        t_m = len(t_range_list[0])
-        t_range_num = []
-        for i in range(t_n):
-            for j in range(t_m):
-                date_num = self.date_string2number(t_range_list[i][j])
-                t_range_num.append(date_num)
+        for i in range(t_n - 1):
+            if t_range_list[i][1] != t_range_list[i + 1][0]:
+                raise ValueError("t_range_list and t_range_list must be equal")
+        time_range = [t_range_list[0][0], t_range_list[-1][-1]]
+        self.time_range = time_range
 
-    def pick_leap_year(self):
-        start_date = self.t_s_dict["t_final_range"][0]
-        end_date = self.t_s_dict["t_final_range"][1]
-        start = start_date.split("-")
-        end = end_date.split("-")
-        year_start = int(start[0])
-        month_start = int(start[1])
-        year_end = int(end[0])
+        return time_range
+
+    def pick_leap_year(
+        self,
+        time_range: list
+    ):
+        start_date = time_range[0]
+        end_date = time_range[-1]
+        start = self.date_string2number(start_date)
+        end = self.date_string2number(end_date)
+        year_start = start[0]
+        month_start = start[1]
+        year_end = end[0]
         if month_start > 2:
             year = list(range(year_start + 1, year_end + 1))
         else:
@@ -896,3 +981,76 @@ class Decomposition():
                 year_month_day = str(year[i]) + month_day
                 leap_year.append(year_month_day)
         return leap_year
+
+    @property
+    def data_source(self):
+        source_name = self.data_cfgs["source_cfgs"]["source_name"]
+        source_path = self.data_cfgs["source_cfgs"]["source_path"]
+        other_settings = self.data_cfgs["source_cfgs"].get("other_settings", {})
+        return data_sources_dict[source_name](source_path, **other_settings)
+
+    def _read_xyc_specified_time(self, time_range):
+        """Read x, y, c data from data source with specified time range
+        We set this function as sometimes we need adjust the time range for some specific dataset,
+        such as seq2seq dataset (it needs one more period for the end of the time range)
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+        """
+        # x
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.basin,
+            time_range,
+            self.data_cfgs["relevant_cols"],
+        )
+        # y
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
+            self.basin,
+            time_range,
+            self.data_cfgs["target_cols"],
+        )
+        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
+            # this means the data source return a dict with key as time_unit
+            # in this BaseDataset, we only support unified time range for all basins, so we chose the first key
+            # TODO: maybe this could be refactored better
+            data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
+            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
+        # data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+        #     data_forcing_ds_, data_output_ds_
+        # )
+        # c
+        data_attr_ds = self.data_source.read_attr_xrdataset(
+            self.basin,
+            self.data_cfgs["constant_cols"],
+            all_number=True,
+        )
+        # self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
+        #     data_forcing_ds_, data_output_ds_, data_attr_ds
+        # )
+        self.x_origin = data_forcing_ds_
+        self.y_origin = data_output_ds_
+        self.c_origin = data_attr_ds
+
+    def remove_leap_year_data(self, leap_years):
+        n = len(leap_years)
+        for i in range(n):
+            self.x_origin.drop(axis=0, index=leap_years[i], inplace=True)
+            self.y_origin.drop(axis=0, index=leap_years[i], inplace=True)
+
+    def stl_decomposition(self):
+        """ """
+        # [time, basin, streamflow] -> [time, basin, trend|season|residuals]
+        n_time = self.y_origin.shape[0]
+        data = None
+        trend = None
+        season = None
+        residuals = None
+        stl = STL()
+        for i in range(self.n_basin):
+            data = self.y_origin.iloc[:, i].values
+            trend, season, residuals = stl.decompose(data)
+            decompose_i =
