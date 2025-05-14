@@ -1050,3 +1050,72 @@ def test_marge_time_range():
     print(t_range_num)
 # ['1980-10-01', '2014-10-01']
 # [[1980, 10, 1], [2014, 10, 1]]
+
+def test_remove_leap_year_data():
+    data_cfgs = {
+        "source_cfgs": {
+            "source_name": "camels_us",
+            "source_path": "camels\camels_us",
+        },
+        "test_path": str(temp_test_path),
+        "object_ids": [
+            "01013500",
+            "01022500",
+            # # "01030500",
+            # # "01031500",
+            # # "01047000",
+            # # "01052500",
+            # # "01054200",
+            # # "01055000",
+            # # "01057000",
+            # # "01073000",
+            # # "01078000",
+            # # "01118300",
+            # # "01121000",
+            # # "01123000",
+            # # "01134500",
+            # # "01137500",
+            # # "01139000",
+            # # "01139800",
+            # # "01142500",
+            # # "01144000",
+            # "02092500",  # 02108000 -> 02092500
+            # "02108000",
+        ],  # Add this line with the actual object IDs
+        "t_range_train": ["1980-10-01", "2012-10-01"],
+        # Add this line with the actual start and end dates for training.
+        "t_range_test": ["2012-10-01", "2014-10-01"],
+        # Add this line with the actual start and end dates for validation.
+        "relevant_cols": [
+            # List the relevant column names here.
+            "prcp",
+            "PET",
+            # ... other relevant columns ...
+        ],
+        "target_cols": [
+            # List the target column names here.
+            "streamflow",
+            # ... other target columns ...
+        ],
+        "constant_cols": [
+            # "elev_mean",
+            # "slope_mean",
+            # "area_gages2",
+            # "frac_forest",
+            # "lai_max",
+            # "lai_diff",
+            # "dom_land_cover_frac",
+            # "dom_land_cover",
+            # "root_depth_50",
+            # "soil_depth_statsgo",
+            # "soil_porosity",
+            # "soil_conductivity",
+            # "max_water_content",
+            # "geol_1st_class",
+            # "geol_2nd_class",
+            # "geol_porostiy",
+            # "geol_permeability",
+        ],
+    }
+    decompose = Decomposition(data_cfgs)
+    decompose.remove_leap_year_data()

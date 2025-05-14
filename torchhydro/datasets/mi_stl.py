@@ -1029,12 +1029,12 @@ class Decomposition():
         """ """
         # [time, basin, streamflow] -> [time, basin, trend|season|residuals]
         n_time = self.y_origin.shape[0]
-        data = None
-        trend = None
-        season = None
-        residuals = None
+        y_decomposed = []
         stl = STL(frequency=1, cycle_length=365)
         for i in range(self.n_basin):
             data = self.y_origin.iloc[:, i].values
             trend, season, residuals = stl.decompose(data)
-            decompose_i =
+            decompose_i = [trend, season, residuals]
+            y_decomposed.append(decompose_i)
+
+        self.y_decomposed = np.array(y_decomposed)
