@@ -1,6 +1,7 @@
 
 import numpy as np
 import pandas as pd
+from typing import Dict
 
 class STL():
     """
@@ -839,3 +840,53 @@ class MutualInformation():
         self.mi = mi
 
         return dl_x, dl_y, dl_xy, mi
+
+
+class Decomposition():
+    """decomposition"""
+    def __init__(
+        self,
+        data_cfgs: Dict,
+    ):
+        self.data_cfgs = data_cfgs
+        self.t_range_train = data_cfgs["t_range_train"]
+        self.t_range_valid = data_cfgs["t_range_valid"]
+        self.t_range_test = data_cfgs["t_range_test"]
+        self.time_range = None
+
+    def date_string2number(self, date_str):
+        date_num = date_str.split("-")
+
+        return int(date_num[0])
+
+    def marge_time_range(self):
+        """marge time range"""
+        t_range_list = []
+        if self.t_range_train is not None:
+            t_range_list.append(self.t_range_train)
+        if self.t_range_valid is not None:
+            t_range_list.append(self.t_range_valid)
+        if self.t_range_test is not None:
+            t_range_list.append(self.t_range_test)
+
+
+    def pick_leap_year(self):
+        start_date = self.t_s_dict["t_final_range"][0]
+        end_date = self.t_s_dict["t_final_range"][1]
+        start = start_date.split("-")
+        end = end_date.split("-")
+        year_start = int(start[0])
+        month_start = int(start[1])
+        year_end = int(end[0])
+        if month_start > 2:
+            year = list(range(year_start + 1, year_end + 1))
+        else:
+            year = list(range(year_start, year_end + 1))
+        leap_year = []
+        month_day = "-02-29"
+        for i in range(len(year)):
+            remainder = year[i] % 4
+            if remainder == 0:
+                year_month_day = str(year[i]) + month_day
+                leap_year.append(year_month_day)
+        return leap_year

@@ -304,6 +304,30 @@ class StlDataset(BaseDataset):
         """
         return self.num_samples if self.train_mode else self.ngrid  # ngrid means nbasin
 
+    def __getitem__(self, item: int):
+        """
+        class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):
+        """
+        if not self.train_mode:
+            x = self.x[item, :, :]
+            y = self.y[item, :, :]
+            if self.c is None or self.c.shape[-1] == 0:
+                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            c = self.c[item, :]
+            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xc = np.concatenate((x, c), axis=1)
+            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        basin, idx = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        if self.c is None or self.c.shape[-1] == 0:
+            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+
     def _pre_load_data(self):
         """preload data.
         some arguments setting.
@@ -391,15 +415,22 @@ class StlDataset(BaseDataset):
     def pick_leap_year(self):
         start_date = self.t_s_dict["t_final_range"][0]
         end_date = self.t_s_dict["t_final_range"][1]
-        year_start = start_date.split("-")[0]
-        year_end = end_date.split("-")[0]
-        n = year_end - year_start
-        year = list(range(year_start, year_end + 1))
+        start = start_date.split("-")
+        end = end_date.split("-")
+        year_start = int(start[0])
+        month_start = int(start[1])
+        year_end = int(end[0])
+        if month_start > 2:
+            year = list(range(year_start + 1, year_end + 1))
+        else:
+            year = list(range(year_start, year_end + 1))
         leap_year = []
-        for i in range(n):
+        month_day = "-02-29"
+        for i in range(len(year)):
             remainder = year[i] % 4
             if remainder == 0:
-                leap_year.append(year[i])
+                year_month_day = str(year[i]) + month_day
+                leap_year.append(year_month_day)
         return leap_year
 
     def _stl_decomposition(self):
@@ -426,7 +457,7 @@ class StlDataset(BaseDataset):
         return yy, trend, season, residuals, post_season, post_residuals
 
     def remove_leap_years(self, data):
-        leap_years = ["1984-02-29", "1988-02-29", "1992-02-29", "1996-02-29", "2000-02-29", "2004-02-29", "2008-02-29", "2012-02-29",]
+        leap_years = self.pick_leap_year()
         n = len(leap_years)
         for i in range(n):
             data.drop(axis=0, index=leap_years[i], inplace=True)

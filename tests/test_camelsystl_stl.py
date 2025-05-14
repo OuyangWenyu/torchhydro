@@ -1,7 +1,7 @@
 
 import pandas as pd
 from hydrodataset import CamelsYstl
-from torchhydro.datasets.mi_stl import STL, MutualInformation
+from torchhydro.datasets.mi_stl import STL, MutualInformation, Decomposition
 
 
 def test_dataset():
@@ -525,6 +525,9 @@ def test_decomposition_prcp():
 
 
 
+
+
+
 def test_rank():
     x = [1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55, 1.2, 1.2, 0.5, 0.55]  # 16
     mi = MutualInformation(x)
@@ -998,3 +1001,18 @@ def test_mutual_information_e_q():
 # (5439, 3)
 # mi
 # [3.68717948]
+
+
+
+
+
+def date_string2number(date_str):
+    str_list = date_str.split("-")
+    date_num = [int(s) for s in str_list]
+    return date_num
+
+def test_date_string2number():
+    date = ["1980-01-01", "1981-01-01"]
+    date_num = date_string2number(date[0])
+    print(date_num)
+# [1980, 1, 1]

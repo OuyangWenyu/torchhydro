@@ -135,7 +135,7 @@ def test_stl_decomposition():
             # "02108000",
         ],  # Add this line with the actual object IDs
         "t_range_train": ["1980-10-01", "2012-10-01"],  # Add this line with the actual start and end dates for training.
-        "t_range_test": ["2013-10-01", "2014-10-01"],  # Add this line with the actual start and end dates for validation.
+        "t_range_test": ["2012-10-01", "2014-10-01"],  # Add this line with the actual start and end dates for validation.
         "relevant_cols": [
             # List the relevant column names here.
             "prcp",
@@ -238,17 +238,24 @@ def test_stl_decomposition():
 def pick_leap_year(start_date, end_date):
     # start_date = self.t_s_dict["t_final_range"][0]
     # end_date = self.t_s_dict["t_final_range"][1]
-    year_start = start_date.split("-")
-    year_end = end_date.split("-")
-    year_start = int(year_start[0])
-    year_end = int(year_end[0])
+    start = start_date.split("-")
+    end = end_date.split("-")
+    year_start = int(start[0])
+    month_start = int(start[1])
+    year_end = int(end[0])
+    month_end = int(end[1])
     n = year_end - year_start
-    year = list(range(year_start, year_end + 1))
+    if month_start > 2:
+        year = list(range(year_start+1, year_end+1))
+    else:
+        year = list(range(year_start, year_end+1))
     leap_year = []
-    for i in range(n):
+    month_day = "-02-29"
+    for i in range(len(year)):
         remainder = year[i] % 4
         if remainder == 0:
-            leap_year.append(year[i])
+            year_month_day = str(year[i]) + month_day
+            leap_year.append(year_month_day)
     return leap_year
 
 def test_pick_leap_year():
@@ -257,4 +264,4 @@ def test_pick_leap_year():
     leap_year = pick_leap_year(start_date, end_date)
     print(leap_year)
 # PASSED                          [100%]
-# [1980, 1984, 1988, 1992, 1996, 2000, 2004, 2008, 2012]
+# ['1984-02-29', '1988-02-29', '1992-02-29', '1996-02-29', '2000-02-29', '2004-02-29', '2008-02-29', '2012-02-29']
