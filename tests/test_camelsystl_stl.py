@@ -1057,7 +1057,6 @@ def test_remove_leap_year_data():
             "source_name": "camels_us",
             "source_path": "camels\camels_us",
         },
-        "test_path": str(temp_test_path),
         "object_ids": [
             "01013500",
             "01022500",
@@ -1118,4 +1117,5 @@ def test_remove_leap_year_data():
         ],
     }
     decompose = Decomposition(data_cfgs)
-    decompose.remove_leap_year_data()
+    leap_year = ['1984-02-29', '1988-02-29', '1992-02-29', '1996-02-29', '2000-02-29', '2004-02-29', '2008-02-29', '2012-02-29']
+    decompose.remove_leap_year_data(leap_year)

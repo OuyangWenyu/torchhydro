@@ -906,7 +906,7 @@ class Decomposition():
         self.t_range_train = data_cfgs["t_range_train"]
         self.t_range_valid = data_cfgs["t_range_valid"]
         self.t_range_test = data_cfgs["t_range_test"]
-        self.time_range = None
+        self.time_range = self.marge_time_range(self.t_range_train, self.t_range_valid, self.t_range_test)
         self.basin = self.data_cfgs["object_ids"]
         self.n_basin = len(self.basin)
         self.x_origin = None
@@ -1020,8 +1020,9 @@ class Decomposition():
         self.c_origin = data_attr_ds
 
     def remove_leap_year_data(self, leap_years):
-        n = len(leap_years)
-        for i in range(n):
+        leap_years = self.pick_leap_year(self.time_range)
+        n_leap_years = len(leap_years)
+        for i in range(n_leap_years):
             self.x_origin.drop(axis=0, index=leap_years[i], inplace=True)
             self.y_origin.drop(axis=0, index=leap_years[i], inplace=True)
 
