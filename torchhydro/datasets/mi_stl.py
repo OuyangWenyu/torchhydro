@@ -13,12 +13,23 @@ class STL():
     y_t = T_t + S_t + R_t
     todo: unify the data type.
     """
-    def __init__(self):
+    def __init__(
+        self,
+        frequency,
+        cycle_length,
+        no: int = 1,
+        ni: int = 1,
+        ns: int = 33,
+        nl: int = 365,
+        nt: int = 421,
+        n_p: int = 365,
+        degree: int = 1,
+    ):
         """
         initiate a STL model
         """
         self.x = None  # the original data
-        self.frequency = None  # the frequency of time series
+        self.frequency = frequency  # the frequency of time series
         self.length = None  # the length of time series
         self.trend = None  # trend item
         self.season = None  # season item
@@ -27,15 +38,15 @@ class STL():
         self.parity = None  # the parity of frequency
         self.mutation = None
         self.cycle_subseries = None
-        self.cycle_length = None
+        self.cycle_length = cycle_length
         self.extend_x = None
-        self.no = 1  # window width, span
-        self.ni = 1  # need to be odd
-        self.ns = 33  # odd >=7
-        self.nl = 365  #
-        self.nt = 421  # 1 or 2
-        self.n_p = 365  #
-        self.degree = 1  # 1 or 2, locally-linear or locally-quadratic
+        self.no = no  # window width, span
+        self.ni = ni  # need to be odd
+        self.ns = ns  # odd >=7
+        self.nl = nl  #
+        self.nt = nt  # 1 or 2
+        self.n_p = n_p  #
+        self.degree = degree  # 1 or 2, locally-linear or locally-quadratic
 
         self._get_parity()
 
@@ -49,32 +60,14 @@ class STL():
     def reset_stl(
         self,
         x,
-        frequency,
-        cycle_length,
-        no: int = 1,
-        ni: int = 1,
-        ns: int = 33,
-        nl: int = 365,
-        nt: int = 421,
-        n_p: int = 365,
-        degree: int = 1,
     ):
         self.x = x
-        self.frequency = frequency
         self.length = len(x)
         self.extend_x = self._extend_original_series(self.x)
-        self.cycle_length = cycle_length
         self.cycle_subseries = None
         self.trend = None
         self.season = None
         self.residuals = None
-        self.no = no
-        self.ni = ni
-        self.ns = ns
-        self.nl = nl
-        self.nt = nt
-        self.n_p = n_p
-        self.degree = degree
 
         self._get_parity()
 
@@ -808,15 +801,6 @@ class STL():
     def decompose(
         self,
         x,
-        frequency,
-        cycle_length,
-        no: int = 1,
-        ni: int = 1,
-        ns: int = 33,
-        nl: int = 365,
-        nt: int = 421,
-        n_p: int = 365,
-        degree: int = 1,
     ):
         """
 
@@ -837,7 +821,7 @@ class STL():
         -------
 
         """
-        self.reset_stl(x, frequency, cycle_length, no, ni, ns, nl, nt, n_p, degree)
+        self.reset_stl(x)
         self.decomposition()
         return self.trend, self.season, self.residuals
 
@@ -1049,7 +1033,7 @@ class Decomposition():
         trend = None
         season = None
         residuals = None
-        stl = STL()
+        stl = STL(frequency=1, cycle_length=365)
         for i in range(self.n_basin):
             data = self.y_origin.iloc[:, i].values
             trend, season, residuals = stl.decompose(data)
