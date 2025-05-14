@@ -382,7 +382,7 @@ class DplLstmTank(nn.Module):
             but remember these ways are only for non-variable parameters
         """
         super(DplLstmTank, self).__init__()
-        self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)
+        self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)       #
         self.pb_model = Tank4Dpl(
             warmup_length,
             source_book=source_book,

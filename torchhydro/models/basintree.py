@@ -33,6 +33,7 @@ class Node:
         self.device = device  # ?
 
     def refresh_y_output(self):
+        """refresh output streamflow"""
         n_basin = None  # the basin number of upstream
         if self.y_input.ndim > 1:
             n_t, n_basin, n_y = self.y_input.shape  # (time, basin, features(streamflow))
