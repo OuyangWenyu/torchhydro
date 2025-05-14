@@ -1011,8 +1011,39 @@ def date_string2number(date_str):
     date_num = [int(s) for s in str_list]
     return date_num
 
+def marge_time_range(
+    t_range_train: list = None,
+    t_range_valid: list = None,
+    t_range_test: list = None,
+):
+    """marge time range"""
+    t_range_list = []
+    if t_range_train is not None:
+        t_range_list.append(t_range_train)
+    if t_range_valid is not None:
+        t_range_list.append(t_range_valid)
+    if t_range_test is not None:
+        t_range_list.append(t_range_test)
+    t_n = len(t_range_list)
+    t_m = len(t_range_list[0])
+    t_range_num = []
+    for i in range(t_n):
+        for j in range(t_m):
+            date_num = date_string2number(t_range_list[i][j])
+            t_range_num.append(date_num)
+
+
 def test_date_string2number():
     date = ["1980-01-01", "1981-01-01"]
     date_num = date_string2number(date[0])
     print(date_num)
 # [1980, 1, 1]
+
+def test_marge_time_range():
+    t_range_train = ["1980-10-01", "2012-10-01"]
+    t_range_valid = ["2012-10-01", "2013-10-01"]
+    t_range_test = ["2013-10-01", "2014-10-01"]
+    t_range_num = marge_time_range(
+        t_range_train, t_range_valid, t_range_test
+    )
+    print(t_range_num)

@@ -855,9 +855,9 @@ class Decomposition():
         self.time_range = None
 
     def date_string2number(self, date_str):
-        date_num = date_str.split("-")
-
-        return int(date_num[0])
+        str_list = date_str.split("-")
+        date_num = [int(s) for s in str_list]
+        return date_num
 
     def marge_time_range(self):
         """marge time range"""
@@ -868,7 +868,13 @@ class Decomposition():
             t_range_list.append(self.t_range_valid)
         if self.t_range_test is not None:
             t_range_list.append(self.t_range_test)
-
+        t_n = len(t_range_list)
+        t_m = len(t_range_list[0])
+        t_range_num = []
+        for i in range(t_n):
+            for j in range(t_m):
+                date_num = self.date_string2number(t_range_list[i][j])
+                t_range_num.append(date_num)
 
     def pick_leap_year(self):
         start_date = self.t_s_dict["t_final_range"][0]
