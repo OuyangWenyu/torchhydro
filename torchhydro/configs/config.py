@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-04-19 11:41:02
+LastEditTime: 2025-05-14 19:28:01
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/configs/config.py
+FilePath: \torchhydro\torchhydro\configs\config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -328,9 +328,6 @@ def default_config_file():
             "rolling": 0,
             "hrwin": None,
             "frwin": None,
-            # current_idx means we assume a current period in testing periods,
-            # 0 means all testing periods belong to forecast periods without hindcast part
-            "current_idx": 0,
             "calc_metrics": True,
             # we provide some different evaluators:
             # 1st -- once: for each time each var and each basin, only one result is evaluated
@@ -423,7 +420,6 @@ def cmd(
     fill_nan=None,
     explainer=None,
     rolling=None,
-    current_idx=None,
     hrwin=None,
     frwin=None,
     calc_metrics=None,
@@ -861,13 +857,6 @@ def cmd(
         type=int,
     )
     parser.add_argument(
-        "--current_idx",
-        dest="current_idx",
-        help="current_idx",
-        default=current_idx,
-        type=int,
-    )
-    parser.add_argument(
         "--hrwin",
         dest="hrwin",
         help="hrwin",
@@ -1205,8 +1194,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["evaluation_cfgs"]["explainer"] = new_args.explainer
     if new_args.rolling is not None:
         cfg_file["evaluation_cfgs"]["rolling"] = new_args.rolling
-    if new_args.current_idx is not None:
-        cfg_file["evaluation_cfgs"]["current_idx"] = new_args.current_idx
     if new_args.hrwin is not None:
         cfg_file["evaluation_cfgs"]["hrwin"] = new_args.hrwin
     if new_args.frwin is not None:

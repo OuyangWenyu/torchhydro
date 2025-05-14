@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-04-27 14:28:24
+LastEditTime: 2025-05-14 19:25:02
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/datasets/data_sets.py
+FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -183,10 +183,9 @@ class BaseDataset(Dataset):
             frwin = self.horizon
         else:
             frwin = self.evaluation_cfgs["frwin"]
-        current_idx = self.evaluation_cfgs["current_idx"]
         if rolling == 0:
-            hrwin = current_idx
-            frwin = self.nt - current_idx
+            hrwin = 0 if hrwin is None else hrwin
+            frwin = self.nt - hrwin
         if self.is_new_batch_way:
             # we will set the batch data for valid and test
             self.rolling = rolling
