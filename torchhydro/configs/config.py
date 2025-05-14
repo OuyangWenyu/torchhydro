@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-05-14 19:28:01
+LastEditTime: 2025-05-14 19:32:13
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -286,6 +286,9 @@ def default_config_file():
             "multi_targets": 1,
             "num_workers": 0,
             "which_first_tensor": "sequence",
+            # if we calculate metrics such as RMSE, NSE, etc. during validation
+            # metrics will be samed as the config in evaluation_cfgs
+            "calc_metrics": True,
             # for ensemble exp:
             # basically we set kfold/seeds/hyper_params for trianing such as batch_sizes
             "ensemble": False,
@@ -328,7 +331,6 @@ def default_config_file():
             "rolling": 0,
             "hrwin": None,
             "frwin": None,
-            "calc_metrics": True,
             # we provide some different evaluators:
             # 1st -- once: for each time each var and each basin, only one result is evaluated
             # stride means if rolling is true, after evaluating, we need a stride to skip some periods
@@ -1129,7 +1131,7 @@ def update_cfg(cfg_file, new_args):
     else:
         cfg_file["data_cfgs"]["target_as_input"] = True
     if new_args.calc_metrics is not None:
-        cfg_file["evaluation_cfgs"]["calc_metrics"] = new_args.calc_metrics
+        cfg_file["training_cfgs"]["calc_metrics"] = new_args.calc_metrics
     if new_args.train_epoch is not None:
         cfg_file["training_cfgs"]["epochs"] = new_args.train_epoch
     if new_args.save_epoch is not None:

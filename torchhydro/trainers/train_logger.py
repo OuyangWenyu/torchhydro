@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-04-17 20:43:21
+LastEditTime: 2025-05-14 19:32:46
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
-FilePath: /torchhydro/torchhydro/trainers/train_logger.py
+FilePath: \torchhydro\torchhydro\trainers\train_logger.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -120,7 +120,7 @@ class TrainLogger:
         logs = {}
         yield logs
         valid_loss = logs["valid_loss"]
-        if self.evaluation_cfgs["calc_metrics"]:
+        if self.training_cfgs["calc_metrics"]:
             valid_metrics = logs["valid_metrics"]
             val_log = "Epoch {} Valid Loss {:.4f} Valid Metric {}".format(
                 epoch, valid_loss, valid_metrics

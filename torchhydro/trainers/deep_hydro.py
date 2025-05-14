@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-04-17 21:08:24
+LastEditTime: 2025-05-14 19:32:29
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
+FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -342,7 +342,7 @@ class DeepHydro(DeepHydroInterface):
             which_first_tensor=training_cfgs["which_first_tensor"],
         )
         valid_logs["valid_loss"] = valid_loss
-        if self.cfgs["evaluation_cfgs"]["calc_metrics"]:
+        if self.cfgs["training_cfgs"]["calc_metrics"]:
             target_col = self.cfgs["data_cfgs"]["target_cols"]
             valid_metrics = evaluate_validation(
                 validation_data_loader,
