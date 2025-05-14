@@ -24,6 +24,7 @@ from torchhydro.models.simple_lstm import (
     MultiLayerLSTM,
     SimpleLSTM,
     SimpleLSTMForecast,
+    HFLSTM,
 )
 from torchhydro.models.seqforecast import SequentialForecastLSTM
 from torchhydro.models.seq2seq import (
@@ -45,6 +46,7 @@ from torchhydro.models.crits import (
     MASELoss,
     MAELoss,
     QuantileLoss,
+    PenalizedMSELoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
@@ -78,6 +80,7 @@ pytorch_model_dict = {
     "LinearMultiLayerLSTMModel": LinearMultiLayerLSTMModel,
     "SPPLSTM": SPP_LSTM_Model,
     "SimpleLSTMForecast": SimpleLSTMForecast,
+    "HFLSTM": HFLSTM,
     "SPPLSTM2": SPP_LSTM_Model_2,
     "SeqForecastLSTM": SequentialForecastLSTM,
     "Seq2Seq": GeneralSeq2Seq,
@@ -85,6 +88,15 @@ pytorch_model_dict = {
     "DataFusion": DataFusionModel,
     # Transformer
     "Transformer": Transformer,
+    "DplNnModuleXaj": DplLstmNnModuleXaj,
+    "DplLstmHbv": DplLstmHbv,
+    "DplAnnHbv": DplAnnHbv,
+    "DplLstmGr4j": DplLstmGr4j,
+    "DplAnnGr4j": DplAnnGr4j,
+    "SimpleLSTM": SimpleLSTM,
+    "LinearSimpleLSTMModel": LinearSimpleLSTMModel,
+    "MultiLayerLSTM": MultiLayerLSTM,
+    "LinearMultiLayerLSTMModel": LinearMultiLayerLSTMModel,
 }
 
 pytorch_criterion_dict = {
@@ -100,6 +112,7 @@ pytorch_criterion_dict = {
     "MASELoss": MASELoss,
     "MAELoss": MAELoss,
     "QuantileLoss": QuantileLoss,
+    "MSELoss": PenalizedMSELoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}

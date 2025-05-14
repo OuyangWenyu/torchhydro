@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-04-19 17:35:29
+LastEditTime: 2025-04-27 14:28:24
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /torchhydro/torchhydro/datasets/data_sets.py
+FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -495,24 +495,24 @@ class BaseDataset(Dataset):
         end_date = self.t_s_dict["t_final_range"][1]
         return self._read_xyc_specified_time(start_date, end_date)
 
-    def _rm_timeunit_key(self, data_output_ds_):
+    def _rm_timeunit_key(self, ds_):
         """this means the data source return a dict with key as time_unit
             in this BaseDataset, we only support unified time range for all basins, so we chose the first key
             TODO: maybe this could be refactored better
 
         Parameters
         ----------
-        data_output_ds_ : dict
-            the output data with time_unit as key
+        ds_ : dict
+            the xarray data with time_unit as key
 
         Returns
         ----------
-        data_output_ds_ : xr.Dataset
+        ds_ : xr.Dataset
             the output data without time_unit
         """
-        if isinstance(data_output_ds_, dict):
-            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
-        return data_output_ds_
+        if isinstance(ds_, dict):
+            ds_ = ds_[list(ds_.keys())[0]]
+        return ds_
 
     def _read_xyc_specified_time(self, start_date, end_date):
         """Read x, y, c data from data source with specified time range
@@ -806,7 +806,7 @@ class ObsForeDataset(BaseDataset):
         for x_idx, f_idx in self.xf_var_indices.items():
             # Replace the variables in the forecast period of x with the forecast variables in f
             # The forecast period of x starts from the rho position
-            x_combined[self.rho :, x_idx] = f[:, f_idx]
+            x_combined[self.warmup_length + self.rho :, x_idx] = f[:, f_idx]
 
         return x_combined
 
@@ -976,26 +976,57 @@ class Seq2SeqDataset(BaseDataset):
         time_unit = self.data_cfgs["min_time_unit"]
 
         # Determine the date format
-        date_format = detect_date_format(end_date)
+        date_format = detect_date_format(start_date)
 
         # Adjust the end date based on the time unit
-        end_date_dt = datetime.strptime(end_date, date_format)
+        start_date_dt = datetime.strptime(start_date, date_format)
         if time_unit == "h":
-            adjusted_end_date = (end_date_dt + timedelta(hours=interval)).strftime(
+            adjusted_start_date = (start_date_dt - timedelta(hours=interval)).strftime(
                 date_format
             )
         elif time_unit == "D":
-            adjusted_end_date = (end_date_dt + timedelta(days=interval)).strftime(
+            adjusted_start_date = (start_date_dt - timedelta(days=interval)).strftime(
                 date_format
             )
         else:
             raise ValueError(f"Unsupported time unit: {time_unit}")
-        return self._read_xyc_specified_time(start_date, adjusted_end_date)
+        return self._read_xyc_specified_time(adjusted_start_date, end_date)
 
-    def _normalize(self):
-        x, y, c = super()._normalize()
-        # TODO: this work for minio? maybe better to move to basedataset
-        return x.compute(), y.compute(), c.compute()
+    def denormalize(self, norm_data, is_real_time=True):
+        """Denormalize the norm_data
+
+        Parameters
+        ----------
+        norm_data : np.ndarray
+            batch-first data
+        is_real_time : bool, optional
+            whether the data is real time data, by default True
+            sometimes we may have multiple results for one time period and we flatten them
+            so we need a temp time to replace real one
+
+        Returns
+        -------
+        xr.Dataset
+            denormlized data
+        """
+        target_scaler = self.target_scaler
+        target_data = target_scaler.data_target
+        # the units are dimensionless for pure DL models
+        units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
+        if target_scaler.pbm_norm:
+            units = {**units, **target_data.attrs["units"]}
+        warmup_length = self.warmup_length
+        selected_time_points = target_data.coords["time"][warmup_length:-1]
+        selected_data = target_data.sel(time=selected_time_points)
+        denorm_xr_ds = target_scaler.inverse_transform(
+            xr.DataArray(
+                norm_data,
+                dims=selected_data.dims,
+                coords=selected_data.coords,
+                attrs={"units": units},
+            )
+        )
+        return set_unit_to_var(denorm_xr_ds)
 
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
@@ -1003,20 +1034,21 @@ class Seq2SeqDataset(BaseDataset):
         horizon = self.horizon
         hindcast_output_window = self.data_cfgs.get("hindcast_output_window", 0)
         # p cover all encoder-decoder periods; +1 means the period while +0 means start of the current period
-        p = self.x[basin, time + 1 : time + rho + horizon + 1, 0].reshape(-1, 1)
+        p = self.x[basin, time + 1 : time + rho + horizon + 1, :1]
         # s only cover encoder periods
         s = self.x[basin, time : time + rho, 1:]
-        x = np.concatenate((p[:rho], s), axis=1)
+        # xe = np.concatenate((p[:rho], s), axis=1)
 
         if self.c is None or self.c.shape[-1] == 0:
-            xc = x
+            pc = p
         else:
             c = self.c[basin, :]
             c = np.tile(c, (rho + horizon, 1))
-            xc = np.concatenate((x, c[:rho]), axis=1)
+            pc = np.concatenate((p[:rho], c[:rho]), axis=1)
+        xe = np.concatenate((pc[:rho], s), axis=1)
         # xh cover decoder periods
         try:
-            xh = np.concatenate((p[rho:], c[rho:]), axis=1)
+            xd = np.concatenate((p[rho:], c[rho:]), axis=1)
         except ValueError as e:
             print(f"Error in np.concatenate: {e}")
             print(f"p[rho:].shape: {p[rho:].shape}, c[rho:].shape: {c[rho:].shape}")
@@ -1024,17 +1056,20 @@ class Seq2SeqDataset(BaseDataset):
         # y cover specified encoder size (hindcast_output_window) and all decoder periods
         y = self.y[
             basin, time + rho - hindcast_output_window + 1 : time + rho + horizon + 1, :
-        ]
+        ]  # qs
+        # y_q = y[:, :1]
+        # y_s = y[:, 1:]
+        # y = np.concatenate((y_s, y_q), axis=1)
 
         if self.is_tra_val_te == "train":
             return [
-                torch.from_numpy(xc).float(),
-                torch.from_numpy(xh).float(),
+                torch.from_numpy(xe).float(),
+                torch.from_numpy(xd).float(),
                 torch.from_numpy(y).float(),
             ], torch.from_numpy(y).float()
         return [
-            torch.from_numpy(xc).float(),
-            torch.from_numpy(xh).float(),
+            torch.from_numpy(xe).float(),
+            torch.from_numpy(xd).float(),
         ], torch.from_numpy(y).float()
 
 
@@ -1083,4 +1118,169 @@ class TransformerDataset(Seq2SeqDataset):
         return [
             torch.from_numpy(x).float(),
             torch.from_numpy(x_h).float(),
+        ], torch.from_numpy(y).float()
+
+
+class ForecastDataset(BaseDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(ForecastDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    def __getitem__(self, item):
+        basin, idx = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx + self.rho : idx + self.rho + self.horizon, :]
+        if self.c is None or self.c.shape[-1] == 0:
+            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+
+
+class HFDataset(BaseDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super(HFDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    @property
+    def streamflow_input_name(self):
+        return self.data_cfgs["relevant_cols"][-1]
+
+    def _read_xyc_specified_time(self, start_date, end_date):
+        """Read x, y, c data from data source with specified time range
+        We set this function as sometimes we need adjust the time range for some specific dataset,
+        such as seq2seq dataset (it needs one more period for the end of the time range)
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+        """
+        date_format = detect_date_format(start_date)
+        time_unit = self.data_cfgs["min_time_unit"]
+        start_date_dt = datetime.strptime(start_date, date_format)
+        if time_unit == "h":
+            adjusted_start_date = (start_date_dt - timedelta(hours=1)).strftime(
+                date_format
+            )
+            adjusted_start_date_y = (
+                start_date_dt
+                + timedelta(hours=self.horizon * self.data_cfgs["min_time_interval"])
+            ).strftime(date_format)
+        elif time_unit == "D":
+            adjusted_start_date = (
+                start_date_dt - timedelta(days=self.data_cfgs["min_time_interval"])
+            ).strftime(date_format)
+            adjusted_start_date_y = (
+                start_date_dt
+                + timedelta(days=self.horizon * self.data_cfgs["min_time_interval"])
+            ).strftime(date_format)
+        else:
+            raise ValueError(f"Unsupported time unit: {time_unit}")
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [adjusted_start_date, end_date],
+            self.data_cfgs["relevant_cols"],
+        )
+        # y
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["target_cols"],
+        )
+        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
+            # this means the data source return a dict with key as time_unit
+            # in this BaseDataset, we only support unified time range for all basins, so we chose the first key
+            # TODO: maybe this could be refactored better
+            data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
+            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
+        )
+        # c
+        data_attr_ds = self.data_source.read_attr_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.data_cfgs["constant_cols"],
+            all_number=True,
+        )
+        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
+            data_forcing_ds, data_output_ds, data_attr_ds
+        )
+        return {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": c_origin.transpose("basin", "variable"),
+        }
+
+    def _check_ts_xrds_unit(self, data_forcing_ds, data_output_ds):
+        """Check timeseries xarray dataset unit and convert if necessary
+
+        Parameters
+        ----------
+        data_forcing_ds : xr.Dataset
+            the forcing data
+        data_output_ds : xr.Dataset
+            outputs including streamflow data
+        """
+
+        def standardize_unit(unit):
+            unit = unit.lower()  # convert to lower case
+            unit = re.sub(r"day", "d", unit)
+            unit = re.sub(r"hour", "h", unit)
+            return unit
+
+        streamflow_unit = data_output_ds[self.streamflow_name].attrs["units"]
+        prcp_unit = data_forcing_ds[self.precipitation_name].attrs["units"]
+
+        standardized_streamflow_unit = standardize_unit(streamflow_unit)
+        standardized_prcp_unit = standardize_unit(prcp_unit)
+        if standardized_streamflow_unit != standardized_prcp_unit:
+            streamflow_dataset = data_output_ds[[self.streamflow_name]]
+            converted_streamflow_dataset = streamflow_unit_conv(
+                streamflow_dataset,
+                self.data_source.read_area(self.t_s_dict["sites_id"]),
+                target_unit=prcp_unit,
+            )
+            data_output_ds[self.streamflow_name] = converted_streamflow_dataset[
+                self.streamflow_name
+            ]
+            streamflow_input_dataset = data_forcing_ds[[self.streamflow_input_name]]
+            converted_streamflow_input_dataset = streamflow_unit_conv(
+                streamflow_input_dataset,
+                self.data_source.read_area(self.t_s_dict["sites_id"]),
+                target_unit=prcp_unit,
+            )
+            data_forcing_ds[self.streamflow_input_name] = (
+                converted_streamflow_input_dataset[self.streamflow_input_name]
+            )
+
+        return data_forcing_ds, data_output_ds
+
+    def __getitem__(self, item: int):
+        basin, idx = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        xf = self.x[
+            basin,
+            idx - warmup_length + 1 : idx + self.rho + self.horizon + 1,
+            :-1,
+        ]
+        xq = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, -1]
+        xq = xq.reshape(xq.size, 1)
+        xf_rho = xf[: self.rho, :]
+        xf_hor = xf[self.rho :, :]
+        xq_rho = xq[: self.rho, :]
+        xq_hor = xq[self.rho :, :]
+        y = self.y[basin, idx + self.rho : idx + self.rho + self.horizon, :]
+        c = self.c[basin, :]
+        c_rho = np.repeat(c, xf_rho.shape[0], axis=0).reshape(c.shape[0], -1).T
+        c_hor = np.repeat(c, xf_hor.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xfc_rho = np.concatenate((xf_rho, c_rho), axis=1)
+        xfc_hor = np.concatenate((xf_hor, c_hor), axis=1)
+        return [
+            torch.from_numpy(xfc_rho).float(),
+            torch.from_numpy(xfc_hor).float(),
+            torch.from_numpy(xq_rho).float(),
+            torch.from_numpy(xq_hor).float(),
         ], torch.from_numpy(y).float()

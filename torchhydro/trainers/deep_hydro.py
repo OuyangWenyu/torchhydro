@@ -385,17 +385,18 @@ class DeepHydro(DeepHydroInterface):
         test_preds = []
         obss = []
         with torch.no_grad():
-            for xs, ys in test_dataloader:
-                # here the a batch doesn't mean a basin; it is only an index in lookup table
-                # for NtoN mode, only basin is index in lookup table, so the batch is same as basin
-                # for Nto1 mode, batch is only an index
+            test_preds = []
+            obss = []
+            for i, (xs, ys) in enumerate(
+                tqdm(test_dataloader, desc="Model inference", unit="batch")
+            ):
                 ys, pred = model_infer(seq_first, device, self.model, xs, ys)
-                test_preds.append(pred.cpu().numpy())
-                obss.append(ys.cpu().numpy())
-                # clear GPU cache -- this will not impact results
-                torch.cuda.empty_cache()
-            pred = reduce(lambda x, y: np.vstack((x, y)), test_preds)
-            obs = reduce(lambda x, y: np.vstack((x, y)), obss)
+                test_preds.append(pred.cpu())
+                obss.append(ys.cpu())
+                if i % 100 == 0:
+                    torch.cuda.empty_cache()
+            pred = torch.cat(test_preds, dim=0).numpy()  # 在最后转换为numpy
+            obs = torch.cat(obss, dim=0).numpy()  # 在最后转换为numpy
         if pred.ndim == 2:
             # TODO: check
             # the ndim is 2 meaning we use an Nto1 mode

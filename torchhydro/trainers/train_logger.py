@@ -70,12 +70,20 @@ class TrainLogger:
     def save_session_param(
         self, epoch, total_loss, n_iter_ep, valid_loss=None, valid_metrics=None
     ):
-        if valid_loss is None or valid_metrics is None:
-            epoch_params = {
-                "epoch": epoch,
-                "train_loss": str(total_loss),
-                "iter_num": n_iter_ep,
-            }
+        if valid_metrics is None:
+            if valid_loss is None:
+                epoch_params = {
+                    "epoch": epoch,
+                    "train_loss": str(total_loss),
+                    "iter_num": n_iter_ep,
+                }
+            else:
+                epoch_params = {
+                    "epoch": epoch,
+                    "train_loss": str(total_loss),
+                    "validation_loss": str(valid_loss),
+                    "iter_num": n_iter_ep,
+                }
         else:
             epoch_params = {
                 "epoch": epoch,
