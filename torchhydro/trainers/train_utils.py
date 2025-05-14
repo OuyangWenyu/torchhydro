@@ -308,10 +308,36 @@ def get_evaluation(
         preds_xr = valte_dataset.denormalize(pred)
         obss_xr = valte_dataset.denormalize(obs)
     elif evaluator["eval_way"] == "rolling":
-        # TODO: to be implemented
-        raise NotImplementedError(
-            "we will implement this function in the future, please choose 1pace or once now"
+        # 获取滚动预测所需的参数
+        stride = evaluator.get("stride", 1)
+        forecast_length = evaluation_cfgs.get("forecast_length", 1)
+
+        # 重组预测结果和观测值
+        basin_num = len(target_data.basin)
+
+        # 使用_rolling_once_evaluate函数进行滚动评估
+        pred_reshaped = _rolling_once_evaluate(
+            (basin_num, nt, nf),
+            target_scaler.rho,
+            forecast_length,
+            stride,
+            hindcast_output_window,
+            output.reshape(-1, output.shape[1], nf),
         )
+
+        obs_reshaped = _rolling_once_evaluate(
+            (basin_num, nt, nf),
+            target_scaler.rho,
+            forecast_length,
+            stride,
+            hindcast_output_window,
+            labels.reshape(-1, labels.shape[1], nf),
+        )
+
+        # 反归一化处理
+        valte_dataset = valorte_data_loader.dataset
+        preds_xr = valte_dataset.denormalize(pred_reshaped)
+        obss_xr = valte_dataset.denormalize(obs_reshaped)
     else:
         raise ValueError("eval_way should be rolling or 1pace")
     return obss_xr, preds_xr
