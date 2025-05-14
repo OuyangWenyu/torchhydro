@@ -1083,8 +1083,10 @@ def test_remove_leap_year_data():
         ],  # Add this line with the actual object IDs
         "t_range_train": ["1980-10-01", "2012-10-01"],
         # Add this line with the actual start and end dates for training.
-        "t_range_test": ["2012-10-01", "2014-10-01"],
+        "t_range_valid": ["2012-10-01", "2013-10-01"],
         # Add this line with the actual start and end dates for validation.
+        "t_range_test": ["2013-10-01", "2014-10-01"],
+        # Add this line with the actual start and end dates for testing.
         "relevant_cols": [
             # List the relevant column names here.
             "prcp",
@@ -1117,5 +1119,7 @@ def test_remove_leap_year_data():
         ],
     }
     decompose = Decomposition(data_cfgs)
-    leap_year = ['1984-02-29', '1988-02-29', '1992-02-29', '1996-02-29', '2000-02-29', '2004-02-29', '2008-02-29', '2012-02-29']
-    decompose.remove_leap_year_data(leap_year)
+    # leap_year = ['1984-02-29', '1988-02-29', '1992-02-29', '1996-02-29', '2000-02-29', '2004-02-29', '2008-02-29', '2012-02-29']
+    decompose.remove_leap_year_data()
+    y_decomposed = decompose.stl_decomposition()
+    print(y_decomposed)

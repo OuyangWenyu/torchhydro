@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 from typing import Dict
 
+from hydroutils import hydro_time
+
 from torchhydro.datasets.data_sources import data_sources_dict
 from torchhydro.datasets.data_utils import wrap_t_s_dict
 
@@ -11,7 +13,6 @@ class STL():
     Seasonal-Trend decomposition using LOESS
     loess     circle-subseries    low pass filter
     y_t = T_t + S_t + R_t
-    todo: unify the data type.
     """
     def __init__(
         self,
@@ -913,6 +914,7 @@ class Decomposition():
         self.y_origin = None
         self.c_origin = None
         self.y_decomposed = None
+        self._read_xyc_specified_time(self.time_range)
 
     def date_string2number(self, date_str):
         str_list = date_str.split("-")
@@ -938,7 +940,6 @@ class Decomposition():
             if t_range_list[i][1] != t_range_list[i + 1][0]:
                 raise ValueError("t_range_list and t_range_list must be equal")
         time_range = [t_range_list[0][0], t_range_list[-1][-1]]
-        self.time_range = time_range
 
         return time_range
 
@@ -963,7 +964,8 @@ class Decomposition():
             remainder = year[i] % 4
             if remainder == 0:
                 year_month_day = str(year[i]) + month_day
-                leap_year.append(year_month_day)
+                date = hydro_time.t2str(year_month_day)
+                leap_year.append(date)
         return leap_year
 
     @property
@@ -1019,23 +1021,24 @@ class Decomposition():
         self.y_origin = data_output_ds_
         self.c_origin = data_attr_ds
 
-    def remove_leap_year_data(self, leap_years):
+    def remove_leap_year_data(self):
         leap_years = self.pick_leap_year(self.time_range)
         n_leap_years = len(leap_years)
         for i in range(n_leap_years):
-            self.x_origin.drop(axis=0, index=leap_years[i], inplace=True)
-            self.y_origin.drop(axis=0, index=leap_years[i], inplace=True)
+            self.x_origin = self.x_origin.drop_sel(time=leap_years[i])
+            self.y_origin = self.y_origin.drop_sel(time=leap_years[i])
 
     def stl_decomposition(self):
         """ """
         # [time, basin, streamflow] -> [time, basin, trend|season|residuals]
-        n_time = self.y_origin.shape[0]
+        # n_time = self.y_origin.shape[0]
         y_decomposed = []
         stl = STL(frequency=1, cycle_length=365)
         for i in range(self.n_basin):
-            data = self.y_origin.iloc[:, i].values
+            data = self.y_origin.sel(i).values
             trend, season, residuals = stl.decompose(data)
             decompose_i = [trend, season, residuals]
             y_decomposed.append(decompose_i)
 
         self.y_decomposed = np.array(y_decomposed)
+        return y_decomposed
