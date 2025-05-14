@@ -609,7 +609,7 @@ def compute_validation(
     pred_final = None
     with torch.no_grad():
         iter_num = 0
-        for src, trg in tqdm(data_loader, desc="Processing", total=len(data_loader)):
+        for src, trg in tqdm(data_loader, desc="Evaluating", total=len(data_loader)):
             trg, output = model_infer(seq_first, device, model, src, trg)
             obs.append(trg)
             preds.append(output)
