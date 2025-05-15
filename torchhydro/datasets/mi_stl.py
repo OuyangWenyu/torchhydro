@@ -99,7 +99,8 @@ class STL():
             "subseries_" + str(i): subseries[i] for i in range(n_subseries)
         })
         pd_subseries.index.name = "time"
-        file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_subseries.csv"
+        # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_subseries.csv"
+        file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_subseries.csv"
         pd_subseries.to_csv(file_name, sep=" ")
         return subseries
 
@@ -127,7 +128,8 @@ class STL():
             "ext_subser_" + str(i): extend_subseries[i] for i in range(self.cycle_length)
         })
         pd_extend_subseries.index.name = "time"
-        file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_extend_subseries.csv"
+        # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_extend_subseries.csv"
+        file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_extend_subseries.csv"
         pd_extend_subseries.to_csv(file_name, sep=" ")
         return extend_subseries
 
@@ -651,13 +653,13 @@ class STL():
         })
         pd_cycle.index.name = "time"
         # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_cycle.csv"
-        file_name = r"mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_cycle.csv"
+        file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_cycle.csv"
         pd_cycle.to_csv(file_name, sep=" ")
 
         pd_series = pd.DataFrame({"pet_loess": cycle_v})
         pd_series.index.name = "time"
         # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_loess_extend_cycle_v.csv"
-        file_name = r"mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_loess_extend_cycle_v.csv"
+        file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_loess_extend_cycle_v.csv"
         pd_series.to_csv(file_name, sep=" ")
 
         # 3 low-pass filtering of smoothed cycle-subseries
@@ -672,7 +674,7 @@ class STL():
         pd_lowf = pd.DataFrame({"lowf1": lowf1, "lowf2": lowf2, "lowf3": lowf3, "lowf4": lowf4, "lowf5": lowf5})  # "lowf11": lowf11, "lowf12": lowf12,
         pd_lowf.index.name = "time"
         # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_lowf.csv"
-        file_name = r"mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_lowf.csv"
+        file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_lowf.csv"
         pd_lowf.to_csv(file_name, sep=" ")
 
         # 4 detrending of smoothed cycle-subseries

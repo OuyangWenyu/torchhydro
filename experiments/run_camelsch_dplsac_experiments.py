@@ -95,7 +95,7 @@ def run_camelschdplsac(
             "pbm_norm": True,
         },
         # gage_id_file = "D:\\minio\\waterism\\datasets-origin\\camels\\camels_ch\\gage_id.txt",
-        gage_id_file="mnt/d:/minio/waterism/datasets-origin/camels/camels_ch/gage_id.txt",
+        gage_id_file="/mnt/d:/minio/waterism/datasets-origin/camels/camels_ch/gage_id.txt",
         # gage_id=[
         #     "2009",
         #     "2011",

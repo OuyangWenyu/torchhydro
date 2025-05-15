@@ -183,7 +183,7 @@ def test_repetitious_moving_average_smoothing():
     pet_mas = pd.DataFrame({"pet": x, "result1": result1, "result2": result2, "result3": result3})
     pet_mas.index.name = "time"
     # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_moving_average_smoothing.csv"
-    file_name = r"mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_moving_average_smoothing.csv"
+    file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_moving_average_smoothing.csv"
     pet_mas.to_csv(file_name, sep=" ")
     print(pet_mas)
 # PASSED [100%]
@@ -315,7 +315,7 @@ def test_outer_loop():
     pet_stl = pd.DataFrame({"pet": x, "trend": trend, "season": season, "residuals": residuals})
     pet_stl.index.name = "time"
     # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_stl.csv"
-    file_name = r"mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_stl.csv"
+    file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_stl.csv"
     pet_stl.to_csv(file_name, sep=" ")
     print(pet_stl)
 # PASSED                           [100%]
@@ -343,7 +343,7 @@ def test_season_post_smoothing():
     pet_post_season = pd.DataFrame({"pet": x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season})
     pet_post_season.index.name = "time"
     # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_post_season.csv"
-    file_name = r"mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_post_season.csv"
+    file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_post_season.csv"
     pet_post_season.to_csv(file_name, sep=" ")
     print(pet_post_season)
 # PASSED                [100%]
@@ -372,7 +372,7 @@ def test_decomposition():
          "post_residuals": post_residuals})
     decomposition.index.name = "time"
     # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\series_decomposition.csv"
-    file_name = r"mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/series_decomposition.csv"
+    file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/series_decomposition.csv"
     decomposition.to_csv(file_name, sep=" ")
     print(decomposition)
 # PASSED                        [100%]
@@ -482,7 +482,7 @@ def test_decomposition_streamflow():
          "post_residuals": post_residuals})
     decomposition.index.name = "time"
     # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\series_decomposition.csv"
-    file_name = r"mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/series_decomposition.csv"
+    file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/series_decomposition.csv"
     decomposition.to_csv(file_name, sep=" ")
     print(decomposition)
 # PASSED             [100%]
@@ -510,7 +510,7 @@ def test_decomposition_prcp():
          "post_residuals": post_residuals})
     decomposition.index.name = "time"
     # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\series_decomposition.csv"
-    file_name = r"mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/series_decomposition.csv"
+    file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/series_decomposition.csv"
     decomposition.to_csv(file_name, sep=" ")
     print(decomposition)
 # PASSED                   [100%]
