@@ -137,3 +137,4 @@ mlruns/
 results/
 settings.json:Zone.Identifier
 settings.jsonZone.Identifier
+tests/
