@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-04-27 18:36:57
+LastEditTime: 2025-05-15 16:24:12
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
-FilePath: /HydroForecastEval/mnt/disk1/owen/code/torchhydro/torchhydro/trainers/train_utils.py
+FilePath: \torchhydro\torchhydro\trainers\train_utils.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -33,7 +33,7 @@ from hydroutils.hydro_file import (
 from torchhydro.models.crits import GaussianLoss
 
 
-def _rolling_once_evaluate(
+def _rolling_preds_for_once_eval(
     batch_shape,
     rho,
     forecast_length,
@@ -42,7 +42,7 @@ def _rolling_once_evaluate(
     the_array,
 ):
     """
-    Perform rolling evaluation to restore the prediction results to the original time series length.
+    Get predictions to perform rolling evaluation: restore the prediction results to the original time series length.
 
     This function is used to restore the rolling prediction results of the model to the original time series length.
     It assumes that the length of the rolling window is equal to the forecast length, and that there is only one prediction value for each time step.
@@ -220,14 +220,14 @@ def calculate_and_record_metrics(
     return eval_log
 
 
-def get_evaluation(
+def get_preds_to_be_eval(
     valorte_data_loader,
     evaluation_cfgs,
     output,
     labels,
 ):
     """
-    Get evaluation results:
+    Get prediction results prepared for evaluation:
     the denormalized data without metrics by different eval ways
 
     Parameters
@@ -247,9 +247,12 @@ def get_evaluation(
         _description_
     """
     evaluator = evaluation_cfgs["evaluator"]
+    # this test_rolling means how we perform prediction during testing
+    test_rolling = evaluator["rolling"]
     batch_size = valorte_data_loader.batch_size
     target_scaler = valorte_data_loader.dataset.target_scaler
     target_data = target_scaler.data_target
+    rho = valorte_data_loader.dataset.rho
     horizon = valorte_data_loader.dataset.horizon
     hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
     nf = valorte_data_loader.dataset.noutputvar  # number of features
@@ -257,48 +260,37 @@ def get_evaluation(
     basin_num = len(target_data.basin)
     if evaluator["eval_way"] == "once":
         stride = evaluator["stride"]
-        if stride < 1:
-            # means we directly use the data to perform denorm and metrics cal
-            # as the results may be got by performing rolling prediction
-            # then there are many results for each timestep and we flatten them
-            # so, to perform denormlization with xarray, we need to reset time
-            # and we also need to reshape the data to (basin_num, times, nf)
-            is_real_time = True
-            if labels.shape[0] > nt:
-                # 0 dim means time dim
-                is_real_time = False
-                # TODO: to be implemented
+        if stride > 0:
+            if test_rolling != stride:
                 raise NotImplementedError(
-                    "we only support the case that the length of labels is equal to nt"
+                    "rolling should be equal to stride in evaluator if you chose eval_way to be once, or else you need to change the eval_way to be 1pace or rolling"
                 )
-            obss_xr = valorte_data_loader.dataset.denormalize(
-                labels.reshape(basin_num, -1, nf), is_real_time
-            )
-            preds_xr = valorte_data_loader.dataset.denormalize(
-                output.reshape(basin_num, -1, nf), is_real_time
-            )
-        else:
-            # TODO: need more test
-            raise NotImplementedError(
-                "we only support the case that the stride is equal to 1 now, others need to be implemented"
-            )
-            obss_xr = _rolling_once_evaluate(
+            obs = _rolling_preds_for_once_eval(
                 (basin_num, horizon, nf),
-                target_scaler.rho,
+                rho,
                 evaluation_cfgs["forecast_length"],
                 stride,
                 hindcast_output_window,
                 target_data.reshape(basin_num, horizon, nf),
             )
-            preds_xr = _rolling_once_evaluate(
+            pred = _rolling_preds_for_once_eval(
                 (basin_num, horizon, nf),
-                target_scaler.rho,
+                rho,
                 evaluation_cfgs["forecast_length"],
                 stride,
                 hindcast_output_window,
                 output.reshape(batch_size, horizon, nf),
             )
+        else:
+            obs = labels.reshape(basin_num, -1, nf)
+            pred = output.reshape(basin_num, -1, nf)
+        obss_xr = valorte_data_loader.dataset.denormalize(obs)
+        preds_xr = valorte_data_loader.dataset.denormalize(pred)
     elif evaluator["eval_way"] == "1pace":
+        if test_rolling < 1:
+            raise NotImplementedError(
+                "rolling should be larger than 0 if you chose eval_way to be 1pace"
+            )
         pace_idx = evaluator["pace_idx"]
         # for 1pace with pace_idx meaning which value of output was chosen to show
         # 1st, we need to transpose data to 4-dim to show the whole data
@@ -310,25 +302,25 @@ def get_evaluation(
     elif evaluator["eval_way"] == "rolling":
         # 获取滚动预测所需的参数
         stride = evaluator.get("stride", 1)
-        forecast_length = evaluation_cfgs.get("forecast_length", 1)
-
+        if test_rolling == stride:
+            raise NotImplementedError(
+                "if rolling is equal to stride in evaluator, you should chose eval_way to be once"
+            )
         # 重组预测结果和观测值
         basin_num = len(target_data.basin)
 
-        # 使用_rolling_once_evaluate函数进行滚动评估
-        pred_reshaped = _rolling_once_evaluate(
+        # 使用_rolling_evaluate函数进行滚动评估
+        pred_reshaped = _recover_samples_to_4d(
             (basin_num, nt, nf),
             target_scaler.rho,
-            forecast_length,
             stride,
             hindcast_output_window,
             output.reshape(-1, output.shape[1], nf),
         )
 
-        obs_reshaped = _rolling_once_evaluate(
+        obs_reshaped = _recover_samples_to_4d(
             (basin_num, nt, nf),
             target_scaler.rho,
-            forecast_length,
             stride,
             hindcast_output_window,
             labels.reshape(-1, labels.shape[1], nf),
@@ -345,6 +337,11 @@ def get_evaluation(
 
 def _recover_samples_to_4d(arr_3d, valorte_data_loader, stride):
     """Reorganize the 3D prediction results to 4D
+
+    Prepare rolling result for the following two ways to calculate rolling evaluation results:
+    1. We can organize data according to forecast horizons, with each horizon having a set of evaluation results
+    2. For each rolling prediction result, calculate a set of metrics, with each basin having one set of metrics, and all basins stored in a 2D array containing all metrics.
+
     TODO: to be finished
 
     Parameters
@@ -460,7 +457,7 @@ def evaluate_validation(
         raise ValueError("Length of fill_nan must be equal to length of target_col.")
     eval_log = {}
     evaluation_metrics = evaluation_cfgs["metrics"]
-    obss_xr, preds_xr = get_evaluation(
+    obss_xr, preds_xr = get_preds_to_be_eval(
         validation_data_loader,
         evaluation_cfgs,
         output,

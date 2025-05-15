@@ -49,7 +49,7 @@ from torchhydro.trainers.train_utils import (
     model_infer,
     read_pth_from_model_loader,
     torch_single_train,
-    get_evaluation,
+    get_preds_to_be_eval,
 )
 
 
@@ -405,7 +405,7 @@ class DeepHydro(DeepHydroInterface):
             pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
             obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
         evaluation_cfgs = self.cfgs["evaluation_cfgs"]
-        obs_xr, pred_xr = get_evaluation(
+        obs_xr, pred_xr = get_preds_to_be_eval(
             test_dataloader,
             evaluation_cfgs,
             pred,
