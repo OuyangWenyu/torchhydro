@@ -126,7 +126,7 @@ def arg_camelsus_slstm(
         # ......
         # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
         # gage_id_file = "D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt",
-        gage_id_file="//mnt/d/minio/waterism/datasets-origin/camels/camels_us/gage_id.txt",
+        gage_id_file="/mnt/d/minio/waterism/datasets-origin/camels/camels_us/gage_id.txt",
         which_first_tensor="sequence",
     )
 

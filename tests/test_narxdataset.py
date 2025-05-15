@@ -26,11 +26,12 @@ def test_NarxDataset():
         ],  # Add this line with the actual object IDs
         "t_range_train": [
             "2017-10-01",
-            "2018-10-01",
+            "2018-09-30",
         ],  # Add this line with the actual start and end dates for training.
+        "t_range_valid": ["2018-10-01", "2019-09-30"],
         "t_range_test": [
-            "2018-10-01",
-            "2019-10-01"
+            "2019-09-30",
+            "2020-10-01"
         ],  # Add this line with the actual start and end dates for validation.
         "relevant_cols": [
             # List the relevant column names here.

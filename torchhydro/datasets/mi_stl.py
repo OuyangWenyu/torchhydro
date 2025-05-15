@@ -1051,16 +1051,19 @@ class Decomposition():
             trend_, season_, residuals_ = stl.decompose(data[:-1])
             trend.append(trend_)
             season.append(season_)
-            residuals.append(residuals)
+            residuals.append(residuals_)
 
         trend = np.array(trend)
         season = np.array(season)
-        residuals = np.array(residuals_)
-        trend_DataArray = xr.DataArray(trend, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
-        season_DataArray = xr.DataArray(season, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
-        residuals_DataArray = xr.DataArray(residuals, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})   # todo
-        self.y_origin["trend"] = trend_DataArray
-        self.y_origin["season"] = season_DataArray
-        self.y_origin["residuals"] = residuals_DataArray
+        residuals = np.array(residuals)
+        # trend_DataArray = xr.DataArray(trend, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
+        # season_DataArray = xr.DataArray(season, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
+        # residuals_DataArray = xr.DataArray(residuals, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})   # todo
+        # self.y_origin["trend"] = trend_DataArray
+        # self.y_origin["season"] = season_DataArray
+        # self.y_origin["residuals"] = residuals_DataArray
+        self.y_origin["trend"] = xr.DataArray(trend, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
+        self.y_origin["season"] = xr.DataArray(season, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
+        self.y_origin["residuals"] = xr.DataArray(residuals, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
 
-        return trend, season, residuals
+        # return trend, season, residuals

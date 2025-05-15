@@ -1129,7 +1129,7 @@ def test_stl_decomposition():
     }
     decompose = Decomposition(data_cfgs)
     y_decomposed = decompose.stl_decomposition()
-    print(y_decomposed)
+    print(decompose.y_origin.trend.values)
 
 # ============================= test session starts ==============================
 # platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
