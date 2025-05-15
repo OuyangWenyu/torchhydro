@@ -958,6 +958,7 @@ class Decomposition():
             year = list(range(year_start + 1, year_end + 1))
         else:
             year = list(range(year_start, year_end + 1))
+        # year = list(range(year_start, year_end + 1))
         leap_year = []
         month_day = "-02-29"
         for i in range(len(year)):
@@ -1035,8 +1036,8 @@ class Decomposition():
         y_decomposed = []
         stl = STL(frequency=1, cycle_length=365)
         for i in range(self.n_basin):
-            data = self.y_origin.sel(i).values
-            trend, season, residuals = stl.decompose(data)
+            data = self.y_origin.streamflow.values[i].tolist()
+            trend, season, residuals = stl.decompose(data[:-1])
             decompose_i = [trend, season, residuals]
             y_decomposed.append(decompose_i)
 
