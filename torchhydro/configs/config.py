@@ -212,6 +212,7 @@ def default_config_file():
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
             "b_nestedness": False,
+            "b_decompose": False,  # whether to decompose the series or not using STL
         },
         "training_cfgs": {
             "master_addr": "localhost",
@@ -370,6 +371,7 @@ def cmd(
     min_time_interval=None,
     b_nestedness=None,
     close_loop=None,
+    b_decompose=None,
 ):
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -849,6 +851,13 @@ def cmd(
         default=close_loop,
         type=bool,
     )
+    parser.add_argument(
+        "--b_decompose",
+        dest="b_decompose",
+        help="whether to decompose series or not",
+        default=b_decompose,
+        type=bool,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -1100,6 +1109,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["b_nestedness"] = new_args.b_nestedness
     if new_args.close_loop is not None:
         cfg_file["evaluation_cfgs"]["close_loop"] = new_args.close_loop
+    if new_args.b_decompose is not None:
+        cfg_file["data_cfgs"]["b_decompose"] = new_args.b_decompose
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 

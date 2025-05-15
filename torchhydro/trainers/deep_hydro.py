@@ -50,7 +50,7 @@ from torchhydro.trainers.train_utils import (
     read_pth_from_model_loader,
     torch_single_train,
 )
-
+from torchhydro.datasets.mi_stl import Decomposition
 
 class DeepHydroInterface(ABC):
     """
@@ -455,7 +455,7 @@ class DeepHydro(DeepHydroInterface):
 
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         """get DataLoader
-        
+
         """
         if mode == "infer":  # test period
             ngrid = self.testdataset.ngrid
@@ -563,7 +563,7 @@ class DeepHydro(DeepHydroInterface):
                 "nt": nt,
             }
         return sampler_class(train_dataset, **sampler_hyperparam)
-    
+
     def _remove_model_memory(self):
         if self.cfgs["model_cfgs"]["model_name"] == "NestedNarx":
             self.model.remove_model_and_memory()
