@@ -248,7 +248,7 @@ def get_preds_to_be_eval(
     """
     evaluator = evaluation_cfgs["evaluator"]
     # this test_rolling means how we perform prediction during testing
-    test_rolling = evaluator["rolling"]
+    test_rolling = evaluation_cfgs["rolling"]
     batch_size = valorte_data_loader.batch_size
     target_scaler = valorte_data_loader.dataset.target_scaler
     target_data = target_scaler.data_target
@@ -261,9 +261,9 @@ def get_preds_to_be_eval(
     if evaluator["eval_way"] == "once":
         stride = evaluator["stride"]
         if stride > 0:
-            if test_rolling != stride:
+            if horizon != stride:
                 raise NotImplementedError(
-                    "rolling should be equal to stride in evaluator if you chose eval_way to be once, or else you need to change the eval_way to be 1pace or rolling"
+                    "horizon should be equal to stride in evaluator if you chose eval_way to be once, or else you need to change the eval_way to be 1pace or rolling"
                 )
             obs = _rolling_preds_for_once_eval(
                 (basin_num, horizon, nf),
@@ -282,6 +282,10 @@ def get_preds_to_be_eval(
                 output.reshape(batch_size, horizon, nf),
             )
         else:
+            if test_rolling > 0:
+                raise RuntimeError(
+                    "please set rolling to 0 when you chose eval way as once and stride=0"
+                )
             obs = labels.reshape(basin_num, -1, nf)
             pred = output.reshape(basin_num, -1, nf)
         obss_xr = valorte_data_loader.dataset.denormalize(obs)
@@ -302,9 +306,9 @@ def get_preds_to_be_eval(
     elif evaluator["eval_way"] == "rolling":
         # 获取滚动预测所需的参数
         stride = evaluator.get("stride", 1)
-        if test_rolling == stride:
+        if stride != 1:
             raise NotImplementedError(
-                "if rolling is equal to stride in evaluator, you should chose eval_way to be once"
+                "if stride is not equal to 1, we think it is meaningless"
             )
         # 重组预测结果和观测值
         basin_num = len(target_data.basin)
@@ -394,6 +398,10 @@ def _recover_samples_to_basin(arr_3d, valorte_data_loader, pace_idx):
         The corresponding data loader used to obtain the basin-time index mapping.
     pace_idx: int
         Which time step was chosen to show.
+        -1 means we chose the final value for one prediction
+        positive values means we chose the results during horzion periods
+        we ignore 0, because it may lead to confusion. 1 means the 1st horizon period
+        TODO: when hindcast_output is not None, this part need to be modified.
 
     Returns
         -------
