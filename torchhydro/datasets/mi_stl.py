@@ -603,6 +603,7 @@ class STL():
         N, the total number of observations in whole series.
 
         low-pass, low-frequency power.
+        if one have no idea about parameters, you could read this behind.
         n_p:
         It is entirely possible that a time series can have two or more periodic components. for example, a series
         measured daily might have weekly and yearly periodicities. In such a case one can use STL to successively
