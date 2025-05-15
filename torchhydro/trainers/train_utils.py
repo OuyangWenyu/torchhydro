@@ -288,8 +288,6 @@ def get_preds_to_be_eval(
                 )
             obs = labels.reshape(basin_num, -1, nf)
             pred = output.reshape(basin_num, -1, nf)
-        obss_xr = valorte_data_loader.dataset.denormalize(obs)
-        preds_xr = valorte_data_loader.dataset.denormalize(pred)
     elif evaluator["eval_way"] == "1pace":
         if test_rolling < 1:
             raise NotImplementedError(
@@ -300,9 +298,6 @@ def get_preds_to_be_eval(
         # 1st, we need to transpose data to 4-dim to show the whole data
         pred = _recover_samples_to_basin(output, valorte_data_loader, pace_idx)
         obs = _recover_samples_to_basin(labels, valorte_data_loader, pace_idx)
-        valte_dataset = valorte_data_loader.dataset
-        preds_xr = valte_dataset.denormalize(pred)
-        obss_xr = valte_dataset.denormalize(obs)
     elif evaluator["eval_way"] == "rolling":
         # 获取滚动预测所需的参数
         stride = evaluator.get("stride", 1)
@@ -314,7 +309,7 @@ def get_preds_to_be_eval(
         basin_num = len(target_data.basin)
 
         # 使用_rolling_evaluate函数进行滚动评估
-        pred_reshaped = _recover_samples_to_4d(
+        pred = _recover_samples_to_4d(
             (basin_num, nt, nf),
             target_scaler.rho,
             stride,
@@ -322,7 +317,7 @@ def get_preds_to_be_eval(
             output.reshape(-1, output.shape[1], nf),
         )
 
-        obs_reshaped = _recover_samples_to_4d(
+        obs = _recover_samples_to_4d(
             (basin_num, nt, nf),
             target_scaler.rho,
             stride,
@@ -330,12 +325,11 @@ def get_preds_to_be_eval(
             labels.reshape(-1, labels.shape[1], nf),
         )
 
-        # 反归一化处理
-        valte_dataset = valorte_data_loader.dataset
-        preds_xr = valte_dataset.denormalize(pred_reshaped)
-        obss_xr = valte_dataset.denormalize(obs_reshaped)
     else:
         raise ValueError("eval_way should be rolling or 1pace")
+    valte_dataset = valorte_data_loader.dataset
+    preds_xr = valte_dataset.denormalize(pred)
+    obss_xr = valte_dataset.denormalize(obs)
     return obss_xr, preds_xr
 
 

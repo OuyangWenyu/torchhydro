@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-05-14 19:25:02
+LastEditTime: 2025-05-15 19:35:47
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -386,6 +386,15 @@ class BaseDataset(Dataset):
         self.target_scaler = scaler_hub.target_scaler
         return scaler_hub.norm_data
 
+    def _selected_time_points_for_denorm(self):
+        """get the time points for denormalization
+
+        Returns
+        -------
+            a list of time points
+        """
+        return self.target_scaler.data_target.coords["time"][self.warmup_length :]
+
     def denormalize(self, norm_data, is_real_time=True):
         """Denormalize the norm_data
 
@@ -409,8 +418,7 @@ class BaseDataset(Dataset):
         units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
         if target_scaler.pbm_norm:
             units = {**units, **target_data.attrs["units"]}
-        warmup_length = self.warmup_length
-        selected_time_points = target_data.coords["time"][warmup_length:]
+        selected_time_points = self._selected_time_points_for_denorm()
         selected_data = target_data.sel(time=selected_time_points)
         denorm_xr_ds = target_scaler.inverse_transform(
             xr.DataArray(
@@ -991,41 +999,9 @@ class Seq2SeqDataset(BaseDataset):
             raise ValueError(f"Unsupported time unit: {time_unit}")
         return self._read_xyc_specified_time(adjusted_start_date, end_date)
 
-    def denormalize(self, norm_data, is_real_time=True):
-        """Denormalize the norm_data
-
-        Parameters
-        ----------
-        norm_data : np.ndarray
-            batch-first data
-        is_real_time : bool, optional
-            whether the data is real time data, by default True
-            sometimes we may have multiple results for one time period and we flatten them
-            so we need a temp time to replace real one
-
-        Returns
-        -------
-        xr.Dataset
-            denormlized data
-        """
-        target_scaler = self.target_scaler
-        target_data = target_scaler.data_target
-        # the units are dimensionless for pure DL models
-        units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
-        if target_scaler.pbm_norm:
-            units = {**units, **target_data.attrs["units"]}
-        warmup_length = self.warmup_length
-        selected_time_points = target_data.coords["time"][warmup_length:-1]
-        selected_data = target_data.sel(time=selected_time_points)
-        denorm_xr_ds = target_scaler.inverse_transform(
-            xr.DataArray(
-                norm_data,
-                dims=selected_data.dims,
-                coords=selected_data.coords,
-                attrs={"units": units},
-            )
-        )
-        return set_unit_to_var(denorm_xr_ds)
+    def _selected_time_points_for_denorm(self):
+        # because we have time start and end for each period, similar reason to why we need to override _read_xyc
+        return self.target_scaler.data_target.coords["time"][self.warmup_length : -1]
 
     def __getitem__(self, item: int):
         basin, time = self.lookup_table[item]
