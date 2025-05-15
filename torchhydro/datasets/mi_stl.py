@@ -1,6 +1,7 @@
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 from typing import Dict
 
 from hydroutils import hydro_time
@@ -914,7 +915,7 @@ class Decomposition():
         self.x_origin = None
         self.y_origin = None
         self.c_origin = None
-        self.y_decomposed = None
+        self.time = None
         self._read_xyc_specified_time(self.time_range)
         self.remove_leap_year_data()
 
@@ -1030,18 +1031,31 @@ class Decomposition():
         for i in range(n_leap_years):
             self.x_origin = self.x_origin.drop_sel(time=leap_years[i])
             self.y_origin = self.y_origin.drop_sel(time=leap_years[i])
+        self.time = self.y_origin.time.values.tolist()
 
     def stl_decomposition(self):
         """ """
         # [time, basin, streamflow] -> [time, basin, trend|season|residuals]
         # n_time = self.y_origin.shape[0]
-        y_decomposed = []
+        trend = []
+        season = []
+        residuals = []
         stl = STL(frequency=1, cycle_length=365)
         for i in range(self.n_basin):
             data = self.y_origin.streamflow.values[i].tolist()
-            trend, season, residuals = stl.decompose(data[:-1])
-            decompose_i = [trend, season, residuals]
-            y_decomposed.append(decompose_i)
+            trend_, season_, residuals_ = stl.decompose(data[:-1])
+            trend.append(trend_)
+            season.append(season_)
+            residuals.append(residuals)
 
-        self.y_decomposed = np.array(y_decomposed)
-        return y_decomposed
+        trend = np.array(trend)
+        season = np.array(season)
+        residuals = np.array(residuals_)
+        trend_DataArray = xr.DataArray(trend, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
+        season_DataArray = xr.DataArray(season, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
+        residuals_DataArray = xr.DataArray(residuals, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})   # todo
+        self.y_origin["trend"] = trend_DataArray
+        self.y_origin["season"] = season_DataArray
+        self.y_origin["residuals"] = residuals_DataArray
+
+        return trend, season, residuals
