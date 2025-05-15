@@ -1088,13 +1088,13 @@ def test_stl_decomposition():
             # "02092500",  # 02108000 -> 02092500
             # "02108000",
         ],  # Add this line with the actual object IDs
-        "t_range_train": ["1981-10-01", "2012-10-01"],
+        "t_range_train": ["1981-10-01", "2012-09-30"],
         # Add this line with the actual start and end dates for training.
         # "t_range_valid": None,
-        "t_range_valid": ["2012-10-01", "2013-10-01"],
+        "t_range_valid": ["2012-10-01", "2013-09-30"],
         # Add this line with the actual start and end dates for validation.
         # "t_range_test": None,
-        "t_range_test": ["2013-10-01", "2014-10-01"],
+        "t_range_test": ["2013-10-01", "2014-09-30"],
         # Add this line with the actual start and end dates for testing.
         "relevant_cols": [
             # List the relevant column names here.

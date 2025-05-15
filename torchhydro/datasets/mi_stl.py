@@ -682,11 +682,12 @@ class STL():
         lowf = np.array(lowf4)
         # season = cycle_v[self.cycle_length:-self.cycle_length] - lowf[self.cycle_length:-self.cycle_length]
         season = cycle_v - lowf
-        season = season.tolist()
+        
 
         # 5 deseasonalizing
-        trend = np.array(self.extend_x) - np.array(season)
+        trend = np.array(self.extend_x) - season
         trend = trend.tolist()
+        season = season.tolist()
 
 
         # 6 Trend Smoothing
@@ -944,9 +945,9 @@ class Decomposition():
         if t_range_test is not None:
             t_range_list.append(t_range_test)
         t_n = len(t_range_list)
-        for i in range(t_n - 1):
-            if t_range_list[i][1] != t_range_list[i + 1][0]:
-                raise ValueError("t_range_list and t_range_list must be equal")
+        # for i in range(t_n - 1):
+        #     if t_range_list[i][1] != t_range_list[i + 1][0]:
+        #         raise ValueError("t_range_list and t_range_list must be equal")
         time_range = [t_range_list[0][0], t_range_list[-1][-1]]
 
         return time_range
@@ -1048,7 +1049,7 @@ class Decomposition():
         stl = STL(frequency=1, cycle_length=365)
         for i in range(self.n_basin):
             data = self.y_origin.streamflow.values[i].tolist()
-            trend_, season_, residuals_ = stl.decompose(data[:-1])
+            trend_, season_, residuals_ = stl.decompose(data)  # [:-1]
             trend.append(trend_)
             season.append(season_)
             residuals.append(residuals_)
@@ -1062,8 +1063,8 @@ class Decomposition():
         # self.y_origin["trend"] = trend_DataArray
         # self.y_origin["season"] = season_DataArray
         # self.y_origin["residuals"] = residuals_DataArray
-        self.y_origin["trend"] = xr.DataArray(trend, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
-        self.y_origin["season"] = xr.DataArray(season, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
-        self.y_origin["residuals"] = xr.DataArray(residuals, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
+        self.y_origin["trend"] = xr.DataArray(trend.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time})  # [:-1]
+        self.y_origin["season"] = xr.DataArray(season.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time})
+        self.y_origin["residuals"] = xr.DataArray(residuals.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time})
 
         # return trend, season, residuals
