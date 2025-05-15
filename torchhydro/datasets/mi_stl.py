@@ -915,6 +915,7 @@ class Decomposition():
         self.c_origin = None
         self.y_decomposed = None
         self._read_xyc_specified_time(self.time_range)
+        self.remove_leap_year_data()
 
     def date_string2number(self, date_str):
         str_list = date_str.split("-")

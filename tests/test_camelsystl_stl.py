@@ -1121,8 +1121,6 @@ def test_remove_leap_year_data():
         ],
     }
     decompose = Decomposition(data_cfgs)
-    # leap_year = ['1984-02-29', '1988-02-29', '1992-02-29', '1996-02-29', '2000-02-29', '2004-02-29', '2008-02-29', '2012-02-29']
-    decompose.remove_leap_year_data()
     y_decomposed = decompose.stl_decomposition()
     print(y_decomposed)
 # PASSED                [100%]

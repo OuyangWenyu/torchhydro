@@ -143,6 +143,9 @@ class DeepHydro(DeepHydroInterface):
         super().__init__(cfgs)
         self.device_num = cfgs["training_cfgs"]["device"]
         self.device = get_the_device(self.device_num)
+        if cfgs["data_cfgs"]["b_decompose"]:
+            data_cfgs = cfgs["data_cfgs"]
+            self._decompose_series(data_cfgs)
         if cfgs["training_cfgs"]["train_mode"]:
             self.traindataset = self.make_dataset("train")
             if cfgs["data_cfgs"]["t_range_valid"] is not None:
@@ -572,6 +575,10 @@ class DeepHydro(DeepHydroInterface):
         if model_name == "NestedNarx":
             self.cfgs["model_cfgs"]["model_hyperparam"]["close_loop"] = self.cfgs["evaluation_cfgs"]["close_loop"]
 
+    def _decompose_series(self, data_cfgs):
+        decompose = Decomposition(data_cfgs)
+        y_decomposed = decompose.stl_decomposition()
+        return y_decomposed
 
 class FedLearnHydro(DeepHydro):
     """Federated Learning Hydrological DL model"""
