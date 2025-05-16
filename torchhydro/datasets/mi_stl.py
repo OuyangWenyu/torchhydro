@@ -928,6 +928,7 @@ class Decomposition():
         self.c_origin = None
         self.y_decomposed = None
         self.time = None
+        self.attrs = None
         self.train_data = None
         self.valid_data = None
         self.test_data = None
@@ -1042,7 +1043,8 @@ class Decomposition():
         for i in range(n_leap_years):
             self.x_origin = self.x_origin.drop_sel(time=leap_years[i])
             self.y_origin = self.y_origin.drop_sel(time=leap_years[i])
-        self.time = self.y_origin.time.values.tolist()
+        self.time = self.y_origin.time
+        self.attrs = self.y_origin.attrs
 
     def stl_decomposition(self):
         """ """
@@ -1061,19 +1063,21 @@ class Decomposition():
         trend = np.array(trend)
         season = np.array(season)
         residuals = np.array(residuals)
-        trend_DataArray = xr.DataArray(trend, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'trend', attrs={'units': 'foot^3/s'})
-        season_DataArray = xr.DataArray(season, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'season', attrs={'units': 'foot^3/s'})
-        residuals_DataArray = xr.DataArray(residuals, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'residuals', attrs={'units': 'foot^3/s'})
+        trend_DataArray = xr.DataArray(trend, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'trend', attrs=self.attrs)
+        season_DataArray = xr.DataArray(season, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'season', attrs=self.attrs)
+        residuals_DataArray = xr.DataArray(residuals, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'residuals', attrs=self.attrs)
         # self.y_origin["trend"] = xr.DataArray(trend.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'trend', attrs={'units': 'foot^3/s'})  # [:-1]
         # self.y_origin["season"] = xr.DataArray(season.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'season', attrs={'units': 'foot^3/s'})
         # self.y_origin["residuals"] = xr.DataArray(residuals.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'residuals', attrs={'units': 'foot^3/s'})
         self.y_decomposed = xr.Dataset({'trend': trend_DataArray,
                                 'season': season_DataArray,
                                 'residuals': residuals_DataArray})
-        return self.y_decomposed, self.x_origin, self.y_origin, self.c_origin
+        
+        # return self.y_decomposed, self.x_origin, self.y_origin, self.c_origin
+        return self.split_period()
 
     def split_period(self):
-        """ """
+        """split data into train, valid and test period"""
         if self.t_range_train is not None:
             x_origin_train = self.x_origin.sel(time=slice(self.t_range_train[0], self.t_range_train[1]))
             y_origin_train = self.y_origin.sel(time=slice(self.t_range_train[0], self.t_range_train[1]))

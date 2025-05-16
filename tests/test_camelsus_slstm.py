@@ -84,7 +84,7 @@ def arg_camelsus_slstm(
         },
         loss_func="RMSESum",
         sampler="KuaiSampler",
-        dataset="StreamflowDataset",
+        dataset="StlDataset",
         scaler="DapengScaler",
         scaler_params={
             "prcp_norm_cols": [

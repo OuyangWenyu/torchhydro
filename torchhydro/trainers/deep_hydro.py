@@ -143,7 +143,8 @@ class DeepHydro(DeepHydroInterface):
         super().__init__(cfgs)
         self.device_num = cfgs["training_cfgs"]["device"]
         self.device = get_the_device(self.device_num)
-        if cfgs["data_cfgs"]["b_decompose"]:
+        self.b_decompose_data = cfgs["data_cfgs"]["b_decompose"]
+        if self.b_decompose_data:
             data_cfgs = cfgs["data_cfgs"]
             self.train_data, self.valid_data, self.test_data = self._decompose_series(data_cfgs)
         if cfgs["training_cfgs"]["train_mode"]:
@@ -225,7 +226,16 @@ class DeepHydro(DeepHydroInterface):
         dataset_name = data_cfgs["dataset"]
 
         if dataset_name in list(datasets_dict.keys()):
-            dataset = datasets_dict[dataset_name](data_cfgs, is_tra_val_te)
+            if self.b_decompose_data:
+                if is_tra_val_te == "train":
+                    data_decomposed = self.train_data
+                elif is_tra_val_te == "valid":
+                    data_decomposed = self.valid_data
+                else:
+                    data_decomposed = self.test_data
+                dataset = datasets_dict[dataset_name](data_cfgs, is_tra_val_te, data_decomposed)
+            else:
+                dataset = datasets_dict[dataset_name](data_cfgs, is_tra_val_te)
             if dataset.data_educed_model:
                 self.cfgs["model_cfgs"]["model_hyperparam"]["nested_model"] = dataset.data_educed_model
                 self.cfgs["training_cfgs"]["batch_size"] = len(dataset.basin_list)

@@ -57,6 +57,7 @@ class ScalerHub(object):
         target_vars: np.ndarray,
         relevant_vars: np.ndarray,
         constant_vars: Optional[np.ndarray] = None,
+        other_vars: Optional[dict] = None,
         data_cfgs: Optional[dict] = None,
         is_tra_val_te: Optional[str] = None,
         data_source: object = None,
@@ -94,6 +95,7 @@ class ScalerHub(object):
                 target_vars,
                 relevant_vars,
                 constant_vars,
+                other_vars,
                 data_cfgs,
                 is_tra_val_te,
                 prcp_norm_cols=prcp_norm_cols,
@@ -235,6 +237,7 @@ class DapengScaler(object):
             train/valid/test
         other_vars
             if more input are needed, list them in other_vars
+
         prcp_norm_cols
             data items which use _prcp_norm method to normalize
         gamma_norm_cols

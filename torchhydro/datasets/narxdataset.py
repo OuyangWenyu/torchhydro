@@ -350,10 +350,9 @@ class StlDataset(BaseDataset):
         """
         # self._pre_load_data()
         self._read_xyc()
-        # seasonal and trend decomposition loess
-
         # normalization
         # norm_x, norm_y, norm_c = self._normalize()
+        # norm_y_trend, norm_y_season, norm_y_residuals = self._normalize_signal_series()
         # self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)  # deal with nan value
         # self._trans2nparr()
         # self.x = np.concatenate((self.x, self.y), axis=2)
@@ -399,9 +398,26 @@ class StlDataset(BaseDataset):
         )
         # c
         data_attr_ds = self.data_decomposed[2]
+        # y_decomposed  output  streamflow
+        y_trend_ds = self.data_decomposed[3].trend
+        y_season_ds = self.data_decomposed[3].season
+        y_residuals_ds = self.data_decomposed[3].residuals
         self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
             data_forcing_ds_, data_output_ds_, data_attr_ds
         )
-        self.x_origin = data_forcing_ds_
-        self.y_origin = data_output_ds_
-        self.c_origin = data_attr_ds
+        self.y_trend, self.y_season, self.y_residuals = self._to_dataarray_with_unit(
+            y_trend_ds, y_season_ds, y_residuals_ds
+        )
+
+
+    def _normalize_signal_series(self):
+        scaler_hub = ScalerHub(
+            self.y_origin,
+            self.x_origin,
+            self.c_origin,
+            data_cfgs=self.data_cfgs,
+            is_tra_val_te=self.is_tra_val_te,
+            data_source=self.data_source,
+        )
+        self.target_scaler = scaler_hub.target_scaler
+        return scaler_hub.x, scaler_hub.y, scaler_hub.c
