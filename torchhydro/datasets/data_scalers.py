@@ -196,6 +196,18 @@ class ScalerHub(object):
                     },
                     dims=["basin", "variable"],
                 )
+            if d_ is None:
+                d = None
+            else:
+                d = xr.DataArray(
+                    d_,
+                    coords={
+                        "basin": other_vars.coords["basin"],
+                        "time": other_vars.coords["time"],
+                        "variable": other_vars.coords["variable"],
+                    },
+                    dims=["basin", "time", "variable"],
+                )
         else:
             raise NotImplementedError(
                 "We don't provide this Scaler now!!! Please choose another one: DapengScaler or key in SCALER_DICT"

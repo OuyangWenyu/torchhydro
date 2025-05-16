@@ -273,8 +273,8 @@ class StlDataset(BaseDataset):
     decomposition -> normalization
     """
     def __init__(
-            self, 
-            data_cfgs: dict, 
+            self,
+            data_cfgs: dict,
             is_tra_val_te: str,
             data_decomposed,
     ):
@@ -285,7 +285,7 @@ class StlDataset(BaseDataset):
         ----------
         data_cfgs: data configures, setting via console.
         is_tra_val_te: three mode, train, validate and test.
-        data_decomposed: 
+        data_decomposed:
         """
         super(StlDataset, self).__init__(data_cfgs, is_tra_val_te, data_decomposed)
         self.data_cfgs = data_cfgs
@@ -297,6 +297,7 @@ class StlDataset(BaseDataset):
                 "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
             )
         self.data_decomposed = data_decomposed
+        self.y_decomposed = None
         self.y_trend = None
         self.y_season = None
         self.y_residuals = None
@@ -399,22 +400,21 @@ class StlDataset(BaseDataset):
         # c
         data_attr_ds = self.data_decomposed[2]
         # y_decomposed  output  streamflow
-        y_trend_ds = self.data_decomposed[3].trend
-        y_season_ds = self.data_decomposed[3].season
-        y_residuals_ds = self.data_decomposed[3].residuals
+        # y_trend_ds = self.data_decomposed[3].trend
+        # y_season_ds = self.data_decomposed[3].season
+        # y_residuals_ds = self.data_decomposed[3].residuals
+        y_decomposed_ds = self.data_decomposed[3]
         self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
             data_forcing_ds_, data_output_ds_, data_attr_ds
         )
-        self.y_trend, self.y_season, self.y_residuals = self._to_dataarray_with_unit(
-            y_trend_ds, y_season_ds, y_residuals_ds
-        )
+        self.y_decomposed = self._to_dataarray_with_unit(y_decomposed_ds)
 
     def _normalize(self):
         scaler_hub = ScalerHub(
             self.y_origin,
             self.x_origin,
             self.c_origin,
-            self.y_trend,  # 
+            self.y_composed,  #
             data_cfgs=self.data_cfgs,
             is_tra_val_te=self.is_tra_val_te,
             data_source=self.data_source,

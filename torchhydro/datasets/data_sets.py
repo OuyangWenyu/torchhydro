@@ -286,7 +286,12 @@ class BaseDataset(Dataset):
         self.target_scaler = scaler_hub.target_scaler
         return scaler_hub.x, scaler_hub.y, scaler_hub.c
 
-    def _to_dataarray_with_unit(self, data_forcing_ds, data_output_ds, data_attr_ds):
+    def _to_dataarray_with_unit(
+        self,
+        data_forcing_ds: Optional = None,
+        data_output_ds: Optional = None,
+        data_attr_ds: Optional = None,
+    ):
         # trans to dataarray to better use xbatch
         if data_output_ds is not None:
             data_output = self._trans2da_and_setunits(data_output_ds)
