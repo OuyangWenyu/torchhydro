@@ -108,14 +108,14 @@ class ScalerHub(object):
 
         elif scaler_type in SCALER_DICT.keys():
             # TODO: not fully tested, espacially for pbm models
-            all_vars = [target_vars, relevant_vars, constant_vars]  # y, x, c
+            all_vars = [target_vars, relevant_vars, constant_vars, other_vars]  # y, x, c
             for i in range(len(all_vars)):
                 data_tmp = all_vars[i]
                 scaler = SCALER_DICT[scaler_type]()
                 if data_tmp is None:
                     data_norm = None
                 elif data_tmp.ndim == 3:
-                    # for forcings and outputs
+                    # for forcings, outputs and other data(trend, season and residuals decomposed from streamflow)
                     num_instances, num_time_steps, num_features = data_tmp.transpose(
                         "basin", "time", "variable"
                     ).shape
@@ -164,6 +164,7 @@ class ScalerHub(object):
             x_ = norm_dict["relevant_vars"]  # forcing
             y_ = norm_dict["target_vars"]  # streamflow
             c_ = norm_dict["constant_vars"]  # attr
+            d_ = norm_dict["other_vars"]
             # TODO: need more test for real data
             x = xr.DataArray(
                 x_,
@@ -359,7 +360,8 @@ class DapengScaler(object):
 
     def cal_stat_all(self):
         """
-        Calculate statistics of outputs(streamflow etc), and inputs(forcing and attributes)
+        Calculate statistics of outputs(streamflow etc), inputs(forcing and attributes) and other data(decomposed from
+        streamflow, trend, season and residuals now)(optional)
 
         Returns
         -------
@@ -399,6 +401,14 @@ class DapengScaler(object):
         for k in range(len(attr_lst)):
             var = attr_lst[k]
             stat_dict[var] = cal_stat(attr_data.sel(variable=var).to_numpy())
+
+        # other data, only decomposed data by STL now.  trend, season and residuals decomposed from streamflow.
+        if self.data_other is not None:
+            decomposed_item = ["trend", "season", "residuals"]
+            decomposed_data = self.data_other
+            for i in range(len(decomposed_item)):
+                var = decomposed_item[i]
+                stat_dict[var] = cal_stat(decomposed_data.sel(variable=var).to_numpy())
 
         return stat_dict
 
@@ -492,9 +502,9 @@ class DapengScaler(object):
         data = self.data_attr
         data = _trans_norm(data, var_lst, stat_dict, to_norm=to_norm)
         return data
-    
+
     def get_data_other(self, to_norm: bool = True) -> np.array:
-                """
+        """
         Get observation values
 
         Parameters
@@ -509,30 +519,22 @@ class DapengScaler(object):
         np.array
             the output value for modeling
         """
-                
         stat_dict = self.stat_dict
-        data = self.data_target
+        data = self.data_other
         out = xr.full_like(data, np.nan)
         # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
         out.attrs = copy.deepcopy(data.attrs)
-        target_cols = self.data_cfgs["target_cols"]
+        decomposed_item = ["trend", "season", "residuals"]
         if "units" not in out.attrs:
             Warning("The attrs of output data does not contain units")
             out.attrs["units"] = {}
-        for i in range(len(target_cols)):
-            var = target_cols[i]
-            if var in self.prcp_norm_cols:
-                out.loc[dict(variable=var)] = _prcp_norm(
-                    data.sel(variable=var).to_numpy(),
-                    self.mean_prcp,
-                    to_norm=True,
-                )
-            else:
-                out.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()
+        for i in range(len(decomposed_item)):
+            var = decomposed_item[i]
+            out.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()
             out.attrs["units"][var] = "dimensionless"
         out = _trans_norm(
             out,
-            target_cols,
+            decomposed_item,
             stat_dict,
             log_norm_cols=self.log_norm_cols,
             to_norm=to_norm,
@@ -550,6 +552,7 @@ class DapengScaler(object):
             x: 3-d  gages_num*time_num*var_num
             y: 3-d  gages_num*time_num*1
             c: 2-d  gages_num*var_num
+            d: 3-d  gages_num*time_num*3
         """
         x = self.get_data_ts()
         y = self.get_data_obs()
