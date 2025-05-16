@@ -1128,8 +1128,22 @@ def test_stl_decomposition():
         ],
     }
     decompose = Decomposition(data_cfgs)
-    y_decomposed = decompose.stl_decomposition()
-    print(decompose.y_origin.trend.values)
+    y_decomposed, x_origin, y_origin, c_origin = decompose.stl_decomposition()
+    train_data, valid_data, test_data = decompose.split_period()
+    print("y_decomposed")
+    print(y_decomposed)
+    print("x_origin")
+    print(x_origin)
+    print("y_origin")
+    print(y_origin)
+    print("c_origin")
+    print(c_origin)
+    print("train_data")
+    print(train_data)
+    print("valid_data")
+    print(valid_data)
+    print("test_data")
+    print(test_data)
 
 # ============================= test session starts ==============================
 # platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
@@ -1139,16 +1153,103 @@ def test_stl_decomposition():
 # collected 1 item
 
 # test_camelsystl_stl.py Backend tkagg is interactive backend. Turning interactive mode on.
-# [[[ 1657.5405322   1659.64554332  1661.78147701 ...  1279.50200445
-#     1277.90038524  1276.29324847]
-#   [ -890.47223311  -866.76794337  -843.78245719 ... -1178.61205064
-#    -1135.95147072 -1078.9262548 ]
-#   [ -258.06829909  -274.87759996  -301.99901982 ...    95.11004619
-#       47.05108548     7.63300633]]
-
-#  [[  618.5768845    619.22234104   619.83067484 ...   475.61387223
-#      474.89980785   474.20845378]
-#   [ -314.77508338  -300.99073847  -278.73611464 ...  -287.4414776
-#     -181.78505487  -106.68736811]
-#   [  -79.80180112  -128.23160257  -170.0945602  ...  -140.17239463
-#     -247.11475298  -321.52108567]]]
+# pydevd warning: Getting attribute Dataset.imag was slow (took 0.86s)
+# Customize report timeout by setting the `PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT` environment variable to a higher timeout (default is: 0.5s)
+# y_decomposed
+# <xarray.Dataset> Size: 675kB
+# Dimensions:    (basin: 2, time: 12045)
+# Coordinates:
+#   * basin      (basin) <U8 64B '01013500' '01022500'
+#   * time       (time) int64 96kB 370742400000000000 ... 1412035200000000000
+# Data variables:
+#     trend      (basin, time) float64 193kB 1.755e+03 1.756e+03 ... 474.9 474.2
+#     season     (basin, time) float64 193kB -888.6 -859.6 ... -181.8 -106.7
+#     residuals  (basin, time) float64 193kB -64.76 -101.5 ... -247.1 -321.5
+# x_origin
+# <xarray.Dataset> Size: 482kB
+# Dimensions:  (basin: 2, time: 12045)
+# Coordinates:
+#   * basin    (basin) <U8 64B '01013500' '01022500'
+#   * time     (time) datetime64[ns] 96kB 1981-10-01 1981-10-02 ... 2014-09-30
+# Data variables:
+#     prcp     (basin, time) float64 193kB ...
+#     PET      (basin, time) float64 193kB ...
+# y_origin
+# <xarray.Dataset> Size: 289kB
+# Dimensions:     (basin: 2, time: 12045)
+# Coordinates:
+#   * basin       (basin) <U8 64B '01013500' '01022500'
+#   * time        (time) datetime64[ns] 96kB 1981-10-01 1981-10-02 ... 2014-09-30
+# Data variables:
+#     streamflow  (basin, time) float64 193kB 802.0 795.0 857.0 ... 48.0 46.0 46.0
+# c_origin
+# None
+# train_data
+# [<xarray.Dataset> Size: 453kB
+# Dimensions:  (basin: 2, time: 11315)
+# Coordinates:
+#   * basin    (basin) <U8 64B '01013500' '01022500'
+#   * time     (time) datetime64[ns] 91kB 1981-10-01 1981-10-02 ... 2012-09-30
+# Data variables:
+#     prcp     (basin, time) float64 181kB 3.24 8.6 14.18 4.08 ... 0.0 17.04 36.49
+#     PET      (basin, time) float64 181kB 1.056 0.894 0.8233 ... 1.365 1.002, <xarray.Dataset> Size: 272kB
+# Dimensions:     (basin: 2, time: 11315)
+# Coordinates:
+#   * basin       (basin) <U8 64B '01013500' '01022500'
+#   * time        (time) datetime64[ns] 91kB 1981-10-01 1981-10-02 ... 2012-09-30
+# Data variables:
+#     streamflow  (basin, time) float64 181kB 802.0 795.0 857.0 ... 157.0 504.0, None, <xarray.Dataset> Size: 64B
+# Dimensions:    (basin: 2, time: 0)
+# Coordinates:
+#   * basin      (basin) <U8 64B '01013500' '01022500'
+#   * time       (time) int64 0B 
+# Data variables:
+#     trend      (basin, time) float64 0B 
+#     season     (basin, time) float64 0B 
+#     residuals  (basin, time) float64 0B ]
+# valid_data
+# [<xarray.Dataset> Size: 15kB
+# Dimensions:  (basin: 2, time: 365)
+# Coordinates:
+#   * basin    (basin) <U8 64B '01013500' '01022500'
+#   * time     (time) datetime64[ns] 3kB 2012-10-01 2012-10-02 ... 2013-09-30
+# Data variables:
+#     prcp     (basin, time) float64 6kB ...
+#     PET      (basin, time) float64 6kB ..., <xarray.Dataset> Size: 9kB
+# Dimensions:     (basin: 2, time: 365)
+# Coordinates:
+#   * basin       (basin) <U8 64B '01013500' '01022500'
+#   * time        (time) datetime64[ns] 3kB 2012-10-01 2012-10-02 ... 2013-09-30
+# Data variables:
+#     streamflow  (basin, time) float64 6kB 356.0 327.0 304.0 ... 254.0 235.0, None, <xarray.Dataset> Size: 64B
+# Dimensions:    (basin: 2, time: 0)
+# Coordinates:
+#   * basin      (basin) <U8 64B '01013500' '01022500'
+#   * time       (time) int64 0B 
+# Data variables:
+#     trend      (basin, time) float64 0B 
+#     season     (basin, time) float64 0B 
+#     residuals  (basin, time) float64 0B ]
+# test_data
+# [<xarray.Dataset> Size: 15kB
+# Dimensions:  (basin: 2, time: 365)
+# Coordinates:
+#   * basin    (basin) <U8 64B '01013500' '01022500'
+#   * time     (time) datetime64[ns] 3kB 2013-10-01 2013-10-02 ... 2014-09-30
+# Data variables:
+#     prcp     (basin, time) float64 6kB ...
+#     PET      (basin, time) float64 6kB ..., <xarray.Dataset> Size: 9kB
+# Dimensions:     (basin: 2, time: 365)
+# Coordinates:
+#   * basin       (basin) <U8 64B '01013500' '01022500'
+#   * time        (time) datetime64[ns] 3kB 2013-10-01 2013-10-02 ... 2014-09-30
+# Data variables:
+#     streamflow  (basin, time) float64 6kB 710.0 691.0 662.0 ... 48.0 46.0 46.0, None, <xarray.Dataset> Size: 64B
+# Dimensions:    (basin: 2, time: 0)
+# Coordinates:
+#   * basin      (basin) <U8 64B '01013500' '01022500'
+#   * time       (time) int64 0B 
+# Data variables:
+#     trend      (basin, time) float64 0B 
+#     season     (basin, time) float64 0B 
+#     residuals  (basin, time) float64 0B ]

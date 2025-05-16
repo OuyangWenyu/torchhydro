@@ -802,6 +802,11 @@ class STL():
         residuals = residuals_[self.cycle_length:-self.cycle_length]
         post_season = post_season_[self.cycle_length:-self.cycle_length]
         post_residuals = post_residuals_[self.cycle_length:-self.cycle_length]
+        trend = np.around(trend, 2)
+        season = np.around(season, 2)
+        residuals = np.around(residuals, 2)
+        post_season = np.around(post_season, 2)
+        post_residuals = np.around(post_residuals, 2)
         self.trend = trend
         self.season = post_season
         self.residuals = post_residuals
@@ -921,7 +926,11 @@ class Decomposition():
         self.x_origin = None
         self.y_origin = None
         self.c_origin = None
+        self.y_decomposed = None
         self.time = None
+        self.train_data = None
+        self.valid_data = None
+        self.test_data = None
         self._read_xyc_specified_time(self.time_range)
         self.remove_leap_year_data()
 
@@ -1027,9 +1036,12 @@ class Decomposition():
         # self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
         #     data_forcing_ds_, data_output_ds_, data_attr_ds
         # )
-        self.x_origin = data_forcing_ds_
-        self.y_origin = data_output_ds_
-        self.c_origin = data_attr_ds
+        if data_forcing_ds_ is not None:
+            self.x_origin = data_forcing_ds_.copy(deep=True)
+        if data_output_ds_ is not None:
+            self.y_origin = data_output_ds_.copy(deep=True)
+        if data_attr_ds is not None:
+            self.c_origin = data_attr_ds.copy(deep=True)
 
     def remove_leap_year_data(self):
         leap_years = self.pick_leap_year(self.time_range)
@@ -1050,21 +1062,45 @@ class Decomposition():
         for i in range(self.n_basin):
             data = self.y_origin.streamflow.values[i].tolist()
             trend_, season_, residuals_ = stl.decompose(data)  # [:-1]
-            trend.append(trend_)
-            season.append(season_)
-            residuals.append(residuals_)
+            trend.append(trend_[:])
+            season.append(season_[:])
+            residuals.append(residuals_[:])
 
         trend = np.array(trend)
         season = np.array(season)
         residuals = np.array(residuals)
-        # trend_DataArray = xr.DataArray(trend, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
-        # season_DataArray = xr.DataArray(season, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})
-        # residuals_DataArray = xr.DataArray(residuals, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time[:-1]})   # todo
-        # self.y_origin["trend"] = trend_DataArray
-        # self.y_origin["season"] = season_DataArray
-        # self.y_origin["residuals"] = residuals_DataArray
-        self.y_origin["trend"] = xr.DataArray(trend.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time})  # [:-1]
-        self.y_origin["season"] = xr.DataArray(season.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time})
-        self.y_origin["residuals"] = xr.DataArray(residuals.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time})
+        trend_DataArray = xr.DataArray(trend, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'trend', attrs={'units': 'foot^3/s'})
+        season_DataArray = xr.DataArray(season, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'season', attrs={'units': 'foot^3/s'})
+        residuals_DataArray = xr.DataArray(residuals, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'residuals', attrs={'units': 'foot^3/s'})
+        # self.y_origin["trend"] = xr.DataArray(trend.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'trend', attrs={'units': 'foot^3/s'})  # [:-1]
+        # self.y_origin["season"] = xr.DataArray(season.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'season', attrs={'units': 'foot^3/s'})
+        # self.y_origin["residuals"] = xr.DataArray(residuals.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'residuals', attrs={'units': 'foot^3/s'})
+        self.y_decomposed = xr.Dataset({'trend': trend_DataArray,
+                                'season': season_DataArray,
+                                'residuals': residuals_DataArray})
+        return self.y_decomposed, self.x_origin, self.y_origin, self.c_origin
 
-        # return trend, season, residuals
+    def split_period(self):
+        """ """
+        if self.t_range_train is not None:
+            x_origin_train = self.x_origin.sel(time=slice(self.t_range_train[0], self.t_range_train[1]))
+            y_origin_train = self.y_origin.sel(time=slice(self.t_range_train[0], self.t_range_train[1]))
+            c_origin_train = self.c_origin
+            y_decomposed_train = self.y_decomposed.sel(time=slice(self.t_range_train[0], self.t_range_train[1]))
+            self.train_data = [x_origin_train, y_origin_train, c_origin_train, y_decomposed_train]
+
+            if self.t_range_valid is not None:
+                x_origin_valid = self.x_origin.sel(time=slice(self.t_range_valid[0], self.t_range_valid[1]))
+                y_origin_valid = self.y_origin.sel(time=slice(self.t_range_valid[0], self.t_range_valid[1]))
+                c_origin_valid = self.c_origin
+                y_decomposed_valid = self.y_decomposed.sel(time=slice(self.t_range_valid[0], self.t_range_valid[1]))
+                self.valid_data = [x_origin_valid, y_origin_valid, c_origin_valid, y_decomposed_valid]
+
+        if self.t_range_test is not None:
+            x_origin_test = self.x_origin.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))
+            y_origin_test = self.y_origin.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))
+            c_origin_test = self.c_origin
+            y_decomposed_test = self.y_decomposed.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))
+            self.test_data = [x_origin_test, y_origin_test, c_origin_test, y_decomposed_test]
+
+        return self.train_data, self.valid_data, self.test_data

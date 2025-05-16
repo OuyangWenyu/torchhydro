@@ -272,7 +272,12 @@ class StlDataset(BaseDataset):
     a dataset for stl model.
     decomposition -> normalization
     """
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+    def __init__(
+            self, 
+            data_cfgs: dict, 
+            is_tra_val_te: str,
+            data_decomposed,
+    ):
         """
         Initialize the Stl dataset.
 
@@ -280,9 +285,9 @@ class StlDataset(BaseDataset):
         ----------
         data_cfgs: data configures, setting via console.
         is_tra_val_te: three mode, train, validate and test.
-
+        data_decomposed: 
         """
-        super(StlDataset, self).__init__(data_cfgs, is_tra_val_te)
+        super(StlDataset, self).__init__(data_cfgs, is_tra_val_te, data_decomposed)
         self.data_cfgs = data_cfgs
         self._pre_load_data()
         if is_tra_val_te in {"train", "valid", "test"}:
@@ -291,6 +296,7 @@ class StlDataset(BaseDataset):
             raise ValueError(
                 "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
             )
+        self.data_decomposed = data_decomposed
         self.y_trend = None
         self.y_season = None
         self.y_residual = None
@@ -379,86 +385,24 @@ class StlDataset(BaseDataset):
             end time
         """
         # x
-        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            [start_date, end_date],
-            self.data_cfgs["relevant_cols"],
-        )
+        data_forcing_ds_ = self.data_decomposed[0]
         # y
-        data_output_ds_ = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            [start_date, end_date],
-            self.data_cfgs["target_cols"],
-        )
+        data_output_ds_ = self.data_decomposed[1]
         if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
             # this means the data source return a dict with key as time_unit
             # in this BaseDataset, we only support unified time range for all basins, so we chose the first key
             # TODO: maybe this could be refactored better
             data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
             data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
-        # data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
-        #     data_forcing_ds_, data_output_ds_
-        # )
-        # c
-        data_attr_ds = self.data_source.read_attr_xrdataset(
-            self.t_s_dict["sites_id"],
-            self.data_cfgs["constant_cols"],
-            all_number=True,
+        data_forcing_ds_, data_output_ds_ = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
         )
-        # self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
-        #     data_forcing_ds_, data_output_ds_, data_attr_ds
-        # )
+        # c
+        data_attr_ds = self.data_decomposed[2]
+        self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
+            data_forcing_ds_, data_output_ds_, data_attr_ds
+        )
         self.x_origin = data_forcing_ds_
         self.y_origin = data_output_ds_
         self.c_origin = data_attr_ds
 
-    def pick_leap_year(self):
-        start_date = self.t_s_dict["t_final_range"][0]
-        end_date = self.t_s_dict["t_final_range"][1]
-        start = start_date.split("-")
-        end = end_date.split("-")
-        year_start = int(start[0])
-        month_start = int(start[1])
-        year_end = int(end[0])
-        if month_start > 2:
-            year = list(range(year_start + 1, year_end + 1))
-        else:
-            year = list(range(year_start, year_end + 1))
-        leap_year = []
-        month_day = "-02-29"
-        for i in range(len(year)):
-            remainder = year[i] % 4
-            if remainder == 0:
-                year_month_day = str(year[i]) + month_day
-                leap_year.append(year_month_day)
-        return leap_year
-
-    def _stl_decomposition(self):
-        """
-        use seasonal and trend decomposition using loess
-        Returns
-        -------
-
-        """
-        n = len(self.basins)
-        data1 = self.y_origin.streamflow[0]
-        data2 = self.y_origin.streamflow[1]
-        data1 = data1.to_dataframe()
-        data2 = data2.to_dataframe()
-        data1 = self.remove_leap_years(data1)
-        data2 = self.remove_leap_years(data2)
-        data1 = data1.streamflow.values
-        data2 = data2.streamflow.values
-        data1 = data1.tolist()
-        data2 = data2.tolist()
-        yy = data1[:11680]
-        y_stl = stl(yy)
-        trend, season, residuals, post_season, post_residuals = y_stl.decomposition()
-        return yy, trend, season, residuals, post_season, post_residuals
-
-    def remove_leap_years(self, data):
-        leap_years = self.pick_leap_year()
-        n = len(leap_years)
-        for i in range(n):
-            data.drop(axis=0, index=leap_years[i], inplace=True)
-        return data
