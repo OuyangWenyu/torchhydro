@@ -1024,18 +1024,11 @@ class Decomposition():
             # TODO: maybe this could be refactored better
             data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
             data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
-        # data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
-        #     data_forcing_ds_, data_output_ds_
-        # )
-        # c
         data_attr_ds = self.data_source.read_attr_xrdataset(
             self.basin,
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
-        # self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
-        #     data_forcing_ds_, data_output_ds_, data_attr_ds
-        # )
         if data_forcing_ds_ is not None:
             self.x_origin = data_forcing_ds_.copy(deep=True)
         if data_output_ds_ is not None:
@@ -1054,14 +1047,13 @@ class Decomposition():
     def stl_decomposition(self):
         """ """
         # [time, basin, streamflow] -> [time, basin, trend|season|residuals]
-        # n_time = self.y_origin.shape[0]
         trend = []
         season = []
         residuals = []
         stl = STL(frequency=1, cycle_length=365)
         for i in range(self.n_basin):
             data = self.y_origin.streamflow.values[i].tolist()
-            trend_, season_, residuals_ = stl.decompose(data)  # [:-1]
+            trend_, season_, residuals_ = stl.decompose(data)
             trend.append(trend_[:])
             season.append(season_[:])
             residuals.append(residuals_[:])

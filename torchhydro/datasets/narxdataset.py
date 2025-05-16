@@ -405,4 +405,3 @@ class StlDataset(BaseDataset):
         self.x_origin = data_forcing_ds_
         self.y_origin = data_output_ds_
         self.c_origin = data_attr_ds
-
