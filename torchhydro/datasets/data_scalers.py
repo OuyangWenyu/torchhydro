@@ -103,7 +103,7 @@ class ScalerHub(object):
                 pbm_norm=pbm_norm,
                 data_source=data_source,
             )
-            x, y, c = scaler.load_data()
+            x, y, c, d = scaler.load_data()
             self.target_scaler = scaler
 
         elif scaler_type in SCALER_DICT.keys():
@@ -203,6 +203,7 @@ class ScalerHub(object):
         self.x = x
         self.y = y
         self.c = c
+        self.d = d
 
 
 class DapengScaler(object):
@@ -491,6 +492,53 @@ class DapengScaler(object):
         data = self.data_attr
         data = _trans_norm(data, var_lst, stat_dict, to_norm=to_norm)
         return data
+    
+    def get_data_other(self, to_norm: bool = True) -> np.array:
+                """
+        Get observation values
+
+        Parameters
+        ----------
+        rm_nan
+            if true, fill NaN value with 0
+        to_norm
+            if true, perform normalization
+
+        Returns
+        -------
+        np.array
+            the output value for modeling
+        """
+                
+        stat_dict = self.stat_dict
+        data = self.data_target
+        out = xr.full_like(data, np.nan)
+        # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
+        out.attrs = copy.deepcopy(data.attrs)
+        target_cols = self.data_cfgs["target_cols"]
+        if "units" not in out.attrs:
+            Warning("The attrs of output data does not contain units")
+            out.attrs["units"] = {}
+        for i in range(len(target_cols)):
+            var = target_cols[i]
+            if var in self.prcp_norm_cols:
+                out.loc[dict(variable=var)] = _prcp_norm(
+                    data.sel(variable=var).to_numpy(),
+                    self.mean_prcp,
+                    to_norm=True,
+                )
+            else:
+                out.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()
+            out.attrs["units"][var] = "dimensionless"
+        out = _trans_norm(
+            out,
+            target_cols,
+            stat_dict,
+            log_norm_cols=self.log_norm_cols,
+            to_norm=to_norm,
+        )
+        return out
+
 
     def load_data(self):
         """
@@ -506,4 +554,5 @@ class DapengScaler(object):
         x = self.get_data_ts()
         y = self.get_data_obs()
         c = self.get_data_const()
-        return x, y, c
+        d = self.get_data_other()
+        return x, y, c, d

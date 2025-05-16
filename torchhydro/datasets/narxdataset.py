@@ -299,7 +299,7 @@ class StlDataset(BaseDataset):
         self.data_decomposed = data_decomposed
         self.y_trend = None
         self.y_season = None
-        self.y_residual = None
+        self.y_residuals = None
         # load and preprocess data
         self._load_data()
 
@@ -351,7 +351,7 @@ class StlDataset(BaseDataset):
         # self._pre_load_data()
         self._read_xyc()
         # normalization
-        # norm_x, norm_y, norm_c = self._normalize()
+        norm_x, norm_y, norm_c = self._normalize()
         # norm_y_trend, norm_y_season, norm_y_residuals = self._normalize_signal_series()
         # self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)  # deal with nan value
         # self._trans2nparr()
@@ -409,15 +409,15 @@ class StlDataset(BaseDataset):
             y_trend_ds, y_season_ds, y_residuals_ds
         )
 
-
-    def _normalize_signal_series(self):
+    def _normalize(self):
         scaler_hub = ScalerHub(
             self.y_origin,
             self.x_origin,
             self.c_origin,
+            self.y_trend,  # 
             data_cfgs=self.data_cfgs,
             is_tra_val_te=self.is_tra_val_te,
             data_source=self.data_source,
         )
         self.target_scaler = scaler_hub.target_scaler
-        return scaler_hub.x, scaler_hub.y, scaler_hub.c
+        return scaler_hub.x, scaler_hub.y, scaler_hub.c, scaler_hub.d
