@@ -4,6 +4,7 @@ import os
 import pandas as pd
 from torchhydro.datasets.data_sources import data_sources_dict
 from torchhydro.datasets.narxdataset import NarxDataset, StlDataset
+from torchhydro.datasets.mi_stl import Decomposition
 
 
 def test_NarxDataset():
@@ -266,3 +267,120 @@ def test_pick_leap_year():
     print(leap_year)
 # PASSED                          [100%]
 # ['1984-02-29', '1988-02-29', '1992-02-29', '1996-02-29', '2000-02-29', '2004-02-29', '2008-02-29', '2012-02-29']
+
+
+def test_StlDataset():
+    # temp_test_path = r"D:\torchhydro\tests\results\test_camels\stldataset_camelsus"
+    temp_test_path = r"/mnt/d/torchhydro/tests/results/test_camels/stldataset_camelsus"
+    os.makedirs(temp_test_path, exist_ok=True)
+    data_cfgs = {
+        "source_cfgs": {
+            "source_name": "camels_us",
+            "source_path": "camels/camels_us",
+        },
+        "test_path": str(temp_test_path),
+        "object_ids": [
+            "01013500",
+            "01022500",
+            # # "01030500",
+            # # "01031500",
+            # # "01047000",
+            # # "01052500",
+            # # "01054200",
+            # # "01055000",
+            # # "01057000",
+            # # "01073000",
+            # # "01078000",
+            # # "01118300",
+            # # "01121000",
+            # # "01123000",
+            # # "01134500",
+            # # "01137500",
+            # # "01139000",
+            # # "01139800",
+            # # "01142500",
+            # # "01144000",
+            # "02092500",  # 02108000 -> 02092500
+            # "02108000",
+        ],  # Add this line with the actual object IDs
+        "t_range_train": ["1980-10-01", "2012-09-30"],  # Add this line with the actual start and end dates for training.
+        "t_range_valid": ["2012-10-01", "2013-09-30"],
+        "t_range_test": ["2013-10-01", "2014-09-30"],  # Add this line with the actual start and end dates for validation.
+        "relevant_cols": [
+            # List the relevant column names here.
+            "prcp",
+            "PET",
+            # ... other relevant columns ...
+        ],
+        "target_cols": [
+            # List the target column names here.
+            "streamflow",
+            # ... other target columns ...
+        ],
+        "constant_cols": [
+            # "elev_mean",
+            # "slope_mean",
+            # "area_gages2",
+            # "frac_forest",
+            # "lai_max",
+            # "lai_diff",
+            # "dom_land_cover_frac",
+            # "dom_land_cover",
+            # "root_depth_50",
+            # "soil_depth_statsgo",
+            # "soil_porosity",
+            # "soil_conductivity",
+            # "max_water_content",
+            # "geol_1st_class",
+            # "geol_2nd_class",
+            # "geol_porostiy",
+            # "geol_permeability",
+        ],
+        "forecast_history": 0,
+        "warmup_length": 0,
+        "forecast_length": 1095,
+        "min_time_unit": "D",
+        "min_time_interval": 1,
+        "target_rm_nan": True,
+        "relevant_rm_nan": True,
+        "constant_rm_nan": True,
+        # "scaler": "StandardScaler",  # Add the scaler configuration here
+        "scaler": "DapengScaler",
+        "scaler_params": {
+            "prcp_norm_cols": [
+                "streamflow",
+            ],
+            "gamma_norm_cols": [
+                "prcp",
+                "pr",
+                "total_precipitation",
+                "potential_evaporation",
+                "PET",
+                "tsd_pet_ou",
+                "ET_sum",
+                "ssm",
+            ],
+            "pbm_norm": True,
+        },
+        "stat_dict_file": None,  # Added the missing configuration
+        "other_rm_nan": True,
+    }
+    decompose = Decomposition(data_cfgs)
+    train_data, valid_data, test_data = decompose.stl_decomposition()
+    is_tra_val_te = "train"
+    dataset = StlDataset(data_cfgs, is_tra_val_te, train_data)
+    print(dataset)
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# Backend tkagg is interactive backend. Turning interactive mode on.
+# collected 1 item
+
+# test_narxdataset.py Finish Normalization
+
+
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 23.09it/s]
+# <torchhydro.datasets.narxdataset.StlDataset object at 0x7efec6111a90>

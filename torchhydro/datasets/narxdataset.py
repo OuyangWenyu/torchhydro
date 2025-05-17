@@ -412,7 +412,7 @@ class StlDataset(BaseDataset):
         self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
             data_forcing_ds_, data_output_ds_, data_attr_ds
         )
-        self.y_decomposed = self._to_dataarray_with_unit(y_decomposed_ds)
+        self.y_decomposed, _, _ = self._to_dataarray_with_unit(y_decomposed_ds)
 
     def _normalize(self):
         scaler_hub = ScalerHub(
@@ -441,9 +441,9 @@ class StlDataset(BaseDataset):
 
     def _split_decomposed_item(self):
         """ """
-        self.y_trend = self.d.trend
-        self.y_season = self.d.season
-        self.y_residuals = self.d.residuals
-        self.y_trend = self.y_trend.transpose("basin", "time", "variable").to_numpy()
-        self.y_season = self.y_season.transpose("basin", "time", "variable").to_numpy()
-        self.y_residuals = self.y_residuals.transpose("basin", "time", "variable").to_numpy()
+        self.y_trend = self.d[0]
+        self.y_season = self.d[1]
+        self.y_residuals = self.d[2]
+        self.y_trend = self.y_trend.transpose("basin", "time").to_numpy()
+        self.y_season = self.y_season.transpose("basin", "time").to_numpy()
+        self.y_residuals = self.y_residuals.transpose("basin", "time").to_numpy()
