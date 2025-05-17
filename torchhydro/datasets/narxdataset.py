@@ -13,7 +13,6 @@ from torchhydro.datasets.data_utils import (
 )
 from torchhydro.models.basintree import BasinTree
 from torchhydro.datasets.data_scalers import ScalerHub
-from torchhydro.datasets.mi_stl import STL as stl
 
 class NarxDataset(BaseDataset):
     """
@@ -423,18 +422,6 @@ class StlDataset(BaseDataset):
         )
         self.target_scaler = scaler_hub.target_scaler
         return scaler_hub.x, scaler_hub.y, scaler_hub.c, scaler_hub.d
-
-    def _trans2nparr(self):
-        """To make __getitem__ more efficient,
-        we transform x, y, c to numpy array with shape (nsample, nt, nvar)
-        """
-        self.x = self.x.transpose("basin", "time", "variable").to_numpy()
-        self.y = self.y.transpose("basin", "time", "variable").to_numpy()
-        if self.c is not None and self.c.shape[-1] > 0:
-            self.c = self.c.transpose("basin", "variable").to_numpy()
-            self.c_origin = self.c_origin.transpose("basin", "variable").to_numpy()
-        self.x_origin = self.x_origin.transpose("basin", "time", "variable").to_numpy()
-        self.y_origin = self.y_origin.transpose("basin", "time", "variable").to_numpy()
 
     def _split_decomposed_item(self):
         """ """

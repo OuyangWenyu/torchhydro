@@ -78,6 +78,23 @@ class MI_STL_sLSTM(nn.Module):
         super(MI_STL_sLSTM, self).__init__()
         self.slstm = sLSTM(input_size, output_size, hidden_size, num_layers, dropout)
 
+        def forward(self, x):
+            """
+            calculate trend, season and residuals respectively.
+            summate for streamflow.
+            """
+            self.device = x.device
+            n_t, n_basin, n_feature = x.size()
+            trend = x[:, :, 0]
+            season = x[:, :, 1]
+            residuals = x[:, :, 2]
+            y_trend = self.slstm(trend)
+            y_season = self.slstm(season)
+            y_residuals = self.slstm(residuals)
+            y_streamflow = y_trend + y_season + y_residuals
+            return y_streamflow
+
+
 
 class pcLSTMCell(Module):
     r"""

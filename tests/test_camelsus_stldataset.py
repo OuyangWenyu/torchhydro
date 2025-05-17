@@ -46,7 +46,7 @@ def var_t():
     ]
 
 @pytest.fixture
-def arg_camelsus_sltdataset(
+def arg_camelsus_sltLstm(
     var_c,
     var_t,
 ):
@@ -156,8 +156,8 @@ def arg_camelsus_sltdataset(
         which_first_tensor="sequence",
     )
 
-def test_camels_sltdataset(arg_camelsus_sltdataset):
+def test_camels_sltLstm(arg_camelsus_sltLstm):
     config_data = default_config_file()
-    update_cfg(config_data, arg_camelsus_sltdataset)
+    update_cfg(config_data, arg_camelsus_sltLstm)
     train_and_evaluate(config_data)
     print("All processes are finished!")
