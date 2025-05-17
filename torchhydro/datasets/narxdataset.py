@@ -318,22 +318,28 @@ class StlDataset(BaseDataset):
         if not self.train_mode:
             x = self.x[item, :, :]
             y = self.y[item, :, :]
+            y_trend = self.y_trend[item, :, :]
+            y_season = self.y_season[item, :, :]
+            y_residuals = self.y_residuals[item, :, :]
             if self.c is None or self.c.shape[-1] == 0:
-                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+                return torch.from_numpy(x).float(), torch.from_numpy(y).float(), torch.from_numpy(y_trend).float(), torch.from_numpy(y_season).float(), torch.from_numpy(y_residuals).float()
             c = self.c[item, :]
             c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
             xc = np.concatenate((x, c), axis=1)
-            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+            return torch.from_numpy(xc).float(),  torch.from_numpy(y).float(), torch.from_numpy(y_trend).float(), torch.from_numpy(y_season).float(), torch.from_numpy(y_residuals).float()
         basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length
-        x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
-        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx: idx + self.rho + self.horizon, :]
+        y_trend = self.y_trend[basin, idx: idx + self.rho + self.horizon, :]
+        y_season = self.y_season[basin, idx: idx + self.rho + self.horizon, :]
+        y_residuals = self.y_residuals[basin, idx: idx + self.rho + self.horizon, :]
         if self.c is None or self.c.shape[-1] == 0:
-            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            return torch.from_numpy(x).float(), torch.from_numpy(y).float(), torch.from_numpy(y_trend).float(), torch.from_numpy(y_season).float(), torch.from_numpy(y_residuals).float()
         c = self.c[basin, :]
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
         xc = np.concatenate((x, c), axis=1)
-        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float(), torch.from_numpy(y_trend).float(), torch.from_numpy(y_season).float(), torch.from_numpy(y_residuals).float()
 
     def _pre_load_data(self):
         """preload data.
@@ -352,12 +358,11 @@ class StlDataset(BaseDataset):
         # self._pre_load_data()
         self._read_xyc()
         # normalization
-        norm_x, norm_y, norm_c = self._normalize()
-        # norm_y_trend, norm_y_season, norm_y_residuals = self._normalize_signal_series()
-        # self.x, self.y, self.c = self._kill_nan(norm_x, norm_y, norm_c)  # deal with nan value
-        # self._trans2nparr()
-        # self.x = np.concatenate((self.x, self.y), axis=2)
-        # self._create_lookup_table()
+        norm_x, norm_y, norm_c, norm_d = self._normalize()
+        self.x, self.y, self.c, self.d = self._kill_nan(norm_x, norm_y, norm_c, norm_d)  # deal with nan value
+        self._trans2nparr()
+        self._split_decomposed_item()
+        self._create_lookup_table()
 
     def _read_xyc(self):
         """Read x, y, c data from data source
@@ -414,10 +419,31 @@ class StlDataset(BaseDataset):
             self.y_origin,
             self.x_origin,
             self.c_origin,
-            self.y_composed,  #
+            self.y_decomposed,  #
             data_cfgs=self.data_cfgs,
             is_tra_val_te=self.is_tra_val_te,
             data_source=self.data_source,
         )
         self.target_scaler = scaler_hub.target_scaler
         return scaler_hub.x, scaler_hub.y, scaler_hub.c, scaler_hub.d
+
+    def _trans2nparr(self):
+        """To make __getitem__ more efficient,
+        we transform x, y, c to numpy array with shape (nsample, nt, nvar)
+        """
+        self.x = self.x.transpose("basin", "time", "variable").to_numpy()
+        self.y = self.y.transpose("basin", "time", "variable").to_numpy()
+        if self.c is not None and self.c.shape[-1] > 0:
+            self.c = self.c.transpose("basin", "variable").to_numpy()
+            self.c_origin = self.c_origin.transpose("basin", "variable").to_numpy()
+        self.x_origin = self.x_origin.transpose("basin", "time", "variable").to_numpy()
+        self.y_origin = self.y_origin.transpose("basin", "time", "variable").to_numpy()
+
+    def _split_decomposed_item(self):
+        """ """
+        self.y_trend = self.d.trend
+        self.y_season = self.d.season
+        self.y_residuals = self.d.residuals
+        self.y_trend = self.y_trend.transpose("basin", "time", "variable").to_numpy()
+        self.y_season = self.y_season.transpose("basin", "time", "variable").to_numpy()
+        self.y_residuals = self.y_residuals.transpose("basin", "time", "variable").to_numpy()

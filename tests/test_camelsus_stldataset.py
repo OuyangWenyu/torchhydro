@@ -152,6 +152,7 @@ def arg_camelsus_sltdataset(
             # "02092500",  # 02108000 -> 02092500
             # "02108000",
         ],
+        b_decompose=True,
         which_first_tensor="sequence",
     )
 

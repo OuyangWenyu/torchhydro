@@ -166,6 +166,7 @@ def default_config_file():
             "constant_only": False,
             # more other cols, use dict to express!
             "other_cols": None,
+            "other_rm_nan": True,
             # only numerical scaler: for categorical vars, they are transformed to numerical vars when reading them
             "scaler": "StandardScaler",
             # Some parameters for the chosen scaler function, default is DapengScaler's

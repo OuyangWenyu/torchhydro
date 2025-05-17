@@ -408,7 +408,13 @@ class BaseDataset(Dataset):
         result.attrs["units"] = units_dict
         return result
 
-    def _kill_nan(self, x, y, c):
+    def _kill_nan(
+        self,
+        x,
+        y,
+        c,
+        d: Optional = None,
+    ):
         data_cfgs = self.data_cfgs
         y_rm_nan = data_cfgs["target_rm_nan"]
         x_rm_nan = data_cfgs["relevant_rm_nan"]
@@ -426,6 +432,13 @@ class BaseDataset(Dataset):
         warn_if_nan(x, nan_mode="all")
         warn_if_nan(y, nan_mode="all")
         warn_if_nan(c, nan_mode="all")
+        if d is not None:
+            d_rm_nan = data_cfgs["other_rm_nan"]
+            if d_rm_nan:
+                _fill_gaps_da(d, fill_nan="mean")
+                warn_if_nan(d)
+            warn_if_nan(d, nan_mode="all")
+            return x, y, c, d
         return x, y, c
 
     def _create_lookup_table(self):
