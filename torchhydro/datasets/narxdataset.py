@@ -318,9 +318,9 @@ class StlDataset(BaseDataset):
         if not self.train_mode:
             x = self.x[item, :, :]
             y = self.y[item, :, :]
-            y_trend = self.y_trend[item, :, :]
-            y_season = self.y_season[item, :, :]
-            y_residuals = self.y_residuals[item, :, :]
+            y_trend = self.y_trend[item, :]
+            y_season = self.y_season[item, :]
+            y_residuals = self.y_residuals[item, :]
             if self.c is None or self.c.shape[-1] == 0:
                 return torch.from_numpy(x).float(), torch.from_numpy(y).float(), torch.from_numpy(y_trend).float(), torch.from_numpy(y_season).float(), torch.from_numpy(y_residuals).float()
             c = self.c[item, :]
@@ -331,9 +331,9 @@ class StlDataset(BaseDataset):
         warmup_length = self.warmup_length
         x = self.x[basin, idx - warmup_length: idx + self.rho + self.horizon, :]
         y = self.y[basin, idx: idx + self.rho + self.horizon, :]
-        y_trend = self.y_trend[basin, idx: idx + self.rho + self.horizon, :]
-        y_season = self.y_season[basin, idx: idx + self.rho + self.horizon, :]
-        y_residuals = self.y_residuals[basin, idx: idx + self.rho + self.horizon, :]
+        y_trend = self.y_trend[basin, idx: idx + self.rho + self.horizon]
+        y_season = self.y_season[basin, idx: idx + self.rho + self.horizon]
+        y_residuals = self.y_residuals[basin, idx: idx + self.rho + self.horizon]
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float(), torch.from_numpy(y_trend).float(), torch.from_numpy(y_season).float(), torch.from_numpy(y_residuals).float()
         c = self.c[basin, :]
@@ -405,9 +405,6 @@ class StlDataset(BaseDataset):
         # c
         data_attr_ds = self.data_decomposed[2]
         # y_decomposed  output  streamflow
-        # y_trend_ds = self.data_decomposed[3].trend
-        # y_season_ds = self.data_decomposed[3].season
-        # y_residuals_ds = self.data_decomposed[3].residuals
         y_decomposed_ds = self.data_decomposed[3]
         self.x_origin, self.y_origin, self.c_origin = self._to_dataarray_with_unit(
             data_forcing_ds_, data_output_ds_, data_attr_ds
