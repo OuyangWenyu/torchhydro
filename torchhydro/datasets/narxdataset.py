@@ -287,7 +287,7 @@ class StlDataset(BaseDataset):
         is_tra_val_te: three mode, train, validate and test.
         data_decomposed:
         """
-        super(StlDataset, self).__init__(data_cfgs, is_tra_val_te, data_decomposed)
+        super(StlDataset, self).__init__(data_cfgs, is_tra_val_te)
         self.data_cfgs = data_cfgs
         self._pre_load_data()
         if is_tra_val_te in {"train", "valid", "test"}:

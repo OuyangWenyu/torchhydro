@@ -84,7 +84,7 @@ class ScalerHub(object):
             other optional parameters for ScalerHub
         """
         self.data_cfgs = data_cfgs
-        norm_keys = ["target_vars", "relevant_vars", "constant_vars"]  # y, x, c
+        norm_keys = ["target_vars", "relevant_vars", "constant_vars", "other_vars"]  # y, x, c
         norm_dict = {}
         scaler_type = data_cfgs["scaler"]
         if scaler_type == "DapengScaler":

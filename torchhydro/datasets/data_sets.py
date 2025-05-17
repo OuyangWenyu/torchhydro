@@ -90,7 +90,11 @@ def detect_date_format(date_str):
 class BaseDataset(Dataset):
     """Base data set class to load and preprocess data (batch-first) using PyTorch's Dataset"""
 
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+    def __init__(
+            self, 
+            data_cfgs: dict, 
+            is_tra_val_te: str,
+    ):
         """
         Parameters
         ----------

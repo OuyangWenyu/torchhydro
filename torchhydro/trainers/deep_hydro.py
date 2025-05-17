@@ -587,8 +587,8 @@ class DeepHydro(DeepHydroInterface):
 
     def _decompose_series(self, data_cfgs):
         decompose = Decomposition(data_cfgs)
-        y_decomposed, x_origin, y_origin, c_origin = decompose.stl_decomposition()
-        return y_decomposed, x_origin, y_origin, c_origin
+        train_data, valid_data, test_data = decompose.stl_decomposition()
+        return train_data, valid_data, test_data
 
 class FedLearnHydro(DeepHydro):
     """Federated Learning Hydrological DL model"""
