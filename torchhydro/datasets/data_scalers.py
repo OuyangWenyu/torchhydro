@@ -569,5 +569,7 @@ class DapengScaler(object):
         x = self.get_data_ts()
         y = self.get_data_obs()
         c = self.get_data_const()
-        d = self.get_data_other()
-        return x, y, c, d
+        if self.data_other is not None:
+            d = self.get_data_other()
+            return x, y, c, d
+        return x, y, c
