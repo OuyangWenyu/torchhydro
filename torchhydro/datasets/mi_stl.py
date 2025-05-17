@@ -977,7 +977,6 @@ class Decomposition():
             year = list(range(year_start + 1, year_end + 1))
         else:
             year = list(range(year_start, year_end + 1))
-        # year = list(range(year_start, year_end + 1))
         leap_year = []
         month_day = "-02-29"
         for i in range(len(year)):
@@ -1066,14 +1065,10 @@ class Decomposition():
         trend_DataArray = xr.DataArray(trend, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'trend', attrs=self.attrs)
         season_DataArray = xr.DataArray(season, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'season', attrs=self.attrs)
         residuals_DataArray = xr.DataArray(residuals, dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'residuals', attrs=self.attrs)
-        # self.y_origin["trend"] = xr.DataArray(trend.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'trend', attrs={'units': 'foot^3/s'})  # [:-1]
-        # self.y_origin["season"] = xr.DataArray(season.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'season', attrs={'units': 'foot^3/s'})
-        # self.y_origin["residuals"] = xr.DataArray(residuals.copy(), dims=['basin', 'time'], coords={'basin': self.basin, 'time': self.time}, name = 'residuals', attrs={'units': 'foot^3/s'})
         self.y_decomposed = xr.Dataset({'trend': trend_DataArray,
                                 'season': season_DataArray,
                                 'residuals': residuals_DataArray})
         
-        # return self.y_decomposed, self.x_origin, self.y_origin, self.c_origin
         return self.split_period()
 
     def split_period(self):
