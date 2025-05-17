@@ -1042,7 +1042,8 @@ class Decomposition():
         leap_years = self.pick_leap_year(self.time_range)
         n_leap_years = len(leap_years)
         for i in range(n_leap_years):
-            self.x_origin = self.x_origin.drop_sel(time=leap_years[i])
+            if self.x_origin is not None:
+                self.x_origin = self.x_origin.drop_sel(time=leap_years[i])
             self.y_origin = self.y_origin.drop_sel(time=leap_years[i])
         self.time = self.y_origin.time
         self.attrs = self.y_origin.attrs
@@ -1076,21 +1077,30 @@ class Decomposition():
     def split_period(self):
         """split data into train, valid and test period"""
         if self.t_range_train is not None:
-            x_origin_train = self.x_origin.sel(time=slice(self.t_range_train[0], self.t_range_train[1]))
+            if self.x_origin is not None:
+                x_origin_train = self.x_origin.sel(time=slice(self.t_range_train[0], self.t_range_train[1]))
+            else:
+                x_origin_train = None
             y_origin_train = self.y_origin.sel(time=slice(self.t_range_train[0], self.t_range_train[1]))
             c_origin_train = self.c_origin
             y_decomposed_train = self.y_decomposed.sel(time=slice(self.t_range_train[0], self.t_range_train[1]))
             self.train_data = [x_origin_train, y_origin_train, c_origin_train, y_decomposed_train]
 
             if self.t_range_valid is not None:
-                x_origin_valid = self.x_origin.sel(time=slice(self.t_range_valid[0], self.t_range_valid[1]))
+                if self.x_origin is not None:
+                    x_origin_valid = self.x_origin.sel(time=slice(self.t_range_valid[0], self.t_range_valid[1]))
+                else:
+                    x_origin_valid = None
                 y_origin_valid = self.y_origin.sel(time=slice(self.t_range_valid[0], self.t_range_valid[1]))
                 c_origin_valid = self.c_origin
                 y_decomposed_valid = self.y_decomposed.sel(time=slice(self.t_range_valid[0], self.t_range_valid[1]))
                 self.valid_data = [x_origin_valid, y_origin_valid, c_origin_valid, y_decomposed_valid]
 
         if self.t_range_test is not None:
-            x_origin_test = self.x_origin.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))
+            if self.x_origin is not None:
+                x_origin_test = self.x_origin.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))
+            else:
+                x_origin_test = None
             y_origin_test = self.y_origin.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))
             c_origin_test = self.c_origin
             y_decomposed_test = self.y_decomposed.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))

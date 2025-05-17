@@ -308,8 +308,8 @@ def test_StlDataset():
         "t_range_test": ["2013-10-01", "2014-09-30"],  # Add this line with the actual start and end dates for validation.
         "relevant_cols": [
             # List the relevant column names here.
-            "prcp",
-            "PET",
+            # "prcp",
+            # "PET",
             # ... other relevant columns ...
         ],
         "target_cols": [
@@ -370,6 +370,7 @@ def test_StlDataset():
     is_tra_val_te = "train"
     dataset = StlDataset(data_cfgs, is_tra_val_te, train_data)
     print(dataset)
+    
 # ============================= test session starts ==============================
 # platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
 # rootdir: /home/yulili/code/torchhydro/tests
