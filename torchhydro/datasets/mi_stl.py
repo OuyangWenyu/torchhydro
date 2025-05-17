@@ -21,7 +21,7 @@ class STL():
         cycle_length,
         no: int = 1,
         ni: int = 1,
-        ns: int = 33,
+        ns: int = 33,  # todo:
         nl: int = 365,
         nt: int = 421,
         n_p: int = 365,
@@ -41,10 +41,11 @@ class STL():
         self.mutation = None
         self.cycle_subseries = None
         self.cycle_length = cycle_length
+        self.n_cycle = None
         self.extend_x = None
         self.no = no  # window width, span
         self.ni = ni  # need to be odd
-        self.ns = ns  # odd >=7
+        self.ns = ns  # odd >=7   # todo:
         self.nl = nl  #
         self.nt = nt  # 1 or 2
         self.n_p = n_p  #
@@ -65,6 +66,7 @@ class STL():
     ):
         self.x = x
         self.length = len(x)
+        self.n_cycle = self.length / self.cycle_length
         self.extend_x = self._extend_original_series(self.x)
         self.cycle_subseries = None
         self.trend = None
@@ -682,7 +684,7 @@ class STL():
         lowf = np.array(lowf4)
         # season = cycle_v[self.cycle_length:-self.cycle_length] - lowf[self.cycle_length:-self.cycle_length]
         season = cycle_v - lowf
-        
+
 
         # 5 deseasonalizing
         trend = np.array(self.extend_x) - season
@@ -1068,7 +1070,7 @@ class Decomposition():
         self.y_decomposed = xr.Dataset({'trend': trend_DataArray,
                                 'season': season_DataArray,
                                 'residuals': residuals_DataArray})
-        
+
         return self.split_period()
 
     def split_period(self):
