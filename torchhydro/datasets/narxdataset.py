@@ -416,8 +416,8 @@ class StlDataset(BaseDataset):
 
     def _normalize(self):
         scaler_hub = ScalerHub(
-            self.x_origin,
             self.y_origin,
+            self.x_origin,
             self.c_origin,
             self.y_decomposed,  #
             data_cfgs=self.data_cfgs,
