@@ -109,7 +109,10 @@ def denormalize4eval(eval_dataloader, output, labels, rolling=False):
         predicted data and observed data
     """
     target_scaler = eval_dataloader.dataset.target_scaler
-    target_data = target_scaler.data_target
+    if target_scaler.data_cfgs["b_decompose"]:   # todo:
+        target_data = target_scaler.data_other
+    else:
+        target_data = target_scaler.data_target
     # the units are dimensionless for pure DL models
     units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
     if target_scaler.pbm_norm:

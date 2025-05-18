@@ -354,7 +354,10 @@ class DeepHydro(DeepHydroInterface):
         )
         valid_logs["valid_loss"] = valid_loss
         if self.cfgs["evaluation_cfgs"]["calc_metrics"]:
-            target_col = self.cfgs["data_cfgs"]["target_cols"]
+            if self.cfgs["data_cfgs"]["b_decompose"]:   # todo:
+                target_col = self.cfgs["data_cfgs"]["decomposed_item"]
+            else:
+                target_col = self.cfgs["data_cfgs"]["target_cols"]
             valid_metrics = evaluate_validation(
                 validation_data_loader,
                 valid_preds_np,

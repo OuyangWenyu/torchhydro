@@ -956,7 +956,7 @@ class Decomposition():
             t_range_list.append(t_range_valid)
         if t_range_test is not None:
             t_range_list.append(t_range_test)
-        t_n = len(t_range_list)
+        # t_n = len(t_range_list)
         # for i in range(t_n - 1):
         #     if t_range_list[i][1] != t_range_list[i + 1][0]:
         #         raise ValueError("t_range_list and t_range_list must be equal")

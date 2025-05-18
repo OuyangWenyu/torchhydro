@@ -344,9 +344,12 @@ class DapengScaler(object):
             denormalized predictions
         """
         stat_dict = self.stat_dict
-        target_cols = self.data_cfgs["target_cols"]
-        # if self.data_cfgs["b_decompose"]:   # todo:
-        #     target_cols = ["trend", "season", "residuals"]
+        if self.data_cfgs["b_decompose"]:   # todo:
+            target_cols = self.data_cfgs["decomposed_item"]
+            attrs = self.data_other.attrs
+        else:
+            target_cols = self.data_cfgs["target_cols"]
+            attrs = self.data_target.attrs
         if self.pbm_norm:
             # for pbm's output, its unit is mm/day, so we don't need to recover its unit
             pred = target_values
@@ -358,8 +361,8 @@ class DapengScaler(object):
                 log_norm_cols=self.log_norm_cols,
                 to_norm=False,
             )
-            for i in range(len(self.data_cfgs["target_cols"])):
-                var = self.data_cfgs["target_cols"][i]
+            for i in range(len(target_cols)):
+                var = target_cols[i]
                 if var in self.prcp_norm_cols:
                     pred.loc[dict(variable=var)] = _prcp_norm(
                         pred.sel(variable=var).to_numpy(),
@@ -369,7 +372,7 @@ class DapengScaler(object):
                 else:
                     pred.loc[dict(variable=var)] = pred.sel(variable=var)
         # add attrs for units
-        pred.attrs.update(self.data_target.attrs)
+        pred.attrs.update(attrs)
         return pred.to_dataset(dim="variable")
 
     def cal_stat_all(self):

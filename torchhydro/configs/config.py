@@ -214,6 +214,7 @@ def default_config_file():
             "sampler": None,
             "b_nestedness": False,
             "b_decompose": False,  # whether to decompose the series or not using STL
+            "decomposed_item": ["trend", "season", "residuals"]  # the decomposed item using STL
         },
         "training_cfgs": {
             "master_addr": "localhost",

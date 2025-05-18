@@ -119,7 +119,10 @@ class TrainLogger:
             )
             print(val_log)
             self.tb.add_scalar("ValidLoss", valid_loss, epoch)
-            target_col = self.data_cfgs["target_cols"]
+            if self.data_cfgs["b_decompose"]:   # todo: target_col
+                target_col = self.data_cfgs["decomposed_item"]
+            else:
+                target_col = self.data_cfgs["target_cols"]
             evaluation_metrics = self.evaluation_cfgs["metrics"]
             for i in range(len(target_col)):
                 for evaluation_metric in evaluation_metrics:

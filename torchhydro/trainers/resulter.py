@@ -119,7 +119,10 @@ class Resulter:
 
     def eval_result(self, preds_xr, obss_xr):
         # types of observations
-        target_col = self.cfgs["data_cfgs"]["target_cols"]
+        if self.cfgs["data_cfgs"]["b_decompose"]:   # todo: target_col
+            target_col = self.cfgs["data_cfgs"]["decomposed_item"]
+        else:
+            target_col = self.cfgs["data_cfgs"]["target_cols"]
         evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
         # basin_ids = self.cfgs["data_cfgs"]["object_ids"]
         basin_ids = preds_xr.basin.data.tolist()
