@@ -1,5 +1,12 @@
 """
+Author: Lili Yu
+Date: 2025-03-10 18:00:00
+LastEditTime: 2025-03-10 18:00:00
+LastEditors: Lili Yu
+Description:
 https://gitea.com/shouz/calibration/src/branch/main/calibration/ModelXinanjiang.h
+https://gitea.com/shouz/calibration/src/branch/main/calibration/ParameterOptimizeForSceua.h
+https://github.com/shouz2025/note
 """
 import torch
 from torch import nn

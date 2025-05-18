@@ -1,5 +1,6 @@
 """
 Author: https://gitea.com/shouz
+LastEditors:
 """
 import numpy as np
 import torch
@@ -81,7 +82,7 @@ class Sac4Dpl(nn.Module):
         alztw, the lower layer tension water accumulation on the alterable impervious area, mm.
         uztw, tension water accumulation in the upper layer, mm.
         uzfw, free water accumulation in the upper layer, mm.
-        lztw, sleep video water accumulation in the lower layer, mm.  #
+        lztw, sleep video water accumulation in the lower layer, mm.  #  ##
         lzfs, speed free water accumulation in the lower layer, mm.
         lzfp, slow free water accumulation in the lower layer, mm.
         roimp, runoff of the permanent impervious area, mm.
@@ -100,7 +101,7 @@ class Sac4Dpl(nn.Module):
         auztw, alztw, uztw, uzfw, lztw, lzfs, lzfp, qs, qi, qgs, qgp, mq : torch.Tensor
             the state variables.
         """
-        sac_device = p_and_e.device  #
+        sac_device = p_and_e.device  #  #
 
         n_basin, n_para = parameters.size()
 
@@ -126,10 +127,10 @@ class Sac4Dpl(nn.Module):
             uztw = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
             uzfw = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
             lztw = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(
-                sac_device  #
+                sac_device  #  #
             )
             lzfs = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(
-                sac_device  #
+                sac_device  #  #
             )
             lzfp = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)
             qs = (torch.zeros(n_basin, dtype=torch.float32) + 0.01).to(sac_device)

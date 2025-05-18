@@ -1,7 +1,11 @@
 """
 Author:
 LastEditors:
-generate basin tree.
+Author: Lili Yu
+Date: 2025-04-18 10:00:00
+LastEditTime: 2025-04-18 10:00:00
+LastEditors: Lili Yu
+Description: generate basin tree.
 """
 
 import torch
@@ -18,7 +22,7 @@ class Node:
         self.basin_ds = basin_id  # downstream basin     a node need to attached to a basin of its downsteam when initialization.
         self.basin_us = []  # upstream basin
         self.n_basin_us = 0
-        self.device = None  # ?
+        self.device = None  # ?  #
         self.y_input = torch.Tensor([])
         self.y_output = torch.Tensor([])
 
@@ -30,7 +34,7 @@ class Node:
         return self.n_basin_us
 
     def set_device(self, device):
-        self.device = device  # ?
+        self.device = device  # ?  #
 
     def refresh_y_output(self):
         """refresh output streamflow"""
@@ -91,7 +95,7 @@ class Basin:
         self.cal_order = self.max_order_of_tree - self.basin_order
 
     def set_device(self, device):
-        self.device = device  # ?
+        self.device = device  # ?  #
 
     def set_x_data(self, x):
         self.x = x.to(self.device)

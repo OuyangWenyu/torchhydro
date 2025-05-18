@@ -1,4 +1,10 @@
-"""Narx and NestedNarx model"""
+"""
+Author: Lili Yu
+Date: 2025-04-10 18:00:00
+LastEditTime: 2025-04-10 18:00:00
+LastEditors: Lili Yu
+Description: Narx and NestedNarx model
+"""
 
 import torch
 import torch.nn as nn

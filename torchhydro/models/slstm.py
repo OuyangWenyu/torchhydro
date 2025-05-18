@@ -1,4 +1,10 @@
-"""slstm model"""
+"""
+Author: Lili Yu
+Date: 2025-05-10 18:00:00
+LastEditTime: 2025-05-10 18:00:00
+LastEditors: Lili Yu
+Description: slstm model
+"""
 
 import math
 import torch
@@ -48,8 +54,8 @@ class sLSTM(nn.Module):
         out_lstm, (hn, cn) = self.lstm(x0)
         out = self.linearOut(out_lstm)
         return out
-    
-    
+
+
 
 class MI_STL_sLSTM(nn.Module):
     """
