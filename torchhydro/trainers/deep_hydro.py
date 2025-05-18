@@ -445,6 +445,8 @@ class DeepHydro(DeepHydroInterface):
         pred_xr, obs_xr = denormalize4eval(
             test_dataloader, pred, obs, rolling=evaluation_cfgs["rolling"]
         )
+        # todo: sum trend, season and residuals -> streamflow.
+        
         return pred_xr, obs_xr
 
     def _get_optimizer(self, training_cfgs):
