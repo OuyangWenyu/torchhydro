@@ -422,7 +422,10 @@ class DeepHydro(DeepHydroInterface):
             # so we directly reshape the data rather than a real rolling
             ngrid = self.testdataset.ngrid
             nt = self.testdataset.nt
-            target_len = len(data_cfgs["target_cols"])
+            if data_cfgs["b_decompose"]:
+                target_len = len(data_cfgs["decomposed_item"])
+            else:
+                target_len = len(data_cfgs["target_cols"])
             prec_window = data_cfgs["prec_window"]
             forecast_length = data_cfgs["forecast_length"]
             window_size = prec_window + forecast_length
@@ -442,11 +445,24 @@ class DeepHydro(DeepHydroInterface):
                     obs_[i, j : j + window_size, :] = obs_4d[i, j, :, :]
             pred = pred_.reshape(ngrid, recover_len, target_len)
             obs = obs_.reshape(ngrid, recover_len, target_len)
+
         pred_xr, obs_xr = denormalize4eval(
             test_dataloader, pred, obs, rolling=evaluation_cfgs["rolling"]
         )
-        # todo: sum trend, season and residuals -> streamflow.
-        
+        if data_cfgs["b_decompose"]:
+            pred_streamflow = pred_xr.trend.values + pred_xr.season.values + pred_xr.residuals.values
+            # pred_streamflow = np.sum(pred_streamflow, axis=0)
+            obs_streamflow = obs_xr.trend.values + obs_xr.season.values + obs_xr.residuals.values
+            # obs_streamflow = np.sum(pred_streamflow, axis=0)
+            dims_ = pred_xr.dims
+            coords_ = pred_xr.coords
+            name = data_cfgs["target_cols"][0]
+            attrs_ = pred_xr.attrs
+            pred_streamflow_DataArray = xr.DataArray(pred_streamflow, dims=dims_, coords=coords_, name = name, attrs=attrs_)
+            obs_streamflow_DataArray = xr.DataArray(obs_streamflow, dims=dims_, coords=coords_, name = name, attrs=attrs_)
+            pred_xr = pred_xr.merge(pred_streamflow_DataArray)
+            obs_xr = obs_xr.merge(obs_streamflow_DataArray)
+
         return pred_xr, obs_xr
 
     def _get_optimizer(self, training_cfgs):
