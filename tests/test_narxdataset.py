@@ -308,7 +308,7 @@ def test_StlDataset():
         "t_range_test": ["2013-10-01", "2014-09-30"],  # Add this line with the actual start and end dates for validation.
         "relevant_cols": [
             # List the relevant column names here.
-            # "prcp",
+            "prcp",
             # "PET",
             # ... other relevant columns ...
         ],
@@ -376,12 +376,12 @@ def test_StlDataset():
 # rootdir: /home/yulili/code/torchhydro/tests
 # configfile: ../setup.cfg
 # plugins: mock-3.14.0
-# Backend tkagg is interactive backend. Turning interactive mode on.
 # collected 1 item
 
-# test_narxdataset.py Finish Normalization
+# test_narxdataset.py Backend tkagg is interactive backend. Turning interactive mode on.
+# Finish Normalization
 
 
 #   0%|          | 0/2 [00:00<?, ?it/s]
-# 100%|██████████| 2/2 [00:00<00:00, 23.09it/s]
-# <torchhydro.datasets.narxdataset.StlDataset object at 0x7efec6111a90>
+# 100%|██████████| 2/2 [00:00<00:00, 35.50it/s]
+# <torchhydro.datasets.narxdataset.StlDataset object at 0x7f16ed2ed940>

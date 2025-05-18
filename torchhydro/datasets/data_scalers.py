@@ -345,6 +345,8 @@ class DapengScaler(object):
         """
         stat_dict = self.stat_dict
         target_cols = self.data_cfgs["target_cols"]
+        if self.data_cfgs["b_decompose"]:   # todo:
+            target_cols = ["trend", "season", "residuals"]
         if self.pbm_norm:
             # for pbm's output, its unit is mm/day, so we don't need to recover its unit
             pred = target_values
@@ -382,6 +384,8 @@ class DapengScaler(object):
         """
         # streamflow, et, ssm, etc
         target_cols = self.data_cfgs["target_cols"]
+        # if self.data_cfgs["b_decompose"]:   # todo:
+        #     target_cols = ["trend", "season", "residuals"]
         stat_dict = {}
         for i in range(len(target_cols)):
             var = target_cols[i]
@@ -399,6 +403,8 @@ class DapengScaler(object):
 
         # forcing
         forcing_lst = self.data_cfgs["relevant_cols"]
+        # if self.data_cfgs["b_decompose"]:   # todo:
+        #     forcing_lst = ["trend", "season", "residuals"]
         x = self.data_forcing
         for k in range(len(forcing_lst)):
             var = forcing_lst[k]
@@ -446,6 +452,8 @@ class DapengScaler(object):
         # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
         out.attrs = copy.deepcopy(data.attrs)
         target_cols = self.data_cfgs["target_cols"]
+        # if self.data_cfgs["b_decompose"]:
+        #     target_cols = ["trend", "season", "residuals"]  # todo:
         if "units" not in out.attrs:
             Warning("The attrs of output data does not contain units")
             out.attrs["units"] = {}
@@ -487,6 +495,8 @@ class DapengScaler(object):
         """
         stat_dict = self.stat_dict
         var_lst = self.data_cfgs["relevant_cols"]
+        # if self.data_cfgs["b_decompose"]:
+        #     var_lst = ["trend", "season", "residuals"]  # todo:
         data = self.data_forcing
         data = _trans_norm(
             data, var_lst, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=to_norm

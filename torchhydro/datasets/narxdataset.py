@@ -315,8 +315,8 @@ class StlDataset(BaseDataset):
         class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):
         """
         if not self.train_mode:
-            x = self.b[item, :, :]
-            y = self.b[item, :, :]
+            x = self.d[item, :, :]
+            y = self.d[item, :, :]
             # y_trend = self.y_trend[item, :]
             # y_season = self.y_season[item, :]
             # y_residuals = self.y_residuals[item, :]
@@ -330,8 +330,8 @@ class StlDataset(BaseDataset):
         # , torch.from_numpy(y_trend).float(), torch.from_numpy(y_season).float(), torch.from_numpy(y_residuals).float()
         basin, idx = self.lookup_table[item]
         warmup_length = self.warmup_length
-        x = self.b[basin, idx - warmup_length: idx + self.rho + self.horizon, :]
-        y = self.b[basin, idx: idx + self.rho + self.horizon, :]
+        x = self.d[basin, idx - warmup_length: idx + self.rho + self.horizon, :]
+        y = self.d[basin, idx: idx + self.rho + self.horizon, :]
         # y_trend = self.y_trend[basin, idx: idx + self.rho + self.horizon]
         # y_season = self.y_season[basin, idx: idx + self.rho + self.horizon]
         # y_residuals = self.y_residuals[basin, idx: idx + self.rho + self.horizon]
@@ -416,8 +416,8 @@ class StlDataset(BaseDataset):
 
     def _normalize(self):
         scaler_hub = ScalerHub(
-            self.y_origin,
             self.x_origin,
+            self.y_origin,
             self.c_origin,
             self.y_decomposed,  #
             data_cfgs=self.data_cfgs,

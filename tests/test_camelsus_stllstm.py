@@ -36,7 +36,7 @@ def var_t():
     return [
         # NOTE: prcp must be the first variable
         "prcp",
-        "PET"
+        # "PET"
         # "dayl",
         # "srad",
         # "swe",
@@ -79,8 +79,8 @@ def arg_camelsus_sltLstm(
         # model_name="CpuLSTM",
         model_name="sLSTM",
         model_hyperparam={
-            "input_size": len(var_c) + len(var_t),  # 17 + 7 = 24
-            "output_size": 1,
+            "input_size": 3,  # len(var_c) + len(var_t),  # 17 + 7 = 24  trend, season, residuals
+            "output_size": 3,
             "hidden_size": 256,
         },
         loss_func="RMSESum",
