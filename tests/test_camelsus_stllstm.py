@@ -105,7 +105,7 @@ def arg_camelsus_sltLstm(
         },
         batch_size=2,
         forecast_history=0,
-        forecast_length=30,
+        forecast_length=365,
         var_t=var_t,
         var_c=var_c,
         var_out=["streamflow"],
@@ -114,11 +114,11 @@ def arg_camelsus_sltLstm(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=10,
+        train_epoch=2,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 10,
+            "test_epoch": 2,
         },
         # # the gage_id.txt file is set by the user, it must be the format like:
         # # GAUGE_ID
@@ -162,21 +162,20 @@ def test_camels_sltLstm(arg_camelsus_sltLstm):
     train_and_evaluate(config_data)
     print("All processes are finished!")
 
-
-# Epoch 10 Loss 2.8410 time 42.85 lr 1.0
+# Epoch 2 Loss 2.7986 time 43.89 lr 1.0
 # sLSTM(
 #   (linearIn): Linear(in_features=3, out_features=256, bias=True)
 #   (lstm): LSTM(256, 256, num_layers=10)
 #   (linearOut): Linear(in_features=256, out_features=3, bias=True)
 # )
-# Epoch 10 Valid Loss 2.6992 Valid Metric {'NSE of trend': [-10.742765426635742, -280.1724548339844], 'RMSE of trend': [0.8123769760131836, 0.699028491973877], 
-# 'R2 of trend': [-10.742765426635742, -280.1724548339844], 'KGE of trend': [-0.7173322639514923, -0.7621903570331725], 
-# 'FHV of trend': [-107.58654022216797, -89.39804077148438], 'FLV of trend': [-119.32977294921875, -90.78811645507812], 
-# 'NSE of season': [-0.0001901388168334961, 5.4001808166503906e-05], 'RMSE of season': [1.3842213153839111, 0.3153139352798462], 
-# 'R2 of season': [-0.0001901388168334961, 5.4001808166503906e-05], 'KGE of season': [-0.633294196847848, -0.40856529671440267], 
-# 'FHV of season': [-99.96641540527344, -99.80545043945312], 'FLV of season': [-100.18541717529297, -100.53850555419922], 
-# 'NSE of residuals': [-0.005127072334289551, -0.010450601577758789], 'RMSE of residuals': [1.132514476776123, 0.6893935203552246], 
-# 'R2 of residuals': [-0.005127072334289551, -0.010450601577758789], 'KGE of residuals': [-0.7433606238392234, -0.8154845091379512], 
-# 'FHV of residuals': [-100.05054473876953, -100.07250213623047], 'FLV of residuals': [-99.81097412109375, -99.59794616699219]}
+# Epoch 2 Valid Loss 2.7040 Valid Metric {'NSE of trend': [-12.38329792022705, -236.13333129882812], 'RMSE of trend': [0.8672692775726318, 0.6419553160667419], 
+# 'R2 of trend': [-12.38329792022705, -236.13333129882812], 'KGE of trend': [-0.9011639694661886, -0.5613267276293776], 
+# 'FHV of trend': [-112.68045806884766, -82.27946472167969], 'FLV of trend': [-133.78668212890625, -83.89842987060547], 
+# 'NSE of season': [-0.00021910667419433594, 3.457069396972656e-05], 'RMSE of season': [1.3842414617538452, 0.3153170049190521], 
+# 'R2 of season': [-0.00021910667419433594, 3.457069396972656e-05], 'KGE of season': [-0.6694788902904354, -0.6035367504201312], 
+# 'FHV of season': [-99.99250793457031, -99.9565658569336], 'FLV of season': [-100.03409576416016, -100.09902954101562], 
+# 'NSE of residuals': [-0.004571080207824707, -0.008946776390075684], 'RMSE of residuals': [1.1322011947631836, 0.6888803243637085], 
+# 'R2 of residuals': [-0.004571080207824707, -0.008946776390075684], 'KGE of residuals': [-0.7146822089099494, -0.6529984882004352], 
+# 'FHV of residuals': [-99.88750457763672, -99.83871459960938], 'FLV of residuals': [-100.2201919555664, -100.46831512451172]}
 # Weights sucessfully loaded
 # All processes are finished!
