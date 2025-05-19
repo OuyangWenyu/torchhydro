@@ -908,7 +908,7 @@ class MutualInformation():
             py_ii = np.where(dl_y == y_i)
             py_i = dl_y[py_ii[0], 1]
             mi_i = pxy_i * np.log(pxy_i / (px_i * py_i))
-            mi = mi + mi_i
+            mi = mi + mi_i[0]
 
         self.px = dl_x
         self.py = dl_y

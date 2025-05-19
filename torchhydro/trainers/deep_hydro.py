@@ -451,15 +451,12 @@ class DeepHydro(DeepHydroInterface):
         )
         if data_cfgs["b_decompose"]:
             pred_streamflow = pred_xr.trend.values + pred_xr.season.values + pred_xr.residuals.values
-            # pred_streamflow = np.sum(pred_streamflow, axis=0)
             obs_streamflow = obs_xr.trend.values + obs_xr.season.values + obs_xr.residuals.values
-            # obs_streamflow = np.sum(pred_streamflow, axis=0)
             dims_ = pred_xr.dims
             coords_ = pred_xr.coords
-            name = data_cfgs["target_cols"][0]
-            attrs_ = pred_xr.attrs
-            pred_streamflow_DataArray = xr.DataArray(pred_streamflow, dims=dims_, coords=coords_, name = name, attrs=attrs_)
-            obs_streamflow_DataArray = xr.DataArray(obs_streamflow, dims=dims_, coords=coords_, name = name, attrs=attrs_)
+            name_ = data_cfgs["target_cols"][0]
+            pred_streamflow_DataArray = xr.DataArray(pred_streamflow, dims=dims_, coords=coords_, name = name_)
+            obs_streamflow_DataArray = xr.DataArray(obs_streamflow, dims=dims_, coords=coords_, name = name_)
             pred_xr = pred_xr.merge(pred_streamflow_DataArray)
             obs_xr = obs_xr.merge(obs_streamflow_DataArray)
 

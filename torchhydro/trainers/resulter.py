@@ -119,8 +119,9 @@ class Resulter:
 
     def eval_result(self, preds_xr, obss_xr):
         # types of observations
-        if self.cfgs["data_cfgs"]["b_decompose"]:   # todo: target_col
+        if self.cfgs["data_cfgs"]["b_decompose"]:   
             target_col = self.cfgs["data_cfgs"]["decomposed_item"]
+            target_col = target_col + self.cfgs["data_cfgs"]["target_cols"]
         else:
             target_col = self.cfgs["data_cfgs"]["target_cols"]
         evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
