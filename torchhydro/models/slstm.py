@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Module, Parameter
+from torchhydro.datasets.mi_stl import MutualInformation
 
 class sLSTM(nn.Module):
     """

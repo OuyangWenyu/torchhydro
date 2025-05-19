@@ -854,14 +854,23 @@ class MutualInformation():
         probability
         joint probability
         """
-        self.x = x
-        self.y = y
-        self.length = len(self.x)
+        self.x = None
+        self.y = None
+        self.length = 0
         self.px = 0
         self.py = 0
         self.pxy = 0  # joint probability.
         self.mi = 0  # mutual information
 
+    def reset_mutualinformation(self, x, y):
+        """  """
+        self.x = x
+        self.y = y
+        self.length = len(self.x)
+        self.px = 0
+        self.py = 0
+        self.pxy = 0
+        self.mi = 0
 
     def marginal_probability(
         self,
@@ -892,8 +901,12 @@ class MutualInformation():
 
     def mutual_information(
         self,
+        x = None,
+        y = None,
     ):
         """calculate the mutual information of two discrete variables"""
+        if (x is not None) and (y is not None):
+            self.reset_mutualinformation(x, y)
         dl_x = self.marginal_probability(self.x)
         dl_y = self.marginal_probability(self.y)
         dl_xy = self.joint_probability(self.x, self.y)
@@ -916,7 +929,27 @@ class MutualInformation():
         self.mi = mi
 
         return dl_x, dl_y, dl_xy, mi
+    
+    def time_step(
+        self, 
+        x,
+        n
+    ):
+        """ """
+        n_timestep = 0
+        mi_ = [0]*n
+        for i in range(1, n):
+            x_ = x[i:]
+            y = x[:-i]
+            dl_x, dl_y, dl_xy, mi_i = self.mutual_information(x_, y)
+            mi_[i] = float(mi_i)
+            if i > 1:
+                if mi_i > mi_i0:
+                    n_timestep = i
+                    break
+            mi_i0 = mi_i
 
+        return n_timestep, mi_
 
 class Decomposition():
     """decomposition"""
