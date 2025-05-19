@@ -146,7 +146,8 @@ class DeepHydro(DeepHydroInterface):
         self.b_decompose_data = cfgs["data_cfgs"]["b_decompose"]
         if self.b_decompose_data:
             data_cfgs = cfgs["data_cfgs"]
-            self.train_data, self.valid_data, self.test_data = self._decompose_series(data_cfgs)
+            self.train_data, self.valid_data, self.test_data, self.time_step = self._decompose_series(data_cfgs)
+            self.cfgs["data_cfgs"]["forecast_length"] = self.time_step
         if cfgs["training_cfgs"]["train_mode"]:
             self.traindataset = self.make_dataset("train")
             if cfgs["data_cfgs"]["t_range_valid"] is not None:
@@ -605,8 +606,8 @@ class DeepHydro(DeepHydroInterface):
 
     def _decompose_series(self, data_cfgs):
         decompose = Decomposition(data_cfgs)
-        train_data, valid_data, test_data = decompose.stl_decomposition()
-        return train_data, valid_data, test_data
+        train_data, valid_data, test_data, time_step = decompose.stl_decomposition()
+        return train_data, valid_data, test_data, time_step 
 
 class FedLearnHydro(DeepHydro):
     """Federated Learning Hydrological DL model"""

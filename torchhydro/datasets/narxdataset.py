@@ -4,15 +4,27 @@ import sys
 import re
 import numpy as np
 import torch
+import pandas as pd
 from tqdm import tqdm
-from hydrodatasource.utils.utils import streamflow_unit_conv
+from datetime import datetime, timedelta
 
+from hydrodatasource.utils.utils import streamflow_unit_conv
+from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.data_utils import (
     wrap_t_s_dict,
 )
 from torchhydro.models.basintree import BasinTree
 from torchhydro.datasets.data_scalers import ScalerHub
+
+def detect_date_format(date_str):
+    for date_format in DATE_FORMATS:
+        try:
+            datetime.strptime(date_str, date_format)
+            return date_format
+        except ValueError:
+            continue
+    raise ValueError(f"Unknown date format: {date_str}")
 
 class NarxDataset(BaseDataset):
     """
@@ -333,6 +345,49 @@ class StlDataset(BaseDataset):
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
         xc = np.concatenate((x, c), axis=1)
         return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+
+    @property
+    def nt(self):
+        """length of longest time series in all basins
+
+        Returns
+        -------
+        int
+            number of longest time steps
+        """
+        if isinstance(self.t_s_dict["t_final_range"][0], tuple):
+            trange_type_num = len(self.t_s_dict["t_final_range"])
+            if trange_type_num not in [self.ngrid, 1]:
+                raise ValueError(
+                    "The number of time ranges should be equal to the number of basins "
+                    "if you choose different time ranges for different basins"
+                )
+            earliest_date = None
+            latest_date = None
+            for start_date_str, end_date_str in self.t_s_dict["t_final_range"]:
+                date_format = detect_date_format(start_date_str)
+
+                start_date = datetime.strptime(start_date_str, date_format)
+                end_date = datetime.strptime(end_date_str, date_format)
+
+                if earliest_date is None or start_date < earliest_date:
+                    earliest_date = start_date
+                if latest_date is None or end_date > latest_date:
+                    latest_date = end_date
+            earliest_date = earliest_date.strftime(date_format)
+            latest_date = latest_date.strftime(date_format)
+        else:
+            trange_type_num = 1
+            earliest_date = self.t_s_dict["t_final_range"][0]
+            latest_date = self.t_s_dict["t_final_range"][1]
+        min_time_unit = self.data_cfgs["min_time_unit"]
+        min_time_interval = self.data_cfgs["min_time_interval"]
+        time_step = f"{min_time_interval}{min_time_unit}"
+        s_date = pd.to_datetime(earliest_date)
+        e_date = pd.to_datetime(latest_date)
+        time_series = pd.date_range(start=s_date, end=e_date, freq=time_step)
+        time_series = time_series[~((time_series.month == 2) & (time_series.day == 29))]
+        return len(time_series)
 
     def _pre_load_data(self):
         """preload data.

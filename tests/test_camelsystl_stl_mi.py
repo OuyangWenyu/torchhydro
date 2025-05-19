@@ -1130,7 +1130,7 @@ def test_stl_decomposition():
     decompose = Decomposition(data_cfgs)
     # y_decomposed, x_origin, y_origin, c_origin = decompose.stl_decomposition()
     # train_data, valid_data, test_data = decompose.split_period()
-    train_data, valid_data, test_data = decompose.stl_decomposition()
+    train_data, valid_data, test_data, time_step_mi = decompose.stl_decomposition()
     # print("y_decomposed")
     # print(y_decomposed)
     # print("x_origin")
@@ -1145,15 +1145,9 @@ def test_stl_decomposition():
     print(valid_data)
     print("test_data")
     print(test_data)
+    print("time_step_mi")
+    print(time_step_mi)
 
-# ============================= test session starts ==============================
-# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
-# rootdir: /home/yulili/code/torchhydro/tests
-# configfile: ../setup.cfg
-# plugins: mock-3.14.0
-# collected 1 item
-
-# test_camelsystl_stl.py Backend tkagg is interactive backend. Turning interactive mode on.
 # train_data
 # [<xarray.Dataset> Size: 453kB
 # Dimensions:  (basin: 2, time: 11315)
@@ -1223,6 +1217,8 @@ def test_stl_decomposition():
 #     trend      (basin, time) float64 6kB 1.5e+03 1.498e+03 ... 474.9 474.2
 #     season     (basin, time) float64 6kB -979.3 -929.3 -882.3 ... -181.8 -106.7
 #     residuals  (basin, time) float64 6kB 189.4 122.1 47.9 ... -247.1 -321.5]
+# time_step_mi
+# 8
 
 
 def test_mutual_information_q():
@@ -1263,5 +1259,5 @@ def test_time_step():
     n_timestep, mi_ = mi.time_step(streamflow, n)
     print(n_timestep)
     print(mi_)
-# 4
+# time_step = 4
 # [0, 5.633958429349199, 5.63192183686367, 5.62844013674035, 5.640264980453122, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]

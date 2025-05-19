@@ -105,7 +105,7 @@ def arg_camelsus_sltLstm(
         },
         batch_size=2,
         forecast_history=0,
-        forecast_length=365,
+        forecast_length=5,
         var_t=var_t,
         var_c=var_c,
         var_out=["streamflow"],

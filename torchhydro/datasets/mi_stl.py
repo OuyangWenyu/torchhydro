@@ -937,7 +937,8 @@ class MutualInformation():
                     break
             mi_i0 = mi_i
 
-        return n_timestep, mi_
+        # return n_timestep, mi_
+        return n_timestep
 
 class Decomposition():
     """decomposition"""
@@ -961,8 +962,11 @@ class Decomposition():
         self.train_data = None
         self.valid_data = None
         self.test_data = None
+        self.time_step_mi = 0
         self._read_xyc_specified_time(self.time_range)
         self.remove_leap_year_data()
+        self.time_step_via_mi()
+        
 
     def date_string2number(self, date_str):
         str_list = date_str.split("-")
@@ -1075,6 +1079,23 @@ class Decomposition():
         self.time = self.y_origin.time
         self.attrs = self.y_origin.attrs
 
+    def time_step_via_mi(self):
+        """  """
+        n = 15
+        time_step = 0
+        mi = MutualInformation()
+        x = self.y_origin.streamflow.values.tolist()
+        for i in range(self.n_basin):
+            xx = x[i]
+            n_timestep_i = mi.time_step(xx, n)
+            if i == 0:
+                time_step = n_timestep_i
+            else:
+                if n_timestep_i < time_step:
+                    time_step = n_timestep_i
+
+        self.time_step_mi = time_step
+
     def stl_decomposition(self):
         """ """
         # [time, basin, streamflow] -> [time, basin, trend|season|residuals]
@@ -1133,4 +1154,4 @@ class Decomposition():
             y_decomposed_test = self.y_decomposed.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))
             self.test_data = [x_origin_test, y_origin_test, c_origin_test, y_decomposed_test]
 
-        return self.train_data, self.valid_data, self.test_data
+        return self.train_data, self.valid_data, self.test_data, self.time_step_mi

@@ -55,55 +55,7 @@ class sLSTM(nn.Module):
         out_lstm, (hn, cn) = self.lstm(x0)
         out = self.linearOut(out_lstm)
         return out
-
-
-
-class MI_STL_sLSTM(nn.Module):
-    """
-
-    """
-    def __init__(
-        self,
-        input_size: int,
-        output_size: int,
-        hidden_size: int,
-        num_layers: int = 10,
-        dropout: float = 0.0,
-        device=None,
-        dtype=None,
-    ):
-        """
-
-        Parameters
-        ----------
-        input_size
-        output_size
-        hidden_size
-        num_layers
-        dropout
-        device
-        dtype
-        """
-        super(MI_STL_sLSTM, self).__init__()
-        self.slstm = sLSTM(input_size, output_size, hidden_size, num_layers, dropout)
-
-        def forward(self, x):
-            """
-            calculate trend, season and residuals respectively.
-            summate for streamflow.
-            """
-            self.device = x.device
-            n_t, n_basin, n_feature = x.size()
-            trend = x[:, :, 0]
-            season = x[:, :, 1]
-            residuals = x[:, :, 2]
-            y_trend = self.slstm(trend)
-            y_season = self.slstm(season)
-            y_residuals = self.slstm(residuals)
-            y_streamflow = y_trend + y_season + y_residuals
-            return y_streamflow
-
-
+    
 
 class pcLSTMCell(Module):
     r"""
@@ -115,7 +67,7 @@ class pcLSTMCell(Module):
             g_t = \tanh(W_{ig} x_t + b_{ig} + W_{hg} h_{t-1} + b_{hg}) \\  input operate
             o_t = \sigma(W_{io} x_t + b_{io} + W_{ho} h_{t-1} + b_{ho} + W_{co} c_{t-1}) \\  output gate
             c_t = f_t \odot c_{t-1} + i_t \odot g_t \\  output, cell state
-            h_t = o_t \odot \tanh(c_t) \\  output，hidden state
+            h_t = o_t \odot \tanh(c_t) \\  output, hidden state
         \end{array}
     """
     def __init__(
