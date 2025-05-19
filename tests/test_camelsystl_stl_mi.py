@@ -1263,3 +1263,5 @@ def test_time_step():
     n_timestep, mi_ = mi.time_step(streamflow, n)
     print(n_timestep)
     print(mi_)
+# 4
+# [0, 5.633958429349199, 5.63192183686367, 5.62844013674035, 5.640264980453122, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]

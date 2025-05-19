@@ -13,7 +13,6 @@ from typing import Dict
 from hydroutils import hydro_time
 
 from torchhydro.datasets.data_sources import data_sources_dict
-from torchhydro.datasets.data_utils import wrap_t_s_dict
 
 class STL():
     """
@@ -51,7 +50,7 @@ class STL():
         self.extend_x = None
         self.no = no  # window width, span
         self.ni = ni  # need to be odd
-        self.ns = ns  # odd >=7   # todo:
+        self.ns = ns  # odd >=7
         self.nl = nl  #
         self.nt = nt  # 1 or 2
         self.n_p = n_p  #
@@ -92,17 +91,15 @@ class STL():
 
         """
         n_subseries = self.cycle_length
-        len_subseries = int(self.length / n_subseries)  # 4
+        len_subseries = int(self.length / n_subseries)
         subseries = [[]] * n_subseries
         subseries_i = [0] * len_subseries
         for i in range(n_subseries):
             for j in range(len_subseries):
                 index = i + j * n_subseries
-                # subseries_ij = self.x[index, :, :]
                 subseries_ij = x[index]
                 subseries_i[j] = subseries_ij
             subseries[i] = subseries_i[:]
-        # self.cycle_subseries = subseries
         pd_subseries = pd.DataFrame({
             "subseries_" + str(i): subseries[i] for i in range(n_subseries)
         })
@@ -144,7 +141,6 @@ class STL():
     def _de_extend_subseries(self, extend_subseries):
         """remove extend cycle subseries"""
         len_subseries = int(self.length/self.cycle_length)
-        len_extend_subseries = len_subseries + 2
         subseries = [[]] * self.cycle_length
         subseries_i = []
         for i in range(self.cycle_length):
@@ -167,8 +163,8 @@ class STL():
         len_subseries = int(self.length / n_subseries) + 2
         series = []
         series_i = [0]*n_subseries
-        for i in range(len_subseries):  # 18
-            for j in range(n_subseries):  # 365
+        for i in range(len_subseries):
+            for j in range(n_subseries):
                 series_ji = float(subseries[j][i])
                 series_i[j] = series_ji
             series = series + series_i[:]
@@ -240,7 +236,7 @@ class STL():
             q = i_focal
 
         for i in range(width):
-            d_i = abs(i - i_focal)  # focal point of the window  [0, 0.67, 1, 0.67, 0]  total= 2.34  todo: ?
+            d_i = abs(i - i_focal)  # focal point of the window
             u_i = d_i / q
             weight[i] = self.weight_function(u_i, degree)
 
@@ -302,7 +298,6 @@ class STL():
         a = np.matmul(a, Y)
 
         # regressive, estimate value
-        # ii = int(length/2 + 1)  # focal point of the window
         yy = 0
         for i in range(degree+1):
             yy = yy + a[i] * np.power(x[i_focal], i)
@@ -641,14 +636,12 @@ class STL():
         cycle of foliage in the Northern Hemisphere, and one would expect a smooth evolution of this cycle over years.
         """
         # 1 detrending
-        y = (np.array(y) - np.array(trend)).tolist()  # todo:
+        y = (np.array(y) - np.array(trend)).tolist()
 
         # 2 cycle-subseries smoothing
         subseries = self._cycle_subseries(y)
-        # extend_subseries = self._extend_subseries(subseries)
         cycle = []
         for i in range(self.cycle_length):
-            # extend_subseries_i = extend_subseries[i]
             subseries_i = subseries[i]
             sub_rho_weight_i = sub_rho_weight[i]
             extend_subseries_i = self.loess(self.ns, subseries_i, degree=1, rho_weight=sub_rho_weight_i)  # q = ns, d = 1
@@ -672,9 +665,6 @@ class STL():
 
         # 3 low-pass filtering of smoothed cycle-subseries
         lowf1 = self.moving_average_smoothing(self.n_p, cycle_v)  # n_p
-        # lowf12 = self.moving_average_smoothing(self.n_p, cycle_v,True)
-        # lowf1 = np.divide(np.array(lowf11) + np.array(lowf12), 2)
-        # lowf1 = lowf1.tolist()
         lowf2 = self.moving_average_smoothing(self.n_p, lowf1)
         lowf3 = self.moving_average_smoothing(self.n_p, lowf2)
         lowf4 = self.moving_average_smoothing(2 * self.n_p, lowf3)
@@ -688,7 +678,6 @@ class STL():
         # 4 detrending of smoothed cycle-subseries
         cycle_v = np.array(cycle_v)
         lowf = np.array(lowf4)
-        # season = cycle_v[self.cycle_length:-self.cycle_length] - lowf[self.cycle_length:-self.cycle_length]
         season = cycle_v - lowf
 
 
@@ -750,7 +739,6 @@ class STL():
                     trend_ij0 = trend_i0[:]
                     season_ij0 = season_i0[:]
                 trend_i, season_i = self.inner_loop(self.x, trend_ij0, extend_sub_rho_weight, extend_rho_weight)
-                # trend_i, season_i = self.inner_loop(self.x, trend_ij0, rho_weight, rho_weight)
                 if self.ni > 1:
                     t_a = np.max(np.absolute(np.array(trend_ij0)-np.array(trend_i)))
                     t_b = np.max(trend_ij0)
@@ -849,7 +837,7 @@ class STL():
 
 class MutualInformation():
     """mutual information"""
-    def __init__(self, x, y):  #
+    def __init__(self):
         """
         probability
         joint probability
