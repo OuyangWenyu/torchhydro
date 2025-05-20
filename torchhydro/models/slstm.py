@@ -246,3 +246,47 @@ class pcLSTM(Module):
             out[t, :, :] = yt
         return out
 
+class biLSTM(nn.Module):
+    """
+    Bi-directional lstm model.
+    """
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        hidden_size: int,
+        num_layers: int = 10,
+        dropout: float = 0.0,
+        bidirectional: bool = True,
+        device=None,
+        dtype=None,
+    ):
+        """
+
+        Parameters
+        ----------
+        input_size
+        output_size
+        hidden_size
+        num_layers
+        dropout
+        bidirectional
+        device
+        dtype
+        """
+        super(biLSTM, self).__init__()
+        self.linearIn = nn.Linear(input_size, hidden_size)
+        self.lstm = nn.LSTM(
+            hidden_size,
+            hidden_size,
+            num_layers,
+            dropout=dropout,
+            bidirectional: bool = True,
+        )
+        self.linearOut = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        x0 = F.relu(self.linearIn(x))
+        out_lstm, (hn, cn) = self.lstm(x0)
+        out = self.linearOut(out_lstm)
+        return out
