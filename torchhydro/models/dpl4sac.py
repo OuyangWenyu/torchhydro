@@ -372,7 +372,7 @@ class DplAnnSac(nn.Module):
         """
         Differential parameter learning
 
-        z (normalized input) -> ANN + benefit -> param -> + x (not normalized) -> sac -> q
+        z (normalized input) -> ANN +  benefit  -> param -> + x (not normalized) -> sac -> q
 
         Parameters
         ----------
@@ -423,7 +423,7 @@ class DplLstmSac(nn.Module):
         source_book="HF",
     ):
         """
-        Differential Parameter learning model: LSTM -> Param -> SAC
+        Differential Parameter learning model: LSTM + benefit -> Param -> SAC
 
         The principle can be seen here: https://doi.org/10.1038/s41467-021-26107-z
 
@@ -461,7 +461,7 @@ class DplLstmSac(nn.Module):
         """
         Differential parameter learning
 
-        z (normalized input) -> lstm + benefit -> param -> + x (not normalized) -> sac -> q
+        z (normalized input) -> lstm +  benefit  -> param -> + x (not normalized) -> sac -> q
         Parameters will be denormalized in sac model
 
         Parameters
