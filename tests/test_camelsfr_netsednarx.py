@@ -195,7 +195,7 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
 # 100%|██████████| 12/12 [00:17<00:00,  1.60s/it]
 # 100%|██████████| 12/12 [00:17<00:00,  1.48s/it]
 # photographer
-# Epoch 1  Loss  1.0545 time 19.59 lr 1.0                            this=2/3     first     
+# Epoch 1  Loss  1.0545 time 19.59 lr 1.0                            this=2/3 first
 # NestedNarx(
 #   (dl_model): Narx(
 #     (linearIn): Linear(in_features=5, out_features=64, bias=True)
