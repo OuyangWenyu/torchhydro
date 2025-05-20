@@ -1,3 +1,10 @@
+"""
+Author: Lili Yu
+Date: 2025-04-10 18:00:00
+LastEditTime: 2025-04-10 18:00:00
+LastEditors: Lili Yu
+Description: test narxdataset
+"""
 
 import pytest
 import os
@@ -370,7 +377,7 @@ def test_StlDataset():
     is_tra_val_te = "train"
     dataset = StlDataset(data_cfgs, is_tra_val_te, train_data)
     print(dataset)
-    
+
 # ============================= test session starts ==============================
 # platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
 # rootdir: /home/yulili/code/torchhydro/tests

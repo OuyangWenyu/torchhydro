@@ -1,4 +1,10 @@
-"""test slstm model"""
+"""
+Author: Lili Yu
+Date: 2025-04-10 18:00:00
+LastEditTime: 2025-04-10 18:00:00
+LastEditors: Lili Yu
+Description: test slstm model
+"""
 
 import os
 import sys

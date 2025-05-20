@@ -1,3 +1,10 @@
+"""
+Author: Lili Yu
+Date: 2025-03-10 18:00:00
+LastEditTime: 2025-03-10 18:00:00
+LastEditors: Lili Yu
+Description:
+"""
 import os
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING

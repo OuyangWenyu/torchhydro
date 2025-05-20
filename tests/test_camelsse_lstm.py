@@ -1,11 +1,9 @@
 """
-Author: Wenyu Ouyang
-Date: 2022-09-09 14:47:42
-LastEditTime: 2024-11-11 18:33:10
-LastEditors: Wenyu Ouyang
-Description: a script to run experiments for LSTM - CAMELS
-FilePath: \torchhydro\experiments\run_camelslstm_experiments.py
-Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
+Author: Lili Yu
+Date: 2025-03-10 18:00:00
+LastEditTime: 2025-03-10 18:00:00
+LastEditors: Lili Yu
+Description:
 """
 
 import os
@@ -35,7 +33,7 @@ def var_c():
         "DOR",
         "RegVol_m3",
     ]
-    
+
 @pytest.fixture
 def var_t():
     return [

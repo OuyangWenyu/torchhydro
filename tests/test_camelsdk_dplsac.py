@@ -1,4 +1,10 @@
-import os
+"""
+Author: Lili Yu
+Date: 2025-03-10 18:00:00
+LastEditTime: 2025-03-10 18:00:00
+LastEditors: Lili Yu
+Description:
+"""
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 from torchhydro.trainers.trainer import train_and_evaluate
