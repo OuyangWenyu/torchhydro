@@ -482,4 +482,4 @@ class StlDataset(BaseDataset):
             self.c = self.c.transpose("basin", "variable").to_numpy()
             self.c_origin = self.c_origin.transpose("basin", "variable").to_numpy()
         self.x_origin = self.x_origin.transpose("basin", "time", "variable").to_numpy()
-        self.y_origin = self.y_origin.transpose("basin", "time", "variable").to_numpy()        
+        self.y_origin = self.y_origin.transpose("basin", "time", "variable").to_numpy()
