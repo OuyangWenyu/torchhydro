@@ -1,6 +1,7 @@
 
 import os
 import pytest
+cur_path = os.path.abspath(os.path.dirname(__file__))
 
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
@@ -76,7 +77,7 @@ def arg_camelsus_biLstm(
         # model_name="CpuLSTM",
         model_name="biLSTM",
         model_hyperparam={
-            "input_size": 3,  # len(var_c) + len(var_t),  # 17 + 7 = 24  trend, season, residuals
+            "input_size": 3,  # trend, season, residuals
             "output_size": 3,  # trend, season, residuals
             "hidden_size": 256,
         },
@@ -145,8 +146,47 @@ def arg_camelsus_biLstm(
         which_first_tensor="sequence",
     )
 
-def test_camels_biLstm(arg_camelsus_biLstm):
+def test_camelsus_biLstm(arg_camelsus_biLstm):
     config_data = default_config_file()
     update_cfg(config_data, arg_camelsus_biLstm)
     train_and_evaluate(config_data)
     print("All processes are finished!")
+
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# collected 1 item
+
+# test_camelsus_bilstm.py update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Backend tkagg is interactive backend. Turning interactive mode on.
+# Finish Normalization
+
+
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 14.09it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 13.99it/s]
+# Finish Normalization
+
+
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 3231.36it/s]
+# Finish Normalization
+
+
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 9414.82it/s]
+# Torch is using cpu
+# I0521 22:18:13.187000 32641 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmp_jmwxsso
+# I0521 22:18:13.193000 32641 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmp_jmwxsso/_remote_module_non_scriptable.py
+# using 0 workers
+
+#   0%|          | 0/6512 [00:00<?, ?it/s]
+#   0%|          | 0/6512 [00:03<?, ?it/s]
+# F

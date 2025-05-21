@@ -119,11 +119,11 @@ def arg_camelsus_sltLstm(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=10,
+        train_epoch=2,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 10,
+            "test_epoch": 2,
         },
         # # the gage_id.txt file is set by the user, it must be the format like:
         # # GAUGE_ID
@@ -161,7 +161,7 @@ def arg_camelsus_sltLstm(
         which_first_tensor="sequence",
     )
 
-def test_camels_sltLstm(arg_camelsus_sltLstm):
+def test_camelsus_sltLstm(arg_camelsus_sltLstm):
     config_data = default_config_file()
     update_cfg(config_data, arg_camelsus_sltLstm)
     train_and_evaluate(config_data)
