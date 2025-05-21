@@ -1,13 +1,5 @@
-"""
-Author: Lili Yu
-Date: 2025-05-10 18:00:00
-LastEditTime: 2025-05-10 18:00:00
-LastEditors: Lili Yu
-Description: test stldataset
-"""
 
 import os
-import sys
 import pytest
 
 from torchhydro import SETTING
@@ -51,7 +43,7 @@ def var_t():
     ]
 
 @pytest.fixture
-def arg_camelsus_sltLstm(
+def arg_camelsus_biLstm(
     var_c,
     var_t,
 ):
@@ -66,7 +58,7 @@ def arg_camelsus_sltLstm(
     -------
 
     """
-    project_name = os.path.join("test_camels", "mi_stl_slstm_camelsus")
+    project_name = os.path.join("test_camels", "bilstm_camelsus")
     # camels-us time_range: ["1980-01-01", "2014-12-31"]
     train_period = ["1981-10-01", "2012-09-30"]
     valid_period = ["2012-10-01", "2013-09-30"]
@@ -82,7 +74,7 @@ def arg_camelsus_sltLstm(
         },
         ctx=[-1],
         # model_name="CpuLSTM",
-        model_name="sLSTM",
+        model_name="biLSTM",
         model_hyperparam={
             "input_size": 3,  # len(var_c) + len(var_t),  # 17 + 7 = 24  trend, season, residuals
             "output_size": 3,  # trend, season, residuals
@@ -119,20 +111,12 @@ def arg_camelsus_sltLstm(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=10,
+        train_epoch=2,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 10,
+            "test_epoch": 2,
         },
-        # # the gage_id.txt file is set by the user, it must be the format like:
-        # # GAUGE_ID
-        # # 01013500
-        # # 01022500
-        # # ......
-        # # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-        # # gage_id_file = "D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt",
-        # gage_id_file="/mnt/d/minio/waterism/datasets-origin/camels/camels_us/gage_id.txt",
         gage_id=[
             "01013500",
             "01022500",
@@ -161,26 +145,8 @@ def arg_camelsus_sltLstm(
         which_first_tensor="sequence",
     )
 
-def test_camels_sltLstm(arg_camelsus_sltLstm):
+def test_camels_biLstm(arg_camelsus_biLstm):
     config_data = default_config_file()
-    update_cfg(config_data, arg_camelsus_sltLstm)
+    update_cfg(config_data, arg_camelsus_biLstm)
     train_and_evaluate(config_data)
     print("All processes are finished!")
-
-# Epoch 10    Loss    2.2842 time 264.16 lr 1.0              this=1/2
-# sLSTM(
-#   (linearIn): Linear(in_features=3, out_features=256, bias=True)
-#   (lstm): LSTM(256, 256, num_layers=10)
-#   (linearOut): Linear(in_features=256, out_features=3, bias=True)
-# )
-# Epoch 10 Valid Loss 2.7280 Valid Metric {'NSE of trend': [-11.231891632080078, -266.3021545410156], 'RMSE of trend': [0.8315759301185608, 0.6835848093032837],
-# 'R2 of trend': [-11.231891632080078, -266.3021545410156], 'KGE of trend': [-0.8744244809528539, -0.6064935157740088],
-# 'FHV of trend': [-108.46617126464844, -87.94396209716797], 'FLV of trend': [-121.32003021240234, -89.53706359863281],
-# 'NSE of season': [-0.019694805145263672, -0.30830419063568115], 'RMSE of season': [1.3871082067489624, 0.3579482436180115],
-# 'R2 of season': [-0.019694805145263672, -0.30830419063568115], 'KGE of season': [-7.969893955458206, -62.604723275995354],
-# 'FHV of season': [-103.15812683105469, -118.34867858886719], 'FLV of season': [-81.8406753540039, -47.276123046875],
-# 'NSE of residuals': [-0.028864741325378418, -0.06969702243804932], 'RMSE of residuals': [1.1469635963439941, 0.7100309133529663],
-# 'R2 of residuals': [-0.028864741325378418, -0.06969702243804932], 'KGE of residuals': [-1.93554807113162, -2.161503202809358],
-# 'FHV of residuals': [-102.89604949951172, -104.15462493896484], 'FLV of residuals': [-89.35114288330078, -77.45653533935547]}
-# Weights sucessfully loaded
-# All processes are finished!

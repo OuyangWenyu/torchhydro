@@ -9,7 +9,6 @@ Description: test slstm model
 import os
 import sys
 import pytest
-cur_path = os.path.abspath(os.path.dirname(__file__))
 
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg

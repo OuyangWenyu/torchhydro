@@ -281,7 +281,7 @@ class biLSTM(nn.Module):
             hidden_size,
             num_layers,
             dropout=dropout,
-            bidirectional: bool = True,
+            bidirectional=True,
         )
         self.linearOut = nn.Linear(hidden_size, output_size)
 
