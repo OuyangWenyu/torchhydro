@@ -128,7 +128,10 @@ class Basin:
     def set_output(self):
         """outflow to node_ds"""
         try:
-            self.node_ds.y_input = torch.cat((self.node_ds.y_input, torch.unsqueeze(self.output_y[:, :, -1], dim=2)), dim = -1).to(self.node_ds.device)
+            self.node_ds.y_input = torch.cat(
+                (self.node_ds.y_input, torch.unsqueeze(self.output_y[:, :, -1], dim=2)),
+                dim=-1
+            ).to(self.node_ds.device)
         except AttributeError:
             raise AttributeError("'NoneType' object has no attribute 'y_input'")
 

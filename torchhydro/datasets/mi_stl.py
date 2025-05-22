@@ -5,6 +5,7 @@ LastEditTime: 2025-05-10 18:00:00
 LastEditors: Lili Yu
 Description:
 """
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -917,9 +918,9 @@ class MutualInformation():
         self.mi = mi
 
         return dl_x, dl_y, dl_xy, mi
-    
+
     def time_step(
-        self, 
+        self,
         x,
         n
     ):
@@ -966,7 +967,7 @@ class Decomposition():
         self._read_xyc_specified_time(self.time_range)
         self.remove_leap_year_data()
         self.time_step_via_mi()
-        
+
 
     def date_string2number(self, date_str):
         str_list = date_str.split("-")

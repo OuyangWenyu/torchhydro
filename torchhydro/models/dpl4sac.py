@@ -2,6 +2,7 @@
 Author: https://gitea.com/shouz
 LastEditors:
 """
+
 import numpy as np
 import torch
 from torch import nn

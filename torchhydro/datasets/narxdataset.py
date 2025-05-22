@@ -1,4 +1,10 @@
-"""narx model dataset"""
+"""
+Author: Lili Yu
+Date: 2025-05-10 18:00:00
+LastEditTime: 2025-05-10 18:00:00
+LastEditors: Lili Yu
+Description: narx model dataset
+"""
 
 import sys
 import re

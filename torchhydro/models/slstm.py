@@ -54,7 +54,7 @@ class sLSTM(nn.Module):
         out_lstm, (hn, cn) = self.lstm(x0)
         out = self.linearOut(out_lstm)
         return out
-    
+
 
 class pcLSTMCell(Module):
     r"""
@@ -108,7 +108,7 @@ class pcLSTMCell(Module):
         self.b_o = Tensor(hidden_size).fill_(0)
         self.b_c = Tensor(hidden_size).fill_(0)
         # cell stat weight
-        self.c_i = Parameter(Tensor(hidden_size, input_size))   # todo: pay attention to dimension match
+        self.c_i = Parameter(Tensor(hidden_size, input_size))
         self.c_f = Parameter(Tensor(hidden_size, hidden_size))
         self.c_o = Parameter(Tensor(hidden_size, hidden_size))
 
@@ -143,10 +143,6 @@ class pcLSTMCell(Module):
         data space
 
         """
-        # if self.bidirectional:
-        #     num_directions = 2
-        # else:
-        #     num_directions = 1
         batch_size = x.size(0)
         h, c = hx
         if h is None:

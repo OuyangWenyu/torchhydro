@@ -259,7 +259,7 @@ class NestedNarx(nn.Module):
                         if j > 0:
                             # the last/root basin outflow directly, no node_ds.
                             self.basin_trees[i][j][k].set_output()  # basin output
-            # return result
+
             return out
 
 
