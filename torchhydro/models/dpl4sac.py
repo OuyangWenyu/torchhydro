@@ -83,7 +83,7 @@ class Sac4Dpl(nn.Module):
         alztw, the lower layer tension water accumulation on the alterable impervious area, mm.
         uztw, tension water accumulation in the upper layer, mm.
         uzfw, free water accumulation in the upper layer, mm.
-        lztw, sleep video water accumulation in the lower layer, mm.  #  ##
+        lztw, sleep video water accumulation in the lower layer, mm.    #      ##
         lzfs, speed free water accumulation in the lower layer, mm.
         lzfp, slow free water accumulation in the lower layer, mm.
         roimp, runoff of the permanent impervious area, mm.
@@ -450,7 +450,7 @@ class DplLstmSac(nn.Module):
             but remember these ways are only for non-variable parameters
         """
         super(DplLstmSac, self).__init__()
-        self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)
+        self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)     #
         self.pb_model = Sac4Dpl(
             warmup_length,
             source_book=source_book,
