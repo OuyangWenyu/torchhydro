@@ -681,12 +681,10 @@ class STL():
         lowf = np.array(lowf4)
         season = cycle_v - lowf
 
-
         # 5 deseasonalizing
         trend = np.array(self.extend_x) - season
         trend = trend.tolist()
         season = season.tolist()
-
 
         # 6 Trend Smoothing
         trend = self.loess(self.nt, trend, degree=1, rho_weight=rho_weight)
@@ -790,7 +788,7 @@ class STL():
         return season
 
     def decomposition(self):
-        """"""
+        """  """
         trend_, season_, residuals_ = self.outer_loop()
         post_season_ = self.season_post_smoothing(season_)
         post_residuals_ = np.array(self.extend_x) - trend_ - post_season_
@@ -814,23 +812,13 @@ class STL():
         x,
     ):
         """
-
+        decomposition function.
         Parameters
         ----------
         x
-        frequency
-        cycle_length
-        no
-        ni
-        ns
-        nl
-        nt
-        n_p
-        degree
-
         Returns
         -------
-
+        trend, season and residuals item.
         """
         self.reset_stl(x)
         self.decomposition()
@@ -942,11 +930,16 @@ class MutualInformation():
         return n_timestep
 
 class Decomposition():
-    """decomposition"""
+    """
+    decomposition class.
+    """
     def __init__(
         self,
         data_cfgs: Dict,
     ):
+        """
+        initiate a decomposition object.
+        """
         self.data_cfgs = data_cfgs
         self.t_range_train = data_cfgs["t_range_train"]
         self.t_range_valid = data_cfgs["t_range_valid"]
@@ -1000,6 +993,9 @@ class Decomposition():
         self,
         time_range: list
     ):
+        """
+        pick out the leap years within a time range.
+        """
         start_date = time_range[0]
         end_date = time_range[-1]
         start = self.date_string2number(start_date)
@@ -1071,6 +1067,9 @@ class Decomposition():
             self.c_origin = data_attr_ds.copy(deep=True)
 
     def remove_leap_year_data(self):
+        """
+        remove the data in February 29th per leap year.
+        """
         leap_years = self.pick_leap_year(self.time_range)
         n_leap_years = len(leap_years)
         for i in range(n_leap_years):
@@ -1081,7 +1080,9 @@ class Decomposition():
         self.attrs = self.y_origin.attrs
 
     def time_step_via_mi(self):
-        """  """
+        """
+        calculate time step of a time series via mutual information value.
+        """
         n = 15
         time_step = 0
         mi = MutualInformation()
@@ -1098,8 +1099,11 @@ class Decomposition():
         self.time_step_mi = time_step
 
     def stl_decomposition(self):
-        """ """
-        # [time, basin, streamflow] -> [time, basin, trend|season|residuals]
+        """
+        decompose time series via stl method.
+
+        [time, basin, streamflow] -> [time, basin, trend|season|residuals]
+        """
         trend = []
         season = []
         residuals = []
@@ -1120,8 +1124,12 @@ class Decomposition():
         self.y_decomposed = xr.Dataset({'trend': trend_DataArray,
                                 'season': season_DataArray,
                                 'residuals': residuals_DataArray})
+        
+        # split data into train, valid and test period
+        self.split_period()
 
-        return self.split_period()
+        # return rain, valid, test dataset and time step via mutual information.
+        return self.train_data, self.valid_data, self.test_data, self.time_step_mi
 
     def split_period(self):
         """split data into train, valid and test period"""
@@ -1154,5 +1162,3 @@ class Decomposition():
             c_origin_test = self.c_origin
             y_decomposed_test = self.y_decomposed.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))
             self.test_data = [x_origin_test, y_origin_test, c_origin_test, y_decomposed_test]
-
-        return self.train_data, self.valid_data, self.test_data, self.time_step_mi
