@@ -4,6 +4,7 @@ Date: 2025-04-10 18:00:00
 LastEditTime: 2025-04-10 18:00:00
 LastEditors: Lili Yu
 Description: Narx and NestedNarx model
+https://iwaponline.com/hr/article/52/6/1173/83395/A-new-Xin-anjiang-and-Sacramento-combined-rainfall
 """
 
 import torch

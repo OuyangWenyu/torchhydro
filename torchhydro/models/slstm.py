@@ -4,6 +4,7 @@ Date: 2025-05-10 18:00:00
 LastEditTime: 2025-05-10 18:00:00
 LastEditors: Lili Yu
 Description: slstm model
+https://kns.cnki.net/kcms2/article/abstract?v=fSCzX0TVvUiDbeilzEuM5TPhvRQk3Nr469oz_JZL3gbqkM9vTyUmexHRP3CZT8QHoqTVKe8k9W2WcDLX44gw-bjEfsxo5uvZHO2GGIuz1-QN37JGanTEcQ4d5YzPW5jNgN2u-dQAgSbBV7yBKyo2X45ZtZkH9YJgDSoP6XbWuPsvLxPrDQmOJg==&uniplatform=NZKPT&language=CHS
 """
 
 import math
