@@ -251,7 +251,6 @@ class biLSTM(nn.Module):
         input_size: int,
         output_size: int,
         hidden_size: int,
-        num_layers: int = 10,
         dropout: float = 0.0,
         bidirectional: bool = True,
         device=None,
@@ -276,7 +275,6 @@ class biLSTM(nn.Module):
         self.lstm = nn.LSTM(
             hidden_size,
             hidden_size,
-            num_layers,
             dropout=dropout,
             bidirectional=bidirectional,
         )
