@@ -1,7 +1,6 @@
 
 import os
 import pytest
-cur_path = os.path.abspath(os.path.dirname(__file__))
 
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
@@ -170,23 +169,50 @@ def test_camelsus_biLstm(arg_camelsus_biLstm):
 
 
 #   0%|          | 0/2 [00:00<?, ?it/s]
-# 100%|██████████| 2/2 [00:00<00:00, 14.09it/s]
-# 100%|██████████| 2/2 [00:00<00:00, 13.99it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 27.07it/s]
 # Finish Normalization
 
 
 #   0%|          | 0/2 [00:00<?, ?it/s]
-# 100%|██████████| 2/2 [00:00<00:00, 3231.36it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 10305.42it/s]
 # Finish Normalization
 
 
 #   0%|          | 0/2 [00:00<?, ?it/s]
-# 100%|██████████| 2/2 [00:00<00:00, 9414.82it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 18315.74it/s]
 # Torch is using cpu
-# I0521 22:18:13.187000 32641 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmp_jmwxsso
-# I0521 22:18:13.193000 32641 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmp_jmwxsso/_remote_module_non_scriptable.py
+# I0522 15:21:07.267000 27141 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpq3ii5d78
+# I0522 15:21:07.271000 27141 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpq3ii5d78/_remote_module_non_scriptable.py
 # using 0 workers
-
-#   0%|          | 0/6512 [00:00<?, ?it/s]
-#   0%|          | 0/6512 [00:03<?, ?it/s]
-# F
+# Epoch 1 Loss 2.3139 time 965.41 lr 1.0
+# biLSTM(
+#   (linearIn): Linear(in_features=3, out_features=256, bias=True)
+#   (lstm): LSTM(256, 256, num_layers=10, bidirectional=True)
+#   (linearOut): Linear(in_features=512, out_features=3, bias=True)
+# )
+# Epoch 1 Valid Loss 2.7251 Valid Metric {'NSE of trend': [-12.647359848022461, -229.62474060058594], 'RMSE of trend': [0.878373920917511, 0.6349567174911499], 
+# 'R2 of trend': [-12.647359848022461, -229.62474060058594], 'KGE of trend': [-0.8100809992014595, -0.7267826093028262], 
+# 'FHV of trend': [-113.24185180664062, -81.14249420166016], 'FLV of trend': [-133.34332275390625, -83.63639831542969], 
+# 'NSE of season': [-0.01040506362915039, -0.1497095823287964], 'RMSE of season': [1.3807753324508667, 0.3355520963668823], 
+# 'R2 of season': [-0.01040506362915039, -0.1497095823287964], 'KGE of season': [-5.604892748868133, -43.33410522027678], 
+# 'FHV of season': [-102.18177795410156, -112.67562866210938], 'FLV of season': [-87.43279266357422, -63.515438079833984], 
+# 'NSE of residuals': [-0.029011964797973633, -0.07007730007171631], 'RMSE of residuals': [1.147045612335205, 0.7101570963859558], 
+# 'R2 of residuals': [-0.029011964797973633, -0.07007730007171631], 'KGE of residuals': [-1.932237100620656, -2.2113554020398123], 
+# 'FHV of residuals': [-102.90813446044922, -104.17162322998047], 'FLV of residuals': [-89.30455780029297, -77.36113739013672]}
+# Epoch 2 Loss 2.2923 time 878.89 lr 1.0
+# biLSTM(
+#   (linearIn): Linear(in_features=3, out_features=256, bias=True)
+#   (lstm): LSTM(256, 256, num_layers=10, bidirectional=True)
+#   (linearOut): Linear(in_features=512, out_features=3, bias=True)
+# )
+# Epoch 2 Valid Loss 2.7167 Valid Metric {'NSE of trend': [-10.699970245361328, -281.1546630859375], 'RMSE of trend': [0.8132938146591187, 0.7023196220397949], 
+# 'R2 of trend': [-10.699970245361328, -281.1546630859375], 'KGE of trend': [-0.7228441958486531, -0.7242270631235213], 
+# 'FHV of trend': [-106.57161712646484, -90.57194519042969], 'FLV of trend': [-116.65676879882812, -91.79499816894531], 
+# 'NSE of season': [-0.017010807991027832, -0.26401567459106445], 'RMSE of season': [1.3852814435958862, 0.35183748602867126], 
+# 'R2 of season': [-0.017010807991027832, -0.26401567459106445], 'KGE of season': [-7.357128538063229, -57.878731060992756], 
+# 'FHV of season': [-102.91275024414062, -116.95680236816406], 'FLV of season': [-83.22085571289062, -51.235260009765625], 
+# 'NSE of residuals': [-0.017116904258728027, -0.03984987735748291], 'RMSE of residuals': [1.1403965950012207, 0.7000550031661987], 
+# 'R2 of residuals': [-0.017116904258728027, -0.03984987735748291], 'KGE of residuals': [-1.4761835256212765, -1.57853845849325], 
+# 'FHV of residuals': [-101.80068969726562, -102.59357452392578], 'FLV of residuals': [-93.3528060913086, -85.9005126953125]}
+# Weights sucessfully loaded
+# All processes are finished!
