@@ -271,15 +271,16 @@ class biLSTM(nn.Module):
         dtype
         """
         super(biLSTM, self).__init__()
+        num_directions = 2 if bidirectional else 1
         self.linearIn = nn.Linear(input_size, hidden_size)
         self.lstm = nn.LSTM(
             hidden_size,
             hidden_size,
             num_layers,
             dropout=dropout,
-            bidirectional=True,
+            bidirectional=bidirectional,
         )
-        self.linearOut = nn.Linear(hidden_size, output_size)
+        self.linearOut = nn.Linear(hidden_size * num_directions, output_size)
 
     def forward(self, x):
         x0 = F.relu(self.linearIn(x))
