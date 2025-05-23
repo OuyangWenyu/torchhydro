@@ -109,6 +109,7 @@ class ScalerHub(object):
         elif scaler_type in SCALER_DICT.keys():
             # TODO: not fully tested, espacially for pbm models
             all_vars = [target_vars, relevant_vars, constant_vars, other_vars]  # y, x, c
+
             for i in range(len(all_vars)):
                 data_tmp = all_vars[i]
                 scaler = SCALER_DICT[scaler_type]()
@@ -577,3 +578,143 @@ class DapengScaler(object):
             d = self.get_data_other()
             return x, y, c, d
         return x, y, c
+
+
+class SklearnScalers(object):
+    """a scaler set in sklearn"""
+    def __init__(
+        self,
+        scaler_type: str,
+        target_vars: np.ndarray,
+        relevant_vars: np.ndarray,
+        constant_vars: np.ndarray,
+        data_cfgs: dict,
+        is_tra_val_te: str,
+        other_vars: Optional[dict] = None,
+        data_source: object = None,
+    ):
+        """initialize a SklearnScalers object."""
+        self.scaler = scaler_type
+        self.data_target = target_vars
+        self.data_forcing = relevant_vars
+        self.data_attr = constant_vars
+        self.data_cfgs = data_cfgs
+        self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
+        self.data_other = other_vars
+        self.data_source = data_source
+        # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
+        if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
+            self.stat_dict = self.cal_stat_all()
+        else:
+            # for valid/test, we need to load stat_dict from train
+            if data_cfgs["stat_dict_file"] is not None:
+                # we used a assigned stat file, typically for PUB exps
+                # shutil.copy(data_cfgs["stat_dict_file"], stat_file)
+
+    def normalize():
+        """ """
+        all_vars = [target_vars, relevant_vars, constant_vars, other_vars]  # y, x, c
+
+        for i in range(len(all_vars)):
+            data_tmp = all_vars[i]
+            scaler = SCALER_DICT[scaler_type]()
+            if data_tmp is None:
+                data_norm = None
+            elif data_tmp.ndim == 3:
+                # for forcings, outputs and other data(trend, season and residuals decomposed from streamflow)
+                num_instances, num_time_steps, num_features = data_tmp.transpose(
+                    "basin", "time", "variable"
+                ).shape
+                data_tmp = data_tmp.to_numpy().reshape(-1, num_features)
+                save_file = os.path.join(
+                    data_cfgs["test_path"], f"{norm_keys[i]}_scaler.pkl"
+                )
+                if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
+                    data_norm = scaler.fit_transform(data_tmp)
+                    # Save scaler in test_path for valid/test
+                    with open(save_file, "wb") as outfile:
+                        pkl.dump(scaler, outfile)
+                else:
+                    if data_cfgs["stat_dict_file"] is not None:
+                        shutil.copy(data_cfgs["stat_dict_file"], save_file)
+                    if not os.path.isfile(save_file):
+                        raise FileNotFoundError(
+                            "Please genereate xx_scaler.pkl file"
+                        )
+                    with open(save_file, "rb") as infile:
+                        scaler = pkl.load(infile)
+                        data_norm = scaler.transform(data_tmp)
+                data_norm = data_norm.reshape(
+                    num_instances, num_time_steps, num_features
+                )
+            else:
+                # for attributes
+                save_file = os.path.join(
+                    data_cfgs["test_path"], f"{norm_keys[i]}_scaler.pkl"
+                )
+                if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
+                    data_norm = scaler.fit_transform(data_tmp)
+                    # Save scaler in test_path for valid/test
+                    with open(save_file, "wb") as outfile:
+                        pkl.dump(scaler, outfile)
+                else:
+                    if data_cfgs["stat_dict_file"] is not None:
+                        shutil.copy(data_cfgs["stat_dict_file"], save_file)
+                    assert os.path.isfile(save_file)
+                    with open(save_file, "rb") as infile:
+                        scaler = pkl.load(infile)
+                        data_norm = scaler.transform(data_tmp)
+            norm_dict[norm_keys[i]] = data_norm
+            if i == 0:
+                self.target_scaler = scaler
+        x_ = norm_dict["relevant_vars"]  # forcing
+        y_ = norm_dict["target_vars"]  # streamflow
+        c_ = norm_dict["constant_vars"]  # attr
+        d_ = norm_dict["other_vars"]
+        # TODO: need more test for real data
+        x = xr.DataArray(
+            x_,
+            coords={
+                "basin": relevant_vars.coords["basin"],
+                "time": relevant_vars.coords["time"],
+                "variable": self.data_cfgs["relevant_cols"]
+            },
+            dims=["basin", "time", "variable"],
+        )
+        y = xr.DataArray(
+            y_,
+            coords={
+                "basin": target_vars.coords["basin"],
+                "time": target_vars.coords["time"],
+                "variable": target_vars.coords["variable"],
+            },
+            dims=["basin", "time", "variable"],
+        )
+        if c_ is None:
+            c = None
+        else:
+            c = xr.DataArray(
+                c_,
+                coords={
+                    "basin": constant_vars.coords["basin"],
+                    "variable": constant_vars.coords["variable"],
+                },
+                dims=["basin", "variable"],
+            )
+        if d_ is None:
+            d = None
+        else:
+            d = xr.DataArray(
+                d_,
+                coords={
+                    "basin": other_vars.coords["basin"],
+                    "time": other_vars.coords["time"],
+                    "variable": other_vars.coords["variable"],
+                },
+                dims=["basin", "time", "variable"],
+            )
+    else:
+        raise NotImplementedError(
+            "We don't provide this Scaler now!!! Please choose another one: DapengScaler or key in SCALER_DICT"
+        )
+    print("Finish Normalization\n")

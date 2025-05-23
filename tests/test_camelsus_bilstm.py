@@ -40,7 +40,7 @@ def var_t():
     return [
         # NOTE: prcp must be the first variable
         "prcp",
-        # "PET"
+        "PET"
         # "dayl",
         # "srad",
         # "swe",
@@ -83,8 +83,8 @@ def arg_camelsus_biLstm(
         # model_name="CpuLSTM",
         model_name="biLSTM",
         model_hyperparam={
-            "input_size": 3,  # trend, season, residuals
-            "output_size": 3,  # trend, season, residuals
+            "input_size": 2,  # trend, season, residuals
+            "output_size": 1,  # trend, season, residuals
             "hidden_size": 256,
         },
         loss_func="RMSESum",
@@ -110,7 +110,7 @@ def arg_camelsus_biLstm(
         # },
         batch_size=2,
         forecast_history=0,
-        forecast_length=5,
+        forecast_length=30,
         var_t=var_t,
         var_c=var_c,
         var_out=["streamflow"],

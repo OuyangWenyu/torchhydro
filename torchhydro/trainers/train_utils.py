@@ -112,7 +112,7 @@ def denormalize4eval(eval_dataloader, output, labels, rolling=False):
     if target_scaler.data_cfgs["b_decompose"]:   # todo:
         target_data = target_scaler.data_other
     else:
-        target_data = target_scaler.data_target
+        target_data = target_scaler.data_target    # todo: AttributeError: 'StandardScaler' object has no attribute 'data_target'
     # the units are dimensionless for pure DL models
     units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
     if target_scaler.pbm_norm:
