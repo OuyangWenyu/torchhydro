@@ -118,11 +118,11 @@ def arg_camelsus_biLstm(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=2,
+        train_epoch=10,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 2,
+            "test_epoch": 10,
         },
         gage_id=[
             "01013500",
@@ -176,50 +176,50 @@ def test_camelsus_biLstm(arg_camelsus_biLstm):
 
 
 #   0%|          | 0/2 [00:00<?, ?it/s]
-# 100%|██████████| 2/2 [00:00<00:00, 27.07it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 33.65it/s]
 # Finish Normalization
 
 
 #   0%|          | 0/2 [00:00<?, ?it/s]
-# 100%|██████████| 2/2 [00:00<00:00, 10305.42it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 13066.37it/s]
 # Finish Normalization
 
 
 #   0%|          | 0/2 [00:00<?, ?it/s]
-# 100%|██████████| 2/2 [00:00<00:00, 18315.74it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 25653.24it/s]
 # Torch is using cpu
-# I0522 15:21:07.267000 27141 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpq3ii5d78
-# I0522 15:21:07.271000 27141 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpq3ii5d78/_remote_module_non_scriptable.py
+# I0523 11:28:48.776000 7703 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpx1ov9wst
+# I0523 11:28:48.780000 7703 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpx1ov9wst/_remote_module_non_scriptable.py
 # using 0 workers
-# Epoch 1 Loss 2.3139 time 965.41 lr 1.0
+# Epoch 1 Loss 0.2441 time 76.58 lr 1.0
 # biLSTM(
 #   (linearIn): Linear(in_features=3, out_features=256, bias=True)
-#   (lstm): LSTM(256, 256, num_layers=10, bidirectional=True)
+#   (lstm): LSTM(256, 256, bidirectional=True)
 #   (linearOut): Linear(in_features=512, out_features=3, bias=True)
 # )
-# Epoch 1 Valid Loss 2.7251 Valid Metric {'NSE of trend': [-12.647359848022461, -229.62474060058594], 'RMSE of trend': [0.878373920917511, 0.6349567174911499], 
-# 'R2 of trend': [-12.647359848022461, -229.62474060058594], 'KGE of trend': [-0.8100809992014595, -0.7267826093028262], 
-# 'FHV of trend': [-113.24185180664062, -81.14249420166016], 'FLV of trend': [-133.34332275390625, -83.63639831542969], 
-# 'NSE of season': [-0.01040506362915039, -0.1497095823287964], 'RMSE of season': [1.3807753324508667, 0.3355520963668823], 
-# 'R2 of season': [-0.01040506362915039, -0.1497095823287964], 'KGE of season': [-5.604892748868133, -43.33410522027678], 
-# 'FHV of season': [-102.18177795410156, -112.67562866210938], 'FLV of season': [-87.43279266357422, -63.515438079833984], 
-# 'NSE of residuals': [-0.029011964797973633, -0.07007730007171631], 'RMSE of residuals': [1.147045612335205, 0.7101570963859558], 
-# 'R2 of residuals': [-0.029011964797973633, -0.07007730007171631], 'KGE of residuals': [-1.932237100620656, -2.2113554020398123], 
-# 'FHV of residuals': [-102.90813446044922, -104.17162322998047], 'FLV of residuals': [-89.30455780029297, -77.36113739013672]}
-# Epoch 2 Loss 2.2923 time 878.89 lr 1.0
+# Epoch 1 Valid Loss 0.1524 Valid Metric {'NSE of trend': [0.9664278030395508, 0.7801032662391663], 'RMSE of trend': [0.04356572777032852, 0.01960652321577072], 
+# 'R2 of trend': [0.9664278030395508, 0.7801032662391663], 'KGE of trend': [0.9777564199794817, 0.9059797286364728], 
+# 'FHV of trend': [7.946622371673584, -2.4419360160827637], 'FLV of trend': [3.407353639602661, -1.047161340713501], 
+# 'NSE of season': [0.999338686466217, 0.9931098222732544], 'RMSE of season': [0.03532421588897705, 0.025976551696658134], 
+# 'R2 of season': [0.999338686466217, 0.9931098222732544], 'KGE of season': [0.7454516762887267, -5.990536800612962], 
+# 'FHV of season': [-2.3274123668670654, 3.058655261993408], 'FLV of season': [1.1397476196289062, 4.437440872192383], 
+# 'NSE of residuals': [0.9895573258399963, 0.9957862496376038], 'RMSE of residuals': [0.11555172502994537, 0.04456368088722229], 
+# 'R2 of residuals': [0.9895573258399963, 0.9957862496376038], 'KGE of residuals': [-0.08693976493168898, 0.9300683293159135], 
+# 'FHV of residuals': [-12.660962104797363, -8.334555625915527], 'FLV of residuals': [6.555215835571289, -1.0391641855239868]}
+# Epoch 2 Loss 0.1344 time 84.65 lr 1.0
 # biLSTM(
 #   (linearIn): Linear(in_features=3, out_features=256, bias=True)
-#   (lstm): LSTM(256, 256, num_layers=10, bidirectional=True)
+#   (lstm): LSTM(256, 256, bidirectional=True)
 #   (linearOut): Linear(in_features=512, out_features=3, bias=True)
 # )
-# Epoch 2 Valid Loss 2.7167 Valid Metric {'NSE of trend': [-10.699970245361328, -281.1546630859375], 'RMSE of trend': [0.8132938146591187, 0.7023196220397949], 
-# 'R2 of trend': [-10.699970245361328, -281.1546630859375], 'KGE of trend': [-0.7228441958486531, -0.7242270631235213], 
-# 'FHV of trend': [-106.57161712646484, -90.57194519042969], 'FLV of trend': [-116.65676879882812, -91.79499816894531], 
-# 'NSE of season': [-0.017010807991027832, -0.26401567459106445], 'RMSE of season': [1.3852814435958862, 0.35183748602867126], 
-# 'R2 of season': [-0.017010807991027832, -0.26401567459106445], 'KGE of season': [-7.357128538063229, -57.878731060992756], 
-# 'FHV of season': [-102.91275024414062, -116.95680236816406], 'FLV of season': [-83.22085571289062, -51.235260009765625], 
-# 'NSE of residuals': [-0.017116904258728027, -0.03984987735748291], 'RMSE of residuals': [1.1403965950012207, 0.7000550031661987], 
-# 'R2 of residuals': [-0.017116904258728027, -0.03984987735748291], 'KGE of residuals': [-1.4761835256212765, -1.57853845849325], 
-# 'FHV of residuals': [-101.80068969726562, -102.59357452392578], 'FLV of residuals': [-93.3528060913086, -85.9005126953125]}
+# Epoch 2 Valid Loss 0.1465 Valid Metric {'NSE of trend': [0.9825834631919861, -0.22764182090759277], 'RMSE of trend': [0.031378790736198425, 0.04632623493671417], 
+# 'R2 of trend': [0.9825834631919861, -0.22764182090759277], 'KGE of trend': [0.9603111642114415, 0.8895623025410737], 
+# 'FHV of trend': [2.0342745780944824, -6.189520359039307], 'FLV of trend': [4.935356616973877, -5.144089698791504], 
+# 'NSE of season': [0.9972642660140991, 0.9930931329727173], 'RMSE of season': [0.07184722274541855, 0.026007944718003273], 
+# 'R2 of season': [0.9972642660140991, 0.9930931329727173], 'KGE of season': [-0.2826126964310576, -3.4179294301512337], 
+# 'FHV of season': [-5.459458827972412, 0.26366955041885376], 'FLV of season': [-4.047516822814941, 2.4348719120025635], 
+# 'NSE of residuals': [0.9971188902854919, 0.995936393737793], 'RMSE of residuals': [0.060694511979818344, 0.0437626913189888], 
+# 'R2 of residuals': [0.9971188902854919, 0.995936393737793], 'KGE of residuals': [0.5143655166140354, 0.3803798099431712], 
+# 'FHV of residuals': [5.471971035003662, 3.500281572341919], 'FLV of residuals': [0.2980134189128876, -4.611910343170166]}
 # Weights sucessfully loaded
 # All processes are finished!

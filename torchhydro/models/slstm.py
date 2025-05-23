@@ -25,8 +25,6 @@ class sLSTM(nn.Module):
         hidden_size: int,
         num_layers: int = 10,
         dropout: float = 0.0,
-        device=None,
-        dtype=None,
     ):
         """
 
@@ -254,8 +252,6 @@ class biLSTM(nn.Module):
         hidden_size: int,
         dropout: float = 0.0,
         bidirectional: bool = True,
-        device=None,
-        dtype=None,
     ):
         """
 
