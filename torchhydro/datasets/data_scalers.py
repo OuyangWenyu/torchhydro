@@ -622,11 +622,6 @@ class SklearnScalers(object):
         # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
         if is_tra_val_te == "train" and data_cfgs["stat_dict_file"] is None:
             self.stat_dict = self.cal_stat_all()
-        else:
-            # for valid/test, we need to load stat_dict from train
-            if data_cfgs["stat_dict_file"] is not None:
-                # we used a assigned stat file, typically for PUB exps
-                # shutil.copy(data_cfgs["stat_dict_file"], stat_file)
 
     def normalize(self):
         """ """
