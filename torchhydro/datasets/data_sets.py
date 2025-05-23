@@ -114,7 +114,7 @@ class BaseDataset(Dataset):
                 "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
             )
         # load and preprocess data
-        # self._load_data()  # todo: temp comments
+        self._load_data()  # todo: temp comments
 
     @property
     def data_source(self):

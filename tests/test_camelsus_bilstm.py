@@ -89,24 +89,25 @@ def arg_camelsus_biLstm(
         },
         loss_func="RMSESum",
         sampler="KuaiSampler",
-        dataset="StlDataset",
-        scaler="DapengScaler",
-        scaler_params={
-            "prcp_norm_cols": [
-                "streamflow",
-            ],
-            "gamma_norm_cols": [
-                "prcp",
-                "pr",
-                "total_precipitation",
-                "potential_evaporation",
-                "ET",
-                "PET",
-                "ET_sum",
-                "ssm",
-            ],
-            "pbm_norm": True,
-        },
+        # dataset="StlDataset",
+        dataset="StreamflowDataset",
+        scaler="StandardScaler",
+        # scaler_params={
+        #     "prcp_norm_cols": [
+        #         "streamflow",
+        #     ],
+        #     "gamma_norm_cols": [
+        #         "prcp",
+        #         "pr",
+        #         "total_precipitation",
+        #         "potential_evaporation",
+        #         "ET",
+        #         "PET",
+        #         "ET_sum",
+        #         "ssm",
+        #     ],
+        #     "pbm_norm": True,
+        # },
         batch_size=2,
         forecast_history=0,
         forecast_length=5,
@@ -118,11 +119,11 @@ def arg_camelsus_biLstm(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=10,
+        train_epoch=2,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 10,
+            "test_epoch": 2,
         },
         gage_id=[
             "01013500",
@@ -148,7 +149,7 @@ def arg_camelsus_biLstm(
             # "02092500",  # 02108000 -> 02092500
             # "02108000",
         ],
-        b_decompose=True,
+        # b_decompose=True,
         which_first_tensor="sequence",
     )
 
