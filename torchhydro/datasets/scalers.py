@@ -237,8 +237,6 @@ class DapengScaler(object):
 
         Parameters
         ----------
-        rm_nan
-            if true, fill NaN value with 0
         to_norm
             if true, perform normalization
 
@@ -282,8 +280,6 @@ class DapengScaler(object):
 
         Parameters
         ----------
-        rm_nan
-            if true, fill NaN value with 0
         to_norm
             if true, perform normalization
 
@@ -306,8 +302,6 @@ class DapengScaler(object):
 
         Parameters
         ----------
-        rm_nan
-            if true, fill NaN value with 0
         to_norm
             if true, perform normalization
 
@@ -328,8 +322,6 @@ class DapengScaler(object):
 
         Parameters
         ----------
-        rm_nan
-            if true, fill NaN value with 0
         to_norm
             if true, perform normalization
 
@@ -381,3 +373,86 @@ class DapengScaler(object):
         else:
             d = None
         return x, y, c, d
+    
+
+class SlidingWindowScaler(object):
+    """sliding window scaler"""
+    def __init__(
+        self,
+        sw_width: int,
+        sw_step: int,
+        target_vars: np.ndarray,
+        relevant_vars: np.ndarray,
+        constant_vars: np.ndarray,
+        data_cfgs: dict,
+        is_tra_val_te: str,
+        norm_keys: list,
+        other_vars: Optional[dict] = None,
+        data_source: object = None,
+    ):
+        """
+        The normalization and denormalization methods of sliding window scaler .
+
+        Parameters
+        ----------
+        target_vars
+            output variables
+        relevant_vars
+            input dynamic variables
+        constant_vars
+            input static variables
+        data_cfgs
+            data parameter config in data source
+        is_tra_val_te
+            train/valid/test
+        other_vars
+            if more input are needed, list them in other_vars
+        """
+        self.sw_width = sw_width
+        self.sw_step = sw_step
+        self.data_target = target_vars
+        self.data_forcing = relevant_vars
+        self.data_attr = constant_vars
+        self.data_cfgs = data_cfgs
+        self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
+        self.is_tra_val_te = is_tra_val_te
+        self.norm_keys = norm_keys
+        self.data_other = other_vars
+        self.data_source = data_source
+
+    def transform(self, X, copy=None):
+        """Perform standardization by centering and scaling.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix of shape (n_samples, n_features)
+            The data used to scale along the features axis.
+        copy : bool, default=None
+            Copy the input X or not.
+
+        Returns
+        -------
+        X_tr : {ndarray, sparse matrix} of shape (n_samples, n_features)
+            Transformed array.
+        """
+        out = None
+
+        return out
+
+    def inverse_transform(self, x):
+        """
+        Denormalization for output variables
+
+        Parameters
+        ----------
+        target_values
+            output variables
+
+        Returns
+        -------
+        np.array
+            denormalized predictions
+        """
+        out = None
+
+        return out
