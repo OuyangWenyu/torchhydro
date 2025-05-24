@@ -163,23 +163,6 @@ def test_camelsus_biLstm(arg_camelsus_biLstm):
 
 
 # scaler="StandardScaler",
-# ============================= test session starts ==============================
-# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
-# rootdir: /home/yulili/code/torchhydro/tests
-# configfile: ../setup.cfg
-# plugins: mock-3.14.0
-# collected 1 item
-
-# test_camelsus_bilstm.py Backend tkagg is interactive backend. Turning interactive mode on.
-# update config file
-# !!!!!!NOTE!!!!!!!!
-# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
-# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
-# !!!!!!NOTE!!!!!!!!
-# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
-# Finish Normalization
-
-
 #   0%|          | 0/2 [00:00<?, ?it/s]
 #  50%|█████     | 1/2 [00:00<00:00,  3.84it/s]
 # 100%|██████████| 2/2 [00:00<00:00,  6.92it/s]
@@ -193,19 +176,6 @@ def test_camelsus_biLstm(arg_camelsus_biLstm):
 
 #   0%|          | 0/2 [00:00<?, ?it/s]
 # 100%|██████████| 2/2 [00:00<00:00, 26630.50it/s]
-# Torch is using cpu
-# I0524 15:41:55.612000 1593 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpws2cuxdk
-# I0524 15:41:55.616000 1593 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpws2cuxdk/_remote_module_non_scriptable.py
-# using 0 workers
-# Epoch 1 Loss 0.8161 time 27.80 lr 1.0
-# biLSTM(
-#   (linearIn): Linear(in_features=2, out_features=256, bias=True)
-#   (lstm): LSTM(256, 256, bidirectional=True)
-#   (linearOut): Linear(in_features=512, out_features=1, bias=True)
-# )
-# Epoch 1 Valid Loss 0.9007 Valid Metric {'NSE of streamflow': [-0.14666175842285156, -0.20748794078826904], 'RMSE of streamflow': [0.6978355050086975, 1.0655977725982666], 
-# 'R2 of streamflow': [-0.14666175842285156, -0.20748794078826904], 'KGE of streamflow': [-1.6521088952990208, -0.8408388903938899], 
-# 'FHV of streamflow': [-110.4161376953125, -96.04478454589844], 'FLV of streamflow': [-31.61200523376465, 2.579254388809204]}
 # Epoch 2 Loss 0.7943 time 24.86 lr 1.0
 # biLSTM(
 #   (linearIn): Linear(in_features=2, out_features=256, bias=True)
@@ -219,15 +189,6 @@ def test_camelsus_biLstm(arg_camelsus_biLstm):
 # All processes are finished!
 
 # scaler="DapengScaler",
-# Epoch 1 Loss 0.8975 time 23.35 lr 1.0
-# biLSTM(
-#   (linearIn): Linear(in_features=2, out_features=256, bias=True)
-#   (lstm): LSTM(256, 256, bidirectional=True)
-#   (linearOut): Linear(in_features=512, out_features=1, bias=True)
-# )
-# Epoch 1 Valid Loss 0.7025 Valid Metric {'NSE of streamflow': [0.08816075325012207, -0.002459406852722168], 'RMSE of streamflow': [0.7014285326004028, 0.7036101818084717], 
-# 'R2 of streamflow': [0.08816075325012207, -0.002459406852722168], 'KGE of streamflow': [-0.19339566853174617, -0.0277735259518177], 
-# 'FHV of streamflow': [-56.7720832824707, -65.89501190185547], 'FLV of streamflow': [-80.36634063720703, -89.81898498535156]}
 # Epoch 2 Loss 0.8099 time 23.84 lr 1.0
 # biLSTM(
 #   (linearIn): Linear(in_features=2, out_features=256, bias=True)
@@ -239,18 +200,8 @@ def test_camelsus_biLstm(arg_camelsus_biLstm):
 # 'FHV of streamflow': [-35.324649810791016, -39.70381164550781], 'FLV of streamflow': [-54.021541595458984, -65.47368621826172]}
 # Weights sucessfully loaded
 # All processes are finished!
-# .
 
 # scaler="MinMaxScaler",
-# Epoch 1 Loss 0.0686 time 24.31 lr 1.0
-# biLSTM(
-#   (linearIn): Linear(in_features=2, out_features=256, bias=True)
-#   (lstm): LSTM(256, 256, bidirectional=True)
-#   (linearOut): Linear(in_features=512, out_features=1, bias=True)
-# )
-# Epoch 1 Valid Loss 0.0759 Valid Metric {'NSE of streamflow': [-0.13150620460510254, -0.4270167350769043], 'RMSE of streamflow': [0.05508279800415039, 0.09204889088869095], 
-# 'R2 of streamflow': [-0.13150620460510254, -0.4270167350769043], 'KGE of streamflow': [-0.30107838798065756, -0.41538526780784135], 
-# 'FHV of streamflow': [-82.02342224121094, -89.90857696533203], 'FLV of streamflow': [43.512325286865234, 5.928520202636719]}
 # Epoch 2 Loss 0.0655 time 24.80 lr 1.0
 # biLSTM(
 #   (linearIn): Linear(in_features=2, out_features=256, bias=True)
@@ -262,4 +213,3 @@ def test_camelsus_biLstm(arg_camelsus_biLstm):
 # 'FHV of streamflow': [-79.43367004394531, -88.50468444824219], 'FLV of streamflow': [131.0086212158203, 42.13608169555664]}
 # Weights sucessfully loaded
 # All processes are finished!
-# .
