@@ -178,7 +178,7 @@ def _trans_norm(
                 np.power(10, x.sel(variable=item) * stat[3] + stat[2]) - 0.1
             ) ** 2
         else:
-            out.loc[dict(variable=item)] = x.sel(variable=item) * stat[3] + stat[2]
+            out.loc[dict(variable=item)] = x.sel(variable=item) * stat[3] + stat[2]   # denormalization
     if to_norm:
         # after normalization, all units are dimensionless
         out.attrs = {}

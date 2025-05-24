@@ -112,7 +112,7 @@ def denormalize4eval(eval_dataloader, output, labels, rolling=False):
     if target_scaler.data_cfgs["b_decompose"]:   # todo:
         target_data = target_scaler.data_other
     else:
-        target_data = target_scaler.data_target    # todo: AttributeError: 'StandardScaler' object has no attribute 'data_target'
+        target_data = target_scaler.data_target
     # the units are dimensionless for pure DL models
     units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
     if target_scaler.pbm_norm:
@@ -127,22 +127,20 @@ def denormalize4eval(eval_dataloader, output, labels, rolling=False):
         selected_time_points = target_data.coords["time"][warmup_length:]
 
     selected_data = target_data.sel(time=selected_time_points)
-    preds_xr = target_scaler.inverse_transform(
-        xr.DataArray(
+    normalizede_preds_xr = xr.DataArray(
             output.transpose(2, 0, 1),
             dims=selected_data.dims,
             coords=selected_data.coords,
             attrs={"units": units},
         )
-    )
-    obss_xr = target_scaler.inverse_transform(
-        xr.DataArray(
+    preds_xr = target_scaler.inverse_transform(normalizede_preds_xr)
+    normalizede_obss_xr = xr.DataArray(
             labels.transpose(2, 0, 1),
             dims=selected_data.dims,
             coords=selected_data.coords,
             attrs={"units": units},
         )
-    )
+    obss_xr = target_scaler.inverse_transform(normalizede_obss_xr)
 
     return preds_xr, obss_xr
 

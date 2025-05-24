@@ -91,7 +91,9 @@ def arg_camelsus_biLstm(
         sampler="KuaiSampler",
         # dataset="StlDataset",
         dataset="StreamflowDataset",
-        scaler="StandardScaler",
+        # scaler="StandardScaler",
+        # scaler="DapengScaler",
+        scaler="MinMaxScaler",
         # scaler_params={
         #     "prcp_norm_cols": [
         #         "streamflow",
@@ -159,6 +161,8 @@ def test_camelsus_biLstm(arg_camelsus_biLstm):
     train_and_evaluate(config_data)
     print("All processes are finished!")
 
+
+# scaler="StandardScaler",
 # ============================= test session starts ==============================
 # platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
 # rootdir: /home/yulili/code/torchhydro/tests
@@ -166,54 +170,96 @@ def test_camelsus_biLstm(arg_camelsus_biLstm):
 # plugins: mock-3.14.0
 # collected 1 item
 
-# test_camelsus_bilstm.py update config file
+# test_camelsus_bilstm.py Backend tkagg is interactive backend. Turning interactive mode on.
+# update config file
 # !!!!!!NOTE!!!!!!!!
 # -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
 # If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
 # !!!!!!NOTE!!!!!!!!
 # -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
-# Backend tkagg is interactive backend. Turning interactive mode on.
 # Finish Normalization
 
 
 #   0%|          | 0/2 [00:00<?, ?it/s]
-# 100%|██████████| 2/2 [00:00<00:00, 33.07it/s]
+#  50%|█████     | 1/2 [00:00<00:00,  3.84it/s]
+# 100%|██████████| 2/2 [00:00<00:00,  6.92it/s]
 # Finish Normalization
 
 
 #   0%|          | 0/2 [00:00<?, ?it/s]
-# 100%|██████████| 2/2 [00:00<00:00, 13842.59it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 16070.13it/s]
 # Finish Normalization
 
 
 #   0%|          | 0/2 [00:00<?, ?it/s]
-# 100%|██████████| 2/2 [00:00<00:00, 11066.77it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 26630.50it/s]
 # Torch is using cpu
-# I0523 11:42:55.272000 9226 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpn5asw4el
-# I0523 11:42:55.277000 9226 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpn5asw4el/_remote_module_non_scriptable.py
+# I0524 15:41:55.612000 1593 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpws2cuxdk
+# I0524 15:41:55.616000 1593 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpws2cuxdk/_remote_module_non_scriptable.py
 # using 0 workers
-# Epoch 1 Loss 0.2441 time 79.54 lr 1.0
+# Epoch 1 Loss 0.8161 time 27.80 lr 1.0
 # biLSTM(
-#   (linearIn): Linear(in_features=3, out_features=256, bias=True)
+#   (linearIn): Linear(in_features=2, out_features=256, bias=True)
 #   (lstm): LSTM(256, 256, bidirectional=True)
-#   (linearOut): Linear(in_features=512, out_features=3, bias=True)
+#   (linearOut): Linear(in_features=512, out_features=1, bias=True)
 # )
-# Epoch 1 Valid Loss 0.1524 Valid Metric {'NSE of trend': [0.9664278030395508, 0.7801032662391663], 'RMSE of trend': [0.04356572777032852, 0.01960652321577072], 
-# 'R2 of trend': [0.9664278030395508, 0.7801032662391663], 'KGE of trend': [0.9777564199794817, 0.9059797286364728], 'FHV of trend': [7.946622371673584, -2.4419360160827637], 
-# 'FLV of trend': [3.407353639602661, -1.047161340713501], 'NSE of season': [0.999338686466217, 0.9931098222732544], 'RMSE of season': [0.03532421588897705, 0.025976551696658134], 
-# 'R2 of season': [0.999338686466217, 0.9931098222732544], 'KGE of season': [0.7454516762887267, -5.990536800612962], 'FHV of season': [-2.3274123668670654, 3.058655261993408], 
-# 'FLV of season': [1.1397476196289062, 4.437440872192383], 'NSE of residuals': [0.9895573258399963, 0.9957862496376038], 
-# 'RMSE of residuals': [0.11555172502994537, 0.04456368088722229], 'R2 of residuals': [0.9895573258399963, 0.9957862496376038], 
-# 'KGE of residuals': [-0.08693976493168898, 0.9300683293159135], 'FHV of residuals': [-12.660962104797363, -8.334555625915527], 
-# 'FLV of residuals': [6.555215835571289, -1.0391641855239868]}
-# Epoch 10 Valid Loss 0.0753 Valid Metric {'NSE of trend': [0.9845370054244995, 0.8134725689888], 'RMSE of trend': [0.02956661395728588, 0.018057703971862793], 
-# 'R2 of trend': [0.9845370054244995, 0.8134725689888], 'KGE of trend': [0.9603059095306751, 0.9741126775789218], 'FHV of trend': [-2.309187889099121, -3.230898141860962], 
-# 'FLV of trend': [0.4126966893672943, -2.022977828979492], 'NSE of season': [0.9998903274536133, 0.9976521730422974], 
-# 'RMSE of season': [0.014385975897312164, 0.015163508243858814], 'R2 of season': [0.9998903274536133, 0.9976521730422974], 
-# 'KGE of season': [0.8192451487872607, -1.4752938712668495], 'FHV of season': [-0.2077896147966385, 3.5982978343963623], 
-# 'FLV of season': [-0.7067270278930664, 4.180027008056641], 'NSE of residuals': [0.9983240962028503, 0.9990443587303162], 
-# 'RMSE of residuals': [0.04629068076610565, 0.021222153678536415], 'R2 of residuals': [0.9983240962028503, 0.9990443587303162], 
-# 'KGE of residuals': [0.8446810219718078, 0.8510074151316396], 'FHV of residuals': [-0.35470762848854065, 1.2043641805648804], 
-# 'FLV of residuals': [5.226898670196533, 5.44759464263916]}
+# Epoch 1 Valid Loss 0.9007 Valid Metric {'NSE of streamflow': [-0.14666175842285156, -0.20748794078826904], 'RMSE of streamflow': [0.6978355050086975, 1.0655977725982666], 
+# 'R2 of streamflow': [-0.14666175842285156, -0.20748794078826904], 'KGE of streamflow': [-1.6521088952990208, -0.8408388903938899], 
+# 'FHV of streamflow': [-110.4161376953125, -96.04478454589844], 'FLV of streamflow': [-31.61200523376465, 2.579254388809204]}
+# Epoch 2 Loss 0.7943 time 24.86 lr 1.0
+# biLSTM(
+#   (linearIn): Linear(in_features=2, out_features=256, bias=True)
+#   (lstm): LSTM(256, 256, bidirectional=True)
+#   (linearOut): Linear(in_features=512, out_features=1, bias=True)
+# )
+# Epoch 2 Valid Loss 0.9470 Valid Metric {'NSE of streamflow': [-0.1236947774887085, -0.40001869201660156], 'RMSE of streamflow': [0.6908115744590759, 1.14741051197052], 
+# 'R2 of streamflow': [-0.1236947774887085, -0.40001869201660156], 'KGE of streamflow': [-1.4941370555052411, -1.341811298486459], 
+# 'FHV of streamflow': [-110.4563217163086, -105.34850311279297], 'FLV of streamflow': [-36.8513069152832, -7.481730937957764]}
 # Weights sucessfully loaded
 # All processes are finished!
+
+# scaler="DapengScaler",
+# Epoch 1 Loss 0.8975 time 23.35 lr 1.0
+# biLSTM(
+#   (linearIn): Linear(in_features=2, out_features=256, bias=True)
+#   (lstm): LSTM(256, 256, bidirectional=True)
+#   (linearOut): Linear(in_features=512, out_features=1, bias=True)
+# )
+# Epoch 1 Valid Loss 0.7025 Valid Metric {'NSE of streamflow': [0.08816075325012207, -0.002459406852722168], 'RMSE of streamflow': [0.7014285326004028, 0.7036101818084717], 
+# 'R2 of streamflow': [0.08816075325012207, -0.002459406852722168], 'KGE of streamflow': [-0.19339566853174617, -0.0277735259518177], 
+# 'FHV of streamflow': [-56.7720832824707, -65.89501190185547], 'FLV of streamflow': [-80.36634063720703, -89.81898498535156]}
+# Epoch 2 Loss 0.8099 time 23.84 lr 1.0
+# biLSTM(
+#   (linearIn): Linear(in_features=2, out_features=256, bias=True)
+#   (lstm): LSTM(256, 256, bidirectional=True)
+#   (linearOut): Linear(in_features=512, out_features=1, bias=True)
+# )
+# Epoch 2 Valid Loss 0.7485 Valid Metric {'NSE of streamflow': [0.14462369680404663, -0.3344918489456177], 'RMSE of streamflow': [0.6793646216392517, 0.8118143081665039], 
+# 'R2 of streamflow': [0.14462369680404663, -0.3344918489456177], 'KGE of streamflow': [-1.5522491209569993, 0.11938353292293435], 
+# 'FHV of streamflow': [-35.324649810791016, -39.70381164550781], 'FLV of streamflow': [-54.021541595458984, -65.47368621826172]}
+# Weights sucessfully loaded
+# All processes are finished!
+# .
+
+# scaler="MinMaxScaler",
+# Epoch 1 Loss 0.0686 time 24.31 lr 1.0
+# biLSTM(
+#   (linearIn): Linear(in_features=2, out_features=256, bias=True)
+#   (lstm): LSTM(256, 256, bidirectional=True)
+#   (linearOut): Linear(in_features=512, out_features=1, bias=True)
+# )
+# Epoch 1 Valid Loss 0.0759 Valid Metric {'NSE of streamflow': [-0.13150620460510254, -0.4270167350769043], 'RMSE of streamflow': [0.05508279800415039, 0.09204889088869095], 
+# 'R2 of streamflow': [-0.13150620460510254, -0.4270167350769043], 'KGE of streamflow': [-0.30107838798065756, -0.41538526780784135], 
+# 'FHV of streamflow': [-82.02342224121094, -89.90857696533203], 'FLV of streamflow': [43.512325286865234, 5.928520202636719]}
+# Epoch 2 Loss 0.0655 time 24.80 lr 1.0
+# biLSTM(
+#   (linearIn): Linear(in_features=2, out_features=256, bias=True)
+#   (lstm): LSTM(256, 256, bidirectional=True)
+#   (linearOut): Linear(in_features=512, out_features=1, bias=True)
+# )
+# Epoch 2 Valid Loss 0.0722 Valid Metric {'NSE of streamflow': [-0.022130727767944336, -0.29421377182006836], 'RMSE of streamflow': [0.0523528978228569, 0.08766112476587296], 
+# 'R2 of streamflow': [-0.022130727767944336, -0.29421377182006836], 'KGE of streamflow': [-0.34468489189957907, -0.4156171024025459], 
+# 'FHV of streamflow': [-79.43367004394531, -88.50468444824219], 'FLV of streamflow': [131.0086212158203, 42.13608169555664]}
+# Weights sucessfully loaded
+# All processes are finished!
+# .
