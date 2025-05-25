@@ -488,8 +488,6 @@ class SlidingWindowScaler(object):
 
         x_min = np.min(X.values, axis=1)
         x_max = np.max(X.values, axis=1)
-        self.min.append(x_min)
-        self.max.append(x_max)
 
         return x_min, x_max
 
@@ -519,46 +517,7 @@ class SlidingWindowScaler(object):
             max[i] = np.max(x_i)
         return [min, max]
 
-    def cal_stat_all(self):
-        """calculate the statistics values of series
-        Calculate statistics of outputs(streamflow etc), inputs(forcing and attributes) and other data(decomposed from
-        streamflow, trend, season and residuals now)(optional)
 
-        Returns
-        -------
-        dict
-            a dict with statistic values
-        """
-        # streamflow, et, ssm, etc
-        target_cols = self.data_cfgs["target_cols"]
-        stat_dict = {}
-        for i in range(len(target_cols)):
-            var = target_cols[i]
-            stat_dict[var] = self.cal_stat(self.data_target.sel(variable=var).to_numpy())
-
-        # forcing
-        forcing_lst = self.data_cfgs["relevant_cols"]
-        x = self.data_forcing
-        for k in range(len(forcing_lst)):
-            var = forcing_lst[k]
-            stat_dict[var] = self.cal_stat(x.sel(variable=var).to_numpy())
-
-        # const attribute
-        attr_data = self.data_attr
-        attr_lst = self.data_cfgs["constant_cols"]
-        for k in range(len(attr_lst)):
-            var = attr_lst[k]
-            stat_dict[var] = self.cal_stat(attr_data.sel(variable=var).to_numpy())
-
-        # other data, only decomposed data by STL now.  trend, season and residuals decomposed from streamflow.
-        if self.data_other is not None:
-            decomposed_item = ["trend", "season", "residuals"]
-            decomposed_data = self.data_other
-            for i in range(len(decomposed_item)):
-                var = decomposed_item[i]
-                stat_dict[var] = self.cal_stat(decomposed_data.sel(variable=var).to_numpy())
-
-        return stat_dict
 
     def transform_singlewindow(
         self,
