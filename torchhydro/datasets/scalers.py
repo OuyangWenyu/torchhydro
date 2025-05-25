@@ -379,8 +379,8 @@ class SlidingWindowScaler(object):
     """sliding window scaler"""
     def __init__(
         self,
-        sw_width: int,
-        sw_stride: int,
+        # sw_width: int,
+        # sw_stride: int,
         # target_vars: np.ndarray,
         # relevant_vars: np.ndarray,
         # constant_vars: np.ndarray,
@@ -411,10 +411,9 @@ class SlidingWindowScaler(object):
         self.sw_width = None
         self.sw_stride = None
         # self.series = None
-        # self.series_length = None
-        self.min = None  # list   for denormalizing.
-        self.max = None
-        # self.data_target = target_vars
+        self.series_length = None
+        self.sta_dict = None  # list   for denormalizing.
+        # self.data_target = target_vars   # todo: single variable or whole?
         # self.data_forcing = relevant_vars
         # self.data_attr = constant_vars
         # self.data_cfgs = data_cfgs
@@ -424,14 +423,17 @@ class SlidingWindowScaler(object):
         # self.data_other = other_vars
         # self.data_source = data_source
     
-    def _reset_scaler(self, sw_width, sw_stride, series_length):
+    def _reset_scaler(self, sw_width, sw_stride, series_length, sta_dict):
         """reset scaler"""
         self.sw_width = sw_width
         self.sw_stride = sw_stride
-        # self.series_length = series_length
-        self.min = []
-        self.max = []
-
+        self.series_length = series_length
+        self.sta_dict = sta_dict
+        self.n_windows = int(series_length / sw_width)
+        self.n_residual = series_length % sw_width
+        if self.n_residual > 0:
+            self.n_windows = self.n_windows + 1
+        
 
     def fit(self, X):
         """
@@ -474,17 +476,73 @@ class SlidingWindowScaler(object):
 
         return x_min, x_max
     
+    def pre_transform(self, x):
+        """ """
+    
+    def cal_stat(self, x: np.ndarray, n):
+        """
+        calculate two statistics indices: min and max for all windows.
+        
+        """
+        min = [0]*n
+        max = [0]*n
+        for i in range(n):
+            start_i = i*self.sw_width
+            end_i = (i + 1) * self.sw_width -1
+            x_i = x[start_i, end_i]
+            min[i] = np.min(x_i)
+            max[i] = np.max(x_i)
+        return [min, max]
+    
     def cal_stat_all(self):
-        """calculate the statistics values of series"""
+        """calculate the statistics values of series
+        Calculate statistics of outputs(streamflow etc), inputs(forcing and attributes) and other data(decomposed from
+        streamflow, trend, season and residuals now)(optional)
 
+        Returns
+        -------
+        dict
+            a dict with statistic values
+        """
+        # streamflow, et, ssm, etc
+        target_cols = self.data_cfgs["target_cols"]
+        stat_dict = {}
+        for i in range(len(target_cols)):
+            var = target_cols[i]
+            stat_dict[var] = self.cal_stat(self.data_target.sel(variable=var).to_numpy())
 
+        # forcing
+        forcing_lst = self.data_cfgs["relevant_cols"]
+        x = self.data_forcing
+        for k in range(len(forcing_lst)):
+            var = forcing_lst[k]
+            stat_dict[var] = self.cal_stat(x.sel(variable=var).to_numpy())
 
-    def transform_singlewindow(self, x):
+        # const attribute
+        attr_data = self.data_attr
+        attr_lst = self.data_cfgs["constant_cols"]
+        for k in range(len(attr_lst)):
+            var = attr_lst[k]
+            stat_dict[var] = self.cal_stat(attr_data.sel(variable=var).to_numpy())
+
+        # other data, only decomposed data by STL now.  trend, season and residuals decomposed from streamflow.
+        if self.data_other is not None:
+            decomposed_item = ["trend", "season", "residuals"]
+            decomposed_data = self.data_other
+            for i in range(len(decomposed_item)):
+                var = decomposed_item[i]
+                stat_dict[var] = self.cal_stat(decomposed_data.sel(variable=var).to_numpy())
+
+        return stat_dict
+
+    def transform_singlewindow(self, x, min, max, b_norm):
         """ data format """
-        x_min, x_max = self.partial_fit(x)
-        normalized_x = (x - x_min) / (x_max - x_min)
-
-        return normalized_x
+        if b_norm:
+            normalized_x = (x - min) / (max - min)
+            return normalized_x
+        else:
+            denormalized_x = x * (max - min) + min
+            return denormalized_x
 
     def transform(self, X, sw_width, sw_stride):
         """Perform standardization by centering and scaling.
@@ -501,12 +559,17 @@ class SlidingWindowScaler(object):
         length = X.shap[1]
         self._reset_scaler(sw_width, sw_stride, length)
         n_window = int(length / sw_width)   # todo: 
-        out = np.array(0)
+        min = self.sta_dict[0]
+        max = self.sta_dict[1]
+        b_norm = True
+        out = np.array([0]*length)
         for i in range(n_window):
             start_i = i*sw_width
             end_i = (i + 1) * sw_width -1
             x_i = X[start_i, end_i]
-            normalized_x_i = self.transform_singlewindow(x_i)
+            min_i = min[i]
+            max_i = max[i]
+            normalized_x_i = self.transform_singlewindow(x_i, min_i, max_i, b_norm)
             out[start_i, end_i] = normalized_x_i
         
         return out
@@ -525,6 +588,17 @@ class SlidingWindowScaler(object):
         np.array
             denormalized predictions
         """
-        out = None
-
+        min = self.sta_dict[0]
+        max = self.sta_dict[1]
+        b_norm = False
+        out = np.array([0]*self.length)
+        for i in range(self.n_window):
+            start_i = i*self.sw_width
+            end_i = (i + 1) * self.sw_width -1
+            x_i = x[start_i, end_i]
+            min_i = min[i]
+            max_i = max[i]
+            normalized_x_i = self.transform_singlewindow(x_i, min_i, max_i, b_norm)
+            out[start_i, end_i] = normalized_x_i
+        
         return out
