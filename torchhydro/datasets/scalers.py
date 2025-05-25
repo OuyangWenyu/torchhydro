@@ -411,7 +411,9 @@ class SlidingWindowScaler(object):
         self.sw_width = None
         self.sw_stride = None
         # self.series = None
-        self.series_length = None
+        # self.series_length = None
+        self.min = None  # list   for denormalizing.
+        self.max = None
         # self.data_target = target_vars
         # self.data_forcing = relevant_vars
         # self.data_attr = constant_vars
@@ -426,7 +428,9 @@ class SlidingWindowScaler(object):
         """reset scaler"""
         self.sw_width = sw_width
         self.sw_stride = sw_stride
-        self.series_length = series_length
+        # self.series_length = series_length
+        self.min = []
+        self.max = []
 
 
     def fit(self, X):
@@ -463,11 +467,17 @@ class SlidingWindowScaler(object):
             Fitted scaler.
         """
 
-
         x_min = np.min(X.values, axis=1)
         x_max = np.max(X.values, axis=1)
+        self.min.append(x_min)
+        self.max.append(x_max)
 
         return x_min, x_max
+    
+    def cal_stat_all(self):
+        """calculate the statistics values of series"""
+
+
 
     def transform_singlewindow(self, x):
         """ data format """
@@ -490,7 +500,7 @@ class SlidingWindowScaler(object):
         """
         length = X.shap[1]
         self._reset_scaler(sw_width, sw_stride, length)
-        n_window = length / sw_width
+        n_window = int(length / sw_width)   # todo: 
         out = np.array(0)
         for i in range(n_window):
             start_i = i*sw_width
