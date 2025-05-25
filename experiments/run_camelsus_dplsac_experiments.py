@@ -47,23 +47,24 @@ def run_camelsdplsac(
         },
         loss_func="RMSESum",
         dataset="DplDataset",
-        scaler="DapengScaler",
-        scaler_params={
-            "prcp_norm_cols": [
-                "streamflow",
-            ],
-            "gamma_norm_cols": [
-                "prcp",
-                "pr",
-                "total_precipitation",
-                "potential_evaporation",
-                "ET",
-                "PET",
-                "ET_sum",
-                "ssm",
-            ],
-            "pbm_norm": True,
-        },
+        # scaler="DapengScaler",
+        scaler="StandardScaler",
+        # scaler_params={
+        #     "prcp_norm_cols": [
+        #         "streamflow",
+        #     ],
+        #     "gamma_norm_cols": [
+        #         "prcp",
+        #         "pr",
+        #         "total_precipitation",
+        #         "potential_evaporation",
+        #         "ET",
+        #         "PET",
+        #         "ET_sum",
+        #         "ssm",
+        #     ],
+        #     "pbm_norm": True,
+        # },
         gage_id=[
             "01013500",
             "01022500",

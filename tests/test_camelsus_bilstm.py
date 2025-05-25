@@ -91,9 +91,9 @@ def arg_camelsus_biLstm(
         sampler="KuaiSampler",
         # dataset="StlDataset",
         dataset="StreamflowDataset",
-        # scaler="StandardScaler",
+        scaler="StandardScaler",
         # scaler="DapengScaler",
-        scaler="MinMaxScaler",
+        # scaler="MinMaxScaler",
         # scaler_params={
         #     "prcp_norm_cols": [
         #         "streamflow",
@@ -213,3 +213,16 @@ def test_camelsus_biLstm(arg_camelsus_biLstm):
 # 'FHV of streamflow': [-79.43367004394531, -88.50468444824219], 'FLV of streamflow': [131.0086212158203, 42.13608169555664]}
 # Weights sucessfully loaded
 # All processes are finished!
+
+# Epoch 2 Loss 0.7943 time 27.42 lr 1.0
+# biLSTM(
+#   (linearIn): Linear(in_features=2, out_features=256, bias=True)
+#   (lstm): LSTM(256, 256, bidirectional=True)
+#   (linearOut): Linear(in_features=512, out_features=1, bias=True)
+# )
+# Epoch 2 Valid Loss 0.9470 Valid Metric {'NSE of streamflow': [-0.1236947774887085, -0.40001869201660156], 'RMSE of streamflow': [0.6908115744590759, 1.14741051197052], 
+# 'R2 of streamflow': [-0.1236947774887085, -0.40001869201660156], 'KGE of streamflow': [-1.4941370555052411, -1.341811298486459], 
+# 'FHV of streamflow': [-110.4563217163086, -105.34850311279297], 'FLV of streamflow': [-36.8513069152832, -7.481730937957764]}
+# Weights sucessfully loaded
+# All processes are finished!
+# .
