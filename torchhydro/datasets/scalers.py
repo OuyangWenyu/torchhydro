@@ -380,15 +380,15 @@ class SlidingWindowScaler(object):
     def __init__(
         self,
         sw_width: int,
-        sw_step: int,
-        target_vars: np.ndarray,
-        relevant_vars: np.ndarray,
-        constant_vars: np.ndarray,
-        data_cfgs: dict,
-        is_tra_val_te: str,
-        norm_keys: list,
-        other_vars: Optional[dict] = None,
-        data_source: object = None,
+        sw_stride: int,
+        # target_vars: np.ndarray,
+        # relevant_vars: np.ndarray,
+        # constant_vars: np.ndarray,
+        # data_cfgs: dict,
+        # is_tra_val_te: str,
+        # norm_keys: list,
+        # other_vars: Optional[dict] = None,
+        # data_source: object = None,
     ):
         """
         The normalization and denormalization methods of sliding window scaler .
@@ -408,35 +408,97 @@ class SlidingWindowScaler(object):
         other_vars
             if more input are needed, list them in other_vars
         """
+        self.sw_width = None
+        self.sw_stride = None
+        # self.series = None
+        self.series_length = None
+        # self.data_target = target_vars
+        # self.data_forcing = relevant_vars
+        # self.data_attr = constant_vars
+        # self.data_cfgs = data_cfgs
+        # self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
+        # self.is_tra_val_te = is_tra_val_te
+        # self.norm_keys = norm_keys
+        # self.data_other = other_vars
+        # self.data_source = data_source
+    
+    def _reset_scaler(self, sw_width, sw_stride, series_length):
+        """reset scaler"""
         self.sw_width = sw_width
-        self.sw_step = sw_step
-        self.data_target = target_vars
-        self.data_forcing = relevant_vars
-        self.data_attr = constant_vars
-        self.data_cfgs = data_cfgs
-        self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
-        self.is_tra_val_te = is_tra_val_te
-        self.norm_keys = norm_keys
-        self.data_other = other_vars
-        self.data_source = data_source
+        self.sw_stride = sw_stride
+        self.series_length = series_length
 
-    def transform(self, X, copy=None):
+
+    def fit(self, X):
+        """
+        calculate the minimum and maximum of x.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            The data used to compute the per-feature minimum and maximum
+            used for later scaling along the features axis.
+
+        Returns
+        -------
+        self : object
+            Fitted scaler.
+        """
+        out = self.partial_fit(X)
+        return out
+
+    def partial_fit(self, X):
+        """
+        calculate the min and max within window.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            The data used to compute the mean and standard deviation
+            used for later scaling along the features axis.
+
+        Returns
+        -------
+        self : object
+            Fitted scaler.
+        """
+
+
+        x_min = np.min(X.values, axis=1)
+        x_max = np.max(X.values, axis=1)
+
+        return x_min, x_max
+
+    def transform_singlewindow(self, x):
+        """ data format """
+        x_min, x_max = self.partial_fit(x)
+        normalized_x = (x - x_min) / (x_max - x_min)
+
+        return normalized_x
+
+    def transform(self, X, sw_width, sw_stride):
         """Perform standardization by centering and scaling.
 
         Parameters
         ----------
-        X : {array-like, sparse matrix of shape (n_samples, n_features)
-            The data used to scale along the features axis.
-        copy : bool, default=None
-            Copy the input X or not.
+        X : data need to normalization.
 
         Returns
         -------
         X_tr : {ndarray, sparse matrix} of shape (n_samples, n_features)
             Transformed array.
         """
-        out = None
-
+        length = X.shap[1]
+        self._reset_scaler(sw_width, sw_stride, length)
+        n_window = length / sw_width
+        out = np.array(0)
+        for i in range(n_window):
+            start_i = i*sw_width
+            end_i = (i + 1) * sw_width -1
+            x_i = X[start_i, end_i]
+            normalized_x_i = self.transform_singlewindow(x_i)
+            out[start_i, end_i] = normalized_x_i
+        
         return out
 
     def inverse_transform(self, x):

@@ -38,7 +38,7 @@ from torchhydro.datasets.data_utils import (
     wrap_t_s_dict,
     unify_streamflow_unit,
 )
-from torchhydro.datasets.scalers import DapengScaler
+from torchhydro.datasets.scalers import DapengScaler, SlidingWindowScaler
 
 SCALER_DICT = {
     "StandardScaler": StandardScaler,
@@ -48,6 +48,7 @@ SCALER_DICT = {
 }
 TORCHHYDRO_SCALER_DICT = {
     "DapengScaler": DapengScaler,
+    "SlidingWindowScaler": SlidingWindowScaler,
 }
 
 class ScalerHub(object):
@@ -184,7 +185,7 @@ class SklearnScalers(object):
         all_vars = [self.data_target, self.data_forcing, self.data_attr, self.data_other]  # y, x, c
         norm_dict = {}
         for i in range(len(all_vars)):
-            data_tmp = all_vars[i]
+            data_tmp = all_vars[i]   # normalize along xr.DataSet
             scaler = self.scaler
             if data_tmp is None:
                 data_norm = None
@@ -197,7 +198,7 @@ class SklearnScalers(object):
                 save_file = os.path.join(
                     self.data_cfgs["test_path"], f"{self.norm_keys[i]}_scaler.pkl"
                 )
-                if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:
+                if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:  # help="for testing sometimes such as pub cases, we need stat_dict_file from trained dataset"  Predictions in Ungauged Basins (PUB)
                     data_norm = scaler.fit_transform(data_tmp)
                     # Save scaler in test_path for valid/test
                     with open(save_file, "wb") as outfile:
@@ -220,7 +221,7 @@ class SklearnScalers(object):
                 save_file = os.path.join(
                     self.data_cfgs["test_path"], f"{self.norm_keys[i]}_scaler.pkl"
                 )
-                if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:
+                if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:  
                     data_norm = scaler.fit_transform(data_tmp)
                     # Save scaler in test_path for valid/test
                     with open(save_file, "wb") as outfile:
@@ -231,7 +232,7 @@ class SklearnScalers(object):
                     assert os.path.isfile(save_file)
                     with open(save_file, "rb") as infile:
                         scaler = pkl.load(infile)
-                        data_norm = scaler.transform(data_tmp)
+                        data_norm = scaler.transform(data_tmp)   # normalize
             norm_dict[self.norm_keys[i]] = data_norm
         x_ = norm_dict["relevant_vars"]  # forcing
         y_ = norm_dict["target_vars"]  # streamflow
