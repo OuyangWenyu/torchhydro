@@ -94,7 +94,6 @@ class ScalerHub(object):
             x, y, c, d = scaler.normalize()
             self.target_scaler = scaler
         elif scaler_type in SCALER_DICT.keys():
-            # TODO: not fully tested, espacially for pbm models
             scaler = SklearnScalers(
                 scaler_type=scaler_type,
                 target_vars=target_vars,
@@ -213,6 +212,7 @@ class SklearnScalers(object):
                 )
                 if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:
                     data_norm = scaler.fit_transform(data_tmp)
+                    data_norm = np.transpose(data_norm)
                     # Save scaler in test_path for valid/test
                     with open(save_file, "wb") as outfile:
                         pkl.dump(scaler, outfile)
@@ -223,12 +223,13 @@ class SklearnScalers(object):
                     with open(save_file, "rb") as infile:
                         scaler = pkl.load(infile)
                         data_norm = scaler.transform(data_tmp)   # normalize
+                        data_norm = np.transpose(data_norm)
             norm_dict[self.norm_keys[i]] = data_norm
         x_ = norm_dict["relevant_vars"]  # forcing
         y_ = norm_dict["target_vars"]  # streamflow
         c_ = norm_dict["constant_vars"]  # attr
         d_ = norm_dict["other_vars"]  # trend, season, residuals
-        # TODO: need more test for real data
+
         x = xr.DataArray(
             x_,
             coords={
@@ -250,7 +251,7 @@ class SklearnScalers(object):
         if c_ is None:
             c = None
         else:
-            c = xr.DataArray(     # todo: ValueError: conflicting sizes for dimension 'basin': length 17 on the data but length 20 on coordinate 'basin'
+            c = xr.DataArray(
                 c_,
                 coords={
                     "basin": self.data_attr.coords["basin"],
