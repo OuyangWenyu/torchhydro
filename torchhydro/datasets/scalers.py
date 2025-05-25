@@ -373,7 +373,7 @@ class DapengScaler(object):
         else:
             d = None
         return x, y, c, d
-    
+
 
 class SlidingWindowScaler(object):
     """sliding window scaler"""
@@ -422,9 +422,27 @@ class SlidingWindowScaler(object):
         # self.norm_keys = norm_keys
         # self.data_other = other_vars
         # self.data_source = data_source
-    
-    def _reset_scaler(self, sw_width, sw_stride, series_length, sta_dict):
-        """reset scaler"""
+
+    def _reset_scaler(
+        self,
+        sw_width,
+        sw_stride,
+        series_length,
+        sta_dict
+    ):
+        """
+        reset scaler
+        Parameters
+        ----------
+        sw_width
+        sw_stride
+        series_length
+        sta_dict
+
+        Returns
+        -------
+
+        """
         self.sw_width = sw_width
         self.sw_stride = sw_stride
         self.series_length = series_length
@@ -433,7 +451,6 @@ class SlidingWindowScaler(object):
         self.n_residual = series_length % sw_width
         if self.n_residual > 0:
             self.n_windows = self.n_windows + 1
-        
 
     def fit(self, X):
         """
@@ -475,14 +492,22 @@ class SlidingWindowScaler(object):
         self.max.append(x_max)
 
         return x_min, x_max
-    
-    def pre_transform(self, x):
-        """ """
-    
-    def cal_stat(self, x: np.ndarray, n):
+
+    def cal_stat(
+        self,
+        x: np.ndarray,
+        n
+    ):
         """
         calculate two statistics indices: min and max for all windows.
-        
+        Parameters
+        ----------
+        x
+        n
+
+        Returns
+        -------
+
         """
         min = [0]*n
         max = [0]*n
@@ -493,7 +518,7 @@ class SlidingWindowScaler(object):
             min[i] = np.min(x_i)
             max[i] = np.max(x_i)
         return [min, max]
-    
+
     def cal_stat_all(self):
         """calculate the statistics values of series
         Calculate statistics of outputs(streamflow etc), inputs(forcing and attributes) and other data(decomposed from
@@ -535,8 +560,27 @@ class SlidingWindowScaler(object):
 
         return stat_dict
 
-    def transform_singlewindow(self, x, min, max, b_norm):
-        """ data format """
+    def transform_singlewindow(
+        self,
+        x,
+        min,
+        max,
+        b_norm
+    ):
+        """
+        normalize or denormalize for a single window
+         data format
+        Parameters
+        ----------
+        x
+        min
+        max
+        b_norm
+
+        Returns
+        -------
+
+        """
         if b_norm:
             normalized_x = (x - min) / (max - min)
             return normalized_x
@@ -544,8 +588,14 @@ class SlidingWindowScaler(object):
             denormalized_x = x * (max - min) + min
             return denormalized_x
 
-    def transform(self, X, sw_width, sw_stride):
-        """Perform standardization by centering and scaling.
+    def transform(
+        self,
+        X,
+        sw_width,
+        sw_stride
+    ):
+        """
+        Perform standardization by centering and scaling.
 
         Parameters
         ----------
@@ -558,7 +608,7 @@ class SlidingWindowScaler(object):
         """
         length = X.shap[1]
         self._reset_scaler(sw_width, sw_stride, length)
-        n_window = int(length / sw_width)   # todo: 
+        n_window = int(length / sw_width)   # todo:
         min = self.sta_dict[0]
         max = self.sta_dict[1]
         b_norm = True
@@ -571,7 +621,7 @@ class SlidingWindowScaler(object):
             max_i = max[i]
             normalized_x_i = self.transform_singlewindow(x_i, min_i, max_i, b_norm)
             out[start_i, end_i] = normalized_x_i
-        
+
         return out
 
     def inverse_transform(self, x):
@@ -591,8 +641,8 @@ class SlidingWindowScaler(object):
         min = self.sta_dict[0]
         max = self.sta_dict[1]
         b_norm = False
-        out = np.array([0]*self.length)
-        for i in range(self.n_window):
+        out = np.array([0]*self.series_length)
+        for i in range(self.n_windows):
             start_i = i*self.sw_width
             end_i = (i + 1) * self.sw_width -1
             x_i = x[start_i, end_i]
@@ -600,5 +650,5 @@ class SlidingWindowScaler(object):
             max_i = max[i]
             normalized_x_i = self.transform_singlewindow(x_i, min_i, max_i, b_norm)
             out[start_i, end_i] = normalized_x_i
-        
+
         return out

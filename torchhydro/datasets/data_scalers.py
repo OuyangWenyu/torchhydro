@@ -8,8 +8,6 @@ FilePath: \torchhydro\torchhydro\datasets\data_scalers.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
-import copy
-import json
 import os
 import pickle as pkl
 import shutil
@@ -17,7 +15,6 @@ from typing import Optional
 import pint_xarray  # noqa: F401
 import xarray as xr
 import numpy as np
-from shutil import SameFileError
 from sklearn.preprocessing import (
     StandardScaler,
     RobustScaler,
@@ -25,20 +22,13 @@ from sklearn.preprocessing import (
     MaxAbsScaler,
 )
 
-from hydroutils.hydro_stat import (
-    cal_stat_prcp_norm,
-    cal_stat_gamma,
-    cal_stat,
-    cal_4_stat_inds,
-)
-
 from torchhydro.datasets.data_utils import (
-    _trans_norm,
-    _prcp_norm,
     wrap_t_s_dict,
-    unify_streamflow_unit,
 )
-from torchhydro.datasets.scalers import DapengScaler, SlidingWindowScaler
+from torchhydro.datasets.scalers import (
+    DapengScaler,
+    SlidingWindowScaler,
+)
 
 SCALER_DICT = {
     "StandardScaler": StandardScaler,
@@ -221,7 +211,7 @@ class SklearnScalers(object):
                 save_file = os.path.join(
                     self.data_cfgs["test_path"], f"{self.norm_keys[i]}_scaler.pkl"
                 )
-                if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:  
+                if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:
                     data_norm = scaler.fit_transform(data_tmp)
                     # Save scaler in test_path for valid/test
                     with open(save_file, "wb") as outfile:
@@ -312,7 +302,7 @@ class SklearnScalers(object):
         # add attrs for units
         out.attrs.update(attrs)
         return out.to_dataset(dim="variable")
-    
+
 
 class TorchhydroScalers(object):
     """
@@ -381,10 +371,10 @@ class TorchhydroScalers(object):
                 )
 
     def normalize(self):
-        """ """ 
+        """ """
         x, y, c, d = self.scaler.load_data()
         return x, y, c, d
-    
+
     def inverse_transform(self, x):
         """
         Denormalization for output variables
