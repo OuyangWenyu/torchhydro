@@ -374,7 +374,7 @@ class DapengScaler(object):
 
 
 class SlidingWindowScaler(object):
-    """sliding window scaler"""
+    """sliding window scaler  follow DapengScaler"""
     def __init__(
         self,
         # sw_width: int,

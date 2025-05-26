@@ -318,6 +318,7 @@ class TorchhydroScalers(object):
         constant_vars: np.ndarray,
         data_cfgs: dict,
         is_tra_val_te: str,
+        norm_keys: list,
         other_vars: Optional[dict] = None,
         data_source: object = None,
     ):
@@ -351,6 +352,7 @@ class TorchhydroScalers(object):
         self.data_cfgs = data_cfgs
         self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
         self.is_tra_val_te = is_tra_val_te
+        self.norm_keys = norm_keys
         self.data_other = other_vars
         self.data_source = data_source
         self.series_length = self.data_target.shape[2]
