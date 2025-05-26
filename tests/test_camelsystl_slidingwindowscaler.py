@@ -12,7 +12,7 @@ from tests.test_camelsystl_stl_mi import Ystl
 
 
 def test_SlidingWindowScaler():
-    temp_test_path = "test_camels\slidingwindowscaler_camelsus"
+    temp_test_path = "result\test_camels\slidingwindowscaler_camelsus"
     os.makedirs(temp_test_path, exist_ok=True)
 
     data_cfgs =  {
@@ -92,15 +92,13 @@ def test_SlidingWindowScaler():
         "target_rm_nan": True,
         "relevant_rm_nan": True,
         "constant_rm_nan": True,
-        "scaler": "SlidingWindowScaler",  # Add the scaler configuration here
         "stat_dict_file": None,  # Added the missing configuration
         # dataset="StlDataset",
         # "dataset": "StreamflowDataset",
         # scaler="StandardScaler",
-        # "scaler": "SlidingWindowScaler",
-        # scaler="DapengScaler",
-        # scaler="MinMaxScaler",
-        # scaler_params={
+        "scaler": "SlidingWindowScaler",
+        # "scaler": "DapengScaler",
+        # "scaler_params": {
         #     "prcp_norm_cols": [
         #         "streamflow",
         #     ],

@@ -343,8 +343,8 @@ class TorchhydroScalers(object):
         data_source
              data source
         """
-        self.scaler = TORCHHYDRO_SCALER_DICT[scaler_type]()
-        # self.scaler = None  #
+        # self.scaler = TORCHHYDRO_SCALER_DICT[scaler_type]()
+        self.scaler = None  #
         self.data_target = target_vars
         self.data_forcing = relevant_vars
         self.data_attr = constant_vars
@@ -418,30 +418,32 @@ class TorchhydroScalers(object):
                 var = forcing_lst[k]
                 stat_dict[var] = self.scaler.cal_statistics(x.sel(variable=var).to_numpy())
 
+        # other data, only decomposed data by STL now.  trend, season and residuals decomposed from streamflow.
+        if self.data_other is not None:
+            decomposed_item = self.data_cfgs["decomposed_item"]
+            decomposed_data = self.data_other
+            for i in range(len(decomposed_item)):
+                var = decomposed_item[i]
+                stat_dict[var] = self.scaler.cal_statistics(decomposed_data.sel(variable=var).to_numpy())
+
         # const attribute
-        if self.data_attr is not None:
+        if self.data_attr is not None:  # todo:
             attr_data = self.data_attr
             attr_lst = self.data_cfgs["constant_cols"]
             for k in range(len(attr_lst)):
                 var = attr_lst[k]
                 stat_dict[var] = self.scaler.cal_statistics(attr_data.sel(variable=var).to_numpy())
 
-        # other data, only decomposed data by STL now.  trend, season and residuals decomposed from streamflow.
-        if self.data_other is not None:
-            decomposed_item = ["trend", "season", "residuals"]
-            decomposed_data = self.data_other
-            for i in range(len(decomposed_item)):
-                var = decomposed_item[i]
-                stat_dict[var] = self.scaler.cal_statistics(decomposed_data.sel(variable=var).to_numpy())
-
         return stat_dict
 
     def normalize_(self):
         """ """
         all_vars = [self.data_target, self.data_forcing, self.data_attr, self.data_other]  # y, x, c
+        all_vars_name = [self.data_cfgs["target_cols"], self.data_cfgs["relevant_cols"], self.data_cfgs["constant_cols"], self.data_cfgs["decomposed_item"]]
         norm_dict = {}
         for i in range(len(all_vars)):
             data_tmp = all_vars[i]   # normalize along xr.DataSet
+            data_name = all_vars_name[i]
             if data_tmp is None:
                 data_norm = None
             elif data_tmp.ndim == 3:
@@ -454,7 +456,7 @@ class TorchhydroScalers(object):
                     self.data_cfgs["test_path"], f"{self.norm_keys[i]}_scaler.pkl"
                 )
                 if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:  # help="for testing sometimes such as pub cases, we need stat_dict_file from trained dataset"  Predictions in Ungauged Basins (PUB)
-                    data_norm = self.scaler.transform(data_tmp)
+                    data_norm = self.scaler.transform(data_tmp, data_name)
                     # Save scaler in test_path for valid/test
                     with open(save_file, "wb") as outfile:
                         pkl.dump(self.scaler, outfile)
@@ -467,7 +469,7 @@ class TorchhydroScalers(object):
                         )
                     with open(save_file, "rb") as infile:  # load scaler from file
                         scaler = pkl.load(infile)
-                        data_norm = scaler.transform(data_tmp)
+                        data_norm = scaler.transform(data_tmp, data_name)
                 data_norm = data_norm.reshape(
                     num_instances, num_time_steps, num_features
                 )
@@ -477,7 +479,7 @@ class TorchhydroScalers(object):
                     self.data_cfgs["test_path"], f"{self.norm_keys[i]}_scaler.pkl"
                 )
                 if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:
-                    data_norm = self.scaler.fit_transform(data_tmp)
+                    data_norm = self.scaler.fit_transform(data_tmp, data_name)
                     data_norm = np.transpose(data_norm)
                     # Save scaler in test_path for valid/test
                     with open(save_file, "wb") as outfile:
@@ -488,7 +490,7 @@ class TorchhydroScalers(object):
                     assert os.path.isfile(save_file)
                     with open(save_file, "rb") as infile:
                         scaler = pkl.load(infile)
-                        data_norm = scaler.transform(data_tmp)  # normalize
+                        data_norm = scaler.transform(data_tmp, data_name)  # normalize
                         data_norm = np.transpose(data_norm)
 
             norm_dict[self.norm_keys[i]] = data_norm

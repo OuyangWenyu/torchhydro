@@ -58,21 +58,6 @@ class DapengScaler(object):
         pbm_norm
             if true, use pbm_norm method to normalize; the output of pbms is not normalized data, so its inverse is different.
         """
-        if prcp_norm_cols is None:
-            prcp_norm_cols = [
-                "streamflow",
-            ]
-        if gamma_norm_cols is None:
-            gamma_norm_cols = [
-                "gpm_tp",
-                "sta_tp",
-                "total_precipitation_hourly",
-                "temperature_2m",
-                "dewpoint_temperature_2m",
-                "surface_net_solar_radiation",
-                "sm_surface",
-                "sm_rootzone",
-            ]
         self.data_target = target_vars
         self.data_forcing = relevant_vars
         self.data_attr = constant_vars
@@ -82,8 +67,23 @@ class DapengScaler(object):
         self.gamma_norm_cols = self.data_cfgs["scaler_params"]["gamma_norm_cols"]
         self.prcp_norm_cols = self.data_cfgs["scaler_params"]["prcp_norm_cols"]
         self.pbm_norm = self.data_cfgs["scaler_params"]["pbm_norm"]
+        if self.prcp_norm_cols is None:
+            self.prcp_norm_cols = [
+                "streamflow",
+            ]
+        if self.gamma_norm_cols is None:
+            self.gamma_norm_cols = [
+                "gpm_tp",
+                "sta_tp",
+                "total_precipitation_hourly",
+                "temperature_2m",
+                "dewpoint_temperature_2m",
+                "surface_net_solar_radiation",
+                "sm_surface",
+                "sm_rootzone",
+            ]
         # both prcp_norm_cols and gamma_norm_cols use log(\sqrt(x)+.1) method to normalize
-        self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
+        self.log_norm_cols = self.gamma_norm_cols + self.prcp_norm_cols
         self.data_source = data_source
 
         # save stat_dict of training period in test_path for valid/test
@@ -221,7 +221,7 @@ class DapengScaler(object):
 
         # other data, only decomposed data by STL now.  trend, season and residuals decomposed from streamflow.
         if self.data_other is not None:
-            decomposed_item = ["trend", "season", "residuals"]
+            decomposed_item = self.data_cfgs["decomposed_item"]
             decomposed_data = self.data_other
             for i in range(len(decomposed_item)):
                 var = decomposed_item[i]
@@ -333,7 +333,7 @@ class DapengScaler(object):
         out = xr.full_like(data, np.nan)
         # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
         out.attrs = copy.deepcopy(data.attrs)
-        decomposed_item = ["trend", "season", "residuals"]
+        decomposed_item = self.data_cfgs["decomposed_item"]
         if "units" not in out.attrs:
             Warning("The attrs of output data does not contain units")
             out.attrs["units"] = {}
@@ -410,7 +410,7 @@ class SlidingWindowScaler(object):
         self.sw_stride = None
         self.series = None
         self.series_length = None
-        self.sta_dict = None  # list   for denormalizing.
+        self.statistics = None  # list   for denormalizing.
         # self.data_target = target_vars   # todo: single variable or whole?
         # self.data_forcing = relevant_vars
         # self.data_attr = constant_vars
@@ -438,26 +438,20 @@ class SlidingWindowScaler(object):
 
     def _reset_scaler(
         self,
-        sw_width,
-        sw_stride,
-        x,
-        sta_dict
+        statistics,
     ):
         """
         reset scaler
         Parameters
         ----------
-        sw_width
-        sw_stride
-        series_length
-        sta_dict
+        statistics
 
         Returns
         -------
 
         """
 
-        self.sta_dict = sta_dict
+        self.statistics = statistics
 
 
     def fit(self, X):
@@ -515,14 +509,18 @@ class SlidingWindowScaler(object):
 
         """
         d_x = x.ndim
-        min = [0]*self.n_windows
-        max = [0]*self.n_windows
-        for i in range(self.n_windows):
-            start_i = i*self.sw_width
-            end_i = (i + 1) * self.sw_width -1
-            x_i = x[:, start_i:end_i] if (d_x == 2) else x[start_i:end_i]
-            min[i] = np.min(x_i, axis=1) if (d_x == 2) else np.min(x_i)
-            max[i] = np.max(x_i, axis=1) if (d_x == 2) else np.max(x_i)
+        if (d_x == 2):
+            min = [0]*self.n_windows
+            max = [0]*self.n_windows
+            for i in range(self.n_windows):
+                start_i = i*self.sw_width
+                end_i = (i + 1) * self.sw_width -1
+                x_i = x[:, start_i:end_i]
+                min[i] = np.min(x_i, axis=1)
+                max[i] = np.max(x_i, axis=1)
+        else:  # todo:
+            min = np.min(x)
+            max = np.max(x)
         return [min, max]
 
     def transform_singlewindow(
@@ -556,8 +554,7 @@ class SlidingWindowScaler(object):
     def transform(
         self,
         X,
-        sw_width,
-        sw_stride
+        statistics,
     ):
         """
         Perform standardization by centering and scaling.
@@ -571,16 +568,14 @@ class SlidingWindowScaler(object):
         X_tr : {ndarray, sparse matrix} of shape (n_samples, n_features)
             Transformed array.
         """
-        length = X.shap[1]
-        self._reset_scaler(sw_width, sw_stride, length)
-        n_window = int(length / sw_width)   # todo:
-        min = self.sta_dict[0]
-        max = self.sta_dict[1]
+        self._reset_scaler(statistics)
+        min = self.statistics[0]
+        max = self.statistics[1]
         b_norm = True
-        out = np.array([0]*length)
-        for i in range(n_window):
-            start_i = i*sw_width
-            end_i = (i + 1) * sw_width -1
+        out = np.array([0]*self.series_length)
+        for i in range(self.n_window):
+            start_i = i * self.sw_width
+            end_i = (i + 1) * self.sw_width -1
             x_i = X[start_i, end_i]
             min_i = min[i]
             max_i = max[i]
@@ -589,7 +584,7 @@ class SlidingWindowScaler(object):
 
         return out
 
-    def inverse_transform(self, x):
+    def inverse_transform(self, x, statistics):
         """
         Denormalization for output variables
 
@@ -603,8 +598,9 @@ class SlidingWindowScaler(object):
         np.array
             denormalized predictions
         """
-        min = self.sta_dict[0]
-        max = self.sta_dict[1]
+
+        min = self.statistics[0]
+        max = self.statistics[1]
         b_norm = False
         out = np.array([0]*self.series_length)
         for i in range(self.n_windows):
