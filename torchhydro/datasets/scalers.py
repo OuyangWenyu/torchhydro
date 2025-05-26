@@ -514,14 +514,15 @@ class SlidingWindowScaler(object):
         -------
 
         """
+        d_x = x.ndim
         min = [0]*self.n_windows
         max = [0]*self.n_windows
         for i in range(self.n_windows):
             start_i = i*self.sw_width
             end_i = (i + 1) * self.sw_width -1
-            x_i = x[:, start_i:end_i]
-            min[i] = np.min(x_i, axis=1)
-            max[i] = np.max(x_i, axis=1)
+            x_i = x[:, start_i:end_i] if (d_x == 2) else x[start_i:end_i]
+            min[i] = np.min(x_i, axis=1) if (d_x == 2) else np.min(x_i)
+            max[i] = np.max(x_i, axis=1) if (d_x == 2) else np.max(x_i)
         return [min, max]
 
     def transform_singlewindow(

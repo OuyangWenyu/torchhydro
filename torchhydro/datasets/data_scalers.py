@@ -424,7 +424,7 @@ class TorchhydroScalers(object):
             attr_lst = self.data_cfgs["constant_cols"]
             for k in range(len(attr_lst)):
                 var = attr_lst[k]
-                stat_dict[var] = self.scaler.calcal_statistics_stat(attr_data.sel(variable=var).to_numpy())
+                stat_dict[var] = self.scaler.cal_statistics(attr_data.sel(variable=var).to_numpy())
 
         # other data, only decomposed data by STL now.  trend, season and residuals decomposed from streamflow.
         if self.data_other is not None:
