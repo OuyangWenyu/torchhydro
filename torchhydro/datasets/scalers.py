@@ -30,9 +30,6 @@ class DapengScaler(object):
         data_cfgs: dict,
         is_tra_val_te: str,
         other_vars: Optional[dict] = None,
-        prcp_norm_cols=None,
-        gamma_norm_cols=None,
-        pbm_norm=False,
         data_source: object = None,
     ):
         """
@@ -82,12 +79,13 @@ class DapengScaler(object):
         self.data_cfgs = data_cfgs
         self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
         self.data_other = other_vars
-        self.prcp_norm_cols = prcp_norm_cols
-        self.gamma_norm_cols = gamma_norm_cols
+        self.gamma_norm_cols = self.data_cfgs["scaler_params"]["gamma_norm_cols"]
+        self.prcp_norm_cols = self.data_cfgs["scaler_params"]["prcp_norm_cols"]
+        self.pbm_norm = self.data_cfgs["scaler_params"]["pbm_norm"]
         # both prcp_norm_cols and gamma_norm_cols use log(\sqrt(x)+.1) method to normalize
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
-        self.pbm_norm = pbm_norm
         self.data_source = data_source
+
         # save stat_dict of training period in test_path for valid/test
         stat_file = os.path.join(data_cfgs["test_path"], "dapengscaler_stat.json")
         # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
@@ -410,7 +408,7 @@ class SlidingWindowScaler(object):
         """
         self.sw_width = None
         self.sw_stride = None
-        # self.series = None
+        self.series = None
         self.series_length = None
         self.sta_dict = None  # list   for denormalizing.
         # self.data_target = target_vars   # todo: single variable or whole?
@@ -423,11 +421,26 @@ class SlidingWindowScaler(object):
         # self.data_other = other_vars
         # self.data_source = data_source
 
-    def _reset_scaler(
+    def set_scaler(
         self,
         sw_width,
         sw_stride,
         series_length,
+    ):
+        """ """
+        self.sw_width = sw_width
+        self.sw_stride = sw_stride
+        self.series_length = series_length
+        self.n_windows = int(series_length / sw_width)
+        self.n_residual = series_length % sw_width
+        if self.n_residual > 0:
+            self.n_windows = self.n_windows + 1
+
+    def _reset_scaler(
+        self,
+        sw_width,
+        sw_stride,
+        x,
         sta_dict
     ):
         """
@@ -443,14 +456,9 @@ class SlidingWindowScaler(object):
         -------
 
         """
-        self.sw_width = sw_width
-        self.sw_stride = sw_stride
-        self.series_length = series_length
+
         self.sta_dict = sta_dict
-        self.n_windows = int(series_length / sw_width)
-        self.n_residual = series_length % sw_width
-        if self.n_residual > 0:
-            self.n_windows = self.n_windows + 1
+
 
     def fit(self, X):
         """
@@ -491,10 +499,9 @@ class SlidingWindowScaler(object):
 
         return x_min, x_max
 
-    def cal_stat(
+    def cal_statistics(
         self,
         x: np.ndarray,
-        n
     ):
         """
         calculate two statistics indices: min and max for all windows.
@@ -507,17 +514,15 @@ class SlidingWindowScaler(object):
         -------
 
         """
-        min = [0]*n
-        max = [0]*n
-        for i in range(n):
+        min = [0]*self.n_windows
+        max = [0]*self.n_windows
+        for i in range(self.n_windows):
             start_i = i*self.sw_width
             end_i = (i + 1) * self.sw_width -1
-            x_i = x[start_i, end_i]
-            min[i] = np.min(x_i)
-            max[i] = np.max(x_i)
+            x_i = x[:, start_i:end_i]
+            min[i] = np.min(x_i, axis=1)
+            max[i] = np.max(x_i, axis=1)
         return [min, max]
-
-
 
     def transform_singlewindow(
         self,

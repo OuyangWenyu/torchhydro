@@ -91,7 +91,8 @@ def arg_camelsus_biLstm(
         sampler="KuaiSampler",
         # dataset="StlDataset",
         dataset="StreamflowDataset",
-        scaler="StandardScaler",
+        # scaler="StandardScaler",
+        scaler="SlidingWindowScaler",
         # scaler="DapengScaler",
         # scaler="MinMaxScaler",
         # scaler_params={
