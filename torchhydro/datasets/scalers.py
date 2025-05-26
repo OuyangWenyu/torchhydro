@@ -416,6 +416,7 @@ class SlidingWindowScaler(object):
         # self.sw_stride = None
         # self.series = None
         self.series_length = self.data_target.shape[2]
+        self.series_nbasin = self.data_target.shape[1]
         # self.statistics = None  # list   for denormalizing.
         self.n_windows = None
         self.n_residual = None
@@ -500,6 +501,12 @@ class SlidingWindowScaler(object):
                 x_i = x[:, start_i:end_i]
                 min[i] = np.min(x_i, axis=1)
                 max[i] = np.max(x_i, axis=1)
+            if self.n_residual > 0:
+                x_i = x[:, -self.n_residual:]
+                min_ = np.min(x_i, axis=1)
+                max_ = np.max(x_i, axis=1)
+                min.append(min_)
+                max.append(max_)
         else:  # todo: attributions
             min = np.min(x)
             max = np.max(x)
@@ -569,11 +576,15 @@ class SlidingWindowScaler(object):
         -------
 
         """
+        n_basin, n_t = np.shape(x)
+        min = np.expand_dims(min,1).repeat(n_t,axis=1)
+        max = np.expand_dims(max,1).repeat(n_t,axis=1)
+        range = max - min
         if b_norm:
-            normalized_x = (x - min) / (max - min)
+            normalized_x = (x - min) / range
             return normalized_x
         else:
-            denormalized_x = x * (max - min) + min
+            denormalized_x = x * range + min
             return denormalized_x
 
     def norm_wholeseries(
@@ -596,22 +607,24 @@ class SlidingWindowScaler(object):
         """
         min = statistics[0]
         max = statistics[1]
-        
-        out = np.array([0]*self.series_length)
-        for i in range(self.n_window):
-            start_i = i * self.sw_width
-            end_i = (i + 1) * self.sw_width -1
-            x_i = x[:, start_i:end_i]
-            min_i = min[i]
-            max_i = max[i]
-            normalized_x_i = self.norm_singlewindow(x_i, min_i, max_i, b_norm)
-            out[start_i, end_i] = normalized_x_i
+        out = np.zeros((self.series_nbasin, self.series_length))
+        try:
+            for i in range(self.n_windows):
+                start_i = i * self.sw_width
+                end_i = (i + 1) * self.sw_width -1
+                x_i = x[:, start_i:end_i]
+                min_i = min[i]
+                max_i = max[i]
+                normalized_x_i = self.norm_singlewindow(x_i, min_i, max_i, b_norm)
+                out[:, start_i:end_i] = normalized_x_i
+        except IndexError:
+            raise IndexError("too many indices for array: array is 1-dimensional, but 2 were indexed")
         if self.n_residual > 0:
             x_i = x[:, -self.n_residual:]
             min_i = min[-1]
             max_i = max[-1]
             normalized_x_i = self.norm_singlewindow(x_i, min_i, max_i, b_norm)
-            out[-self.n_residual:] = normalized_x_i
+            out[:, -self.n_residual:] = normalized_x_i
 
         return out
 
@@ -642,7 +655,7 @@ class SlidingWindowScaler(object):
         out = xr.full_like(x, np.nan)
         for item in var_lst:
             stat = stat_dict[item]
-            out.loc[dict(variable=item)] = self.norm_wholeseries(x.sel(variable=item), stat, to_norm)
+            out.loc[dict(variable=item)] = self.norm_wholeseries(x.sel(variable=item).values, stat, to_norm)
         if to_norm:
             # after normalization, all units are dimensionless
             out.attrs = {}
@@ -653,6 +666,28 @@ class SlidingWindowScaler(object):
                 for item in var_lst:
                     out.attrs["units"][item] = recover_units[item]
         return out
+
+    def get_data_ts(self, to_norm=True) -> np.array:
+        """
+        Get dynamic input data
+
+        Parameters
+        ----------
+        to_norm
+            if true, perform normalization
+
+        Returns
+        -------
+        np.array
+            the dynamic inputs for modeling
+        """
+        stat_dict = self.statistic_dict
+        var_lst = self.data_cfgs["relevant_cols"]
+        data = self.data_forcing
+        data = self._trans_norm(
+            data, var_lst, stat_dict, to_norm=to_norm
+        )
+        return data
     
     def get_data_obs(self, to_norm: bool = True) -> np.array:
         """
@@ -685,32 +720,9 @@ class SlidingWindowScaler(object):
             out,
             target_cols,
             stat_dict,
-            log_norm_cols=self.log_norm_cols,
             to_norm=to_norm,
         )
         return out
-
-    def get_data_ts(self, to_norm=True) -> np.array:
-        """
-        Get dynamic input data
-
-        Parameters
-        ----------
-        to_norm
-            if true, perform normalization
-
-        Returns
-        -------
-        np.array
-            the dynamic inputs for modeling
-        """
-        stat_dict = self.statistic_dict
-        var_lst = self.data_cfgs["relevant_cols"]
-        data = self.data_forcing
-        data = _trans_norm(
-            data, var_lst, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=to_norm
-        )
-        return data
 
     def get_data_const(self, to_norm=True) -> np.array:
         """
@@ -729,7 +741,7 @@ class SlidingWindowScaler(object):
         stat_dict = self.statistic_dict
         var_lst = self.data_cfgs["constant_cols"]
         data = self.data_attr
-        data = _trans_norm(data, var_lst, stat_dict, to_norm=to_norm)
+        data = self._trans_norm(data, var_lst, stat_dict, to_norm=to_norm)   # todo:
         return data
 
     def get_data_other(self, to_norm: bool = True) -> np.array:
@@ -759,11 +771,10 @@ class SlidingWindowScaler(object):
             var = decomposed_item[i]
             out.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()
             out.attrs["units"][var] = "dimensionless"
-        out = _trans_norm(
+        out = self._trans_norm(
             out,
             decomposed_item,
             stat_dict,
-            log_norm_cols=self.log_norm_cols,
             to_norm=to_norm,
         )
         return out
@@ -780,13 +791,20 @@ class SlidingWindowScaler(object):
             c: 2-d  gages_num*var_num
             d: 3-d  gages_num*time_num*3
         """
-        x = self.get_data_ts()
+        if self.data_forcing is not None:
+            x = self.get_data_ts()
+        else:
+            x = None
         y = self.get_data_obs()
-        c = self.get_data_const()
         if self.data_other is not None:
             d = self.get_data_other()
         else:
             d = None
+        if self.data_attr is not None:
+            c = self.get_data_const()
+        else:
+            c = None
+
         return x, y, c, d
 
     def inverse_transform(self, target_values):
@@ -814,7 +832,7 @@ class SlidingWindowScaler(object):
         #     # for pbm's output, its unit is mm/day, so we don't need to recover its unit
         #     pred = target_values
         # else:
-        pred = _trans_norm(
+        pred = self._trans_norm(
             target_values,
             target_cols,
             stat_dict,
