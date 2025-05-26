@@ -433,8 +433,8 @@ class SlidingWindowScaler(object):
         # self.series_length = series_length
         self.n_windows = int(self.series_length / self.sw_width)
         self.n_residual = self.series_length % self.sw_width
-        if self.n_residual > 0:
-            self.n_windows = self.n_windows + 1
+        # if self.n_residual > 0:
+        #     self.n_windows = self.n_windows + 1
 
     def fit(self, X):
         """
@@ -601,11 +601,17 @@ class SlidingWindowScaler(object):
         for i in range(self.n_window):
             start_i = i * self.sw_width
             end_i = (i + 1) * self.sw_width -1
-            x_i = x[start_i, end_i]
+            x_i = x[:, start_i:end_i]
             min_i = min[i]
             max_i = max[i]
-            normalized_x_i = self.transform_singlewindow(x_i, min_i, max_i, b_norm)
+            normalized_x_i = self.norm_singlewindow(x_i, min_i, max_i, b_norm)
             out[start_i, end_i] = normalized_x_i
+        if self.n_residual > 0:
+            x_i = x[:, -self.n_residual:]
+            min_i = min[-1]
+            max_i = max[-1]
+            normalized_x_i = self.norm_singlewindow(x_i, min_i, max_i, b_norm)
+            out[-self.n_residual:] = normalized_x_i
 
         return out
 
