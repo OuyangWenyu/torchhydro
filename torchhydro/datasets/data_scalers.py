@@ -318,7 +318,6 @@ class TorchhydroScalers(object):
         constant_vars: np.ndarray,
         data_cfgs: dict,
         is_tra_val_te: str,
-        norm_keys: list,
         other_vars: Optional[dict] = None,
         data_source: object = None,
     ):
@@ -344,24 +343,31 @@ class TorchhydroScalers(object):
         data_source
              data source
         """
-        # self.scaler = TORCHHYDRO_SCALER_DICT[scaler_type]()
-        self.scaler = None  #
+        # self.scaler = None  #
         self.data_target = target_vars
         self.data_forcing = relevant_vars
         self.data_attr = constant_vars
         self.data_cfgs = data_cfgs
         self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
         self.is_tra_val_te = is_tra_val_te
-        self.norm_keys = norm_keys
         self.data_other = other_vars
         self.data_source = data_source
-        self.series_length = self.data_target.shape[2]
-        self.scaler.set_scaler(
-            sw_width=30,
-            sw_stride=30,
-            series_length=self.series_length,
+        self.scaler = TORCHHYDRO_SCALER_DICT[scaler_type](
+            self.data_target,
+            self.data_forcing,
+            self.data_attr,
+            self.data_cfgs,
+            self.is_tra_val_te,
+            self.data_other,
+            data_source=self.data_source,
         )
-        self.statistic_dict = self.cal_stat_all()
+        # self.series_length = self.data_target.shape[2]
+        # self.scaler.set_scaler(
+        #     sw_width=30,
+        #     sw_stride=30,
+        #     series_length=self.series_length,
+        # )
+        # self.statistic_dict = self.cal_stat_all()
 
         # if scaler_type in TORCHHYDRO_SCALER_DICT.keys():   # todo:
         #     self.scaler = DapengScaler(
@@ -376,7 +382,7 @@ class TorchhydroScalers(object):
 
     def normalize(self):
         """ """
-        x, y, c, d = self.scaler.load_data()
+        x, y, c, d = self.scaler.transform()
         return x, y, c, d
 
     def inverse_transform(self, x):
@@ -395,48 +401,6 @@ class TorchhydroScalers(object):
         out = self.scaler.inverse_transform(x)
         return out
 
-    def cal_stat_all(self):
-        """calculate the statistics values of series
-        Calculate statistics of outputs(streamflow etc), inputs(forcing and attributes) and other data(decomposed from
-        streamflow, trend, season and residuals now)(optional)
-
-        Returns
-        -------
-        dict
-            a dict with statistic values
-        """
-        # streamflow, et, ssm, etc
-        target_cols = self.data_cfgs["target_cols"]
-        stat_dict = {}
-        for i in range(len(target_cols)):
-            var = target_cols[i]
-            stat_dict[var] = self.scaler.cal_statistics(self.data_target.sel(variable=var).to_numpy())
-
-        # forcing
-        if self.data_forcing is not None:
-            forcing_lst = self.data_cfgs["relevant_cols"]
-            x = self.data_forcing
-            for k in range(len(forcing_lst)):
-                var = forcing_lst[k]
-                stat_dict[var] = self.scaler.cal_statistics(x.sel(variable=var).to_numpy())
-
-        # other data, only decomposed data by STL now.  trend, season and residuals decomposed from streamflow.
-        if self.data_other is not None:
-            decomposed_item = self.data_cfgs["decomposed_item"]
-            decomposed_data = self.data_other
-            for i in range(len(decomposed_item)):
-                var = decomposed_item[i]
-                stat_dict[var] = self.scaler.cal_statistics(decomposed_data.sel(variable=var).to_numpy())
-
-        # const attribute
-        if self.data_attr is not None:  # todo:
-            attr_data = self.data_attr
-            attr_lst = self.data_cfgs["constant_cols"]
-            for k in range(len(attr_lst)):
-                var = attr_lst[k]
-                stat_dict[var] = self.scaler.cal_statistics(attr_data.sel(variable=var).to_numpy())
-
-        return stat_dict
 
     def normalize_(self):
         """ """

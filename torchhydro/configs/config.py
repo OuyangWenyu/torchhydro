@@ -206,7 +206,7 @@ def default_config_file():
                     "susma",
                 ],
                 "pbm_norm": False,
-                "sw_width": 0,  # the width of sliding window
+                "sw_width": 0,  # the width of sliding window for slidingwindowscaler
             },
             "stat_dict_file": None,
             # dataset for pytorch dataset

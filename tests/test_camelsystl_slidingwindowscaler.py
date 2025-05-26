@@ -98,7 +98,7 @@ def test_SlidingWindowScaler():
         # scaler="StandardScaler",
         "scaler": "SlidingWindowScaler",
         # "scaler": "DapengScaler",
-        # "scaler_params": {
+        "scaler_params": {
         #     "prcp_norm_cols": [
         #         "streamflow",
         #     ],
@@ -113,7 +113,8 @@ def test_SlidingWindowScaler():
         #         "ssm",
         #     ],
         #     "pbm_norm": True,
-        # },
+            "sw_width": 30,
+        },
         # b_decompose=True,
         # which_first_tensor="sequence",
     }

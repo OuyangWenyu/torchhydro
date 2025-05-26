@@ -351,7 +351,7 @@ class DapengScaler(object):
         return out
 
 
-    def load_data(self):
+    def transform(self):
         """
         Read data and perform normalization for DL models
 
@@ -377,16 +377,14 @@ class SlidingWindowScaler(object):
     """sliding window scaler  follow DapengScaler"""
     def __init__(
         self,
-        # sw_width: int,
         # sw_stride: int,
-        # target_vars: np.ndarray,
-        # relevant_vars: np.ndarray,
-        # constant_vars: np.ndarray,
-        # data_cfgs: dict,
-        # is_tra_val_te: str,
-        # norm_keys: list,
-        # other_vars: Optional[dict] = None,
-        # data_source: object = None,
+        target_vars: np.ndarray,
+        relevant_vars: np.ndarray,
+        constant_vars: np.ndarray,
+        data_cfgs: dict,
+        is_tra_val_te: str,
+        other_vars: Optional[dict] = None,
+        data_source: object = None,
     ):
         """
         The normalization and denormalization methods of sliding window scaler .
@@ -406,53 +404,37 @@ class SlidingWindowScaler(object):
         other_vars
             if more input are needed, list them in other_vars
         """
-        self.sw_width = None
-        self.sw_stride = None
-        self.series = None
-        self.series_length = None
-        self.statistics = None  # list   for denormalizing.
-        # self.data_target = target_vars   # todo: single variable or whole?
-        # self.data_forcing = relevant_vars
-        # self.data_attr = constant_vars
-        # self.data_cfgs = data_cfgs
-        # self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
-        # self.is_tra_val_te = is_tra_val_te
-        # self.norm_keys = norm_keys
-        # self.data_other = other_vars
-        # self.data_source = data_source
+        self.data_target = target_vars   # todo: single variable or whole?
+        self.data_forcing = relevant_vars
+        self.data_attr = constant_vars
+        self.data_cfgs = data_cfgs
+        self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
+        self.is_tra_val_te = is_tra_val_te
+        self.data_other = other_vars
+        self.data_source = data_source
+        self.sw_width = self.data_cfgs["scaler_params"]["sw_width"]
+        # self.sw_stride = None
+        # self.series = None
+        self.series_length = self.data_target.shape[2]
+        # self.statistics = None  # list   for denormalizing.
+        self.n_windows = None
+        self.n_residual = None
+        self.set_scaler()
+        self.statistic_dict = self.cal_stat_all()
 
     def set_scaler(
         self,
-        sw_width,
-        sw_stride,
-        series_length,
+        # sw_width,
+        # sw_stride,
     ):
         """ """
-        self.sw_width = sw_width
-        self.sw_stride = sw_stride
-        self.series_length = series_length
-        self.n_windows = int(series_length / sw_width)
-        self.n_residual = series_length % sw_width
+        # self.sw_width = sw_width
+        # self.sw_stride = sw_stride
+        # self.series_length = series_length
+        self.n_windows = int(self.series_length / self.sw_width)
+        self.n_residual = self.series_length % self.sw_width
         if self.n_residual > 0:
             self.n_windows = self.n_windows + 1
-
-    def _reset_scaler(
-        self,
-        statistics,
-    ):
-        """
-        reset scaler
-        Parameters
-        ----------
-        statistics
-
-        Returns
-        -------
-
-        """
-
-        self.statistics = statistics
-
 
     def fit(self, X):
         """
@@ -518,17 +500,60 @@ class SlidingWindowScaler(object):
                 x_i = x[:, start_i:end_i]
                 min[i] = np.min(x_i, axis=1)
                 max[i] = np.max(x_i, axis=1)
-        else:  # todo:
+        else:  # todo: attributions
             min = np.min(x)
             max = np.max(x)
         return [min, max]
+    
+    def cal_stat_all(self):
+        """calculate the statistics values of series
+        Calculate statistics of outputs(streamflow etc), inputs(forcing and attributes) and other data(decomposed from
+        streamflow, trend, season and residuals now)(optional)
 
-    def transform_singlewindow(
+        Returns
+        -------
+        dict
+            a dict with statistic values
+        """
+        # streamflow, et, ssm, etc
+        target_cols = self.data_cfgs["target_cols"]
+        stat_dict = {}
+        for i in range(len(target_cols)):
+            var = target_cols[i]
+            stat_dict[var] = self.cal_statistics(self.data_target.sel(variable=var).to_numpy())
+
+        # forcing
+        if self.data_forcing is not None:
+            forcing_lst = self.data_cfgs["relevant_cols"]
+            x = self.data_forcing
+            for k in range(len(forcing_lst)):
+                var = forcing_lst[k]
+                stat_dict[var] = self.cal_statistics(x.sel(variable=var).to_numpy())
+
+        # other data, only decomposed data by STL now.  trend, season and residuals decomposed from streamflow.
+        if self.data_other is not None:
+            decomposed_item = self.data_cfgs["decomposed_item"]
+            decomposed_data = self.data_other
+            for i in range(len(decomposed_item)):
+                var = decomposed_item[i]
+                stat_dict[var] = self.cal_statistics(decomposed_data.sel(variable=var).to_numpy())
+
+        # const attribute
+        if self.data_attr is not None:  # todo:
+            attr_data = self.data_attr
+            attr_lst = self.data_cfgs["constant_cols"]
+            for k in range(len(attr_lst)):
+                var = attr_lst[k]
+                stat_dict[var] = self.cal_statistics(attr_data.sel(variable=var).to_numpy())
+
+        return stat_dict
+    
+    def norm_singlewindow(
         self,
         x,
         min,
         max,
-        b_norm
+        b_norm: bool=True,
     ):
         """
         normalize or denormalize for a single window
@@ -551,10 +576,11 @@ class SlidingWindowScaler(object):
             denormalized_x = x * (max - min) + min
             return denormalized_x
 
-    def transform(
-        self,
-        X,
-        statistics,
+    def norm_wholeseries(
+            self,
+            x,
+            statistics,
+            b_norm: bool=True,
     ):
         """
         Perform standardization by centering and scaling.
@@ -568,15 +594,14 @@ class SlidingWindowScaler(object):
         X_tr : {ndarray, sparse matrix} of shape (n_samples, n_features)
             Transformed array.
         """
-        self._reset_scaler(statistics)
-        min = self.statistics[0]
-        max = self.statistics[1]
-        b_norm = True
+        min = statistics[0]
+        max = statistics[1]
+        
         out = np.array([0]*self.series_length)
         for i in range(self.n_window):
             start_i = i * self.sw_width
             end_i = (i + 1) * self.sw_width -1
-            x_i = X[start_i, end_i]
+            x_i = x[start_i, end_i]
             min_i = min[i]
             max_i = max[i]
             normalized_x_i = self.transform_singlewindow(x_i, min_i, max_i, b_norm)
@@ -584,7 +609,181 @@ class SlidingWindowScaler(object):
 
         return out
 
-    def inverse_transform(self, x, statistics):
+    def _trans_norm(
+        self,
+        x: xr.DataArray,
+        var_lst: list,
+        stat_dict: dict,
+        to_norm: bool = True,
+        **kwargs,
+    ) -> np.array:
+        """
+        norm a DataArray.
+
+        Parameters
+        ----------
+        X : data need to normalization.
+
+        Returns
+        -------
+        X_tr : {ndarray, sparse matrix} of shape (n_samples, n_features)
+            Transformed array.
+        """
+        if x is None:
+            return None
+        if type(var_lst) is str:
+            var_lst = [var_lst]
+        out = xr.full_like(x, np.nan)
+        for item in var_lst:
+            stat = stat_dict[item]
+            out.loc[dict(variable=item)] = self.norm_wholeseries(x.sel(variable=item), stat, to_norm)
+        if to_norm:
+            # after normalization, all units are dimensionless
+            out.attrs = {}
+        # after denormalization, recover units
+        else:
+            if "recover_units" in kwargs.keys() and kwargs["recover_units"] is not None:
+                recover_units = kwargs["recover_units"]
+                for item in var_lst:
+                    out.attrs["units"][item] = recover_units[item]
+        return out
+    
+    def get_data_obs(self, to_norm: bool = True) -> np.array:
+        """
+        Get observation values
+
+        Parameters
+        ----------
+        to_norm
+            if true, perform normalization
+
+        Returns
+        -------
+        np.array
+            the output value for modeling
+        """
+        stat_dict = self.statistic_dict
+        data = self.data_target
+        out = xr.full_like(data, np.nan)
+        # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
+        out.attrs = copy.deepcopy(data.attrs)
+        target_cols = self.data_cfgs["target_cols"]
+        if "units" not in out.attrs:
+            Warning("The attrs of output data does not contain units")
+            out.attrs["units"] = {}
+        for i in range(len(target_cols)):
+            var = target_cols[i]
+            out.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()
+            out.attrs["units"][var] = "dimensionless"
+        out = self._trans_norm(
+            out,
+            target_cols,
+            stat_dict,
+            log_norm_cols=self.log_norm_cols,
+            to_norm=to_norm,
+        )
+        return out
+
+    def get_data_ts(self, to_norm=True) -> np.array:
+        """
+        Get dynamic input data
+
+        Parameters
+        ----------
+        to_norm
+            if true, perform normalization
+
+        Returns
+        -------
+        np.array
+            the dynamic inputs for modeling
+        """
+        stat_dict = self.statistic_dict
+        var_lst = self.data_cfgs["relevant_cols"]
+        data = self.data_forcing
+        data = _trans_norm(
+            data, var_lst, stat_dict, log_norm_cols=self.log_norm_cols, to_norm=to_norm
+        )
+        return data
+
+    def get_data_const(self, to_norm=True) -> np.array:
+        """
+        Attr data and normalization
+
+        Parameters
+        ----------
+        to_norm
+            if true, perform normalization
+
+        Returns
+        -------
+        np.array
+            the static inputs for modeling
+        """
+        stat_dict = self.statistic_dict
+        var_lst = self.data_cfgs["constant_cols"]
+        data = self.data_attr
+        data = _trans_norm(data, var_lst, stat_dict, to_norm=to_norm)
+        return data
+
+    def get_data_other(self, to_norm: bool = True) -> np.array:
+        """
+        Get observation values
+
+        Parameters
+        ----------
+        to_norm
+            if true, perform normalization
+
+        Returns
+        -------
+        np.array
+            the output value for modeling
+        """
+        stat_dict = self.statistic_dict
+        data = self.data_other
+        out = xr.full_like(data, np.nan)
+        # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
+        out.attrs = copy.deepcopy(data.attrs)
+        decomposed_item = self.data_cfgs["decomposed_item"]
+        if "units" not in out.attrs:
+            Warning("The attrs of output data does not contain units")
+            out.attrs["units"] = {}
+        for i in range(len(decomposed_item)):
+            var = decomposed_item[i]
+            out.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()
+            out.attrs["units"][var] = "dimensionless"
+        out = _trans_norm(
+            out,
+            decomposed_item,
+            stat_dict,
+            log_norm_cols=self.log_norm_cols,
+            to_norm=to_norm,
+        )
+        return out
+
+    def transform(self):
+        """
+        Read data and perform normalization for DL models
+
+        Returns
+        -------
+        tuple
+            x: 3-d  gages_num*time_num*var_num
+            y: 3-d  gages_num*time_num*1
+            c: 2-d  gages_num*var_num
+            d: 3-d  gages_num*time_num*3
+        """
+        x = self.get_data_ts()
+        y = self.get_data_obs()
+        c = self.get_data_const()
+        if self.data_other is not None:
+            d = self.get_data_other()
+        else:
+            d = None
+        return x, y, c, d
+
+    def inverse_transform(self, target_values):
         """
         Denormalization for output variables
 
@@ -598,18 +797,26 @@ class SlidingWindowScaler(object):
         np.array
             denormalized predictions
         """
-
-        min = self.statistics[0]
-        max = self.statistics[1]
-        b_norm = False
-        out = np.array([0]*self.series_length)
-        for i in range(self.n_windows):
-            start_i = i*self.sw_width
-            end_i = (i + 1) * self.sw_width -1
-            x_i = x[start_i, end_i]
-            min_i = min[i]
-            max_i = max[i]
-            normalized_x_i = self.transform_singlewindow(x_i, min_i, max_i, b_norm)
-            out[start_i, end_i] = normalized_x_i
-
-        return out
+        stat_dict = self.statistic_dict
+        if self.data_cfgs["b_decompose"]:   # todo:
+            target_cols = self.data_cfgs["decomposed_item"]
+            attrs = self.data_other.attrs
+        else:
+            target_cols = self.data_cfgs["target_cols"]
+            attrs = self.data_target.attrs
+        # if self.pbm_norm:
+        #     # for pbm's output, its unit is mm/day, so we don't need to recover its unit
+        #     pred = target_values
+        # else:
+        pred = _trans_norm(
+            target_values,
+            target_cols,
+            stat_dict,
+            to_norm=False,
+        )
+        for i in range(len(target_cols)):
+            var = target_cols[i]
+            pred.loc[dict(variable=var)] = pred.sel(variable=var)
+        # add attrs for units
+        pred.attrs.update(attrs)
+        return pred.to_dataset(dim="variable")
