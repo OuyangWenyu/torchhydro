@@ -91,22 +91,24 @@ def arg_camelsus_sltLstm(
         loss_func="RMSESum",
         sampler="KuaiSampler",
         dataset="StlDataset",
-        scaler="DapengScaler",
+        # scaler="DapengScaler",
+        scaler="SlidingWindowScaler",
         scaler_params={
-            "prcp_norm_cols": [
-                "streamflow",
-            ],
-            "gamma_norm_cols": [
-                "prcp",
-                "pr",
-                "total_precipitation",
-                "potential_evaporation",
-                "ET",
-                "PET",
-                "ET_sum",
-                "ssm",
-            ],
-            "pbm_norm": True,
+        #     "prcp_norm_cols": [
+        #         "streamflow",
+        #     ],
+        #     "gamma_norm_cols": [
+        #         "prcp",
+        #         "pr",
+        #         "total_precipitation",
+        #         "potential_evaporation",
+        #         "ET",
+        #         "PET",
+        #         "ET_sum",
+        #         "ssm",
+        #     ],
+            "pbm_norm": False,
+            "sw_width": 30,
         },
         batch_size=2,
         forecast_history=0,
@@ -184,3 +186,77 @@ def test_camelsus_sltLstm(arg_camelsus_sltLstm):
 # 'FHV of residuals': [-102.89604949951172, -104.15462493896484], 'FLV of residuals': [-89.35114288330078, -77.45653533935547]}
 # Weights sucessfully loaded
 # All processes are finished!
+
+
+# scaler="SlidingWindowScaler",
+# test_camelsus_stllstm.py update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Backend tkagg is interactive backend. Turning interactive mode on.
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 27.34it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 7660.83it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 11966.63it/s]
+# Torch is using cpu
+# Epoch 1 Loss 0.9330 time 282.26 lr 1.0
+# sLSTM(
+#   (linearIn): Linear(in_features=3, out_features=256, bias=True)
+#   (lstm): LSTM(256, 256, num_layers=10)
+#   (linearOut): Linear(in_features=256, out_features=3, bias=True)
+# )
+# Epoch 1 Valid Loss 0.9690 Valid Metric {'NSE of trend': [0.9971779584884644, 0.9980688691139221], 
+#                                         'RMSE of trend': [15.76749324798584, 4.608269214630127], 
+#                                         'R2 of trend': [0.9971779584884644, 0.9980688691139221], 
+#                                         'KGE of trend': [0.9956840718017818, 0.9973178506520254], 
+#                                         'FHV of trend': [-0.7215089797973633, -0.7383750081062317], 
+#                                         'FLV of trend': [0.1100272387266159, 0.33922556042671204], ''
+#                                         'NSE of season': [0.7387727499008179, 0.8455219268798828], 
+#                                         'RMSE of season': [726.537841796875, 128.34654235839844], 
+#                                         'R2 of season': [0.7387727499008179, 0.8455219268798828], 
+#                                         'KGE of season': [-0.7561547605197105, -9.348115482568184], 
+#                                         'FHV of season': [-46.93497848510742, -32.48231887817383], 
+#                                         'FLV of season': [-2.1360559463500977, -2.6906585693359375], 
+#                                         'NSE of residuals': [0.6499893665313721, -0.07610034942626953], 
+#                                         'RMSE of residuals': [525.0760498046875, 555.9549560546875], 
+#                                         'R2 of residuals': [0.6499893665313721, -0.07610034942626953], 
+#                                         'KGE of residuals': [0.37888108434826495, -2.3062537418810063], 
+#                                         'FHV of residuals': [-49.3607177734375, -51.38527297973633], 
+#                                         'FLV of residuals': [-16.784875869750977, -49.84189987182617]}
+# Epoch 2 Loss 0.9321 time 296.14 lr 1.0
+# sLSTM(
+#   (linearIn): Linear(in_features=3, out_features=256, bias=True)
+#   (lstm): LSTM(256, 256, num_layers=10)
+#   (linearOut): Linear(in_features=256, out_features=3, bias=True)
+# )
+# Epoch 2 Valid Loss 0.9714 Valid Metric {'NSE of trend': [0.9971907734870911, 0.998073399066925], 
+#                                         'RMSE of trend': [15.731646537780762, 4.60287618637085], 
+#                                         'R2 of trend': [0.9971907734870911, 0.998073399066925], 
+#                                         'KGE of trend': [0.9961132727932956, 0.9975233441802825], 
+#                                         'FHV of trend': [-0.7029908895492554, -0.7321071624755859], 
+#                                         'FLV of trend': [0.13022956252098083, 0.3721878230571747], 
+#                                         'NSE of season': [0.7368358969688416, 0.8445119857788086], 
+#                                         'RMSE of season': [729.226318359375, 128.76544189453125], 
+#                                         'R2 of season': [0.7368358969688416, 0.8445119857788086], 
+#                                         'KGE of season': [-1.8040211282229421, -19.66817723510768], 
+#                                         'FHV of season': [-48.25461959838867, -33.38445281982422], 
+#                                         'FLV of season': [-1.5924453735351562, -1.812642216682434], 
+#                                         'NSE of residuals': [0.6454375386238098, -0.1802462339401245], 
+#                                         'RMSE of residuals': [528.4793090820312, 582.2366333007812], 
+#                                         'R2 of residuals': [0.6454375386238098, -0.1802462339401245], 
+#                                         'KGE of residuals': [0.6784404938347608, -3.1817412102597515], 
+#                                         'FHV of residuals': [-46.2506103515625, -47.301639556884766], 
+#                                         'FLV of residuals': [-22.99304962158203, -52.980796813964844]}
+# Weights sucessfully loaded
+# All processes are finished!
+# metric_streamflow.csv
+# basin_id,NSE,RMSE,R2,KGE,FHV,FLV
+# 01013500,0.7062768936157227,999.5692138671875,0.7062768936157227,0.7492197330946797,-32.404945373535156,-20.46297264099121
+# 01022500,0.5360612869262695,465.6806945800781,0.5360612869262695,0.7133659576391984,-30.841632843017578,-46.73394775390625
