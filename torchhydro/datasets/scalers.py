@@ -607,7 +607,7 @@ class SlidingWindowScaler(object):
         out = xr.full_like(x, np.nan)
         for item in var_lst:
             stat = stat_dict[item]
-            out.loc[dict(variable=item)] = self.norm_wholeseries(x.sel(variable=item).values, stat, to_norm)
+            out.loc[dict(variable=item)] = self.norm_wholeseries(x.sel(variable=item).values, stat, to_norm)   # todo: attribution
         if to_norm:
             # after normalization, all units are dimensionless
             out.attrs = {}
@@ -618,6 +618,35 @@ class SlidingWindowScaler(object):
                 for item in var_lst:
                     out.attrs["units"][item] = recover_units[item]
         return out
+    
+    def _trans_norm_attr(
+        self,
+        x: xr.DataArray,
+        var_lst: list,
+        stat_dict: dict,
+        to_norm: bool = True,
+        **kwargs,
+    ) -> np.array:
+        """ """
+        if x is None:
+            return None
+        if type(var_lst) is str:
+            var_lst = [var_lst]
+        out = xr.full_like(x, np.nan)
+        stat = stat_dict[item]
+        x_norm = self.norm_singlewindow(x.values, stat, to_norm)   # todo: attribution
+        out.loc[dict(variable=item)] = x_norm
+        if to_norm:
+            # after normalization, all units are dimensionless
+            out.attrs = {}
+        # after denormalization, recover units
+        else:
+            if "recover_units" in kwargs.keys() and kwargs["recover_units"] is not None:
+                recover_units = kwargs["recover_units"]
+                for item in var_lst:
+                    out.attrs["units"][item] = recover_units[item]
+        return out
+
 
     def get_data_ts(self, to_norm=True) -> np.array:
         """
