@@ -404,7 +404,7 @@ class SlidingWindowScaler(object):
         other_vars
             if more input are needed, list them in other_vars
         """
-        self.data_target = target_vars   # todo: single variable or whole?
+        self.data_target = target_vars
         self.data_forcing = relevant_vars
         self.data_attr = constant_vars
         self.data_cfgs = data_cfgs
@@ -413,68 +413,12 @@ class SlidingWindowScaler(object):
         self.data_other = other_vars
         self.data_source = data_source
         self.sw_width = self.data_cfgs["scaler_params"]["sw_width"]
-        # self.sw_stride = None
-        # self.series = None
         self.series_length = self.data_target.shape[2]
         self.series_nbasin = self.data_target.shape[1]
-        # self.statistics = None  # list   for denormalizing.
-        self.n_windows = None
-        self.n_residual = None
-        self.set_scaler()
-        self.statistic_dict = self.cal_stat_all()
-
-    def set_scaler(
-        self,
-        # sw_width,
-        # sw_stride,
-    ):
-        """ """
-        # self.sw_width = sw_width
-        # self.sw_stride = sw_stride
-        # self.series_length = series_length
         self.n_windows = int(self.series_length / self.sw_width)
         self.n_residual = self.series_length % self.sw_width
-        # if self.n_residual > 0:
-        #     self.n_windows = self.n_windows + 1
+        self.statistic_dict = self.cal_stat_all()
 
-    def fit(self, X):
-        """
-        calculate the minimum and maximum of x.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            The data used to compute the per-feature minimum and maximum
-            used for later scaling along the features axis.
-
-        Returns
-        -------
-        self : object
-            Fitted scaler.
-        """
-        out = self.partial_fit(X)
-        return out
-
-    def partial_fit(self, X):
-        """
-        calculate the min and max within window.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            The data used to compute the mean and standard deviation
-            used for later scaling along the features axis.
-
-        Returns
-        -------
-        self : object
-            Fitted scaler.
-        """
-
-        x_min = np.min(X.values, axis=1)
-        x_max = np.max(X.values, axis=1)
-
-        return x_min, x_max
 
     def cal_statistics(
         self,
@@ -483,33 +427,40 @@ class SlidingWindowScaler(object):
         """
         calculate two statistics indices: min and max for all windows.
         Parameters
-        ----------
-        x
-        n
+         x
 
         Returns
         -------
 
         """
-        d_x = x.ndim
-        if (d_x == 2):
-            min = [0]*self.n_windows
-            max = [0]*self.n_windows
-            for i in range(self.n_windows):
-                start_i = i*self.sw_width
-                end_i = (i + 1) * self.sw_width -1
-                x_i = x[:, start_i:end_i]
-                min[i] = np.min(x_i, axis=1)
-                max[i] = np.max(x_i, axis=1)
-            if self.n_residual > 0:
-                x_i = x[:, -self.n_residual:]
-                min_ = np.min(x_i, axis=1)
-                max_ = np.max(x_i, axis=1)
-                min.append(min_)
-                max.append(max_)
-        else:  # todo: attributions
-            min = np.min(x)
-            max = np.max(x)
+        min = [0]*self.n_windows
+        max = [0]*self.n_windows
+        for i in range(self.n_windows):
+            start_i = i*self.sw_width
+            end_i = (i + 1) * self.sw_width -1
+            x_i = x[:, start_i:end_i]
+            min[i] = np.min(x_i, axis=1)
+            max[i] = np.max(x_i, axis=1)
+        if self.n_residual > 0:
+            x_i = x[:, -self.n_residual:]
+            min_ = np.min(x_i, axis=1)
+            max_ = np.max(x_i, axis=1)
+            min.append(min_)
+            max.append(max_)
+        return [min, max]
+
+    def cal_statistics_attr(
+            self,
+            x,
+    ):
+        """ """
+        min = [0]*self.series_nbasin
+        max = [0]*self.series_nbasin
+        for i in range(self.series_nbasin):
+            x_i = x[i]
+            x_i = x_i[~np.isnan(x_i)]
+            min[i] = np.min(x_i)
+            max[i] = np.max(x_i)
         return [min, max]
     
     def cal_stat_all(self):
@@ -546,12 +497,13 @@ class SlidingWindowScaler(object):
                 stat_dict[var] = self.cal_statistics(decomposed_data.sel(variable=var).to_numpy())
 
         # const attribute
-        if self.data_attr is not None:  # todo:
+        if self.data_attr is not None:
             attr_data = self.data_attr
+            attr_data = attr_data.to_numpy()
+            attr_data = np.transpose(attr_data)
             attr_lst = self.data_cfgs["constant_cols"]
-            for k in range(len(attr_lst)):
-                var = attr_lst[k]
-                stat_dict[var] = self.cal_statistics(attr_data.sel(variable=var).to_numpy())
+            var = "attributions"
+            stat_dict[var] = self.cal_statistics_attr(attr_data)
 
         return stat_dict
     
@@ -576,7 +528,7 @@ class SlidingWindowScaler(object):
         -------
 
         """
-        n_basin, n_t = np.shape(x)
+        _, n_t = np.shape(x)
         min = np.expand_dims(min,1).repeat(n_t,axis=1)
         max = np.expand_dims(max,1).repeat(n_t,axis=1)
         range = max - min
@@ -598,7 +550,7 @@ class SlidingWindowScaler(object):
 
         Parameters
         ----------
-        X : data need to normalization.
+         : data need to normalization.
 
         Returns
         -------
@@ -740,6 +692,7 @@ class SlidingWindowScaler(object):
         """
         stat_dict = self.statistic_dict
         var_lst = self.data_cfgs["constant_cols"]
+        var_lst = ["attributions"]
         data = self.data_attr
         data = self._trans_norm(data, var_lst, stat_dict, to_norm=to_norm)   # todo:
         return data

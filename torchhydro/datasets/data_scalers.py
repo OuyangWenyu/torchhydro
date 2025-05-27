@@ -361,24 +361,6 @@ class TorchhydroScalers(object):
             self.data_other,
             data_source=self.data_source,
         )
-        # self.series_length = self.data_target.shape[2]
-        # self.scaler.set_scaler(
-        #     sw_width=30,
-        #     sw_stride=30,
-        #     series_length=self.series_length,
-        # )
-        # self.statistic_dict = self.cal_stat_all()
-
-        # if scaler_type in TORCHHYDRO_SCALER_DICT.keys():   # todo:
-        #     self.scaler = DapengScaler(
-        #             self.data_target,
-        #             self.data_forcing,
-        #             self.data_attr,
-        #             self.data_cfgs,
-        #             self.is_tra_val_te,
-        #             self.data_other,
-        #             data_source=self.data_source,
-        #         )
 
     def normalize(self):
         """ """
@@ -402,108 +384,108 @@ class TorchhydroScalers(object):
         return out
 
 
-    def normalize_(self):
-        """ """
-        all_vars = [self.data_target, self.data_forcing, self.data_attr, self.data_other]  # y, x, c
-        all_vars_name = [self.data_cfgs["target_cols"], self.data_cfgs["relevant_cols"], self.data_cfgs["constant_cols"], self.data_cfgs["decomposed_item"]]
-        norm_dict = {}
-        for i in range(len(all_vars)):
-            data_tmp = all_vars[i]   # normalize along xr.DataSet
-            data_name = all_vars_name[i]
-            if data_tmp is None:
-                data_norm = None
-            elif data_tmp.ndim == 3:
-                # for forcings, outputs and other data(trend, season and residuals decomposed from streamflow)
-                num_instances, num_time_steps, num_features = data_tmp.transpose(
-                    "basin", "time", "variable"
-                ).shape
-                data_tmp = data_tmp.to_numpy().reshape(-1, num_features)
-                save_file = os.path.join(
-                    self.data_cfgs["test_path"], f"{self.norm_keys[i]}_scaler.pkl"
-                )
-                if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:  # help="for testing sometimes such as pub cases, we need stat_dict_file from trained dataset"  Predictions in Ungauged Basins (PUB)
-                    data_norm = self.scaler.transform(data_tmp, data_name)
-                    # Save scaler in test_path for valid/test
-                    with open(save_file, "wb") as outfile:
-                        pkl.dump(self.scaler, outfile)
-                else:
-                    if self.data_cfgs["stat_dict_file"] is not None:
-                        shutil.copy(self.data_cfgs["stat_dict_file"], save_file)
-                    if not os.path.isfile(save_file):
-                        raise FileNotFoundError(
-                            "Please genereate xx_scaler.pkl file"
-                        )
-                    with open(save_file, "rb") as infile:  # load scaler from file
-                        scaler = pkl.load(infile)
-                        data_norm = scaler.transform(data_tmp, data_name)
-                data_norm = data_norm.reshape(
-                    num_instances, num_time_steps, num_features
-                )
-            else:
-                # for attributes
-                save_file = os.path.join(
-                    self.data_cfgs["test_path"], f"{self.norm_keys[i]}_scaler.pkl"
-                )
-                if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:
-                    data_norm = self.scaler.fit_transform(data_tmp, data_name)
-                    data_norm = np.transpose(data_norm)
-                    # Save scaler in test_path for valid/test
-                    with open(save_file, "wb") as outfile:
-                        pkl.dump(self.scaler, outfile)  # self.
-                else:
-                    if self.data_cfgs["stat_dict_file"] is not None:
-                        shutil.copy(self.data_cfgs["stat_dict_file"], save_file)
-                    assert os.path.isfile(save_file)
-                    with open(save_file, "rb") as infile:
-                        scaler = pkl.load(infile)
-                        data_norm = scaler.transform(data_tmp, data_name)  # normalize
-                        data_norm = np.transpose(data_norm)
+    # def normalize_(self):
+    #     """ """
+    #     all_vars = [self.data_target, self.data_forcing, self.data_attr, self.data_other]  # y, x, c
+    #     all_vars_name = [self.data_cfgs["target_cols"], self.data_cfgs["relevant_cols"], self.data_cfgs["constant_cols"], self.data_cfgs["decomposed_item"]]
+    #     norm_dict = {}
+    #     for i in range(len(all_vars)):
+    #         data_tmp = all_vars[i]   # normalize along xr.DataSet
+    #         data_name = all_vars_name[i]
+    #         if data_tmp is None:
+    #             data_norm = None
+    #         elif data_tmp.ndim == 3:
+    #             # for forcings, outputs and other data(trend, season and residuals decomposed from streamflow)
+    #             num_instances, num_time_steps, num_features = data_tmp.transpose(
+    #                 "basin", "time", "variable"
+    #             ).shape
+    #             data_tmp = data_tmp.to_numpy().reshape(-1, num_features)
+    #             save_file = os.path.join(
+    #                 self.data_cfgs["test_path"], f"{self.norm_keys[i]}_scaler.pkl"
+    #             )
+    #             if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:  # help="for testing sometimes such as pub cases, we need stat_dict_file from trained dataset"  Predictions in Ungauged Basins (PUB)
+    #                 data_norm = self.scaler.transform(data_tmp, data_name)
+    #                 # Save scaler in test_path for valid/test
+    #                 with open(save_file, "wb") as outfile:
+    #                     pkl.dump(self.scaler, outfile)
+    #             else:
+    #                 if self.data_cfgs["stat_dict_file"] is not None:
+    #                     shutil.copy(self.data_cfgs["stat_dict_file"], save_file)
+    #                 if not os.path.isfile(save_file):
+    #                     raise FileNotFoundError(
+    #                         "Please genereate xx_scaler.pkl file"
+    #                     )
+    #                 with open(save_file, "rb") as infile:  # load scaler from file
+    #                     scaler = pkl.load(infile)
+    #                     data_norm = scaler.transform(data_tmp, data_name)
+    #             data_norm = data_norm.reshape(
+    #                 num_instances, num_time_steps, num_features
+    #             )
+    #         else:
+    #             # for attributes
+    #             save_file = os.path.join(
+    #                 self.data_cfgs["test_path"], f"{self.norm_keys[i]}_scaler.pkl"
+    #             )
+    #             if self.is_tra_val_te == "train" and self.data_cfgs["stat_dict_file"] is None:
+    #                 data_norm = self.scaler.fit_transform(data_tmp, data_name)
+    #                 data_norm = np.transpose(data_norm)
+    #                 # Save scaler in test_path for valid/test
+    #                 with open(save_file, "wb") as outfile:
+    #                     pkl.dump(self.scaler, outfile)  # self.
+    #             else:
+    #                 if self.data_cfgs["stat_dict_file"] is not None:
+    #                     shutil.copy(self.data_cfgs["stat_dict_file"], save_file)
+    #                 assert os.path.isfile(save_file)
+    #                 with open(save_file, "rb") as infile:
+    #                     scaler = pkl.load(infile)
+    #                     data_norm = scaler.transform(data_tmp, data_name)  # normalize
+    #                     data_norm = np.transpose(data_norm)
 
-            norm_dict[self.norm_keys[i]] = data_norm
-            x_ = norm_dict["relevant_vars"]  # forcing
-            y_ = norm_dict["target_vars"]  # streamflow
-            c_ = norm_dict["constant_vars"]  # attr
-            d_ = norm_dict["other_vars"]  # trend, season, residuals
-            x = xr.DataArray(
-                x_,
-                coords={
-                    "basin": self.data_forcing.coords["basin"],
-                    "time": self.data_forcing.coords["time"],
-                    "variable": self.data_cfgs["relevant_cols"]
-                },
-                dims=["basin", "time", "variable"],
-            )
-            y = xr.DataArray(
-                y_,
-                coords={
-                    "basin": self.data_target.coords["basin"],
-                    "time": self.data_target.coords["time"],
-                    "variable": self.data_target.coords["variable"],
-                },
-                dims=["basin", "time", "variable"],
-            )
-            if c_ is None:
-                c = None
-            else:
-                c = xr.DataArray(
-                    c_,
-                    coords={
-                        "basin": self.data_attr.coords["basin"],
-                        "variable": self.data_attr.coords["variable"],
-                    },
-                    dims=["basin", "variable"],
-                )
-            if d_ is None:
-                d = None
-            else:
-                d = xr.DataArray(
-                    d_,
-                    coords={
-                        "basin": self.data_other.coords["basin"],
-                        "time": self.data_other.coords["time"],
-                        "variable": self.data_other.coords["variable"],
-                    },
-                    dims=["basin", "time", "variable"],
-                )
+    #         norm_dict[self.norm_keys[i]] = data_norm
+    #         x_ = norm_dict["relevant_vars"]  # forcing
+    #         y_ = norm_dict["target_vars"]  # streamflow
+    #         c_ = norm_dict["constant_vars"]  # attr
+    #         d_ = norm_dict["other_vars"]  # trend, season, residuals
+    #         x = xr.DataArray(
+    #             x_,
+    #             coords={
+    #                 "basin": self.data_forcing.coords["basin"],
+    #                 "time": self.data_forcing.coords["time"],
+    #                 "variable": self.data_cfgs["relevant_cols"]
+    #             },
+    #             dims=["basin", "time", "variable"],
+    #         )
+    #         y = xr.DataArray(
+    #             y_,
+    #             coords={
+    #                 "basin": self.data_target.coords["basin"],
+    #                 "time": self.data_target.coords["time"],
+    #                 "variable": self.data_target.coords["variable"],
+    #             },
+    #             dims=["basin", "time", "variable"],
+    #         )
+    #         if c_ is None:
+    #             c = None
+    #         else:
+    #             c = xr.DataArray(
+    #                 c_,
+    #                 coords={
+    #                     "basin": self.data_attr.coords["basin"],
+    #                     "variable": self.data_attr.coords["variable"],
+    #                 },
+    #                 dims=["basin", "variable"],
+    #             )
+    #         if d_ is None:
+    #             d = None
+    #         else:
+    #             d = xr.DataArray(
+    #                 d_,
+    #                 coords={
+    #                     "basin": self.data_other.coords["basin"],
+    #                     "time": self.data_other.coords["time"],
+    #                     "variable": self.data_other.coords["variable"],
+    #                 },
+    #                 dims=["basin", "time", "variable"],
+    #             )
 
-            return x, y, c, d
+    #         return x, y, c, d
