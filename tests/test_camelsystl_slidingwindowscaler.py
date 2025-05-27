@@ -12,7 +12,7 @@ from tests.test_camelsystl_stl_mi import Ystl
 
 
 def test_SlidingWindowScaler():
-    temp_test_path = "result\test_camels\slidingwindowscaler_camelsus"
+    temp_test_path = "results/test_camels/slidingwindowscaler_camelsus"
     os.makedirs(temp_test_path, exist_ok=True)
 
     data_cfgs =  {
@@ -112,7 +112,7 @@ def test_SlidingWindowScaler():
         #         "ET_sum",
         #         "ssm",
         #     ],
-        #     "pbm_norm": True,
+            "pbm_norm": False,
             "sw_width": 30,
         },
         # b_decompose=True,
@@ -121,7 +121,10 @@ def test_SlidingWindowScaler():
     is_tra_val_te = "train"
     dataset = BaseDataset(data_cfgs, is_tra_val_te)
     print(dataset)
-
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 1066.03it/s]
+# <torchhydro.datasets.data_sets.BaseDataset object at 0x7f6cf0f64ad0>
 
 def test_data():
     x = Ystl().pet

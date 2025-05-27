@@ -6,6 +6,7 @@ import shutil
 from typing import Optional
 import xarray as xr
 import numpy as np
+import pandas as pd
 from shutil import SameFileError
 
 from hydroutils.hydro_stat import (
@@ -412,6 +413,7 @@ class SlidingWindowScaler(object):
         self.is_tra_val_te = is_tra_val_te
         self.data_other = other_vars
         self.data_source = data_source
+        self.pbm_norm = self.data_cfgs["scaler_params"]["pbm_norm"]  # physical based model
         self.sw_width = self.data_cfgs["scaler_params"]["sw_width"]
         self.series_length = self.data_target.shape[2]
         self.series_nbasin = self.data_target.shape[1]
@@ -607,7 +609,7 @@ class SlidingWindowScaler(object):
         out = xr.full_like(x, np.nan)
         for item in var_lst:
             stat = stat_dict[item]
-            out.loc[dict(variable=item)] = self.norm_wholeseries(x.sel(variable=item).values, stat, to_norm)   # todo: attribution
+            out.loc[dict(variable=item)] = self.norm_wholeseries(x.sel(variable=item).values, stat, to_norm)
         if to_norm:
             # after normalization, all units are dimensionless
             out.attrs = {}
@@ -630,12 +632,15 @@ class SlidingWindowScaler(object):
         """ """
         if x is None:
             return None
-        if type(var_lst) is str:
-            var_lst = [var_lst]
         out = xr.full_like(x, np.nan)
-        stat = stat_dict[item]
-        x_norm = self.norm_singlewindow(x.values, stat, to_norm)   # todo: attribution
-        out.loc[dict(variable=item)] = x_norm
+        var = "attributions"
+        stat = stat_dict[var]
+        x_ = np.transpose(x.values)
+        x_norm = self.norm_singlewindow(x_, stat[0], stat[1], to_norm)
+        x_norm = np.transpose(x_norm)
+        for i in range(len(var_lst)):  
+            item = var_lst[i]
+            out.loc[dict(variable=item)] = x_norm[i]
         if to_norm:
             # after normalization, all units are dimensionless
             out.attrs = {}
@@ -668,6 +673,11 @@ class SlidingWindowScaler(object):
         data = self._trans_norm(
             data, var_lst, stat_dict, to_norm=to_norm
         )
+        # pd_series = data.to_pandas()
+        # pd_series.index.name = "time"
+        # # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
+        # file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/forcing_norm.csv"
+        # pd_series.to_csv(file_name, sep=" ")
         return data
     
     def get_data_obs(self, to_norm: bool = True) -> np.array:
@@ -721,9 +731,8 @@ class SlidingWindowScaler(object):
         """
         stat_dict = self.statistic_dict
         var_lst = self.data_cfgs["constant_cols"]
-        var_lst = ["attributions"]
         data = self.data_attr
-        data = self._trans_norm(data, var_lst, stat_dict, to_norm=to_norm)   # todo:
+        data = self._trans_norm_attr(data, var_lst, stat_dict, to_norm=to_norm)
         return data
 
     def get_data_other(self, to_norm: bool = True) -> np.array:
@@ -810,16 +819,16 @@ class SlidingWindowScaler(object):
         else:
             target_cols = self.data_cfgs["target_cols"]
             attrs = self.data_target.attrs
-        # if self.pbm_norm:
-        #     # for pbm's output, its unit is mm/day, so we don't need to recover its unit
-        #     pred = target_values
-        # else:
-        pred = self._trans_norm(
-            target_values,
-            target_cols,
-            stat_dict,
-            to_norm=False,
-        )
+        if self.pbm_norm:
+            # for pbm's output, its unit is mm/day, so we don't need to recover its unit
+            pred = target_values
+        else:
+            pred = self._trans_norm(
+                target_values,
+                target_cols,
+                stat_dict,
+                to_norm=False,
+            )
         for i in range(len(target_cols)):
             var = target_cols[i]
             pred.loc[dict(variable=var)] = pred.sel(variable=var)

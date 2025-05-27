@@ -205,7 +205,7 @@ def default_config_file():
                     "ssma",
                     "susma",
                 ],
-                "pbm_norm": False,
+                "pbm_norm": False,  # physical based model
                 "sw_width": 0,  # the width of sliding window for slidingwindowscaler
             },
             "stat_dict_file": None,

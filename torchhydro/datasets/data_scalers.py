@@ -361,6 +361,7 @@ class TorchhydroScalers(object):
             self.data_other,
             data_source=self.data_source,
         )
+        self.pbm_norm = self.scaler.pbm_norm
 
     def normalize(self):
         """ """
