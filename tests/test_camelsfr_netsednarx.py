@@ -76,7 +76,7 @@ def camelsfr_narx_arg(var_c, var_t):
             "n_hidden_states": 64,
             "input_delay": 2,
             "feedback_delay": 1,
-            # "num_layers": 1,
+            "num_layers": 10,
             "close_loop": False,
             "nested_model": None,
         },
@@ -87,19 +87,19 @@ def camelsfr_narx_arg(var_c, var_t):
         # scaler="DapengScaler",
         scaler="SlidingWindowScaler",
         scaler_params={
-        #     "prcp_norm_cols": [
-        #         "streamflow",
-        #     ],
-        #     "gamma_norm_cols": [
-        #         "prcp",
-        #         "pr",
-        #         "total_precipitation",
-        #         "potential_evaporation",
-        #         "ET",
-        #         "PET",
-        #         "ET_sum",
-        #         "ssm",
-        #     ],
+            # "prcp_norm_cols": [
+            #     "streamflow",
+            # ],
+            # "gamma_norm_cols": [
+            #     "prcp",
+            #     "pr",
+            #     "total_precipitation",
+            #     "potential_evaporation",
+            #     "ET",
+            #     "PET",
+            #     "ET_sum",
+            #     "ssm",
+            # ],
             "pbm_norm": False,
             "sw_width": 30,
         },
@@ -109,7 +109,7 @@ def camelsfr_narx_arg(var_c, var_t):
             "A284020001",
             "A330010001",
         ],
-        batch_size=3,
+        batch_size=4,
         forecast_history=0,
         forecast_length=30,
         var_t=var_t,
@@ -218,3 +218,45 @@ def test_camelsfr_nestednarx(camelsfr_narx_arg):
 # E           n_basin = 4
 # E           len(self.basin_list) = 18
 # help = [1/2, 2/3]
+
+
+# scaler="SlidingWindowScaler",
+# Finish Normalization
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 1239.39it/s]
+# Finish Normalization
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 16916.31it/s]
+# Finish Normalization
+#   0%|          | 0/18 [00:00<?, ?it/s]
+# 100%|██████████| 18/18 [00:00<00:00, 26668.13it/s]
+# Torch is using cpu
+# I0527 21:51:03.814000 13055 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpay1smev1
+# I0527 21:51:03.818000 13055 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpay1smev1/_remote_module_non_scriptable.py
+# using 0 workers
+# Epoch 1 Loss 0.3909 time 27.41 lr 1.0
+# NestedNarx(
+#   (dl_model): Narx(
+#     (linearIn): Linear(in_features=2, out_features=64, bias=True)
+#     (linearOut): Linear(in_features=64, out_features=1, bias=True)
+#   )
+# )
+# Epoch 1 Valid Loss 0.3886 Valid Metric {'NSE of streamflow': [0.4500880241394043, nan, 0.24559003114700317, 0.9967767000198364, nan, nan, 0.9693315029144287, 0.7414484024047852, nan, nan, 0.98923259973526, 0.9316816329956055, nan, 0.4399816393852234, nan, nan, 0.9858621954917908, 0.9798012971878052], 
+#                                         'RMSE of streamflow': [0.06945981830358505, 0.0, 0.022734977304935455, 0.01656528376042843, 0.0, 0.0, 0.044577401131391525, 0.025807619094848633, 0.0, 0.0, 0.04439866170287132, 0.03567321226000786, 0.0, 0.4312618672847748, 0.0, 0.0, 0.009010089561343193, 0.019329510629177094], 
+#                                         'R2 of streamflow': [0.4500880241394043, nan, 0.24559003114700317, 0.9967767000198364, nan, nan, 0.9693315029144287, 0.7414484024047852, nan, nan, 0.98923259973526, 0.9316816329956055, nan, 0.4399816393852234, nan, nan, 0.9858621954917908, 0.9798012971878052], 
+#                                         'KGE of streamflow': [0.23136926897050225, nan, 0.06242216242697585, 0.9418486056916499, nan, nan, 0.8303835611188187, 0.45588609612130826, nan, nan, 0.882994300993167, 0.7351942483393656, nan, 0.08914752553337868, nan, nan, 0.8745301287070183, 0.8498555916310028], 
+#                                         'FHV of streamflow': [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan], 'FLV of streamflow': [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan]}
+# Epoch 2 Loss 0.3838 time 27.98 lr 1.0
+# NestedNarx(
+#   (dl_model): Narx(
+#     (linearIn): Linear(in_features=2, out_features=64, bias=True)
+#     (linearOut): Linear(in_features=64, out_features=1, bias=True)
+#   )
+# )
+# Epoch 2 Valid Loss 0.3886 Valid Metric {'NSE of streamflow': [0.4500880241394043, nan, 0.24559003114700317, 0.9967767000198364, nan, nan, 0.9693315029144287, 0.7414484024047852, nan, nan, 0.98923259973526, 0.9316816329956055, nan, 0.4399816393852234, nan, nan, 0.9858621954917908, 0.9798012971878052], 
+#                                         'RMSE of streamflow': [0.06945981830358505, 0.0, 0.022734977304935455, 0.01656528376042843, 0.0, 0.0, 0.044577401131391525, 0.025807619094848633, 0.0, 0.0, 0.04439866170287132, 0.03567321226000786, 0.0, 0.4312618672847748, 0.0, 0.0, 0.009010089561343193, 0.019329510629177094], 
+#                                         'R2 of streamflow': [0.4500880241394043, nan, 0.24559003114700317, 0.9967767000198364, nan, nan, 0.9693315029144287, 0.7414484024047852, nan, nan, 0.98923259973526, 0.9316816329956055, nan, 0.4399816393852234, nan, nan, 0.9858621954917908, 0.9798012971878052], 
+#                                         'KGE of streamflow': [0.23136926897050225, nan, 0.06242216242697585, 0.9418486056916499, nan, nan, 0.8303835611188187, 0.45588609612130826, nan, nan, 0.882994300993167, 0.7351942483393656, nan, 0.08914752553337868, nan, nan, 0.8745301287070183, 0.8498555916310028], 
+#                                         'FHV of streamflow': [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan], 'FLV of streamflow': [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan]}
+# Weights sucessfully loaded
+# All processes are finished!

@@ -120,7 +120,7 @@ class NestedNarx(nn.Module):
             n_hidden_states: int,
             input_delay: int,
             feedback_delay: int,
-            # num_layers: int = 10,
+            num_layers: int = 10,
             close_loop: bool = False,
             nested_model: dict = None,
         ):
@@ -134,7 +134,7 @@ class NestedNarx(nn.Module):
             n_hidden_states,
             input_delay,
             feedback_delay,
-            # num_layers,
+            num_layers,
             close_loop,
         )
         self.nx = n_input_features

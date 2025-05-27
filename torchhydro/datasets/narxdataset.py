@@ -52,7 +52,7 @@ class NarxDataset(BaseDataset):
         self.data_cfgs = data_cfgs
         self.b_nestedness = self.data_cfgs["b_nestedness"]
         self.data_educed_model = None  # only nested_model now
-        # self.basin_list = None
+        self.basin_list = None
         self._pre_load_data()
         self._generate_data_educed_model()
         self.data_cfgs["batch_size"] = len(self.basin_list)
@@ -104,6 +104,17 @@ class NarxDataset(BaseDataset):
             the default options of :class:`torch.utils.data.DataLoader`.
         """
         return self.num_samples if self.train_mode else self.ngrid  # ngrid means nbasin
+    
+    @property
+    def ngrid(self):
+        """How many basins/grids in the dataset
+
+        Returns
+        -------
+        int
+            number of basins/grids
+        """
+        return len(self.basin_list)
 
     def _generate_data_educed_model(self):
         if not self.b_nestedness:

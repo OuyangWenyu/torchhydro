@@ -375,7 +375,7 @@ class DapengScaler(object):
 
 
 class SlidingWindowScaler(object):
-    """sliding window scaler  follow DapengScaler"""
+    """sliding window scaler"""
     def __init__(
         self,
         # sw_stride: int,
@@ -388,7 +388,7 @@ class SlidingWindowScaler(object):
         data_source: object = None,
     ):
         """
-        The normalization and denormalization methods of sliding window scaler .
+        The normalization and denormalization methods of sliding window scaler.
 
         Parameters
         ----------
@@ -427,7 +427,7 @@ class SlidingWindowScaler(object):
         x: np.ndarray,
     ):
         """
-        calculate two statistics indices: min and max for all windows.
+        calculate two statistics indices of a series: min and max for all windows.
         Parameters
          x
 
@@ -455,7 +455,7 @@ class SlidingWindowScaler(object):
             self,
             x,
     ):
-        """ """
+        """calculate the statistics value of attributions."""
         min = [0]*self.series_nbasin
         max = [0]*self.series_nbasin
         for i in range(self.series_nbasin):
@@ -467,7 +467,7 @@ class SlidingWindowScaler(object):
     
     def cal_stat_all(self):
         """calculate the statistics values of series
-        Calculate statistics of outputs(streamflow etc), inputs(forcing and attributes) and other data(decomposed from
+        calculate statistics of outputs(streamflow etc), inputs(forcing and attributes) and other data(decomposed from
         streamflow, trend, season and residuals now)(optional)
 
         Returns
@@ -503,7 +503,6 @@ class SlidingWindowScaler(object):
             attr_data = self.data_attr
             attr_data = attr_data.to_numpy()
             attr_data = np.transpose(attr_data)
-            attr_lst = self.data_cfgs["constant_cols"]
             var = "attributions"
             stat_dict[var] = self.cal_statistics_attr(attr_data)
 
@@ -521,14 +520,15 @@ class SlidingWindowScaler(object):
          data format
         Parameters
         ----------
-        x
-        min
-        max
-        b_norm
+        x: data within window
+        min: min value of data
+        max: max value of data
+        b_norm: normalize or denormalize.
 
         Returns
         -------
-
+        normalized_x
+        denormalized_x
         """
         _, n_t = np.shape(x)
         min = np.expand_dims(min,1).repeat(n_t,axis=1)
@@ -542,17 +542,18 @@ class SlidingWindowScaler(object):
             return denormalized_x
 
     def norm_wholeseries(
-            self,
-            x,
-            statistics,
-            b_norm: bool=True,
+        self,
+        x,
+        statistics,
+        b_norm: bool=True,
     ):
         """
-        Perform standardization by centering and scaling.
+        normalize or denormalize a whole series.
 
         Parameters
         ----------
-         : data need to normalization.
+        x: data need to normalization.
+        statistics: the statistics values of the series.
 
         Returns
         -------
@@ -629,7 +630,7 @@ class SlidingWindowScaler(object):
         to_norm: bool = True,
         **kwargs,
     ) -> np.array:
-        """ """
+        """norm attr"""
         if x is None:
             return None
         out = xr.full_like(x, np.nan)
@@ -655,7 +656,7 @@ class SlidingWindowScaler(object):
 
     def get_data_ts(self, to_norm=True) -> np.array:
         """
-        Get dynamic input data
+        normalize forcing data.
 
         Parameters
         ----------
@@ -682,7 +683,7 @@ class SlidingWindowScaler(object):
     
     def get_data_obs(self, to_norm: bool = True) -> np.array:
         """
-        Get observation values
+        normalize target data.
 
         Parameters
         ----------
@@ -717,7 +718,7 @@ class SlidingWindowScaler(object):
 
     def get_data_const(self, to_norm=True) -> np.array:
         """
-        Attr data and normalization
+       normalize attribution data.
 
         Parameters
         ----------
@@ -737,7 +738,7 @@ class SlidingWindowScaler(object):
 
     def get_data_other(self, to_norm: bool = True) -> np.array:
         """
-        Get observation values
+        normalize other data.
 
         Parameters
         ----------
@@ -772,7 +773,7 @@ class SlidingWindowScaler(object):
 
     def transform(self):
         """
-        Read data and perform normalization for DL models
+        normalization
 
         Returns
         -------
