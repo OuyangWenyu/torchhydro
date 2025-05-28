@@ -15,7 +15,7 @@ from hydroutils import hydro_time
 
 from torchhydro.datasets.data_sources import data_sources_dict
 
-class STL():
+class STL(object):
     """
     Seasonal-Trend decomposition using LOESS
     loess     circle-subseries    low pass filter
@@ -824,7 +824,7 @@ class STL():
         self.decomposition()
         return self.trend, self.season, self.residuals
 
-class MutualInformation():
+class MutualInformation(object):
     """mutual information"""
     def __init__(self):
         """
@@ -929,7 +929,7 @@ class MutualInformation():
         # return n_timestep, mi_
         return n_timestep
 
-class Decomposition():
+class Decomposition(object):
     """
     decomposition class.
     """
@@ -1162,3 +1162,16 @@ class Decomposition():
             c_origin_test = self.c_origin
             y_decomposed_test = self.y_decomposed.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))
             self.test_data = [x_origin_test, y_origin_test, c_origin_test, y_decomposed_test]
+
+
+class Arch(object):
+    """
+    Autoregressive Conditional Heteroscedasticity model, ARCH.
+    time series imputation
+
+    """
+    def __init__(
+        self,
+
+    ):
+        """ """
