@@ -104,7 +104,7 @@ class NarxDataset(BaseDataset):
             the default options of :class:`torch.utils.data.DataLoader`.
         """
         return self.num_samples if self.train_mode else self.ngrid  # ngrid means nbasin
-    
+
     @property
     def ngrid(self):
         """How many basins/grids in the dataset
@@ -423,7 +423,7 @@ class StlDataset(BaseDataset):
         # self._pre_load_data()
         self._read_xyc()
         # normalization
-        norm_x, norm_y, norm_c, norm_d = self._normalize()
+        norm_x, norm_y, norm_c, norm_d = self._normalize()  #
         self.x, self.y, self.c, self.d = self._kill_nan(norm_x, norm_y, norm_c, norm_d)  # deal with nan value
         self._trans2nparr()
         self._create_lookup_table()

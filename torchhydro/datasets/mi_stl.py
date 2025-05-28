@@ -1217,3 +1217,9 @@ class Arch(object):
     def analysis_dataset(self):
         """ analysis dataset."""
 
+    def cal_mse(self, x, y):
+        """calculate mean squared error."""
+        return np.mean((y - x) ** 2)
+
+    def cal_spearman(self, x, y):
+        """calculate spearman correlation."""

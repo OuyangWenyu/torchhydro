@@ -91,8 +91,8 @@ class BaseDataset(Dataset):
     """Base data set class to load and preprocess data (batch-first) using PyTorch's Dataset"""
 
     def __init__(
-            self, 
-            data_cfgs: dict, 
+            self,
+            data_cfgs: dict,
             is_tra_val_te: str,
     ):
         """
@@ -433,14 +433,15 @@ class BaseDataset(Dataset):
         warn_if_nan(x, nan_mode="all")
         warn_if_nan(y, nan_mode="all")
         warn_if_nan(c, nan_mode="all")
-        if d is not None:
+        if d is None:
+            d = None
+        else:
             d_rm_nan = data_cfgs["other_rm_nan"]
             if d_rm_nan:
-                _fill_gaps_da(d, fill_nan="mean")
+                _fill_gaps_da(d, fill_nan="interpolate")
                 warn_if_nan(d)
             warn_if_nan(d, nan_mode="all")
-            return x, y, c, d
-        return x, y, c
+        return x, y, c, d
 
     def _create_lookup_table(self):
         lookup = []
