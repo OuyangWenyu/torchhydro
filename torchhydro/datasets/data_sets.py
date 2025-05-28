@@ -111,8 +111,9 @@ class BaseDataset(Dataset):
             raise ValueError(
                 "'is_tra_val_te' must be one of 'train', 'valid' or 'test' "
             )
+        self.data_educed_model = None  # only nested_model now
         # load and preprocess data
-        # self._load_data()  # todo: temp comments
+        self._load_data()  # todo: temp comments
 
     @property
     def data_source(self):
@@ -433,15 +434,14 @@ class BaseDataset(Dataset):
         warn_if_nan(x, nan_mode="all")
         warn_if_nan(y, nan_mode="all")
         warn_if_nan(c, nan_mode="all")
-        if d is None:
-            d = None
-        else:
+        if d is not None:
             d_rm_nan = data_cfgs["other_rm_nan"]
             if d_rm_nan:
                 _fill_gaps_da(d, fill_nan="interpolate")
                 warn_if_nan(d)
             warn_if_nan(d, nan_mode="all")
-        return x, y, c, d
+            return x, y, c, d
+        return x, y, c
 
     def _create_lookup_table(self):
         lookup = []

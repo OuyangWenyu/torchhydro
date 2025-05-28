@@ -319,6 +319,6 @@ class sGRU(nn.Module):
 
     def forward(self, x):
         x0 = F.relu(self.linearIn(x))
-        out_gru, (hn, cn) = self.gru(x0)
+        out_gru, hn = self.gru(x0)
         out = self.linearOut(out_gru)
         return out

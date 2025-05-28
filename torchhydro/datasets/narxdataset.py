@@ -51,7 +51,7 @@ class NarxDataset(BaseDataset):
         super(NarxDataset, self).__init__(data_cfgs, is_tra_val_te)
         self.data_cfgs = data_cfgs
         self.b_nestedness = self.data_cfgs["b_nestedness"]
-        self.data_educed_model = None  # only nested_model now
+        # self.data_educed_model = None  # only nested_model now
         self.basin_list = None
         self._pre_load_data()
         self._generate_data_educed_model()

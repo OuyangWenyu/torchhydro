@@ -110,7 +110,7 @@ def arg_camelsus_pclstm(
             ],
             "pbm_norm": True,
         },
-        batch_size=10,
+        batch_size=2,
         forecast_history=0,
         forecast_length=366,
         var_t=var_t,
@@ -219,3 +219,56 @@ def test_camels_pclstm(arg_camelsus_pclstm):
 
 
 # model_name="sGRU",
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# collected 1 item
+
+# test_camelsus_pclstm.py update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Backend tkagg is interactive backend. Turning interactive mode on.
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 111.25it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 5233.07it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 392.49it/s]
+# Torch is using cpu
+# I0528 21:25:21.795000 21460 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmp2vbs6a5j
+# I0528 21:25:21.799000 21460 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmp2vbs6a5j/_remote_module_non_scriptable.py
+# using 0 workers
+# Epoch 1 Loss 0.9871 time 67.49 lr 1.0
+# sGRU(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GRU(256, 256, num_layers=10)
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 1 Valid Loss 1.0696 Valid Metric {'NSE of streamflow': [0.0005115270614624023, 0.009464740753173828], 
+#                                         'RMSE of streamflow': [1.0351850986480713, 1.1029919385910034], 
+#                                         'R2 of streamflow': [0.0005115270614624023, 0.009464740753173828], 
+#                                         'KGE of streamflow': [-227.18479590920316, -0.11256500820848903], 
+#                                         'FHV of streamflow': [-95.07581329345703, -95.12589263916016], 
+#                                         'FLV of streamflow': [-107.95575714111328, -107.86727905273438]}
+# Epoch 2 Loss 0.9050 time 69.56 lr 1.0
+# sGRU(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GRU(256, 256, num_layers=10)
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 2 Valid Loss 0.8365 Valid Metric {'NSE of streamflow': [0.41745156049728394, 0.369215190410614], 
+#                                         'RMSE of streamflow': [0.7903057336807251, 0.8801931142807007], 
+#                                         'R2 of streamflow': [0.41745156049728394, 0.369215190410614], 
+#                                         'KGE of streamflow': [-317.4779793613144, -0.7310460083047847], 
+#                                         'FHV of streamflow': [-63.30582046508789, -61.96416473388672], 
+#                                         'FLV of streamflow': [-54.28339767456055, -65.2499008178711]}
+# Weights sucessfully loaded
+# All processes are finished!
