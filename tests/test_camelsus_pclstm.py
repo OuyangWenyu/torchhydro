@@ -82,7 +82,8 @@ def arg_camelsus_pclstm(
         },
         ctx=[-1],
         # model_name="CpuLSTM",
-        model_name="pcLSTM",
+        # model_name="pcLSTM",
+        model_name="sGRU",
         model_hyperparam={
             "input_size": len(var_c) + len(var_t),  # 17 + 7 = 24
             "output_size": 1,
@@ -126,14 +127,38 @@ def arg_camelsus_pclstm(
             "load_way": "specified",
             "test_epoch": 2,
         },
-        # the gage_id.txt file is set by the user, it must be the format like:
-        # GAUGE_ID
-        # 01013500
-        # 01022500
-        # ......
-        # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
-        gage_id_file = "D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt",
-        # gage_id_file="/mnt/d/minio/waterism/datasets-origin/camels/camels_us/gage_id.txt",
+        # # the gage_id.txt file is set by the user, it must be the format like:
+        # # GAUGE_ID
+        # # 01013500
+        # # 01022500
+        # # ......
+        # # Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
+        # gage_id_file = "D:\\minio\\waterism\\datasets-origin\\camels\\camels_us\\gage_id.txt",
+        # # gage_id_file="/mnt/d/minio/waterism/datasets-origin/camels/camels_us/gage_id.txt",
+        gage_id=[
+            "01013500",
+            "01022500",
+            # # "01030500",
+            # # "01031500",
+            # # "01047000",
+            # # "01052500",
+            # # "01054200",
+            # # "01055000",
+            # # "01057000",
+            # # "01073000",
+            # # "01078000",
+            # # "01118300",
+            # # "01121000",
+            # # "01123000",
+            # # "01134500",
+            # # "01137500",
+            # # "01139000",
+            # # "01139800",
+            # # "01142500",
+            # # "01144000",
+            # "02092500",  # 02108000 -> 02092500
+            # "02108000",
+        ],
         which_first_tensor="sequence",
     )
 
@@ -142,55 +167,6 @@ def test_camels_pclstm(arg_camelsus_pclstm):
     update_cfg(config_data, arg_camelsus_pclstm)
     train_and_evaluate(config_data)
     print("All processes are finished!")
-
-
-
-# Connected to pydev debugger (build 241.17011.127)
-# Launching pytest with arguments test_camelsus_pclstm.py::test_camels_pclstm --no-header --no-summary -q in D:\torchhydro\tests
-#
-# ============================= test session starts =============================
-# collecting ... collected 1 item
-#
-# test_camelsus_pclstm.py::test_camels_pclstm
-
-# ================= 1 passed, 918 warnings in 257.77s (0:04:17) =================
-# PASSED                       [100%]update config file
-# !!!!!!NOTE!!!!!!!!
-# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
-# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
-# !!!!!!NOTE!!!!!!!!
-# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
-# Finish Normalization
-#
-# 100%|██████████| 10/10 [00:00<00:00, 89.62it/s]
-# Finish Normalization
-#
-# 100%|██████████| 10/10 [00:00<00:00, 3335.17it/s]
-# Finish Normalization
-#
-# 100%|██████████| 10/10 [00:00<00:00, 2501.97it/s]
-# Torch is using cpu
-# using 0 workers
-# Epoch 1 Loss 0.8581 time 153.49 lr 1.0
-# pcLSTM(
-#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
-#   (lstm): pcLSTMCell()
-#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
-# )
-# Epoch 1 Valid Loss 0.8369 Valid Metric {'NSE of streamflow': [0.2944583296775818, 0.42118239402770996, 0.32100772857666016, 0.41697466373443604, 0.3205813765525818, 0.32656246423721313, 0.27595990896224976, 0.39880120754241943, 0.28978097438812256, 0.5604760944843292], 'RMSE of streamflow': [0.7608193755149841, 0.7375633120536804, 0.8991845846176147, 0.8989005088806152, 0.8537989258766174, 0.7856569290161133, 0.8652855157852173, 0.8274306654930115, 0.905412495136261, 0.8154575228691101], 'R2 of streamflow': [0.2944583296775818, 0.42118239402770996, 0.32100772857666016, 0.41697466373443604, 0.3205813765525818, 0.32656246423721313, 0.27595990896224976, 0.39880120754241943, 0.28978097438812256, 0.5604760944843292], 'KGE of streamflow': [-1.2172047155763561, -0.27355155749206084, -2.7740139863039093, -7.025601623641132, -0.3367123219947892, -0.13306859559332218, -0.4776160746060685, -0.5134480172038673, -50.44701334453281, 0.5031831046432501], 'FHV of streamflow': [-55.67289590835571, -56.028926372528076, -65.86633920669556, -62.83079385757446, -61.14118695259094, -61.51323318481445, -69.38608884811401, -62.6755952835083, -73.60355854034424, -57.416075468063354], 'FLV of streamflow': [-28.701087832450867, -3.6473508924245834, -35.581374168395996, -39.37475085258484, -8.32953080534935, -20.700135827064514, -4.017216339707375, -23.08111935853958, -3.93674373626709, -36.45382523536682]}
-# Epoch 2 Loss 0.7127 time 80.25 lr 1.0
-# pcLSTM(
-#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
-#   (lstm): pcLSTMCell()
-#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
-# )
-# Epoch 2 Valid Loss 0.7846 Valid Metric {'NSE of streamflow': [-0.07179832458496094, 0.6020937860012054, 0.3605666160583496, 0.49114787578582764, 0.5146141648292542, 0.5641768872737885, 0.4332682490348816, 0.5208058059215546, 0.3445504307746887, 0.5849301815032959], 'RMSE of streamflow': [0.937727689743042, 0.6115314364433289, 0.8725977540016174, 0.8397765159606934, 0.721656322479248, 0.6320325136184692, 0.7655382752418518, 0.7387174367904663, 0.8698011636734009, 0.7924478054046631], 'R2 of streamflow': [-0.07179832458496094, 0.6020937860012054, 0.3605666160583496, 0.49114787578582764, 0.5146141648292542, 0.5641768872737885, 0.4332682490348816, 0.5208058059215546, 0.3445504307746887, 0.5849301815032959], 'KGE of streamflow': [-4.17055214968388, 0.2613345451191861, -4.6996091150268215, -12.4683304821144, 0.1698882335962545, 0.5628409933861886, -0.1697408942596299, -0.04265819030779183, -48.41112055692167, -0.047906949678860444], 'FHV of streamflow': [-19.597141444683075, -30.103501677513123, -24.726715683937073, -41.080063581466675, -47.5444495677948, -44.422733783721924, -58.1508994102478, -52.74372100830078, -60.483938455581665, -42.67994165420532], 'FLV of streamflow': [-119.58931684494019, -55.743175745010376, -75.80413222312927, -61.86025142669678, -23.665884137153625, -44.34462785720825, -18.388770520687103, -29.776406288146973, -8.400652557611465, -50.57823061943054]}
-# Weights sucessfully loaded
-# All processes are finished!
-# 100%|██████████| 44/44 [02:15<00:00,  3.08s/it]
-# 100%|██████████| 44/44 [00:37<00:00,  1.17it/s]
-
-
 
 
 # ============================= test session starts =============================
@@ -240,3 +216,6 @@ def test_camels_pclstm(arg_camelsus_pclstm):
 # All processes are finished!
 # 100%|██████████| 44/44 [02:27<00:00,  3.34s/it]
 # 100%|██████████| 44/44 [01:51<00:00,  2.53s/it]
+
+
+# model_name="sGRU",

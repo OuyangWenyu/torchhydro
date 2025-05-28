@@ -282,3 +282,43 @@ class biLSTM(nn.Module):
         out_lstm, (hn, cn) = self.lstm(x0)
         out = self.linearOut(out_lstm)
         return out
+
+
+class sGRU(nn.Module):
+    """
+    Stacked GRU model.
+    """
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        hidden_size: int,
+        num_layers: int = 10,
+        dropout: float = 0.0,
+    ) -> None:
+        """
+
+        Parameters
+        ----------
+        input_size
+        output_size
+        hidden_size
+        num_layers
+        bias
+        dropout
+        """
+        super(sGRU, self).__init__()
+        self.linearIn = nn.Linear(input_size, hidden_size)
+        self.gru = nn.GRU(
+            hidden_size,
+            hidden_size,
+            num_layers,
+            dropout=dropout,
+        )
+        self.linearOut = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        x0 = F.relu(self.linearIn(x))
+        out_gru, (hn, cn) = self.gru(x0)
+        out = self.linearOut(out_gru)
+        return out
