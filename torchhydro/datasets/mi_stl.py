@@ -1124,7 +1124,7 @@ class Decomposition(object):
         self.y_decomposed = xr.Dataset({'trend': trend_DataArray,
                                 'season': season_DataArray,
                                 'residuals': residuals_DataArray})
-        
+
         # split data into train, valid and test period
         self.split_period()
 
@@ -1175,3 +1175,45 @@ class Arch(object):
 
     ):
         """ """
+        self.original_dataset = None
+        self.statistic_dict = None
+        self.deficient_dataset = None
+
+    def cal_statistics(self):
+        """calculate statistics"""
+
+
+    def cal_7_stat_inds(self, x):
+        """
+        Calculate seven statistics indices of a series: point number, mean value, standard deviation, min, percentile 15 50 85 and max.
+
+        Parameters
+        ----------
+        x
+            input data
+
+        Returns
+        -------
+        list
+            [mean, std, min, p15, p50, p85, max]
+        """
+        num_point = x.shape[0]
+        mean = np.mean(x).astype(float)
+        std = np.std(x).astype(float)
+        min_ = np.min(x).astype(float)
+        p15 = np.percentile(x, 15).astype(float)
+        p50 = np.percentile(x, 50).astype(float)
+        p85 = np.percentile(x, 85).astype(float)
+        max_ = np.max(x).astype(float)
+
+        if std < 0.001:
+            std = 1
+        return [num_point, mean, std, min_, p15, p50, p85, max_]
+
+    def deficient_dataset(self):
+        """generate deficient dataset."""
+
+
+    def analysis_dataset(self):
+        """ analysis dataset."""
+
