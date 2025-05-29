@@ -321,3 +321,118 @@ class sGRU(nn.Module):
         out_gru, hn = self.gru(x0)
         out = self.linearOut(out_gru)
         return out
+
+
+class GRUCell(Module):
+    r"""
+    single step GRU cell.
+    .. math::
+        \begin{array}{ll}
+            r_t = \sigma(W_{ir} x_t + b_{ir} + W_{hr} h_{(t-1)} + b_{hr}) \\
+            z_t = \sigma(W_{iz} x_t + b_{iz} + W_{hz} h_{(t-1)} + b_{hz}) \\
+            n_t = \tanh(W_{in} x_t + b_{in} + r_t \odot (W_{hn} h_{(t-1)}+ b_{hn})) \\
+            h_t = (1 - z_t) \odot n_t + z_t \odot h_{(t-1)}
+        \end{array}
+
+        \begin{array}{ll}
+        r = \sigma(W_{ir} x + b_{ir} + W_{hr} h + b_{hr}) \\
+        z = \sigma(W_{iz} x + b_{iz} + W_{hz} h + b_{hz}) \\
+        n = \tanh(W_{in} x + b_{in} + r \odot (W_{hn} h + b_{hn})) \\
+        h' = (1 - z) \odot n + z \odot h
+        \end{array}
+    """
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        bias: bool = True,
+        dropout: float = 0.0,
+    ) -> None:
+        """
+        Gated Recurrent Unit
+        Parameters
+        ----------
+        input_size
+        hidden_size
+        bias
+        dropout
+        """
+        super(GRUCell, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.bias = bias
+        self.dropout = dropout
+
+        # input to hidden weights
+        self.w_xi = Parameter(Tensor(hidden_size, input_size))
+        self.w_xf = Parameter(Tensor(hidden_size, input_size))
+        self.w_xo = Parameter(Tensor(hidden_size, input_size))
+        # hidden to hidden weights
+        self.w_hi = Parameter(Tensor(hidden_size, hidden_size))
+        self.w_hf = Parameter(Tensor(hidden_size, hidden_size))
+        self.w_ho = Parameter(Tensor(hidden_size, hidden_size))
+        # bias terms
+        self.b_i = Tensor(hidden_size).fill_(0)
+        self.b_f = Tensor(hidden_size).fill_(0)
+        self.b_o = Tensor(hidden_size).fill_(0)
+
+        # Wrap biases as parameters if desired, else as variables without gradients
+        W = Parameter if bias else (lambda x: Parameter(x, requires_grad=False))
+        self.b_i = W(self.b_i)
+        self.b_f = W(self.b_f)
+        self.b_o = W(self.b_o)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        std = 1.0 / math.sqrt(self.hidden_size)
+        for w in self.parameters():
+            w.data.uniform_(-std, std)  # uniform distribution
+
+    def forward(self, x: Tensor, hx: Tensor) -> Tensor:
+        """
+        forward function
+        Parameters
+        ----------
+        input
+            input time series
+        hx
+            hidden state
+        Returns
+        -------
+        neural network
+        weight spac, data space in python
+        parameter space
+        h, b
+        data space
+
+        """
+        batch_size = x.size(0)
+        h = hx
+        if h is None:
+            h = torch.zeros(  # hidden space
+                batch_size,
+                self.hidden_size,
+                dtype=x.dtype,
+                device=x.device,
+                requires_grad=False
+            )
+        h = h.view(h.size(0), -1)
+        x = x.view(x.size(0), -1)
+        # forget gate
+        f_t = torch.mm(x, self.w_xf) + torch.mm(h, self.w_hf)+ self.b_f
+        f_t.sigmoid_()
+        # input gate
+        i_t = torch.mm(x, self.w_xi) + torch.mm(h, self.w_hi) + self.b_i
+        i_t.sigmoid_()
+        # output gate
+        o_t = torch.mm(x, self.w_xo) + torch.mm(h, self.w_ho) + self.b_o
+        o_t.sigmoid_()
+        h_t = torch.mul(o_t, torch.tanh(c_t))    # hidden state update
+        # Reshape for compatibility
+        h_t = h_t.view(h_t.size(0), 1, -1)
+        if self.dropout > 0.0:
+            F.dropout(h_t, p=self.dropout, training=self.training, inplace=True)
+
+        h_t = torch.squeeze(h_t, dim=1)
+
+        return h_t
