@@ -286,7 +286,7 @@ class biLSTM(nn.Module):
 
 class sGRU(nn.Module):
     """
-    Stacked GRU model.
+    Stacked Gate Recurrent Unit model, GRU.
     """
     def __init__(
         self,
@@ -297,14 +297,13 @@ class sGRU(nn.Module):
         dropout: float = 0.0,
     ) -> None:
         """
-
+        initialize gate recurrent unit, gru.
         Parameters
         ----------
         input_size
         output_size
         hidden_size
         num_layers
-        bias
         dropout
         """
         super(sGRU, self).__init__()

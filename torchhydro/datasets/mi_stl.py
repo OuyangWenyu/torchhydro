@@ -15,6 +15,8 @@ from hydroutils import hydro_time
 
 from torchhydro.datasets.data_sources import data_sources_dict
 
+b_save_result = True
+
 class STL(object):
     """
     Seasonal-Trend decomposition using LOESS
@@ -101,13 +103,16 @@ class STL(object):
                 subseries_ij = x[index]
                 subseries_i[j] = subseries_ij
             subseries[i] = subseries_i[:]
-        pd_subseries = pd.DataFrame({
-            "subseries_" + str(i): subseries[i] for i in range(n_subseries)
-        })
-        pd_subseries.index.name = "time"
-        # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_subseries.csv"
-        file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_subseries.csv"
-        pd_subseries.to_csv(file_name, sep=" ")
+
+        if b_save_result:
+            pd_subseries = pd.DataFrame({
+                "subseries_" + str(i): subseries[i] for i in range(n_subseries)
+            })
+            pd_subseries.index.name = "time"
+            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_subseries.csv"
+            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_subseries.csv"
+            pd_subseries.to_csv(file_name, sep=" ")
+
         return subseries
 
     def _extend_subseries(self, subseries):
@@ -130,13 +135,16 @@ class STL(object):
             extend_subseries_i[1:len_extend_subseries-1] = subseries[i][:]
             extend_subseries_i[-1] = subseries[i][-1]
             extend_subseries[i] = extend_subseries_i[:]
-        pd_extend_subseries = pd.DataFrame({
-            "ext_subser_" + str(i): extend_subseries[i] for i in range(self.cycle_length)
-        })
-        pd_extend_subseries.index.name = "time"
-        # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_extend_subseries.csv"
-        file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_extend_subseries.csv"
-        pd_extend_subseries.to_csv(file_name, sep=" ")
+
+        if b_save_result:
+            pd_extend_subseries = pd.DataFrame({
+                "ext_subser_" + str(i): extend_subseries[i] for i in range(self.cycle_length)
+            })
+            pd_extend_subseries.index.name = "time"
+            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_extend_subseries.csv"
+            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_extend_subseries.csv"
+            pd_extend_subseries.to_csv(file_name, sep=" ")
+
         return extend_subseries
 
     def _de_extend_subseries(self, extend_subseries):
@@ -650,19 +658,20 @@ class STL(object):
         extend_cycle = self._extend_subseries(cycle)
         cycle_v = self._recover_series(extend_cycle)
 
-        pd_cycle = pd.DataFrame({
-            "cycle_" + str(i): cycle[i] for i in range(self.cycle_length)
-        })
-        pd_cycle.index.name = "time"
-        # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_cycle.csv"
-        file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_cycle.csv"
-        pd_cycle.to_csv(file_name, sep=" ")
+        if b_save_result:
+            pd_cycle = pd.DataFrame({
+                "cycle_" + str(i): cycle[i] for i in range(self.cycle_length)
+            })
+            pd_cycle.index.name = "time"
+            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_cycle.csv"
+            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_cycle.csv"
+            pd_cycle.to_csv(file_name, sep=" ")
 
-        pd_series = pd.DataFrame({"pet_loess": cycle_v})
-        pd_series.index.name = "time"
-        # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_loess_extend_cycle_v.csv"
-        file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_loess_extend_cycle_v.csv"
-        pd_series.to_csv(file_name, sep=" ")
+            pd_series = pd.DataFrame({"pet_loess": cycle_v})
+            pd_series.index.name = "time"
+            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_loess_extend_cycle_v.csv"
+            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_loess_extend_cycle_v.csv"
+            pd_series.to_csv(file_name, sep=" ")
 
         # 3 low-pass filtering of smoothed cycle-subseries
         lowf1 = self.moving_average_smoothing(self.n_p, cycle_v)  # n_p
@@ -670,11 +679,13 @@ class STL(object):
         lowf3 = self.moving_average_smoothing(self.n_p, lowf2)
         lowf4 = self.moving_average_smoothing(2 * self.n_p, lowf3)
         lowf5 = self.loess(self.nl, lowf4)
-        pd_lowf = pd.DataFrame({"lowf1": lowf1, "lowf2": lowf2, "lowf3": lowf3, "lowf4": lowf4, "lowf5": lowf5})  # "lowf11": lowf11, "lowf12": lowf12,
-        pd_lowf.index.name = "time"
-        # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_lowf.csv"
-        file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_lowf.csv"
-        pd_lowf.to_csv(file_name, sep=" ")
+
+        if b_save_result:
+            pd_lowf = pd.DataFrame({"lowf1": lowf1, "lowf2": lowf2, "lowf3": lowf3, "lowf4": lowf4, "lowf5": lowf5})  # "lowf11": lowf11, "lowf12": lowf12,
+            pd_lowf.index.name = "time"
+            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_lowf.csv"
+            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_lowf.csv"
+            pd_lowf.to_csv(file_name, sep=" ")
 
         # 4 detrending of smoothed cycle-subseries
         cycle_v = np.array(cycle_v)
@@ -805,6 +816,16 @@ class STL(object):
         self.trend = trend
         self.season = post_season
         self.residuals = post_residuals
+
+        if b_save_result:
+            decomposition = pd.DataFrame(
+                {"x": self.x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season,
+                 "post_residuals": post_residuals})
+            decomposition.index.name = "time"
+            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\series_decomposition.csv"
+            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/series_decomposition.csv"
+            decomposition.to_csv(file_name, sep=" ")
+
         return trend, season, residuals, post_season, post_residuals
 
     def decompose(
@@ -1178,6 +1199,8 @@ class Arch(object):
         self.original_dataset = None
         self.statistic_dict = None
         self.deficient_dataset = None
+        self.degree_m = 0  # arch degree
+        self.r = None  # coefficient of arch model
 
     def cal_statistics(self):
         """calculate statistics"""
@@ -1185,7 +1208,8 @@ class Arch(object):
 
     def cal_7_stat_inds(self, x):
         """
-        Calculate seven statistics indices of a series: point number, mean value, standard deviation, min, percentile 15 50 85 and max.
+        Calculate seven statistics indices of a series: point number, mean value, standard deviation, min,
+        percentile 25 50 75 and max.
 
         Parameters
         ----------
@@ -1195,20 +1219,20 @@ class Arch(object):
         Returns
         -------
         list
-            [mean, std, min, p15, p50, p85, max]
+            [mean, std, min, p25, p50, p75, max]
         """
         num_point = x.shape[0]
         mean = np.mean(x).astype(float)
         std = np.std(x).astype(float)
         min_ = np.min(x).astype(float)
-        p15 = np.percentile(x, 15).astype(float)
+        p25 = np.percentile(x, 25).astype(float)
         p50 = np.percentile(x, 50).astype(float)
-        p85 = np.percentile(x, 85).astype(float)
+        p75 = np.percentile(x, 75).astype(float)
         max_ = np.max(x).astype(float)
 
         if std < 0.001:
             std = 1
-        return [num_point, mean, std, min_, p15, p50, p85, max_]
+        return [num_point, mean, std, min_, p25, p50, p75, max_]
 
     def deficient_dataset(self):
         """generate deficient dataset."""
@@ -1223,3 +1247,22 @@ class Arch(object):
 
     def cal_spearman(self, x, y):
         """calculate spearman correlation."""
+
+    def fluctuate_rate(self, r, y):
+        """ calculate fluctuation rate."""
+        yy = np.power(y, 2)
+        yy[0] = np.power(y[0], 0)
+        std = r * yy
+
+        return std
+
+    def imputation(self, std, e):
+        """imputation"""
+        y = std * e
+
+        return y
+
+    def evaluate_para(self):
+        """ evaluate the parameters of arch."""
+
+

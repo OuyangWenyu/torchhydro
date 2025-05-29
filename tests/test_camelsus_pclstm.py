@@ -66,7 +66,8 @@ def arg_camelsus_pclstm(
     -------
 
     """
-    project_name = os.path.join("test_camels", "pclstm_camelsus")
+    # project_name = os.path.join("test_camels", "pclstm_camelsus")
+    project_name = os.path.join("test_camels", "sgru_camelsus")
     # camels-us time_range: ["1980-01-01", "2014-12-31"]
     train_period = ["1985-10-01", "1995-10-01"]
     valid_period = ["1995-10-01", "2000-10-01"]
@@ -252,11 +253,11 @@ def test_camels_pclstm(arg_camelsus_pclstm):
 #   (gru): GRU(256, 256, num_layers=10)
 #   (linearOut): Linear(in_features=256, out_features=1, bias=True)
 # )
-# Epoch 1 Valid Loss 1.0696 Valid Metric {'NSE of streamflow': [0.0005115270614624023, 0.009464740753173828], 
-#                                         'RMSE of streamflow': [1.0351850986480713, 1.1029919385910034], 
-#                                         'R2 of streamflow': [0.0005115270614624023, 0.009464740753173828], 
-#                                         'KGE of streamflow': [-227.18479590920316, -0.11256500820848903], 
-#                                         'FHV of streamflow': [-95.07581329345703, -95.12589263916016], 
+# Epoch 1 Valid Loss 1.0696 Valid Metric {'NSE of streamflow': [0.0005115270614624023, 0.009464740753173828],
+#                                         'RMSE of streamflow': [1.0351850986480713, 1.1029919385910034],
+#                                         'R2 of streamflow': [0.0005115270614624023, 0.009464740753173828],
+#                                         'KGE of streamflow': [-227.18479590920316, -0.11256500820848903],
+#                                         'FHV of streamflow': [-95.07581329345703, -95.12589263916016],
 #                                         'FLV of streamflow': [-107.95575714111328, -107.86727905273438]}
 # Epoch 2 Loss 0.9050 time 69.56 lr 1.0
 # sGRU(
@@ -264,11 +265,11 @@ def test_camels_pclstm(arg_camelsus_pclstm):
 #   (gru): GRU(256, 256, num_layers=10)
 #   (linearOut): Linear(in_features=256, out_features=1, bias=True)
 # )
-# Epoch 2 Valid Loss 0.8365 Valid Metric {'NSE of streamflow': [0.41745156049728394, 0.369215190410614], 
-#                                         'RMSE of streamflow': [0.7903057336807251, 0.8801931142807007], 
-#                                         'R2 of streamflow': [0.41745156049728394, 0.369215190410614], 
-#                                         'KGE of streamflow': [-317.4779793613144, -0.7310460083047847], 
-#                                         'FHV of streamflow': [-63.30582046508789, -61.96416473388672], 
+# Epoch 2 Valid Loss 0.8365 Valid Metric {'NSE of streamflow': [0.41745156049728394, 0.369215190410614],
+#                                         'RMSE of streamflow': [0.7903057336807251, 0.8801931142807007],
+#                                         'R2 of streamflow': [0.41745156049728394, 0.369215190410614],
+#                                         'KGE of streamflow': [-317.4779793613144, -0.7310460083047847],
+#                                         'FHV of streamflow': [-63.30582046508789, -61.96416473388672],
 #                                         'FLV of streamflow': [-54.28339767456055, -65.2499008178711]}
 # Weights sucessfully loaded
 # All processes are finished!
