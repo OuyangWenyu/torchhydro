@@ -374,6 +374,8 @@ class DapengScaler(object):
         return x, y, c, d
 
 
+b_save_result = True
+
 class SlidingWindowScaler(object):
     """sliding window scaler"""
     def __init__(
@@ -674,11 +676,13 @@ class SlidingWindowScaler(object):
         data = self._trans_norm(
             data, var_lst, stat_dict, to_norm=to_norm
         )
-        pd_series = data.to_pandas()
-        pd_series.index.name = "time"
-        # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
-        file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/forcing_norm.csv"
-        pd_series.to_csv(file_name, sep=" ")
+        if b_save_result:
+            pd_series = data.to_pandas()
+            pd_series.index.name = "time"
+            # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
+            file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/forcing_norm.csv"
+            pd_series.to_csv(file_name, sep=" ")
+
         return data
 
     def get_data_obs(self, to_norm: bool = True) -> np.array:
@@ -714,11 +718,14 @@ class SlidingWindowScaler(object):
             stat_dict,
             to_norm=to_norm,
         )
-        pd_series = data.to_pandas()
-        pd_series.index.name = "time"
-        # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
-        file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/target_norm.csv"
-        pd_series.to_csv(file_name, sep=" ")
+
+        if b_save_result:
+            pd_series = data.to_pandas()
+            pd_series.index.name = "time"
+            # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
+            file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/target_norm.csv"
+            pd_series.to_csv(file_name, sep=" ")
+
         return out
 
     def get_data_const(self, to_norm=True) -> np.array:
@@ -739,11 +746,14 @@ class SlidingWindowScaler(object):
         var_lst = self.data_cfgs["constant_cols"]
         data = self.data_attr
         data = self._trans_norm_attr(data, var_lst, stat_dict, to_norm=to_norm)
-        pd_series = data.to_pandas()
-        pd_series.index.name = "time"
-        # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
-        file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/attribution_norm.csv"
-        pd_series.to_csv(file_name, sep=" ")
+
+        if b_save_result:
+            pd_series = data.to_pandas()
+            pd_series.index.name = "time"
+            # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
+            file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/attribution_norm.csv"
+            pd_series.to_csv(file_name, sep=" ")
+
         return data
 
     def get_data_other(self, to_norm: bool = True) -> np.array:
@@ -779,11 +789,14 @@ class SlidingWindowScaler(object):
             stat_dict,
             to_norm=to_norm,
         )
-        pd_series = data.to_pandas()
-        pd_series.index.name = "time"
-        # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
-        file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/other_norm.csv"
-        pd_series.to_csv(file_name, sep=" ")
+
+        if b_save_result:
+            pd_series = data.to_pandas()
+            pd_series.index.name = "time"
+            # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
+            file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/other_norm.csv"
+            pd_series.to_csv(file_name, sep=" ")
+
         return out
 
     def transform(self):

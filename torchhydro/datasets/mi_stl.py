@@ -59,14 +59,14 @@ class STL(object):
         self.n_p = n_p  #
         self.degree = degree  # 1 or 2, locally-linear or locally-quadratic
 
-        self._get_parity()
+    #     self._get_parity()
 
-    def _get_parity(self):
-        """get the parity of frequency"""
-        if self.frequency % 2 == 0:
-            self.parity = "even"
-        else:
-            self.parity = "odd"
+    # def _get_parity(self):
+    #     """get the parity of frequency"""
+    #     if self.frequency % 2 == 0:
+    #         self.parity = "even"
+    #     else:
+    #         self.parity = "odd"
 
     def reset_stl(
         self,
@@ -80,8 +80,8 @@ class STL(object):
         self.trend = None
         self.season = None
         self.residuals = None
-
-        self._get_parity()
+        #
+        # self._get_parity()
 
     def _cycle_subseries(self, x):
         """
@@ -147,15 +147,14 @@ class STL(object):
 
         return extend_subseries
 
-    def _de_extend_subseries(self, extend_subseries):
-        """remove extend cycle subseries"""
-        len_subseries = int(self.length/self.cycle_length)
-        subseries = [[]] * self.cycle_length
-        subseries_i = []
-        for i in range(self.cycle_length):
-            subseries_i = extend_subseries[i][1:-1]
-            subseries[i] = subseries_i[:]
-        return subseries
+    # def _de_extend_subseries(self, extend_subseries):
+    #     """remove extend cycle subseries"""
+    #     len_subseries = int(self.length/self.cycle_length)
+    #     subseries = [[]] * self.cycle_length
+    #     for i in range(self.cycle_length):
+    #         subseries_i = extend_subseries[i][1:-1]
+    #         subseries[i] = subseries_i[:]
+    #     return subseries
 
     def _recover_series(self, subseries):
         """
