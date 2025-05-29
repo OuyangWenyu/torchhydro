@@ -67,7 +67,8 @@ def arg_camelsus_pclstm(
 
     """
     # project_name = os.path.join("test_camels", "pclstm_camelsus")
-    project_name = os.path.join("test_camels", "sgru_camelsus")
+    # project_name = os.path.join("test_camels", "sgru_camelsus")
+    project_name = os.path.join("test_camels", "stackedgru_camelsus")
     # camels-us time_range: ["1980-01-01", "2014-12-31"]
     train_period = ["1985-10-01", "1995-10-01"]
     valid_period = ["1995-10-01", "2000-10-01"]
@@ -84,7 +85,7 @@ def arg_camelsus_pclstm(
         ctx=[-1],
         # model_name="CpuLSTM",
         # model_name="pcLSTM",
-        model_name="sGRU",
+        model_name="stackedGRU",
         model_hyperparam={
             "input_size": len(var_c) + len(var_t),  # 17 + 7 = 24
             "output_size": 1,

@@ -333,13 +333,6 @@ class GRUCell(Module):
             n_t = \tanh(W_{in} x_t + b_{in} + r_t \odot (W_{hn} h_{(t-1)}+ b_{hn})) \\
             h_t = (1 - z_t) \odot n_t + z_t \odot h_{(t-1)}
         \end{array}
-
-        \begin{array}{ll}
-        r = \sigma(W_{ir} x + b_{ir} + W_{hr} h + b_{hr}) \\
-        z = \sigma(W_{iz} x + b_{iz} + W_{hz} h + b_{hz}) \\
-        n = \tanh(W_{in} x + b_{in} + r \odot (W_{hn} h + b_{hn})) \\
-        h' = (1 - z) \odot n + z \odot h
-        \end{array}
     """
     def __init__(
         self,
@@ -364,23 +357,23 @@ class GRUCell(Module):
         self.dropout = dropout
 
         # input to hidden weights
-        self.w_xi = Parameter(Tensor(hidden_size, input_size))
-        self.w_xf = Parameter(Tensor(hidden_size, input_size))
-        self.w_xo = Parameter(Tensor(hidden_size, input_size))
+        self.w_ir = Parameter(Tensor(hidden_size, input_size))
+        self.w_hr = Parameter(Tensor(hidden_size, input_size))
+        self.w_iz = Parameter(Tensor(hidden_size, input_size))
+        self.w_hz = Parameter(Tensor(hidden_size, input_size))
         # hidden to hidden weights
-        self.w_hi = Parameter(Tensor(hidden_size, hidden_size))
-        self.w_hf = Parameter(Tensor(hidden_size, hidden_size))
-        self.w_ho = Parameter(Tensor(hidden_size, hidden_size))
+        self.w_in = Parameter(Tensor(hidden_size, hidden_size))
+        self.w_hn = Parameter(Tensor(hidden_size, hidden_size))
         # bias terms
-        self.b_i = Tensor(hidden_size).fill_(0)
-        self.b_f = Tensor(hidden_size).fill_(0)
-        self.b_o = Tensor(hidden_size).fill_(0)
+        self.b_r = Tensor(hidden_size).fill_(0)
+        self.b_z = Tensor(hidden_size).fill_(0)
+        self.b_n = Tensor(hidden_size).fill_(0)
 
         # Wrap biases as parameters if desired, else as variables without gradients
         W = Parameter if bias else (lambda x: Parameter(x, requires_grad=False))
-        self.b_i = W(self.b_i)
-        self.b_f = W(self.b_f)
-        self.b_o = W(self.b_o)
+        self.b_r = W(self.b_r)
+        self.b_z = W(self.b_z)
+        self.b_n = W(self.b_n)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -398,12 +391,8 @@ class GRUCell(Module):
         hx
             hidden state
         Returns
-        -------
-        neural network
-        weight spac, data space in python
-        parameter space
-        h, b
-        data space
+        h_t
+
 
         """
         batch_size = x.size(0)
@@ -418,16 +407,18 @@ class GRUCell(Module):
             )
         h = h.view(h.size(0), -1)
         x = x.view(x.size(0), -1)
-        # forget gate
-        f_t = torch.mm(x, self.w_xf) + torch.mm(h, self.w_hf)+ self.b_f
-        f_t.sigmoid_()
-        # input gate
-        i_t = torch.mm(x, self.w_xi) + torch.mm(h, self.w_hi) + self.b_i
-        i_t.sigmoid_()
-        # output gate
-        o_t = torch.mm(x, self.w_xo) + torch.mm(h, self.w_ho) + self.b_o
-        o_t.sigmoid_()
-        h_t = torch.mul(o_t, torch.tanh(c_t))    # hidden state update
+        # r, reset gate
+        r_t = torch.mm(x, self.w_ir) + torch.mm(h, self.w_hr)+ self.b_i
+        r_t.sigmoid_()
+        # z, update gate
+        z_t = torch.mm(x, self.w_iz) + torch.mm(h, self.w_hz) + self.b_z
+        z_t.sigmoid_()
+        # n, new gate
+        rh = torch.mul(r_t, h)
+        n_t = torch.mm(x, self.w_in) + torch.mm(rh, self.w_hn) + self.b_n
+        n_t.tanh_()
+        # h, hidden state update
+        h_t = torch.mul((1 - z_t), h) + torch.mul(z_t, n_t)
         # Reshape for compatibility
         h_t = h_t.view(h_t.size(0), 1, -1)
         if self.dropout > 0.0:
@@ -436,3 +427,55 @@ class GRUCell(Module):
         h_t = torch.squeeze(h_t, dim=1)
 
         return h_t
+
+class stackedGRU(Module):
+    """
+    stacked GRU model.
+    """
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        hidden_size: int,
+        num_layers: int = 10,
+        bias: bool = True,
+        dropout: float = 0.0,
+    ):
+        super(stackedGRU, self).__init__()
+        self.nx = input_size
+        self.ny = output_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.bias = bias
+        self.dropout = dropout
+        self.linearIn = torch.nn.Linear(self.nx, self.hidden_size)
+        self.gru = []
+        for i in range(self.num_layers):
+            self.gru.append(
+                GRUCell(
+                    input_size=self.hidden_size,
+                    hidden_size=self.hidden_size,
+                    dropout=self.dropout,
+                )
+            )
+        print("grucell model list")
+        for i in range(self.num_layers):
+            print(self.gru[i])
+        self.linearOut = torch.nn.Linear(self.hidden_size, self.ny)
+
+    def forward(self, x):
+        nt, ngrid, nx = x.shape
+        out = torch.zeros(nt, ngrid, self.ny)
+        ht = None
+        for t in range(nt):
+            xt = x[t, :, :]
+            xt = torch.where(torch.isnan(xt), torch.full_like(xt, 0), xt)
+            x0 = F.relu(self.linearIn(xt))
+            for i in range(self.num_layers):
+                if i == 0:
+                    ht = self.gru[i](x=x0, hx=ht)
+                else:
+                    ht = self.gru[i](x=ht, hx=ht)
+            yt = self.linearOut(ht)
+            out[t, :, :] = yt
+        return out
