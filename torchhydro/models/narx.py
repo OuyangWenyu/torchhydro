@@ -51,14 +51,12 @@ class Narx(nn.Module):
         self.close_loop = close_loop
         in_features = (self.nx-self.ny) * (self.input_delay + 1) + self.ny * (self.feedback_delay + 1)
         self.linearIn = nn.Linear(in_features, self.hidden_size)
-        self.narx = []
-        for i in range(self.num_layers):
-            self.narx.append(
+        self.narx = [
                 nn.RNNCell(
                     input_size=self.hidden_size,
                     hidden_size=self.hidden_size,
                 )
-            )
+        ] * self.num_layers
         self.linearOut = nn.Linear(self.hidden_size, self.ny)
 
     def close_loop(self):

@@ -452,18 +452,12 @@ class stackedGRU(Module):
         self.dropout = dropout
         self.linearIn = torch.nn.Linear(self.nx, self.hidden_size)
         self.gru = [
-            GRUCell(
+                GRUCell(
                     input_size=self.hidden_size,
                     hidden_size=self.hidden_size,
                     dropout=self.dropout,
                 )
         ]*self.num_layers
-        # for i in range(self.num_layers):
-        #     self.gru[i] = GRUCell(
-        #             input_size=self.hidden_size,
-        #             hidden_size=self.hidden_size,
-        #             dropout=self.dropout,
-        #         )
         # print("grucell model list")
         # for i in range(self.num_layers):
         #     print(self.gru[i])
