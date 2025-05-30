@@ -14,6 +14,8 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Module, Parameter
 
+from torchhydro.models.dropout import DropMask, create_mask
+
 class sLSTM(nn.Module):
     """
     stacked lstm model.
@@ -408,7 +410,7 @@ class GRUCell(Module):
         h = h.view(h.size(0), -1)
         x = x.view(x.size(0), -1)
         # r, reset gate
-        r_t = torch.mm(x, self.w_ir) + torch.mm(h, self.w_hr)+ self.b_i
+        r_t = torch.mm(x, self.w_ir) + torch.mm(h, self.w_hr)+ self.b_r
         r_t.sigmoid_()
         # z, update gate
         z_t = torch.mm(x, self.w_iz) + torch.mm(h, self.w_hz) + self.b_z
@@ -449,18 +451,22 @@ class stackedGRU(Module):
         self.bias = bias
         self.dropout = dropout
         self.linearIn = torch.nn.Linear(self.nx, self.hidden_size)
-        self.gru = []
-        for i in range(self.num_layers):
-            self.gru.append(
-                GRUCell(
+        self.gru = [
+            GRUCell(
                     input_size=self.hidden_size,
                     hidden_size=self.hidden_size,
                     dropout=self.dropout,
                 )
-            )
-        print("grucell model list")
-        for i in range(self.num_layers):
-            print(self.gru[i])
+        ]*self.num_layers
+        # for i in range(self.num_layers):
+        #     self.gru[i] = GRUCell(
+        #             input_size=self.hidden_size,
+        #             hidden_size=self.hidden_size,
+        #             dropout=self.dropout,
+        #         )
+        # print("grucell model list")
+        # for i in range(self.num_layers):
+        #     print(self.gru[i])
         self.linearOut = torch.nn.Linear(self.hidden_size, self.ny)
 
     def forward(self, x):
@@ -477,5 +483,159 @@ class stackedGRU(Module):
                 else:
                     ht = self.gru[i](x=ht, hx=ht)
             yt = self.linearOut(ht)
+            out[t, :, :] = yt
+        return out
+
+
+class GruCellTied(nn.Module):
+    """
+        GruCellTied model
+    """
+
+    def __init__(
+        self,
+        *,
+        input_size,
+        hidden_size,
+        mode="train",
+        dr=0.5,
+        dr_method="drX+drW+drC",
+        gpu=1
+    ):
+        super(GruCellTied, self).__init__()
+
+        self.inputSize = input_size
+        self.hiddenSize = hidden_size
+        self.dr = dr
+
+        # r, z
+        self.w_irz = Parameter(torch.Tensor(hidden_size * 2, input_size))
+        self.w_hrz = Parameter(torch.Tensor(hidden_size * 2, input_size))
+        self.b_irz = Parameter(torch.Tensor(hidden_size * 2))
+        self.b_hrz = Parameter(torch.Tensor(hidden_size * 2))
+        # n
+        self.w_in = Parameter(torch.Tensor(hidden_size, hidden_size))
+        self.w_hn = Parameter(torch.Tensor(hidden_size, hidden_size))
+        self.b_in = Parameter(torch.Tensor(hidden_size))
+        self.b_hn = Parameter(torch.Tensor(hidden_size))
+
+        self.drMethod = dr_method.split("+")
+        self.gpu = gpu
+        self.mode = mode
+        if mode == "train":
+            self.train(mode=True)
+        elif mode in ["test", "drMC"]:
+            self.train(mode=False)
+        if gpu >= 0:
+            self = self.cuda()
+            self.is_cuda = True
+        else:
+            self.is_cuda = False
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        stdv = 1.0 / math.sqrt(self.hiddenSize)
+        for weight in self.parameters():
+            weight.data.uniform_(-stdv, stdv)
+
+    def reset_mask(self, x, h):
+        self.mask_x = create_mask(x, self.dr)
+        self.mask_h = create_mask(h, self.dr)
+        self.mask_w_irz = create_mask(self.w_irz, self.dr)
+        self.mask_w_hrz = create_mask(self.w_hrz, self.dr)
+        self.mask_w_in = create_mask(self.w_in, self.dr)
+        self.mask_w_hn = create_mask(self.w_hn, self.dr)
+
+    def forward(self, x, hidden, *, do_reset_mask=True, do_drop_mc=False):
+        do_drop = self.dr > 0 and (do_drop_mc is True or self.training is True)
+        batch_size = x.size(0)
+        h0 = hidden
+        if h0 is None:
+            h0 = x.new_zeros(batch_size, self.hiddenSize, requires_grad=False)
+
+        if self.dr > 0 and self.training is True and do_reset_mask is True:
+            self.reset_mask(x, h0)
+
+        if do_drop and "drH" in self.drMethod:
+            h0 = DropMask.apply(h0, self.mask_h, True)
+
+        if do_drop and "drX" in self.drMethod:
+            x = DropMask.apply(x, self.mask_x, True)
+
+        if do_drop and "drW" in self.drMethod:
+            w_irz = DropMask.apply(self.w_irz, self.mask_w_irz, True)
+            w_hrz = DropMask.apply(self.w_hrz, self.mask_w_hrz, True)
+            w_in = DropMask.apply(self.w_in, self.mask_w_in, True)
+            w_hn = DropMask.apply(self.w_hn, self.mask_w_hn, True)
+        else:
+            # self.w are parameters, while w are not
+            w_irz = self.w_irz
+            w_hrz = self.w_hrz
+            w_in = self.w_in
+            w_hn = self.w_hn
+
+        gates_rz = F.linear(x, w_irz, self.b_irz) + F.linear(h0, w_hrz, self.b_hrz)
+        gate_r, gate_z = gates_rz.chunk(2, 1)
+
+        gate_r = torch.sigmoid(gate_r)
+        gate_z = torch.sigmoid(gate_z)
+
+        rh = torch.mul(gate_r, h0)
+        gate_n = F.linear(x, w_in, self.b_in) + F.linear(rh, w_hn, self.b_hn)
+        gate_n = torch.tanh(gate_n)
+
+        # if self.training is True and "drC" in self.drMethod:
+        #     gate_c = gate_c.mul(self.mask_c)
+
+
+        h1 = torch.mul((1-gate_z), gate_n) + torch.mul(gate_z, h0)
+
+        return h1
+    
+class CpuGruModel(nn.Module):
+    """
+    Cpu version of CudnnGruModel
+    """
+    def __init__(
+            self, 
+            *, 
+            input_size, 
+            output_size, 
+            hidden_size, 
+            dr=0.5,
+    ):
+        super(CpuGruModel, self).__init__()
+        self.nx = input_size
+        self.ny = output_size
+        self.hiddenSize = hidden_size
+        self.nLayer = 1
+        self.linearIn = torch.nn.Linear(input_size, hidden_size)
+        self.gru = GruCellTied(
+            input_size=hidden_size,
+            hidden_size=hidden_size,
+            dr=dr,
+            dr_method="drW",
+            gpu=-1,
+        )
+        self.linearOut = torch.nn.Linear(hidden_size, output_size)
+        self.gpu = -1
+
+    def forward(self, x, do_drop_mc=False):
+        # x0 = F.relu(self.linearIn(x))
+        # outGRU, hn = self.gru(x0, do_drop_mc=do_drop_mc)
+        # out = self.linearOut(outGRU)
+        # return out
+        nt, ngrid, nx = x.shape
+        yt = torch.zeros(ngrid, 1)
+        out = torch.zeros(nt, ngrid, self.ny)
+        ht = None
+        reset_mask = True
+        for t in range(nt):
+            xt = x[t, :, :]
+            xt = torch.where(torch.isnan(xt), torch.full_like(xt, 0), xt)
+            x0 = F.relu(self.linearIn(xt))
+            ht = self.gru(x0, hidden=ht, do_reset_mask=reset_mask)
+            yt = self.linearOut(ht)
+            reset_mask = False
             out[t, :, :] = yt
         return out

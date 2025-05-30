@@ -68,7 +68,8 @@ def arg_camelsus_pclstm(
     """
     # project_name = os.path.join("test_camels", "pclstm_camelsus")
     # project_name = os.path.join("test_camels", "sgru_camelsus")
-    project_name = os.path.join("test_camels", "stackedgru_camelsus")
+    # project_name = os.path.join("test_camels", "stackedgru_camelsus")
+    project_name = os.path.join("test_camels", "cpugrumodel_camelsus")
     # camels-us time_range: ["1980-01-01", "2014-12-31"]
     train_period = ["1985-10-01", "1995-10-01"]
     valid_period = ["1995-10-01", "2000-10-01"]
@@ -86,31 +87,35 @@ def arg_camelsus_pclstm(
         # model_name="CpuLSTM",
         # model_name="pcLSTM",
         model_name="stackedGRU",
+        # model_name="CpuGruModel",
         model_hyperparam={
             "input_size": len(var_c) + len(var_t),  # 17 + 7 = 24
             "output_size": 1,
             "hidden_size": 256,
-            "num_layers": 10,
+            # "num_layers": 10,
         },
         loss_func="RMSESum",
         sampler="KuaiSampler",
         dataset="StreamflowDataset",
-        scaler="DapengScaler",
+        # scaler="DapengScaler",
+        scaler="SlidingWindowScaler",
+        # scaler="StandardScaler",
         scaler_params={
-            "prcp_norm_cols": [
-                "streamflow",
-            ],
-            "gamma_norm_cols": [
-                "prcp",
-                "pr",
-                "total_precipitation",
-                "potential_evaporation",
-                "ET",
-                "et_morton_actual_SILO",
-                "ET_sum",
-                "ssm",
-            ],
-            "pbm_norm": True,
+            # "prcp_norm_cols": [
+            #     "streamflow",
+            # ],
+            # "gamma_norm_cols": [
+            #     "prcp",
+            #     "pr",
+            #     "total_precipitation",
+            #     "potential_evaporation",
+            #     "ET",
+            #     "et_morton_actual_SILO",
+            #     "ET_sum",
+            #     "ssm",
+            # ],
+            "pbm_norm": False,
+            "sw_width": 30,
         },
         batch_size=2,
         forecast_history=0,
@@ -221,6 +226,7 @@ def test_camels_pclstm(arg_camelsus_pclstm):
 
 
 # model_name="sGRU",
+# scaler="DapengScaler",
 # ============================= test session starts ==============================
 # platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
 # rootdir: /home/yulili/code/torchhydro/tests
@@ -272,5 +278,344 @@ def test_camels_pclstm(arg_camelsus_pclstm):
 #                                         'KGE of streamflow': [-317.4779793613144, -0.7310460083047847],
 #                                         'FHV of streamflow': [-63.30582046508789, -61.96416473388672],
 #                                         'FLV of streamflow': [-54.28339767456055, -65.2499008178711]}
+# Weights sucessfully loaded
+# All processes are finished!
+
+
+# model_name="stackedGRU",
+# scaler="DapengScaler",
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# collected 1 item
+# test_camelsus_pclstm.py Backend tkagg is interactive backend. Turning interactive mode on.
+# update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 116.62it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 3934.62it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 329.06it/s]
+# grucell model list
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# Torch is using cpu
+# I0529 23:18:45.367000 137786 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpgh75b3ox
+# I0529 23:18:45.372000 137786 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpgh75b3ox/_remote_module_non_scriptable.py
+# using 0 workers
+# Epoch 1 Loss 0.9776 time 206.47 lr 1.0
+# stackedGRU(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 1 Valid Loss 1.0778 Valid Metric {'NSE of streamflow': [-0.0005340576171875, -0.01809382438659668], 
+#                                         'RMSE of streamflow': [1.0357264280319214, 1.1182303428649902], 
+#                                         'R2 of streamflow': [-0.0005340576171875, -0.01809382438659668], 
+#                                         'KGE of streamflow': [-55.419291906907894, -0.4478935889319984], 
+#                                         'FHV of streamflow': [-99.01950073242188, -98.95209503173828], 
+#                                         'FLV of streamflow': [-102.26830291748047, -102.12815856933594]}
+# Epoch 2 Loss 0.9949 time 220.09 lr 1.0
+# stackedGRU(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 2 Valid Loss 1.0811 Valid Metric {'NSE of streamflow': [-0.00018012523651123047, -0.030116558074951172], 
+#                                         'RMSE of streamflow': [1.0355432033538818, 1.1248135566711426], 
+#                                         'R2 of streamflow': [-0.00018012523651123047, -0.030116558074951172], 
+#                                         'KGE of streamflow': [-41.75488336250661, -0.5926675862663526], 
+#                                         'FHV of streamflow': [-100.72682189941406, -100.63758087158203], 
+#                                         'FLV of streamflow': [-98.16048431396484, -98.39163208007812]}
+# grucell model list
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# Weights sucessfully loaded
+# All processes are finished!
+
+# model_name="stackedGRU",
+# scaler="SlidingWindowScaler",
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# collected 1 item
+# test_camelsus_pclstm.py Backend tkagg is interactive backend. Turning interactive mode on.
+# update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 128.55it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 3658.35it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 371.69it/s]
+# grucell model list
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# Torch is using cpu
+# I0529 23:38:50.442000 141912 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpx_z7s1x0
+# I0529 23:38:50.447000 141912 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpx_z7s1x0/_remote_module_non_scriptable.py
+# using 0 workers
+# Epoch 1 Loss 0.3396 time 203.28 lr 1.0
+# stackedGRU(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 1 Valid Loss 0.3162 Valid Metric {'NSE of streamflow': [0.7971249222755432, 0.46267199516296387], 
+#                                         'RMSE of streamflow': [0.9275136590003967, 1.761291742324829], 
+#                                         'R2 of streamflow': [0.7971249222755432, 0.46267199516296387], 
+#                                         'KGE of streamflow': [0.796379936818651, 0.6581788831874534], 
+#                                         'FHV of streamflow': [-26.511463165283203, -10.200581550598145], 
+#                                         'FLV of streamflow': [7.633522987365723, 48.50153732299805]}
+# Epoch 2 Loss 0.3138 time 225.50 lr 1.0
+# stackedGRU(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 2 Valid Loss 0.3161 Valid Metric {'NSE of streamflow': [0.7966038584709167, 0.4684339165687561], 
+#                                         'RMSE of streamflow': [0.928704023361206, 1.751822829246521], 
+#                                         'R2 of streamflow': [0.7966038584709167, 0.4684339165687561], 
+#                                         'KGE of streamflow': [0.7918174743913804, 0.659588431651462], 
+#                                         'FHV of streamflow': [-26.80518341064453, -11.133393287658691], 
+#                                         'FLV of streamflow': [7.207294464111328, 47.46197509765625]}
+# grucell model list
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# Weights sucessfully loaded
+# All processes are finished!
+
+
+# model_name="stackedGRU",
+# scaler="StandardScaler",
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# collected 1 item
+# test_camelsus_pclstm.py Backend tkagg is interactive backend. Turning interactive mode on.
+# update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 122.61it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 1091.56it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 611.28it/s]
+# grucell model list
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# Torch is using cpu
+# I0530 08:58:29.637000 145961 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpr6x8xmod
+# I0530 08:58:29.644000 145961 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpr6x8xmod/_remote_module_non_scriptable.py
+# using 0 workers
+# Epoch 1 Loss 0.9789 time 225.49 lr 1.0
+# stackedGRU(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 1 Valid Loss 1.1162 Valid Metric {'NSE of streamflow': [-7.796287536621094e-05, -0.05213916301727295], 
+#                                         'RMSE of streamflow': [1.0174580812454224, 1.2069675922393799], 
+#                                         'R2 of streamflow': [-7.796287536621094e-05, -0.05213916301727295], 
+#                                         'KGE of streamflow': [-0.4763361089747553, -0.7242034155900368], 
+#                                         'FHV of streamflow': [-100.43421936035156, -100.35065460205078], 
+#                                         'FLV of streamflow': [-97.15518951416016, -97.22679138183594]}
+# Epoch 2 Loss 0.9851 time 187.18 lr 1.0
+# stackedGRU(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 2 Valid Loss 1.1182 Valid Metric {'NSE of streamflow': [-0.00015652179718017578, -0.0584484338760376], 
+#                                         'RMSE of streamflow': [1.0174980163574219, 1.2105810642242432], 
+#                                         'R2 of streamflow': [-0.00015652179718017578, -0.0584484338760376], 
+#                                         'KGE of streamflow': [-0.514832270485684, -0.7643284410754336], 
+#                                         'FHV of streamflow': [-100.8194808959961, -100.66157531738281], 
+#                                         'FLV of streamflow': [-94.7048568725586, -94.77054595947266]}
+# grucell model list
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# GRUCell()
+# Weights sucessfully loaded
+# All processes are finished!
+
+
+# model_name="CpuGruModel",
+# scaler="DapengScaler",
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# collected 1 item
+# test_camelsus_pclstm.py Backend tkagg is interactive backend. Turning interactive mode on.
+# update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 92.47it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 3498.17it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 247.68it/s]
+# Torch is using cpu
+# I0530 11:06:20.150000 149387 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmpd8nt8hpg
+# I0530 11:06:20.156000 149387 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmpd8nt8hpg/_remote_module_non_scriptable.py
+# using 0 workers
+# Epoch 1 Loss 0.9295 time 42.62 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 1 Valid Loss 0.8554 Valid Metric {'NSE of streamflow': [0.15796279907226562, 0.07913219928741455], 
+#                                         'RMSE of streamflow': [1.9054793119430542, 2.3046061992645264], 
+#                                         'R2 of streamflow': [0.15796279907226562, 0.07913219928741455], 
+#                                         'KGE of streamflow': [0.06963023243556743, 0.043479186814463944], 
+#                                         'FHV of streamflow': [-75.2620849609375, -74.47550201416016], 
+#                                         'FLV of streamflow': [23.258079528808594, 78.22360229492188]}
+# Epoch 2 Loss 0.7968 time 38.73 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 2 Valid Loss 0.7365 Valid Metric {'NSE of streamflow': [0.6401435136795044, 0.20411616563796997], 
+#                                         'RMSE of streamflow': [1.2456706762313843, 2.142510175704956], 
+#                                         'R2 of streamflow': [0.6401435136795044, 0.20411616563796997], 
+#                                         'KGE of streamflow': [0.6056791038632781, 0.1997546979124316], 
+#                                         'FHV of streamflow': [-37.717864990234375, -61.471683502197266], 
+#                                         'FLV of streamflow': [84.76811218261719, 52.190486907958984]}
+# Weights sucessfully loaded
+# All processes are finished!
+
+
+# model_name="CpuGruModel",
+# scaler="SlidingWindowScaler",
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# collected 1 item
+# test_camelsus_pclstm.py update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Backend tkagg is interactive backend. Turning interactive mode on.
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 81.81it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 686.13it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 220.38it/s]
+# Torch is using cpu
+# I0530 11:16:00.125000 149825 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmptmf62eec
+# I0530 11:16:00.134000 149825 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmptmf62eec/_remote_module_non_scriptable.py
+# using 0 workers
+# Epoch 1 Loss 0.3441 time 41.86 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 1 Valid Loss 0.3221 Valid Metric {'NSE of streamflow': [0.786907970905304, 0.3810006380081177], 
+#                                         'RMSE of streamflow': [0.950581967830658, 1.8904129266738892], 
+#                                         'R2 of streamflow': [0.786907970905304, 0.3810006380081177], 
+#                                         'KGE of streamflow': [0.849998318479231, 0.5859767017508248], 
+#                                         'FHV of streamflow': [-20.081438064575195, 11.14083480834961], 
+#                                         'FLV of streamflow': [15.533163070678711, 65.62947845458984]}
+# Epoch 2 Loss 0.3231 time 43.66 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 2 Valid Loss 0.3072 Valid Metric {'NSE of streamflow': [0.7950375080108643, 0.5054892897605896], 
+#                                         'RMSE of streamflow': [0.9322731494903564, 1.6896603107452393], 
+#                                         'R2 of streamflow': [0.7950375080108643, 0.5054892897605896], 
+#                                         'KGE of streamflow': [0.8464543613553817, 0.6751529084332614], 
+#                                         'FHV of streamflow': [-21.587797164916992, 2.3329532146453857], 
+#                                         'FLV of streamflow': [12.41610336303711, 54.518795013427734]}
 # Weights sucessfully loaded
 # All processes are finished!

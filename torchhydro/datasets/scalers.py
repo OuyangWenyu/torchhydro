@@ -374,7 +374,7 @@ class DapengScaler(object):
         return x, y, c, d
 
 
-b_save_result = True
+b_save_result = False
 
 class SlidingWindowScaler(object):
     """sliding window scaler"""
