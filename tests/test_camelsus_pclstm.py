@@ -650,6 +650,24 @@ def test_camels_pclstm(arg_camelsus_pclstm):
 # I0530 21:06:50.125000 161348 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmp7xf35x6s
 # I0530 21:06:50.130000 161348 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmp7xf35x6s/_remote_module_non_scriptable.py
 # using 0 workers
+# Epoch 1 Loss 0.3441 time 35.66 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 1 Valid Loss 0.3221 Valid Metric {'NSE of streamflow': [0.786907970905304, 0.3810006380081177], 
+#                                         'RMSE of streamflow': [0.950581967830658, 1.8904129266738892], 
+#                                         'R2 of streamflow': [0.786907970905304, 0.3810006380081177], 
+#                                         'KGE of streamflow': [0.849998318479231, 0.5859767017508248], 
+#                                         'FHV of streamflow': [-20.081438064575195, 11.14083480834961], 
+#                                         'FLV of streamflow': [15.533163070678711, 65.62947845458984]}
+# Epoch 2 Loss 0.3231 time 35.57 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
 # Epoch 2 Valid Loss 0.3072 Valid Metric {'NSE of streamflow': [0.7950375080108643, 0.5054892897605896], 
 #                                         'RMSE of streamflow': [0.9322731494903564, 1.6896603107452393], 
 #                                         'R2 of streamflow': [0.7950375080108643, 0.5054892897605896], 
