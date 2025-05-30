@@ -210,18 +210,13 @@ class pcLSTM(Module):
         self.bias = bias
         self.dropout = dropout
         self.linearIn = torch.nn.Linear(self.nx, self.hidden_size)
-        self.lstm = []
-        for i in range(self.num_layers):
-            self.lstm.append(
-                pcLSTMCell(
-                    input_size=self.hidden_size,
-                    hidden_size=self.hidden_size,
-                    dropout=self.dropout,
-                )
+        self.lstm = [
+            pcLSTMCell(
+                input_size=self.hidden_size,
+                hidden_size=self.hidden_size,
+                dropout=self.dropout,
             )
-        print("pclstmcell model list")
-        for i in range(self.num_layers):
-            print(self.lstm[i])
+        ] * self.num_layers
         self.linearOut = torch.nn.Linear(self.hidden_size, self.ny)
 
     def forward(self, x):
@@ -262,11 +257,8 @@ class biLSTM(nn.Module):
         input_size
         output_size
         hidden_size
-        num_layers
         dropout
         bidirectional
-        device
-        dtype
         """
         super(biLSTM, self).__init__()
         num_directions = 2 if bidirectional else 1
@@ -483,7 +475,7 @@ class stackedGRU(Module):
 
 class GruCellTied(nn.Module):
     """
-        GruCellTied model
+    GruCellTied model
     """
 
     def __init__(
@@ -493,7 +485,7 @@ class GruCellTied(nn.Module):
         hidden_size,
         mode="train",
         dr=0.5,
-        dr_method="drX+drW+drC",
+        dr_method="drX+drW+drH",
         gpu=1
     ):
         super(GruCellTied, self).__init__()
@@ -568,34 +560,32 @@ class GruCellTied(nn.Module):
             w_in = self.w_in
             w_hn = self.w_hn
 
+        # r,z gate
         gates_rz = F.linear(x, w_irz, self.b_irz) + F.linear(h0, w_hrz, self.b_hrz)
         gate_r, gate_z = gates_rz.chunk(2, 1)
-
         gate_r = torch.sigmoid(gate_r)
         gate_z = torch.sigmoid(gate_z)
 
+        # n gate
         rh = torch.mul(gate_r, h0)
         gate_n = F.linear(x, w_in, self.b_in) + F.linear(rh, w_hn, self.b_hn)
         gate_n = torch.tanh(gate_n)
 
-        # if self.training is True and "drC" in self.drMethod:
-        #     gate_c = gate_c.mul(self.mask_c)
-
-
+        # hidden state update
         h1 = torch.mul((1-gate_z), gate_n) + torch.mul(gate_z, h0)
 
         return h1
-    
+
 class CpuGruModel(nn.Module):
     """
     Cpu version of CudnnGruModel
     """
     def __init__(
-            self, 
-            *, 
-            input_size, 
-            output_size, 
-            hidden_size, 
+            self,
+            *,
+            input_size,
+            output_size,
+            hidden_size,
             dr=0.5,
     ):
         super(CpuGruModel, self).__init__()
@@ -620,7 +610,6 @@ class CpuGruModel(nn.Module):
         # out = self.linearOut(outGRU)
         # return out
         nt, ngrid, nx = x.shape
-        yt = torch.zeros(ngrid, 1)
         out = torch.zeros(nt, ngrid, self.ny)
         ht = None
         reset_mask = True
@@ -633,3 +622,208 @@ class CpuGruModel(nn.Module):
             reset_mask = False
             out[t, :, :] = yt
         return out
+
+
+class CudnnGru(nn.Module):
+    """
+    Only run in GPU; the CPU version is GruCellTied in this file
+    """
+    def __init__(self, *, input_size, hidden_size, dr=0.5):
+        """
+
+        Parameters
+        ----------
+        input_size
+            number of neurons in input layer
+        hidden_size
+            number of neurons in hidden layer
+        dr
+            dropout rate
+        """
+        super(CudnnGru, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.dr = dr
+
+        # r,z gate
+        self.w_irz = Parameter(torch.Tensor(hidden_size * 2, input_size))
+        self.w_hrz = Parameter(torch.Tensor(hidden_size * 2, hidden_size))
+        self.b_irz = Parameter(torch.Tensor(hidden_size * 2))
+        self.b_hrz = Parameter(torch.Tensor(hidden_size * 2))
+        # n gate
+        # n
+        self.w_in = Parameter(torch.Tensor(hidden_size, hidden_size))
+        self.w_hn = Parameter(torch.Tensor(hidden_size, hidden_size))
+        self.b_in = Parameter(torch.Tensor(hidden_size))
+        self.b_hn = Parameter(torch.Tensor(hidden_size))
+
+        self._all_weights = [["w_irz", "w_hrz", "w_in", "w_hn", "b_irz", "b_hrz", "b_in", "bhn"]]
+        # self.cuda()
+        # set the mask
+        self.reset_mask()
+        # initialize the weights and bias of the model
+        self.reset_parameters()
+
+    def _apply(self, fn):
+        """just use the default _apply function
+
+        Parameters
+        ----------
+        fn : function
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        # _apply is always recursively applied to all submodules and the module itself such as move all to GPU
+        return super()._apply(fn)
+
+    def __setstate__(self, d):
+        """a python magic function to set the state of the object used for deserialization
+
+        Parameters
+        ----------
+        d : _type_
+            _description_
+        """
+        super().__setstate__(d)
+        # set a default value for _data_ptrs
+        self.__dict__.setdefault("_data_ptrs", [])
+        if "all_weights" in d:
+            self._all_weights = d["all_weights"]
+        if isinstance(self._all_weights[0][0], str):
+            return
+        self._all_weights = [["w_irz", "w_hrz", "w_in", "w_hn", "b_irz", "b_hrz", "b_in", "bhn"]]
+
+    def reset_mask(self):
+        """generate mask for dropout"""
+        self.mask_w_irz = create_mask(self.w_irz, self.dr)
+        self.mask_w_hrz = create_mask(self.w_hrz, self.dr)
+        self.mask_w_in = create_mask(self.w_in, self.dr)
+        self.mask_w_hn = create_mask(self.w_hn, self.dr)
+
+    def reset_parameters(self):
+        """initialize the weights and bias of the model using Xavier initialization"""
+        stdv = 1.0 / math.sqrt(self.hidden_size)
+        for weight in self.parameters():
+            # uniform distribution between -stdv and stdv for the weights and bias initialization
+            weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, input, hx=None,do_drop_mc=False, dropout_false=False):
+        # dropout_false: it will ensure do_drop is false, unless do_drop_mc is true
+        if dropout_false and (not do_drop_mc):
+            do_drop = False
+        elif self.dr > 0 and (do_drop_mc is True or self.training is True):
+            # if train mode and set self.dr > 0, then do_drop is true
+            # so each time the model forward function is called, the dropout is applied
+            do_drop = True
+        else:
+            do_drop = False
+        # input must be a tensor with shape (seq_len, batch, input_size)
+        batch_size = input.size(1)
+
+        if hx is None:
+            hx = input.new_zeros(1, batch_size, self.hidden_size, requires_grad=False)
+
+        # handle = torch.backends.cudnn.get_handle()
+        if do_drop is True:
+            # cuDNN backend - disabled flat weight
+            # NOTE: each time the mask is newly generated, so for each batch the mask is different
+            self.reset_mask()
+            # apply the mask to the weights
+            weight = [
+                DropMask.apply(self.w_irz, self.mask_w_irz, True),
+                DropMask.apply(self.w_hrz, self.mask_w_hrz, True),
+                DropMask.apply(self.w_in, self.mask_w_in, True),
+                DropMask.apply(self.w_hn, self.mask_w_hn, True),
+                self.b_irz,
+                self.b_hrz,
+                self.b_in,
+                self.b_hn,
+            ]
+        else:
+            weight = [self.w_irz, self.w_hrz, self.w_in, self.w_hn, self.b_irz, self.b_hrz, self.b_in, self.b_hn]
+        if torch.__version__ < "1.8":
+            output, hy, cy, reserve, new_weight_buf = torch._cudnn_rnn(
+                input,
+                weight,
+                2,
+                None,
+                hx,
+                None,
+                3,  # 3 means GRU
+                self.hidden_size,
+                1,
+                False,
+                0,
+                self.training,
+                False,
+                (),
+                None,
+            )
+        else:
+            output, hy, cy, reserve, new_weight_buf = torch._cudnn_rnn(
+                input,
+                weight,
+                2,
+                None,
+                hx,
+                None,
+                3,  # 3 means GRU
+                self.hidden_size,
+                0,
+                1,
+                False,
+                0,
+                self.training,
+                False,
+                (),
+                None,
+            )
+        return output, hy
+
+    @property
+    def all_weights(self):
+        """return all weights and bias of the model as a list"""
+        # getattr() is used to get the value of an object's attribute
+        return [
+            [getattr(self, weight) for weight in weights]
+            for weights in self._all_weights
+        ]
+
+class CudnnGruModel(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size, dr=0.5):
+        """
+        only gpu version Gru Model
+
+        Parameters
+        ----------
+        input_size
+            the number of input features
+        output_size
+            the number of output features
+        hidden_size
+            the number of hidden features
+        dr
+            dropout rate and its default is 0.5
+        """
+        super(CudnnGruModel, self).__init__()
+        self.nx = input_size
+        self.ny = output_size
+        self.hidden_size = hidden_size
+        self.nLayer = 1
+        self.linearIn = torch.nn.Linear(self.nx, self.hidden_size)
+        self.gru = CudnnGru(
+            input_size=self.hidden_size, hidden_size=self.hidden_size, dr=dr
+        )
+        self.linearOut = torch.nn.Linear(self.hidden_size, self.ny)
+
+    def forward(self, x, do_drop_mc=False, dropout_false=False, return_h=False):
+        x0 = F.relu(self.linearIn(x))
+        out_lstm, hn = self.gru(
+            x0, do_drop_mc=do_drop_mc, dropout_false=dropout_false
+        )
+        out = self.linearOut(out_lstm)
+        return (out, hn) if return_h else out

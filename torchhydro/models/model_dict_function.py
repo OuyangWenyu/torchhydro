@@ -48,12 +48,13 @@ from torchhydro.models.dpl4sac import DplAnnSac, DplLstmSac
 from torchhydro.models.dpl4tank import DplAnnTank, DplLstmTank
 from torchhydro.models.narx import Narx, NestedNarx
 from torchhydro.models.slstm import (
-    sLSTM, 
-    pcLSTM, 
-    biLSTM, 
-    sGRU, 
-    stackedGRU, 
-    CpuGruModel
+    sLSTM,
+    pcLSTM,
+    biLSTM,
+    sGRU,
+    stackedGRU,
+    CpuGruModel,
+    CudnnGruModel,
 )
 
 """
@@ -92,6 +93,7 @@ pytorch_model_dict = {
     "sGRU": sGRU,
     "stackedGRU": stackedGRU,
     "CpuGruModel": CpuGruModel,
+    "CudnnGruModel": CudnnGruModel,
 }
 
 pytorch_criterion_dict = {
