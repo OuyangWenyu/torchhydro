@@ -121,11 +121,11 @@ def arg_camelsus_sltLstm(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=2,
+        train_epoch=10,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 2,
+            "test_epoch": 10,
         },
         # # the gage_id.txt file is set by the user, it must be the format like:
         # # GAUGE_ID

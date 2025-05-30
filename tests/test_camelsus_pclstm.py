@@ -86,8 +86,8 @@ def arg_camelsus_pclstm(
         ctx=[-1],
         # model_name="CpuLSTM",
         # model_name="pcLSTM",
-        model_name="stackedGRU",
-        # model_name="CpuGruModel",
+        # model_name="stackedGRU",
+        model_name="CpuGruModel",
         model_hyperparam={
             "input_size": len(var_c) + len(var_t),  # 17 + 7 = 24
             "output_size": 1,
@@ -128,11 +128,11 @@ def arg_camelsus_pclstm(
         test_period=test_period,
         opt="Adadelta",
         rs=1234,
-        train_epoch=2,
+        train_epoch=10,
         save_epoch=1,
         model_loader={
             "load_way": "specified",
-            "test_epoch": 2,
+            "test_epoch": 10,
         },
         # # the gage_id.txt file is set by the user, it must be the format like:
         # # GAUGE_ID
@@ -617,5 +617,140 @@ def test_camels_pclstm(arg_camelsus_pclstm):
 #                                         'KGE of streamflow': [0.8464543613553817, 0.6751529084332614], 
 #                                         'FHV of streamflow': [-21.587797164916992, 2.3329532146453857], 
 #                                         'FLV of streamflow': [12.41610336303711, 54.518795013427734]}
+# Weights sucessfully loaded
+# All processes are finished!
+
+
+# model_name="CpuGruModel",
+# scaler="SlidingWindowScaler",
+# ============================= test session starts ==============================
+# platform linux -- Python 3.13.3, pytest-8.3.5, pluggy-1.5.0
+# rootdir: /home/yulili/code/torchhydro/tests
+# configfile: ../setup.cfg
+# plugins: mock-3.14.0
+# collected 1 item
+
+# test_camelsus_pclstm.py update config file
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the PRECIPITATION variable is in the 1st location in var_t setting!!---------
+# If you have POTENTIAL_EVAPOTRANSPIRATION, please set it the 2nd!!!-
+# !!!!!!NOTE!!!!!!!!
+# -------Please make sure the STREAMFLOW variable is in the 1st location in var_out setting!!---------
+# Backend tkagg is interactive backend. Turning interactive mode on.
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 121.23it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 3731.59it/s]
+# Finish Normalization
+#   0%|          | 0/2 [00:00<?, ?it/s]
+# 100%|██████████| 2/2 [00:00<00:00, 310.32it/s]
+# Torch is using cpu
+# I0530 21:06:50.125000 161348 site-packages/torch/distributed/nn/jit/instantiator.py:22] Created a temporary directory at /tmp/tmp7xf35x6s
+# I0530 21:06:50.130000 161348 site-packages/torch/distributed/nn/jit/instantiator.py:73] Writing /tmp/tmp7xf35x6s/_remote_module_non_scriptable.py
+# using 0 workers
+# Epoch 2 Valid Loss 0.3072 Valid Metric {'NSE of streamflow': [0.7950375080108643, 0.5054892897605896], 
+#                                         'RMSE of streamflow': [0.9322731494903564, 1.6896603107452393], 
+#                                         'R2 of streamflow': [0.7950375080108643, 0.5054892897605896], 
+#                                         'KGE of streamflow': [0.8464543613553817, 0.6751529084332614], 
+#                                         'FHV of streamflow': [-21.587797164916992, 2.3329532146453857], 
+#                                         'FLV of streamflow': [12.41610336303711, 54.518795013427734]}
+# Epoch 3 Loss 0.3024 time 30.53 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 3 Valid Loss 0.3056 Valid Metric {'NSE of streamflow': [0.7918796539306641, 0.6395274996757507], 
+#                                         'RMSE of streamflow': [0.9394274950027466, 1.44260573387146], 
+#                                         'R2 of streamflow': [0.7918796539306641, 0.6395274996757507], 
+#                                         'KGE of streamflow': [0.7467224372156538, 0.6720749785835083], 
+#                                         'FHV of streamflow': [-27.19687843322754, -24.55838394165039], 
+#                                         'FLV of streamflow': [1.6373004913330078, 20.981609344482422]}
+# Epoch 4 Loss 0.3060 time 25.88 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 4 Valid Loss 0.2935 Valid Metric {'NSE of streamflow': [0.8016318678855896, 0.6046372056007385],
+#                                         'RMSE of streamflow': [0.9171532392501831, 1.5108085870742798], 
+#                                         'R2 of streamflow': [0.8016318678855896, 0.6046372056007385], 
+#                                         'KGE of streamflow': [0.8417367449399062, 0.7359522785350702], 
+#                                         'FHV of streamflow': [-21.423213958740234, -8.12037467956543], 
+#                                         'FLV of streamflow': [9.931952476501465, 41.05870819091797]}
+# Epoch 5 Loss 0.2963 time 28.95 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 5 Valid Loss 0.3048 Valid Metric {'NSE of streamflow': [0.7919682264328003, 0.6300483345985413], 
+#                                         'RMSE of streamflow': [0.9392275214195251, 1.4614503383636475], 
+#                                         'R2 of streamflow': [0.7919682264328003, 0.6300483345985413], 
+#                                         'KGE of streamflow': [0.7435538181603916, 0.6454439527814885], 
+#                                         'FHV of streamflow': [-27.411291122436523, -28.137060165405273], 
+#                                         'FLV of streamflow': [1.2296472787857056, 18.104223251342773]}
+# Epoch 6 Loss 0.2897 time 30.89 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 6 Valid Loss 0.2962 Valid Metric {'NSE of streamflow': [0.7969009280204773, 0.6629705429077148], 
+#                                         'RMSE of streamflow': [0.9280256032943726, 1.394907832145691], 
+#                                         'R2 of streamflow': [0.7969009280204773, 0.6629705429077148], 
+#                                         'KGE of streamflow': [0.7843600115521219, 0.70362914812037], 
+#                                         'FHV of streamflow': [-24.591012954711914, -22.664411544799805], 
+#                                         'FLV of streamflow': [3.4491817951202393, 19.180097579956055]}
+# Epoch 7 Loss 0.2827 time 32.72 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 7 Valid Loss 0.2952 Valid Metric {'NSE of streamflow': [0.7912325263023376, 0.5821899175643921],
+#                                         'RMSE of streamflow': [0.940886914730072, 1.5531058311462402], 
+#                                         'R2 of streamflow': [0.7912325263023376, 0.5821899175643921], 
+#                                         'KGE of streamflow': [0.8566637592242913, 0.722795275959214], 
+#                                         'FHV of streamflow': [-16.8321590423584, -2.1718318462371826], 
+#                                         'FLV of streamflow': [13.518131256103516, 44.430973052978516]}
+# Epoch 8 Loss 0.2872 time 33.77 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 8 Valid Loss 0.3096 Valid Metric {'NSE of streamflow': [0.7864210605621338, 0.6285961866378784], 
+#                                         'RMSE of streamflow': [0.9516674280166626, 1.4643157720565796], 
+#                                         'R2 of streamflow': [0.7864210605621338, 0.6285961866378784], 
+#                                         'KGE of streamflow': [0.7374768078574557, 0.59089360284844], 
+#                                         'FHV of streamflow': [-26.54060173034668, -34.252262115478516], 
+#                                         'FLV of streamflow': [-0.6028153300285339, 2.562837839126587]}
+# Epoch 9 Loss 0.2827 time 31.61 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 9 Valid Loss 0.2950 Valid Metric {'NSE of streamflow': [0.7862521409988403, 0.5925910472869873], 
+#                                         'RMSE of streamflow': [0.9520436525344849, 1.5336520671844482], 
+#                                         'R2 of streamflow': [0.7862521409988403, 0.5925910472869873], 
+#                                         'KGE of streamflow': [0.8544465335077207, 0.7243832957819654], 
+#                                         'FHV of streamflow': [-15.577754020690918, -1.497160792350769], 
+#                                         'FLV of streamflow': [14.12065601348877, 44.870079040527344]}
+# Epoch 10 Loss 0.2767 time 31.75 lr 1.0
+# CpuGruModel(
+#   (linearIn): Linear(in_features=24, out_features=256, bias=True)
+#   (gru): GruCellTied()
+#   (linearOut): Linear(in_features=256, out_features=1, bias=True)
+# )
+# Epoch 10 Valid Loss 0.3159 Valid Metric {'NSE of streamflow': [0.7458036541938782, 0.5475801825523376], 
+#                                          'RMSE of streamflow': [1.0382230281829834, 1.6161526441574097], 
+#                                          'R2 of streamflow': [0.7458036541938782, 0.5475801825523376], 
+#                                          'KGE of streamflow': [0.8094152410183653, 0.6640587682448318], 
+#                                          'FHV of streamflow': [-8.024052619934082, 6.916253089904785], 
+#                                          'FLV of streamflow': [18.013246536254883, 49.63261795043945]}
 # Weights sucessfully loaded
 # All processes are finished!
