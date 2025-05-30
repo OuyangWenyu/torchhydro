@@ -657,7 +657,7 @@ class CudnnGru(nn.Module):
         self.b_in = Parameter(torch.Tensor(hidden_size))
         self.b_hn = Parameter(torch.Tensor(hidden_size))
 
-        self._all_weights = [["w_irz", "w_hrz", "w_in", "w_hn", "b_irz", "b_hrz", "b_in", "bhn"]]
+        self._all_weights = [["w_irz", "w_hrz", "w_in", "w_hn", "b_irz", "b_hrz", "b_in", "b_hn"]]
         # self.cuda()
         # set the mask
         self.reset_mask()
@@ -695,7 +695,7 @@ class CudnnGru(nn.Module):
             self._all_weights = d["all_weights"]
         if isinstance(self._all_weights[0][0], str):
             return
-        self._all_weights = [["w_irz", "w_hrz", "w_in", "w_hn", "b_irz", "b_hrz", "b_in", "bhn"]]
+        self._all_weights = [["w_irz", "w_hrz", "w_in", "w_hn", "b_irz", "b_hrz", "b_in", "b_hn"]]
 
     def reset_mask(self):
         """generate mask for dropout"""
