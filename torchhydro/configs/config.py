@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-01-12 10:12:48
+LastEditTime: 2025-04-15 18:54:37
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: \torchhydro\torchhydro\configs\config.py
+FilePath:/torchhydro/torchhydro/configs/config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -283,7 +283,7 @@ def default_config_file():
             "model_loader": {"load_way": "specified", "test_epoch": 20},
             # "model_loader": {"load_way": "best"},
             # "model_loader": {"load_way": "latest"},
-            # "model_loader": {"load_way": "pth", "pth": "path/to/weights"},
+            # "model_loader": {"load_way": "pth", "pth_path": "path/to/weights"},
             "metrics": ["NSE", "RMSE", "R2", "KGE", "FHV", "FLV"],
             "fill_nan": "no",
             "explainer": None,
