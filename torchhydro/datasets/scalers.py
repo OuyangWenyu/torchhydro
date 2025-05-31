@@ -422,6 +422,7 @@ class SlidingWindowScaler(object):
         self.n_windows = int(self.series_length / self.sw_width)
         self.n_residual = self.series_length % self.sw_width
         self.statistic_dict = self.cal_stat_all()
+        self.result_dir = self.data_cfgs["test_path"]
 
 
     def cal_statistics(
@@ -679,8 +680,8 @@ class SlidingWindowScaler(object):
         if b_save_result:
             pd_series = data.to_pandas()
             pd_series.index.name = "time"
-            # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
-            file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/forcing_norm.csv"
+            file_name = os.path.join(self.result_dir, "forcing_norm")
+            file_name = file_name + ".csv"
             pd_series.to_csv(file_name, sep=" ")
 
         return data
@@ -722,8 +723,8 @@ class SlidingWindowScaler(object):
         if b_save_result:
             pd_series = data.to_pandas()
             pd_series.index.name = "time"
-            # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
-            file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/target_norm.csv"
+            file_name = os.path.join(self.result_dir, "target_norm")
+            file_name = file_name + ".csv"
             pd_series.to_csv(file_name, sep=" ")
 
         return out
@@ -750,8 +751,8 @@ class SlidingWindowScaler(object):
         if b_save_result:
             pd_series = data.to_pandas()
             pd_series.index.name = "time"
-            # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
-            file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/attribution_norm.csv"
+            file_name = os.path.join(self.result_dir, "attribution_norm")
+            file_name = file_name + ".csv"
             pd_series.to_csv(file_name, sep=" ")
 
         return data
@@ -793,8 +794,8 @@ class SlidingWindowScaler(object):
         if b_save_result:
             pd_series = data.to_pandas()
             pd_series.index.name = "time"
-            # file_name = r"D:\torchhydro\tests\results\test_camels\slidingwindowscaler_camelsus"
-            file_name = r"/mnt/d/torchhydro/tests/results/test_camels/slidingwindowscaler_camelsus/other_norm.csv"
+            file_name = os.path.join(self.result_dir, "other_norm")
+            file_name = file_name + ".csv"
             pd_series.to_csv(file_name, sep=" ")
 
         return out

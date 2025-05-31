@@ -1182,3 +1182,4 @@ class Decomposition(object):
             c_origin_test = self.c_origin
             y_decomposed_test = self.y_decomposed.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))
             self.test_data = [x_origin_test, y_origin_test, c_origin_test, y_decomposed_test]
+            
