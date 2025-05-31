@@ -24,9 +24,12 @@ from torch.utils.data import DistributedSampler
 
 # Mock dataset class using random data
 class MockDataset(Dataset):
-    def __init__(self, data_cfgs, is_tra_val_te):
+    def __init__(self, cfgs, is_tra_val_te):
         super(MockDataset, self).__init__()
-        self.data_cfgs = data_cfgs  # Store the passed configuration for later use
+        self.data_cfgs = cfgs["data_cfgs"]
+        self.training_cfgs = cfgs[
+            "training_cfgs"
+        ]  # Store the passed configuration for later use
         # Simulate other configuration and setup steps
 
     @property
@@ -38,11 +41,11 @@ class MockDataset(Dataset):
         return 100
 
     def __len__(self):
-        return self.ngrid * (self.nt - self.data_cfgs["forecast_length"] + 1)
+        return self.ngrid * (self.nt - self.training_cfgs["forecast_length"] + 1)
 
     def __getitem__(self, idx):
         # Use the stored configurations to generate mock data
-        rho = self.data_cfgs["forecast_length"]
+        rho = self.training_cfgs["forecast_length"]
         x = torch.randn(rho, self.data_cfgs["input_features"])
         y = torch.randn(rho, self.data_cfgs["output_features"])
         return x, y
@@ -61,20 +64,29 @@ def dummy_data_cfgs():
         "t_range_valid": None,
         "case_dir": test_path,
         "sampler": "KuaiSampler",
-        "batch_size": 5,
-        "hindcast_length": 0,
-        "forecast_length": 30,
-        "warmup_length": 0,
         "object_ids": ["02051500", "21401550"],
     }
 
 
-def test_using_mock_dataset(dummy_data_cfgs):
+@pytest.fixture()
+def dummy_training_cfgs():
+    return {
+        "batch_size": 5,
+        "hindcast_length": 0,
+        "forecast_length": 30,
+        "warmup_length": 0,
+    }
+
+
+def test_using_mock_dataset(dummy_data_cfgs, dummy_training_cfgs):
     datasets_dict["MockDataset"] = MockDataset
     is_tra_val_te = True
     dataset_name = "MockDataset"
 
-    dataset = datasets_dict[dataset_name](dummy_data_cfgs, is_tra_val_te)
+    dataset = datasets_dict[dataset_name](
+        {"data_cfgs": dummy_data_cfgs, "training_cfgs": dummy_training_cfgs},
+        is_tra_val_te,
+    )
 
     assert len(dataset) == 710
     sample_x, sample_y = dataset[0]
@@ -83,11 +95,11 @@ def test_using_mock_dataset(dummy_data_cfgs):
     print(sample_x[2].shape)
     print(sample_y.shape)
     assert sample_x.shape == (
-        dummy_data_cfgs["forecast_length"],
+        dummy_training_cfgs["forecast_length"],
         dummy_data_cfgs["input_features"],
     )
     assert sample_y.shape == (
-        dummy_data_cfgs["forecast_length"],
+        dummy_training_cfgs["forecast_length"],
         dummy_data_cfgs["output_features"],
     )
 

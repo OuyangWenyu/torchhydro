@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-09-15 11:23:28
-LastEditTime: 2024-09-15 17:07:04
+LastEditTime: 2025-04-19 14:11:24
 LastEditors: Wenyu Ouyang
 Description: Test the Resulter class
-FilePath: \torchhydro\tests\test_resulter.py
+FilePath: /torchhydro/tests/test_resulter.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
