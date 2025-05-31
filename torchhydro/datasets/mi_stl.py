@@ -6,6 +6,7 @@ LastEditors: Lili Yu
 Description:
 """
 
+import os
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -15,7 +16,6 @@ from hydroutils import hydro_time
 
 from torchhydro.datasets.data_sources import data_sources_dict
 
-b_save_result = True
 
 class STL(object):
     """
@@ -34,6 +34,7 @@ class STL(object):
         nt: int = 421,
         n_p: int = 365,
         degree: int = 1,
+        result_dir: str=None,
     ):
         """
         initiate a STL model
@@ -58,6 +59,7 @@ class STL(object):
         self.nt = nt  # 1 or 2
         self.n_p = n_p  #
         self.degree = degree  # 1 or 2, locally-linear or locally-quadratic
+        self.result_dir = result_dir
 
     #     self._get_parity()
 
@@ -104,13 +106,13 @@ class STL(object):
                 subseries_i[j] = subseries_ij
             subseries[i] = subseries_i[:]
 
-        if b_save_result:
+        if self.result_dir is not None:
             pd_subseries = pd.DataFrame({
                 "subseries_" + str(i): subseries[i] for i in range(n_subseries)
             })
             pd_subseries.index.name = "time"
-            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_subseries.csv"
-            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_subseries.csv"
+            file_name = os.path.join(self.result_dir, "subseries")
+            file_name = file_name + ".csv"
             pd_subseries.to_csv(file_name, sep=" ")
 
         return subseries
@@ -136,13 +138,13 @@ class STL(object):
             extend_subseries_i[-1] = subseries[i][-1]
             extend_subseries[i] = extend_subseries_i[:]
 
-        if b_save_result:
+        if self.result_dir is not None:
             pd_extend_subseries = pd.DataFrame({
                 "ext_subser_" + str(i): extend_subseries[i] for i in range(self.cycle_length)
             })
             pd_extend_subseries.index.name = "time"
-            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_extend_subseries.csv"
-            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_extend_subseries.csv"
+            file_name = os.path.join(self.result_dir, "extend_subseries")
+            file_name = file_name + ".csv"
             pd_extend_subseries.to_csv(file_name, sep=" ")
 
         return extend_subseries
@@ -657,19 +659,19 @@ class STL(object):
         extend_cycle = self._extend_subseries(cycle)
         cycle_v = self._recover_series(extend_cycle)
 
-        if b_save_result:
+        if self.result_dir is not None:
             pd_cycle = pd.DataFrame({
                 "cycle_" + str(i): cycle[i] for i in range(self.cycle_length)
             })
             pd_cycle.index.name = "time"
-            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_cycle.csv"
-            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_cycle.csv"
+            file_name = os.path.join(self.result_dir, "cycle")
+            file_name = file_name + ".csv"
             pd_cycle.to_csv(file_name, sep=" ")
 
             pd_series = pd.DataFrame({"pet_loess": cycle_v})
             pd_series.index.name = "time"
-            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_loess_extend_cycle_v.csv"
-            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_loess_extend_cycle_v.csv"
+            file_name = os.path.join(self.result_dir, "loess_extend_cycle_v")
+            file_name = file_name + ".csv"
             pd_series.to_csv(file_name, sep=" ")
 
         # 3 low-pass filtering of smoothed cycle-subseries
@@ -679,11 +681,11 @@ class STL(object):
         lowf4 = self.moving_average_smoothing(2 * self.n_p, lowf3)
         lowf5 = self.loess(self.nl, lowf4)
 
-        if b_save_result:
+        if self.result_dir is not None:
             pd_lowf = pd.DataFrame({"lowf1": lowf1, "lowf2": lowf2, "lowf3": lowf3, "lowf4": lowf4, "lowf5": lowf5})  # "lowf11": lowf11, "lowf12": lowf12,
             pd_lowf.index.name = "time"
-            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\pet_lowf.csv"
-            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/pet_lowf.csv"
+            file_name = os.path.join(self.result_dir, "lowf")
+            file_name = file_name + ".csv"
             pd_lowf.to_csv(file_name, sep=" ")
 
         # 4 detrending of smoothed cycle-subseries
@@ -816,13 +818,13 @@ class STL(object):
         self.season = post_season
         self.residuals = post_residuals
 
-        if b_save_result:
+        if self.result_dir is not None:
             decomposition = pd.DataFrame(
                 {"x": self.x, "trend": trend, "season": season, "residuals": residuals, "post_season": post_season,
                  "post_residuals": post_residuals})
             decomposition.index.name = "time"
-            # file_name = r"D:\minio\waterism\datasets-origin\camels\camels_ystl\series_decomposition.csv"
-            file_name = r"/mnt/d/minio/waterism/datasets-origin/camels/camels_ystl/series_decomposition.csv"
+            file_name = os.path.join(self.result_dir, "series_decomposition")
+            file_name = file_name + ".csv"
             decomposition.to_csv(file_name, sep=" ")
 
         return trend, season, residuals, post_season, post_residuals
@@ -980,6 +982,7 @@ class Decomposition(object):
         self._read_xyc_specified_time(self.time_range)
         self.remove_leap_year_data()
         self.time_step_via_mi()
+        self.result_dir = self.data_cfgs["test_path"]
 
 
     def date_string2number(self, date_str):
@@ -1127,7 +1130,7 @@ class Decomposition(object):
         trend = []
         season = []
         residuals = []
-        stl = STL(frequency=1, cycle_length=365)
+        stl = STL(frequency=1, cycle_length=365, result_dir=self.result_dir)
         for i in range(self.n_basin):
             data = self.y_origin.streamflow.values[i].tolist()
             trend_, season_, residuals_ = stl.decompose(data)
@@ -1182,4 +1185,3 @@ class Decomposition(object):
             c_origin_test = self.c_origin
             y_decomposed_test = self.y_decomposed.sel(time=slice(self.t_range_test[0], self.t_range_test[1]))
             self.test_data = [x_origin_test, y_origin_test, c_origin_test, y_decomposed_test]
-            
