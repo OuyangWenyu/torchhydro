@@ -156,3 +156,52 @@ class Arch(object):
         lnLt = -0.5*np.log(2*pi) - sum_lene / (2 * self.length) - sum_se / (2 * self.length)
 
         return lnLt
+
+    def garch_function(
+        self,
+        std,
+        e,
+    ):
+        """
+        garch function, single step.
+        Parameters
+        ----------
+        std
+        e
+
+        Returns
+        -------
+
+        """
+        a0 = 0.5
+        a1 = 0.2
+        b1 = 0.3
+        std = a0 + a1*pow(e, 2) + b1*pow(std, 2)
+        return std
+
+    def mle_garch(
+        self,
+        std,
+        e,
+    ):
+        """
+
+        Parameters
+        ----------
+        std
+        e
+
+        Returns
+        -------
+
+        """
+        pi = np.pi
+        sum_ = 0
+        for i in range(self.length):
+            p_std = pow(std[i], 2)
+            logstd_i = np.log(p_std)
+            p_e = pow(e[i], 2)
+            se_i = p_e / p_std
+            sum_ = sum_ + logstd_i + se_i
+        lt = -0.5*self.length*np.log(2*pi) - 0.5*(sum_)
+        return lt
