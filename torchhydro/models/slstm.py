@@ -827,3 +827,57 @@ class CudnnGruModel(nn.Module):
         )
         out = self.linearOut(out_lstm)
         return (out, hn) if return_h else out
+
+
+class CudnnGruModelGruKernel(nn.Module):
+    """use a trained/un-trained CudnnGru as a kernel generator before another CudnnGru."""
+
+    def __init__(
+        self,
+        input_size,
+        output_size,
+        hidden_size,
+        nk=None,
+        hidden_size_later=None,
+        cut=False,
+        dr=0.5,
+        delta_s=False,
+    ):
+        """delta_s means we will use the difference of the first gru's output and the second's as the final output"""
+        super(CudnnGruModelGruKernel, self).__init__()
+        # These three layers are same with CudnnGruModel to be used for transfer learning or just vanilla-use
+        self.linearIn = torch.nn.Linear(input_size, hidden_size)
+        self.gru = CudnnGru(input_size=hidden_size, hidden_size=hidden_size, dr=dr)
+        self.linearOut = torch.nn.Linear(hidden_size, output_size)
+        # if cut is True, we will only select the final index in nk, and repeat it, then concatenate with x
+        self.cut = cut
+        # the second gru has more input than the previous
+        if nk is None:
+            nk = output_size
+        if hidden_size_later is None:
+            hidden_size_later = hidden_size
+        self.linear_in_later = torch.nn.Linear(input_size + nk, hidden_size_later)
+        self.gru_later = CudnnGru(
+            input_size=hidden_size_later, hidden_size=hidden_size_later, dr=dr
+        )
+        self.linear_out_later = torch.nn.Linear(hidden_size_later, output_size)
+
+        self.delta_s = delta_s
+        # when delta_s is true, cut cannot be true, because they have to have same number params
+        assert not (cut and delta_s)
+
+    def forward(self, x, do_drop_mc=False, dropout_false=False):
+        x0 = F.relu(self.linearIn(x))
+        out_gru1, hn1 = self.gru(
+            x0, do_drop_mc=do_drop_mc, dropout_false=dropout_false
+        )
+        gen = self.linearOut(out_gru1)
+        if self.cut:
+            gen = gen[-1, :, :].repeat(x.shape[0], 1, 1)
+        x1 = torch.cat((x, gen), dim=len(gen.shape) - 1)
+        x2 = F.relu(self.linear_in_later(x1))
+        out_gru2, hn2 = self.gru_later(
+            x2, do_drop_mc=do_drop_mc, dropout_false=dropout_false
+        )
+        out = self.linear_out_later(out_gru2)
+        return gen - out if self.delta_s else (out, gen)
