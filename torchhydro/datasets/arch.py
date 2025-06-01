@@ -92,15 +92,25 @@ class Arch(object):
 
     def evaluate_para(self):
         """ evaluate the parameters of arch."""
-    
+
 
     def arch_function(
-        self, 
+        self,
         e: list,
         degree: int=1,
     ):
-        """error arch"""
-        degree = 1
+        """
+        error arch
+        Parameters
+        ----------
+        e
+        degree
+
+        Returns
+        -------
+
+        """
+
         a0 = 0.5
         a1 = 0.2
         e_c = [0]*self.length
@@ -109,25 +119,40 @@ class Arch(object):
             e_c[i] = a0 + a1 * e[i] * e[i]
 
         return e_c
-    
+
     def mle(
         self,
         x,
         y,
         e,
     ):
-        """max likelihood evaluation. """
+        """
+        max likelihood evaluation.
+        Parameters
+        ----------
+        x
+        y
+        e
+
+        Returns
+        -------
+
+        """
         b0 = 0.5
         b1 = 0.2
         wt = 3
         pi = np.pi
         sum_lene = 0
-        sum_y = 0
+        sum_se = 0
         for i in range(self.length):
             p_e = pow(e[i], 2)
             ln_i = np.log(p_e)
             sum_lene = sum_lene + ln_i
             p_y = pow(y[i]-b0-b1*x[i], 2)
-            sum_i = p_y / p_e
+            se_i = p_y / p_e
+            sum_se = sum_se + se_i
+
         # mle
-        lnLt = -0.5*np.log(2*pi) - sum_lene / (2 * self.length)
+        lnLt = -0.5*np.log(2*pi) - sum_lene / (2 * self.length) - sum_se / (2 * self.length)
+
+        return lnLt
