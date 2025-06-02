@@ -90,10 +90,6 @@ class Arch(object):
 
         return y
 
-    def evaluate_para(self):
-        """ evaluate the parameters of arch."""
-
-
     def arch_function(
         self,
         e: list,
@@ -205,3 +201,45 @@ class Arch(object):
             sum_ = sum_ + logstd_i + se_i
         lt = -0.5*self.length*np.log(2*pi) - 0.5*(sum_)
         return lt
+
+    def rho(
+        self,
+        et,
+        ek,
+    ):
+        """
+        relation rate
+        Parameters
+        ----------
+        et
+
+        Returns
+        -------
+
+        """
+        p_e = pow(et, 2)
+        p_e_t = pow(ek, 2)
+        var_e = np.var(p_e)
+        cov_ek = np.cov(p_e, p_e_t)
+        rho_k = cov_ek / var_e
+
+        return rho_k
+
+    def condition_check(
+        self,
+        x,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        k = 7
+        for i in range(k,self.length):
+            rho_k = self.rho(x[i+k], x[i])
+            if rho_k > 0.0:
