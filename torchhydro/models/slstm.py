@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Module, Parameter
 
+from torchhydro.models.ann import SimpleAnn
 from torchhydro.models.dropout import DropMask, create_mask
 
 class sLSTM(nn.Module):
@@ -881,3 +882,56 @@ class CudnnGruModelGruKernel(nn.Module):
         )
         out = self.linear_out_later(out_gru2)
         return gen - out if self.delta_s else (out, gen)
+    
+
+class CudnnGruModelMultiOutput(nn.Module):
+    def __init__(
+        self,
+        n_input_features,
+        n_output_features,
+        n_hidden_states,
+        layer_hidden_size=(128, 64),
+        dr=0.5,
+        dr_hidden=0.0,
+    ):
+        """
+        Multiple output CudnnGRU.
+
+        It has multiple output layers, each for one output, so that we can easily freeze any output layer.
+
+        Parameters
+        ----------
+        n_input_features
+            the size of input features
+        n_output_features
+            the size of output features; in this model, we set different nonlinear layer for each output
+        n_hidden_states
+            the size of GRU's hidden features
+        layer_hidden_size
+            hidden_size for multi-layers
+        dr
+            dropout rate
+        dr_hidden
+            dropout rates of hidden layers
+        """
+        super(CudnnGruModelMultiOutput, self).__init__()
+        multi_layers = torch.nn.ModuleList()
+        for i in range(n_output_features):
+            multi_layers.add_module(
+                "layer%d" % (i + 1),
+                SimpleAnn(n_hidden_states, 1, layer_hidden_size, dr=dr_hidden),
+            )
+        self.multi_layers = multi_layers
+        self.linearIn = torch.nn.Linear(n_input_features, n_hidden_states)
+        self.gru = CudnnGru(
+            input_size=n_hidden_states, hidden_size=n_hidden_states, dr=dr
+        )
+
+    def forward(self, x, do_drop_mc=False, dropout_false=False, return_h=False):
+        x0 = F.relu(self.linearIn(x))
+        out_gru, hn = self.gru(
+            x0, do_drop_mc=do_drop_mc, dropout_false=dropout_false
+        )
+        outs = [mod(out_gru) for mod in self.multi_layers]
+        final = torch.cat(outs, dim=-1)
+        return (final, hn) if return_h else final

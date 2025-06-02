@@ -56,6 +56,7 @@ from torchhydro.models.slstm import (
     CpuGruModel,
     CudnnGruModel,
     CudnnGruModelGruKernel,
+    CudnnGruModelMultiOutput,
 )
 
 """
@@ -96,6 +97,7 @@ pytorch_model_dict = {
     "CpuGruModel": CpuGruModel,
     "CudnnGruModel": CudnnGruModel,
     "CudnnGruModelGruKernel": CudnnGruModelGruKernel,
+    "CudnnGruModelMultiOutput": CudnnGruModelMultiOutput,
 }
 
 pytorch_criterion_dict = {
