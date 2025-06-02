@@ -312,10 +312,21 @@ class BaseDataset(Dataset):
         return self.num_samples
 
     def __getitem__(self, item: int):
-        basin, idx = self.lookup_table[item]
+        if not self.train_mode:
+            basin, idx = self.lookup_table[item]
+            warmup_length = self.warmup_length
+            x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+            y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+            if self.c is None or self.c.shape[-1] == 0:
+                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            c = self.c[basin, :]
+            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xc = np.concatenate((x, c), axis=1)
+            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        basin, idx, window = self.lookup_table[item]
         warmup_length = self.warmup_length
-        x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
-        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        x = self.x[basin, idx - warmup_length : idx + window + self.horizon, :]
+        y = self.y[basin, idx : idx + window + self.horizon, :]
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float()
         c = self.c[basin, :]
@@ -658,6 +669,8 @@ class BaseDataset(Dataset):
         warmup_length = self.warmup_length
         horizon = self.horizon
         max_time_length = self.nt
+        is_multi_len_train = self.training_cfgs["multi_length_training"]["is_multi_length_training"]
+        multi_window_lengths = self.training_cfgs["multi_length_training"]["multi_window_lengths"]
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
             if not self.train_mode:
                 # we don't need to ignore those with full nan in target vars for prediction without loss calculation
@@ -670,11 +683,20 @@ class BaseDataset(Dataset):
                 # some dataloader load data with warmup period, so leave some periods for it
                 # [warmup_len] -> time_start -> [rho] -> [horizon]
                 nan_array = np.isnan(self.y[basin, :, :])
-                lookup.extend(
-                    (basin, f)
-                    for f in range(warmup_length, max_time_length - rho - horizon + 1)
-                    if not np.all(nan_array[f + rho : f + rho + horizon])
-                )
+                if is_multi_len_train:
+                    for window in multi_window_lengths:
+                        for f in range(warmup_length, max_time_length - window - horizon + 1):
+                        # 检查目标区间内是否全为nan
+                            if not np.all(nan_array[f + window : f + window + horizon]):
+                                # 记录 (basin, 起始位置, 窗口长度)
+                                lookup.append((basin, f, window))
+                else:
+
+                    lookup.extend(
+                        (basin, f)
+                        for f in range(warmup_length, max_time_length - rho - horizon + 1)
+                        if not np.all(nan_array[f + rho : f + rho + horizon])
+                    )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
 
