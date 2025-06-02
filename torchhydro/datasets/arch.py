@@ -14,6 +14,10 @@ class Arch(object):
     """
     Autoregressive Conditional Heteroscedasticity model, ARCH.
     time series imputation
+    σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αp*a(t-p)^2
+
+
+    distribution of series -> check relationship -> mean value function
 
     """
     def __init__(
@@ -243,3 +247,39 @@ class Arch(object):
         for i in range(k,self.length):
             rho_k = self.rho(x[i+k], x[i])
             if rho_k > 0.0:
+                rho_k = self.rho(x[i+k], x[i])
+
+    def cal_acf(self, x):
+        """acf """
+        ps_x = pd.Series(x)
+        corr = ps_x.autocorr()
+        return corr
+
+    # def cal_pacf(self, x):
+    #     """pacf"""
+    #     ps_x = pd.Series(x)
+
+    def mean_value_function(
+        self,
+        x,
+        e
+    ):
+        """
+        mean value function
+        Parameters
+        ----------
+        x: observe value, series.
+        e: error item
+        Returns
+        -------
+        y_t: the observe value of time-step t.
+        """
+        p = x.shape[0]  # degree
+        mean = np.mean(x)
+        fi = [0]*p  # coefficient of regression
+        y_t = 0
+        for i in range(p):
+            y_i = fi[i] * x[i]
+            y_t = y_t + y_i
+        y_t = y_t + mean + e
+        return y_t
