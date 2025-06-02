@@ -12,7 +12,7 @@ from torchhydro.datasets.data_sources import data_sources_dict
 
 class Arch(object):
     """
-    Autoregressive Conditional Heteroscedasticity model, ARCH.
+    Autoregressive Conditional Heteroscedasticity model, ARCH.  Based on ARIMA.
     time series imputation
     σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αp*a(t-p)^2
 
@@ -33,6 +33,7 @@ class Arch(object):
         self.x = x
         self.e = None  # error
         self.length = len(x)
+        self.mean = np.mean(x)
 
     def cal_statistics(self):
         """calculate statistics"""
@@ -250,14 +251,10 @@ class Arch(object):
                 rho_k = self.rho(x[i+k], x[i])
 
     def cal_acf(self, x):
-        """acf """
+        """acf, auto-correlation coefficient """
         ps_x = pd.Series(x)
         corr = ps_x.autocorr()
         return corr
-
-    # def cal_pacf(self, x):
-    #     """pacf"""
-    #     ps_x = pd.Series(x)
 
     def mean_value_function(
         self,
@@ -275,11 +272,27 @@ class Arch(object):
         y_t: the observe value of time-step t.
         """
         p = x.shape[0]  # degree
-        mean = np.mean(x)
+        # mean = np.mean(x)
         fi = [0]*p  # coefficient of regression
         y_t = 0
         for i in range(p):
             y_i = fi[i] * x[i]
             y_t = y_t + y_i
-        y_t = y_t + mean + e
+        y_t = y_t + self.mean + e
         return y_t
+
+    def cal_pacf(
+        self,
+        x
+    ):
+        """
+        pacf, partial auto-correlation function. a series consisted by partial auto-correlation coefficient.
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        ps_x = pd.Series(x)
