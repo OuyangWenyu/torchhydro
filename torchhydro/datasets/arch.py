@@ -269,10 +269,11 @@ class Arch(object):
         -------
 
         """
+        if mean_x is None:
+            mean_x = np.mean(x)
         if y is None:
             y = x
-        if mean_x is None:
-            mean_x = np.mean(x)  # todo:
+            mean_y = mean_x
         if mean_y is None:
             mean_y = np.mean(y)
         n_x = x.shape[0]
@@ -289,6 +290,8 @@ class Arch(object):
         self,
         x,
         y,
+        mean_x: Optional = None,
+        mean_y: Optional = None,
     ):
         """
 
@@ -301,9 +304,11 @@ class Arch(object):
         -------
 
         """
-        cov_xy = self.cov(x, y)
-        std_x = pow(self.cov(x), 0.5)
-        std_y = pow(self.cov(y), 0.5)
+        if ((mean_x is not None) and (mean_y is None)) or ((mean_x is None) and (mean_y is not None)):
+            raise ValueError("Error: Please set mean_x and mean_y at the same time or do not set both.")
+        cov_xy = self.cov(x, y, mean_x=mean_x, mean_y=mean_y)
+        std_x = pow(self.cov(x, mean_x=mean_x), 0.5)
+        std_y = pow(self.cov(y, mean_x=mean_y), 0.5)
         rho_xy = cov_xy / (std_x * std_y)
         return rho_xy
 
@@ -313,7 +318,7 @@ class Arch(object):
         p,
     ):
         """
-
+        unbiased acf.
         Parameters
         ----------
         x
@@ -326,9 +331,10 @@ class Arch(object):
         n_x = x.shape[0]
         if p > n_x:
             raise ValueError("Error: p could not be larger than the length of x.")
+        mean_x = np.mean(x)
         x_ = x[:-p]
         y_ = x[p-1:]
-        rho_p_xx = self.correlation_coefficient(x_, y_)
+        rho_p_xx = self.correlation_coefficient(x_, y_, mean_x, mean_x)
 
         return rho_p_xx
 
