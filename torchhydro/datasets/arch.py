@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from typing import Dict
+from typing import Optional
 
 from hydroutils import hydro_time
 
@@ -249,6 +250,108 @@ class Arch(object):
             rho_k = self.rho(x[i+k], x[i])
             if rho_k > 0.0:
                 rho_k = self.rho(x[i+k], x[i])
+
+    def cov(
+        self,
+        x,
+        y: Optional = None,
+        mean_x: Optional = None,
+        mean_y: Optional = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        y
+
+        Returns
+        -------
+
+        """
+        if y is None:
+            y = x
+        if mean_x is None:
+            mean_x = np.mean(x)  # todo:
+        if mean_y is None:
+            mean_y = np.mean(y)
+        n_x = x.shape[0]
+        cov = 0
+        for i in range(n_x):
+            x_i = x[i] - mean_x
+            y_i = y[i] - mean_y
+            xy_i = x_i * y_i
+            cov = cov + xy_i
+        cov = cov / n_x
+        return cov
+
+    def correlation_coefficient(
+        self,
+        x,
+        y,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        y
+
+        Returns
+        -------
+
+        """
+        cov_xy = self.cov(x, y)
+        std_x = pow(self.cov(x), 0.5)
+        std_y = pow(self.cov(y), 0.5)
+        rho_xy = cov_xy / (std_x * std_y)
+        return rho_xy
+
+    def autocorrelation_coefficient(
+        self,
+        x,
+        p,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        p
+
+        Returns
+        -------
+
+        """
+        n_x = x.shape[0]
+        if p > n_x:
+            raise ValueError("Error: p could not be larger than the length of x.")
+        x_ = x[:-p]
+        y_ = x[p-1:]
+        rho_p_xx = self.correlation_coefficient(x_, y_)
+
+        return rho_p_xx
+
+    def partial_autocorrelation_coefficient(
+        self,
+        x,
+        k,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        k
+
+        Returns
+        -------
+
+        """
+        pacf_x = 0
+
+
+
 
     def cal_acf(self, x):
         """acf, auto-correlation coefficient """
