@@ -14,6 +14,7 @@ from torchhydro.datasets.data_sources import data_sources_dict
 class Arch(object):
     """
     Autoregressive Conditional Heteroscedasticity model, ARCH.  Based on ARIMA.
+    autoregression integrated moving average, ARIMA.
     time series imputation
     σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αp*a(t-p)^2
 
@@ -35,6 +36,8 @@ class Arch(object):
         self.e = None  # error
         self.length = len(x)
         self.mean = np.mean(x)
+        self.p = None  # degree of autoregression
+        self.q = None  # degree of moving average
 
     def cal_statistics(self):
         """calculate statistics"""
@@ -99,7 +102,7 @@ class Arch(object):
     def arch_function(
         self,
         e: list,
-        degree: int=1,
+        degree: int = 1,
     ):
         """
         error arch
@@ -369,6 +372,25 @@ class Arch(object):
 
         """
         pacf_x = 0
+        n_x = len(x)
+        fi = [0]*len(x)
+        x_ = np.transpose(x)
+        x_1 = np.matmul(fi, x_)
+        k = int(n_x / 2)
+        r_k = self.autocorrelation_function(x)
+        r_0 = 1
+        # R
+        R = np.zeros((k, k))
+        for i in range(k):
+            for j in range(k):
+                if i == j:
+                    R[i, j] = r_0
+                elif i < j:
+                    R[i, j] = r_k[j]
+                else:
+                    R[i, j] = r_k[i]
+
+        return pacf_x
 
 
 
@@ -410,7 +432,7 @@ class Arch(object):
         e,
         std,
     ):
-        """std function"""
+        """std function, garch."""
         q = e.shape[0]
         p = std.shape[0]
         a = [0]*q

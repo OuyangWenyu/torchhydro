@@ -93,3 +93,32 @@ def test_autocorrelation_function_streamflow():
 #  0.06483641215798262, 0.03676010713699499, -0.05285223387201344, -0.16489815537171662, -0.24111416440613276,
 #  -0.29087634911272925, -0.3306303690042141, -0.36718441828290577, -0.4036542738362469, -0.4393005539852559,
 #  -0.47170272478876923, -0.4989340667328899, -0.5202596908149623, -0.534099030073374]
+
+
+def test_mean_value_function():
+    # ystl = Ystl()
+    # y = ystl.streamflow[:60]
+    x = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25]
+    y = [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51]
+    arch = Arch(y)
+    y_t = arch.mean_value_function(y, x)
+    print("y_t")
+    print(y_t)
+
+def test_std_function():
+    x = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25]
+    y = [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51]
+    w = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25]
+    std = [1 , 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    arch = Arch(y)
+    std_t = arch.std_function(w, y, std)
+    print("std_t")
+    print(std_t)
+
+def test_partial_autocorrelation_coefficient():
+    ystl = Ystl()
+    y = ystl.streamflow[:60]
+    arch = Arch(y)
+    pacf_y = arch.partial_autocorrelation_coefficient(y)
+    print("pacf_y")
+    print(pacf_y)
