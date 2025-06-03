@@ -276,7 +276,8 @@ class Arch(object):
             mean_y = mean_x
         if mean_y is None:
             mean_y = np.mean(y)
-        n_x = x.shape[0]
+        # n_x = x.shape[0]
+        n_x = len(x)
         cov = 0
         for i in range(n_x):
             x_i = x[i] - mean_x
@@ -328,15 +329,28 @@ class Arch(object):
         -------
 
         """
-        n_x = x.shape[0]
+        # n_x = x.shape[0]
+        n_x = len(x)
         if p > n_x:
             raise ValueError("Error: p could not be larger than the length of x.")
         mean_x = np.mean(x)
         x_ = x[:-p]
-        y_ = x[p-1:]
+        y_ = x[p:]
         rho_p_xx = self.correlation_coefficient(x_, y_, mean_x, mean_x)
 
         return rho_p_xx
+
+    def autocorrelation_function(
+        self,
+        x,
+    ):
+        """ """
+        n_x = len(x)
+        p = list(range(1, int(n_x/2)))
+        acf = [0]*len(p)
+        for i in range(len(p)):
+            acf[i] = self.autocorrelation_coefficient(x, p[i])
+        return acf
 
     def partial_autocorrelation_coefficient(
         self,

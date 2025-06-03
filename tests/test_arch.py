@@ -1,0 +1,95 @@
+
+from hydrodataset import CamelsYstl
+from torchhydro.datasets.arch import Arch
+
+
+class Ystl(object):
+    def __init__(self):
+        self.datasource = CamelsYstl()
+        self.basin = ["1000",]
+        self.time_range = ["1990-01-01","1994-01-01"]
+        self.var_list = ["streamflow", "discharge_vol1", "discharge_vol2", "discharge_vol3",]
+        self.pet_list = ["pet"]
+        self.prcp_list = ["prcp"]
+        self.streamflow = None
+        self.prcp = None
+        self.pet = None
+        self.read_streamflow()
+        # self.read_prcp()
+        # self.read_pet()
+
+    def read_streamflow(self):
+        data = self.datasource.read_ts_xrdataset(
+            self.basin,
+            self.time_range,
+            self.var_list,
+        )
+        data1 = data.streamflow.to_dataframe()
+        # data2 = data.discharge_vol1.to_dataframe()
+        # data3 = data.discharge_vol2.to_dataframe()
+        # data4 = data.discharge_vol3.to_dataframe()
+        # data1.drop(axis=0, index=("1000", "1992-02-29"), inplace=True)
+        # data2.drop(axis=0, index=("1000", "1992-02-29"), inplace=True)
+        # data3.drop(axis=0, index=("1000", "1992-02-29"), inplace=True)
+        # data4.drop(axis=0, index=("1000", "1992-02-29"), inplace=True)
+        data1 = data1.values[:, 0]
+        # data2 = data2.values[:, 0]
+        # data3 = data3.values[:, 0]
+        # data4 = data4.values[:, 0]
+        data_ = data1.tolist()  # + data2.tolist() + data3.tolist() + data4.tolist()
+        self.streamflow = data_  # + data_
+
+def test_cov():
+    x = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25]
+    y = [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51]
+    arch = Arch(x)
+    cov_xy = arch.cov(x, y)
+    print(cov_xy)
+# 112.0
+
+def test_correlation_coefficient():
+    x = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25]
+    y = [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51]
+    arch = Arch(x)
+    cf_xy = arch.correlation_coefficient(x, y)
+    print(cf_xy)
+# 1.0
+
+def test_autocorrelation_coefficient():
+    x = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25]
+    y = [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51]
+    arch = Arch(x)
+    acf_x = arch.autocorrelation_coefficient(x, 2)
+    acf_y = arch.autocorrelation_coefficient(y, 2)
+    print("acf_x")
+    print(acf_x)
+    print("acf_y")
+    print(acf_y)
+# acf_x
+# 0.8181818181818182
+# acf_y
+# 0.8181818181818182
+
+def test_autocorrelation_function():
+    y = [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51]  # 13
+    arch = Arch(y)
+    acf_y = arch.autocorrelation_function(y)
+    print("acf_y")
+    print(acf_y)
+# acf_y
+# [0.9589041095890409, 0.8181818181818182, 0.5714285714285714, 0.25, -0.08695652173913043]
+
+def test_autocorrelation_function_streamflow():
+    ystl = Ystl()
+    y = ystl.streamflow[:60]
+    arch = Arch(y)
+    acf_y = arch.autocorrelation_function(y)
+    print("acf_y")
+    print(acf_y)
+# acf_y
+# [0.8587438388522092, 0.6416783213389374, 0.5101205712766372, 0.45446785417267394, 0.430136263420801,
+#  0.40207725891080465, 0.3553080988720061, 0.29041602390598137, 0.2233874067489399, 0.1651394837984072,
+#  0.11652331741896974, 0.08489477047685076, 0.04841780532413019, 0.04439226046375843, 0.05716602994126686,
+#  0.06483641215798262, 0.03676010713699499, -0.05285223387201344, -0.16489815537171662, -0.24111416440613276,
+#  -0.29087634911272925, -0.3306303690042141, -0.36718441828290577, -0.4036542738362469, -0.4393005539852559,
+#  -0.47170272478876923, -0.4989340667328899, -0.5202596908149623, -0.534099030073374]
