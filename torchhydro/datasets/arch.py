@@ -358,7 +358,7 @@ class Arch(object):
     def partial_autocorrelation_coefficient(
         self,
         x,
-        k,
+        k: int = None,
     ):
         """
 
@@ -371,26 +371,35 @@ class Arch(object):
         -------
 
         """
-        pacf_x = 0
+        # pacf_x = 0
         n_x = len(x)
-        fi = [0]*len(x)
-        x_ = np.transpose(x)
-        x_1 = np.matmul(fi, x_)
-        k = int(n_x / 2)
+        # fi = [0]*len(x)
+        # x_ = np.transpose(x)
+        # x_1 = np.matmul(fi, x_)
+        if k is None:
+            k = int(n_x / 2)  # the max degree of pacf
         r_k = self.autocorrelation_function(x)
         r_0 = 1
         # R
         R = np.zeros((k, k))
         for i in range(k):
+            kk = 0
             for j in range(k):
                 if i == j:
                     R[i, j] = r_0
                 elif i < j:
-                    R[i, j] = r_k[j]
+                    R[i, j] = r_k[kk]
+                    kk = kk + 1
                 else:
-                    R[i, j] = r_k[i]
-
-        return pacf_x
+                    R[i, j] = r_k[k-(kk+1)]
+                    kk = kk + 1
+        r_k_ = np.transpose(r_k)
+        try:
+            R_1 = np.linalg.inv(R)
+        except np.linalg.LinAlgError:
+            raise np.linalg.LinAlgError("Singular matrix")
+        pacf_k = np.matmul(R_1, r_k_)
+        return pacf_k
 
 
 
