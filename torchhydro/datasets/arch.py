@@ -352,7 +352,16 @@ class Arch(object):
         self,
         x,
     ):
-        """ """
+        """
+
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
         n_x = len(x)
         p = list(range(0, int(n_x/2)))
         acf = [0]*len(p)
@@ -385,11 +394,11 @@ class Arch(object):
         for i in range(k):
             kk = 0
             for j in range(k):
-                if i <= j:
-                    R[i, j] = r_k[kk]
+                if i < j:
+                    R[i, j] = r_k[j]
                     kk = kk + 1
                 else:
-                    R[i, j] = r_k[i-(kk+1)]
+                    R[i, j] = r_k[i-j]
                     kk = kk + 1
         r_k_ = np.transpose(r_k)
         try:
@@ -398,7 +407,7 @@ class Arch(object):
             raise np.linalg.LinAlgError("Singular matrix")
         pacf_k = np.matmul(R_1, r_k_)
 
-        return pacf_k
+        return pacf_k, R
 
 
     def cal_acf(self, x):
