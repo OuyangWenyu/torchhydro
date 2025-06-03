@@ -404,6 +404,28 @@ class Arch(object):
         y_t = y_t + self.mean + e
         return y_t
 
+    def std_function(
+        self,
+        w,
+        e,
+        std,
+    ):
+        """std function"""
+        q = e.shape[0]
+        p = std.shape[0]
+        a = [0]*q
+        b = [0]*p
+        sum_e = 0
+        sum_std = 0
+        for i in range(q):
+            e_i = a[i] * pow(e[i], 2)
+            sum_e = sum_e + e_i
+        for i in range(p):
+            std_i = b[i] * pow(std[i], 2)
+            sum_std = sum_std + std_i
+        std_t = w + sum_e + sum_std
+        return std_t
+
     def cal_pacf(
         self,
         x
