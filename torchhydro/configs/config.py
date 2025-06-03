@@ -247,6 +247,7 @@ def default_config_file():
             "lead_time_start": 1,
 
             "multi_length_training": {
+                "multi_len_train_type":"Pad", # Pad or multi_table(must be WindowLenBatchSampler for multi_table mode)
                 "is_multi_length_training": False,
                 "multi_window_lengths":[0,730,1460] # [0,730,1460] means 1years, 3years, 5years
             },

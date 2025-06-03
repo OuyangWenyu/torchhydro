@@ -73,8 +73,8 @@ def train_and_evaluate(cfgs: Dict):
         )
         or (deephydro.weight_path is None)
     )
-    if is_train:
-        deephydro.model_train()
+    # if is_train:
+    #     deephydro.model_train()
     preds, obss = deephydro.model_evaluate()
     resulter.save_cfg(deephydro.cfgs)
     resulter.save_result(preds, obss)

@@ -467,16 +467,25 @@ class DeepHydro(DeepHydroInterface):
             print(f"Pin memory set to {str(pin_memory)}")
         sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
         if training_cfgs["multi_length_training"]["is_multi_length_training"]:
-            data_loader = DataLoader(
-                self.traindataset,
-                batch_size=training_cfgs["batch_size"],
-                shuffle=(sampler is None),
-                sampler=sampler,
-                num_workers=worker_num,
-                pin_memory=pin_memory,
-                timeout=0,
-                collate_fn=self.collate_fn,
-            )
+            if training_cfgs["multi_length_training"]["multi_len_train_type"] == "multi_table":
+                data_loader = DataLoader(
+                    self.traindataset,
+                    batch_sampler=sampler,
+                    num_workers=worker_num,
+                    pin_memory=pin_memory,
+                    timeout=0,
+                )
+            else:
+                data_loader = DataLoader(
+                    self.traindataset,
+                    batch_size=training_cfgs["batch_size"],
+                    shuffle=(sampler is None),
+                    sampler=sampler,
+                    num_workers=worker_num,
+                    pin_memory=pin_memory,
+                    timeout=0,
+                    collate_fn=self.collate_fn,
+                )
         else:
             data_loader = DataLoader(
             self.traindataset,
@@ -553,6 +562,12 @@ class DeepHydro(DeepHydroInterface):
                 "ngrid": ngrid,
                 "nt": nt,
             }
+        if sampler_name == "WindowLenBatchSampler":
+            sampler_hyperparam |= {
+                "batch_size": batch_size,
+
+            }
+
         return sampler_class(train_dataset, **sampler_hyperparam)
 
 
