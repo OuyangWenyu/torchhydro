@@ -38,6 +38,8 @@ class Arch(object):
         self.mean = np.mean(x)
         self.p = None  # degree of autoregression
         self.q = None  # degree of moving average
+        self.fi = None
+        self.sigma = None
 
     def cal_statistics(self):
         """calculate statistics"""
@@ -337,7 +339,10 @@ class Arch(object):
         if p > n_x:
             raise ValueError("Error: p could not be larger than the length of x.")
         mean_x = np.mean(x)
-        x_ = x[:-p]
+        if p == 0:
+            x_ = x[:]
+        else:
+            x_ = x[:-p]
         y_ = x[p:]
         rho_p_xx = self.correlation_coefficient(x_, y_, mean_x, mean_x)
 
@@ -349,7 +354,7 @@ class Arch(object):
     ):
         """ """
         n_x = len(x)
-        p = list(range(1, int(n_x/2)))
+        p = list(range(0, int(n_x/2)))
         acf = [0]*len(p)
         for i in range(len(p)):
             acf[i] = self.autocorrelation_coefficient(x, p[i])
@@ -371,27 +376,20 @@ class Arch(object):
         -------
 
         """
-        # pacf_x = 0
-        n_x = len(x)
-        # fi = [0]*len(x)
-        # x_ = np.transpose(x)
-        # x_1 = np.matmul(fi, x_)
         if k is None:
+            n_x = len(x)
             k = int(n_x / 2)  # the max degree of pacf
         r_k = self.autocorrelation_function(x)
-        r_0 = 1
         # R
         R = np.zeros((k, k))
         for i in range(k):
             kk = 0
             for j in range(k):
-                if i == j:
-                    R[i, j] = r_0
-                elif i < j:
+                if i <= j:
                     R[i, j] = r_k[kk]
                     kk = kk + 1
                 else:
-                    R[i, j] = r_k[k-(kk+1)]
+                    R[i, j] = r_k[i-(kk+1)]
                     kk = kk + 1
         r_k_ = np.transpose(r_k)
         try:
@@ -399,9 +397,8 @@ class Arch(object):
         except np.linalg.LinAlgError:
             raise np.linalg.LinAlgError("Singular matrix")
         pacf_k = np.matmul(R_1, r_k_)
+
         return pacf_k
-
-
 
 
     def cal_acf(self, x):
