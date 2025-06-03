@@ -18,6 +18,10 @@ class Arch(object):
     time series imputation
     σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αp*a(t-p)^2
 
+    AR，auto-regression model.
+    MA, moving average model.
+    I, integrate model.
+    ARCH, autoregressive conditional heteroscedasticity model.
 
     distribution of series -> check relationship -> mean value function
 
@@ -375,7 +379,7 @@ class Arch(object):
         k: int = None,
     ):
         """
-
+        # todo:
         Parameters
         ----------
         x
