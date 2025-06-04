@@ -41,6 +41,7 @@ class Arch(object):
         self.p = None  # degree of autoregression
         self.q = None  # degree of moving average
         self.d = None  # degree of integrate
+        self.p0 = 0.05  # significance level of p_check
         self.fi = None
         self.sigma = None
 
@@ -417,7 +418,7 @@ class Arch(object):
         x,
     ):
         """
-        p check for stability of series.
+        p check for stability of series. Z-check.
         Parameters
         ----------
         x
@@ -431,7 +432,7 @@ class Arch(object):
         sigma = np.std(x)
         n_x = len(x)
         z = (x_mean - u0) / (sigma / pow(n_x, 0.5))
-        p_check = np.abs(z) < 0.01
+        p_check = np.abs(z) < self.p0
         return p_check
 
     def cal_acf(self, x):
