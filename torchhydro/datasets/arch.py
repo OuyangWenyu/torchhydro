@@ -391,7 +391,7 @@ class Arch(object):
         """
         if k is None:
             n_x = len(x)
-            k = int(n_x / 2)  # the max degree of pacf
+            k = int(n_x / 1.5)  # the max degree of pacf
         r_k = self.autocorrelation_function(x)
         # R
         R = np.zeros((k, k))
@@ -434,6 +434,29 @@ class Arch(object):
         z = (x_mean - u0) / (sigma / pow(n_x, 0.5))
         p_check = np.abs(z) < self.p0
         return p_check
+
+    def adf_check(
+        self,
+        x,
+    ):
+        """
+        ADF check.  unit root.
+        assumption：
+            H0: true.
+            H1: false.
+        confidence
+        (10%, 5%, 1%) -> (90%, 95%, 99%)
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+
+
+
 
     def cal_acf(self, x):
         """acf, auto-correlation coefficient """
