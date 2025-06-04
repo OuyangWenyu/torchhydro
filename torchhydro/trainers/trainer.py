@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2025-01-14 19:29:34
+LastEditTime: 2025-06-04 14:13:27
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
@@ -70,16 +70,11 @@ def train_and_evaluate(cfgs: Dict):
         (deephydro.weight_path is not None and (continue_train or is_transfer_learning))
         or (deephydro.weight_path is None)
     )
-    # if is_train:
-    #     deephydro.model_train()
+    if is_train:
+        deephydro.model_train()
     preds, obss = deephydro.model_evaluate()
     resulter.save_cfg(deephydro.cfgs)
-    # TODO: 如果Preds和obss是四维的，这里可以跑通，但是valid和test算指标不支持
-    # 如果这里是列表，前面算指标可以每个单独算，但是没有办法保存成nc文件，以及还需要eval_result
-    # 这里只使用了列表里的第一个xr.Dataset来测试
-    if isinstance(obss, list):
-        preds = preds[0]
-        obss = obss[0]
+    # TODO: If preds and obss are 4-dimensional, this will run but metrics calculation for valid and test are not supported
     resulter.save_result(preds, obss)
     resulter.eval_result(preds, obss)
 

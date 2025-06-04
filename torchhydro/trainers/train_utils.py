@@ -94,7 +94,7 @@ def _rolling_preds_for_once_eval(
     return the_array_.reshape(ngrid, recover_len, nf)
 
 
-def model_infer(seq_first, device, model, xs, ys,src_lens=None, trg_lens=None):
+def model_infer(seq_first, device, model, xs, ys, src_lens=None, trg_lens=None):
     """_summary_
 
     Parameters
@@ -139,7 +139,7 @@ def model_infer(seq_first, device, model, xs, ys,src_lens=None, trg_lens=None):
             if seq_first and ys.ndim == 3
             else ys.to(device)
         )
-    output = model(*xs,src_lens, trg_lens)
+    output = model(*xs, src_lens, trg_lens)
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
@@ -817,7 +817,9 @@ def torch_single_train(
     for _, batch in enumerate(pbar):
         if len(batch) == 4:
             src, trg, src_lens, trg_lens = batch
-            trg, output = model_infer(seq_first, device, model, src, trg, src_lens, trg_lens)
+            trg, output = model_infer(
+                seq_first, device, model, src, trg, src_lens, trg_lens
+            )
         elif len(batch) == 2:
             src, trg = batch
             # 如果没有 src_lens 和 trg_lens，可以传递 None 或默认值

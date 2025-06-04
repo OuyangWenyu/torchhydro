@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-05-15 19:35:47
+LastEditTime: 2025-06-04 17:26:30
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -323,9 +323,12 @@ class BaseDataset(Dataset):
             c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
             xc = np.concatenate((x, c), axis=1)
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-        
+
         if self.training_cfgs["multi_length_training"]["is_multi_length_training"]:
-            if self.training_cfgs["multi_length_training"]["multi_len_train_type"] == "Pad":
+            if (
+                self.training_cfgs["multi_length_training"]["multi_len_train_type"]
+                == "Pad"
+            ):
                 basin, idx, window = self.lookup_table[item]
                 warmup_length = self.warmup_length
                 x = self.x[basin, idx - warmup_length : idx + window + self.horizon, :]
@@ -336,10 +339,22 @@ class BaseDataset(Dataset):
                 c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
                 xc = np.concatenate((x, c), axis=1)
                 return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-            elif self.training_cfgs["multi_length_training"]["multi_len_train_type"] == "multi_table":
+            elif (
+                self.training_cfgs["multi_length_training"]["multi_len_train_type"]
+                == "multi_table"
+            ):
                 window_len, idx_in_specific_table = self.lookup_table[item]
-                basin, time_step = self.lookup_tables_by_length[window_len][idx_in_specific_table]
-                x = self.x[basin, time_step - self.warmup_length : time_step + window_len + self.horizon, :]
+                basin, time_step = self.lookup_tables_by_length[window_len][
+                    idx_in_specific_table
+                ]
+                x = self.x[
+                    basin,
+                    time_step
+                    - self.warmup_length : time_step
+                    + window_len
+                    + self.horizon,
+                    :,
+                ]
                 y = self.y[basin, time_step : time_step + window_len + self.horizon, :]
                 if self.c is None or self.c.shape[-1] == 0:
                     return torch.from_numpy(x).float(), torch.from_numpy(y).float()
@@ -359,14 +374,16 @@ class BaseDataset(Dataset):
             xc = np.concatenate((x, c), axis=1)
             return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
 
-
     def _load_data(self):
         origin_data = self._read_xyc()
         # normalization
         norm_data = self._normalize(origin_data)
         origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
         self._trans2nparr(origin_data_wonan, norm_data_wonan)
-        if self.training_cfgs["multi_length_training"]["multi_len_train_type"] == "multi_table":
+        if (
+            self.training_cfgs["multi_length_training"]["multi_len_train_type"]
+            == "multi_table"
+        ):
             self._create_multi_len_lookup_table()
         else:
             self._create_lookup_table()
@@ -846,8 +863,12 @@ class BaseDataset(Dataset):
         warmup_length = self.warmup_length
         horizon = self.horizon
         max_time_length = self.nt
-        is_multi_len_train = self.training_cfgs["multi_length_training"]["is_multi_length_training"]
-        multi_window_lengths = self.training_cfgs["multi_length_training"]["multi_window_lengths"]
+        is_multi_len_train = self.training_cfgs["multi_length_training"][
+            "is_multi_length_training"
+        ]
+        multi_window_lengths = self.training_cfgs["multi_length_training"][
+            "multi_window_lengths"
+        ]
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
             if not self.train_mode:
                 # we don't need to ignore those with full nan in target vars for prediction without loss calculation
@@ -862,8 +883,10 @@ class BaseDataset(Dataset):
                 nan_array = np.isnan(self.y[basin, :, :])
                 if is_multi_len_train:
                     for window in multi_window_lengths:
-                        for f in range(warmup_length, max_time_length - window - horizon + 1):
-                        # 检查目标区间内是否全为nan
+                        for f in range(
+                            warmup_length, max_time_length - window - horizon + 1
+                        ):
+                            # 检查目标区间内是否全为nan
                             if not np.all(nan_array[f + window : f + window + horizon]):
                                 # 记录 (basin, 起始位置, 窗口长度)
                                 lookup.append((basin, f, window))
@@ -871,7 +894,9 @@ class BaseDataset(Dataset):
 
                     lookup.extend(
                         (basin, f)
-                        for f in range(warmup_length, max_time_length - rho - horizon + 1)
+                        for f in range(
+                            warmup_length, max_time_length - rho - horizon + 1
+                        )
                         if not np.all(nan_array[f + rho : f + rho + horizon])
                     )
         self.lookup_table = dict(enumerate(lookup))
@@ -885,12 +910,16 @@ class BaseDataset(Dataset):
         warmup_length = self.warmup_length
         horizon = self.horizon
         max_time_length = self.nt
-        is_multi_len_train = self.training_cfgs["multi_length_training"]["is_multi_length_training"]
-        multi_window_lengths = self.training_cfgs["multi_length_training"]["multi_window_lengths"]
+        is_multi_len_train = self.training_cfgs["multi_length_training"][
+            "is_multi_length_training"
+        ]
+        multi_window_lengths = self.training_cfgs["multi_length_training"][
+            "multi_window_lengths"
+        ]
 
         # 初始化不同长度的lookup表
         self.lookup_tables_by_length = {length: [] for length in multi_window_lengths}
-        
+
         # New: Global lookup table to map a single index to (window_length, index_within_that_window_length_table)
         self.global_lookup_table_indices = []
 
@@ -911,20 +940,29 @@ class BaseDataset(Dataset):
                 nan_array = np.isnan(self.y[basin, :, :])
                 if is_multi_len_train:
                     for window in multi_window_lengths:
-                        for f in range(warmup_length, max_time_length - window - horizon + 1):
-                        # 检查目标区间内是否全为nan
+                        for f in range(
+                            warmup_length, max_time_length - window - horizon + 1
+                        ):
+                            # 检查目标区间内是否全为nan
                             if not np.all(nan_array[f + window : f + window + horizon]):
                                 # 记录 (basin, 起始位置) 到对应窗口长度的 lookup table
                                 self.lookup_tables_by_length[window].append((basin, f))
                                 # 记录 (窗口长度, 在该窗口长度 lookup table 中的索引) 到全局索引表
-                                self.global_lookup_table_indices.append((window, len(self.lookup_tables_by_length[window]) - 1))
+                                self.global_lookup_table_indices.append(
+                                    (
+                                        window,
+                                        len(self.lookup_tables_by_length[window]) - 1,
+                                    )
+                                )
                 else:
                     lookup.extend(
                         (basin, f)
-                        for f in range(warmup_length, max_time_length - rho - horizon + 1)
+                        for f in range(
+                            warmup_length, max_time_length - rho - horizon + 1
+                        )
                         if not np.all(nan_array[f + rho : f + rho + horizon])
                     )
-        
+
         if is_multi_len_train and self.train_mode:
             # If multi-length training is enabled and in train mode, use the global lookup table
             self.lookup_table = dict(enumerate(self.global_lookup_table_indices))

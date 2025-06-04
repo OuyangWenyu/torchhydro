@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-05-14 19:32:29
+LastEditTime: 2025-06-04 17:27:35
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -438,6 +438,7 @@ class DeepHydro(DeepHydroInterface):
     @staticmethod
     def collate_fn(batch):
         from torch.nn.utils.rnn import pad_sequence
+
         xs, ys = zip(*batch)
         xs_lens = [x.shape[0] for x in xs]
         ys_lens = [y.shape[0] for y in ys]
@@ -467,7 +468,10 @@ class DeepHydro(DeepHydroInterface):
             print(f"Pin memory set to {str(pin_memory)}")
         sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
         if training_cfgs["multi_length_training"]["is_multi_length_training"]:
-            if training_cfgs["multi_length_training"]["multi_len_train_type"] == "multi_table":
+            if (
+                training_cfgs["multi_length_training"]["multi_len_train_type"]
+                == "multi_table"
+            ):
                 data_loader = DataLoader(
                     self.traindataset,
                     batch_sampler=sampler,
@@ -488,14 +492,14 @@ class DeepHydro(DeepHydroInterface):
                 )
         else:
             data_loader = DataLoader(
-            self.traindataset,
-            batch_size=training_cfgs["batch_size"],
-            shuffle=(sampler is None),
-            sampler=sampler,
-            num_workers=worker_num,
-            pin_memory=pin_memory,
-            timeout=0,
-        )
+                self.traindataset,
+                batch_size=training_cfgs["batch_size"],
+                shuffle=(sampler is None),
+                sampler=sampler,
+                num_workers=worker_num,
+                pin_memory=pin_memory,
+                timeout=0,
+            )
         if data_cfgs["t_range_valid"] is not None:
             validation_data_loader = DataLoader(
                 self.validdataset,
@@ -565,7 +569,6 @@ class DeepHydro(DeepHydroInterface):
         if sampler_name == "WindowLenBatchSampler":
             sampler_hyperparam |= {
                 "batch_size": batch_size,
-
             }
 
         return sampler_class(train_dataset, **sampler_hyperparam)
