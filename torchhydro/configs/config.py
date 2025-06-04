@@ -245,6 +245,14 @@ def default_config_file():
             # 2020-09-30now, 30hindcast, 2forecast, [1, 2]leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 to 2010-10-02 forecast data from 2020-09-30
             "lead_time_type": "fixed",  # must be fixed or increasing
             "lead_time_start": 1,
+
+            "multi_length_training": {
+                "multi_len_train_type":"Pad", # Pad or multi_table(must be WindowLenBatchSampler for multi_table mode)
+                "is_multi_length_training": False,
+                "multi_window_lengths":[0,730,1460] # [0,730,1460] means 1years, 3years, 5years
+            },
+
+
             # valid batch can be organized as same way with training or testing
             "valid_batch_mode": "test",
             "criterion": "RMSE",
@@ -363,6 +371,7 @@ def cmd(
     scaler_params=None,
     dataset=None,
     model_loader=None,
+    multi_length_training=None,
     sampler=None,
     fl_sample=None,
     fl_num_users=None,
@@ -880,6 +889,13 @@ def cmd(
         type=int,
     )
     parser.add_argument(
+        "--multi_length_training",
+        dest="multi_length_training",
+        help="the way to load multi_length_training",
+        default=multi_length_training,
+        type=json.loads,
+    )
+    parser.add_argument(
         "--calc_metrics",
         dest="calc_metrics",
         help="if False, calculate valid loss only",
@@ -1156,6 +1172,9 @@ def update_cfg(cfg_file, new_args):
             raise AttributeError(
                 "Please make sure size of vars in data_cfgs/target_cols is same as n_output"
             )
+    if new_args.multi_length_training is not None:
+        cfg_file["training_cfgs"]["multi_length_training"] = new_args.multi_length_training
+
     if new_args.model_hyperparam is not None:
         # raise AttributeError("Please set the model_hyperparam!!!")
         cfg_file["model_cfgs"]["model_hyperparam"] = new_args.model_hyperparam

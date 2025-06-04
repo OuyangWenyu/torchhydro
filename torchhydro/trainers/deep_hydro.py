@@ -435,6 +435,16 @@ class DeepHydro(DeepHydroInterface):
             **criterion_init_params
         )
 
+    @staticmethod
+    def collate_fn(batch):
+        from torch.nn.utils.rnn import pad_sequence
+        xs, ys = zip(*batch)
+        xs_lens = [x.shape[0] for x in xs]
+        ys_lens = [y.shape[0] for y in ys]
+        xs_pad = pad_sequence(xs, batch_first=True, padding_value=0)
+        ys_pad = pad_sequence(ys, batch_first=True, padding_value=0)
+        return xs_pad, ys_pad, xs_lens, ys_lens
+
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         if mode == "infer":
             return DataLoader(
@@ -456,7 +466,28 @@ class DeepHydro(DeepHydroInterface):
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
         sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
-        data_loader = DataLoader(
+        if training_cfgs["multi_length_training"]["is_multi_length_training"]:
+            if training_cfgs["multi_length_training"]["multi_len_train_type"] == "multi_table":
+                data_loader = DataLoader(
+                    self.traindataset,
+                    batch_sampler=sampler,
+                    num_workers=worker_num,
+                    pin_memory=pin_memory,
+                    timeout=0,
+                )
+            else:
+                data_loader = DataLoader(
+                    self.traindataset,
+                    batch_size=training_cfgs["batch_size"],
+                    shuffle=(sampler is None),
+                    sampler=sampler,
+                    num_workers=worker_num,
+                    pin_memory=pin_memory,
+                    timeout=0,
+                    collate_fn=self.collate_fn,
+                )
+        else:
+            data_loader = DataLoader(
             self.traindataset,
             batch_size=training_cfgs["batch_size"],
             shuffle=(sampler is None),
@@ -531,6 +562,12 @@ class DeepHydro(DeepHydroInterface):
                 "ngrid": ngrid,
                 "nt": nt,
             }
+        if sampler_name == "WindowLenBatchSampler":
+            sampler_hyperparam |= {
+                "batch_size": batch_size,
+
+            }
+
         return sampler_class(train_dataset, **sampler_hyperparam)
 
 

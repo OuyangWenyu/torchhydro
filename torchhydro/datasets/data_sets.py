@@ -312,16 +312,53 @@ class BaseDataset(Dataset):
         return self.num_samples
 
     def __getitem__(self, item: int):
-        basin, idx = self.lookup_table[item]
-        warmup_length = self.warmup_length
-        x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
-        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
-        if self.c is None or self.c.shape[-1] == 0:
-            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-        c = self.c[basin, :]
-        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-        xc = np.concatenate((x, c), axis=1)
-        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        if not self.train_mode:
+            basin, idx = self.lookup_table[item]
+            warmup_length = self.warmup_length
+            x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+            y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+            if self.c is None or self.c.shape[-1] == 0:
+                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            c = self.c[basin, :]
+            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xc = np.concatenate((x, c), axis=1)
+            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        
+        if self.training_cfgs["multi_length_training"]["is_multi_length_training"]:
+            if self.training_cfgs["multi_length_training"]["multi_len_train_type"] == "Pad":
+                basin, idx, window = self.lookup_table[item]
+                warmup_length = self.warmup_length
+                x = self.x[basin, idx - warmup_length : idx + window + self.horizon, :]
+                y = self.y[basin, idx : idx + window + self.horizon, :]
+                if self.c is None or self.c.shape[-1] == 0:
+                    return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+                c = self.c[basin, :]
+                c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+                xc = np.concatenate((x, c), axis=1)
+                return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+            elif self.training_cfgs["multi_length_training"]["multi_len_train_type"] == "multi_table":
+                window_len, idx_in_specific_table = self.lookup_table[item]
+                basin, time_step = self.lookup_tables_by_length[window_len][idx_in_specific_table]
+                x = self.x[basin, time_step - self.warmup_length : time_step + window_len + self.horizon, :]
+                y = self.y[basin, time_step : time_step + window_len + self.horizon, :]
+                if self.c is None or self.c.shape[-1] == 0:
+                    return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+                c = self.c[basin, :]
+                c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+                xc = np.concatenate((x, c), axis=1)
+                return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        else:
+            basin, idx = self.lookup_table[item]
+            warmup_length = self.warmup_length
+            x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+            y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+            if self.c is None or self.c.shape[-1] == 0:
+                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            c = self.c[basin, :]
+            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xc = np.concatenate((x, c), axis=1)
+            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+
 
     def _load_data(self):
         origin_data = self._read_xyc()
@@ -329,7 +366,10 @@ class BaseDataset(Dataset):
         norm_data = self._normalize(origin_data)
         origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
         self._trans2nparr(origin_data_wonan, norm_data_wonan)
-        self._create_lookup_table()
+        if self.training_cfgs["multi_length_training"]["multi_len_train_type"] == "multi_table":
+            self._create_multi_len_lookup_table()
+        else:
+            self._create_lookup_table()
 
     def _trans2nparr(self, origin_data, norm_data):
         """To make __getitem__ more efficient,
@@ -806,6 +846,8 @@ class BaseDataset(Dataset):
         warmup_length = self.warmup_length
         horizon = self.horizon
         max_time_length = self.nt
+        is_multi_len_train = self.training_cfgs["multi_length_training"]["is_multi_length_training"]
+        multi_window_lengths = self.training_cfgs["multi_length_training"]["multi_window_lengths"]
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
             if not self.train_mode:
                 # we don't need to ignore those with full nan in target vars for prediction without loss calculation
@@ -818,13 +860,79 @@ class BaseDataset(Dataset):
                 # some dataloader load data with warmup period, so leave some periods for it
                 # [warmup_len] -> time_start -> [rho] -> [horizon]
                 nan_array = np.isnan(self.y[basin, :, :])
+                if is_multi_len_train:
+                    for window in multi_window_lengths:
+                        for f in range(warmup_length, max_time_length - window - horizon + 1):
+                        # 检查目标区间内是否全为nan
+                            if not np.all(nan_array[f + window : f + window + horizon]):
+                                # 记录 (basin, 起始位置, 窗口长度)
+                                lookup.append((basin, f, window))
+                else:
+
+                    lookup.extend(
+                        (basin, f)
+                        for f in range(warmup_length, max_time_length - rho - horizon + 1)
+                        if not np.all(nan_array[f + rho : f + rho + horizon])
+                    )
+        self.lookup_table = dict(enumerate(lookup))
+        self.num_samples = len(self.lookup_table)
+
+    def _create_multi_len_lookup_table(self):
+        lookup = []
+        # list to collect basins ids of basins without a single training sample
+        basin_coordinates = len(self.t_s_dict["sites_id"])
+        rho = self.rho
+        warmup_length = self.warmup_length
+        horizon = self.horizon
+        max_time_length = self.nt
+        is_multi_len_train = self.training_cfgs["multi_length_training"]["is_multi_length_training"]
+        multi_window_lengths = self.training_cfgs["multi_length_training"]["multi_window_lengths"]
+
+        # 初始化不同长度的lookup表
+        self.lookup_tables_by_length = {length: [] for length in multi_window_lengths}
+        
+        # New: Global lookup table to map a single index to (window_length, index_within_that_window_length_table)
+        self.global_lookup_table_indices = []
+
+        for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
+            if not self.train_mode:
+                # For prediction, we still use the original rho for simplicity if multi_length_training is enabled
+                # or we can extend this logic to support multi-length prediction if needed.
+                # For now, let's assume prediction uses a fixed rho or is handled differently.
+                # If multi_length_training is active, we might need to decide which window_len to use for prediction.
+                # For now, let's stick to the original logic for train_mode=False
                 lookup.extend(
                     (basin, f)
                     for f in range(warmup_length, max_time_length - rho - horizon + 1)
-                    if not np.all(nan_array[f + rho : f + rho + horizon])
                 )
-        self.lookup_table = dict(enumerate(lookup))
-        self.num_samples = len(self.lookup_table)
+            else:
+                # some dataloader load data with warmup period, so leave some periods for it
+                # [warmup_len] -> time_start -> [rho] -> [horizon]
+                nan_array = np.isnan(self.y[basin, :, :])
+                if is_multi_len_train:
+                    for window in multi_window_lengths:
+                        for f in range(warmup_length, max_time_length - window - horizon + 1):
+                        # 检查目标区间内是否全为nan
+                            if not np.all(nan_array[f + window : f + window + horizon]):
+                                # 记录 (basin, 起始位置) 到对应窗口长度的 lookup table
+                                self.lookup_tables_by_length[window].append((basin, f))
+                                # 记录 (窗口长度, 在该窗口长度 lookup table 中的索引) 到全局索引表
+                                self.global_lookup_table_indices.append((window, len(self.lookup_tables_by_length[window]) - 1))
+                else:
+                    lookup.extend(
+                        (basin, f)
+                        for f in range(warmup_length, max_time_length - rho - horizon + 1)
+                        if not np.all(nan_array[f + rho : f + rho + horizon])
+                    )
+        
+        if is_multi_len_train and self.train_mode:
+            # If multi-length training is enabled and in train mode, use the global lookup table
+            self.lookup_table = dict(enumerate(self.global_lookup_table_indices))
+            self.num_samples = len(self.global_lookup_table_indices)
+        else:
+            # Otherwise, use the original lookup table (for fixed length training or prediction)
+            self.lookup_table = dict(enumerate(lookup))
+            self.num_samples = len(self.lookup_table)
 
 
 class ObsForeDataset(BaseDataset):
