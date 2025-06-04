@@ -159,11 +159,11 @@ def test_std_function():
     print("std_t")
     print(std_t)
 
-def test_partial_autocorrelation_coefficient():
+def test_partial_autocorrelation_function():
     ystl = Ystl()
     y = ystl.streamflow[:365]
     arch = Arch(y)
-    pacf_y, R = arch.partial_autocorrelation_coefficient(y)
+    pacf_y, R = arch.partial_autocorrelation_function(y)
     print("pacf_y")
     print(pacf_y)
     print("R")

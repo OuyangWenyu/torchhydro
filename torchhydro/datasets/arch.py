@@ -367,13 +367,19 @@ class Arch(object):
 
         """
         n_x = len(x)
-        p = list(range(0, int(n_x/1.5)))
+        if n_x < 50:  # hydrology statistics p318
+            m = int(n_x / 4) - 1
+        else:
+            m1 = int(n_x / 4)
+            m2 = n_x - 10
+            m = max(m1, m2)
+        p = list(range(0, m))
         acf = [0]*len(p)
         for i in range(len(p)):
             acf[i] = self.autocorrelation_coefficient(x, p[i])
         return acf
 
-    def partial_autocorrelation_coefficient(
+    def partial_autocorrelation_function(
         self,
         x,
         k: int = None,
@@ -391,8 +397,14 @@ class Arch(object):
         """
         if k is None:
             n_x = len(x)
-            k = int(n_x / 1.5)  # the max degree of pacf
-        r_k = self.autocorrelation_function(x)
+            if n_x < 50:  # hydrology statistics p318
+                m = int(n_x / 4) - 1
+            else:
+                m = int(n_x / 4)
+                if m < 10:
+                    m = n_x - 10
+            k = m  # the max degree of pacf
+        r_k = self.c(x)
         # R
         R = np.zeros((k, k))
         for i in range(k):
@@ -440,12 +452,16 @@ class Arch(object):
         x,
     ):
         """
+        Augmented Dickey-Fuller Tested
         ADF check.  unit root.
         assumption：
             H0: true.
             H1: false.
-        confidence
         (10%, 5%, 1%) -> (90%, 95%, 99%)
+        degree of intergre: 0, 1, 2
+        t:
+        p:
+        critical value(1%, 5%, 10%)
         Parameters
         ----------
         x
