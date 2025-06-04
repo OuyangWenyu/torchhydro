@@ -94,7 +94,7 @@ def _rolling_preds_for_once_eval(
     return the_array_.reshape(ngrid, recover_len, nf)
 
 
-def model_infer(seq_first, device, model, xs, ys):
+def model_infer(seq_first, device, model, xs, ys,src_lens=None, trg_lens=None):
     """_summary_
 
     Parameters
@@ -139,7 +139,7 @@ def model_infer(seq_first, device, model, xs, ys):
             if seq_first and ys.ndim == 3
             else ys.to(device)
         )
-    output = model(*xs)
+    output = model(*xs,src_lens, trg_lens)
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
@@ -207,13 +207,17 @@ class EarlyStopper(object):
 
 
 def calculate_and_record_metrics(
-    obs, pred, evaluation_metrics, target_col, fill_nan, eval_log
+    obs, pred, evaluation_metrics, target_col, fill_nan, eval_log, horizon=1
 ):
     fill_nan_value = fill_nan
     inds = stat_error(obs, pred, fill_nan_value)
 
     for evaluation_metric in evaluation_metrics:
-        eval_log[f"{evaluation_metric} of {target_col}"] = inds[
+        if horizon == 1:
+            eval_log[f"{evaluation_metric} of {target_col}"] = inds[
+                evaluation_metric
+            ].tolist()
+        eval_log[f"{evaluation_metric} of {target_col} in horizon {horizon}"] = inds[
             evaluation_metric
         ].tolist()
 
@@ -258,6 +262,7 @@ def get_preds_to_be_eval(
     nf = valorte_data_loader.dataset.noutputvar  # number of features
     nt = valorte_data_loader.dataset.nt  # number of time steps
     basin_num = len(target_data.basin)
+    data_shape = (basin_num, nt, nf)
     if evaluator["eval_way"] == "once":
         stride = evaluator["stride"]
         if stride > 0:
@@ -294,10 +299,14 @@ def get_preds_to_be_eval(
                 "rolling should be larger than 0 if you chose eval_way to be 1pace"
             )
         pace_idx = evaluator["pace_idx"]
+        # stride = evaluator.get("stride", 1)
         # for 1pace with pace_idx meaning which value of output was chosen to show
         # 1st, we need to transpose data to 4-dim to show the whole data
+
+        # TODO:check should we select which def
         pred = _recover_samples_to_basin(output, valorte_data_loader, pace_idx)
         obs = _recover_samples_to_basin(labels, valorte_data_loader, pace_idx)
+
     elif evaluator["eval_way"] == "rolling":
         # 获取滚动预测所需的参数
         stride = evaluator.get("stride", 1)
@@ -308,32 +317,239 @@ def get_preds_to_be_eval(
         # 重组预测结果和观测值
         basin_num = len(target_data.basin)
 
-        # 使用_rolling_evaluate函数进行滚动评估
-        pred = _recover_samples_to_4d(
-            (basin_num, nt, nf),
-            target_scaler.rho,
-            stride,
-            hindcast_output_window,
-            output.reshape(-1, output.shape[1], nf),
-        )
+        # 新增：根据配置选择不同的数据组织方式
+        recover_mode = evaluator.get("recover_mode", "bybasins")
+        stride = evaluator.get("stride", 1)
+        data_shape = (basin_num, nt, nf)
 
-        obs = _recover_samples_to_4d(
-            (basin_num, nt, nf),
-            target_scaler.rho,
-            stride,
-            hindcast_output_window,
-            labels.reshape(-1, labels.shape[1], nf),
-        )
+        if recover_mode == "bybasins":
 
+            pred = _recover_samples_to_4d_by_basins(
+                data_shape,
+                valorte_data_loader,
+                stride,
+                hindcast_output_window,
+                output,
+            )
+            obs = _recover_samples_to_4d_by_basins(
+                data_shape,
+                valorte_data_loader,
+                stride,
+                hindcast_output_window,
+                labels,
+            )
+        elif recover_mode == "byforecast":
+            pred = _recover_samples_to_4d_by_forecast(
+                data_shape,
+                valorte_data_loader,
+                stride,
+                hindcast_output_window,
+                output,  # samples, seq_length, nf
+            )
+            obs = _recover_samples_to_4d_by_forecast(
+                data_shape,
+                valorte_data_loader,
+                stride,
+                hindcast_output_window,
+                labels,
+            )
+        else:
+            raise ValueError(
+                f"Unsupported recover_mode: {recover_mode}, must be 'bybasins' or 'byforecast'"
+            )
     else:
         raise ValueError("eval_way should be rolling or 1pace")
+
+    # pace_idx = np.nan
+    recover_mode = evaluator.get("recover_mode")
     valte_dataset = valorte_data_loader.dataset
-    preds_xr = valte_dataset.denormalize(pred)
-    obss_xr = valte_dataset.denormalize(obs)
+    # 检查数据维度并进行适当处理
+    if pred.ndim == 4:
+        # 如果是四维数据，需要根据评估方式选择合适的处理方法
+        if evaluator["eval_way"] == "1pace" and "pace_idx" in evaluator:
+            # 对于1pace模式，选择特定的预测步长
+            pace_idx = evaluator["pace_idx"]
+            # 选择特定预测步长的数据
+            pred_3d = pred[:, :, pace_idx, :]
+            obs_3d = obs[:, :, pace_idx, :]
+            preds_xr = valte_dataset.denormalize(pred_3d, pace_idx)
+            obss_xr = valte_dataset.denormalize(obs_3d, pace_idx)
+        elif evaluator["eval_way"] == "rolling" and recover_mode == "byforecast":
+            # 对于byforecast模式，需要特殊处理
+            # 创建一个列表存储每个预测步长的结果
+            preds_xr_list = []
+            obss_xr_list = []
+            for i in range(pred.shape[2]):
+                pred_3d = pred[:, :, i, :]
+                obs_3d = obs[:, :, i, :]
+                the_array_pred_ = np.full(target_data.shape, np.nan)
+                the_array_obs_ = np.full(target_data.shape, np.nan)
+                start = rho + i  # TODO:need check
+                end = start + pred_3d.shape[1]
+                assert end <= the_array_pred_.shape[1]
+                the_array_pred_[:, start:end, :] = pred_3d
+                the_array_obs_[:, start:end, :] = obs_3d
+                preds_xr_list.append(valte_dataset.denormalize(the_array_pred_, i))
+                obss_xr_list.append(valte_dataset.denormalize(the_array_obs_, i))
+            # 合并结果
+            # preds_xr = xr.concat(preds_xr_list, dim="horizon")
+            # obss_xr = xr.concat(obss_xr_list, dim="horizon")
+            return obss_xr_list, preds_xr_list
+        elif evaluator["eval_way"] == "rolling" and recover_mode == "bybasins":
+            # 对于其他情况，可以考虑将四维数据转换为三维
+            # 例如，取最后一个预测步长
+            preds_xr_list = []
+            obss_xr_list = []
+            for i in range(pred.shape[0]):
+                pred_3d = pred[i, :, :, :]
+                obs_3d = obs[i, :, :, :]
+                selected_data = target_scaler.data_target
+                the_array_pred_ = np.full(selected_data.shape, np.nan)
+                the_array_obs_ = np.full(selected_data.shape, np.nan)
+                start = rho  # TODO:need check
+                end = start + pred_3d.shape[1]  # 自动计算填充的结束位置
+
+                # 检查是否越界（可选）
+                assert end <= the_array_pred_.shape[1]  # "填充范围超出目标数组的边界"
+
+                # 执行填充
+                the_array_pred_[:, start:end, :] = pred_3d
+                the_array_obs_[:, start:end, :] = obs_3d
+
+                preds_xr = valte_dataset.denormalize(the_array_pred_, -1)
+                obss_xr = valte_dataset.denormalize(the_array_obs_, -1)
+    else:
+        # 三维数据直接处理
+        preds_xr = valte_dataset.denormalize(pred, pace_idx)
+        obss_xr = valte_dataset.denormalize(obs, pace_idx)
+
     return obss_xr, preds_xr
 
 
-def _recover_samples_to_4d(arr_3d, valorte_data_loader, stride):
+def _recover_samples_to_4d_by_forecast(
+    data_shape,
+    valorte_data_loader,
+    stride,
+    hindcast_output_window,
+    arr_3d,
+):
+    """
+    将模型输出的3D预测结果重组为4D数组，并针对每个预测步长进行处理
+
+    Parameters
+    ----------
+    data_shape : tuple
+        数据形状，包含三个元素 (basin_num, nt, nf)，分别表示流域数量、时间步数和特征数量
+    valorte_data_loader : DataLoader
+        验证或测试数据加载器，用于获取流域-时间索引映射
+    stride : int
+        滚动步长
+    hindcast_output_window : int
+        历史输出窗口长度
+    arr_3d : np.ndarray
+        3D预测数组，形状为 (样本数量, 时间步数, 特征数量)
+
+    Returns
+    -------
+    np.ndarray
+        重组后的4D数组，形状为 (basin_num, i_e_time_length, forecast_length, nf)
+    """
+    # 从数据集获取必要参数
+    basin_num, nt, nf = data_shape
+    dataset = valorte_data_loader.dataset
+    basin_num = len(dataset.t_s_dict["sites_id"])
+    forecast_length = dataset.horizon
+
+    # 将arr_3d重塑为所需的形状
+    output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
+    i_e_time_length = output.shape[1]
+
+    # 创建结果数组，初始化为NaN
+    result = np.full((basin_num, i_e_time_length, forecast_length, nf), np.nan)
+
+    # 提取最后forecast_length个时间步的预测结果
+    forecast_output = output[:, :, -forecast_length:, :]
+
+    # 并行处理所有流域
+    # results = []
+    # for j in range(forecast_length):
+    #     # 计算有效索引范围
+    #     # valid_indices = np.arange(i_e_time_length - j)
+
+    #     # 对所有流域同时处理
+    #     for basin_idx in range(basin_num):
+    #         # 填充结果数组
+    #         result[basin_idx, :, j, :] = forecast_output[basin_idx, :, j, :]
+    #         # result[j, basin_idx, :, nf] = forecast_output[basin_idx, :, j, :]
+    result = forecast_output
+    return result
+    # dict / array
+    # [第几个预见期，流域，总长，变量个数]
+    # {“1”: [流域，总长，变量个数], "2":……}
+
+
+def _recover_samples_to_4d_by_basins(
+    data_shape,
+    valorte_data_loader,
+    stride,
+    hindcast_output_window,
+    arr_3d,
+):
+    """
+    将模型输出按照流域重组为4D数组，便于计算每个流域的所有样本预见期的指标
+
+    Parameters
+    ----------
+    data_shape : tuple
+        数据形状，包含三个元素 (basin_num, nt, nf)，分别表示流域数量、时间步数和特征数量
+    valorte_data_loader : DataLoader
+        验证或测试数据加载器，用于获取流域-时间索引映射
+    stride : int
+        滚动步长
+    hindcast_output_window : int
+        历史输出窗口长度
+    arr_3d : np.ndarray
+        3D预测数组，形状为 (样本数量, 时间步数, 特征数量)
+
+    Returns
+    -------
+    np.ndarray
+        重组后的4D数组，形状为 (basin_num, i_e_time_length, forecast_length, nf)
+        第一个维度表示流域，便于计算每个流域的所有样本预见期的指标
+    """
+    # 从数据集获取必要参数
+    basin_num, nt, nf = data_shape
+    dataset = valorte_data_loader.dataset
+    basin_num = len(dataset.t_s_dict["sites_id"])
+    forecast_length = dataset.horizon
+
+    # 将arr_3d重塑为所需的形状
+    output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
+    i_e_time_length = output.shape[1]
+
+    # 创建结果数组，初始化为NaN
+    result = np.full((basin_num, i_e_time_length, forecast_length, nf), np.nan)
+
+    # 提取最后forecast_length个时间步的预测结果
+    forecast_output = output[:, :, -forecast_length:, :]
+
+    # 对每个流域进行处理
+    for basin_idx in range(basin_num):
+        # 对每个预测步长进行处理
+        for j in range(forecast_length):
+            # 填充结果数组，注意这里将流域放在第一个维度
+            result[basin_idx, :, j, :] = forecast_output[basin_idx, :, j, :]
+
+    return result
+
+
+def _recover_samples_to_4d(
+    data_shape,
+    valorte_data_loader,
+    stride,
+    hindcast_output_window,
+    arr_3d,
+):
     """Reorganize the 3D prediction results to 4D
 
     Prepare rolling result for the following two ways to calculate rolling evaluation results:
@@ -356,6 +572,7 @@ def _recover_samples_to_4d(arr_3d, valorte_data_loader, stride):
         np.ndarray
             The reorganized 4D array with the shape (number of basins, length of time, forecast steps, number of features).
     """
+    basin_num, nt, nf = data_shape
     dataset = valorte_data_loader.dataset
     batch_size = valorte_data_loader.batch_size
     basin_num = len(dataset.t_s_dict["sites_id"])
@@ -465,6 +682,32 @@ def evaluate_validation(
         output,
         labels,
     )
+    # obss_xr_list
+    # preds_xr_list
+    # if type()
+    # for i in range(obs.shape[0]): # 第几个预见期
+    ## obs_ = obs[i]
+    if isinstance(obss_xr, list):
+        obss_xr_list = obss_xr
+        preds_xr_list = preds_xr
+        for horizon_idx in range(len(obss_xr_list)):
+            obss_xr = obss_xr_list[horizon_idx]
+            preds_xr = preds_xr_list[horizon_idx]
+            for i, col in enumerate(target_col):
+                obs = obss_xr[col].to_numpy()
+                pred = preds_xr[col].to_numpy()
+                # eval_log will be updated rather than completely replaced, no need to use eval_log["key"]
+                eval_log = calculate_and_record_metrics(
+                    obs,
+                    pred,
+                    evaluation_metrics,
+                    col,
+                    fill_nan[i] if isinstance(fill_nan, list) else fill_nan,
+                    eval_log,
+                    horizon_idx + 1,
+                )
+        return eval_log
+
     for i, col in enumerate(target_col):
         obs = obss_xr[col].to_numpy()
         pred = preds_xr[col].to_numpy()
@@ -571,9 +814,16 @@ def torch_single_train(
     seq_first = which_first_tensor != "batch"
     pbar = tqdm(data_loader)
 
-    for _, (src, trg) in enumerate(pbar):
-        trg, output = model_infer(seq_first, device, model, src, trg)
-
+    for _, batch in enumerate(pbar):
+        if len(batch) == 4:
+            src, trg, src_lens, trg_lens = batch
+            trg, output = model_infer(seq_first, device, model, src, trg, src_lens, trg_lens)
+        elif len(batch) == 2:
+            src, trg = batch
+            # 如果没有 src_lens 和 trg_lens，可以传递 None 或默认值
+            trg, output = model_infer(seq_first, device, model, src, trg, None, None)
+        else:
+            raise ValueError(f"Unsupported batch format with {len(batch)} elements")
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
@@ -640,7 +890,8 @@ def compute_validation(
             if torch.isnan(valid_loss_):
                 # for not-train mode, we may get all nan data for trg
                 # so we skip this batch
-                continue
+                # continue
+                print("NAN loss detected, skipping this batch")
             valid_loss = valid_loss + valid_loss_.item()
             iter_num = iter_num + 1
             # clear memory to save GPU memory
