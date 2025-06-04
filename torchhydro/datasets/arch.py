@@ -1,5 +1,3 @@
-
-
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -42,6 +40,7 @@ class Arch(object):
         self.mean = np.mean(x)
         self.p = None  # degree of autoregression
         self.q = None  # degree of moving average
+        self.d = None  # degree of integrate
         self.fi = None
         self.sigma = None
 
@@ -367,7 +366,7 @@ class Arch(object):
 
         """
         n_x = len(x)
-        p = list(range(0, int(n_x/2)))
+        p = list(range(0, int(n_x/1.5)))
         acf = [0]*len(p)
         for i in range(len(p)):
             acf[i] = self.autocorrelation_coefficient(x, p[i])
@@ -413,6 +412,27 @@ class Arch(object):
 
         return pacf_k, R
 
+    def p_check(
+        self,
+        x,
+    ):
+        """
+        p check for stability of series.
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        x_mean = np.mean(x)
+        u0 = 0.5
+        sigma = np.std(x)
+        n_x = len(x)
+        z = (x_mean - u0) / (sigma / pow(n_x, 0.5))
+        p_check = np.abs(z) < 0.01
+        return p_check
 
     def cal_acf(self, x):
         """acf, auto-correlation coefficient """
