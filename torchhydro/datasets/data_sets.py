@@ -395,15 +395,15 @@ class BaseDataset(Dataset):
         """
         return self.target_scaler.data_target.coords["time"][self.warmup_length :]
 
-    def denormalize(self, norm_data, is_real_time=True):
+    def denormalize(self, norm_data, pace_idx=None):
         """Denormalize the norm_data
 
         Parameters
         ----------
         norm_data : np.ndarray
             batch-first data
-        is_real_time : bool, optional
-            whether the data is real time data, by default True
+        pace_idx : int, optional
+            which pace to show, by default None
             sometimes we may have multiple results for one time period and we flatten them
             so we need a temp time to replace real one
 
@@ -420,11 +420,159 @@ class BaseDataset(Dataset):
             units = {**units, **target_data.attrs["units"]}
         selected_time_points = self._selected_time_points_for_denorm()
         selected_data = target_data.sel(time=selected_time_points)
+
+        # 处理四维数据
+        if norm_data.ndim == 4:
+            # 检查是否是按预测步长组织的数据
+            if norm_data.shape[0] < norm_data.shape[1]:  # bybasins模式
+                # 形状为 (basin_num, i_e_time_length, forecast_length, nf)
+                basin_num, i_e_time_length, forecast_length, nf = norm_data.shape
+
+                # 如果指定了pace_idx，则选择特定的预测步长
+                if (
+                    pace_idx is not None
+                    and pace_idx != np.nan
+                    and pace_idx >= 0
+                    and pace_idx < forecast_length
+                ):
+                    norm_data_3d = norm_data[:, :, pace_idx, :]
+                    # 创建新的坐标
+                    # 修改这里：确保basin坐标长度与数据维度匹配
+                    if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
+                        # 当只有一个流域时，选择第一个流域的坐标
+                        basin_coord = selected_data.coords["basin"].values[0:1]
+                    else:
+                        basin_coord = selected_data.coords["basin"].values[:basin_num]
+
+                    coords = {
+                        "basin": basin_coord,
+                        "time": selected_data.coords["time"][:i_e_time_length],
+                        "variable": selected_data.coords["variable"],
+                    }
+                    dims = ["basin", "time", "variable"]
+                else:
+                    # 如果没有指定pace_idx，则创建一个新的维度'horizon'
+                    norm_data_3d = norm_data.reshape(
+                        basin_num, i_e_time_length * forecast_length, nf
+                    )
+                    # 创建新的时间坐标，重复i_e_time_length次
+                    new_times = []
+                    for i in range(forecast_length):
+                        if i < len(selected_data.coords["time"]):
+                            new_times.extend(
+                                selected_data.coords["time"][:i_e_time_length]
+                            )
+
+                    # 确保时间坐标长度与数据匹配
+                    if len(new_times) > i_e_time_length * forecast_length:
+                        new_times = new_times[: i_e_time_length * forecast_length]
+                    elif len(new_times) < i_e_time_length * forecast_length:
+                        # 如果时间坐标不足，使用最后一个时间点填充
+                        last_time = (
+                            new_times[-1]
+                            if new_times
+                            else selected_data.coords["time"][0]
+                        )
+                        while len(new_times) < i_e_time_length * forecast_length:
+                            new_times.append(last_time)
+
+                    # 修改这里：确保basin坐标长度与数据维度匹配
+                    if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
+                        basin_coord = selected_data.coords["basin"].values[0:1]
+                    else:
+                        basin_coord = selected_data.coords["basin"].values[:basin_num]
+
+                    coords = {
+                        "basin": basin_coord,
+                        "time": new_times,
+                        "variable": selected_data.coords["variable"],
+                    }
+                    dims = ["basin", "time", "variable"]
+            else:  # byforecast模式
+                # 形状为 (forecast_length, basin_num, i_e_time_length, nf)
+                forecast_length, basin_num, i_e_time_length, nf = norm_data.shape
+
+                # 如果指定了pace_idx，则选择特定的预测步长
+                if (
+                    pace_idx is not None
+                    and pace_idx != np.nan
+                    and pace_idx >= 0
+                    and pace_idx < forecast_length
+                ):
+                    norm_data_3d = norm_data[pace_idx]
+                    # 修改这里：确保basin坐标长度与数据维度匹配
+                    if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
+                        basin_coord = selected_data.coords["basin"].values[0:1]
+                    else:
+                        basin_coord = selected_data.coords["basin"].values[:basin_num]
+
+                    coords = {
+                        "basin": basin_coord,
+                        "time": selected_data.coords["time"][:i_e_time_length],
+                        "variable": selected_data.coords["variable"],
+                    }
+                    dims = ["basin", "time", "variable"]
+                else:
+                    # 如果没有指定pace_idx，则创建一个新的维度'horizon'
+                    # 重塑为 (forecast_length, basin_num, i_e_time_length, nf) -> (basin_num, forecast_length * i_e_time_length, nf)
+                    norm_data_3d = np.transpose(norm_data, (1, 0, 2, 3)).reshape(
+                        basin_num, forecast_length * i_e_time_length, nf
+                    )
+
+                    # 创建新的时间坐标
+                    new_times = []
+                    for i in range(forecast_length):
+                        if i < len(selected_data.coords["time"]):
+                            new_times.extend(
+                                selected_data.coords["time"][:i_e_time_length]
+                            )
+
+                    # 确保时间坐标长度与数据匹配
+                    if len(new_times) > forecast_length * i_e_time_length:
+                        new_times = new_times[: forecast_length * i_e_time_length]
+                    elif len(new_times) < forecast_length * i_e_time_length:
+                        # 如果时间坐标不足，使用最后一个时间点填充
+                        last_time = (
+                            new_times[-1]
+                            if new_times
+                            else selected_data.coords["time"][0]
+                        )
+                        while len(new_times) < forecast_length * i_e_time_length:
+                            new_times.append(last_time)
+
+                    # 修改这里：确保basin坐标长度与数据维度匹配
+                    if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
+                        basin_coord = selected_data.coords["basin"].values[0:1]
+                    else:
+                        basin_coord = selected_data.coords["basin"].values[:basin_num]
+
+                    coords = {
+                        "basin": basin_coord,
+                        "time": new_times,
+                        "variable": selected_data.coords["variable"],
+                    }
+                    dims = ["basin", "time", "variable"]
+        else:
+            # 三维数据直接处理
+            # 修改这里：确保basin坐标长度与数据维度匹配
+            if norm_data.shape[0] == 1 and len(selected_data.coords["basin"]) > 1:
+                basin_coord = selected_data.coords["basin"].values[0:1]
+                coords = {
+                    "basin": basin_coord,
+                    "time": selected_data.coords["time"],
+                    "variable": selected_data.coords["variable"],
+                }
+            else:
+                coords = selected_data.coords
+            dims = selected_data.dims
+            norm_data_3d = norm_data
+
+        # 创建DataArray并反归一化
         denorm_xr_ds = target_scaler.inverse_transform(
             xr.DataArray(
-                norm_data,
-                dims=selected_data.dims,
-                coords=selected_data.coords,
+                norm_data_3d,
+                dims=dims,
+                coords=coords,
                 attrs={"units": units},
             )
         )
@@ -761,6 +909,10 @@ class ObsForeDataset(BaseDataset):
             "basin", "time", "lead_step", "variable"
         )
         return data_dict
+
+    def _denorm():
+        # TODO: 满足不同需求的计算指标
+        pass
 
     def __getitem__(self, item: int):
         """获取数据集中的一个样本
