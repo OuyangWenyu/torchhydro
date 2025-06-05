@@ -42,6 +42,7 @@ class Arch(object):
         self.q = None  # degree of moving average
         self.d = None  # degree of integrate
         self.p0 = 0.05  # significance level of p_check
+        self.t_critical_table = None
         self.fi = None
         self.sigma = None
 
@@ -370,9 +371,9 @@ class Arch(object):
         if n_x < 50:  # hydrology statistics p318
             m = int(n_x / 4) - 1
         else:
-            m1 = int(n_x / 4)
-            m2 = n_x - 10
-            m = max(m1, m2)
+            m = int(n_x / 4)
+            if m < 10:
+                m = n_x - 10
         p = list(range(0, m))
         acf = [0]*len(p)
         for i in range(len(p)):
@@ -404,7 +405,7 @@ class Arch(object):
                 if m < 10:
                     m = n_x - 10
             k = m  # the max degree of pacf
-        r_k = self.c(x)
+        r_k = self.autocorrelation_function(x)
         # R
         R = np.zeros((k, k))
         for i in range(k):
