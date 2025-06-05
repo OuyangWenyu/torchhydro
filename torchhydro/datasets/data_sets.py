@@ -610,21 +610,11 @@ class BaseDataset(Dataset):
                     }
                     dims = ["basin", "time", "variable"]
         else:
-            # 三维数据直接处理
-            # 修改这里：确保basin坐标长度与数据维度匹配
-            if norm_data.shape[0] == 1 and len(selected_data.coords["basin"]) > 1:
-                basin_coord = selected_data.coords["basin"].values[0:1]
-                coords = {
-                    "basin": basin_coord,
-                    "time": selected_data.coords["time"],
-                    "variable": selected_data.coords["variable"],
-                }
-            else:
-                coords = selected_data.coords
+            coords = selected_data.coords
             dims = selected_data.dims
             norm_data_3d = norm_data
 
-        # 创建DataArray并反归一化
+        # create DataArray and inverse transform
         denorm_xr_ds = target_scaler.inverse_transform(
             xr.DataArray(
                 norm_data_3d,

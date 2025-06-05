@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-05-15 16:24:12
+LastEditTime: 2025-06-05 09:16:57
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -94,8 +94,8 @@ def _rolling_preds_for_once_eval(
     return the_array_.reshape(ngrid, recover_len, nf)
 
 
-def model_infer(seq_first, device, model, xs, ys, src_lens=None, trg_lens=None):
-    """_summary_
+def model_infer(seq_first, device, model, xs, ys):
+    """TODO: Need to be optimized for the case of variable length sequence
 
     Parameters
     ----------
@@ -139,7 +139,7 @@ def model_infer(seq_first, device, model, xs, ys, src_lens=None, trg_lens=None):
             if seq_first and ys.ndim == 3
             else ys.to(device)
         )
-    output = model(*xs, src_lens, trg_lens)
+    output = model(*xs)
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
@@ -419,9 +419,10 @@ def get_preds_to_be_eval(
                 preds_xr = valte_dataset.denormalize(the_array_pred_, -1)
                 obss_xr = valte_dataset.denormalize(the_array_obs_, -1)
     else:
-        # 三维数据直接处理
-        preds_xr = valte_dataset.denormalize(pred, pace_idx)
-        obss_xr = valte_dataset.denormalize(obs, pace_idx)
+        # for 3d data, directly process
+        # TODO: maybe need more test for the pace_idx case
+        preds_xr = valte_dataset.denormalize(pred)
+        obss_xr = valte_dataset.denormalize(obs)
 
     return obss_xr, preds_xr
 
@@ -725,7 +726,7 @@ def evaluate_validation(
 
 def compute_loss(
     labels: torch.Tensor, output: torch.Tensor, criterion, **kwargs
-) -> float:
+) -> torch.Tensor:
     """
     Function for computing the loss
 
@@ -744,7 +745,7 @@ def compute_loss(
 
     Returns
     -------
-    float
+    torch.Tensor
         the computed loss
     """
     # a = np.sum(output.cpu().detach().numpy(),axis=1)/len(output)
@@ -779,7 +780,7 @@ def torch_single_train(
     data_loader: DataLoader,
     device=None,
     **kwargs,
-) -> float:
+):
     """
     Training function for one epoch
 
@@ -798,7 +799,7 @@ def torch_single_train(
 
     Returns
     -------
-    tuple(float, int)
+    tuple(torch.Tensor, int)
         loss of this epoch and number of all iterations
 
     Raises
@@ -814,18 +815,8 @@ def torch_single_train(
     seq_first = which_first_tensor != "batch"
     pbar = tqdm(data_loader)
 
-    for _, batch in enumerate(pbar):
-        if len(batch) == 4:
-            src, trg, src_lens, trg_lens = batch
-            trg, output = model_infer(
-                seq_first, device, model, src, trg, src_lens, trg_lens
-            )
-        elif len(batch) == 2:
-            src, trg = batch
-            # 如果没有 src_lens 和 trg_lens，可以传递 None 或默认值
-            trg, output = model_infer(seq_first, device, model, src, trg, None, None)
-        else:
-            raise ValueError(f"Unsupported batch format with {len(batch)} elements")
+    for _, (src, trg) in enumerate(pbar):
+        trg, output = model_infer(seq_first, device, model, src, trg)
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
