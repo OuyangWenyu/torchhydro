@@ -473,7 +473,23 @@ class Arch(object):
         """
 
 
+    def t_statistic(
+        self,
+        rho,
+    ):
+        """
 
+        Parameters
+        ----------
+        rho
+
+        Returns
+        -------
+
+        """
+        s_rho = self.cov(rho)  # std
+        t = rho / s_rho
+        return t
 
     def cal_acf(self, x):
         """acf, auto-correlation coefficient """
