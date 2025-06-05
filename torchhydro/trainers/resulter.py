@@ -248,8 +248,8 @@ class Resulter:
         # here the batch is just an index of lookup table, so any batch size could be chosen
         params_lst = []
         with torch.no_grad():
-            for xs, ys in test_dataloader:
-                ys, gen = model_infer(seq_first, device, dl_model, xs[1], ys)
+            for batch in test_dataloader:
+                ys, gen = model_infer(seq_first, device, dl_model, batch)
                 # we set all params' values in [0, 1] and will scale them when forwarding
                 if param_func == "clamp":
                     params_ = torch.clamp(gen, min=0.0, max=1.0)

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-06-05 09:16:57
+LastEditTime: 2025-06-05 15:30:05
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -22,6 +22,7 @@ import xarray as xr
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import (
@@ -94,8 +95,8 @@ def _rolling_preds_for_once_eval(
     return the_array_.reshape(ngrid, recover_len, nf)
 
 
-def model_infer(seq_first, device, model, xs, ys):
-    """TODO: Need to be optimized for the case of variable length sequence
+def model_infer(seq_first, device, model, batch):
+    """
 
     Parameters
     ----------
@@ -105,10 +106,8 @@ def model_infer(seq_first, device, model, xs, ys):
         cpu or gpu
     model : torch.nn.Module
         the model
-    xs : list or tensor
-        xs is always batch first
-    ys : tensor
-        observed data
+    batch : tuple
+        batch is a tuple of (xs, ys) or (xs, ys, seq_lengths)
 
     Returns
     -------
@@ -116,6 +115,13 @@ def model_infer(seq_first, device, model, xs, ys):
         first is the observed data, second is the predicted data;
         both tensors are batch first
     """
+    if len(batch) == 2:
+        xs, ys = batch
+        seq_lengths = None
+    elif len(batch) == 4:
+        xs, ys, seq_lengths, _ = batch
+    else:
+        raise ValueError(f"Invalid batch length: {len(batch)}")
     if type(xs) is list:
         xs = [
             (
@@ -139,7 +145,7 @@ def model_infer(seq_first, device, model, xs, ys):
             if seq_first and ys.ndim == 3
             else ys.to(device)
         )
-    output = model(*xs)
+    output = model(*xs, seq_lengths) if seq_lengths is not None else model(*xs)
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
@@ -815,8 +821,8 @@ def torch_single_train(
     seq_first = which_first_tensor != "batch"
     pbar = tqdm(data_loader)
 
-    for _, (src, trg) in enumerate(pbar):
-        trg, output = model_infer(seq_first, device, model, src, trg)
+    for _, batch in enumerate(pbar):
+        trg, output = model_infer(seq_first, device, model, batch)
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
@@ -875,8 +881,8 @@ def compute_validation(
     pred_final = None
     with torch.no_grad():
         iter_num = 0
-        for src, trg in tqdm(data_loader, desc="Evaluating", total=len(data_loader)):
-            trg, output = model_infer(seq_first, device, model, src, trg)
+        for batch in tqdm(data_loader, desc="Evaluating", total=len(data_loader)):
+            trg, output = model_infer(seq_first, device, model, batch)
             obs.append(trg)
             preds.append(output)
             valid_loss_ = compute_loss(trg, output, criterion)

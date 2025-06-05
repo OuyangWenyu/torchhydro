@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-06-05 09:04:23
+LastEditTime: 2025-06-05 15:30:51
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -387,10 +387,10 @@ class DeepHydro(DeepHydroInterface):
         with torch.no_grad():
             test_preds = []
             obss = []
-            for i, (xs, ys) in enumerate(
+            for i, batch in enumerate(
                 tqdm(test_dataloader, desc="Model inference", unit="batch")
             ):
-                ys, pred = model_infer(seq_first, device, self.model, xs, ys)
+                ys, pred = model_infer(seq_first, device, self.model, batch)
                 test_preds.append(pred.cpu())
                 obss.append(ys.cpu())
                 if i % 100 == 0:

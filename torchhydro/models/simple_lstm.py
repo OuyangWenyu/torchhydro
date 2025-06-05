@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-19 09:36:25
-LastEditTime: 2025-06-05 09:06:53
+LastEditTime: 2025-06-05 15:25:56
 LastEditors: Wenyu Ouyang
 Description: Some self-made LSTMs
 FilePath: \torchhydro\torchhydro\models\simple_lstm.py
@@ -29,7 +29,7 @@ class SimpleLSTM(nn.Module):
         self.dropout = nn.Dropout(p=dr)
         self.linearOut = nn.Linear(hidden_size, output_size)
 
-    def forward(self, x, *args):
+    def forward(self, x, **kwargs):
         """
         Forward pass of SimpleLSTM
 
@@ -43,8 +43,8 @@ class SimpleLSTM(nn.Module):
         x0 = F.relu(self.linearIn(x))
 
         # if args is not None and args[0] is not None, use PackedSequence
-        if args and args[0] is not None:
-            seq_lengths = args[0]
+        if kwargs and kwargs["seq_lengths"] is not None:
+            seq_lengths = kwargs["seq_lengths"]
             packed_x = pack_padded_sequence(
                 x0, seq_lengths, batch_first=False, enforce_sorted=False
             )
