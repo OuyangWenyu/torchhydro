@@ -471,7 +471,13 @@ class Arch(object):
         -------
 
         """
-
+        t = 10
+        a = 0
+        b = 0
+        r = 0
+        d_xt_ = 0
+        e_t = 0
+        d_xt = a + b * t + r * x[t-1] + d_xt_ + e_t
 
     def t_statistic(
         self,
@@ -490,6 +496,49 @@ class Arch(object):
         s_rho = self.cov(rho)  # std
         t = rho / s_rho
         return t
+
+    def least_squares_fit(
+        self,
+        x,
+        y,
+        degree: int = 1,
+    ):
+        """
+        ordinary least squares
+        minimize the square summation of residual error -> parameters of polynomial -> estimate value
+        least squares estimate
+        numerical analysis page 67-71.
+        degree = 1
+        Parameters
+        ----------
+        x: independent variable
+        y: dependent variable
+        degree: int, the number of polynomial degree. 0 degree for constant, 1 degree for linear, 2 degree for quadratic
+         polynomial.
+        Returns
+        -------
+
+        """
+        length = len(x)
+
+        # construct matrix
+        At = np.ones((1, length))
+        for i in range(1, degree+1):
+            at_i = np.power(x, i)
+            At = np.concatenate([At, [at_i]], axis=0)
+        A = np.transpose(At)
+        Y = y
+
+        # matrix operations, calculate the coefficient matrix.
+        B = np.matmul(At, A)
+        try:
+            B_1 = np.linalg.inv(B)
+        except np.linalg.LinAlgError:
+            raise np.linalg.LinAlgError("Singular matrix")
+        a = np.matmul(B_1, At)
+        a = np.matmul(a, Y)
+
+        return a
 
     def cal_acf(self, x):
         """acf, auto-correlation coefficient """
@@ -546,7 +595,7 @@ class Arch(object):
 
     def cal_pacf(
         self,
-        x
+        x,
     ):
         """
         pacf, partial auto-correlation function. a series consisted by partial auto-correlation coefficient.

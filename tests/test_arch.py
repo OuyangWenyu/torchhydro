@@ -270,3 +270,10 @@ def test_p_check():
     p_check = arch.pcheck(y)
     print("p_check")
     print(p_check)
+
+def test_least_squares_fit():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]  # 17
+    y = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31]  # 17
+    arch = Arch(x)
+    fi = arch.least_squares_fit(x, y)
+    print("fi")
