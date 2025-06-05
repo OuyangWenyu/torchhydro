@@ -277,3 +277,6 @@ def test_least_squares_fit():
     arch = Arch(x)
     fi = arch.least_squares_fit(x, y)
     print("fi")
+    print(fi)
+# fi
+# [-0.64705882  1.96078431]
