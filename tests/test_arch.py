@@ -281,3 +281,11 @@ def test_least_squares_fit():
     print(fi)
 # fi
 # [0.42583249 0.3259334 ]
+
+def test_adf_least_squares():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]  # 17
+    y = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 17
+    arch = Arch(x)
+    rho = arch.adf_least_squares_estimation(y)
+    print("rho")
+    print(rho)

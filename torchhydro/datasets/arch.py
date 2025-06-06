@@ -505,7 +505,6 @@ class Arch(object):
         """
         ordinary least squares, ols.
         minimize the square summation of residual error -> parameters of autoregressive -> estimate value
-        least squares estimate
         numerical analysis page 67-71.
         Parameters
         ----------
@@ -554,14 +553,25 @@ class Arch(object):
         """
         n_x = len(x)
         # construct matrix
-        dx = []
-        for i in range(1, n_x-2):
-            dx_i = x[i] - x[i-1]
-            dx.append(dx_i)
-        xp = x[1:n_x-2]
+        dx = [0]*(n_x-1)
+        dx = np.transpose(dx)
+        for i in range(1, n_x):
+            dx[i-1] = x[i] - x[i-1]
+        xp = x[:n_x-1]
+        xp = np.transpose(xp)
         xp_t = np.transpose(xp)
 
+        # matrix operations, calculate the coefficient matrix.
+        B = np.matmul(xp_t, xp)
+        B_1 = B
+        # try:
+        #     B_1 = np.linalg.inv(B)
+        # except np.linalg.LinAlgError:
+        #     raise np.linalg.LinAlgError("Singular matrix")
+        a = np.matmul(B_1, xp_t)
+        a = np.matmul(a, dx)
 
+        return a
 
     def cal_acf(self, x):
         """acf, auto-correlation coefficient """
