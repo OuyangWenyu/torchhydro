@@ -497,6 +497,7 @@ class Arch(object):
 
         """
         n_x = len(x)
+
         # construct matrix
         xf = x[p:]
         xf = np.transpose(xf)
@@ -505,17 +506,41 @@ class Arch(object):
             xp_i = x[i:i+p]
             xp_i.reverse()
             xp.append(xp_i)
-        xp_t = np.transpose(xp)
 
         # matrix operations, calculate the coefficient matrix.
-        B = np.matmul(xp_t, xp)
+        a = self.ordinary_least_squares(xp, xf)
+
+        return a
+
+    def ordinary_least_squares(
+        self,
+        A,
+        Y,
+        b_B_1: Optional = False
+    ):
+        """
+
+        Parameters
+        ----------
+        A:
+        Y
+
+        Returns
+        -------
+
+        """
+        # matrix operations, calculate the coefficient matrix.
+        At = np.transpose(A)
+        B = np.matmul(At, A)
         try:
             B_1 = np.linalg.inv(B)
         except np.linalg.LinAlgError:
             raise np.linalg.LinAlgError("Singular matrix")
-        a = np.matmul(B_1, xp_t)
-        a = np.matmul(a, xf)
+        a = np.matmul(B_1, At)
+        a = np.matmul(a, Y)
 
+        if b_B_1:
+            return a, B_1
         return a
 
     def adf_least_squares_estimation(
@@ -536,6 +561,7 @@ class Arch(object):
 
         """
         n_x = len(x)
+
         # construct matrix
         dx = [0]*(n_x-1)
         for i in range(1, n_x):
@@ -551,18 +577,24 @@ class Arch(object):
             xp_i[1:] = xp_ii[:]
             xp[i-(p-1)] = xp_i[:]
         xp = np.array(xp)
-        xp_t = np.transpose(xp)
 
         # matrix operations, calculate the coefficient matrix.
-        B = np.matmul(xp_t, xp)
-        try:
-            B_1 = np.linalg.inv(B)
-        except np.linalg.LinAlgError:
-            raise np.linalg.LinAlgError("Singular matrix")
-        a = np.matmul(B_1, xp_t)
-        a = np.matmul(a, dxf)
+        a, B_1 = self.ordinary_least_squares(xp, dxf, True)
 
-        return a
+        # s_a
+        e = 0  # todo:
+        e_t = np.transpose(e)
+        e = np.matmul(e_t, e)
+        var = e / (n_x - p)
+        var = np.sqrt(var)
+        s_a = var * B_1
+        s_a = np.sqrt(s_a)
+
+        # result
+        rho = a[0]
+        s_rho = s_a[0]
+
+        return a, s_a
 
     def t_statistic(
         self,
@@ -585,6 +617,17 @@ class Arch(object):
         std_rho = np.std(rho)  # todo:
         t = rho/std_rho
         return t
+
+    def rho_standard_error(
+        self,
+    ):
+        """
+
+        Returns
+        -------
+
+        """
+
 
     def cal_acf(self, x):
         """acf, auto-correlation coefficient """
