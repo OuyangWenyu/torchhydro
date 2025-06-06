@@ -288,15 +288,15 @@ def test_least_squares_fit():
 def test_adf_least_squares():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]  # 17
     y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 17
-    y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  #
+    # y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  #
     ystl = Ystl()
     y = ystl.streamflow[:365]
     arch = Arch(x)
-    # rhoy_stationary = arch.adf_least_squares_estimation(y_stationary, 3)
+    # rho_y_stationary = arch.adf_least_squares_estimation(y_stationary, 3)
     # rhoy_non_stationary = arch.adf_least_squares_estimation(y_non_stationary, 3)
     rhoy_y = arch.adf_least_squares_estimation(y, 3)
     # print("rho_y_stationary")
-    # print(rhoy_stationary)
+    # print(rho_y_stationary)
     # print("rho_y_non_stationary")
     # print(rhoy_non_stationary)
     print("rhoy_y_365")

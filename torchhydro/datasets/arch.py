@@ -516,19 +516,21 @@ class Arch(object):
         self,
         A,
         Y,
-        b_B_1: Optional = False
+        b_s_a: Optional = False,
     ):
         """
 
         Parameters
         ----------
-        A:
-        Y
+        A: matrix
+        Y: matrix
+        b_s_a: bool,
 
         Returns
         -------
 
         """
+        n_y = len(Y)
         # matrix operations, calculate the coefficient matrix.
         At = np.transpose(A)
         B = np.matmul(At, A)
@@ -539,8 +541,18 @@ class Arch(object):
         a = np.matmul(B_1, At)
         a = np.matmul(a, Y)
 
-        if b_B_1:
-            return a, B_1
+        if b_s_a:  #
+            e = np.matmul(A, a)
+            e = Y - e
+            e = np.absolute(e)
+            e_t = np.transpose(e)
+            var_e = np.matmul(e_t, e)
+            var_e = var_e / n_y
+            var_a = var_e * B_1
+            s_a = np.sqrt(var_a)  # standard error of a
+
+            return a, s_a
+
         return a
 
     def adf_least_squares_estimation(
@@ -579,16 +591,7 @@ class Arch(object):
         xp = np.array(xp)
 
         # matrix operations, calculate the coefficient matrix.
-        a, B_1 = self.ordinary_least_squares(xp, dxf, True)
-
-        # s_a
-        e = 0  # todo:
-        e_t = np.transpose(e)
-        e = np.matmul(e_t, e)
-        var = e / (n_x - p)
-        var = np.sqrt(var)
-        s_a = var * B_1
-        s_a = np.sqrt(s_a)
+        a, s_a = self.ordinary_least_squares(xp, dxf, True)
 
         # result
         rho = a[0]
