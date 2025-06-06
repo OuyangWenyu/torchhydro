@@ -497,48 +497,71 @@ class Arch(object):
         t = rho / s_rho
         return t
 
-    def least_squares_fit(
+    def ar_least_squares_estimation(
         self,
         x,
-        y,
-        degree: int = 1,
+        p: int = 2,
     ):
         """
-        ordinary least squares
-        minimize the square summation of residual error -> parameters of polynomial -> estimate value
+        ordinary least squares, ols.
+        minimize the square summation of residual error -> parameters of autoregressive -> estimate value
         least squares estimate
         numerical analysis page 67-71.
-        degree = 1
         Parameters
         ----------
-        x: independent variable
-        y: dependent variable
-        degree: int, the number of polynomial degree. 0 degree for constant, 1 degree for linear, 2 degree for quadratic
-         polynomial.
+        x: time series
+        p: the degree of autoregressive.
         Returns
         -------
 
         """
-        length = len(x)
-
+        n_x = len(x)
         # construct matrix
-        At = np.ones((1, length))
-        for i in range(1, degree+1):
-            at_i = np.power(x, i)
-            At = np.concatenate([At, [at_i]], axis=0)
-        A = np.transpose(At)
-        Y = y
+        xf = x[p:]
+        xf = np.transpose(xf)
+        xp = []
+        for i in range(n_x-2):
+            xp_i = x[i:i+p]
+            xp_i.reverse()
+            xp.append(xp_i)
+        xp_t = np.transpose(xp)
 
         # matrix operations, calculate the coefficient matrix.
-        B = np.matmul(At, A)
+        B = np.matmul(xp_t, xp)
         try:
             B_1 = np.linalg.inv(B)
         except np.linalg.LinAlgError:
             raise np.linalg.LinAlgError("Singular matrix")
-        a = np.matmul(B_1, At)
-        a = np.matmul(a, Y)
+        a = np.matmul(B_1, xp_t)
+        a = np.matmul(a, xf)
 
         return a
+
+    def adf_least_squares_estimation(
+        self,
+        x,
+    ):
+        """
+        ordinary least squares, ols.
+        minimize the square summation of residual error -> parameters of adf model.
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        # construct matrix
+        dx = []
+        for i in range(1, n_x-2):
+            dx_i = x[i] - x[i-1]
+            dx.append(dx_i)
+        xp = x[1:n_x-2]
+        xp_t = np.transpose(xp)
+
+
 
     def cal_acf(self, x):
         """acf, auto-correlation coefficient """
