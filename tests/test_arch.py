@@ -284,8 +284,36 @@ def test_least_squares_fit():
 
 def test_adf_least_squares():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]  # 17
-    y = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 17
+    y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 17
+    y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  #
+    ystl = Ystl()
+    y = ystl.streamflow[:30]
     arch = Arch(x)
-    rho = arch.adf_least_squares_estimation(y)
-    print("rho")
-    print(rho)
+    rhoy_stationary = arch.adf_least_squares_estimation(y_stationary, 3)
+    rhoy_non_stationary = arch.adf_least_squares_estimation(y_non_stationary, 3)
+    rhoy_y = arch.adf_least_squares_estimation(y, 3)
+    print("rho_y_stationary")
+    print(rhoy_stationary)
+    print("rho_y_non_stationary")
+    print(rhoy_non_stationary)
+    print("rhoy_y")
+    print(rhoy_y)
+# rho_y_stationary
+# [ 6.9388939e-17 -1.0000000e+00 -1.0000000e+00]
+# rho_y_non_stationary
+# [-0.00983053  0.05893195  1.078081  ]
+# rhoy_y
+# [-0.02074667  0.26622862 -0.23479098]
+
+
+def test_t_statistic():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]  # 19
+    y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 19
+    y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
+    arch = Arch(x)
+    t_y_stationary = arch.t_statistic(y_stationary, 3)
+    t_non_stationary = arch.t_statistic(y_non_stationary, 3)
+    print("t_y_stationary")
+    print(t_y_stationary)
+    print("t_y_non_stationary")
+    print(t_non_stationary)

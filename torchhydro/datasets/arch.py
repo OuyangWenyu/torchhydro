@@ -479,24 +479,6 @@ class Arch(object):
         e_t = 0
         d_xt = a + b * t + r * x[t-1] + d_xt_ + e_t
 
-    def t_statistic(
-        self,
-        rho,
-    ):
-        """
-
-        Parameters
-        ----------
-        rho
-
-        Returns
-        -------
-
-        """
-        s_rho = self.cov(rho)  # std
-        t = rho / s_rho
-        return t
-
     def ar_least_squares_estimation(
         self,
         x,
@@ -539,14 +521,16 @@ class Arch(object):
     def adf_least_squares_estimation(
         self,
         x,
+        p,
     ):
         """
         ordinary least squares, ols.
         minimize the square summation of residual error -> parameters of adf model.
+        dx(t) = rho*x(t-1) + b_1*dx(t-1) + b_2*dx(t-2) + ... + b_(p-1)*dx(t-(p-1)) + e(t)
         Parameters
         ----------
-        x
-
+        x: time series
+        p: the degree of adf.
         Returns
         -------
 
@@ -554,24 +538,53 @@ class Arch(object):
         n_x = len(x)
         # construct matrix
         dx = [0]*(n_x-1)
-        dx = np.transpose(dx)
         for i in range(1, n_x):
             dx[i-1] = x[i] - x[i-1]
-        xp = x[:n_x-1]
-        xp = np.transpose(xp)
+        dxf = dx[p-1:]
+        dxf = np.transpose(dxf)
+        xp = [0]*(n_x-p)
+        xp_i = [0]*p
+        for i in range(p-1, n_x-1):
+            xp_i[0] = x[i]
+            xp_ii = dx[i-(p-1):i]
+            xp_ii.reverse()
+            xp_i[1:] = xp_ii[:]
+            xp[i-(p-1)] = xp_i[:]
+        xp = np.array(xp)
         xp_t = np.transpose(xp)
 
         # matrix operations, calculate the coefficient matrix.
         B = np.matmul(xp_t, xp)
-        B_1 = B
-        # try:
-        #     B_1 = np.linalg.inv(B)
-        # except np.linalg.LinAlgError:
-        #     raise np.linalg.LinAlgError("Singular matrix")
+        try:
+            B_1 = np.linalg.inv(B)
+        except np.linalg.LinAlgError:
+            raise np.linalg.LinAlgError("Singular matrix")
         a = np.matmul(B_1, xp_t)
-        a = np.matmul(a, dx)
+        a = np.matmul(a, dxf)
 
         return a
+
+    def t_statistic(
+        self,
+        x,
+        p,
+    ):
+        """
+        the t statistic.
+        Parameters
+        ----------
+        x: time series.
+        p: the degree of adf.
+
+        Returns
+        -------
+
+        """
+        a = self.adf_least_squares_estimation(x,p)
+        rho = a[0]
+        std_rho = np.std(rho)  # todo:
+        t = rho/std_rho
+        return t
 
     def cal_acf(self, x):
         """acf, auto-correlation coefficient """
