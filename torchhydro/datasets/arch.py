@@ -608,7 +608,8 @@ class Arch(object):
         rho = a[0]
         s_rho = s_a0
 
-        return a, R_2, s_a0
+        # return a, R_2, s_a0
+        return rho, s_rho
 
     def t_statistic(
         self,
@@ -626,9 +627,7 @@ class Arch(object):
         -------
 
         """
-        a, R_2, s_a0 = self.adf_least_squares_estimation(x,p)
-        rho = a[0]
-        std_rho = s_a0
+        rho, std_rho = self.adf_least_squares_estimation(x,p)
         t = rho/std_rho
 
         return t
