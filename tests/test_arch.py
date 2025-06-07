@@ -294,13 +294,19 @@ def test_adf_least_squares():
     arch = Arch(x)
     # rho_y_stationary = arch.adf_least_squares_estimation(y_stationary, 3)
     # rhoy_non_stationary = arch.adf_least_squares_estimation(y_non_stationary, 3)
-    rhoy_y = arch.adf_least_squares_estimation(y, 3)
+    a, R_2, s_a0 = arch.adf_least_squares_estimation(y, 3)
     # print("rho_y_stationary")
     # print(rho_y_stationary)
     # print("rho_y_non_stationary")
     # print(rhoy_non_stationary)
-    print("rhoy_y_365")
-    print(rhoy_y)
+    # print("rhoy_y_365")
+    # print(rhoy_y)
+    print("a")
+    print(a)
+    print("R_2")
+    print(R_2)
+    print("s_a0")
+    print(s_a0)
 # rho_y_stationary
 # [ 6.9388939e-17 -1.0000000e+00 -1.0000000e+00]
 # rho_y_non_stationary
@@ -309,7 +315,12 @@ def test_adf_least_squares():
 # [-0.02074667  0.26622862 -0.23479098]
 # rhoy_y_365
 # [-0.2669443  -0.27469861 -0.14828769]
-
+# a
+# [-0.2669443  -0.27469861 -0.14828769]
+# R_2
+# 0.27029118414274617
+# s_a0
+# 0.06013027324388966
 
 def test_t_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]  # 19

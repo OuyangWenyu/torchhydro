@@ -508,9 +508,9 @@ class Arch(object):
             xp.append(xp_i)
 
         # matrix operations, calculate the coefficient matrix.
-        a = self.ordinary_least_squares(xp, xf)
+        a, R_2 = self.ordinary_least_squares(xp, xf)
 
-        return a
+        return a, R_2
 
     def ordinary_least_squares(
         self,
@@ -540,23 +540,31 @@ class Arch(object):
         except np.linalg.LinAlgError:
             raise np.linalg.LinAlgError("Singular matrix")
         a = np.matmul(B_1, At)
-        a = np.matmul(a, Y)
+        a = np.matmul(a, Y)  # parameters
+
+        # R_2, coefficient of determination
+        y_ = np.matmul(A, a)
+        R = self.correlation_coefficient(Y, y_)
+        R_2 = pow(R, 2)
 
         if b_s_a:  # 计量经济学 第三章
             n_y = len(Y)
-            y_ = np.matmul(A, a)
             e = Y - y_
             e = np.absolute(e)
             e_t = np.transpose(e)
             var_e = np.matmul(e_t, e)
             var_e = var_e / n_y
-            R = self.correlation_coefficient(Y, y_)   # 计量经济学导论现代观点 p61-65
-            var_a = var_e * B_1
-            s_a = np.sqrt(var_a)  # standard error of a
+            std_e = np.sqrt(var_e)
+            x = A[:, 0]             # 计量经济学导论现代观点 第三章
+            var_x = self.cov(x)
+            std_x = np.sqrt(var_x)
+            x_A = A[:, 1:]
+            _, x_R_2 = self.ordinary_least_squares(x_A, x)
+            se_a0 = std_e / (np.sqrt(n_y) * std_x * np.sqrt(1 - x_R_2))  # standard error of a[0]
 
-            return a, s_a
+            return a, R_2, se_a0
 
-        return a
+        return a, R_2
 
     def adf_least_squares_estimation(
         self,
@@ -594,13 +602,13 @@ class Arch(object):
         xp = np.array(xp)
 
         # matrix operations, calculate the coefficient matrix.
-        a, s_a = self.ordinary_least_squares(xp, dxf, True)
+        a, R_2, s_a0 = self.ordinary_least_squares(xp, dxf, True)
 
         # result
         rho = a[0]
-        s_rho = s_a[0]
+        s_rho = s_a0
 
-        return a, s_a
+        return a, R_2, s_a0
 
     def t_statistic(
         self,
@@ -618,10 +626,11 @@ class Arch(object):
         -------
 
         """
-        a = self.adf_least_squares_estimation(x,p)
+        a, R_2, s_a0 = self.adf_least_squares_estimation(x,p)
         rho = a[0]
-        std_rho = np.std(rho)  # todo:
+        std_rho = s_a0
         t = rho/std_rho
+
         return t
 
     def rho_standard_error(
