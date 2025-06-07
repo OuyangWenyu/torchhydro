@@ -519,7 +519,9 @@ class Arch(object):
         b_s_a: Optional = False,
     ):
         """
-
+        ordinary least squares, ols.
+        minimize the square summation of residual error -> parameters of model.
+        a = (A' * A)_1 * A' * Y
         Parameters
         ----------
         A: matrix
@@ -530,7 +532,6 @@ class Arch(object):
         -------
 
         """
-        n_y = len(Y)
         # matrix operations, calculate the coefficient matrix.
         At = np.transpose(A)
         B = np.matmul(At, A)
@@ -541,13 +542,15 @@ class Arch(object):
         a = np.matmul(B_1, At)
         a = np.matmul(a, Y)
 
-        if b_s_a:  #
-            e = np.matmul(A, a)
-            e = Y - e
+        if b_s_a:  # 计量经济学 第三章
+            n_y = len(Y)
+            y_ = np.matmul(A, a)
+            e = Y - y_
             e = np.absolute(e)
             e_t = np.transpose(e)
             var_e = np.matmul(e_t, e)
             var_e = var_e / n_y
+            R = self.correlation_coefficient(Y, y_)   # 计量经济学导论现代观点 p61-65
             var_a = var_e * B_1
             s_a = np.sqrt(var_a)  # standard error of a
 
