@@ -42,7 +42,7 @@ class Arch(object):
         self.q = None  # degree of moving average
         self.d = None  # degree of integrate
         self.p0 = 0.05  # significance level of p_check
-        self.t_critical_table = None
+        self.t_critical_table = None  # critical table of t check statistic   应用时间序列分析（第四版） 王燕 p228    todo:
         self.fi = None
         self.sigma = None
 
@@ -485,7 +485,7 @@ class Arch(object):
         p: int = 2,
     ):
         """
-        ordinary least squares, ols.
+        least squares estimation of autoregressive.
         minimize the square summation of residual error -> parameters of autoregressive -> estimate value
         numerical analysis page 67-71.
         Parameters
@@ -572,7 +572,7 @@ class Arch(object):
         p,
     ):
         """
-        ordinary least squares, ols.
+        least squares estimation of Augmented Dickey-Fuller Tested.
         minimize the square summation of residual error -> parameters of adf model.
         dx(t) = rho*x(t-1) + b_1*dx(t-1) + b_2*dx(t-2) + ... + b_(p-1)*dx(t-(p-1)) + e(t)
         Parameters
