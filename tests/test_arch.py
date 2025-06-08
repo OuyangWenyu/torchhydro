@@ -363,3 +363,13 @@ def test_t_statistic():
 # 0.2349027817727971
 # t_y_non_stationary
 # -0.6926191407014809
+
+def test_get_t_critical():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    arch = Arch(x)
+    case = "case 1"
+    p = 0.05
+    n_sample = 365
+    t_critical = arch.get_t_critical(case, p, n_sample)
+    print("t_critical")
+    print(t_critical)

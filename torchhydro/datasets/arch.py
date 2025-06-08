@@ -23,6 +23,8 @@ class Arch(object):
 
     distribution of series -> check relationship -> mean value function
 
+    adf check
+
     """
     def __init__(
         self,
@@ -42,7 +44,7 @@ class Arch(object):
         self.q = None  # degree of moving average
         self.d = None  # degree of integrate
         self.p0 = 0.05  # significance level of p_check
-        self.t_critical_table = None  # critical table of t check statistic   应用时间序列分析（第四版） 王燕 p228    todo:
+        self.t_critical_table = self.generate_t_critical_table  # critical table of t check statistic   应用时间序列分析（第四版） 王燕 p228    todo:
         self.fi = None
         self.sigma = None
 
@@ -448,36 +450,7 @@ class Arch(object):
         p_check = np.abs(z) < self.p0
         return p_check
 
-    def adf_check(
-        self,
-        x,
-    ):
-        """
-        Augmented Dickey-Fuller Tested
-        ADF check.  unit root.
-        assumption：
-            H0: true.
-            H1: false.
-        (10%, 5%, 1%) -> (90%, 95%, 99%)
-        degree of intergre: 0, 1, 2
-        t:
-        p:
-        critical value(1%, 5%, 10%)
-        Parameters
-        ----------
-        x
 
-        Returns
-        -------
-
-        """
-        t = 10
-        a = 0
-        b = 0
-        r = 0
-        d_xt_ = 0
-        e_t = 0
-        d_xt = a + b * t + r * x[t-1] + d_xt_ + e_t
 
     def ar_least_squares_estimation(
         self,
@@ -640,11 +613,45 @@ class Arch(object):
         -------
 
         """
+        # table_B_6
+        p = [0.01, 0.025, 0.05, 0.10, 0.90, 0.95, 0.975, 0.99]
+        T = [25, 50, 100, 250, 500, "∞"]
+        case_1 = [
+            [-2.66, -2.26, -1.95, -1.6, 0.92, 1.33, 1.7, 2.16],
+            [-2.62, -2.25, -1.95, -1.61, 0.91, 1.31, 1.66, 2.08],
+            [-2.6, -2.24, -1.95, -1.61, 0.90, 1.29, 1.64, 2.03],
+            [-2.58, -2.23, -1.95, -1.62, 0.89, 1.29, 1.63, 2.01],
+            [-2.58, -2.23, -1.95, -1.62, 0.89, 1.28, 1.62, 2.00],
+            [-2.58, -2.23, -1.95, -1.62, 0.89, 1.28, 1.62, 2.00],
+        ]
+        case_2 = [
+            [-3.75, -3.33, -3.00, -2.63, -0.37, 0.00, 0.34, 0.72],
+            [-3.58, -3.22, -2.93, -2.60, -0.40, -0.03, 0.29, 0.66],
+            [-3.51, -3.17, -2.89, -2.58, -0.42, -0.05, 0.26, 0.63],
+            [-3.46, -3.14, -2.88, -2.57, -0.42, -0.06, 0.24, 0.62],
+            [-3.44, -3.13, -2.87, -2.57, -0.43, -0.07, 0.24, 0.61],
+            [-3.43, -3.12, -2.86, -2.57, -0.44, -0.07, 0.23, 0.60],
+        ]
+        case_4 = [
+            [-4.38, -3.95, -3.60, -3.24, -1.14, -0.80, -0.50, -0.15],
+            [-4.15, -3.80, -3.50, -3.18, -1.19, -0.87, -0.58, -0.24],
+            [-4.04, -3.73, -3.45, -3.15, -1.22, -0.90, -0.62, -0.28],
+            [-3.99, -3.69, -3.43, -3.13, -1.23, -0.92, -0.64, -0.31],
+            [-3.98, -3.68, -3.42, -3.13, -1.24, -0.93, -0.65, -0.32],
+            [-3.96, -3.66, -3.41, -3.12, -1.25, -0.94, -0.66, -0.33],
+        ]
+        table_B_6 = pd.DataFrame({"case 1": case_1, "case 2": case_2, "case 4": case_4})
+        table_B_6.columns = p
+        table_B_6.index.name = "sample size T"
+        table_B_6.set_index("sample size T", inplace=True)
 
-
+        return table_B_6
 
     def get_t_critical(
         self,
+        case,
+        significance_level,
+        n_sample,
     ):
         """
 
@@ -652,10 +659,49 @@ class Arch(object):
         -------
 
         """
+        t_critical = self.t_critical_table(case, significance_level, n_sample)
+        return t_critical
 
+    def adf_test(
+        self,
+        x,
+    ):
+        """
+        Augmented Dickey-Fuller Tested
+        ADF test.  unit root.
+        时间序列分析 下 詹姆斯·D·汉密尔顿 p625
+        assumption：
+            H0: true.
+            H1: false.
+        (10%, 5%, 1%) -> (90%, 95%, 99%)
+        degree of intergre: 0, 1, 2
+        t:
+        p:
+        critical value(1%, 5%, 10%)
+        Parameters
+        ----------
+        x
 
+        Returns
+        -------
 
+        """
+        # assumption
+        H0 = True
+        H1 = False
+        p = 3
+        t_statistic = self.t_statistic(x, p)
+        case = "case_1"
+        p = 0.05  # significance level
+        n_x = len(x)
+        t_critical = self.get_t_critical(case, p, n_x)
 
+        if t_statistic < t_critical:
+            b_stability = H0
+        else:
+            b_stability = H1
+
+        return b_stability
 
 
     def rho_standard_error(
@@ -690,6 +736,14 @@ class Arch(object):
         -------
         y_t: the observe value of time-step t.
         """
+        t = 10
+        a = 0
+        b = 0
+        r = 0
+        d_xt_ = 0
+        e_t = 0
+        d_xt = a + b * t + r * x[t-1] + d_xt_ + e_t
+
         p = x.shape[0]  # degree
         # mean = np.mean(x)
         fi = [0]*p  # coefficient of regression
