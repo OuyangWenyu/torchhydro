@@ -619,7 +619,8 @@ class STL(object):
         N, the total number of observations in whole series.
 
         low-pass, low-frequency power.
-        if one have no idea about parameters, you could read this behind.
+
+        if one have no idea about parameters, you could read this English behind.
         n_p:
         It is entirely possible that a time series can have two or more periodic components. for example, a series
         measured daily might have weekly and yearly periodicities. In such a case one can use STL to successively
@@ -644,6 +645,7 @@ class STL(object):
         The additional variation in these seasonal values, compared with the seasonal values for ns = 35, appears to be
         noise and not meaningful seasonal variation because the cycle in the CO2 series is caused mainly by the seasonal
         cycle of foliage in the Northern Hemisphere, and one would expect a smooth evolution of this cycle over years.
+
         """
         # 1 detrending
         y = (np.array(y) - np.array(trend)).tolist()
