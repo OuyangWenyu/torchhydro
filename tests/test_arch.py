@@ -341,7 +341,6 @@ def test_adf_least_squares():
 # 0.014193263300194653
 
 
-
 def test_t_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]  # 19
     y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 19
@@ -349,9 +348,9 @@ def test_t_statistic():
     ystl = Ystl()
     y = ystl.streamflow[:365]
     arch = Arch(x)
-    # t_y_stationary = arch.t_statistic(y_stationary, 3)
-    # t_non_stationary = arch.t_statistic(y_non_stationary, 3)
-    t_y = arch.t_statistic(y, 3)
+    # t_y = arch.t_statistic(y_stationary, 3)
+    t_y = arch.t_statistic(y_non_stationary, 3)
+    # t_y = arch.t_statistic(y, 3)
     # print("t_y_stationary")
     # print(t_y_stationary)
     # print("t_y_non_stationary")
@@ -360,3 +359,7 @@ def test_t_statistic():
     print(t_y)
 # t_y
 # -4.439432624698465
+# t_y_stationary
+# 0.2349027817727971
+# t_y_non_stationary
+# -0.6926191407014809

@@ -574,7 +574,7 @@ class Arch(object):
         """
         least squares estimation of Augmented Dickey-Fuller Tested.
         minimize the square summation of residual error -> parameters of adf model.
-        dx(t) = rho*x(t-1) + b_1*dx(t-1) + b_2*dx(t-2) + ... + b_(p-1)*dx(t-(p-1)) + e(t)
+        dx(t) = rho*x(t-1) + b_1*dx(t-1) + b_2*dx(t-2) + ... + b_(p-1)*dx(t-(p-1)) + e(t)   应用时间序列分析 p228 式(6.7)
         Parameters
         ----------
         x: time series
@@ -631,6 +631,32 @@ class Arch(object):
         t = rho/std_rho
 
         return t
+
+
+    def generate_t_critical_table(self):
+        """
+        时间序列分析 下 詹姆斯·D·汉密尔顿 p882 表B.6
+        Returns
+        -------
+
+        """
+
+
+
+    def get_t_critical(
+        self,
+    ):
+        """
+
+        Returns
+        -------
+
+        """
+
+
+
+
+
 
     def rho_standard_error(
         self,
