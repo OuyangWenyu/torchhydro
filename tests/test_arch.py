@@ -373,3 +373,12 @@ def test_get_t_critical():
     t_critical = arch.get_t_critical(case, p, n_sample)
     print("t_critical")
     print(t_critical)
+
+def test_adf_test():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    ystl = Ystl()
+    y = ystl.streamflow[:365]
+    arch = Arch(x)
+    b_stability = arch.adf_test(y)
+    print("b_stability")
+    print(b_stability)

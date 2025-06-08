@@ -44,7 +44,7 @@ class Arch(object):
         self.q = None  # degree of moving average
         self.d = None  # degree of integrate
         self.p0 = 0.05  # significance level of p_check
-        self.t_critical_table = self.generate_t_critical_table  # critical table of t check statistic   应用时间序列分析（第四版） 王燕 p228    todo:
+        self.t_critical_table = self.generate_t_critical_table  # critical table of t check statistic   Applied Time Series Analysis（4th edition） Yan Wang p228
         self.fi = None
         self.sigma = None
 
@@ -388,7 +388,7 @@ class Arch(object):
         k: int = None,
     ):
         """
-        # todo:
+        随机过程 p198
         Parameters
         ----------
         x
@@ -520,7 +520,7 @@ class Arch(object):
         R = self.correlation_coefficient(Y, y_)
         R_2 = pow(R, 2)
 
-        if b_s_a:  # 计量经济学 第三章
+        if b_s_a:  # Econometric chapter 3
             n_y = len(Y)
             e = Y - y_
             e = np.absolute(e)
@@ -528,7 +528,7 @@ class Arch(object):
             var_e = np.matmul(e_t, e)
             var_e = var_e / n_y
             std_e = np.sqrt(var_e)
-            x = A[:, 0]             # 计量经济学导论现代观点 第三章
+            x = A[:, 0]             # Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge chapter 3
             var_x = self.cov(x)
             std_x = np.sqrt(var_x)
             x_A = A[:, 1:]
@@ -547,7 +547,7 @@ class Arch(object):
         """
         least squares estimation of Augmented Dickey-Fuller Tested.
         minimize the square summation of residual error -> parameters of adf model.
-        dx(t) = rho*x(t-1) + b_1*dx(t-1) + b_2*dx(t-2) + ... + b_(p-1)*dx(t-(p-1)) + e(t)   应用时间序列分析 p228 式(6.7)
+        dx(t) = rho*x(t-1) + b_1*dx(t-1) + b_2*dx(t-2) + ... + b_(p-1)*dx(t-(p-1)) + e(t)   Applied Time Series Analysis p228 formula(6.7)
         Parameters
         ----------
         x: time series
@@ -608,7 +608,7 @@ class Arch(object):
 
     def generate_t_critical_table(self):
         """
-        时间序列分析 下 詹姆斯·D·汉密尔顿 p882 表B.6
+        Time Series Analysis  James D.Hamilton p882 table B.6
         Returns
         -------
 
@@ -669,7 +669,7 @@ class Arch(object):
         """
         Augmented Dickey-Fuller Tested
         ADF test.  unit root.
-        时间序列分析 下 詹姆斯·D·汉密尔顿 p625
+        Time Series Analysis  James D.Hamilton p625
         assumption：
             H0: true.
             H1: false.
@@ -702,17 +702,6 @@ class Arch(object):
             b_stability = H1
 
         return b_stability
-
-
-    def rho_standard_error(
-        self,
-    ):
-        """
-
-        Returns
-        -------
-
-        """
 
 
     def cal_acf(self, x):
