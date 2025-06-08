@@ -369,16 +369,35 @@ def test_get_t_critical():
     arch = Arch(x)
     case = "case 1"
     p = 0.05
-    n_sample = 365
-    t_critical = arch.get_t_critical(case, p, n_sample)
+    n_sample = 250
+    t_critical = arch.get_t_critical(0, 3, 2)
     print("t_critical")
     print(t_critical)
+# t_critical
+# -1.95
 
 def test_adf_test():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 19
+    y_non_sstationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
     ystl = Ystl()
-    y = ystl.streamflow[:365]
+    y = ystl.streamflow[:31]
     arch = Arch(x)
     b_stability = arch.adf_test(y)
     print("b_stability")
     print(b_stability)
+# y_365
+# b_stability
+# True
+# y_stationary
+# b_stability
+# False
+# y_non_stationary
+# b_stability
+# False
+# y_1461
+# b_stability
+# True
+# y_31
+# b_stability
+# False

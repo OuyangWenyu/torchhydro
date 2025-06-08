@@ -44,7 +44,7 @@ class Arch(object):
         self.q = None  # degree of moving average
         self.d = None  # degree of integrate
         self.p0 = 0.05  # significance level of p_check
-        self.t_critical_table = self.generate_t_critical_table  # critical table of t check statistic   Applied Time Series Analysis（4th edition） Yan Wang p228
+        self.t_critical_table = self.generate_t_critical_table()  # critical table of t check statistic   Applied Time Series Analysis（4th edition） Yan Wang p228
         self.fi = None
         self.sigma = None
 
@@ -608,12 +608,12 @@ class Arch(object):
 
     def generate_t_critical_table(self):
         """
-        Time Series Analysis  James D.Hamilton p882 table B.6
+        Time Series Analysis  James D.Hamilton  p882 table B.6
         Returns
         -------
 
         """
-        # table_B_6
+        # table B.6
         p = [0.01, 0.025, 0.05, 0.10, 0.90, 0.95, 0.975, 0.99]
         T = [25, 50, 100, 250, 500, "∞"]
         case_1 = [
@@ -640,18 +640,23 @@ class Arch(object):
             [-3.98, -3.68, -3.42, -3.13, -1.24, -0.93, -0.65, -0.32],
             [-3.96, -3.66, -3.41, -3.12, -1.25, -0.94, -0.66, -0.33],
         ]
-        table_B_6 = pd.DataFrame({"case 1": case_1, "case 2": case_2, "case 4": case_4})
-        table_B_6.columns = p
-        table_B_6.index.name = "sample size T"
-        table_B_6.set_index("sample size T", inplace=True)
+        data = np.array([case_1, case_2, case_4])
+        case_names = ["case 1", "case 2", "case 4"]
+        sample_size_T = T
+        columns = p
+        index = pd.MultiIndex.from_product([case_names, sample_size_T])
+        # table_B_6 = pd.DataFrame(data=data, index=index, columns=columns)
+        # table_B_6.columns = p
+        # table_B_6.index.name = "sample size T"
+        # table_B_6.set_index("sample size T", inplace=True)
 
-        return table_B_6
+        return data
 
     def get_t_critical(
         self,
         case,
-        significance_level,
         n_sample,
+        significance_level,
     ):
         """
 
@@ -659,7 +664,7 @@ class Arch(object):
         -------
 
         """
-        t_critical = self.t_critical_table(case, significance_level, n_sample)
+        t_critical = self.t_critical_table[case, n_sample, significance_level]
         return t_critical
 
     def adf_test(
@@ -691,10 +696,13 @@ class Arch(object):
         H1 = False
         p = 3
         t_statistic = self.t_statistic(x, p)
-        case = "case_1"
-        p = 0.05  # significance level
-        n_x = len(x)
-        t_critical = self.get_t_critical(case, p, n_x)
+        # case = "case_1"
+        case = 0
+        # p_ = 0.05  # significance level
+        p_ = 2
+        # n_x = len(x)
+        n_x = 1
+        t_critical = self.get_t_critical(case, n_x, p_)
 
         if t_statistic < t_critical:
             b_stability = H0
