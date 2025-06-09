@@ -672,7 +672,7 @@ class Arch(object):
         x,
     ):
         """
-        Augmented Dickey-Fuller Tested
+        Augmented Dickey-Fuller Test
         ADF test.  unit root.
         Time Series Analysis  James D.Hamilton p625
         assumption：
@@ -711,6 +711,32 @@ class Arch(object):
 
         return b_stability
 
+    def integrate_d_degree(
+        self,
+        x,
+        d,
+    ):
+        """
+        one degree integration model
+        Parameters
+        ----------
+        x: time series
+        d: degree of integrate
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        dx_i0 = x
+        dx_i = np.zeros(n_x)
+        for i in range(d):
+            for j in range(i+1, n_x):
+                dx_ij = dx_i0[j] - dx_i0[j-1]
+                dx_i[j] = dx_ij
+            dx_i0 = dx_i[:]
+        dx = dx_i
+        return dx
 
     def cal_acf(self, x):
         """acf, auto-correlation coefficient """

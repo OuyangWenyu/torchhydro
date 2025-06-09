@@ -401,3 +401,19 @@ def test_adf_test():
 # y_31
 # b_stability
 # False
+
+def test_integrate_d_degree():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 19
+    y_non_sstationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
+    ystl = Ystl()
+    y = ystl.streamflow[:31]
+    arch = Arch(x)
+    y_integrated = arch.integrate_d_degree(y_stationary, 2)
+    print("y_integrated")
+    print(y_integrated)
+# y_integrated  d=1
+# [ 0.  4. -2. -2.  4. -2. -2.  4. -2. -2.  4. -2. -2.  4. -2. -2.  4. -2. -2.]
+# y_integrated  d=2
+# [ 0.  4. -6.  4.  0. -2.  0.  4. -6.  4.  0. -2.  0.  4. -6.  4.  0. -2. 0.]
+
