@@ -711,6 +711,28 @@ class Arch(object):
 
         return b_stability
 
+    def integrate_one_degree(
+        self,
+        x,
+    ):
+        """
+        one degree integration model
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        dx = np.zeros(n_x-1)
+        for i in range(1, n_x):
+            dx_i = x[i] - x[i-1]
+            dx[i-1] = dx_i
+
+        return dx
+
     def integrate_d_degree(
         self,
         x,
@@ -728,14 +750,13 @@ class Arch(object):
 
         """
         n_x = len(x)
+        dx = np.zeros(n_x)
         dx_i0 = x
-        dx_i = np.zeros(n_x)
+        dx_i = None
         for i in range(d):
-            for j in range(i+1, n_x):
-                dx_ij = dx_i0[j] - dx_i0[j-1]
-                dx_i[j] = dx_ij
+            dx_i = self.integrate_one_degree(dx_i0)
             dx_i0 = dx_i[:]
-        dx = dx_i
+        dx[d:] = dx_i[:]
         return dx
 
     def cal_acf(self, x):
