@@ -348,13 +348,7 @@ def test_t_statistic():
     ystl = Ystl()
     y = ystl.streamflow[:365]
     arch = Arch(x)
-    # t_y = arch.t_statistic(y_stationary, 3)
     t_y = arch.t_statistic(y_non_stationary, 3)
-    # t_y = arch.t_statistic(y, 3)
-    # print("t_y_stationary")
-    # print(t_y_stationary)
-    # print("t_y_non_stationary")
-    # print(t_non_stationary)
     print("t_y")
     print(t_y)
 # t_y

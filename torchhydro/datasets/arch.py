@@ -775,6 +775,34 @@ class Arch(object):
         dx[d:] = dx_i[:]
         return dx
 
+    def arima(
+        self,
+        x,
+        p: int = 0,
+        d: int = 0,
+        q: int = 0,
+    ):
+        """
+        Applied Time Series Analysis（4th edition） Yan Wang  p110
+        p, d, q
+        Parameters
+        ----------
+        x: time series
+        p: degree of autoregression model
+        d: degree of integration model
+        q: degree of moving average model
+
+        Returns
+        -------
+
+        """
+        if d > 0:
+            dx = self.integrate_d_degree(x, d)
+        else:
+            dx = x
+
+
+
 
     def mean_value_function(
         self,
