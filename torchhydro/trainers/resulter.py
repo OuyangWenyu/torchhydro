@@ -102,10 +102,19 @@ class Resulter:
         save_dir = self.result_dir
         flow_pred_file = os.path.join(save_dir, self.pred_name)
         flow_obs_file = os.path.join(save_dir, self.obs_name)
-        max_len = max(len(basin) for basin in pred.basin.values)
-        encoding = {"basin": {"dtype": f"U{max_len}"}}
-        pred.to_netcdf(flow_pred_file + ".nc", encoding=encoding)
-        obs.to_netcdf(flow_obs_file + ".nc", encoding=encoding)
+
+        if isinstance(pred, list) and isinstance(obs, list):
+            for i, (pred_i, obs_i) in enumerate(zip(pred, obs)):
+                # Calculate max_len for each dataset individually
+                max_len = max(len(basin) for basin in pred_i.basin.values)
+                encoding = {"basin": {"dtype": f"U{max_len}"}}
+                pred_i.to_netcdf(flow_pred_file + f"_{i+1}" + ".nc", encoding=encoding)
+                obs_i.to_netcdf(flow_obs_file + f"_{i+1}" + ".nc", encoding=encoding)
+        else:
+            max_len = max(len(basin) for basin in pred.basin.values)
+            encoding = {"basin": {"dtype": f"U{max_len}"}}
+            pred.to_netcdf(flow_pred_file + ".nc", encoding=encoding)
+            obs.to_netcdf(flow_obs_file + ".nc", encoding=encoding)
 
     def eval_result(self, preds_xr, obss_xr):
         # types of observations
@@ -124,6 +133,52 @@ class Resulter:
         #  Then evaluate the model metrics
         if type(fill_nan) is list and len(fill_nan) != len(target_col):
             raise ValueError("length of fill_nan must be equal to target_col's")
+
+        # Handle both single dataset and list of datasets
+        if isinstance(preds_xr, list) and isinstance(obss_xr, list):
+            # For list of datasets, evaluate each one separately
+            for i, (pred_i, obs_i) in enumerate(zip(preds_xr, obss_xr)):
+                self._evaluate_single_dataset(
+                    pred_i,
+                    obs_i,
+                    target_col,
+                    evaluation_metrics,
+                    basin_ids,
+                    test_path,
+                    fill_nan,
+                    suffix=f"_{i+1}",
+                )
+        else:
+            # For single dataset, evaluate as before
+            self._evaluate_single_dataset(
+                preds_xr,
+                obss_xr,
+                target_col,
+                evaluation_metrics,
+                basin_ids,
+                test_path,
+                fill_nan,
+            )
+
+        # Finally, try to explain model behaviour using shap
+        is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
+        if is_shap:
+            shap_summary_plot(self.model, self.traindataset, self.testdataset)
+            # deep_explain_model_summary_plot(self.model, test_data)
+            # deep_explain_model_heatmap(self.model, test_data)
+
+    def _evaluate_single_dataset(
+        self,
+        preds_xr,
+        obss_xr,
+        target_col,
+        evaluation_metrics,
+        basin_ids,
+        test_path,
+        fill_nan,
+        suffix="",
+    ):
+        """Helper method to evaluate a single dataset pair"""
         for i, col in enumerate(target_col):
             eval_log = {}
             obs = obss_xr[col].to_numpy()
@@ -152,7 +207,7 @@ class Resulter:
             df = pd.DataFrame(data, index=basin_ids)
 
             # Define the output file name based on the target variable
-            output_file = os.path.join(test_path, f"metric_{col}.csv")
+            output_file = os.path.join(test_path, f"metric_{col}{suffix}.csv")
 
             # Save the DataFrame to a CSV file
             df.to_csv(output_file, index_label="basin_id")
