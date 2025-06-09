@@ -373,7 +373,7 @@ class Arch(object):
         if n_x < 50:  # hydrology statistics p318
             m = int(n_x / 4) - 1
         else:
-            m = int(n_x / 4)
+            m = int(n_x / 1.3)
             if m < 10:
                 m = n_x - 10
         p = list(range(0, m))
@@ -404,7 +404,7 @@ class Arch(object):
             if n_x < 50:  # hydrology statistics p318
                 m = int(n_x / 4) - 1
             else:
-                m = int(n_x / 4)
+                m = int(n_x / 1.3)
                 if m < 10:
                     m = n_x - 10
             k = m  # the max degree of pacf
@@ -657,9 +657,12 @@ class Arch(object):
         # table_B_6.set_index("sample size T", inplace=True)
         case_i = case_names.index(case)
         sl_i = p.index(significance_level)
-        for i in range(1, len(T)):
+        for i in range(1, len(T)-1):
             if n_sample <= T[0]:
                 n_sample = T[0]
+                break
+            if n_sample > T[-2]:
+                n_sample = T[-1]
                 break
             if (n_sample > T[i-1]) and (n_sample <= T[i]):
                 n_sample = T[i]
