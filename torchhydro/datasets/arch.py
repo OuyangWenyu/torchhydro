@@ -307,7 +307,7 @@ class Arch(object):
         mean_y: Optional = None,
     ):
         """
-
+        correlation coefficient, R^2.
         Parameters
         ----------
         x
@@ -360,7 +360,7 @@ class Arch(object):
         x,
     ):
         """
-
+        autocorrelation function, acf.
         Parameters
         ----------
         x
@@ -388,6 +388,7 @@ class Arch(object):
         k: int = None,
     ):
         """
+        partial autocorrelation function, pacf.
         随机过程 p198
         Parameters
         ----------
@@ -647,10 +648,9 @@ class Arch(object):
             [-3.96, -3.66, -3.41, -3.12, -1.25, -0.94, -0.66, -0.33],
         ]
         data = np.array([case_1, case_2, case_4])
-        # case_names = ["case 1", "case 2", "case 4"]
-        sample_size_T = T
-        columns = p
-        index = pd.MultiIndex.from_product([case_names, sample_size_T])
+        # sample_size_T = T
+        # columns = p
+        # index = pd.MultiIndex.from_product([case_names, sample_size_T])
         # table_B_6 = pd.DataFrame(data=data, index=index, columns=columns)
         # table_B_6.columns = p
         # table_B_6.index.name = "sample size T"
@@ -775,12 +775,6 @@ class Arch(object):
         dx[d:] = dx_i[:]
         return dx
 
-
-    def cal_acf(self, x):
-        """acf, auto-correlation coefficient """
-        ps_x = pd.Series(x)
-        corr = ps_x.autocorr()
-        return corr
 
     def mean_value_function(
         self,
