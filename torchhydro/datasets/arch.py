@@ -44,7 +44,7 @@ class Arch(object):
         self.q = None  # degree of moving average
         self.d = None  # degree of integrate
         self.p0 = 0.05  # significance level of p_check
-        self.t_critical_table = self.generate_t_critical_table()  # critical table of t check statistic   Applied Time Series Analysis（4th edition） Yan Wang p228
+        self.t_critical_table = None  # critical table of t check statistic   Applied Time Series Analysis（4th edition） Yan Wang p228
         self.fi = None
         self.sigma = None
 
@@ -600,13 +600,18 @@ class Arch(object):
         -------
 
         """
-        rho, std_rho = self.adf_least_squares_estimation(x,p)
+        rho, std_rho = self.adf_least_squares_estimation(x, p)
         t = rho/std_rho
 
         return t
 
 
-    def generate_t_critical_table(self):
+    def generate_t_critical_table(
+        self,
+        case,
+        n_sample,
+        significance_level,
+    ):
         """
         Time Series Analysis  James D.Hamilton  p882 table B.6
         Returns
@@ -614,8 +619,9 @@ class Arch(object):
 
         """
         # table B.6
-        p = [0.01, 0.025, 0.05, 0.10, 0.90, 0.95, 0.975, 0.99]
+        case_names = ["case 1", "case 2", "case 4"]
         T = [25, 50, 100, 250, 500, "∞"]
+        p = [0.01, 0.025, 0.05, 0.10, 0.90, 0.95, 0.975, 0.99]
         case_1 = [
             [-2.66, -2.26, -1.95, -1.6, 0.92, 1.33, 1.7, 2.16],
             [-2.62, -2.25, -1.95, -1.61, 0.91, 1.31, 1.66, 2.08],
@@ -641,7 +647,7 @@ class Arch(object):
             [-3.96, -3.66, -3.41, -3.12, -1.25, -0.94, -0.66, -0.33],
         ]
         data = np.array([case_1, case_2, case_4])
-        case_names = ["case 1", "case 2", "case 4"]
+        # case_names = ["case 1", "case 2", "case 4"]
         sample_size_T = T
         columns = p
         index = pd.MultiIndex.from_product([case_names, sample_size_T])
@@ -649,8 +655,19 @@ class Arch(object):
         # table_B_6.columns = p
         # table_B_6.index.name = "sample size T"
         # table_B_6.set_index("sample size T", inplace=True)
+        case_i = case_names.index(case)
+        sl_i = p.index(significance_level)
+        for i in range(1, len(T)):
+            if n_sample <= T[0]:
+                n_sample = T[0]
+                break
+            if (n_sample > T[i-1]) and (n_sample <= T[i]):
+                n_sample = T[i]
+                break
+        sample_i = T.index(n_sample)
+        t_critical = data[case_i, sample_i, sl_i]
 
-        return data
+        return t_critical
 
     def get_t_critical(
         self,
@@ -664,12 +681,15 @@ class Arch(object):
         -------
 
         """
-        t_critical = self.t_critical_table[case, n_sample, significance_level]
+        t_critical = self.generate_t_critical_table(case, n_sample, significance_level)
         return t_critical
 
     def adf_test(
         self,
         x,
+        p,
+        case,
+        significance_level,
     ):
         """
         Augmented Dickey-Fuller Test
@@ -694,16 +714,12 @@ class Arch(object):
         # assumption
         H0 = True
         H1 = False
-        p = 3
+        # t_statistic
         t_statistic = self.t_statistic(x, p)
-        # case = "case_1"
-        case = 0
-        # p_ = 0.05  # significance level
-        p_ = 2
-        # n_x = len(x)
-        n_x = 1
-        t_critical = self.get_t_critical(case, n_x, p_)
-
+        # t_critical
+        n_x = len(x)
+        t_critical = self.get_t_critical(case, n_x, significance_level)
+        # test
         if t_statistic < t_critical:
             b_stability = H0
         else:
@@ -739,7 +755,7 @@ class Arch(object):
         d,
     ):
         """
-        one degree integration model
+        d degree integration model
         Parameters
         ----------
         x: time series
@@ -758,6 +774,7 @@ class Arch(object):
             dx_i0 = dx_i[:]
         dx[d:] = dx_i[:]
         return dx
+
 
     def cal_acf(self, x):
         """acf, auto-correlation coefficient """

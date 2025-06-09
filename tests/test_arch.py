@@ -369,8 +369,8 @@ def test_get_t_critical():
     arch = Arch(x)
     case = "case 1"
     p = 0.05
-    n_sample = 250
-    t_critical = arch.get_t_critical(0, 3, 2)
+    n_sample = 365
+    t_critical = arch.get_t_critical(case, n_sample, p)
     print("t_critical")
     print(t_critical)
 # t_critical
@@ -379,11 +379,13 @@ def test_get_t_critical():
 def test_adf_test():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 19
-    y_non_sstationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
+    y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
     ystl = Ystl()
-    y = ystl.streamflow[:31]
+    y = ystl.streamflow[:60]
     arch = Arch(x)
-    b_stability = arch.adf_test(y)
+    case = "case 1"
+    significance_level = 0.05
+    b_stability = arch.adf_test(y, 3, case, significance_level)
     print("b_stability")
     print(b_stability)
 # y_365
@@ -401,19 +403,46 @@ def test_adf_test():
 # y_31
 # b_stability
 # False
+# y_60
+# b_stability
+# False
 
 def test_integrate_d_degree():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 19
-    y_non_sstationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
+    y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
     ystl = Ystl()
-    y = ystl.streamflow[:31]
+    y = ystl.streamflow[:60]
     arch = Arch(x)
-    y_integrated = arch.integrate_d_degree(y_stationary, 2)
+    y_integrated = arch.integrate_d_degree(y, 1)
+    p = 3
+    case = "case 1"
+    significance_level = 0.05
+    b_stability = arch.adf_test(y_integrated, p, case, significance_level)
     print("y_integrated")
     print(y_integrated)
-# y_integrated  d=1
+    print("b_stability")
+    print(b_stability)
+# y_stationary   d=1
+# y_integrated
 # [ 0.  4. -2. -2.  4. -2. -2.  4. -2. -2.  4. -2. -2.  4. -2. -2.  4. -2. -2.]
-# y_integrated  d=2
+# b_stability
+# True
+
+# y_stationary   d=2
+# y_integrated
 # [ 0.  0. -6.  0.  6. -6.  0.  6. -6.  0.  6. -6.  0.  6. -6.  0.  6. -6. 0.]
 
+# y_non_sstationary  d=1
+# y_integrated
+# [ 0.  4. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.]
+# b_stability
+# False
+
+# y_non_sstationary  d=2
+# y_integrated
+# [ 0.  0. -6.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.]
+# b_stability
+# True
+
+# y_60 d=1
