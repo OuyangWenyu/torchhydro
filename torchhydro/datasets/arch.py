@@ -361,7 +361,7 @@ class Arch(object):
     ):
         """
         autocorrelation function, acf.
-        随机过程  8.2 模型的识别  p190
+        随机过程  8.2 模型的识别  p190  式（8.11）AR(p)自相关函数
         Parameters
         ----------
         x
@@ -390,7 +390,7 @@ class Arch(object):
     ):
         """
         partial autocorrelation function, pacf.
-        随机过程  8.2 模型的识别  p198
+        随机过程  8.2 模型的识别  p198  式（8.25）AR(p)偏相关函数
         Parameters
         ----------
         x
