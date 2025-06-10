@@ -784,17 +784,55 @@ class Arch(object):
         dx[d:] = dx_i[:]
         return dx
 
-    def arima(
+    def arma(
         self,
         x,
         e,
         p: int = 0,
-        d: int = 0,
         q: int = 0,
     ):
         """
         Applied Time Series Analysis（4th edition） Yan Wang  p110
-        p, d, q
+        p, q
+        Parameters
+        ----------
+        x: time series
+        e: time series
+        p: degree of autoregression model
+        q: degree of moving average model
+
+        Returns
+        -------
+
+        """
+        # ar and ma
+        # mean = np.mean(x)
+        fi = [0]*p  # coefficient of regression
+        ai = [0]*q  # coefficient of ma
+        ai[0] = 1
+        ar = 0
+        ma = 0
+        y_t = 0
+        for i in range(p):
+            ar_i = fi[i] * x[i]
+            ar = ar + ar_i
+        for i in range(q-1, 0, -1):
+            ma_i = - ai[i] * e[i]
+            ma = ma + ma_i
+        y_t = y_t + ar + ma   #
+
+        return y_t
+
+    def arima(
+        self,
+        x,
+        e,
+        p,
+        d,
+        q,
+    ):
+        """
+
         Parameters
         ----------
         x: time series
@@ -807,26 +845,15 @@ class Arch(object):
         -------
 
         """
+        n_x = len(x)
         # integrate
         if d > 0:
             dx = self.integrate_d_degree(x, d)
         else:
             dx = x
-        # ar and ma
-        # mean = np.mean(x)
-        fi = [0]*p  # coefficient of regression
-        ai = [0]*q  # coefficient of ma
-        ai[0] = 1
-        ar = 0
-        ma = 0
-        y_t = 0
-        for i in range(p):
-            ar_i = fi[i] * dx[i]
-            ar = ar + ar_i
-        for i in range(q-1, 0, -1):
-            ma_i = - ai[i] * e[i]
-            ma = ma + ma_i
-        y_t = y_t + ar + ma   #
+        y_t = [0]*len(x)
+        for i in range(n_x):
+            y_t[i] = self.arma(dx[i:i+p], e[i:i+q], p, q)
 
         return y_t
 
@@ -845,22 +872,13 @@ class Arch(object):
         -------
 
         """
-        n_x = len(x)
-        x_residual = np.zeros(n_x)
         p = 0
         d = 0
         q = 0
-        for i in range(n_x):
-            y_i = self.arima(x[i:i+p], e[i:i+q], p, d, q)
-            x_residual[i] = x[i] - y_i
+        y_t = self.arima(x, e, q, d, p)
+        x_residual = x - y_t
 
         return x_residual
-
-
-
-
-
-
 
     def mean_value_function(
         self,
