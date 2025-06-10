@@ -903,21 +903,18 @@ class Arch(object):
         -------
 
         """
-        para = [0]*(p+q)
-        para_p = para[:p]
-        para_q = para[p:]
-        y = self.arma(x, e, para_p, para_q, p, q)
-
-        # construct matrix
         n_x = len(x)
 
         # construct matrix
-        xf = x[p+q:]
+        xf = x[p:]
         xf = np.transpose(xf)
         xp = []
-        for i in range(n_x-p-q):
-            xp_i = x[i:i+p+q]
-            xp_i.reverse()
+        for i in range(n_x-p):
+            ar_i = x[i:i+p]
+            ar_i.reverse()
+            ma_i = e[i:i+q+1]
+            ma_i.reverse()
+            xp_i = ar_i + ma_i
             xp.append(xp_i)
 
         # matrix operations, calculate the coefficient matrix.
