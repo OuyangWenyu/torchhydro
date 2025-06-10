@@ -788,10 +788,13 @@ class Arch(object):
         self,
         x,
         e,
+        fi,
+        a,
         p: int = 0,
         q: int = 0,
     ):
         """
+        arma model, single step.
         Applied Time Series Analysis（4th edition） Yan Wang  p110
         p, q
         Parameters
@@ -807,18 +810,22 @@ class Arch(object):
         """
         # ar and ma
         # mean = np.mean(x)
-        fi = [0]*p  # coefficient of regression
-        ai = [0]*q  # coefficient of ma
-        ai[0] = 1
-        ar = 0
-        ma = 0
+        # fi = [0]*p  # coefficient of regression
+        # a_ = [0]*q  # coefficient of ma
+        # a_[0] = 1
+        # a_[1:] = a[:]
         y_t = 0
+        # ar
+        ar = 0
         for i in range(p):
             ar_i = fi[i] * x[i]
             ar = ar + ar_i
-        for i in range(q-1, 0, -1):
-            ma_i = - ai[i] * e[i]
+        # ma
+        ma = e[-1]
+        for i in range(q-2, 0, -1):
+            ma_i = - a[q-i] * e[i]
             ma = ma + ma_i
+        # arma
         y_t = y_t + ar + ma   #
 
         return y_t
@@ -832,7 +839,7 @@ class Arch(object):
         q,
     ):
         """
-
+        ARIMA model
         Parameters
         ----------
         x: time series
@@ -851,11 +858,43 @@ class Arch(object):
             dx = self.integrate_d_degree(x, d)
         else:
             dx = x
-        y_t = [0]*len(x)
+        # center
+        mean_dx = np.mean(dx)
+        dx = dx - mean_dx
+        std_x = np.std(x)  # todo:
+        # arma
+        y_t = [0]*n_x
         for i in range(n_x):
             y_t[i] = self.arma(dx[i:i+p], e[i:i+q], p, q)
 
         return y_t
+
+    def arma_least_squares_estimation(
+        self,
+        x,
+        e,
+        p: int = 0,
+        q: int = 0,
+    ):
+        """
+        least squares estimation for parameters of arma model.
+        Parameters
+        ----------
+        x: time series
+        e: time series
+        p: degree of autoregression model
+        q: degree of moving average model
+
+        Returns
+        -------
+
+        """
+        para = [0]*(p+q)
+        para_p = para[:p]
+        para_q = para[p:]
+        y = self.arma(x, e, para_p, para_q, p, q)
+
+
 
     def x_residual(
         self,
