@@ -361,6 +361,7 @@ class Arch(object):
     ):
         """
         autocorrelation function, acf.
+        随机过程  8.2 模型的识别  p190
         Parameters
         ----------
         x
@@ -371,12 +372,12 @@ class Arch(object):
         """
         n_x = len(x)
         if n_x < 50:  # hydrology statistics p318
-            m = int(n_x / 4) - 1
+            m = int(n_x / 1.3) - 1
         else:
             m = int(n_x / 1.3)
             if m < 10:
                 m = n_x - 10
-        p = list(range(0, m))
+        p = list(range(0, m+1))
         acf = [0]*len(p)
         for i in range(len(p)):
             acf[i] = self.autocorrelation_coefficient(x, p[i])
@@ -389,7 +390,7 @@ class Arch(object):
     ):
         """
         partial autocorrelation function, pacf.
-        随机过程 p198
+        随机过程  8.2 模型的识别  p198
         Parameters
         ----------
         x
@@ -402,7 +403,7 @@ class Arch(object):
         if k is None:
             n_x = len(x)
             if n_x < 50:  # hydrology statistics p318
-                m = int(n_x / 4) - 1
+                m = int(n_x / 1.3) - 1
             else:
                 m = int(n_x / 1.3)
                 if m < 10:
@@ -420,12 +421,19 @@ class Arch(object):
                 else:
                     R[i, j] = r_k[i-j]
                     kk = kk + 1
-        r_k_ = np.transpose(r_k)
+        r_k_ = r_k[1:]
+        r_k_ = np.transpose(r_k_)
         try:
             R_1 = np.linalg.inv(R)
         except np.linalg.LinAlgError:
             raise np.linalg.LinAlgError("Singular matrix")
         pacf_k = np.matmul(R_1, r_k_)
+        # add 0 degree
+        pacf = np.zeros(k+1)
+        pacf[0] = 1
+        pacf[1:] = pacf_k[:]
+
+        # todo:
 
         return pacf_k, R
 
