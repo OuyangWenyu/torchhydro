@@ -752,11 +752,14 @@ class Arch(object):
         """
         n_x = len(x)
         dx = np.zeros(n_x-1)
+        tx = np.zeros(n_x-1)  # trend
         for i in range(1, n_x):
             dx_i = x[i] - x[i-1]
+            tx_i = x[i-1]
             dx[i-1] = dx_i
+            tx[i-1] = tx_i
 
-        return dx
+        return dx, tx
 
     def integrate_d_degree(
         self,
@@ -776,20 +779,23 @@ class Arch(object):
         """
         n_x = len(x)
         dx = np.zeros(n_x)
+        tx = np.zeros(n_x)  # trend
         dx_i0 = x
         dx_i = None
         for i in range(d):
-            dx_i = self.integrate_one_degree(dx_i0)
+            dx_i, tx_i = self.integrate_one_degree(dx_i0)
             dx_i0 = dx_i[:]
+            tx[i+1:] = tx[i+1:] + tx_i[:]
         dx[d:] = dx_i[:]
-        return dx
+
+        return dx, tx
 
     def arma(
         self,
         x,
         e,
-        fi,
-        a,
+        phi,
+        theat,
         p: int = 0,
         q: int = 0,
     ):
@@ -801,6 +807,8 @@ class Arch(object):
         ----------
         x: time series
         e: time series
+        phi: parameters of AR(p) model
+        theat: parameters of MA(q) model
         p: degree of autoregression model
         q: degree of moving average model
 
@@ -818,12 +826,12 @@ class Arch(object):
         # ar
         ar = 0
         for i in range(p):
-            ar_i = fi[i] * x[i]
+            ar_i = phi[i] * x[p-1-i]
             ar = ar + ar_i
         # ma
         ma = e[-1]
-        for i in range(q-2, 0, -1):
-            ma_i = - a[q-i] * e[i]
+        for i in range(q):
+            ma_i = - theat[i] * e[q-2-i]
             ma = ma + ma_i
         # arma
         y_t = y_t + ar + ma   #
@@ -834,9 +842,11 @@ class Arch(object):
         self,
         x,
         e,
-        p,
-        d,
-        q,
+        phi,
+        theat,
+        p: int = 0,
+        d: int = 0,
+        q: int = 0,
     ):
         """
         ARIMA model
@@ -855,17 +865,21 @@ class Arch(object):
         n_x = len(x)
         # integrate
         if d > 0:
-            dx = self.integrate_d_degree(x, d)
+            dx, tx = self.integrate_d_degree(x, d)
         else:
-            dx = x
+            dx = x  # integration
+            tx = [0]*n_x  # trend
         # center
         mean_dx = np.mean(dx)
         dx = dx - mean_dx
         std_x = np.std(x)  # todo:
         # arma
         y_t = [0]*n_x
+        y_t[:p] = dx[:p]
         for i in range(n_x):
-            y_t[i] = self.arma(dx[i:i+p], e[i:i+q], p, q)
+            y_t[i+p] = self.arma(dx[i:i+p], e[i:i+q+1], phi, theat, p, q)
+        # arma + i
+        y_t  = y_t + tx
 
         return y_t
 
