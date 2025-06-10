@@ -1,4 +1,4 @@
-
+import numpy as np
 from hydrodataset import CamelsYstl
 from torchhydro.datasets.arch import Arch
 
@@ -502,3 +502,16 @@ def test_integrate_d_degree():
 #  -4.000e+00 -1.180e+01 -1.440e+01 -2.210e+01 -2.050e+01 -2.060e+01]
 # b_stability
 # True
+
+
+def test_arima():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 19
+    y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
+    e = np.random(9)
+    ystl = Ystl()
+    y = ystl.streamflow[:60]
+    arch = Arch(x)
+    y_integrated = arch.arima(y, e, 2, 1, 2)
+    print("y_integrated")
+    print(y_integrated)

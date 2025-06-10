@@ -433,8 +433,6 @@ class Arch(object):
         pacf[0] = 1
         pacf[1:] = pacf_k[:]
 
-        # todo:
-
         return pacf_k, R
 
     def p_check(
@@ -789,6 +787,7 @@ class Arch(object):
     def arima(
         self,
         x,
+        e,
         p: int = 0,
         d: int = 0,
         q: int = 0,
@@ -799,6 +798,7 @@ class Arch(object):
         Parameters
         ----------
         x: time series
+        e: time series
         p: degree of autoregression model
         d: degree of integration model
         q: degree of moving average model
@@ -807,10 +807,57 @@ class Arch(object):
         -------
 
         """
+        # integrate
         if d > 0:
             dx = self.integrate_d_degree(x, d)
         else:
             dx = x
+        # ar and ma
+        # mean = np.mean(x)
+        fi = [0]*p  # coefficient of regression
+        ai = [0]*q  # coefficient of ma
+        ai[0] = 1
+        ar = 0
+        ma = 0
+        y_t = 0
+        for i in range(p):
+            ar_i = fi[i] * dx[i]
+            ar = ar + ar_i
+        for i in range(q-1, 0, -1):
+            ma_i = - ai[i] * e[i]
+            ma = ma + ma_i
+        y_t = y_t + ar + ma   #
+
+        return y_t
+
+    def x_residual(
+        self,
+        x,
+        e,
+    ):
+        """
+        residual of ARIMA model.
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        x_residual = np.zeros(n_x)
+        p = 0
+        d = 0
+        q = 0
+        for i in range(n_x):
+            y_i = self.arima(x[i:i+p], e[i:i+q], p, d, q)
+            x_residual[i] = x[i] - y_i
+
+        return x_residual
+
+
+
 
 
 
