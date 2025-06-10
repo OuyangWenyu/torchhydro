@@ -894,6 +894,22 @@ class Arch(object):
         para_q = para[p:]
         y = self.arma(x, e, para_p, para_q, p, q)
 
+        # construct matrix
+        n_x = len(x)
+
+        # construct matrix
+        xf = x[p+q:]
+        xf = np.transpose(xf)
+        xp = []
+        for i in range(n_x-p-q):
+            xp_i = x[i:i+p+q]
+            xp_i.reverse()
+            xp.append(xp_i)
+
+        # matrix operations, calculate the coefficient matrix.
+        a, R_2 = self.ordinary_least_squares(xp, xf)
+
+        return a, R_2
 
 
     def x_residual(
