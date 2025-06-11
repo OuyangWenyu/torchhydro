@@ -1087,22 +1087,28 @@ class Arch(object):
         self,
         phi,
         theta,
-        B_1,
+        a,
     ):
         """
         significance test for parameters of ARIMA model.    t test
+        p78
         Parameters
         ----------
         phi
         theta
-        B_1
+        a
 
         Returns
         -------
 
         """
-        m = len(phi + theta)
-
+        p = len(phi)
+        q = len(theta)
+        m = p + q
+        n = 0
+        a_phi = a[:p]
+        a_theta = a[p:]
+        t = np.sqrt(n-m)
 
 
 
