@@ -672,6 +672,15 @@ def test_LB_statistic():
     y = ystl.streamflow[:60]
     arch = Arch(x)
     m = 12
-    LB = arch.LB_statistic(y_residual, m)
+    LB, acf = arch.LB_statistic(y_residual, m)
     print("LB")
     print(LB)
+    print("acf")
+    print(acf)
+# LB
+# 348.2848335608972
+# acf
+# [5.55555556e-02 1.02144883e-02 3.63707984e-03 2.36229051e-02
+#  1.82934155e-02 7.85797333e-03 1.34542750e-02 1.65872223e-02
+#  5.31007587e-02 3.48958256e-02 3.09659815e-04 3.59014562e-02
+#  5.99463704e-01]

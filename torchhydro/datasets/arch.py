@@ -598,13 +598,13 @@ class Arch(object):
         # return a, R_2, s_a0
         return rho, s_rho
 
-    def t_statistic(
+    def tau_statistic(
         self,
         x,
         p,
     ):
         """
-        the t statistic.
+        the tau statistic.
         Parameters
         ----------
         x: time series.
@@ -615,9 +615,9 @@ class Arch(object):
 
         """
         rho, std_rho = self.adf_least_squares_estimation(x, p)
-        t = rho/std_rho
+        tau = rho/std_rho
 
-        return t
+        return tau
 
 
     def generate_t_critical_table(
@@ -681,11 +681,11 @@ class Arch(object):
                 n_sample = T[i]
                 break
         sample_i = T.index(n_sample)
-        t_critical = data[case_i, sample_i, sl_i]
+        tau_critical = data[case_i, sample_i, sl_i]
 
-        return t_critical
+        return tau_critical
 
-    def get_t_critical(
+    def get_tau_critical(
         self,
         case,
         n_sample,
@@ -697,8 +697,8 @@ class Arch(object):
         -------
 
         """
-        t_critical = self.generate_t_critical_table(case, n_sample, significance_level)
-        return t_critical
+        tau_critical = self.generate_t_critical_table(case, n_sample, significance_level)
+        return tau_critical
 
     def adf_test(
         self,
@@ -730,13 +730,13 @@ class Arch(object):
         # assumption
         H0 = True
         H1 = False
-        # t_statistic
-        t_statistic = self.t_statistic(x, p)
+        # tau_statistic
+        tau_statistic = self.tau_statistic(x, p)
         # t_critical
         n_x = len(x)
-        t_critical = self.get_t_critical(case, n_x, significance_level)
+        t_critical = self.get_tau_critical(case, n_x, significance_level)
         # test
-        if t_statistic < t_critical:
+        if tau_statistic < t_critical:
             b_stability = H0
         else:
             b_stability = H1
@@ -969,13 +969,14 @@ class Arch(object):
     def LB_statistic(
         self,
         residual,
-        m,
+        m: Optional = None,
     ):
         """
         LB statistic of ARIMA model.
         Parameters
         ----------
         residual
+        m
 
         Returns
         -------
@@ -989,7 +990,7 @@ class Arch(object):
         # LB(Ljung-Box) statistic
         LB = n_residual * (n_residual + 2) * np.sum(acf)
 
-        return LB
+        return LB, acf
 
     def get_chi_critical(
         self,
@@ -1083,7 +1084,7 @@ class Arch(object):
 
         return b_
 
-    def test_parameters(
+    def t_statistic(
         self,
         phi,
         theta,
@@ -1109,6 +1110,57 @@ class Arch(object):
         a_phi = a[:p]
         a_theta = a[p:]
         t = np.sqrt(n-m)
+
+        t_statistic = t
+
+        return t_statistic
+
+    def get_t_statistic(
+        self,
+    ):
+        """
+
+        Returns
+        -------
+
+        """
+
+
+    def test_parameters(
+        self,
+        phi,
+        theta,
+        a,
+    ):
+        """
+
+        Parameters
+        ----------
+        phi
+        theta
+        a
+
+        Returns
+        -------
+
+        """
+        t_statistic = self.t_statistic(phi, theta, a)
+
+        t_critical = self.get_t_statistic()
+
+        # assumption
+        H0 = True
+        H1 = False
+
+        b_ = []
+        for i in range(len(t_statistic)):
+            if t_statistic[i] < t_critical[i]:
+                b_i = H0
+            else:
+                b_i = H1
+            b_.append(b_i)
+
+        return b_
 
 
 
