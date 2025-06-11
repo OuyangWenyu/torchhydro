@@ -500,6 +500,7 @@ class Arch(object):
         A,
         Y,
         b_s_a: Optional = False,
+        b_B_1: Optional = False,
     ):
         """
         ordinary least squares, ols.
@@ -546,6 +547,9 @@ class Arch(object):
             se_a0 = std_e / (np.sqrt(n_y) * std_x * np.sqrt(1 - x_R_2))  # standard error of a[0]
 
             return a, R_2, se_a0
+
+        if b_B_1:
+            return a, R_2, B_1
 
         return a, R_2
 
@@ -834,7 +838,10 @@ class Arch(object):
         # ma
         ma = e[-1]
         for i in range(q):
-            ma_i = - theta[i] * e[q-2-i]
+            try:
+                ma_i = - theta[i] * e[q-1-i]
+            except IndexError:
+                raise IndexError("index 1 is out of bounds for axis 0 with size 1")
             ma = ma + ma_i
         # arma
         y_t = y_t + ar + ma   #
@@ -926,12 +933,12 @@ class Arch(object):
             xp.append(xp_i)
 
         # matrix operations, calculate the coefficient matrix.
-        a, R_2 = self.ordinary_least_squares(xp, xf)
+        a, R_2, B_1 = self.ordinary_least_squares(xp, xf, b_B_1=True)
 
         phi = a[:p]
         theat = -a[p:]
 
-        return phi, theat, R_2
+        return phi, theat, R_2, B_1
 
 
     def x_residual(
@@ -952,12 +959,12 @@ class Arch(object):
         -------
 
         """
-        phi, theta, R_2 = self.arma_least_squares_estimation(x, e, p, q)
-        y_t = self.arima(x, e, phi, theta, q, d, p)
+        phi, theta, R_2, B_1 = self.arma_least_squares_estimation(x, e, p, q)
+        y_t = self.arima(x, e, phi, theta, p, d, q)
 
         x_residual = x - y_t
 
-        return x_residual
+        return x_residual, y_t, R_2, B_1
 
     def LB_statistic(
         self,
@@ -1076,6 +1083,25 @@ class Arch(object):
 
         return b_
 
+    def test_parameters(
+        self,
+        phi,
+        theta,
+        B_1,
+    ):
+        """
+        significance test for parameters of ARIMA model.    t test
+        Parameters
+        ----------
+        phi
+        theta
+        B_1
+
+        Returns
+        -------
+
+        """
+        m = len(phi + theta)
 
 
 
