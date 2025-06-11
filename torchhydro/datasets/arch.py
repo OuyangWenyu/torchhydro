@@ -358,6 +358,7 @@ class Arch(object):
     def autocorrelation_function(
         self,
         x,
+        m: int = None,
     ):
         """
         autocorrelation function, acf.
@@ -365,18 +366,20 @@ class Arch(object):
         Parameters
         ----------
         x
+        m
 
         Returns
         -------
 
         """
-        n_x = len(x)
-        if n_x < 50:  # hydrology statistics p318
-            m = int(n_x / 1.3) - 1
-        else:
-            m = int(n_x / 1.3)
-            if m < 10:
-                m = n_x - 10
+        if m is None:
+            n_x = len(x)
+            if n_x < 50:  # hydrology statistics p318
+                m = int(n_x / 1.3) - 1
+            else:
+                m = int(n_x / 1.3)
+                if m < 10:
+                    m = n_x - 10
         p = list(range(0, m+1))
         acf = [0]*len(p)
         for i in range(len(p)):
@@ -752,12 +755,13 @@ class Arch(object):
         """
         n_x = len(x)
         dx = np.zeros(n_x-1)
-        tx = np.zeros(n_x-1)  # trend
+        tx = np.zeros(n_x)  # trend
+        tx[0] = x[0]
         for i in range(1, n_x):
             dx_i = x[i] - x[i-1]
             tx_i = x[i-1]
             dx[i-1] = dx_i
-            tx[i-1] = tx_i
+            tx[i] = tx_i
 
         return dx, tx
 
@@ -778,15 +782,15 @@ class Arch(object):
 
         """
         n_x = len(x)
-        dx = np.zeros(n_x)
+        dx = np.zeros(n_x-d)
         tx = np.zeros(n_x)  # trend
         dx_i0 = x
         dx_i = None
         for i in range(d):
             dx_i, tx_i = self.integrate_one_degree(dx_i0)
             dx_i0 = dx_i[:]
-            tx[i+1:] = tx[i+1:] + tx_i[:]
-        dx[d:] = dx_i[:]
+            tx[i:] = tx[i:] + tx_i[:]
+        dx = dx_i[:]
 
         return dx, tx
 
@@ -816,12 +820,6 @@ class Arch(object):
         -------
 
         """
-        # ar and ma
-        # mean = np.mean(x)
-        # fi = [0]*p  # coefficient of regression
-        # a_ = [0]*q  # coefficient of ma
-        # a_[0] = 1
-        # a_[1:] = a[:]
         y_t = 0
         # ar
         ar = 0
@@ -875,11 +873,12 @@ class Arch(object):
         std_x = np.std(x)  # todo:
         # arma
         y_t = [0]*n_x
-        y_t[:p] = dx[:p]
-        for i in range(n_x):
-            y_t[i+p] = self.arma(dx[i:i+p], e[i:i+q+1], phi, theat, p, q)
+        y_t[d:d+p] = dx[:p]
+        for i in range(n_x-d):
+            y_t[i+d+p] = self.arma(dx[i:i+p], e[i:i+q+1], phi, theat, p, q)
         # arma + i
-        y_t  = y_t + tx
+        y_t[d:] = y_t[d:] + mean_dx
+        y_t = y_t + tx
 
         return y_t
 
@@ -941,10 +940,60 @@ class Arch(object):
         p = 0
         d = 0
         q = 0
-        y_t = self.arima(x, e, q, d, p)
+        a, R_2 = self.arma_least_squares_estimation(x, e, p, q)
+        phi = a[:p]
+        theat = a[p:]
+        y_t = self.arima(x, e, phi, theat, q, d, p)
+
         x_residual = x - y_t
 
         return x_residual
+
+    def LB_statistic(
+        self,
+        residual,
+        m,
+    ):
+        """
+        LB statistic of ARIMA model.
+        Parameters
+        ----------
+        residual
+
+        Returns
+        -------
+
+        """
+        n_residual = len(residual)
+        acf = self.autocorrelation_function(residual, m)
+        acf = np.power(acf, 2)
+        for i in range(m):
+            acf[i] = acf[i] / (n_residual - (i + 1))
+        # LB(Ljung-Box) statistic
+        LB = n_residual * (n_residual + 2) * np.sum(acf)
+
+        return LB
+
+    def test_arima(
+        self,
+        residual,
+        m,
+    ):
+        """
+        significance test of ARIMA model.
+        Parameters
+        ----------
+        residual
+        m
+
+        Returns
+        -------
+
+        """
+        LB = self.LB_statistic(residual, m)
+
+
+
 
     def mean_value_function(
         self,

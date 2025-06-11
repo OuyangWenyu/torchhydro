@@ -322,14 +322,17 @@ def test_least_squares_fit():
     # y = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31]  # 17
     y = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 17
     y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  #
+    y_non_stationary_integrated = [0., 0., -6., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8.]
     arch = Arch(x)
-    fi = arch.ar_least_squares_estimation(y_non_stationary, 3)
+    fi = arch.ar_least_squares_estimation(y_non_stationary_integrated, 2)
     print("fi")
     print(fi)
 # fi
 # [0.42583249 0.3259334 ]
 # fi_y_non_stationary
 # [0.15244528 1.01185391]
+# fi_y_non_stationary_integrated
+# (array([-1.30116329, -0.30504093]), 0.9671246321660794)
 
 def test_adf_least_squares():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]  # 17
@@ -457,13 +460,15 @@ def test_integrate_d_degree():
     ystl = Ystl()
     y = ystl.streamflow[:60]
     arch = Arch(x)
-    y_integrated = arch.integrate_d_degree(y, 1)
+    y_integrated, y_trend = arch.integrate_d_degree(y_non_stationary, 2)
     p = 3
     case = "case 1"
     significance_level = 0.05
     b_stability = arch.adf_test(y_integrated, p, case, significance_level)
     print("y_integrated")
     print(y_integrated)
+    print("y_trend")
+    print(y_trend)
     print("b_stability")
     print(b_stability)
 # y_stationary   d=1
@@ -476,13 +481,13 @@ def test_integrate_d_degree():
 # y_integrated
 # [ 0.  0. -6.  0.  6. -6.  0.  6. -6.  0.  6. -6.  0.  6. -6.  0.  6. -6. 0.]
 
-# y_non_sstationary  d=1
+# y_non_stationary  d=1
 # y_integrated
 # [ 0.  4. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.]
 # b_stability
 # False
 
-# y_non_sstationary  d=2
+# y_non_stationary  d=2
 # y_integrated
 # [ 0.  0. -6.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.]
 # b_stability
@@ -502,6 +507,14 @@ def test_integrate_d_degree():
 #  -4.000e+00 -1.180e+01 -1.440e+01 -2.210e+01 -2.050e+01 -2.060e+01]
 # b_stability
 # True
+
+#y_non_stationary
+# y_integrated  d=1
+# [ 4. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.]
+# y_trend
+# [ 1.  1.  5.  3.  9.  7. 13. 11. 17. 15. 21. 19. 25. 23. 29. 27. 33. 31. 37.]
+# b_stability
+# False
 
 
 def test_arma():
@@ -548,7 +561,7 @@ def test_arima():
     ystl = Ystl()
     y = ystl.streamflow[:60]
     arch = Arch(x)
-    phi = [0.15244528, 1.01185391]
+    phi = [-1.30116329, -0.30504093]
     theat = [0.5, 0.5]
     p = 2
     d = 2
@@ -556,3 +569,22 @@ def test_arima():
     y_arima = arch.arima(y_non_stationary, e, phi, theat, p, d, q)
     print("y_arima")
     print(y_arima)
+
+def test_arma_least_squares_estimation():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
+    y_non_stationary_integrated = [-6.,  8., -8.,  8., -8.,  8., -8.,  8., -8.,  8., -8.,  8., -8.,  8., -8.,  8., -8.]
+    np.random.seed(1)
+    mean = 0
+    std_dev = 1
+    e = np.random.normal(mean, std_dev, size=17)
+    ystl = Ystl()
+    y = ystl.streamflow[:60]
+    arch = Arch(x)
+    p = 2
+    q = 2
+    a, R_2 = arch.arma_least_squares_estimation(y_non_stationary_integrated, e, p, q)
+    print("a")
+    print(a)
+    print("R_2")
+    print(R_2)
