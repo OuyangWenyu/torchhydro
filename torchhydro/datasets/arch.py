@@ -980,7 +980,7 @@ class Arch(object):
         m,
     ):
         """
-        significance test of ARIMA model.
+        significance test of ARIMA model.  chi-square test
         Parameters
         ----------
         residual
@@ -991,6 +991,20 @@ class Arch(object):
 
         """
         LB = self.LB_statistic(residual, m)
+
+        chi_critical = 0
+
+        # assumption
+        H0 = True
+        H1 = False
+
+        if LB < chi_critical:
+            b_ = H0
+        else:
+            b_ = H1
+
+        return b_
+
 
 
 
