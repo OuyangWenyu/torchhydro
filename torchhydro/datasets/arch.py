@@ -754,14 +754,20 @@ class Arch(object):
 
         """
         n_x = len(x)
-        dx = np.zeros(n_x-1)
+        dx = np.zeros(n_x)
         tx = np.zeros(n_x)  # trend
         tx[0] = x[0]
-        for i in range(1, n_x):
-            dx_i = x[i] - x[i-1]
-            tx_i = x[i-1]
-            dx[i-1] = dx_i
-            tx[i] = tx_i
+        for i in range(0, n_x):
+            if i == 0:
+                dx_i = x[i] - 0
+                tx_i = 0
+                dx[i] = dx_i
+                tx[i] = tx_i
+            else:
+                dx_i = x[i] - x[i-1]
+                tx_i = x[i-1]
+                dx[i] = dx_i
+                tx[i] = tx_i
 
         return dx, tx
 
@@ -782,14 +788,13 @@ class Arch(object):
 
         """
         n_x = len(x)
-        dx = np.zeros(n_x-d)
         tx = np.zeros(n_x)  # trend
         dx_i0 = x
         dx_i = None
         for i in range(d):
             dx_i, tx_i = self.integrate_one_degree(dx_i0)
             dx_i0 = dx_i[:]
-            tx[i:] = tx[i:] + tx_i[:]
+            tx = tx + tx_i[:]
         dx = dx_i[:]
 
         return dx, tx
@@ -873,11 +878,12 @@ class Arch(object):
         std_x = np.std(x)  # todo:
         # arma
         y_t = [0]*n_x
-        y_t[d:d+p] = dx[:p]
-        for i in range(n_x-d):
-            y_t[i+d+p] = self.arma(dx[i:i+p], e[i:i+q+1], phi, theat, p, q)
+        start = max(p, q)
+        y_t[:start] = dx[:start]
+        for i in range(start, n_x):
+            y_t[i] = self.arma(dx[i-p:i], e[i-q:i+1], phi, theat, p, q)
         # arma + i
-        y_t[d:] = y_t[d:] + mean_dx
+        y_t = y_t + mean_dx
         y_t = y_t + tx
 
         return y_t
@@ -905,13 +911,16 @@ class Arch(object):
         n_x = len(x)
 
         # construct matrix
-        xf = x[p:]
+        start = max(p, q)
+        xf = x[start:]
+        ef = e[start:]
+        xf = xf - ef
         xf = np.transpose(xf)
         xp = []
-        for i in range(n_x-p):
-            ar_i = x[i:i+p]
+        for i in range(start, n_x):
+            ar_i = x[i-p:i]
             ar_i.reverse()
-            ma_i = e[i:i+q+1]
+            ma_i = e[i-q:i]
             ma_i.reverse()
             xp_i = ar_i + ma_i
             xp.append(xp_i)
@@ -919,7 +928,10 @@ class Arch(object):
         # matrix operations, calculate the coefficient matrix.
         a, R_2 = self.ordinary_least_squares(xp, xf)
 
-        return a, R_2
+        phi = a[:p]
+        theat = -a[p:]
+
+        return phi, theat, R_2
 
 
     def x_residual(
@@ -973,6 +985,66 @@ class Arch(object):
         LB = n_residual * (n_residual + 2) * np.sum(acf)
 
         return LB
+
+    def get_chi_critical(
+        self,
+        t,
+        significance_level,
+        n_sample,
+    ):
+        """
+
+        Parameters
+        ----------
+        t
+        significance_level
+        n_sample
+
+        Returns
+        -------
+
+        """
+        T = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+        p = [0.01, 0.05, 0.10]
+        data = [
+            [-2.66, -2.26, -1.95, -1.6, 0.92, 1.33, 1.7, 2.16],
+            [-2.62, -2.25, -1.95, -1.61, 0.91, 1.31, 1.66, 2.08],
+            [-2.6, -2.24, -1.95, -1.61, 0.90, 1.29, 1.64, 2.03],
+            [-2.58, -2.23, -1.95, -1.62, 0.89, 1.29, 1.63, 2.01],
+            [-2.58, -2.23, -1.95, -1.62, 0.89, 1.28, 1.62, 2.00],
+            [-2.58, -2.23, -1.95, -1.62, 0.89, 1.28, 1.62, 2.00],
+            [-3.75, -3.33, -3.00, -2.63, -0.37, 0.00, 0.34, 0.72],
+            [-3.58, -3.22, -2.93, -2.60, -0.40, -0.03, 0.29, 0.66],
+            [-3.51, -3.17, -2.89, -2.58, -0.42, -0.05, 0.26, 0.63],
+            [-3.46, -3.14, -2.88, -2.57, -0.42, -0.06, 0.24, 0.62],
+            [-3.44, -3.13, -2.87, -2.57, -0.43, -0.07, 0.24, 0.61],
+            [-3.43, -3.12, -2.86, -2.57, -0.44, -0.07, 0.23, 0.60],
+            [-4.38, -3.95, -3.60, -3.24, -1.14, -0.80, -0.50, -0.15],
+            [-4.15, -3.80, -3.50, -3.18, -1.19, -0.87, -0.58, -0.24],
+            [-4.04, -3.73, -3.45, -3.15, -1.22, -0.90, -0.62, -0.28],
+            [-3.99, -3.69, -3.43, -3.13, -1.23, -0.92, -0.64, -0.31],
+            [-3.98, -3.68, -3.42, -3.13, -1.24, -0.93, -0.65, -0.32],
+            [-3.96, -3.66, -3.41, -3.12, -1.25, -0.94, -0.66, -0.33],
+        ]
+        data = np.array(data)
+        t_i = T.index(t)
+        sl_i = p.index(significance_level)
+        for i in range(1, len(T)-1):
+            if n_sample <= T[0]:
+                n_sample = T[0]
+                break
+            if n_sample > T[-2]:
+                n_sample = T[-1]
+                break
+            if (n_sample > T[i-1]) and (n_sample <= T[i]):
+                n_sample = T[i]
+                break
+        sample_i = T.index(n_sample)
+        t_critical = data[t_i, sample_i, sl_i]
+
+        return t_critical
+
+
 
     def test_arima(
         self,
