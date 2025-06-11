@@ -610,6 +610,12 @@ def test_arma_least_squares_estimation():
 # [-1.16041343 -0.16318757  0.00737651  0.02189101 -0.00159451]
 # R_2
 # 0.9999814242337502
+# phi
+# [-1.12697744e+00  6.68924049e-04]
+# theat
+# [-0.06370455 -0.25621323]
+# R_2
+# 0.9949408988453096
 
 
 def test_x_residual():
@@ -625,7 +631,8 @@ def test_x_residual():
     y = ystl.streamflow[:60]
     arch = Arch(x)
     p = 2
+    d = 2
     q = 2
-    x_residual = arch.x_residual(y_non_stationary_integrated, e, p, q)
+    x_residual = arch.x_residual(y_non_stationary, e, p, d, q)
     print("x_residual")
     print(x_residual)

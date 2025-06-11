@@ -804,7 +804,7 @@ class Arch(object):
         x,
         e,
         phi,
-        theat,
+        theta,
         p: int = 0,
         q: int = 0,
     ):
@@ -834,7 +834,7 @@ class Arch(object):
         # ma
         ma = e[-1]
         for i in range(q):
-            ma_i = - theat[i] * e[q-2-i]
+            ma_i = - theta[i] * e[q-2-i]
             ma = ma + ma_i
         # arma
         y_t = y_t + ar + ma   #
@@ -846,7 +846,7 @@ class Arch(object):
         x,
         e,
         phi,
-        theat,
+        theta,
         p: int = 0,
         d: int = 0,
         q: int = 0,
@@ -881,7 +881,7 @@ class Arch(object):
         start = max(p, q)
         y_t[:start] = dx[:start]
         for i in range(start, n_x):
-            y_t[i] = self.arma(dx[i-p:i], e[i-q:i+1], phi, theat, p, q)
+            y_t[i] = self.arma(dx[i-p:i], e[i-q:i+1], phi, theta, p, q)
         # arma + i
         y_t = y_t + mean_dx
         y_t = y_t + tx
@@ -914,7 +914,7 @@ class Arch(object):
         start = max(p, q)
         xf = x[start:]
         ef = e[start:]
-        xf = xf - ef
+        xf = np.array(xf) - np.array(ef)
         xf = np.transpose(xf)
         xp = []
         for i in range(start, n_x):
@@ -938,6 +938,9 @@ class Arch(object):
         self,
         x,
         e,
+        p,
+        d,
+        q,
     ):
         """
         residual of ARIMA model.
@@ -949,13 +952,8 @@ class Arch(object):
         -------
 
         """
-        p = 0
-        d = 0
-        q = 0
-        a, R_2 = self.arma_least_squares_estimation(x, e, p, q)
-        phi = a[:p]
-        theat = a[p:]
-        y_t = self.arima(x, e, phi, theat, q, d, p)
+        phi, theta, R_2 = self.arma_least_squares_estimation(x, e, p, q)
+        y_t = self.arima(x, e, phi, theta, q, d, p)
 
         x_residual = x - y_t
 
@@ -1044,8 +1042,6 @@ class Arch(object):
 
         return t_critical
 
-
-
     def test_arima(
         self,
         residual,
@@ -1062,9 +1058,12 @@ class Arch(object):
         -------
 
         """
+        n_residual = len(residual)
         LB = self.LB_statistic(residual, m)
-
-        chi_critical = 0
+        t = m
+        significance_level = 0.05
+        n_sample = n_residual
+        chi_critical = self.get_chi_critical(t, significance_level, n_sample)
 
         # assumption
         H0 = True
