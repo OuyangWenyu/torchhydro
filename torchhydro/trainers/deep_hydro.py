@@ -442,9 +442,42 @@ class DeepHydro(DeepHydroInterface):
         xs, ys = zip(*batch)
         xs_lens = [x.shape[0] for x in xs]
         ys_lens = [y.shape[0] for y in ys]
+        
+        # 填充序列
         xs_pad = pad_sequence(xs, batch_first=True, padding_value=0)
         ys_pad = pad_sequence(ys, batch_first=True, padding_value=0)
-        return xs_pad, ys_pad, xs_lens, ys_lens
+        
+        # 生成输入序列的mask
+        # xs_mask: [batch_size, max_seq_len] 或 [batch_size, max_seq_len, 1]
+        batch_size = len(xs_lens)
+        max_xs_len = max(xs_lens)
+        max_ys_len = max(ys_lens)
+        
+        # 创建输入序列mask (True表示有效位置，False表示填充位置)
+        xs_mask = torch.zeros(batch_size, max_xs_len, dtype=torch.bool)
+        for i, length in enumerate(xs_lens):
+            xs_mask[i, :length] = True
+        
+        # 创建输出序列mask
+        ys_mask = torch.zeros(batch_size, max_ys_len, dtype=torch.bool)
+        for i, length in enumerate(ys_lens):
+            ys_mask[i, :length] = True
+        
+        # 如果需要用于LSTM的mask格式 [seq_len, batch_size, 1]
+        # 可以添加以下转换
+        xs_mask_lstm = xs_mask.transpose(0, 1).unsqueeze(-1).float()  # [max_seq_len, batch_size, 1]
+        ys_mask_lstm = ys_mask.transpose(0, 1).unsqueeze(-1).float()  # [max_seq_len, batch_size, 1]
+        
+        return {
+            'xs_pad': xs_pad,
+            'ys_pad': ys_pad,
+            'xs_lens': xs_lens,
+            'ys_lens': ys_lens,
+            'xs_mask': xs_mask,  # [batch_size, max_seq_len] 格式的mask
+            'ys_mask': ys_mask,  # [batch_size, max_seq_len] 格式的mask
+            'xs_mask_lstm': xs_mask_lstm,  # [max_seq_len, batch_size, 1] 格式，用于LSTM
+            'ys_mask_lstm': ys_mask_lstm   # [max_seq_len, batch_size, 1] 格式，用于LSTM
+        }
 
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         if mode == "infer":

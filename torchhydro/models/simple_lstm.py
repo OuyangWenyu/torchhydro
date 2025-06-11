@@ -37,22 +37,55 @@ class SimpleLSTM(nn.Module):
         -----------
         x : torch.Tensor
             Input tensor
-        *args : optional
-            If provided, args[0] should be sequence lengths for PackedSequence
+        **kwargs : dict
+            Optional keyword arguments:
+            - seq_lengths: sequence lengths for PackedSequence
+            - mask: mask tensor for manual masking (shape: [seq_len, batch_size, 1] or [batch_size, seq_len])
+            - use_manual_mask: bool, whether to prioritize manual masking over PackedSequence
         """
         x0 = F.relu(self.linearIn(x))
-
-        # if args is not None and args[0] is not None, use PackedSequence
-        if kwargs and kwargs["seq_lengths"] is not None:
-            seq_lengths = kwargs["seq_lengths"]
+        
+        # Extract parameters from kwargs
+        seq_lengths = kwargs.get("seq_lengths", None)
+        mask = kwargs.get("mask", None)
+        use_manual_mask = kwargs.get("use_manual_mask", False)
+        
+        # Determine processing method based on available parameters
+        if use_manual_mask and mask is not None:
+            # Use manual masking
+            out_lstm, (hn, cn) = self.lstm(x0)
+            
+            # Apply mask to LSTM output
+            # Ensure mask has the correct shape for broadcasting
+            if mask.dim() == 2:  # [batch_size, seq_len]
+                # Convert to [seq_len, batch_size, 1] for seq_first format
+                mask = mask.transpose(0, 1).unsqueeze(-1)
+            elif mask.dim() == 3 and mask.size(-1) != 1:
+                # If mask is [seq_len, batch_size, features], take only the first feature
+                mask = mask[:, :, :1]
+            
+            # Apply mask: set masked positions to zero
+            out_lstm = out_lstm * mask
+            
+        elif seq_lengths is not None and not use_manual_mask:
+            # Use PackedSequence (original behavior)
             packed_x = pack_padded_sequence(
                 x0, seq_lengths, batch_first=False, enforce_sorted=False
             )
             packed_out, (hn, cn) = self.lstm(packed_x)
             out_lstm, _ = pad_packed_sequence(packed_out, batch_first=False)
+            
         else:
-            # standard processing, directly use LSTM
+            # Standard processing without masking
             out_lstm, (hn, cn) = self.lstm(x0)
+            
+            # Apply mask if provided (even without use_manual_mask flag)
+            if mask is not None:
+                if mask.dim() == 2:  # [batch_size, seq_len]
+                    mask = mask.transpose(0, 1).unsqueeze(-1)
+                elif mask.dim() == 3 and mask.size(-1) != 1:
+                    mask = mask[:, :, :1]
+                out_lstm = out_lstm * mask
 
         out_lstm_dr = self.dropout(out_lstm)
         return self.linearOut(out_lstm_dr)
