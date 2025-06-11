@@ -70,8 +70,8 @@ def train_and_evaluate(cfgs: Dict):
         (deephydro.weight_path is not None and (continue_train or is_transfer_learning))
         or (deephydro.weight_path is None)
     )
-    if is_train:
-        deephydro.model_train()
+    # if is_train:
+    #     deephydro.model_train()
     preds, obss = deephydro.model_evaluate()
     resulter.save_cfg(deephydro.cfgs)
     # TODO: If preds and obss are 4-dimensional, this will run but metrics calculation for valid and test are not supported
