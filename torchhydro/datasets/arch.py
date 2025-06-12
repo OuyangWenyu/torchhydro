@@ -1264,7 +1264,9 @@ class Arch(object):
     def arch(
         self,
         residual_2,
+        omega,
         q,
+        alpha,
     ):
         """
         arch model.
@@ -1277,9 +1279,13 @@ class Arch(object):
         -------
 
         """
-        omega = np.mean(residual_2)
         epsilon = 0
         for i in range(q):
+            epsilon_i = alpha[i] * residual_2[q-1-i]
+            epsilon = epsilon + epsilon_i
+        epsilon_t = omega + epsilon
+
+        return epsilon_t
 
 
 
