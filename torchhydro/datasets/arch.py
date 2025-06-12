@@ -438,30 +438,6 @@ class Arch(object):
 
         return pacf_k, R
 
-    def p_check(
-        self,
-        x,
-    ):
-        """
-        p check for stability of series. Z-check.
-        Parameters
-        ----------
-        x
-
-        Returns
-        -------
-
-        """
-        x_mean = np.mean(x)
-        u0 = 0.5
-        sigma = np.std(x)
-        n_x = len(x)
-        z = (x_mean - u0) / (sigma / pow(n_x, 0.5))
-        p_check = np.abs(z) < self.p0
-        return p_check
-
-
-
     def ar_least_squares_estimation(
         self,
         x,
@@ -1056,7 +1032,7 @@ class Arch(object):
         m_i = m_index.index(m)
         sl_i = p.index(significance_level)
         for i in range(1, len(m)-1):
-
+            break
         chi_critical = data[m_i, sl_i]
 
         return chi_critical
@@ -1096,6 +1072,7 @@ class Arch(object):
 
     def t_statistic(
         self,
+        residual,
         phi,
         theta,
         a,
@@ -1179,7 +1156,7 @@ class Arch(object):
         m_i = m_index.index(m)
         sl_i = p.index(significance_level)
         for i in range(1, len(m)-1):
-
+            break
         t_critical = data[m_i, sl_i]
 
         return t_critical
@@ -1221,6 +1198,90 @@ class Arch(object):
             b_.append(b_i)
 
         return b_
+
+    def LM_statistic(
+        self,
+        residual_2,
+        q,
+        e_2,
+    ):
+        """
+        LM statistic,  p147
+        Lagrange multiplier test, LM test.
+        Parameters
+        ----------
+        residual_2
+        q
+        e_2
+
+        Returns
+        -------
+
+        """
+        n_residual_2 = len(residual_2)
+        sst = residual_2[q:]
+        sst = np.sum(sst)   # T-q-1
+        sse = e_2[q:]
+        sse = np.sum(sse)  # T-2q-1
+        ssr = sst - sse
+        lm = (ssr/q) / (sse / (n_residual_2 - 2*q - 1))  # q-1
+
+        return lm
+
+    def arch_test(
+        self,
+        residual,
+        q,
+        significance_level,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual
+        q
+
+        Returns
+        -------
+
+        """
+        # Q test
+        Q = self.LB_statistic(residual, q)
+        chi_critical = self.get_chi_critical(q, significance_level)
+
+        # LM test
+
+
+        # assumption
+        H0 = True
+        H1 = False
+
+        #
+        b_arch = H0
+
+        return b_arch
+
+    def arch(
+        self,
+        residual_2,
+        q,
+    ):
+        """
+        arch model.
+        Parameters
+        ----------
+        x
+        q
+
+        Returns
+        -------
+
+        """
+        omega = np.mean(residual_2)
+        epsilon = 0
+        for i in range(q):
+
+
 
 
 
@@ -1278,19 +1339,3 @@ class Arch(object):
             sum_std = sum_std + std_i
         std_t = w + sum_e + sum_std
         return std_t
-
-    def cal_pacf(
-        self,
-        x,
-    ):
-        """
-        pacf, partial auto-correlation function. a series consisted by partial auto-correlation coefficient.
-        Parameters
-        ----------
-        x
-
-        Returns
-        -------
-
-        """
-        ps_x = pd.Series(x)
