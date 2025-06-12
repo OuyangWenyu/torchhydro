@@ -296,7 +296,10 @@ class Arch(object):
             y_i = y[i] - mean_y
             xy_i = x_i * y_i
             cov = cov + xy_i
-        cov = cov / n_x
+        try:
+            cov = cov / n_x
+        except ZeroDivisionError:
+            raise ZeroDivisionError('division by zero')
         return cov
 
     def correlation_coefficient(
@@ -381,8 +384,8 @@ class Arch(object):
                 if m < 10:
                     m = n_x - 10
         p = list(range(0, m+1))
-        acf = [0]*len(p)
-        for i in range(len(p)):
+        acf = [0]*(m+1)
+        for i in range(m+1):
             acf[i] = self.autocorrelation_coefficient(x, p[i])
         return acf
 
@@ -961,11 +964,11 @@ class Arch(object):
         """
         n_residual = len(residual)
         acf = self.autocorrelation_function(residual, m)
-        acf = np.power(acf, 2)
+        acf_ = np.power(acf, 2)
         for i in range(m):
-            acf[i] = acf[i] / (n_residual - (i + 1))
+            acf_[i] = acf_[i] / (n_residual - (i + 1))
         # LB(Ljung-Box) statistic
-        LB = n_residual * (n_residual + 2) * np.sum(acf)
+        LB = n_residual * (n_residual + 2) * np.sum(acf_)
 
         return LB, acf
 
@@ -1081,8 +1084,7 @@ class Arch(object):
         -------
 
         """
-        n_residual = len(residual)
-        LB = self.LB_statistic(residual, m)
+        LB, acf = self.LB_statistic(residual, m)
         chi_critical = self.get_chi_critical(m, significance_level)
 
         # assumption
@@ -1090,11 +1092,11 @@ class Arch(object):
         H1 = False
 
         if LB < chi_critical:
-            b_ = H0
+            b_significant = H0
         else:
-            b_ = H1
+            b_significant = H1
 
-        return b_
+        return b_significant
 
     def t_statistic(
         self,
