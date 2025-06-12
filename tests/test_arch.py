@@ -688,11 +688,13 @@ def test_LB_statistic():
 def test_get_chi_critical():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     arch = Arch(x)
-    m = 30
+    m = 31
     p = 0.05
     chi_critical = arch.get_chi_critical(m, p)
     print("chi_critical")
     print(chi_critical)
+# chi_critical
+# 45.0
 
 def test_test_arima():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]

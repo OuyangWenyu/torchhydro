@@ -986,8 +986,9 @@ class Arch(object):
         -------
 
         """
-        m_index = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-             30, 40, 50, 60, 70, 80, 90, 100,]
+        # table
+        m_index = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+                   26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100,]
         p = [0.995, 0.99, 0.975, 0.95, 0.9, 0.75, 0.5, 0.25, 0.1, 0.05, 0.025, 0.01, 0.005, 0.001]
         data = [
             [0.00004, 0.0002, 0.001, 0.004, 0.016, 0.102, 0.455, 1.32, 2.71, 3.84, 5.02, 6.63, 7.88, 10.8],
@@ -1029,11 +1030,36 @@ class Arch(object):
             [67.3, 70.1, 74.2, 77.9, 82.4, 90.1, 99.3, 109, 118, 124, 130, 136, 140, 149],
         ]
         data = np.array(data)
-        m_i = m_index.index(m)
-        sl_i = p.index(significance_level)
-        for i in range(1, len(m)-1):
-            break
-        chi_critical = data[m_i, sl_i]
+
+        # locate
+        m_i = None
+        m_within = None
+        if (m >= m_index[0]) and (m <= m_index[-1]):
+            if m in m_index:
+                m_i = m_index.index(m)
+            else:
+                m_30 = m_index.index(30)
+                n_m_index = len(m_index)
+                for i in range(m_30, n_m_index-1):
+                    if (m > m_index[i]) and (m < m_index[i+1]):
+                        m_i = [i, i+1]
+                        m_within = [m_index[i], m_index[i+1]]
+                        break
+        else:
+            raise ValueError('Index m = ' + str(m) + 'out of range.')
+
+        if significance_level in p:
+            sl_i = p.index(significance_level)
+        else:
+            raise ValueError('Significance level = ' + str(significance_level) + 'not in Significance level array.')
+
+        # querying
+        if type(m_i) is list:
+            critical_0 = data[m_i[0], sl_i]
+            critical_1 = data[m_i[1], sl_i]
+            chi_critical = (critical_1 - critical_0) / (m_within[1] - m_within[0]) * (m - m_within[0]) + critical_0  # linear interpolation
+        else:
+            chi_critical = data[m_i, sl_i]
 
         return chi_critical
 
@@ -1113,8 +1139,9 @@ class Arch(object):
         -------
 
         """
-        m_index = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-              30, 40, 60, 120, "∞"]
+        # table
+        m_index = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+                   26, 27, 28, 29, 30, 40, 60, 120, "∞"]
         p = [0.25, 0.1, 0.05, 0.025, 0.01, 0.005, 0.001]
         data = [
             [1, 3.078, 6.314, 12.706, 31.821, 63.657, 318.31],
@@ -1153,11 +1180,38 @@ class Arch(object):
             [0.674, 1.282, 1.645, 1.96, 2.326, 2.576, 3.09],
         ]
         data = np.array(data)
-        m_i = m_index.index(m)
-        sl_i = p.index(significance_level)
-        for i in range(1, len(m)-1):
-            break
-        t_critical = data[m_i, sl_i]
+
+        # locate
+        m_i = None
+        m_within = None
+        n_m_index = len(m_index)
+        if (m >= m_index[0]) and (m <= m_index[-2]):
+            if m in m_index:
+                m_i = m_index.index(m)
+            else:
+                m_30 = m_index.index(30)
+                for i in range(m_30, n_m_index - 2):
+                    if (m > m_index[i]) and (m < m_index[i + 1]):
+                        m_i = [i, i + 1]
+                        m_within = [m_index[i], m_index[i + 1]]
+                        break
+        elif m > m_index[-2]:
+            m_i = n_m_index - 1
+        else:
+            raise ValueError('Index m = ' + str(m) + 'out of range.')
+
+        if significance_level in p:
+            sl_i = p.index(significance_level)
+        else:
+            raise ValueError('Significance level = ' + str(significance_level) + 'not in Significance level array.')
+
+        # querying
+        if type(m_i) is list:
+            critical_0 = data[m_i[0], sl_i]
+            critical_1 = data[m_i[1], sl_i]
+            t_critical = (critical_1 - critical_0) / (m_within[1] - m_within[0]) * (m - m_within[0]) + critical_0  # linear interpolation
+        else:
+            t_critical = data[m_i, sl_i]
 
         return t_critical
 
@@ -1286,8 +1340,6 @@ class Arch(object):
         epsilon_t = omega + epsilon
 
         return epsilon_t
-
-
 
 
 
