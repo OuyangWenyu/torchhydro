@@ -598,8 +598,7 @@ class Arch(object):
 
         return tau
 
-
-    def generate_t_critical_table(
+    def get_tau_critical(
         self,
         case,
         n_sample,
@@ -662,21 +661,6 @@ class Arch(object):
         sample_i = T.index(n_sample)
         tau_critical = data[case_i, sample_i, sl_i]
 
-        return tau_critical
-
-    def get_tau_critical(
-        self,
-        case,
-        n_sample,
-        significance_level,
-    ):
-        """
-
-        Returns
-        -------
-
-        """
-        tau_critical = self.generate_t_critical_table(case, n_sample, significance_level)
         return tau_critical
 
     def adf_test(
@@ -1084,6 +1068,9 @@ class Arch(object):
         -------
 
         """
+        n_residula = len(residual)
+        if m > n_residula:  # todo:
+            raise ValueError("degree m = " + str(m) + " out of series length.")
         LB, acf = self.LB_statistic(residual, m)
         chi_critical = self.get_chi_critical(m, significance_level)
 

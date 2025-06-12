@@ -341,7 +341,7 @@ def test_ar_least_squares_estimation():
 def test_adf_least_squares():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]  # 17
     y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 17
-    y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  #
+    y_non_stationary = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  #
     ystl = Ystl()
     y = ystl.streamflow[:365]
     arch = Arch(x)
@@ -394,14 +394,16 @@ def test_adf_least_squares():
 # 0.014193263300194653
 
 
-def test_t_statistic():
+def test_tau_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]  # 19
     y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 19
-    y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
+    y_non_stationary = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
+    y_non_stationary_integrated_1 = [-1., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2.]  # 25
+    y_non_stationary_integrated_2 = [-1., 7., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8.,]
     ystl = Ystl()
     y = ystl.streamflow[:365]
     arch = Arch(x)
-    t_y = arch.t_statistic(y_non_stationary, 3)
+    t_y = arch.tau_statistic(y_non_stationary_integrated_2, 3)
     print("t_y")
     print(t_y)
 # t_y
@@ -410,14 +412,20 @@ def test_t_statistic():
 # 0.2349027817727971
 # t_y_non_stationary
 # -0.6926191407014809
+# y_non_stationary_integrated_1
+# -0.7000334462717794
+# t_y
+# -0.9914731866445257
+# t_y
+# -131481564.87336507
 
-def test_get_t_critical():
+def test_get_tau_critical():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     arch = Arch(x)
     case = "case 1"
     p = 0.05
-    n_sample = 365
-    t_critical = arch.get_t_critical(case, n_sample, p)
+    n_sample = 25
+    t_critical = arch.get_tau_critical(case, n_sample, p)
     print("t_critical")
     print(t_critical)
 # t_critical
@@ -426,13 +434,15 @@ def test_get_t_critical():
 def test_adf_test():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     y_stationary = [1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1, 5, 3, 1]  # 19
-    y_non_stationary = [1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
+    y_non_stationary = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35]  # 19
+    y_non_stationary_integrated_1 = [-1., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2., 6., -2.]  # 25
+    y_non_stationary_integrated_2 = [-1., 7., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8., 8., -8.,]
     ystl = Ystl()
     y = ystl.streamflow
     arch = Arch(x)
     case = "case 1"
     significance_level = 0.05
-    b_stability = arch.adf_test(y, 3, case, significance_level)
+    b_stability = arch.adf_test(y_non_stationary_integrated_2, 3, case, significance_level)
     print("b_stability")
     print(b_stability)
 # y_365
@@ -456,6 +466,13 @@ def test_adf_test():
 # y_1461
 # b_stability
 # True
+# y_non_stationary_integrated_1
+# b_stability
+# False
+# y_non_stationary_integrated_2
+# b_stability
+# True
+
 
 def test_integrate_d_degree():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
@@ -526,6 +543,19 @@ def test_integrate_d_degree():
 # b_stability
 # True
 
+#y_non_stationary
+# y_integrated  d=1
+# [-1.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.  6. -2.]
+# y_trend
+# [ 0. -1.  5.  3.  9.  7. 13. 11. 17. 15. 21. 19. 25. 23. 29. 27. 33. 31. 37.]
+# b_stability
+# False
+# y_integrated  d=2
+# [-1.  7. -8.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.  8. -8.]
+# y_trend
+# [ 0. -2. 11.  1. 15.  5. 19.  9. 23. 13. 27. 17. 31. 21. 35. 25. 39. 29. 43.]
+# b_stability
+# True
 
 def test_arma():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
