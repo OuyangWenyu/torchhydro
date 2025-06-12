@@ -684,3 +684,12 @@ def test_LB_statistic():
 #  1.82934155e-02 7.85797333e-03 1.34542750e-02 1.65872223e-02
 #  5.31007587e-02 3.48958256e-02 3.09659815e-04 3.59014562e-02
 #  5.99463704e-01]
+
+def test_get_chi_critical():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    arch = Arch(x)
+    m = 30
+    p = 0.05
+    chi_critical = arch.get_chi_critical(m, p)
+    print("chi_critical")
+    print(chi_critical)
