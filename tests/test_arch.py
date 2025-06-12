@@ -693,3 +693,15 @@ def test_get_chi_critical():
     chi_critical = arch.get_chi_critical(m, p)
     print("chi_critical")
     print(chi_critical)
+
+def test_test_arima():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    y_residual = [0,  0,  -7.00148942,  2.81307703,  -0.86616938,  2.35613508,  -1.19714684,  0.4232423,  -0.4589695,
+                  0.54786256,  -1.83051924,  1.84837348,  0.76232344,  0.96888897,  -1.44205859,  1.03469247,
+                  0.18368458,  1.3957388,  -0.13007158]
+    arch = Arch(x)
+    m = 30
+    p = 0.05
+    b_ = arch.test_arima(y_residual, m, p)
+    print("b_")
+    print(b_)

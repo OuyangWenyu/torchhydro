@@ -1056,17 +1056,8 @@ class Arch(object):
         m_i = m_index.index(m)
         sl_i = p.index(significance_level)
         for i in range(1, len(m)-1):
-            if n_sample <= m[0]:
-                n_sample = m[0]
-                break
-            if n_sample > m[-2]:
-                n_sample = m[-1]
-                break
-            if (n_sample > m[i-1]) and (n_sample <= m[i]):
-                n_sample = m[i]
-                break
-        sample_i = m_index.index(n_sample)
-        chi_critical = data[m_i, sample_i, sl_i]
+
+        chi_critical = data[m_i, sl_i]
 
         return chi_critical
 
@@ -1074,6 +1065,7 @@ class Arch(object):
         self,
         residual,
         m,
+        significance_level,
     ):
         """
         significance test of ARIMA model.  chi-square test
@@ -1081,6 +1073,7 @@ class Arch(object):
         ----------
         residual
         m
+        significance_level
 
         Returns
         -------
@@ -1088,7 +1081,6 @@ class Arch(object):
         """
         n_residual = len(residual)
         LB = self.LB_statistic(residual, m)
-        significance_level = 0.05
         chi_critical = self.get_chi_critical(m, significance_level)
 
         # assumption
@@ -1187,16 +1179,7 @@ class Arch(object):
         m_i = m_index.index(m)
         sl_i = p.index(significance_level)
         for i in range(1, len(m)-1):
-            if n_sample <= m[0]:
-                n_sample = m[0]
-                break
-            if n_sample > m[-2]:
-                n_sample = m[-1]
-                break
-            if (n_sample > m[i-1]) and (n_sample <= m[i]):
-                n_sample = m[i]
-                break
-        sample_i = m_index.index(n_sample)
+
         t_critical = data[m_i, sl_i]
 
         return t_critical
@@ -1208,7 +1191,6 @@ class Arch(object):
         a,
         m,
         significance_level,
-        n_sample,
     ):
         """
 
@@ -1224,7 +1206,7 @@ class Arch(object):
         """
         t_statistic = self.t_statistic(phi, theta, a)
 
-        t_critical = self.get_t_statistic(m, significance_level, n_sample)
+        t_critical = self.get_t_statistic(m, significance_level)
 
         # assumption
         H0 = True
