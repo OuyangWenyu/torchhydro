@@ -464,7 +464,7 @@ class Arch(object):
         xf = x[p:]
         xf = np.transpose(xf)
         xp = []
-        for i in range(n_x-2):
+        for i in range(n_x-p):
             xp_i = x[i:i+p]
             xp_i.reverse()
             xp.append(xp_i)
@@ -503,7 +503,10 @@ class Arch(object):
         except np.linalg.LinAlgError:
             raise np.linalg.LinAlgError("Singular matrix")
         a = np.matmul(B_1, At)
-        a = np.matmul(a, Y)  # parameters
+        try:
+            a = np.matmul(a, Y)  # parameters
+        except ValueError:
+            raise ValueError("matmul: Input operand 1 has a mismatch in its core dimension 0, with gufunc signature (n?,k),(k,m?)->(n?,m?) (size 22 is different from 23)")
 
         # R_2, coefficient of determination
         y_ = np.matmul(A, a)
