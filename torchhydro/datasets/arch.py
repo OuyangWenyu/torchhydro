@@ -762,7 +762,7 @@ class Arch(object):
         for i in range(d):
             dx_i, tx_i = self.integrate_one_degree(dx_i0)
             dx_i0 = dx_i[:]
-            tx[i+1:] = tx[i+1:] + tx_i[:]
+            tx[i:] = tx[i:] + tx_i[:]
         dx = dx_i[:]
 
         return dx, tx
@@ -851,8 +851,8 @@ class Arch(object):
         y_t = [0]*n_x
         start = max(p, q)
         y_t[d:d+start] = dx[:start]
-        for i in range(start, n_x):
-            y_t[d+i] = self.arma(dx[i-p:i], e[i-q:i+1], phi, theta, p, q)
+        for i in range(start, n_x-d):
+            y_t[d+i] = self.arma(dx[i-p:i], e[d+i-q:d+i+1], phi, theta, p, q)
         # arma + i
         y_t[d:] = y_t[d:] + mean_dx
         y_t = y_t + tx
