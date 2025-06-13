@@ -724,19 +724,17 @@ class Arch(object):
 
         """
         n_x = len(x)
-        dx = np.zeros(n_x)
+        dx = np.zeros(n_x-1)
         tx = np.zeros(n_x)  # trend
         tx[0] = x[0]
         for i in range(0, n_x):
             if i == 0:
-                dx_i = x[i] - 0
-                tx_i = 0
-                dx[i] = dx_i
+                tx_i = x[i]
                 tx[i] = tx_i
             else:
                 dx_i = x[i] - x[i-1]
                 tx_i = x[i-1]
-                dx[i] = dx_i
+                dx[i-1] = dx_i
                 tx[i] = tx_i
 
         return dx, tx
@@ -764,7 +762,7 @@ class Arch(object):
         for i in range(d):
             dx_i, tx_i = self.integrate_one_degree(dx_i0)
             dx_i0 = dx_i[:]
-            tx = tx + tx_i[:]
+            tx[i+1:] = tx[i+1:] + tx_i[:]
         dx = dx_i[:]
 
         return dx, tx
@@ -852,11 +850,11 @@ class Arch(object):
         # arma
         y_t = [0]*n_x
         start = max(p, q)
-        y_t[:start] = dx[:start]
+        y_t[d:d+start] = dx[:start]
         for i in range(start, n_x):
-            y_t[i] = self.arma(dx[i-p:i], e[i-q:i+1], phi, theta, p, q)
+            y_t[d+i] = self.arma(dx[i-p:i], e[i-q:i+1], phi, theta, p, q)
         # arma + i
-        y_t = y_t + mean_dx
+        y_t[d:] = y_t[d:] + mean_dx
         y_t = y_t + tx
 
         return y_t
@@ -886,8 +884,9 @@ class Arch(object):
         # construct matrix
         start = max(p, q)
         xf = x[start:]
-        ef = e[start:]
-        xf = np.array(xf) - np.array(ef)
+        if q > 0:
+            ef = e[start:]
+            xf = np.array(xf) - np.array(ef)
         xf = np.transpose(xf)
         xp = []
         for i in range(start, n_x):
