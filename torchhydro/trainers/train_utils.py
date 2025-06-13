@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-06-05 15:30:05
+LastEditTime: 2025-06-13 10:49:08
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -120,10 +120,10 @@ def model_infer(seq_first, device, model, batch):
     # Handle different batch formats
     if isinstance(batch, dict):
         # Dictionary format from modified collate_fn
-        xs = batch['xs_pad']
-        ys = batch['ys_pad']
-        seq_lengths = batch.get('xs_lens', None)
-        mask = batch.get('xs_mask_lstm', None)
+        xs = batch["xs_pad"]
+        ys = batch["ys_pad"]
+        seq_lengths = batch.get("xs_lens", None)
+        mask = batch.get("xs_mask_lstm", None)
     elif isinstance(batch, (tuple, list)):
         # Original tuple format
         if len(batch) == 2:
@@ -139,13 +139,22 @@ def model_infer(seq_first, device, model, batch):
             mask = mask_seq_first if seq_first else mask_batch_first
         elif len(batch) == 8:
             # Full extended format with all mask variants
-            xs, ys, seq_lengths, _, mask_batch_first, mask_seq_first, mask_lstm_format, _ = batch
+            (
+                xs,
+                ys,
+                seq_lengths,
+                _,
+                mask_batch_first,
+                mask_seq_first,
+                mask_lstm_format,
+                _,
+            ) = batch
             mask = mask_seq_first if seq_first else mask_batch_first
         else:
             raise ValueError(f"Invalid batch length: {len(batch)}")
     else:
         raise ValueError(f"Invalid batch type: {type(batch)}")
-    
+
     # Process input data
     if type(xs) is list:
         xs = [
@@ -164,7 +173,7 @@ def model_infer(seq_first, device, model, batch):
                 else xs.to(device)
             )
         ]
-    
+
     # Process target data
     if ys is not None:
         ys = (
@@ -172,33 +181,34 @@ def model_infer(seq_first, device, model, batch):
             if seq_first and ys.ndim == 3
             else ys.to(device)
         )
-    
+
     # Process mask if available
     if mask is not None:
         mask = mask.to(device)
-    
+
     # Model inference with appropriate arguments
 
     # Model supports mask parameter
     if seq_lengths is not None and mask is not None:
-        output = model(*xs, seq_lengths=seq_lengths, mask=mask,use_manual_mask=True)
+        output = model(*xs, seq_lengths=seq_lengths, mask=mask, use_manual_mask=True)
     elif seq_lengths is not None:
         output = model(*xs, seq_lengths=seq_lengths)
     elif mask is not None:
         output = model(*xs, mask=mask)
     else:
         output = model(*xs)
-    
+
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
-    
+
     if seq_first:
         output = output.transpose(0, 1)
         if ys is not None:
             ys = ys.transpose(0, 1)
-    
+
     return ys, output
+
 
 class EarlyStopper(object):
     def __init__(
@@ -867,27 +877,9 @@ def torch_single_train(
 
     for _, batch in enumerate(pbar):
         trg, output = model_infer(seq_first, device, model, batch)
-        
-        mask = batch.get('xs_mask', None)
-        # 在计算loss前应用mask
-        if mask is not None:
-            # 确保mask在正确的设备上
-            mask = mask.to(device)
-            
-            # 应用mask到trg和output
-            # 如果mask是2D [batch_size, seq_len]，需要扩展到3D以匹配output的形状
-            if mask.ndim == 2 and output.ndim == 3:
-                mask = mask.unsqueeze(-1)  # [batch_size, seq_len, 1]
-            
-            # 将mask应用到目标值和预测值
-            trg_masked = trg * mask
-            output_masked = output * mask
-            
-            # 使用masked的值计算loss
-            loss = compute_loss(trg_masked, output_masked, criterion, **kwargs)
-        else:
-            # 如果没有mask，使用原始方式计算loss
-            loss = compute_loss(trg, output, criterion, **kwargs)
+
+        # mask handling is already done inside model_infer function
+        loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
         if torch.isnan(loss):
