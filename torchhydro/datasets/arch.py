@@ -940,6 +940,7 @@ class Arch(object):
         """
         LB statistic of ARIMA model.
         Applied Time Series Analysis（4th edition） Yan Wang p77
+        Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan p131
         Parameters
         ----------
         residual
@@ -950,12 +951,15 @@ class Arch(object):
 
         """
         n_residual = len(residual)
-        acf = self.autocorrelation_function(residual, m)
+        acf0 = self.autocorrelation_function(residual, m)
+        acf = acf0[1:]  # remove p=0
         acf_ = np.power(acf, 2)
         for i in range(m):
-            acf_[i] = acf_[i] / (n_residual - (i + 1))
+            acf_i = acf_[i] / (n_residual - (i + 1))
+            acf_[i] = acf_i
+        sum_acf = np.sum(acf_)
         # LB(Ljung-Box) statistic
-        LB = n_residual * (n_residual + 2) * np.sum(acf_)
+        LB = n_residual * (n_residual + 2) * sum_acf
 
         return LB, acf
 
