@@ -837,13 +837,14 @@ class Arch(object):
         n_x = len(x)
         y = np.zeros(n_x)
         start = max(p, q)
-        y[:start] = x[:start]
         if p > 0:
+            y[:start] = x[:start]
             ar = np.zeros(n_x-start)
             for i in range(start, n_x):
                 ar[i-start] = self.ar_one_step(x[i-p:i], phi)
             y[start:] = ar[:]
         if q > 0:
+            y[:start] = y[:start] + e[:start]
             ma = np.zeros(n_x - start)
             for i in range(start, n_x):
                 ma[i-start] = self.ma_one_step(e[i-q:i+1], theta)
