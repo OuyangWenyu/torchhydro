@@ -841,12 +841,12 @@ class Arch(object):
         if p > 0:
             ar = np.zeros(n_x-start)
             for i in range(start, n_x):
-                ar[i] = self.ar_one_step(x[i-p:i], phi, p)
+                ar[i-start] = self.ar_one_step(x[i-p:i], phi)
             y[start:] = ar[:]
         if q > 0:
             ma = np.zeros(n_x - start)
             for i in range(start, n_x):
-                ma[i] = self.ma_one_step(e[i-q:i+1], theta, q)
+                ma[i-start] = self.ma_one_step(e[i-q:i+1], theta)
             y[start:] = y[start:] + ma[:]
 
         return y
@@ -1530,24 +1530,3 @@ class Arch(object):
         y_t = y_t + self.mean + e
         return y_t
 
-    def std_function(
-        self,
-        w,
-        e,
-        std,
-    ):
-        """std function, garch."""
-        q = e.shape[0]
-        p = std.shape[0]
-        a = [0]*q
-        b = [0]*p
-        sum_e = 0
-        sum_std = 0
-        for i in range(q):
-            e_i = a[i] * pow(e[i], 2)
-            sum_e = sum_e + e_i
-        for i in range(p):
-            std_i = b[i] * pow(std[i], 2)
-            sum_std = sum_std + std_i
-        std_t = w + sum_e + sum_std
-        return std_t
