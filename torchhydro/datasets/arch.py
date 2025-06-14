@@ -812,6 +812,83 @@ class Arch(object):
 
         return y_t
 
+    def integration(
+        self,
+        x,
+        d,
+    ):
+        """"""
+        n_x = len(x)
+        # integrate
+        if d > 0:
+            dx, tx = self.integrate_d_degree(x, d)
+        else:
+            dx = x  # integration
+            tx = [0]*n_x  # trend
+        # center
+        mean_dx = np.mean(dx)
+        dx = (dx - mean_dx).tolist()
+
+        return dx, mean_dx, tx
+
+    def Q_statistic(
+        self,
+        x,
+        m,
+    ):
+        """
+        Q statistic
+        Applied Time Series Analysis（4th edition） Yan Wang p30
+        Parameters
+        ----------
+        x: time series
+        m: degree
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        acf_ = self.autocorrelation_function(x)
+        acf = acf_[1:]
+        acf = np.power(acf, 2)
+        Q = n_x * np.sum(acf)
+        return Q
+
+    def white_noise_test(
+        self,
+        x,
+        m,
+        get_chi_critical,
+    ):
+        """
+        white noise test
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        if n_x > 100:  # todo:
+            Q_statistic = self.Q_statistic(x, m)
+        else:
+            Q_statistic = self.LB_statistic(x, m)
+        Q_critical = self.get_chi_critical(m, get_chi_critical)
+
+        # assumption
+        H0 = True
+        H1 = False
+
+        if Q_statistic > Q_critical:   # Applied Time Series Analysis（4th edition） Yan Wang p30
+            b_white_noise = H0
+        else:
+            b_white_noise = H1
+
+        return b_white_noise
+
     def arima(
         self,
         x,
@@ -821,6 +898,9 @@ class Arch(object):
         p: int = 0,
         d: int = 0,
         q: int = 0,
+        dx: Optional = None,
+        mean_dx: Optional = None,
+        tx: Optional = None,
     ):
         """
         ARIMA model
@@ -837,18 +917,15 @@ class Arch(object):
 
         """
         n_x = len(x)
-        # integrate
-        if d > 0:
-            dx, tx = self.integrate_d_degree(x, d)
-        else:
-            dx = x  # integration
-            tx = [0]*n_x  # trend
-        # center
-        mean_dx = np.mean(dx)
-        dx = dx - mean_dx
-        std_x = np.std(x)  # todo:
+        if (dx is None) or (mean_dx is None) or (tx is None):
+            if d > 0:
+                dx, mean_dx, tx = self.integration(x, d)
+            else:
+                dx = x
+                mean_dx = 0
+                tx = np.zeros(0)
         # arma
-        y_t = [0]*n_x
+        y_t = np.zeros(n_x)
         start = max(p, q)
         y_t[d:d+start] = dx[:start]
         for i in range(start, n_x-d):
@@ -924,10 +1001,15 @@ class Arch(object):
         -------
 
         """
-        phi, theta, R_2, B_1 = self.arma_least_squares_estimation(x, e, p, q)
-        y_t = self.arima(x, e, phi, theta, p, d, q)
+        if d > 0:
+            dx, mean_dx, tx = self.integration(x, d)
+            phi, theta, R_2, B_1 = self.arma_least_squares_estimation(dx, e, p, q)
+            y_t = self.arima(x, e, phi, theta, p, d, q, dx, mean_dx, tx)
+        else:
+            phi, theta, R_2, B_1 = self.arma_least_squares_estimation(x, e, p, q)
+            y_t = self.arima(x, e, phi, theta, p, d, q)
 
-        x_residual = x - y_t
+        x_residual = np.array(x) - np.array(y_t)
 
         return x_residual, y_t, R_2, B_1
 
@@ -1041,10 +1123,11 @@ class Arch(object):
         else:
             raise ValueError('Index m = ' + str(m) + 'out of range.')
 
-        if significance_level in p:
-            sl_i = p.index(significance_level)
+        significance_level_ = 1 - significance_level
+        if significance_level_ in p:
+            sl_i = p.index(significance_level_)
         else:
-            raise ValueError('Significance level = ' + str(significance_level) + 'not in Significance level array.')
+            raise ValueError('Significance level = 1 - ' + str(significance_level) + 'not in Significance level array.')
 
         # querying
         if type(m_i) is list:
@@ -1219,7 +1302,7 @@ class Arch(object):
         significance_level,
     ):
         """
-
+        significance test for parameters of ARIMA model.    t test
         Parameters
         ----------
         phi
@@ -1247,6 +1330,7 @@ class Arch(object):
             b_.append(b_i)
 
         return b_
+
 
     def LM_statistic(
         self,
@@ -1294,12 +1378,14 @@ class Arch(object):
         -------
 
         """
-        # Q test
-        Q = self.LB_statistic(residual, q)
-        chi_critical = self.get_chi_critical(q, significance_level)
+        residual_2 = np.power(residual, 2)
+        # Portmanteau Q test
+        Q_statistic = self.LB_statistic(residual_2, q)
+        chi_critical_Q = self.get_chi_critical(q-1, significance_level)
 
         # LM test
-
+        lm_statistic = self.LM_statistic(residual_2, q, e_2)
+        chi_critical_lm = self.get_chi_critical(q-1, significance_level)
 
         # assumption
         H0 = True
