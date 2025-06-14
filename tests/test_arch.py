@@ -669,14 +669,22 @@ def test_ar_one_step():
 
 def test_ma_one_step():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
-    e = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35, 41, 39, 45, 43, 49,
+    y_non_stationary_42 = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35, 41, 39, 45, 43, 49,
                         47, 53, 51, 57, 55, 61, 59, 65, 63, 69, 67, 73, 71, 77, 75, 81, 79, 85]
     arch = Arch(x)
-    x = [-1, 5, 3]
-    theta = [1.04077621,  1.12735604, -1.18546553]
-    y_ar = arch.ar_one_step(x, theta)
-    print("y_ar")
-    print(y_ar)
+    theta = [0.5, 0.5]
+    n_y = len(y_non_stationary_42)
+    np.random.seed(1)
+    mean = 0
+    std_dev = 1
+    e = np.random.normal(mean, std_dev, size=n_y)
+    e = e.tolist()
+    e_ = [0.2, -0.6, 0.4]
+    y_ma = arch.ma_one_step(e_, theta)
+    print("y_ma")
+    print(y_ma)
+# y_ma
+# 0.20000000000000004
 
 def test_arma():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]

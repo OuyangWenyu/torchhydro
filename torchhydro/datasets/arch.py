@@ -797,8 +797,7 @@ class Arch(object):
         et = np.transpose(et)
         ma0 = e[-1]
         ma = np.matmul(theta, et)
-        ma = [ma0] + ma.tolist()
-        ma = np.array(ma)
+        ma = ma0 + ma
         return ma
 
     def arma(
