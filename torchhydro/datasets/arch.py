@@ -48,9 +48,6 @@ class Arch(object):
         self.fi = None
         self.sigma = None
 
-    def cal_statistics(self):
-        """calculate statistics"""
-
 
     def cal_7_stat_inds(self, x):
         """
@@ -79,17 +76,6 @@ class Arch(object):
         if std < 0.001:
             std = 1
         return [num_point, mean, std, min_, p25, p50, p75, max_]
-
-    def deficient_dataset(self):
-        """generate deficient dataset."""
-
-
-    def analysis_dataset(self):
-        """ analysis dataset."""
-
-    def cal_mse(self, x, y):
-        """calculate mean squared error."""
-        return np.mean((y - x) ** 2)
 
     def cal_spearman(self, x, y):
         """calculate spearman correlation."""
@@ -767,17 +753,65 @@ class Arch(object):
 
         return dx, tx
 
+    def ar_one_step(
+        self,
+        x: Optional = None,
+        phi: Optional = None,
+    ):
+        """
+        AR(p) model
+        Parameters
+        ----------
+        x: time series
+        phi: parameters of AR(p) model
+        p: degree of autoregression model
+
+        Returns
+        -------
+
+        """
+        # ar
+        xt = np.transpose(x)
+        ar = np.matmul(phi, xt)
+        return ar
+
+    def ma_one_step(
+        self,
+        e: Optional = None,
+        theta: Optional = None,
+    ):
+        """
+        MA(q) model
+        Parameters
+        ----------
+        e: time series
+        theta: parameters of MA(p) model
+        q: degree of moving average model
+
+        Returns
+        -------
+
+        """
+        # MA
+        et = e[:-1]
+        et = np.transpose(et)
+        ma0 = e[-1]
+        ma = np.matmul(theta, et)
+        ma = [ma0] + ma.tolist()
+        ma = np.array(ma)
+        return ma
+
     def arma(
         self,
-        x,
-        e,
-        phi,
-        theta,
+        x: Optional = None,
+        e: Optional = None,
+        phi: Optional = None,
+        theta: Optional = None,
         p: int = 0,
         q: int = 0,
     ):
         """
-        arma model, single step.
+        arma model, multi-step.
         Applied Time Series Analysis（4th edition） Yan Wang  p110
         p, q
         Parameters
@@ -793,24 +827,30 @@ class Arch(object):
         -------
 
         """
-        y_t = 0
-        # ar
-        ar = 0
-        for i in range(p):
-            ar_i = phi[i] * x[p-1-i]
-            ar = ar + ar_i
-        # ma
-        ma = e[-1]
-        for i in range(q):
-            try:
-                ma_i = - theta[i] * e[q-1-i]
-            except IndexError:
-                raise IndexError("index 1 is out of bounds for axis 0 with size 1")
-            ma = ma + ma_i
-        # arma
-        y_t = y_t + ar + ma   #
+        # check parameters
+        if p > 0:
+            if (x is None) or (phi is None):
+                raise ValueError("x and phi must be provided both.")
+        if q > 0:
+            if (e is None) or (theta is None):
+                raise ValueError("e and theta must be provided both.")
 
-        return y_t
+        n_x = len(x)
+        y = np.zeros(n_x)
+        start = max(p, q)
+        y[:start] = x[:start]
+        if p > 0:
+            ar = np.zeros(n_x-start)
+            for i in range(start, n_x):
+                ar[i] = self.ar_one_step(x[i-p:i], phi, p)
+            y[start:] = ar[:]
+        if q > 0:
+            ma = np.zeros(n_x - start)
+            for i in range(start, n_x):
+                ma[i] = self.ma_one_step(e[i-q:i+1], theta, q)
+            y[start:] = y[start:] + ma[:]
+
+        return y
 
     def integration(
         self,
@@ -827,9 +867,9 @@ class Arch(object):
             tx = [0]*n_x  # trend
         # center
         mean_dx = np.mean(dx)
-        dx = (dx - mean_dx).tolist()
+        dx_c = (dx - mean_dx).tolist()
 
-        return dx, mean_dx, tx
+        return dx_c, mean_dx, tx
 
     def Q_statistic(
         self,
@@ -891,14 +931,14 @@ class Arch(object):
 
     def arima(
         self,
-        x,
-        e,
-        phi,
-        theta,
+        x: Optional = None,
+        e: Optional = None,
+        phi: Optional = None,
+        theta: Optional = None,
         p: int = 0,
         d: int = 0,
         q: int = 0,
-        dx: Optional = None,
+        dx_c: Optional = None,
         mean_dx: Optional = None,
         tx: Optional = None,
     ):
@@ -908,33 +948,55 @@ class Arch(object):
         ----------
         x: time series
         e: time series
+        phi: parameters of AR(p) model
+        theta: parameters of MA(q) model
         p: degree of autoregression model
         d: degree of integration model
         q: degree of moving average model
+        dx_c: the integration result of time series x by integration model with d degree.
+        mean_dx: the mean of integration result dx.
+        tx: the trend item of integration result of time series x by integration model with d degree.
 
         Returns
         -------
 
         """
-        n_x = len(x)
-        if (dx is None) or (mean_dx is None) or (tx is None):
-            if d > 0:
-                dx, mean_dx, tx = self.integration(x, d)
-            else:
-                dx = x
-                mean_dx = 0
-                tx = np.zeros(0)
-        # arma
-        y_t = np.zeros(n_x)
-        start = max(p, q)
-        y_t[d:d+start] = dx[:start]
-        for i in range(start, n_x-d):
-            y_t[d+i] = self.arma(dx[i-p:i], e[d+i-q:d+i+1], phi, theta, p, q)
-        # arma + i
-        y_t[d:] = y_t[d:] + mean_dx
-        y_t = y_t + tx
+        # parameter check
+        if p > 0:
+            if (x is None) or (phi is None):
+                raise ValueError("x and phi must be provided both.")
+        if q > 0:
+            if (e is None) or (theta is None):
+                raise ValueError("e and theta must be provided both.")
 
-        return y_t
+        n_x = len(x)
+        # integrate
+        if (dx_c is None) or (mean_dx is None) or (tx is None):
+            if d > 0:
+                dx_c, mean_dx, tx = self.integration(x, d)
+            else:
+                dx_c = x
+                mean_dx = 0
+                tx = np.zeros(n_x)
+        # arma
+        y = np.zeros(n_x)
+        if q > 0:
+            e_ = e[d:]
+            if p > 0:
+                y_ = self.arma(dx_c, e_, phi, theta, p, q)
+            else:
+                y_ = self.arma(e=e_, theta=theta, q=q)
+        elif p > 0:
+            y_ = self.arma(x=dx_c, phi=phi, p=p)
+        else:
+            y_ = y[d:]
+
+        # arma + i
+        y[d:] = y[d:] + mean_dx
+        y[d:] = y[d:] + y_[:]
+        y = y + tx
+
+        return y
 
     def arma_least_squares_estimation(
         self,
@@ -1339,7 +1401,7 @@ class Arch(object):
         e_2,
     ):
         """
-        LM statistic,  p147
+        LM statistic,  Applied Time Series Analysis（4th edition） Yan Wang p147
         Lagrange multiplier test, LM test.
         Parameters
         ----------
@@ -1384,6 +1446,10 @@ class Arch(object):
         chi_critical_Q = self.get_chi_critical(q-1, significance_level)
 
         # LM test
+        a, R_2 = self.ar_least_squares_estimation(residual_2, q)
+        residual_2_fit = self.arma(residual_2, e=None, phi=a, theta=None, p=q, q=0)  # ar model
+        e = residual_2 - residual_2_fit
+        e_2 = np.power(e, 2)
         lm_statistic = self.LM_statistic(residual_2, q, e_2)
         chi_critical_lm = self.get_chi_critical(q-1, significance_level)
 
@@ -1391,10 +1457,18 @@ class Arch(object):
         H0 = True
         H1 = False
 
-        #
-        b_arch = H0
+        # test
+        if Q_statistic > chi_critical_Q:
+            b_arch_Q = H0
+        else:
+            b_arch_Q = H1
 
-        return b_arch
+        if lm_statistic > chi_critical_lm:
+            b_arch_lm = H0
+        else:
+            b_arch_lm = H1
+
+        return b_arch_Q, b_arch_lm
 
     def arch(
         self,
