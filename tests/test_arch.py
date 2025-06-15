@@ -833,3 +833,17 @@ def test_arch_test():
     b_significance = arch.arch_test(y_residual_2, q, significance_level)
     print("b_significance")
     print(b_significance)
+
+def test_arch_one_step():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    y_residual = [0, 0, -7.00148942, 2.81307703, -0.86616938, 2.35613508, -1.19714684, 0.4232423, -0.4589695,
+                  0.54786256, -1.83051924, 1.84837348, 0.76232344, 0.96888897, -1.44205859, 1.03469247,
+                  0.18368458, 1.3957388, -0.13007158]
+    arch = Arch(x)
+    q = 3
+    y_residual_2 = np.power(y_residual, 2)
+    alpha = [1, 1]
+    e = 0.05
+    epsilon_t = arch.arch_test(y_residual_2, alpha, q, e)
+    print("epsilon_t")
+    print(epsilon_t)

@@ -1,3 +1,4 @@
+""" """
 import numpy as np
 from typing import Optional
 
@@ -133,27 +134,6 @@ class Arch(object):
 
         return lnLt
 
-    def garch_function(
-        self,
-        std,
-        e,
-    ):
-        """
-        garch function, single step.
-        Parameters
-        ----------
-        std
-        e
-
-        Returns
-        -------
-
-        """
-        a0 = 0.5
-        a1 = 0.2
-        b1 = 0.3
-        std = a0 + a1*pow(e, 2) + b1*pow(std, 2)
-        return std
 
     def mle_garch(
         self,
@@ -205,26 +185,6 @@ class Arch(object):
 
         return rho_k
 
-    def condition_check(
-        self,
-        x,
-    ):
-        """
-
-        Parameters
-        ----------
-        x
-
-        Returns
-        -------
-
-        """
-        k = 7
-        for i in range(k,self.length):
-            rho_k = self.rho(x[i+k], x[i])
-            if rho_k > 0.0:
-                rho_k = self.rho(x[i+k], x[i])
-
     def cov(
         self,
         x,
@@ -233,7 +193,7 @@ class Arch(object):
         mean_y: Optional = None,
     ):
         """
-
+        covariance and variance
         Parameters
         ----------
         x
@@ -357,7 +317,7 @@ class Arch(object):
         k: int = None,
     ):
         """
-        partial autocorrelation function, pacf.
+        partial auto-correlation function, pacf.
         随机过程  8.2 模型的识别  p198  式（8.25）AR(p)偏相关函数
         Parameters
         ----------
@@ -805,7 +765,7 @@ class Arch(object):
         q: int = 0,
     ):
         """
-        arma model, multi-step.
+        ARMA model, multi-step.
         Applied Time Series Analysis（4th edition） Yan Wang  p110
         p, q
         Parameters
@@ -1030,7 +990,7 @@ class Arch(object):
         # matrix operations, calculate the coefficient matrix.
         a, R_2, B_1 = self.ordinary_least_squares(xp, xf, b_B_1=True)
 
-        #
+        # allot parameters
         phi = []
         theta = []
         if p > 0:
@@ -1041,7 +1001,6 @@ class Arch(object):
             theta = -a[:]
 
         return phi, theta, R_2, B_1
-
 
     def x_residual(
         self,
@@ -1471,31 +1430,101 @@ class Arch(object):
 
         return b_arch_Q, b_arch_lm
 
-    def arch(
+    def arch_one_step(
         self,
         residual_2,
-        omega,
-        q,
         alpha,
+        omega,
+        e,
     ):
         """
-        arch model.
+        arch model.   single step
+        Applied Time Series Analysis（4th edition） Yan Wang p147
         Parameters
         ----------
-        x: time series
-        q: degree
+        residual_2:
+        e:
+        omega:
+        q: degree of arch model.
+        alpha:
 
         Returns
         -------
 
         """
-        epsilon = 0
-        for i in range(q):
-            epsilon_i = alpha[i] * residual_2[q-1-i]
-            epsilon = epsilon + epsilon_i
-        epsilon_t = omega + epsilon
+        residual_2_t = np.transpose(residual_2)
+        h_t = np.matmul(alpha, residual_2_t)
+        h_t = h_t + omega
+        epsilon_t = np.sqrt(h_t) * e
 
         return epsilon_t
+
+    def arch(
+        self,
+        residual_2,
+        e,
+        alpha,
+        q,
+        omega,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual_2
+        e
+        alpha
+
+        Returns
+        -------
+
+        """
+        n_residual_2 = len(residual_2)
+        epsilon = np.zeros(n_residual_2)
+        epsilon[:q] = np.sqrt(residual_2[:q])
+
+        for i in range(q, n_residual_2):
+            epsilon[i] = self.arch_one_step(residual_2[i-q:i], alpha, omega, e[i])
+
+        return epsilon
+
+    def arch_least_squares_estimation(
+        self,
+        residual_2,
+        e,
+        alpha,
+        q,
+        omega,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual_2
+        e
+        alpha
+        q
+        omega
+
+        Returns
+        -------
+
+        """
+        n_residual_2 = len(residual_2)
+
+        # construct matrix
+        xf = residual_2[q:]
+        xf = np.transpose(xf)
+
+        xp = []
+        for i in range(q, n_residual_2):
+            xp_i = residual_2[i-q:i]
+            xp_i.reverse()
+            xp.append(xp_i)
+
+        a, R_2 = self.ordinary_least_squares(xp, xf)
+
+        return a, R_2
 
 
 
