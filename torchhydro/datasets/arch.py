@@ -738,12 +738,12 @@ class Arch(object):
         et = np.transpose(et)
         ma0 = e[-1]
         ma = np.matmul(theta, et)
-        ma = ma0 + ma
+        ma = ma0 - ma
         return ma
 
     def arma(
         self,
-        x: Optional = None,
+        x,
         e: Optional = None,
         phi: Optional = None,
         theta: Optional = None,
@@ -785,7 +785,7 @@ class Arch(object):
                 ar[i-start] = self.ar_one_step(x[i-p:i], phi)
             y[start:] = ar[:]
         if q > 0:
-            y[:start] = y[:start] + e[:start]
+            y[:start] = y[:start]  # + e[:start]
             ma = np.zeros(n_x - start)
             for i in range(start, n_x):
                 ma[i-start] = self.ma_one_step(e[i-q:i+1], theta)
@@ -854,7 +854,7 @@ class Arch(object):
 
     def arima(
         self,
-        x: Optional = None,
+        x,
         e: Optional = None,
         phi: Optional = None,
         theta: Optional = None,
@@ -889,8 +889,8 @@ class Arch(object):
             if (x is None) or (phi is None):
                 raise ValueError("x and phi must be provided both.")
         if q > 0:
-            if (e is None) or (theta is None):
-                raise ValueError("e and theta must be provided both.")
+            if (x is None) or (e is None) or (theta is None):
+                raise ValueError("x, e and theta must be provided all.")
 
         n_x = len(x)
         # integrate
@@ -901,18 +901,19 @@ class Arch(object):
                 dx_c = x
                 mean_dx = 0
                 tx = np.zeros(n_x)
+
         # arma
         y = np.zeros(n_x)
         if q > 0:
             e_ = e[d:]
             if p > 0:
-                y_ = self.arma(dx_c, e_, phi, theta, p, q)
+                y_ = self.arma(dx_c, e_, phi, theta, p, q)  # arma
             else:
-                y_ = self.arma(e=e_, theta=theta, q=q)
+                y_ = self.arma(x=dx_c, e=e_, theta=theta, q=q)  # ma
         elif p > 0:
-            y_ = self.arma(x=dx_c, phi=phi, p=p)
+            y_ = self.arma(x=dx_c, phi=phi, p=p)  # ar
         else:
-            y_ = y[d:]
+            return dx_c, mean_dx, tx  # i
 
         # arma + i
         y[d:] = y[d:] + mean_dx
