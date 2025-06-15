@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-04-16 19:05:26
+LastEditTime: 2025-06-14 11:55:37
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
-FilePath: /torchhydro/torchhydro/models/model_dict_function.py
+FilePath: \torchhydro\torchhydro\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -47,6 +47,7 @@ from torchhydro.models.crits import (
     MAELoss,
     QuantileLoss,
     PenalizedMSELoss,
+    FloodWeightedMSELoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
@@ -113,6 +114,7 @@ pytorch_criterion_dict = {
     "MAELoss": MAELoss,
     "QuantileLoss": QuantileLoss,
     "MSELoss": PenalizedMSELoss,
+    "FloodWeightedMSELoss": FloodWeightedMSELoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}

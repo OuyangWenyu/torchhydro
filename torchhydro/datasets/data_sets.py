@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-06-04 17:26:30
+LastEditTime: 2025-06-15 14:51:02
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -395,8 +395,12 @@ class BaseDataset(Dataset):
         for key in origin_data.keys():
             _origin = origin_data[key]
             _norm = norm_data[key]
-            norm_arr = _norm.to_numpy()
-            origin_arr = _origin.to_numpy()
+            if _origin is None or _norm is None:
+                norm_arr = None
+                origin_arr = None
+            else:
+                norm_arr = _norm.to_numpy()
+                origin_arr = _origin.to_numpy()
             if key == "relevant_cols":
                 self.x_origin = origin_arr
                 self.x = norm_arr
@@ -756,7 +760,11 @@ class BaseDataset(Dataset):
         return {
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
             "target_cols": y_origin.transpose("basin", "time", "variable"),
-            "constant_cols": c_origin.transpose("basin", "variable"),
+            "constant_cols": (
+                c_origin.transpose("basin", "variable")
+                if c_origin is not None
+                else None
+            ),
         }
 
     def _trans2da_and_setunits(self, ds):
@@ -791,6 +799,10 @@ class BaseDataset(Dataset):
         for key in origin_data.keys():
             _origin = origin_data[key]
             _norm = norm_data[key]
+            if _origin is None or _norm is None:
+                origins_wonan[key] = None
+                norms_wonan[key] = None
+                continue
             kill_way = "interpolate"
             if key == "relevant_cols":
                 rm_nan = data_cfgs["relevant_rm_nan"]
@@ -826,7 +838,7 @@ class BaseDataset(Dataset):
             else:
                 norm = _norm
                 origin = _origin
-            if key == "target_cols":
+            if key == "target_cols" or not rm_nan:
                 warn_if_nan(origin, nan_mode="all", data_name="nan_filled target data")
                 warn_if_nan(norm, nan_mode="all", data_name="nan_filled target data")
             else:
@@ -1547,3 +1559,397 @@ class HFDataset(BaseDataset):
             torch.from_numpy(xq_rho).float(),
             torch.from_numpy(xq_hor).float(),
         ], torch.from_numpy(y).float()
+
+
+class FloodEventDataset(BaseDataset):
+    """Dataset class for flood event detection and prediction tasks.
+
+    This dataset is specifically designed to handle flood event data where
+    flood_event column contains binary indicators (0 for normal, non-zero for flood).
+    It automatically creates a flood_mask from the flood_event data for special
+    loss computation purposes.
+
+    The dataset reads data using SelfMadeHydroDataset from hydrodatasource,
+    expecting CSV files with columns like: time, rain, inflow, flood_event.
+    """
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        """Initialize FloodEventDataset
+
+        Parameters
+        ----------
+        cfgs : dict
+            Configuration dictionary containing data_cfgs, training_cfgs, evaluation_cfgs
+        is_tra_val_te : str
+            One of 'train', 'valid', or 'test'
+        """
+        # Find flood_event column index for later processing
+        target_cols = cfgs["data_cfgs"]["target_cols"]
+        self.flood_event_idx = None
+        for i, col in enumerate(target_cols):
+            if "flood_event" in col.lower():
+                self.flood_event_idx = i
+                break
+
+        if self.flood_event_idx is None:
+            raise ValueError(
+                "flood_event column not found in target_cols. Please ensure flood_event is included in the target columns."
+            )
+
+        super(FloodEventDataset, self).__init__(cfgs, is_tra_val_te)
+
+    def _create_flood_mask(self, y):
+        """Create flood mask from flood_event column
+
+        Parameters
+        ----------
+        y : np.ndarray
+            Target data with shape [seq_len, n_targets] containing flood_event column
+
+        Returns
+        -------
+        np.ndarray
+            Flood mask with shape [seq_len, 1] where 1 indicates flood event, 0 indicates normal
+        """
+        if self.flood_event_idx >= y.shape[1]:
+            raise ValueError(
+                f"flood_event_idx {self.flood_event_idx} exceeds target dimensions {y.shape[1]}"
+            )
+
+        # Extract flood_event column
+        flood_events = y[:, self.flood_event_idx]
+
+        # Create binary mask: 1 for flood (non-zero), 0 for normal (zero)
+        flood_mask = (flood_events != 0).astype(np.float32)
+
+        # Reshape to maintain dimension consistency
+        flood_mask = flood_mask.reshape(-1, 1)
+
+        return flood_mask
+
+    @property
+    def noutputvar_with_masks(self):
+        """Number of output variables including both flood mask and valid mask
+
+        Returns
+        -------
+        int
+            Number of output variables + 2 (for flood mask and valid mask)
+        """
+        return self.noutputvar + 2
+
+    @property
+    def noutputvar_with_mask(self):
+        """Number of output variables including the flood mask (for backward compatibility)
+
+        Returns
+        -------
+        int
+            Number of output variables + 1 (for flood mask)
+        """
+        return self.noutputvar + 1
+
+    def get_flood_mask_index(self):
+        """Get the index of flood_mask in the output tensor
+
+        Returns
+        -------
+        int
+            Index of flood_mask column (second to last column)
+        """
+        return self.noutputvar  # flood_mask is at position noutputvar
+
+    def get_valid_mask_index(self):
+        """Get the index of valid_mask in the output tensor
+
+        Returns
+        -------
+        int
+            Index of valid_mask column (last column)
+        """
+        return self.noutputvar + 1  # valid_mask is at position noutputvar + 1
+
+    def _create_lookup_table(self):
+        """Create lookup table based on flood events with sliding window
+
+        This method creates samples where:
+        1. Each sample has fixed length: warmup_length + rho + horizon
+        2. For each flood event sequence, use sliding window to generate samples
+        3. Each sample covers the full sequence length without internal structure division
+        """
+        lookup = []
+
+        # Calculate total sample sequence length
+        sample_seqlen = self.warmup_length + self.rho + self.horizon
+
+        for basin_idx in range(self.ngrid):
+            # Get flood events for this basin
+            flood_events = self.y_origin[basin_idx, :, self.flood_event_idx]
+
+            # Find flood event sequences (consecutive non-zero values)
+            flood_sequences = self._find_flood_sequences(flood_events)
+
+            for seq_start, seq_end in flood_sequences:
+                # For each flood sequence, create samples with sliding window
+                self._create_sliding_window_samples(
+                    basin_idx, seq_start, seq_end, sample_seqlen, lookup
+                )
+
+        self.lookup_table = dict(enumerate(lookup))
+        self.num_samples = len(self.lookup_table)
+
+    def _find_flood_sequences(self, flood_events):
+        """Find sequences of consecutive flood events
+
+        Parameters
+        ----------
+        flood_events : np.ndarray
+            1D array of flood event indicators
+
+        Returns
+        -------
+        list
+            List of tuples (start_idx, end_idx) for each flood sequence
+        """
+        sequences = []
+        in_sequence = False
+        start_idx = None
+
+        for i, event in enumerate(flood_events):
+            if event != 0 and not in_sequence:
+                # Start of a new flood sequence
+                in_sequence = True
+                start_idx = i
+            elif event == 0 and in_sequence:
+                # End of current flood sequence
+                in_sequence = False
+                sequences.append((start_idx, i - 1))
+            elif i == len(flood_events) - 1 and in_sequence:
+                # End of data while in sequence
+                sequences.append((start_idx, i))
+
+        return sequences
+
+    def _create_sliding_window_samples(
+        self, basin_idx, seq_start, seq_end, sample_seqlen, lookup
+    ):
+        """Create samples for a flood sequence using sliding window approach with data validity check
+
+        Parameters
+        ----------
+        basin_idx : int
+            Index of the basin
+        seq_start : int
+            Start index of flood sequence
+        seq_end : int
+            End index of flood sequence
+        sample_seqlen : int
+            Maximum length of each sample (warmup_length + rho + horizon)
+        lookup : list
+            List to append new samples to (basin_idx, actual_start, actual_length)
+        """
+        # Generate sliding window samples for this flood sequence
+        # Each window should include at least some flood event data
+
+        # Calculate the range where we can place the sliding window
+        # The window end should not exceed the flood sequence end
+        max_window_start = min(
+            seq_end - sample_seqlen + 1, self.nt - sample_seqlen
+        )  # Window end should not exceed seq_end or data bounds
+        min_window_start = max(
+            0, seq_start - sample_seqlen + 1
+        )  # Window must include at least the first flood event
+
+        # Ensure we have a valid range
+        if max_window_start < min_window_start:
+            return  # Skip this flood sequence if no valid window can be created
+
+        # Generate samples with sliding window
+        for window_start in range(min_window_start, max_window_start + 1):
+            window_end = window_start + sample_seqlen - 1
+
+            # Check if the window is valid (doesn't exceed data bounds and flood sequence)
+            if window_end < self.nt and window_end <= seq_end:
+                # Check if this window includes at least some flood events
+                window_includes_flood = (window_start <= seq_end) and (
+                    window_end >= seq_start
+                )
+
+                if window_includes_flood:
+                    # Find the actual valid data range within this window closest to flood
+                    actual_start, actual_length = self._find_valid_data_range(
+                        basin_idx, window_start, window_end, seq_start, seq_end
+                    )
+
+                    # Only add sample if we have sufficient valid data
+                    if (
+                        actual_length >= self.rho + self.horizon
+                    ):  # At least need rho + horizon
+                        lookup.append((basin_idx, actual_start, actual_length))
+
+    def _find_valid_data_range(
+        self, basin_idx, window_start, window_end, flood_start, flood_end
+    ):
+        """Find the continuous valid data range closest to the flood sequence
+
+        Parameters
+        ----------
+        basin_idx : int
+            Basin index
+        window_start : int
+            Start of the window to check
+        window_end : int
+            End of the window to check
+        flood_start : int
+            Start index of the flood sequence
+        flood_end : int
+            End index of the flood sequence
+
+        Returns
+        -------
+        tuple
+            (actual_start, actual_length) of the valid data range closest to flood sequence
+        """
+        # Get data for this basin and window
+        x_window = self.x[basin_idx, window_start : window_end + 1, :]
+
+        # Check for NaN values in both input and output
+        valid_mask = ~np.isnan(x_window).any(axis=1)  # Valid if no NaN in any feature
+
+        # Find the continuous valid sequence closest to the flood sequence
+        closest_start, closest_length = self._find_closest_valid_sequence(
+            valid_mask, window_start, flood_start, flood_end
+        )
+
+        if closest_length <= 0:
+            return window_start, 0
+        return closest_start, closest_length
+
+    def _find_closest_valid_sequence(
+        self, valid_mask, window_start, flood_start, flood_end
+    ):
+        """Find the continuous valid sequence closest to the flood sequence
+
+        Parameters
+        ----------
+        valid_mask : np.ndarray
+            Boolean array indicating valid positions within the window
+        window_start : int
+            Start index of the window in the original time series
+        flood_start : int
+            Start index of the flood sequence in the original time series
+        flood_end : int
+            End index of the flood sequence in the original time series
+
+        Returns
+        -------
+        tuple
+            (closest_start, closest_length) in original time series coordinates
+        """
+        if not valid_mask.any():
+            return window_start, 0
+
+        # Find all continuous valid sequences within the window
+        sequences = []
+        current_start = None
+
+        for i, is_valid in enumerate(valid_mask):
+            if is_valid and current_start is None:
+                current_start = i
+            elif not is_valid and current_start is not None:
+                sequences.append((current_start, i - current_start))
+                current_start = None
+
+        # Handle case where sequence continues to the end
+        if current_start is not None:
+            sequences.append((current_start, len(valid_mask) - current_start))
+
+        if not sequences:
+            return window_start, 0
+
+        # If only one sequence, return it directly
+        if len(sequences) == 1:
+            seq_start_rel, seq_length = sequences[0]
+            seq_start_abs = window_start + seq_start_rel
+            return seq_start_abs, seq_length
+
+        # Find the sequence closest to the flood sequence
+        flood_center = (flood_start + flood_end) / 2
+        closest_sequence = None
+        min_distance = float("inf")
+
+        for seq_start_rel, seq_length in sequences:
+            seq_start_abs = window_start + seq_start_rel
+            seq_end_abs = seq_start_abs + seq_length - 1
+            seq_center = (seq_start_abs + seq_end_abs) / 2
+
+            # Calculate distance from sequence center to flood center
+            distance = abs(seq_center - flood_center)
+
+            if distance < min_distance:
+                min_distance = distance
+                closest_sequence = (seq_start_abs, seq_length)
+
+        return closest_sequence or (window_start, 0)
+
+    def __getitem__(self, item: int):
+        """Get one sample from the dataset with variable-length sequences and dual masks
+
+        Returns samples with:
+        1. Variable length based on valid data availability
+        2. Valid mask for padding handling
+        3. Flood mask for weighted loss computation
+        """
+        basin, start_idx, actual_length = self.lookup_table[item]
+
+        # Calculate maximum possible sequence length for padding
+        max_seqlen = self.warmup_length + self.rho + self.horizon
+        end_idx = start_idx + actual_length
+
+        # Get input and target data for the actual valid range
+        x = self.x[basin, start_idx:end_idx, :]
+        y = self.y[basin, start_idx:end_idx, :]
+
+        # Create flood mask from flood_event column
+        flood_mask = self._create_flood_mask(y)
+
+        # Create valid mask (1 for valid data, 0 for padding)
+        valid_mask = np.ones((actual_length, 1), dtype=np.float32)
+
+        # Pad sequences to maximum length if needed
+        if actual_length < max_seqlen:
+            padding_length = max_seqlen - actual_length
+
+            # Pad input features with zeros
+            x_padded = np.zeros((max_seqlen, x.shape[1]), dtype=x.dtype)
+            x_padded[:actual_length, :] = x
+            x = x_padded
+
+            # Pad target features with zeros
+            y_padded = np.zeros((max_seqlen, y.shape[1]), dtype=y.dtype)
+            y_padded[:actual_length, :] = y
+            y = y_padded
+
+            # Pad flood mask with zeros
+            flood_mask_padded = np.zeros((max_seqlen, 1), dtype=np.float32)
+            flood_mask_padded[:actual_length, :] = flood_mask
+            flood_mask = flood_mask_padded
+
+            # Pad valid mask with zeros
+            valid_mask_padded = np.zeros((max_seqlen, 1), dtype=np.float32)
+            valid_mask_padded[:actual_length, :] = valid_mask
+            valid_mask = valid_mask_padded
+
+        # Concatenate both masks to targets: [original_targets, flood_mask, valid_mask]
+        y_with_masks = np.concatenate([y, flood_mask, valid_mask], axis=1)
+
+        # Handle constant features if available
+        if self.c is None or self.c.shape[-1] == 0:
+            return torch.from_numpy(x).float(), torch.from_numpy(y_with_masks).float()
+
+        # Add constant features to input
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+
+        return torch.from_numpy(xc).float(), torch.from_numpy(y_with_masks).float()

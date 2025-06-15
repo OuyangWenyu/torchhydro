@@ -784,3 +784,56 @@ def dpl4xaj_selfmadehydrodataset_args():
         # weight_path="C:\\Users\\wenyu\\code\\torchhydro\\results\\test_camels\\expdpl61561201\\10_September_202402_32PM_model.pth",
         # continue_train=0,
     )
+
+
+@pytest.fixture()
+def selfmadehydrodataset_args():
+    project_name = os.path.join("test_selfmadehydrodataset", "exp1")
+    data_dir = SETTING["local_data_path"]["datasets-interim"]
+    source_path = os.path.join(data_dir, "songliaorrevent")
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "selfmadehydrodataset",
+            "source_path": source_path,
+            "other_settings": {
+                "time_unit": ["1D"],
+                "dataset_name": "songliaorrevent",
+                "offset_to_utc": True,  # if you use Chinese dataset with start time 08:00, you need to set it to True
+            },
+        },
+        ctx=[-1],
+        model_name="SimpleLSTM",
+        model_hyperparam={
+            "input_size": 1,
+            "output_size": 1,
+            "hidden_size": 16,
+        },
+        gage_id=["songliao_20800900"],
+        batch_size=8,
+        hindcast_length=0,
+        forecast_length=20,
+        min_time_unit="D",
+        min_time_interval="1",
+        var_t=["rain"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        dataset="FloodEventDataset",
+        scaler="DapengScaler",
+        train_epoch=2,
+        save_epoch=1,
+        model_loader={"load_way": "specified", "test_epoch": 2},
+        train_period=["1980-01-01", "2010-12-31"],
+        valid_period=["2011-01-01", "2015-12-31"],
+        test_period=["2016-01-01", "2020-12-31"],
+        loss_func="FloodWeightedMSELoss",
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.0001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+    )

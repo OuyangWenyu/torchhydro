@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-05-17 11:29:13
+LastEditTime: 2025-06-14 11:53:36
 LastEditors: Wenyu Ouyang
 Description: Loss functions
 FilePath: \torchhydro\torchhydro\models\crits.py
@@ -790,3 +790,28 @@ class MultiOutWaterBalanceLoss(torch.nn.Module):
             + (1 - self.alpha - self.beta) * loss
             + self.beta * wb_1loss
         )
+
+
+class FloodWeightedMSELoss(torch.nn.Module):
+    def __init__(self, flood_weight=5.0):
+        super(FloodWeightedMSELoss, self).__init__()
+        self.flood_weight = flood_weight
+        self.mse_loss = torch.nn.MSELoss(reduction="none")
+
+    def forward(self, predictions, targets, flood_mask):
+        """
+        predictions: [batch_size, seq_len, output_features]
+        targets: [batch_size, seq_len, output_features]
+        flood_mask: [batch_size, seq_len] (1 for flood, 0 for normal)
+        """
+        # 计算MSE损失
+        mse_loss = self.mse_loss(predictions, targets)
+
+        # 为洪水事件增加权重
+        weights = torch.ones_like(flood_mask)
+        weights[flood_mask == 1] = self.flood_weight
+
+        # 应用权重
+        weighted_loss = mse_loss * weights.unsqueeze(-1)
+
+        return weighted_loss.mean()
