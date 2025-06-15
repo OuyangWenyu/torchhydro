@@ -1,12 +1,5 @@
 import numpy as np
-import pandas as pd
-import xarray as xr
-from typing import Dict
 from typing import Optional
-
-from hydroutils import hydro_time
-
-from torchhydro.datasets.data_sources import data_sources_dict
 
 
 class Arch(object):
@@ -76,23 +69,6 @@ class Arch(object):
         if std < 0.001:
             std = 1
         return [num_point, mean, std, min_, p25, p50, p75, max_]
-
-    def cal_spearman(self, x, y):
-        """calculate spearman correlation."""
-
-    def fluctuate_rate(self, r, y):
-        """ calculate fluctuation rate."""
-        yy = np.power(y, 2)
-        yy[0] = np.power(y[0], 0)
-        std = r * yy
-
-        return std
-
-    def imputation(self, std, e):
-        """imputation"""
-        y = std * e
-
-        return y
 
     def arch_function(
         self,
@@ -323,8 +299,8 @@ class Arch(object):
         unbiased acf.
         Parameters
         ----------
-        x
-        p
+        x: time series
+        p: degree
 
         Returns
         -------
@@ -354,8 +330,8 @@ class Arch(object):
         随机过程  8.2 模型的识别  p190  式（8.11）AR(p)自相关函数
         Parameters
         ----------
-        x
-        m
+        x: time series
+        m: degree
 
         Returns
         -------
@@ -703,7 +679,7 @@ class Arch(object):
         one degree integration model
         Parameters
         ----------
-        x
+        x: time series
 
         Returns
         -------
@@ -752,6 +728,25 @@ class Arch(object):
         dx = dx_i[:]
 
         return dx, tx
+
+    def integration(
+        self,
+        x,
+        d,
+    ):
+        """"""
+        n_x = len(x)
+        # integrate
+        if d > 0:
+            dx, tx = self.integrate_d_degree(x, d)
+        else:
+            dx = x  # integration
+            tx = [0]*n_x  # trend
+        # center
+        mean_dx = np.mean(dx)
+        dx_c = (dx - mean_dx).tolist()
+
+        return dx_c, mean_dx, tx
 
     def ar_one_step(
         self,
@@ -852,29 +847,10 @@ class Arch(object):
 
         return y
 
-    def integration(
-        self,
-        x,
-        d,
-    ):
-        """"""
-        n_x = len(x)
-        # integrate
-        if d > 0:
-            dx, tx = self.integrate_d_degree(x, d)
-        else:
-            dx = x  # integration
-            tx = [0]*n_x  # trend
-        # center
-        mean_dx = np.mean(dx)
-        dx_c = (dx - mean_dx).tolist()
-
-        return dx_c, mean_dx, tx
-
     def Q_statistic(
         self,
         x,
-        m,
+        m: int = None,
     ):
         """
         Q statistic
@@ -889,7 +865,7 @@ class Arch(object):
 
         """
         n_x = len(x)
-        acf_ = self.autocorrelation_function(x)
+        acf_ = self.autocorrelation_function(x, m)
         acf = acf_[1:]
         acf = np.power(acf, 2)
         Q = n_x * np.sum(acf)
@@ -899,14 +875,15 @@ class Arch(object):
         self,
         x,
         m,
-        get_chi_critical,
+        significance_level,
     ):
         """
         white noise test
         Parameters
         ----------
-        x
-
+        x: time series
+        m: free degree
+        significance_level: significance level
         Returns
         -------
 
@@ -916,7 +893,7 @@ class Arch(object):
             Q_statistic = self.Q_statistic(x, m)
         else:
             Q_statistic = self.LB_statistic(x, m)
-        Q_critical = self.get_chi_critical(m, get_chi_critical)
+        Q_critical = self.get_chi_critical(m, significance_level)
 
         # assumption
         H0 = True
@@ -1000,8 +977,8 @@ class Arch(object):
 
     def arma_least_squares_estimation(
         self,
-        x,
-        e,
+        x: Optional,
+        e: Optional,
         p: int = 0,
         q: int = 0,
     ):
@@ -1018,6 +995,16 @@ class Arch(object):
         -------
 
         """
+        # parameter check
+        if p > 0:
+            if x is None:
+                raise ValueError("x must be provided.")
+        if q > 0:
+            if e is None:
+                raise ValueError("e must be provided.")
+        if (x is None) and (e is None):
+            raise ValueError("Either x or e must be provided.")
+
         n_x = len(x)
 
         # construct matrix
@@ -1029,20 +1016,31 @@ class Arch(object):
         xf = np.transpose(xf)
         xp = []
         for i in range(start, n_x):
-            ar_i = x[i-p:i]
-            ar_i.reverse()
-            ma_i = e[i-q:i]
-            ma_i.reverse()
-            xp_i = ar_i + ma_i
-            xp.append(xp_i)
+            xp_i = []
+            if p > 0:
+                ar_i = x[i-p:i]
+                ar_i.reverse()
+                xp_i = ar_i
+            if q > 0:
+                ma_i = e[i-q:i]
+                ma_i.reverse()
+                xp_i = xp_i + ma_i
+            xp.append(xp_i[:])
 
         # matrix operations, calculate the coefficient matrix.
         a, R_2, B_1 = self.ordinary_least_squares(xp, xf, b_B_1=True)
 
-        phi = a[:p]
-        theat = -a[p:]
+        #
+        phi = []
+        theta = []
+        if p > 0:
+            phi = a[:p]
+            if q > 0:
+                theta = -a[p:]
+        else:
+            theta = -a[:]
 
-        return phi, theat, R_2, B_1
+        return phi, theta, R_2, B_1
 
 
     def x_residual(
@@ -1256,15 +1254,16 @@ class Arch(object):
         -------
 
         """
-        p = len(phi)
-        q = len(theta)
-        m = p + q
-        n = 0
-        a_phi = a[:p]
-        a_theta = a[p:]
-        t = np.sqrt(n-m)
-
-        t_statistic = t
+        beta = phi + theta
+        m = len(beta)
+        n_residual = len(residual)
+        t = np.sqrt(n_residual-m)
+        residual_2 = np.power(residual, 2)
+        sum_residual_2 = np.sum(residual_2)
+        t = t / np.sqrt(sum_residual_2)
+        a_ = np.sqrt(a)
+        t = t / a_
+        t_statistic = t * beta
 
         return t_statistic
 
@@ -1340,10 +1339,11 @@ class Arch(object):
         else:
             raise ValueError('Index m = ' + str(m) + 'out of range.')
 
-        if significance_level in p:
-            sl_i = p.index(significance_level)
+        significance_level_ = 1 - significance_level
+        if significance_level_ in p:
+            sl_i = p.index(significance_level_)
         else:
-            raise ValueError('Significance level = ' + str(significance_level) + 'not in Significance level array.')
+            raise ValueError('1 - Significance level = ' + str(significance_level_) + 'not in Significance level array.')
 
         # querying
         if type(m_i) is list:
@@ -1357,6 +1357,7 @@ class Arch(object):
 
     def test_parameters(
         self,
+        residual,
         phi,
         theta,
         a,
@@ -1375,24 +1376,24 @@ class Arch(object):
         -------
 
         """
-        t_statistic = self.t_statistic(phi, theta, a)
-
-        t_critical = self.get_t_statistic(m, significance_level)
+        n_resudual = len(residual)
+        t_statistic = self.t_statistic(residual, phi, theta, a)
+        t_statistic = np.absolute(t_statistic)
+        t_critical = self.get_t_statistic(n_resudual-m, significance_level)
 
         # assumption
         H0 = True
         H1 = False
 
-        b_ = []
+        b_significant = []
         for i in range(len(t_statistic)):
             if t_statistic[i] < t_critical[i]:
                 b_i = H0
             else:
                 b_i = H1
-            b_.append(b_i)
+            b_significant.append(b_i)
 
-        return b_
-
+        return b_significant
 
     def LM_statistic(
         self,
@@ -1447,7 +1448,7 @@ class Arch(object):
 
         # LM test
         a, R_2 = self.ar_least_squares_estimation(residual_2, q)
-        residual_2_fit = self.arma(residual_2, e=None, phi=a, theta=None, p=q, q=0)  # ar model
+        residual_2_fit = self.arma(x=residual_2, e=None, phi=a, theta=None, p=q, q=0)  # ar model
         e = residual_2 - residual_2_fit
         e_2 = np.power(e, 2)
         lm_statistic = self.LM_statistic(residual_2, q, e_2)
@@ -1481,8 +1482,8 @@ class Arch(object):
         arch model.
         Parameters
         ----------
-        x
-        q
+        x: time series
+        q: degree
 
         Returns
         -------
