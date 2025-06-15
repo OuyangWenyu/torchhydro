@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-05-31 09:18:31
+LastEditTime: 2025-06-15 16:55:45
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: /torchhydro/torchhydro/configs/config.py
@@ -336,6 +336,7 @@ def default_config_file():
             # a rolling window (rwin) can be chosen:
             # hindcast (hrwin) and forecast (frwin) length in rwin need to be chosen
             # and then rwin = hrwin + frwin
+            # when rolling is -1, we will use the each flood event sequence as one sample for testing
             "rolling": 0,
             "hrwin": None,
             "frwin": None,

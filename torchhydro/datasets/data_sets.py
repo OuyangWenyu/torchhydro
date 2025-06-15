@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-06-15 14:51:02
+LastEditTime: 2025-06-15 16:50:04
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: \torchhydro\torchhydro\datasets\data_sets.py
+FilePath: /torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -1673,13 +1673,14 @@ class FloodEventDataset(BaseDataset):
         """Create lookup table based on flood events with sliding window
 
         This method creates samples where:
-        1. Each sample has fixed length: warmup_length + rho + horizon
-        2. For each flood event sequence, use sliding window to generate samples
-        3. Each sample covers the full sequence length without internal structure division
+        1. For each flood event sequence:
+           - In training: use sliding window to generate samples with fixed length
+           - In testing: use the entire flood event sequence as one sample with its actual length
+        2. Each sample covers the full sequence length without internal structure division
         """
         lookup = []
 
-        # Calculate total sample sequence length
+        # Calculate total sample sequence length for training/validation
         sample_seqlen = self.warmup_length + self.rho + self.horizon
 
         for basin_idx in range(self.ngrid):
@@ -1690,10 +1691,31 @@ class FloodEventDataset(BaseDataset):
             flood_sequences = self._find_flood_sequences(flood_events)
 
             for seq_start, seq_end in flood_sequences:
-                # For each flood sequence, create samples with sliding window
-                self._create_sliding_window_samples(
-                    basin_idx, seq_start, seq_end, sample_seqlen, lookup
-                )
+                if self.is_new_batch_way:
+                    # For test period, use the entire flood event sequence as one sample
+                    # But we need to ensure the sample includes enough context (sample_seqlen)
+                    flood_length = seq_end - seq_start + 1
+
+                    # Calculate the start index to include enough context before the flood
+                    # We want to include some data before the flood event starts
+                    context_before = min(sample_seqlen - flood_length, seq_start)
+                    context_before = max(context_before, 0)
+                    # The actual start index should be early enough to provide context
+                    actual_start = seq_start - context_before
+
+                    # The total length should be at least sample_seqlen or the actual flood sequence length
+                    total_length = max(sample_seqlen, flood_length + context_before)
+
+                    # Ensure we don't exceed the data bounds
+                    if actual_start + total_length > self.nt:
+                        total_length = self.nt - actual_start
+
+                    lookup.append((basin_idx, actual_start, total_length))
+                else:
+                    # For training, use sliding window approach
+                    self._create_sliding_window_samples(
+                        basin_idx, seq_start, seq_end, sample_seqlen, lookup
+                    )
 
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)

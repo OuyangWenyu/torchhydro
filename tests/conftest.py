@@ -813,6 +813,8 @@ def selfmadehydrodataset_args():
         batch_size=8,
         hindcast_length=0,
         forecast_length=20,
+        # for flood event dataset, we need to set the forecast length for testing
+        frwin=20,
         min_time_unit="D",
         min_time_interval="1",
         var_t=["rain"],
@@ -836,4 +838,5 @@ def selfmadehydrodataset_args():
         },
         which_first_tensor="sequence",
         valid_batch_mode="train",
+        rolling=-1,
     )
