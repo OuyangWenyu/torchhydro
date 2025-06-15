@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-06-15 16:50:04
+LastEditTime: 2025-06-15 20:04:05
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: /torchhydro/torchhydro/datasets/data_sets.py
@@ -1620,7 +1620,8 @@ class FloodEventDataset(BaseDataset):
         flood_events = y[:, self.flood_event_idx]
 
         # Create binary mask: 1 for flood (non-zero), 0 for normal (zero)
-        flood_mask = (flood_events != 0).astype(np.float32)
+        no_flood_data = min(flood_events)
+        flood_mask = (flood_events != no_flood_data).astype(np.float32)
 
         # Reshape to maintain dimension consistency
         flood_mask = flood_mask.reshape(-1, 1)
@@ -1940,8 +1941,6 @@ class FloodEventDataset(BaseDataset):
 
         # Pad sequences to maximum length if needed
         if actual_length < max_seqlen:
-            padding_length = max_seqlen - actual_length
-
             # Pad input features with zeros
             x_padded = np.zeros((max_seqlen, x.shape[1]), dtype=x.dtype)
             x_padded[:actual_length, :] = x
