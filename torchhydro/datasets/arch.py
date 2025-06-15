@@ -134,7 +134,6 @@ class Arch(object):
 
         return lnLt
 
-
     def mle_garch(
         self,
         std,
@@ -161,29 +160,6 @@ class Arch(object):
             sum_ = sum_ + logstd_i + se_i
         lt = -0.5*self.length*np.log(2*pi) - 0.5*(sum_)
         return lt
-
-    def rho(
-        self,
-        et,
-        ek,
-    ):
-        """
-        relation rate
-        Parameters
-        ----------
-        et
-
-        Returns
-        -------
-
-        """
-        p_e = pow(et, 2)
-        p_e_t = pow(ek, 2)
-        var_e = np.var(p_e)
-        cov_ek = np.cov(p_e, p_e_t)
-        rho_k = cov_ek / var_e
-
-        return rho_k
 
     def cov(
         self,
@@ -694,7 +670,17 @@ class Arch(object):
         x,
         d,
     ):
-        """"""
+        """
+
+        Parameters
+        ----------
+        x: time series
+        d: degree of integrate
+
+        Returns
+        -------
+
+        """
         n_x = len(x)
         # integrate
         if d > 0:
@@ -1014,7 +1000,11 @@ class Arch(object):
         residual of ARIMA model.
         Parameters
         ----------
-        x
+        x: time series
+        e: white noise series
+        p: degree of autoregression model
+        d: degree of integration model
+        q: degree of moving average model
 
         Returns
         -------
@@ -1526,38 +1516,34 @@ class Arch(object):
 
         return a, R_2
 
-
-
-    def mean_value_function(
+    def garch_one_step(
         self,
-        x,
-        e
+        residual_2,
+        h,
+        eta,
+        alpha,
+        omega,
+        e,
     ):
         """
-        mean value function
+        garch model.   single step   Applied Time Series Analysis（4th edition） Yan Wang p149
         Parameters
         ----------
-        x: observe value, series.
-        e: error item
+        residual_2
+        h
+        eta
+        alpha
+        omega
+        e
+
         Returns
         -------
-        y_t: the observe value of time-step t.
+
         """
-        t = 10
-        a = 0
-        b = 0
-        r = 0
-        d_xt_ = 0
-        e_t = 0
-        d_xt = a + b * t + r * x[t-1] + d_xt_ + e_t
+        residual_2_t = np.transpose(residual_2)
+        h_t = np.matmul(eta, h)
+        h_t = h_t + np.matmul(alpha, residual_2_t)
+        h_t = h_t + omega
+        epsilon_t = np.sqrt(h_t) * e
 
-        p = x.shape[0]  # degree
-        # mean = np.mean(x)
-        fi = [0]*p  # coefficient of regression
-        y_t = 0
-        for i in range(p):
-            y_i = fi[i] * x[i]
-            y_t = y_t + y_i
-        y_t = y_t + self.mean + e
-        return y_t
-
+        return epsilon_t, h_t
