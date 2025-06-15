@@ -1012,7 +1012,7 @@ class Arch(object):
         """
         if d > 0:
             dx, mean_dx, tx = self.integration(x, d)
-            phi, theta, R_2, B_1 = self.arma_least_squares_estimation(dx, e, p, q)
+            phi, theta, R_2, B_1 = self.arma_least_squares_estimation(dx, e[d:], p, q)
             y_t = self.arima(x, e, phi, theta, p, d, q, dx, mean_dx, tx)
         else:
             phi, theta, R_2, B_1 = self.arma_least_squares_estimation(x, e, p, q)
