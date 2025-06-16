@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-06-16 13:49:14
+LastEditTime: 2025-06-16 15:11:06
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -50,6 +50,7 @@ from torchhydro.trainers.train_utils import (
     read_pth_from_model_loader,
     torch_single_train,
     get_preds_to_be_eval,
+    varied_length_collate_fn,
 )
 
 
@@ -457,6 +458,9 @@ class DeepHydro(DeepHydroInterface):
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
         sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
+        _collate_fn = None
+        if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
+            _collate_fn = varied_length_collate_fn
         data_loader = DataLoader(
             self.traindataset,
             batch_size=training_cfgs["batch_size"],
@@ -465,6 +469,7 @@ class DeepHydro(DeepHydroInterface):
             num_workers=worker_num,
             pin_memory=pin_memory,
             timeout=0,
+            collate_fn=_collate_fn,
         )
         if data_cfgs["t_range_valid"] is not None:
             validation_data_loader = DataLoader(

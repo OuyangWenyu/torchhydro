@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-06-16 13:55:17
+LastEditTime: 2025-06-16 15:07:55
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -95,7 +95,7 @@ def _rolling_preds_for_once_eval(
     return the_array_.reshape(ngrid, recover_len, nf)
 
 
-def model_infer(seq_first, device, model, batch, mask_cfgs=None):
+def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
     """
     Unified model inference function with simplified mask handling
 
@@ -109,8 +109,8 @@ def model_infer(seq_first, device, model, batch, mask_cfgs=None):
         the model
     batch : tuple or dict
         batch data, unified format: (xs, ys)
-    mask_cfgs : dict, optional
-        data configuration containing mask settings
+    variable_length_cfgs : dict, optional
+        variable length configuration containing mask settings
 
     Returns
     -------
@@ -119,7 +119,7 @@ def model_infer(seq_first, device, model, batch, mask_cfgs=None):
         both tensors are batch first
     """
     xs, ys = batch
-    mask, seq_lengths = get_mask(mask_cfgs, batch, seq_first)
+    mask, seq_lengths = get_mask(variable_length_cfgs, batch, seq_first)
     # Process input data
     if type(xs) is list:
         xs = [
@@ -791,7 +791,7 @@ def compute_loss(
     return criterion(output, labels.float())
 
 
-def get_mask_and_pad(batch):
+def varied_length_collate_fn(batch):
     """Get the mask and pad the batch data
 
     Parameters
@@ -804,28 +804,28 @@ def get_mask_and_pad(batch):
     xs_lens = [x.shape[0] for x in xs]
     ys_lens = [y.shape[0] for y in ys]
 
-    # 填充序列
+    # pad the batch data with padding value 0
     xs_pad = pad_sequence(xs, batch_first=True, padding_value=0)
     ys_pad = pad_sequence(ys, batch_first=True, padding_value=0)
 
-    # 生成输入序列的mask
-    # xs_mask: [batch_size, max_seq_len] 或 [batch_size, max_seq_len, 1]
+    # generate the mask for the batch data
+    # xs_mask: [batch_size, max_seq_len] or [batch_size, max_seq_len, 1]
     batch_size = len(xs_lens)
     max_xs_len = max(xs_lens)
     max_ys_len = max(ys_lens)
 
-    # 创建输入序列mask (True表示有效位置，False表示填充位置)
+    # create the mask for the input sequence (True for valid positions, False for padding positions)
     xs_mask = torch.zeros(batch_size, max_xs_len, dtype=torch.bool)
     for i, length in enumerate(xs_lens):
         xs_mask[i, :length] = True
 
-    # 创建输出序列mask
+    # create the mask for the output sequence
     ys_mask = torch.zeros(batch_size, max_ys_len, dtype=torch.bool)
     for i, length in enumerate(ys_lens):
         ys_mask[i, :length] = True
 
-    # 如果需要用于LSTM的mask格式 [seq_len, batch_size, 1]
-    # 可以添加以下转换
+    # if the mask is needed for LSTM, the format should be [seq_len, batch_size, 1]
+    # the following conversion can be added
     xs_mask_lstm = (
         xs_mask.transpose(0, 1).unsqueeze(-1).float()
     )  # [max_seq_len, batch_size, 1]
@@ -845,13 +845,13 @@ def get_mask_and_pad(batch):
     }
 
 
-def get_mask(mask_cfgs, batch, seq_first):
+def get_mask(variable_length_cfgs, batch, seq_first):
     """Get the mask for the data
 
     Parameters
     ----------
-    mask_cfgs : dict
-        The mask configuration
+    variable_length_cfgs : dict
+        The variable length configuration
     batch : torch.Tensor
         The batch data to be masked
     seq_first : bool
@@ -865,24 +865,27 @@ def get_mask(mask_cfgs, batch, seq_first):
     mask = None
     seq_lengths = None
     xs, ys = batch
-    if mask_cfgs.get("use_mask", False):
-        mask_types = mask_cfgs.get("mask_types", [])
-        if "valid" in mask_types:
-            base_idx = ys.shape[-1] - len(mask_types)
-            if mask_indices := [
-                base_idx + i
-                for i, mask_type in enumerate(mask_types)
-                if mask_type == "valid"
-            ]:
-                # Extract the first valid mask found
-                mask_idx = mask_indices[0]
-                mask = ys[:, :, mask_idx : mask_idx + 1]  # [batch, seq, 1]
 
-                # Convert to appropriate format for model
-                if seq_first:
-                    mask = mask.transpose(0, 1)  # [seq, batch, 1]
-        # we can use mask in ys to get the actual length of the sequence
-        seq_lengths = ys.shape[1] - mask.sum(dim=1)
+    if variable_length_cfgs is None:
+        return mask, seq_lengths
+
+    use_variable_length = variable_length_cfgs.get("use_variable_length", False)
+    custom_mask_enabled = variable_length_cfgs.get("custom_mask_enabled", False)
+
+    if use_variable_length:
+        # For simplified mask handling, valid mask is always the last column
+        mask = (
+            ys[:, :, -2:-1] if custom_mask_enabled else ys[:, :, -1:]
+        )  # [batch, seq, 1]
+
+        # Convert to appropriate format for model
+        if seq_first:
+            mask = mask.transpose(0, 1)  # [seq, batch, 1]
+
+        # Calculate sequence lengths if needed
+        if mask is not None:
+            seq_lengths = mask.sum(dim=1 if seq_first else 1)
+
     return mask, seq_lengths
 
 
@@ -926,12 +929,14 @@ def torch_single_train(
     running_loss = 0.0
     which_first_tensor = kwargs["which_first_tensor"]
     seq_first = which_first_tensor != "batch"
-    mask_cfgs = data_loader.dataset.data_cfgs.get("mask_cfgs", None)
+    variable_length_cfgs = data_loader.dataset.training_cfgs.get(
+        "variable_length_cfgs", None
+    )
     pbar = tqdm(data_loader)
 
     for _, batch in enumerate(pbar):
         # mask handling is already done inside model_infer function
-        trg, output = model_infer(seq_first, device, model, batch, mask_cfgs)
+        trg, output = model_infer(seq_first, device, model, batch, variable_length_cfgs)
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")

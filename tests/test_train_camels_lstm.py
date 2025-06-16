@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2024-10-29 14:29:55
+LastEditTime: 2025-06-16 14:01:05
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: \torchhydro\tests\test_train_camels_lstm.py
@@ -18,6 +18,23 @@ def test_train_evaluate(args, config_data):
     train_and_evaluate(config_data)
 
 
+def test_train_evaluate_varied_seq(args, config_data):
+    """set varied seq length for training"""
+    args.variable_length_cfgs = {
+        "use_variable_length": True,
+        "variable_length_type": "fixed",  # Use fixed length mode
+        "fixed_lengths": [
+            30,
+            60,
+            90,
+        ],  # [30,60,90] means 30, 60, 90 periods
+        "use_mask": True,
+        "pad_strategy": "Pad",
+    }
+    update_cfg(config_data, args)
+    train_and_evaluate(config_data)
+
+
 def test_train_evaluate_continue(args, config_data):
     """We test the training and evaluation process with the continue_train
       flag set to 1 and the start_epoch set to 2. This will load a pretrained
@@ -27,9 +44,9 @@ def test_train_evaluate_continue(args, config_data):
 
     Parameters
     ----------
-    args : _type_
+    args
         basic args in conftest.py
-    config_data : _type_
+    config_data
         default config data
     """
     args.continue_train = 1
