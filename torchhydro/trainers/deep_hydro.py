@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-06-15 20:19:42
+LastEditTime: 2025-06-16 13:49:14
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
-FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
+FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -532,7 +532,7 @@ class DeepHydro(DeepHydroInterface):
                 "ngrid": ngrid,
                 "nt": nt,
             }
-        if sampler_name == "WindowLenBatchSampler":
+        elif sampler_name == "WindowLenBatchSampler":
             sampler_hyperparam |= {
                 "batch_size": batch_size,
             }

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-06-16 12:01:39
+LastEditTime: 2025-06-16 13:55:17
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
-FilePath: /torchhydro/torchhydro/trainers/train_utils.py
+FilePath: \torchhydro\torchhydro\trainers\train_utils.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -881,8 +881,8 @@ def get_mask(mask_cfgs, batch, seq_first):
                 # Convert to appropriate format for model
                 if seq_first:
                     mask = mask.transpose(0, 1)  # [seq, batch, 1]
-    # we can use mask in ys to get the actual length of the sequence
-    seq_lengths = ys.shape[1] - mask.sum(dim=1)
+        # we can use mask in ys to get the actual length of the sequence
+        seq_lengths = ys.shape[1] - mask.sum(dim=1)
     return mask, seq_lengths
 
 

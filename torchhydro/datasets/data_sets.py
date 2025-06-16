@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-06-16 11:55:20
+LastEditTime: 2025-06-16 13:41:04
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /torchhydro/torchhydro/datasets/data_sets.py
+FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -325,7 +325,7 @@ class BaseDataset(Dataset):
         use_mask = mask_cfgs.get("use_mask", False)
         mask_types = mask_cfgs.get("mask_types", [])
 
-        # Get constant features
+        # Get data
         basin, idx, actual_length = self.lookup_table[item]
         warmup_length = self.warmup_length
         x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
@@ -894,15 +894,15 @@ class BaseDataset(Dataset):
                 nan_array = np.isnan(self.y[basin, :, :])
                 if is_multi_len_train:
                     for window in multi_window_lengths:
-                        for f in range(
-                            warmup_length, max_time_length - window - horizon + 1
-                        ):
-                            # 检查目标区间内是否全为nan
-                            if not np.all(nan_array[f + window : f + window + horizon]):
-                                # 记录 (basin, 起始位置, 窗口长度)
-                                lookup.append((basin, f, window))
+                        lookup.extend(
+                            (basin, f, window)
+                            for f in range(
+                                warmup_length,
+                                max_time_length - window - horizon + 1,
+                            )
+                            if not np.all(nan_array[f + window : f + window + horizon])
+                        )
                 else:
-
                     lookup.extend(
                         (basin, f, seq_len)
                         for f in range(
