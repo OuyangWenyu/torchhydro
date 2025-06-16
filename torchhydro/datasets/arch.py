@@ -73,96 +73,6 @@ class Arch(object):
             std = 1
         return [num_point, mean, std, min_, p25, p50, p75, max_]
 
-    def arch_function(
-        self,
-        e: list,
-        degree: int = 1,
-    ):
-        """
-        error arch
-        Parameters
-        ----------
-        e
-        degree
-
-        Returns
-        -------
-
-        """
-
-        a0 = 0.5
-        a1 = 0.2
-        e_c = [0]*self.length
-        e_c[0] = e[0]
-        for i in range(1,self.length):
-            e_c[i] = a0 + a1 * e[i] * e[i]
-
-        return e_c
-
-    def mle(
-        self,
-        x,
-        y,
-        e,
-    ):
-        """
-        max likelihood evaluation.
-        Parameters
-        ----------
-        x
-        y
-        e
-
-        Returns
-        -------
-
-        """
-        b0 = 0.5
-        b1 = 0.2
-        wt = 3
-        pi = np.pi
-        sum_lene = 0
-        sum_se = 0
-        for i in range(self.length):
-            p_e = pow(e[i], 2)
-            ln_i = np.log(p_e)
-            sum_lene = sum_lene + ln_i
-            p_y = pow(y[i]-b0-b1*x[i], 2)
-            se_i = p_y / p_e
-            sum_se = sum_se + se_i
-
-        # mle
-        lnLt = -0.5*np.log(2*pi) - sum_lene / (2 * self.length) - sum_se / (2 * self.length)
-
-        return lnLt
-
-    def mle_garch(
-        self,
-        std,
-        e,
-    ):
-        """
-
-        Parameters
-        ----------
-        std
-        e
-
-        Returns
-        -------
-
-        """
-        pi = np.pi
-        sum_ = 0
-        for i in range(self.length):
-            p_std = pow(std[i], 2)
-            logstd_i = np.log(p_std)
-            p_e = pow(e[i], 2)
-            se_i = p_e / p_std
-            sum_ = sum_ + logstd_i + se_i
-        lt = -0.5*self.length*np.log(2*pi) - 0.5*(sum_)
-        return lt
-
     def cov(
         self,
         x,
@@ -916,7 +826,7 @@ class Arch(object):
                 y_ = self.arma(x=dx_c, e=e_, phi=phi, theta=theta, p=p, q=q)  # arma
             else:
                 y_ = self.arma(x=dx_c, e=e_, theta=theta, q=q)  # ma
-        elif (q == 0) and (p > 0):
+        elif p > 0:
             y_ = self.arma(x=dx_c, phi=phi, p=p)  # ar
         else:
             return dx_c, mean_dx, tx  # i
