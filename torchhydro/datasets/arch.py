@@ -2,6 +2,8 @@
 import numpy as np
 from typing import Optional
 
+import pylab as p
+
 
 class Arch(object):
     """
@@ -1429,7 +1431,6 @@ class Arch(object):
         self,
         residual_2,
         alpha,
-        omega,
         e,
     ):
         """
@@ -1449,7 +1450,6 @@ class Arch(object):
         """
         residual_2_t = np.transpose(residual_2)
         h_t = np.matmul(alpha, residual_2_t)
-        h_t = h_t + omega
         epsilon_t = np.sqrt(h_t) * e
 
         return epsilon_t
@@ -1460,15 +1460,15 @@ class Arch(object):
         e,
         alpha,
         q,
-        omega,
     ):
         """
-
+        Time Series Analysis  James D.Hamilton p762
         Parameters
         ----------
         residual_2
         e
         alpha
+        q
 
         Returns
         -------
@@ -1481,7 +1481,8 @@ class Arch(object):
         for i in range(q, n_residual_2):
             residual_2_i = residual_2[i-q:i]
             residual_2_i.reverse()
-            epsilon[i] = self.arch_one_step(residual_2_i, alpha, omega, e[i])
+            residual_2_i.append(1)  # omega
+            epsilon[i] = self.arch_one_step(residual_2_i, alpha, e[i])
 
         return epsilon
 
@@ -1489,9 +1490,7 @@ class Arch(object):
         self,
         residual_2,
         e,
-        alpha,
         q,
-        omega,
     ):
         """
 
@@ -1501,7 +1500,7 @@ class Arch(object):
         e
         alpha
         q
-        omega
+
 
         Returns
         -------
@@ -1511,12 +1510,17 @@ class Arch(object):
 
         # construct matrix
         xf = residual_2[q:]
+        xf = np.array(xf)
+        ef = e[q:]
+        ef = np.array(ef)
+        xf = xf / ef
         xf = np.transpose(xf)
 
         xp = []
         for i in range(q, n_residual_2):
             xp_i = residual_2[i-q:i]
             xp_i.reverse()
+            xp_i.append(1)  # omega
             xp.append(xp_i)
         a, R_2 = self.ordinary_least_squares(xp, xf)
 
@@ -1524,11 +1528,10 @@ class Arch(object):
 
     def garch_one_step(
         self,
-        residual_2,
         h,
+        residual_2,
         eta,
         alpha,
-        omega,
         e,
     ):
         """
@@ -1539,7 +1542,6 @@ class Arch(object):
         h
         eta
         alpha
-        omega
         e
 
         Returns
@@ -1549,7 +1551,6 @@ class Arch(object):
         residual_2_t = np.transpose(residual_2)
         h_t = np.matmul(eta, h)
         h_t = h_t + np.matmul(alpha, residual_2_t)
-        h_t = h_t + omega
         epsilon_t = np.sqrt(h_t) * e
 
         return epsilon_t, h_t
@@ -1562,10 +1563,9 @@ class Arch(object):
         alpha,
         p,
         q,
-        omega,
     ):
         """
-
+        Time Series Analysis  James D.Hamilton p771
         Parameters
         ----------
         residual_2:
@@ -1586,10 +1586,57 @@ class Arch(object):
         epsilon[:q] = np.sqrt(residual_2[:q])
 
         for i in range(q, n_residual_2):
-            residual_2_i = residual_2[i-q:i]
-            residual_2_i.reverse()
             h_i = h[i-p:i]
             h_i.reverse()
-            epsilon[i], h[i] = self.garch_one_step(residual_2_i, h_i, eta, alpha, omega, e[i])
+            residual_2_i = residual_2[i-q:i]
+            residual_2_i.reverse()
+            residual_2_i.append(1)  # omega
+            epsilon[i], h[i] = self.garch_one_step(h_i, residual_2_i,  eta, alpha, e[i])
 
         return epsilon
+
+    def garch_least_squares_estimation(
+        self,
+        h,
+        residual_2,
+        e,
+        p,
+        q,
+    ):
+        """
+        Applied Time Series Analysis（4th edition） Yan Wang p149
+        Parameters
+        ----------
+        residual_2
+        e
+        alpha
+        q
+        omega
+
+        Returns
+        -------
+
+        """
+        n_residual_2 = len(residual_2)
+
+        # construct matrix
+        xf = residual_2[q:]
+        xf = np.array(xf)
+        ef = e[q:]
+        ef = np.array(ef)
+        xf = xf / ef
+        xf = np.transpose(xf)
+
+        xp = []
+        start = max(p, q)
+        for i in range(start, n_residual_2):
+            h_i = h[i-p:i]
+            h_i.reverse()
+            r_i = residual_2[i-q:i]
+            r_i.reverse()
+            r_i.append(1)  # omega
+            xp_i = h_i + r_i
+            xp.append(xp_i)
+        a, R_2 = self.ordinary_least_squares(xp, xf)
+
+        return a, R_2
