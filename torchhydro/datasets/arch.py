@@ -734,9 +734,9 @@ class Arch(object):
 
         """
         # MA
-        et = e[:-1]
+        et = e[1:]
         et = np.transpose(et)
-        ma0 = e[-1]
+        ma0 = e[0]
         ma = np.matmul(theta, et)
         ma = ma0 - ma
         return ma
@@ -782,13 +782,17 @@ class Arch(object):
             y[:start] = x[:start]
             ar = np.zeros(n_x-start)
             for i in range(start, n_x):
-                ar[i-start] = self.ar_one_step(x[i-p:i], phi)
+                x_i = x[i-p:i]
+                x_i.reverse()
+                ar[i-start] = self.ar_one_step(x_i, phi)
             y[start:] = ar[:]
         if q > 0:
             y[:start] = y[:start]  # + e[:start]
             ma = np.zeros(n_x - start)
             for i in range(start, n_x):
-                ma[i-start] = self.ma_one_step(e[i-q:i+1], theta)
+                e_i = e[i-q:i+1]
+                e_i.reverse()
+                ma[i-start] = self.ma_one_step(e_i, theta)
             y[start:] = y[start:] + ma[:]
 
         return y
@@ -1475,7 +1479,9 @@ class Arch(object):
         epsilon[:q] = np.sqrt(residual_2[:q])
 
         for i in range(q, n_residual_2):
-            epsilon[i] = self.arch_one_step(residual_2[i-q:i], alpha, omega, e[i])
+            residual_2_i = residual_2[i-q:i]
+            residual_2_i.reverse()
+            epsilon[i] = self.arch_one_step(residual_2_i, alpha, omega, e[i])
 
         return epsilon
 
@@ -1512,7 +1518,6 @@ class Arch(object):
             xp_i = residual_2[i-q:i]
             xp_i.reverse()
             xp.append(xp_i)
-
         a, R_2 = self.ordinary_least_squares(xp, xf)
 
         return a, R_2
@@ -1548,3 +1553,43 @@ class Arch(object):
         epsilon_t = np.sqrt(h_t) * e
 
         return epsilon_t, h_t
+
+    def garch(
+        self,
+        residual_2,
+        e,
+        eta,
+        alpha,
+        p,
+        q,
+        omega,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual_2:
+        e:
+        eta:
+        alpha:
+        q:
+        omega:
+
+        Returns
+        -------
+
+        """
+        n_residual_2 = len(residual_2)
+
+        epsilon = np.zeros(n_residual_2)
+        h = [0]*(n_residual_2-1)
+        epsilon[:q] = np.sqrt(residual_2[:q])
+
+        for i in range(q, n_residual_2):
+            residual_2_i = residual_2[i-q:i]
+            residual_2_i.reverse()
+            h_i = h[i-p:i]
+            h_i.reverse()
+            epsilon[i], h[i] = self.garch_one_step(residual_2_i, h_i, eta, alpha, omega, e[i])
+
+        return epsilon
