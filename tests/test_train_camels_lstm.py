@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2025-06-16 14:01:05
+LastEditTime: 2025-06-16 16:06:10
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: \torchhydro\tests\test_train_camels_lstm.py
@@ -28,8 +28,13 @@ def test_train_evaluate_varied_seq(args, config_data):
             60,
             90,
         ],  # [30,60,90] means 30, 60, 90 periods
-        "use_mask": True,
         "pad_strategy": "Pad",
+    }
+    args.model_name = "SimpleLSTM"
+    args.model_hyperparam = {
+        "input_size": 23,
+        "output_size": 1,
+        "hidden_size": 128,
     }
     update_cfg(config_data, args)
     train_and_evaluate(config_data)

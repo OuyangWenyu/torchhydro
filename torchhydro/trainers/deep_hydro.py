@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-06-16 15:11:06
+LastEditTime: 2025-06-16 16:23:55
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -340,7 +340,6 @@ class DeepHydro(DeepHydroInterface):
             criterion,
             validation_data_loader,
             device=self.device,
-            data_cfgs=self.cfgs["data_cfgs"],
             which_first_tensor=training_cfgs["which_first_tensor"],
         )
         valid_logs["valid_loss"] = valid_loss
@@ -392,7 +391,7 @@ class DeepHydro(DeepHydroInterface):
             for i, batch in enumerate(
                 tqdm(test_dataloader, desc="Model inference", unit="batch")
             ):
-                ys, pred = model_infer(seq_first, device, self.model, batch, data_cfgs)
+                ys, pred = model_infer(seq_first, device, self.model, batch)
                 test_preds.append(pred.cpu())
                 obss.append(ys.cpu())
                 if i % 100 == 0:

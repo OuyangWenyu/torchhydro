@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-06-16 15:07:55
+LastEditTime: 2025-06-16 16:23:07
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -97,7 +97,7 @@ def _rolling_preds_for_once_eval(
 
 def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
     """
-    Unified model inference function with simplified mask handling
+    Unified model inference function with variable length support
 
     Parameters
     ----------
@@ -107,8 +107,8 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
         cpu or gpu
     model : torch.nn.Module
         the model
-    batch : tuple or dict
-        batch data, unified format: (xs, ys)
+    batch : tuple or list
+        batch data from collate_fn or dataset
     variable_length_cfgs : dict, optional
         variable length configuration containing mask settings
 
@@ -118,8 +118,9 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
         first is the observed data, second is the predicted data;
         both tensors are batch first
     """
-    xs, ys = batch
-    mask, seq_lengths = get_mask(variable_length_cfgs, batch, seq_first)
+    xs, ys, xs_mask, ys_mask, xs_lens, ys_lens = get_masked_tensors(
+        variable_length_cfgs, batch, seq_first
+    )
     # Process input data
     if type(xs) is list:
         xs = [
@@ -147,11 +148,12 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
             else ys.to(device)
         )
 
-    # Process mask if available
-    if mask is not None:
-        mask = mask.to(device)
-        # Use mask-aware inference
-        output = model(*xs, mask=mask, seq_lengths=seq_lengths)
+    # Process masks if available
+    if xs_mask is not None and ys_mask is not None:
+        xs_mask = xs_mask.to(device)
+        ys_mask = ys_mask.to(device)
+        # Use mask-aware inference with xs masks and lengths
+        output = model(*xs, mask=xs_mask, seq_lengths=xs_lens)
     else:
         # Standard inference
         output = model(*xs)
@@ -159,6 +161,9 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
+
+    if ys_mask is not None:
+        ys = ys.masked_fill(ys_mask == 0, torch.nan)
 
     if seq_first:
         output = output.transpose(0, 1)
@@ -792,12 +797,26 @@ def compute_loss(
 
 
 def varied_length_collate_fn(batch):
-    """Get the mask and pad the batch data
+    """Collate function for variable length training
+
+    This function is automatically used by DataLoader when variable_length_cfgs["use_variable_length"] is True.
+    It pads sequences to the same length and generates corresponding masks.
 
     Parameters
     ----------
-    batch : tuple
-        The batch data to be masked and padded
+    batch : list of tuples
+        The batch data after the dataset __getitem__ method
+
+    Returns
+    -------
+    list
+        [xs_pad, ys_pad, xs_lens, ys_lens, xs_mask, ys_mask]
+        - xs_pad: padded input sequences [batch, max_seq_len, input_dim]
+        - ys_pad: padded output sequences [batch, max_seq_len, output_dim]
+        - xs_lens: original sequence lengths for input
+        - ys_lens: original sequence lengths for output
+        - xs_mask: valid position mask for input [batch, max_seq_len]
+        - ys_mask: valid position mask for output [batch, max_seq_len]
     """
 
     xs, ys = zip(*batch)
@@ -824,69 +843,60 @@ def varied_length_collate_fn(batch):
     for i, length in enumerate(ys_lens):
         ys_mask[i, :length] = True
 
-    # if the mask is needed for LSTM, the format should be [seq_len, batch_size, 1]
-    # the following conversion can be added
-    xs_mask_lstm = (
-        xs_mask.transpose(0, 1).unsqueeze(-1).float()
-    )  # [max_seq_len, batch_size, 1]
-    ys_mask_lstm = (
-        ys_mask.transpose(0, 1).unsqueeze(-1).float()
-    )  # [max_seq_len, batch_size, 1]
-
-    return {
-        "xs_pad": xs_pad,
-        "ys_pad": ys_pad,
-        "xs_lens": xs_lens,
-        "ys_lens": ys_lens,
-        "xs_mask": xs_mask,  # [batch_size, max_seq_len] 格式的mask
-        "ys_mask": ys_mask,  # [batch_size, max_seq_len] 格式的mask
-        "xs_mask_lstm": xs_mask_lstm,  # [max_seq_len, batch_size, 1] 格式，用于LSTM
-        "ys_mask_lstm": ys_mask_lstm,  # [max_seq_len, batch_size, 1] 格式，用于LSTM
-    }
+    return [
+        xs_pad,
+        ys_pad,
+        xs_lens,
+        ys_lens,
+        xs_mask,
+        ys_mask,
+    ]
 
 
-def get_mask(variable_length_cfgs, batch, seq_first):
+def get_masked_tensors(variable_length_cfgs, batch, seq_first):
     """Get the mask for the data
 
     Parameters
     ----------
     variable_length_cfgs : dict
         The variable length configuration
-    batch : torch.Tensor
-        The batch data to be masked
+    batch : tuple or list
+        The batch data from collate_fn or dataset
     seq_first : bool
         Whether the data is in sequence first format
 
     Returns
     -------
-    torch.Tensor
-        The mask for the data
+    tuple
+        (xs, ys, xs_mask, ys_mask, xs_lens, ys_lens)
     """
-    mask = None
-    seq_lengths = None
-    xs, ys = batch
+    xs_mask = None
+    ys_mask = None
+    xs_lens = None
+    ys_lens = None
 
     if variable_length_cfgs is None:
-        return mask, seq_lengths
+        xs, ys = batch
+        return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 
-    use_variable_length = variable_length_cfgs.get("use_variable_length", False)
-    custom_mask_enabled = variable_length_cfgs.get("custom_mask_enabled", False)
+    if use_variable_length := variable_length_cfgs.get("use_variable_length", False):
+        # When using variable length training, batch comes from varied_length_collate_fn
+        # which returns [xs_pad, ys_pad, xs_lens, ys_lens, xs_mask, ys_mask]
+        xs, ys, xs_lens, ys_lens, xs_mask_bool, ys_mask_bool = batch
 
-    if use_variable_length:
-        # For simplified mask handling, valid mask is always the last column
-        mask = (
-            ys[:, :, -2:-1] if custom_mask_enabled else ys[:, :, -1:]
-        )  # [batch, seq, 1]
+        # Convert masks to the format expected by model (float tensor with shape [..., 1])
+        xs_mask = xs_mask_bool.unsqueeze(-1).float()  # [batch, seq, 1]
+        ys_mask = ys_mask_bool.unsqueeze(-1).float()  # [batch, seq, 1]
 
-        # Convert to appropriate format for model
+        # Convert to appropriate format for model if needed
         if seq_first:
-            mask = mask.transpose(0, 1)  # [seq, batch, 1]
+            xs_mask = xs_mask.transpose(0, 1)  # [seq, batch, 1]
+            ys_mask = ys_mask.transpose(0, 1)  # [seq, batch, 1]
+    else:
+        # Standard fixed-length training
+        xs, ys = batch
 
-        # Calculate sequence lengths if needed
-        if mask is not None:
-            seq_lengths = mask.sum(dim=1 if seq_first else 1)
-
-    return mask, seq_lengths
+    return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 
 
 def torch_single_train(
@@ -965,7 +975,6 @@ def compute_validation(
     criterion,
     data_loader: DataLoader,
     device: torch.device = None,
-    data_cfgs=None,
     **kwargs,
 ):
     """
@@ -981,8 +990,6 @@ def compute_validation(
         The data-loader of either validation or test-data
     device
         torch.device
-    data_cfgs
-        data configuration containing mask settings
 
     Returns
     -------
@@ -999,7 +1006,7 @@ def compute_validation(
     with torch.no_grad():
         iter_num = 0
         for batch in tqdm(data_loader, desc="Evaluating", total=len(data_loader)):
-            trg, output = model_infer(seq_first, device, model, batch, data_cfgs)
+            trg, output = model_infer(seq_first, device, model, batch)
             obs.append(trg)
             preds.append(output)
             valid_loss_ = compute_loss(trg, output, criterion)

@@ -245,11 +245,13 @@ def default_config_file():
             # 2020-09-30now, 30hindcast, 2forecast, [1, 2]leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 to 2010-10-02 forecast data from 2020-09-30
             "lead_time_type": "fixed",  # must be fixed or increasing
             "lead_time_start": 1,
-            # Variable length training configuration for handling sequences with different lengths
+            # Variable length training configuration (unified mask_cfgs and multi_length_training)
             "variable_length_cfgs": {
                 # whether to use variable length training
                 "use_variable_length": False,
-                # variable length type: "fixed" for multi_length_training style, "dynamic" for automatic padding
+                # variable length type:
+                # - "fixed": use predefined lengths (replaces old multi_length_training)
+                # - "dynamic": automatic padding with mask (replaces old mask_cfgs)
                 "variable_length_type": "dynamic",
                 # for "fixed" type: specify exact sequence lengths to use
                 "fixed_lengths": [
@@ -257,8 +259,6 @@ def default_config_file():
                     1095,
                     1825,
                 ],
-                # whether to use mask for valid data detection (always enabled for variable length)
-                "use_mask": True,
                 # Pad strategy: "Pad" or "multi_table" (multi_table not fully tested yet)
                 "pad_strategy": "Pad",
             },

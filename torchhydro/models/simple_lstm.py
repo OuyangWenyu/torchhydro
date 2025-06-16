@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-19 09:36:25
-LastEditTime: 2025-06-05 15:25:56
+LastEditTime: 2025-06-16 16:11:20
 LastEditors: Wenyu Ouyang
 Description: Some self-made LSTMs
 FilePath: \torchhydro\torchhydro\models\simple_lstm.py
@@ -44,17 +44,17 @@ class SimpleLSTM(nn.Module):
             - use_manual_mask: bool, whether to prioritize manual masking over PackedSequence
         """
         x0 = F.relu(self.linearIn(x))
-        
+
         # Extract parameters from kwargs
         seq_lengths = kwargs.get("seq_lengths", None)
         mask = kwargs.get("mask", None)
         use_manual_mask = kwargs.get("use_manual_mask", False)
-        
+
         # Determine processing method based on available parameters
         if use_manual_mask and mask is not None:
             # Use manual masking
             out_lstm, (hn, cn) = self.lstm(x0)
-            
+
             # Apply mask to LSTM output
             # Ensure mask has the correct shape for broadcasting
             if mask.dim() == 2:  # [batch_size, seq_len]
@@ -63,10 +63,10 @@ class SimpleLSTM(nn.Module):
             elif mask.dim() == 3 and mask.size(-1) != 1:
                 # If mask is [seq_len, batch_size, features], take only the first feature
                 mask = mask[:, :, :1]
-            
+
             # Apply mask: set masked positions to zero
             out_lstm = out_lstm * mask
-            
+
         elif seq_lengths is not None and not use_manual_mask:
             # Use PackedSequence (original behavior)
             packed_x = pack_padded_sequence(
@@ -74,11 +74,11 @@ class SimpleLSTM(nn.Module):
             )
             packed_out, (hn, cn) = self.lstm(packed_x)
             out_lstm, _ = pad_packed_sequence(packed_out, batch_first=False)
-            
+
         else:
             # Standard processing without masking
             out_lstm, (hn, cn) = self.lstm(x0)
-            
+
             # Apply mask if provided (even without use_manual_mask flag)
             if mask is not None:
                 if mask.dim() == 2:  # [batch_size, seq_len]
