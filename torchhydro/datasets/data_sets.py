@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-06-15 20:04:05
+LastEditTime: 2025-06-16 11:55:20
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: /torchhydro/torchhydro/datasets/data_sets.py
@@ -312,67 +312,81 @@ class BaseDataset(Dataset):
         return self.num_samples
 
     def __getitem__(self, item: int):
-        if not self.train_mode:
-            basin, idx = self.lookup_table[item]
-            warmup_length = self.warmup_length
-            x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
-            y = self.y[basin, idx : idx + self.rho + self.horizon, :]
-            if self.c is None or self.c.shape[-1] == 0:
-                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-            c = self.c[basin, :]
-            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xc = np.concatenate((x, c), axis=1)
-            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        """Get one sample from the dataset with unified return format
 
-        if self.training_cfgs["multi_length_training"]["is_multi_length_training"]:
-            if (
-                self.training_cfgs["multi_length_training"]["multi_len_train_type"]
-                == "Pad"
-            ):
-                basin, idx, window = self.lookup_table[item]
-                warmup_length = self.warmup_length
-                x = self.x[basin, idx - warmup_length : idx + window + self.horizon, :]
-                y = self.y[basin, idx : idx + window + self.horizon, :]
-                if self.c is None or self.c.shape[-1] == 0:
-                    return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-                c = self.c[basin, :]
-                c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-                xc = np.concatenate((x, c), axis=1)
-                return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-            elif (
-                self.training_cfgs["multi_length_training"]["multi_len_train_type"]
-                == "multi_table"
-            ):
-                window_len, idx_in_specific_table = self.lookup_table[item]
-                basin, time_step = self.lookup_tables_by_length[window_len][
-                    idx_in_specific_table
-                ]
-                x = self.x[
-                    basin,
-                    time_step
-                    - self.warmup_length : time_step
-                    + window_len
-                    + self.horizon,
-                    :,
-                ]
-                y = self.y[basin, time_step : time_step + window_len + self.horizon, :]
-                if self.c is None or self.c.shape[-1] == 0:
-                    return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-                c = self.c[basin, :]
-                c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-                xc = np.concatenate((x, c), axis=1)
-                return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-        else:
-            basin, idx = self.lookup_table[item]
-            warmup_length = self.warmup_length
-            x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
-            y = self.y[basin, idx : idx + self.rho + self.horizon, :]
-            if self.c is None or self.c.shape[-1] == 0:
-                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-            c = self.c[basin, :]
-            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xc = np.concatenate((x, c), axis=1)
-            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        Returns:
+        --------
+        tuple[torch.Tensor, torch.Tensor]
+            (input_data, output_with_masks) where masks are appended to the end of output_data
+            based on mask_cfgs configuration
+        """
+        # Get mask configuration
+        mask_cfgs = self.data_cfgs.get("mask_cfgs", {})
+        use_mask = mask_cfgs.get("use_mask", False)
+        mask_types = mask_cfgs.get("mask_types", [])
+
+        # Get constant features
+        basin, idx, actual_length = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        if self.c is None or self.c.shape[-1] == 0:
+            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+
+        # Add masks if required
+        if use_mask and mask_types:
+            masks = self._create_masks(y, actual_length, mask_types)
+            y = np.concatenate([y] + masks, axis=1)
+
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+
+    def _create_masks(self, y, actual_length, mask_types):
+        """Create masks based on mask_types configuration
+
+        Parameters:
+        -----------
+        y : np.ndarray
+            Original target data
+        actual_length : int
+            Actual sequence length (for padding mask)
+        mask_types : list
+            List of mask types to create, e.g., ["valid", "custom"]
+
+        Returns:
+        --------
+        list[np.ndarray]
+            List of mask arrays, each with shape [seq_len, 1]
+        """
+        masks = []
+        max_seqlen = y.shape[0]
+
+        for mask_type in mask_types:
+            if mask_type == "valid":
+                # Create valid mask (1 for valid data, 0 for padding)
+                valid_mask = np.zeros((max_seqlen, 1), dtype=np.float32)
+                valid_mask[:actual_length, :] = 1.0
+                masks.append(valid_mask)
+            elif mask_type == "custom":
+                # For custom masks, subclasses should override this method
+                # Default: create all-ones mask
+                custom_mask = np.ones((max_seqlen, 1), dtype=np.float32)
+                masks.append(custom_mask)
+            else:
+                raise ValueError(f"Unknown mask type: {mask_type}")
+
+        return masks
+
+    @property
+    def noutputvar_with_masks(self):
+        """Number of output variables including masks"""
+        mask_cfgs = self.data_cfgs.get("mask_cfgs", {})
+        if mask_cfgs.get("use_mask", False):
+            num_masks = len(mask_cfgs.get("mask_types", []))
+            return self.noutputvar + num_masks
+        return self.noutputvar
 
     def _load_data(self):
         origin_data = self._read_xyc()
@@ -380,13 +394,7 @@ class BaseDataset(Dataset):
         norm_data = self._normalize(origin_data)
         origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
         self._trans2nparr(origin_data_wonan, norm_data_wonan)
-        if (
-            self.training_cfgs["multi_length_training"]["multi_len_train_type"]
-            == "multi_table"
-        ):
-            self._create_multi_len_lookup_table()
-        else:
-            self._create_lookup_table()
+        self._create_lookup_table()
 
     def _trans2nparr(self, origin_data, norm_data):
         """To make __getitem__ more efficient,
@@ -864,6 +872,7 @@ class BaseDataset(Dataset):
         rho = self.rho
         warmup_length = self.warmup_length
         horizon = self.horizon
+        seq_len = warmup_length + rho + horizon
         max_time_length = self.nt
         is_multi_len_train = self.training_cfgs["multi_length_training"][
             "is_multi_length_training"
@@ -876,7 +885,7 @@ class BaseDataset(Dataset):
                 # we don't need to ignore those with full nan in target vars for prediction without loss calculation
                 # all samples should be included so that we can recover results to specified basins easily
                 lookup.extend(
-                    (basin, f)
+                    (basin, f, seq_len)
                     for f in range(warmup_length, max_time_length - rho - horizon + 1)
                 )
             else:
@@ -895,7 +904,7 @@ class BaseDataset(Dataset):
                 else:
 
                     lookup.extend(
-                        (basin, f)
+                        (basin, f, seq_len)
                         for f in range(
                             warmup_length, max_time_length - rho - horizon + 1
                         )
@@ -905,12 +914,17 @@ class BaseDataset(Dataset):
         self.num_samples = len(self.lookup_table)
 
     def _create_multi_len_lookup_table(self):
+        """
+        Create a lookup table for multi-length training
+        TODO: not fully tested
+        """
         lookup = []
         # list to collect basins ids of basins without a single training sample
         basin_coordinates = len(self.t_s_dict["sites_id"])
         rho = self.rho
         warmup_length = self.warmup_length
         horizon = self.horizon
+        seq_len = warmup_length + rho + horizon
         max_time_length = self.nt
         is_multi_len_train = self.training_cfgs["multi_length_training"][
             "is_multi_length_training"
@@ -933,7 +947,7 @@ class BaseDataset(Dataset):
                 # If multi_length_training is active, we might need to decide which window_len to use for prediction.
                 # For now, let's stick to the original logic for train_mode=False
                 lookup.extend(
-                    (basin, f)
+                    (basin, f, seq_len)
                     for f in range(warmup_length, max_time_length - rho - horizon + 1)
                 )
             else:
@@ -958,7 +972,7 @@ class BaseDataset(Dataset):
                                 )
                 else:
                     lookup.extend(
-                        (basin, f)
+                        (basin, f, seq_len)
                         for f in range(
                             warmup_length, max_time_length - rho - horizon + 1
                         )
@@ -1077,7 +1091,7 @@ class ObsForeDataset(BaseDataset):
             and y contains target values
         """
         # train mode
-        basin, idx = self.lookup_table[item]
+        basin, idx, _ = self.lookup_table[item]
         warmup_length = self.warmup_length
         # for x, we only chose data before horizon, but we may need forecast data for not all variables
         # hence, to avoid nan values for some variables without forecast in horizon
@@ -1174,7 +1188,7 @@ class DplDataset(BaseDataset):
         rho = self.rho
         horizon = self.horizon
         xc_norm, _ = super(DplDataset, self).__getitem__(item)
-        basin, time = self.lookup_table[item]
+        basin, time, _ = self.lookup_table[item]
         if self.target_as_input:
             # y_morn and xc_norm are concatenated and used for DL model
             y_norm = torch.from_numpy(
@@ -1304,7 +1318,7 @@ class Seq2SeqDataset(BaseDataset):
         return self.target_scaler.data_target.coords["time"][self.warmup_length : -1]
 
     def __getitem__(self, item: int):
-        basin, time = self.lookup_table[item]
+        basin, time, _ = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
         hindcast_output_window = self.data_cfgs.get("hindcast_output_window", 0)
@@ -1353,7 +1367,7 @@ class SeqForecastDataset(Seq2SeqDataset):
         super(SeqForecastDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     def __getitem__(self, item: int):
-        basin, time = self.lookup_table[item]
+        basin, time, _ = self.lookup_table[item]
         rho = self.rho  # forecast history
         horizon = self.horizon  # forecast length
         hindcast_output_window = self.data_cfgs.get("hindcast_output_window", 0)
@@ -1375,7 +1389,7 @@ class TransformerDataset(Seq2SeqDataset):
         super(TransformerDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     def __getitem__(self, item: int):
-        basin, idx = self.lookup_table[item]
+        basin, idx, _ = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
 
@@ -1401,7 +1415,7 @@ class ForecastDataset(BaseDataset):
         super(ForecastDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     def __getitem__(self, item):
-        basin, idx = self.lookup_table[item]
+        basin, idx, _ = self.lookup_table[item]
         warmup_length = self.warmup_length
         x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
         y = self.y[basin, idx + self.rho : idx + self.rho + self.horizon, :]
@@ -1534,7 +1548,7 @@ class HFDataset(BaseDataset):
         return data_forcing_ds, data_output_ds
 
     def __getitem__(self, item: int):
-        basin, idx = self.lookup_table[item]
+        basin, idx, _ = self.lookup_table[item]
         warmup_length = self.warmup_length
         xf = self.x[
             basin,
@@ -1595,6 +1609,18 @@ class FloodEventDataset(BaseDataset):
             raise ValueError(
                 "flood_event column not found in target_cols. Please ensure flood_event is included in the target columns."
             )
+
+        # Configure mask settings for FloodEventDataset
+        if "mask_cfgs" not in cfgs["data_cfgs"]:
+            cfgs["data_cfgs"]["mask_cfgs"] = {}
+
+        cfgs["data_cfgs"]["mask_cfgs"].update(
+            {
+                "use_mask": True,
+                "mask_types": ["custom", "valid"],  # flood mask + valid mask
+                "mask_format": "concat",
+            }
+        )
 
         super(FloodEventDataset, self).__init__(cfgs, is_tra_val_te)
 
@@ -1974,3 +2000,45 @@ class FloodEventDataset(BaseDataset):
         xc = np.concatenate((x, c), axis=1)
 
         return torch.from_numpy(xc).float(), torch.from_numpy(y_with_masks).float()
+
+    def _create_masks(self, y, actual_length, mask_types):
+        """Create masks for FloodEventDataset
+
+        Override parent method to create both flood mask and valid mask
+
+        Parameters:
+        -----------
+        y : np.ndarray
+            Original target data
+        actual_length : int
+            Actual sequence length (for padding mask)
+        mask_types : list
+            List of mask types to create, e.g., ["custom", "valid"]
+
+        Returns:
+        --------
+        list[np.ndarray]
+            List of mask arrays, each with shape [seq_len, 1]
+        """
+        masks = []
+        max_seqlen = y.shape[0]
+
+        for mask_type in mask_types:
+            if mask_type == "valid":
+                # Create valid mask (1 for valid data, 0 for padding)
+                valid_mask = np.zeros((max_seqlen, 1), dtype=np.float32)
+                valid_mask[:actual_length, :] = 1.0
+                masks.append(valid_mask)
+            elif mask_type == "custom":
+                # Create flood mask from flood_event column
+                flood_mask = self._create_flood_mask(y)
+                # Pad flood mask if needed
+                if flood_mask.shape[0] < max_seqlen:
+                    flood_mask_padded = np.zeros((max_seqlen, 1), dtype=np.float32)
+                    flood_mask_padded[: flood_mask.shape[0], :] = flood_mask
+                    flood_mask = flood_mask_padded
+                masks.append(flood_mask)
+            else:
+                raise ValueError(f"Unknown mask type: {mask_type}")
+
+        return masks

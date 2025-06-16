@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-06-15 16:55:45
+LastEditTime: 2025-06-15 21:32:51
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: /torchhydro/torchhydro/configs/config.py
@@ -112,6 +112,19 @@ def default_config_file():
             # data assimilation -- use streamflow from period 0 to t-1 (TODO: not included now)
             # for physics-based model -- use streamflow to calibrate models
             "target_as_input": False,
+            # Mask configuration for handling variable-length sequences
+            "mask_cfgs": {
+                # whether to use mask for variable-length sequences
+                "use_mask": False,
+                # mask type: "valid" for padding mask, "custom" for custom mask (e.g., flood mask)
+                # for FloodEventDataset, this would be ["valid", "custom"]
+                "mask_types": [],
+                # indices in the output tensor where masks are located (counting from the end)
+                # e.g., [-2, -1] means last two columns are masks
+                "mask_indices": [],
+                # how to handle mask in model: "concat" (append to targets), "separate" (separate tensor)
+                "mask_format": "concat",
+            },
             # the time series input
             # TODO: now we only support one forcing type
             "relevant_types": [DAYMET_NAME],
@@ -245,14 +258,15 @@ def default_config_file():
             # 2020-09-30now, 30hindcast, 2forecast, [1, 2]leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 to 2010-10-02 forecast data from 2020-09-30
             "lead_time_type": "fixed",  # must be fixed or increasing
             "lead_time_start": 1,
-
             "multi_length_training": {
-                "multi_len_train_type":"Pad", # Pad or multi_table(must be WindowLenBatchSampler for multi_table mode)
+                "multi_len_train_type": "Pad",  # Pad or multi_table(must be WindowLenBatchSampler for multi_table mode)
                 "is_multi_length_training": False,
-                "multi_window_lengths":[0,730,1460] # [0,730,1460] means 1years, 3years, 5years
+                "multi_window_lengths": [
+                    0,
+                    730,
+                    1460,
+                ],  # [0,730,1460] means 1years, 3years, 5years
             },
-
-
             # valid batch can be organized as same way with training or testing
             "valid_batch_mode": "test",
             "criterion": "RMSE",
@@ -1174,7 +1188,9 @@ def update_cfg(cfg_file, new_args):
                 "Please make sure size of vars in data_cfgs/target_cols is same as n_output"
             )
     if new_args.multi_length_training is not None:
-        cfg_file["training_cfgs"]["multi_length_training"] = new_args.multi_length_training
+        cfg_file["training_cfgs"][
+            "multi_length_training"
+        ] = new_args.multi_length_training
 
     if new_args.model_hyperparam is not None:
         # raise AttributeError("Please set the model_hyperparam!!!")

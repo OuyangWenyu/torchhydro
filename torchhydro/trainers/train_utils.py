@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-06-13 10:49:08
+LastEditTime: 2025-06-16 12:01:39
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
-FilePath: \torchhydro\torchhydro\trainers\train_utils.py
+FilePath: /torchhydro/torchhydro/trainers/train_utils.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -22,7 +22,7 @@ import xarray as xr
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 
 from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import (
@@ -95,8 +95,9 @@ def _rolling_preds_for_once_eval(
     return the_array_.reshape(ngrid, recover_len, nf)
 
 
-def model_infer(seq_first, device, model, batch):
+def model_infer(seq_first, device, model, batch, mask_cfgs=None):
     """
+    Unified model inference function with simplified mask handling
 
     Parameters
     ----------
@@ -107,9 +108,9 @@ def model_infer(seq_first, device, model, batch):
     model : torch.nn.Module
         the model
     batch : tuple or dict
-        batch can be:
-        - tuple of (xs, ys) or (xs, ys, seq_lengths) or (xs, ys, seq_lengths, _)
-        - dict containing 'xs', 'ys', 'seq_lengths', 'mask', etc.
+        batch data, unified format: (xs, ys)
+    mask_cfgs : dict, optional
+        data configuration containing mask settings
 
     Returns
     -------
@@ -117,44 +118,8 @@ def model_infer(seq_first, device, model, batch):
         first is the observed data, second is the predicted data;
         both tensors are batch first
     """
-    # Handle different batch formats
-    if isinstance(batch, dict):
-        # Dictionary format from modified collate_fn
-        xs = batch["xs_pad"]
-        ys = batch["ys_pad"]
-        seq_lengths = batch.get("xs_lens", None)
-        mask = batch.get("xs_mask_lstm", None)
-    elif isinstance(batch, (tuple, list)):
-        # Original tuple format
-        if len(batch) == 2:
-            xs, ys = batch
-            seq_lengths = None
-            mask = None
-        elif len(batch) == 4:
-            xs, ys, seq_lengths, _ = batch
-            mask = None
-        elif len(batch) == 6:
-            # Extended format: (xs, ys, seq_lengths, _, mask_batch_first, mask_seq_first)
-            xs, ys, seq_lengths, _, mask_batch_first, mask_seq_first = batch
-            mask = mask_seq_first if seq_first else mask_batch_first
-        elif len(batch) == 8:
-            # Full extended format with all mask variants
-            (
-                xs,
-                ys,
-                seq_lengths,
-                _,
-                mask_batch_first,
-                mask_seq_first,
-                mask_lstm_format,
-                _,
-            ) = batch
-            mask = mask_seq_first if seq_first else mask_batch_first
-        else:
-            raise ValueError(f"Invalid batch length: {len(batch)}")
-    else:
-        raise ValueError(f"Invalid batch type: {type(batch)}")
-
+    xs, ys = batch
+    mask, seq_lengths = get_mask(mask_cfgs, batch, seq_first)
     # Process input data
     if type(xs) is list:
         xs = [
@@ -185,17 +150,10 @@ def model_infer(seq_first, device, model, batch):
     # Process mask if available
     if mask is not None:
         mask = mask.to(device)
-
-    # Model inference with appropriate arguments
-
-    # Model supports mask parameter
-    if seq_lengths is not None and mask is not None:
-        output = model(*xs, seq_lengths=seq_lengths, mask=mask, use_manual_mask=True)
-    elif seq_lengths is not None:
-        output = model(*xs, seq_lengths=seq_lengths)
-    elif mask is not None:
-        output = model(*xs, mask=mask)
+        # Use mask-aware inference
+        output = model(*xs, mask=mask, seq_lengths=seq_lengths)
     else:
+        # Standard inference
         output = model(*xs)
 
     if type(output) is tuple:
@@ -833,6 +791,101 @@ def compute_loss(
     return criterion(output, labels.float())
 
 
+def get_mask_and_pad(batch):
+    """Get the mask and pad the batch data
+
+    Parameters
+    ----------
+    batch : tuple
+        The batch data to be masked and padded
+    """
+
+    xs, ys = zip(*batch)
+    xs_lens = [x.shape[0] for x in xs]
+    ys_lens = [y.shape[0] for y in ys]
+
+    # 填充序列
+    xs_pad = pad_sequence(xs, batch_first=True, padding_value=0)
+    ys_pad = pad_sequence(ys, batch_first=True, padding_value=0)
+
+    # 生成输入序列的mask
+    # xs_mask: [batch_size, max_seq_len] 或 [batch_size, max_seq_len, 1]
+    batch_size = len(xs_lens)
+    max_xs_len = max(xs_lens)
+    max_ys_len = max(ys_lens)
+
+    # 创建输入序列mask (True表示有效位置，False表示填充位置)
+    xs_mask = torch.zeros(batch_size, max_xs_len, dtype=torch.bool)
+    for i, length in enumerate(xs_lens):
+        xs_mask[i, :length] = True
+
+    # 创建输出序列mask
+    ys_mask = torch.zeros(batch_size, max_ys_len, dtype=torch.bool)
+    for i, length in enumerate(ys_lens):
+        ys_mask[i, :length] = True
+
+    # 如果需要用于LSTM的mask格式 [seq_len, batch_size, 1]
+    # 可以添加以下转换
+    xs_mask_lstm = (
+        xs_mask.transpose(0, 1).unsqueeze(-1).float()
+    )  # [max_seq_len, batch_size, 1]
+    ys_mask_lstm = (
+        ys_mask.transpose(0, 1).unsqueeze(-1).float()
+    )  # [max_seq_len, batch_size, 1]
+
+    return {
+        "xs_pad": xs_pad,
+        "ys_pad": ys_pad,
+        "xs_lens": xs_lens,
+        "ys_lens": ys_lens,
+        "xs_mask": xs_mask,  # [batch_size, max_seq_len] 格式的mask
+        "ys_mask": ys_mask,  # [batch_size, max_seq_len] 格式的mask
+        "xs_mask_lstm": xs_mask_lstm,  # [max_seq_len, batch_size, 1] 格式，用于LSTM
+        "ys_mask_lstm": ys_mask_lstm,  # [max_seq_len, batch_size, 1] 格式，用于LSTM
+    }
+
+
+def get_mask(mask_cfgs, batch, seq_first):
+    """Get the mask for the data
+
+    Parameters
+    ----------
+    mask_cfgs : dict
+        The mask configuration
+    batch : torch.Tensor
+        The batch data to be masked
+    seq_first : bool
+        Whether the data is in sequence first format
+
+    Returns
+    -------
+    torch.Tensor
+        The mask for the data
+    """
+    mask = None
+    seq_lengths = None
+    xs, ys = batch
+    if mask_cfgs.get("use_mask", False):
+        mask_types = mask_cfgs.get("mask_types", [])
+        if "valid" in mask_types:
+            base_idx = ys.shape[-1] - len(mask_types)
+            if mask_indices := [
+                base_idx + i
+                for i, mask_type in enumerate(mask_types)
+                if mask_type == "valid"
+            ]:
+                # Extract the first valid mask found
+                mask_idx = mask_indices[0]
+                mask = ys[:, :, mask_idx : mask_idx + 1]  # [batch, seq, 1]
+
+                # Convert to appropriate format for model
+                if seq_first:
+                    mask = mask.transpose(0, 1)  # [seq, batch, 1]
+    # we can use mask in ys to get the actual length of the sequence
+    seq_lengths = ys.shape[1] - mask.sum(dim=1)
+    return mask, seq_lengths
+
+
 def torch_single_train(
     model,
     opt: optim.Optimizer,
@@ -873,12 +926,12 @@ def torch_single_train(
     running_loss = 0.0
     which_first_tensor = kwargs["which_first_tensor"]
     seq_first = which_first_tensor != "batch"
+    mask_cfgs = data_loader.dataset.data_cfgs.get("mask_cfgs", None)
     pbar = tqdm(data_loader)
 
     for _, batch in enumerate(pbar):
-        trg, output = model_infer(seq_first, device, model, batch)
-
         # mask handling is already done inside model_infer function
+        trg, output = model_infer(seq_first, device, model, batch, mask_cfgs)
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
@@ -907,6 +960,7 @@ def compute_validation(
     criterion,
     data_loader: DataLoader,
     device: torch.device = None,
+    data_cfgs=None,
     **kwargs,
 ):
     """
@@ -922,6 +976,8 @@ def compute_validation(
         The data-loader of either validation or test-data
     device
         torch.device
+    data_cfgs
+        data configuration containing mask settings
 
     Returns
     -------
@@ -938,7 +994,7 @@ def compute_validation(
     with torch.no_grad():
         iter_num = 0
         for batch in tqdm(data_loader, desc="Evaluating", total=len(data_loader)):
-            trg, output = model_infer(seq_first, device, model, batch)
+            trg, output = model_infer(seq_first, device, model, batch, data_cfgs)
             obs.append(trg)
             preds.append(output)
             valid_loss_ = compute_loss(trg, output, criterion)
