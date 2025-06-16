@@ -910,14 +910,13 @@ class Arch(object):
 
         # arma
         y = np.zeros(n_x)
-
         if q > 0:
             e_ = e[d:]
             if p > 0:
-                y_ = self.arma(dx_c, e_, phi, theta, p, q)  # arma
+                y_ = self.arma(x=dx_c, e=e_, phi=phi, theta=theta, p=p, q=q)  # arma
             else:
                 y_ = self.arma(x=dx_c, e=e_, theta=theta, q=q)  # ma
-        elif p > 0:
+        elif (q == 0) and (p > 0):
             y_ = self.arma(x=dx_c, phi=phi, p=p)  # ar
         else:
             return dx_c, mean_dx, tx  # i
