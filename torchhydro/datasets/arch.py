@@ -276,8 +276,8 @@ class Arch(object):
 
         pacf = np.zeros(k + 1)
         pacf[0] = 1
-        for i in range(1, k):
-            r_i = r_k[:i]
+        for i in range(1, k+1):
+            r_i = r_k[:i+1]
             pacf[i] = self.partial_autocorrelation_coefficient(r_i)
 
         return pacf
