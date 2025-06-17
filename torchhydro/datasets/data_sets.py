@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-06-17 11:06:05
+LastEditTime: 2025-06-17 15:18:39
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: \torchhydro\torchhydro\datasets\data_sets.py
+FilePath: /torchhydro/torchhydro/datasets/data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -437,12 +437,12 @@ class BaseDataset(Dataset):
 
         # 处理四维数据
         if norm_data.ndim == 4:
-            # 检查是否是按预测步长组织的数据
-            if norm_data.shape[0] < norm_data.shape[1]:  # bybasins模式
-                # 形状为 (basin_num, i_e_time_length, forecast_length, nf)
+            # Check if the data is organized by basins
+            if self.evaluation_cfgs["evaluator"]["recover_mode"] == "bybasins":
+                # Shape: (basin_num, i_e_time_length, forecast_length, nf)
                 basin_num, i_e_time_length, forecast_length, nf = norm_data.shape
 
-                # 如果指定了pace_idx，则选择特定的预测步长
+                # If pace_idx is specified, select the specific forecast step
                 if (
                     pace_idx is not None
                     and pace_idx != np.nan
@@ -454,7 +454,7 @@ class BaseDataset(Dataset):
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
                         # 当只有一个流域时，选择第一个流域的坐标
-                        basin_coord = selected_data.coords["basin"].values[0:1]
+                        basin_coord = selected_data.coords["basin"].values[:1]
                     else:
                         basin_coord = selected_data.coords["basin"].values[:basin_num]
 
@@ -463,7 +463,6 @@ class BaseDataset(Dataset):
                         "time": selected_data.coords["time"][:i_e_time_length],
                         "variable": selected_data.coords["variable"],
                     }
-                    dims = ["basin", "time", "variable"]
                 else:
                     # 如果没有指定pace_idx，则创建一个新的维度'horizon'
                     norm_data_3d = norm_data.reshape(
@@ -492,7 +491,7 @@ class BaseDataset(Dataset):
 
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
-                        basin_coord = selected_data.coords["basin"].values[0:1]
+                        basin_coord = selected_data.coords["basin"].values[:1]
                     else:
                         basin_coord = selected_data.coords["basin"].values[:basin_num]
 
@@ -501,7 +500,6 @@ class BaseDataset(Dataset):
                         "time": new_times,
                         "variable": selected_data.coords["variable"],
                     }
-                    dims = ["basin", "time", "variable"]
             else:  # byforecast模式
                 # 形状为 (forecast_length, basin_num, i_e_time_length, nf)
                 forecast_length, basin_num, i_e_time_length, nf = norm_data.shape
@@ -516,7 +514,7 @@ class BaseDataset(Dataset):
                     norm_data_3d = norm_data[pace_idx]
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
-                        basin_coord = selected_data.coords["basin"].values[0:1]
+                        basin_coord = selected_data.coords["basin"].values[:1]
                     else:
                         basin_coord = selected_data.coords["basin"].values[:basin_num]
 
@@ -525,10 +523,9 @@ class BaseDataset(Dataset):
                         "time": selected_data.coords["time"][:i_e_time_length],
                         "variable": selected_data.coords["variable"],
                     }
-                    dims = ["basin", "time", "variable"]
                 else:
-                    # 如果没有指定pace_idx，则创建一个新的维度'horizon'
-                    # 重塑为 (forecast_length, basin_num, i_e_time_length, nf) -> (basin_num, forecast_length * i_e_time_length, nf)
+                    # If pace_idx is not specified, create a new dimension 'horizon'
+                    # Reshape (forecast_length, basin_num, i_e_time_length, nf) -> (basin_num, forecast_length * i_e_time_length, nf)
                     norm_data_3d = np.transpose(norm_data, (1, 0, 2, 3)).reshape(
                         basin_num, forecast_length * i_e_time_length, nf
                     )
@@ -556,7 +553,7 @@ class BaseDataset(Dataset):
 
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
-                        basin_coord = selected_data.coords["basin"].values[0:1]
+                        basin_coord = selected_data.coords["basin"].values[:1]
                     else:
                         basin_coord = selected_data.coords["basin"].values[:basin_num]
 
@@ -565,7 +562,7 @@ class BaseDataset(Dataset):
                         "time": new_times,
                         "variable": selected_data.coords["variable"],
                     }
-                    dims = ["basin", "time", "variable"]
+            dims = ["basin", "time", "variable"]
         else:
             coords = selected_data.coords
             dims = selected_data.dims
@@ -1882,13 +1879,3 @@ class FloodEventDataset(BaseDataset):
         xc = np.concatenate((x, c), axis=1)
 
         return torch.from_numpy(xc).float(), torch.from_numpy(y_with_flood_mask).float()
-
-    def _selected_time_points_for_denorm(self):
-        """TODO: get the time points for denormalization
-            This part need to be revised for flood datasets
-
-        Returns
-        -------
-            a list of time points
-        """
-        return self.target_scaler.data_target.coords["time"][self.warmup_length :]
