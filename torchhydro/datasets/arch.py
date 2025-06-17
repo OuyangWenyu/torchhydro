@@ -180,6 +180,7 @@ class Arch(object):
         """
         autocorrelation function, acf.
         随机过程  8.2 模型的识别  p190  式（8.11）AR(p)自相关函数
+        Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan p77
         Parameters
         ----------
         x: time series
@@ -205,6 +206,59 @@ class Arch(object):
             acf[i] = self.autocorrelation_coefficient(x, p[i], var_x)
         return acf
 
+    def partial_autocorrelation_coefficient(
+        self,
+        x,
+        k: int = None,
+    ):
+        """
+        partial auto-correlation coefficient.
+        随机过程  8.2 模型的识别  p198  式（8.25）AR(p)偏相关函数
+        Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p51
+        Parameters
+        ----------
+        x
+        k
+
+        Returns
+        -------
+
+        """
+        if k is None:
+            n_x = len(x)
+            if n_x < 50:  # hydrology statistics p318
+                m = int(n_x / 1.3) - 1
+            else:
+                m = int(n_x / 1.3)
+                if m < 10:
+                    m = n_x - 10
+            k = m  # the max degree of pacf
+        r_k = self.autocorrelation_function(x)
+        # R
+        R = np.zeros((k, k))
+        for i in range(k):
+            kk = 0
+            for j in range(k):
+                if i < j:
+                    R[i, j] = r_k[j]
+                    kk = kk + 1
+                else:
+                    R[i, j] = r_k[i-j]
+                    kk = kk + 1
+        r_k_ = r_k[1:]
+        r_k_ = np.transpose(r_k_)
+        try:
+            R_1 = np.linalg.inv(R)
+        except np.linalg.LinAlgError:
+            raise np.linalg.LinAlgError("Singular matrix")
+        pacc_k = np.matmul(R_1, r_k_)
+        # add 0 degree
+        pacc = np.zeros(k+1)
+        pacc[0] = 1
+        pacc[1:] = pacc_k[:]
+
+        return pacc, R
+
     def partial_autocorrelation_function(
         self,
         x,
@@ -212,7 +266,7 @@ class Arch(object):
     ):
         """
         partial auto-correlation function, pacf.
-        随机过程  8.2 模型的识别  p198  式（8.25）AR(p)偏相关函数
+        Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p52
         Parameters
         ----------
         x
