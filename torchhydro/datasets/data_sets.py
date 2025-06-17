@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-06-16 15:04:57
+LastEditTime: 2025-06-16 23:55:27
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -221,6 +221,8 @@ class BaseDataset(Dataset):
     @property
     def noutputvar(self):
         """How many output variables in the dataset
+        Used in evaluation.
+
         Returns
         -------
         int
@@ -429,6 +431,7 @@ class BaseDataset(Dataset):
         units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
         if target_scaler.pbm_norm:
             units = {**units, **target_data.attrs["units"]}
+        # mainly to get information about the time points of norm_data
         selected_time_points = self._selected_time_points_for_denorm()
         selected_data = target_data.sel(time=selected_time_points)
 
@@ -1558,21 +1561,21 @@ class FloodEventDataset(BaseDataset):
             raise ValueError(
                 "flood_event column not found in target_cols. Please ensure flood_event is included in the target columns."
             )
-
-        # Configure variable length settings for FloodEventDataset
-        if "variable_length_cfgs" not in cfgs["training_cfgs"]:
-            cfgs["training_cfgs"]["variable_length_cfgs"] = {}
-
-        cfgs["training_cfgs"]["variable_length_cfgs"].update(
-            {
-                "use_mask": True,
-                "use_variable_length": True,
-                "variable_length_type": "dynamic",
-                "custom_mask_enabled": True,  # Special flag for flood mask
-            }
-        )
-
         super(FloodEventDataset, self).__init__(cfgs, is_tra_val_te)
+
+    @property
+    def noutputvar(self):
+        """How many output variables in the dataset
+        Used in evaluation.
+        For flood datasets, the number of output variables is 2.
+        But we don't need flood_mask in evaluation.
+
+        Returns
+        -------
+        int
+            number of variables
+        """
+        return len(self.data_cfgs["target_cols"]) - 1
 
     def _create_flood_mask(self, y):
         """Create flood mask from flood_event column
@@ -1603,48 +1606,6 @@ class FloodEventDataset(BaseDataset):
         flood_mask = flood_mask.reshape(-1, 1)
 
         return flood_mask
-
-    @property
-    def noutputvar_with_masks(self):
-        """Number of output variables including both flood mask and valid mask
-
-        Returns
-        -------
-        int
-            Number of output variables + 2 (for flood mask and valid mask)
-        """
-        return self.noutputvar + 2
-
-    @property
-    def noutputvar_with_mask(self):
-        """Number of output variables including the flood mask (for backward compatibility)
-
-        Returns
-        -------
-        int
-            Number of output variables + 1 (for flood mask)
-        """
-        return self.noutputvar + 1
-
-    def get_flood_mask_index(self):
-        """Get the index of flood_mask in the output tensor
-
-        Returns
-        -------
-        int
-            Index of flood_mask column (second to last column)
-        """
-        return self.noutputvar  # flood_mask is at position noutputvar
-
-    def get_valid_mask_index(self):
-        """Get the index of valid_mask in the output tensor
-
-        Returns
-        -------
-        int
-            Index of valid_mask column (last column)
-        """
-        return self.noutputvar + 1  # valid_mask is at position noutputvar + 1
 
     def _create_lookup_table(self):
         """Create lookup table based on flood events with sliding window
@@ -1892,17 +1853,13 @@ class FloodEventDataset(BaseDataset):
         return closest_sequence or (window_start, 0)
 
     def __getitem__(self, item: int):
-        """Get one sample from the dataset with variable-length sequences and dual masks
+        """Get one sample from the dataset with flood mask
 
         Returns samples with:
-        1. Variable length based on valid data availability
-        2. Valid mask for padding handling
-        3. Flood mask for weighted loss computation
+        1. Variable length sequences (no padding)
+        2. Flood mask for weighted loss computation
         """
         basin, start_idx, actual_length = self.lookup_table[item]
-
-        # Calculate maximum possible sequence length for padding
-        max_seqlen = self.warmup_length + self.rho + self.horizon
         end_idx = start_idx + actual_length
 
         # Get input and target data for the actual valid range
@@ -1912,77 +1869,30 @@ class FloodEventDataset(BaseDataset):
         # Create flood mask from flood_event column
         flood_mask = self._create_flood_mask(y)
 
-        # Create valid mask (1 for valid data, 0 for padding)
-        valid_mask = np.ones((actual_length, 1), dtype=np.float32)
-
-        # Pad sequences to maximum length if needed
-        if actual_length < max_seqlen:
-            # Pad input features with zeros
-            x_padded = np.zeros((max_seqlen, x.shape[1]), dtype=x.dtype)
-            x_padded[:actual_length, :] = x
-            x = x_padded
-
-            # Pad target features with zeros
-            y_padded = np.zeros((max_seqlen, y.shape[1]), dtype=y.dtype)
-            y_padded[:actual_length, :] = y
-            y = y_padded
-
-            # Pad flood mask with zeros
-            flood_mask_padded = np.zeros((max_seqlen, 1), dtype=np.float32)
-            flood_mask_padded[:actual_length, :] = flood_mask
-            flood_mask = flood_mask_padded
-
-            # Pad valid mask with zeros
-            valid_mask_padded = np.zeros((max_seqlen, 1), dtype=np.float32)
-            valid_mask_padded[:actual_length, :] = valid_mask
-            valid_mask = valid_mask_padded
-
-        # Concatenate both masks to targets: [original_targets, flood_mask, valid_mask]
-        y_with_masks = np.concatenate([y, flood_mask, valid_mask], axis=1)
+        # Replace the original flood_event column with the new flood_mask
+        y_with_flood_mask = y.copy()
+        y_with_flood_mask[:, self.flood_event_idx] = flood_mask.squeeze()
 
         # Handle constant features if available
         if self.c is None or self.c.shape[-1] == 0:
-            return torch.from_numpy(x).float(), torch.from_numpy(y_with_masks).float()
+            return (
+                torch.from_numpy(x).float(),
+                torch.from_numpy(y_with_flood_mask).float(),
+            )
 
         # Add constant features to input
         c = self.c[basin, :]
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
         xc = np.concatenate((x, c), axis=1)
 
-        return torch.from_numpy(xc).float(), torch.from_numpy(y_with_masks).float()
+        return torch.from_numpy(xc).float(), torch.from_numpy(y_with_flood_mask).float()
 
-    def _create_masks_for_flood(self, y, actual_length):
-        """Create masks for FloodEventDataset
+    def _selected_time_points_for_denorm(self):
+        """TODO: get the time points for denormalization
+            This part need to be revised for flood datasets
 
-        Create both flood mask and valid mask
-
-        Parameters:
-        -----------
-        y : np.ndarray
-            Original target data
-        actual_length : int
-            Actual sequence length (for padding mask)
-
-        Returns:
-        --------
-        list[np.ndarray]
-            List of mask arrays, each with shape [seq_len, 1]
+        Returns
+        -------
+            a list of time points
         """
-        masks = []
-        max_seqlen = y.shape[0]
-
-        # Always create valid mask first
-        valid_mask = np.zeros((max_seqlen, 1), dtype=np.float32)
-        valid_mask[:actual_length, :] = 1.0
-        masks.append(valid_mask)
-
-        # Create flood mask from flood_event column
-        flood_mask = self._create_flood_mask(y)
-        # Pad flood mask if needed
-        if flood_mask.shape[0] < max_seqlen:
-            flood_mask_padded = np.zeros((max_seqlen, 1), dtype=np.float32)
-            flood_mask_padded[: flood_mask.shape[0], :] = flood_mask
-            flood_mask = flood_mask_padded
-        masks.append(flood_mask)
-
-        return masks
+        return self.target_scaler.data_target.coords["time"][self.warmup_length :]

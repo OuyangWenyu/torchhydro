@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-06-16 16:23:07
+LastEditTime: 2025-06-16 23:34:53
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -22,7 +22,8 @@ import xarray as xr
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
+from torch.utils.data.dataloader import default_collate
+from torch.nn.utils.rnn import pad_sequence
 
 from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import (
@@ -31,7 +32,7 @@ from hydroutils.hydro_file import (
     get_latest_file_in_a_lst,
 )
 
-from torchhydro.models.crits import GaussianLoss
+from torchhydro.models.crits import FloodBaseLoss, GaussianLoss
 
 
 def _rolling_preds_for_once_eval(
@@ -783,6 +784,12 @@ def compute_loss(
         else:
             g_loss = GaussianLoss(output[0][:, 0], output[1][:, 0])
         return g_loss(labels)
+    if isinstance(criterion, FloodBaseLoss):
+        # labels has one more column than output, which is the flood mask
+        # so we need to remove the last column of labels to get targets
+        flood_mask = labels[:, :, -1:]  # Extract flood mask from last column
+        targets = labels[:, :, :-1]  # Extract targets (remove last column)
+        return criterion(output, targets, flood_mask)
     if (
         isinstance(output, torch.Tensor)
         and len(labels.shape) != len(output.shape)
@@ -822,6 +829,11 @@ def varied_length_collate_fn(batch):
     xs, ys = zip(*batch)
     xs_lens = [x.shape[0] for x in xs]
     ys_lens = [y.shape[0] for y in ys]
+    # if all ys_lens are the same, use default collate_fn to create tensors
+    if len(set(ys_lens)) == 1 and len(set(xs_lens)) == 1:
+        xs_tensor = default_collate(xs)
+        ys_tensor = default_collate(ys)
+        return [xs_tensor, ys_tensor, None, None, None, None]
 
     # pad the batch data with padding value 0
     xs_pad = pad_sequence(xs, batch_first=True, padding_value=0)
@@ -879,11 +891,14 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
         xs, ys = batch
         return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 
-    if use_variable_length := variable_length_cfgs.get("use_variable_length", False):
+    if variable_length_cfgs.get("use_variable_length", False):
         # When using variable length training, batch comes from varied_length_collate_fn
         # which returns [xs_pad, ys_pad, xs_lens, ys_lens, xs_mask, ys_mask]
         xs, ys, xs_lens, ys_lens, xs_mask_bool, ys_mask_bool = batch
-
+        if xs_mask_bool is None and ys_mask_bool is None:
+            # sometime even you choose to use variable length training, the batch data may still be fixed length
+            # so we need to return the batch data directly
+            return xs, ys, xs_mask_bool, ys_mask_bool, xs_lens, ys_lens
         # Convert masks to the format expected by model (float tensor with shape [..., 1])
         xs_mask = xs_mask_bool.unsqueeze(-1).float()  # [batch, seq, 1]
         ys_mask = ys_mask_bool.unsqueeze(-1).float()  # [batch, seq, 1]
@@ -1017,16 +1032,21 @@ def compute_validation(
                 print("NAN loss detected, skipping this batch")
             valid_loss = valid_loss + valid_loss_.item()
             iter_num = iter_num + 1
+
+            # For flood datasets, remove the flood_mask column from observations
+            # to match the prediction dimensions for evaluation
+            trg_for_eval = (
+                trg[:, :, :-1] if isinstance(criterion, FloodBaseLoss) else trg
+            )
             # clear memory to save GPU memory
             if obs_final is None:
-                obs_final = trg.detach().cpu()
+                obs_final = trg_for_eval.detach().cpu()
                 pred_final = output.detach().cpu()
             else:
-                obs_final = torch.cat([obs_final, trg.detach().cpu()], dim=0)
+                obs_final = torch.cat([obs_final, trg_for_eval.detach().cpu()], dim=0)
                 pred_final = torch.cat([pred_final, output.detach().cpu()], dim=0)
             del trg, output
             torch.cuda.empty_cache()
-        # first dim is batch
     valid_loss = valid_loss / iter_num
     y_obs = obs_final.numpy()
     y_pred = pred_final.numpy()

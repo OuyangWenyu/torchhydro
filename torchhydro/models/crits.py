@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-06-14 11:53:36
+LastEditTime: 2025-06-16 23:17:11
 LastEditors: Wenyu Ouyang
 Description: Loss functions
 FilePath: \torchhydro\torchhydro\models\crits.py
@@ -12,6 +12,7 @@ from typing import Union
 import torch
 from torch import distributions as tdist, Tensor
 from torchhydro.models.model_utils import get_the_device
+from abc import ABC, abstractmethod
 
 
 def deal_gap_data(output, target, data_gap, device):
@@ -548,7 +549,7 @@ class DynamicTaskPrior(torch.nn.Module):
     This method is proposed in https://openaccess.thecvf.com/content_ECCV_2018/html/Michelle_Guo_Focus_on_the_ECCV_2018_paper.html
     In contrast to UW and other curriculum learning methods, where easy tasks are prioritized above difficult tasks,
     It shows the importance of prioritizing difficult tasks first.
-    It automatically prioritize more difficult tasks by adaptively adjusting the mixing weight of each task’s loss.
+    It automatically prioritize more difficult tasks by adaptively adjusting the mixing weight of each task's loss.
     Here we choose correlation as KPI. As KPI must be in [0,1], we set (corr+1)/2 as KPI
     """
 
@@ -792,26 +793,197 @@ class MultiOutWaterBalanceLoss(torch.nn.Module):
         )
 
 
-class FloodWeightedMSELoss(torch.nn.Module):
-    def __init__(self, flood_weight=5.0):
-        super(FloodWeightedMSELoss, self).__init__()
+class FloodBaseLoss(torch.nn.Module, ABC):
+    """
+    Abstract base class for flood-related loss functions.
+
+    All flood-related loss functions should inherit from this class.
+    The labels tensor is expected to have the flood mask as the last column.
+    """
+
+    def __init__(self):
+        super(FloodBaseLoss, self).__init__()
+
+    @abstractmethod
+    def compute_flood_loss(
+        self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Compute the flood-aware loss.
+
+        Parameters
+        ----------
+        predictions : torch.Tensor
+            Model predictions [batch_size, seq_len, output_features]
+        targets : torch.Tensor
+            Target values [batch_size, seq_len, output_features]
+        flood_mask : torch.Tensor
+            Flood mask [batch_size, seq_len] (1 for flood, 0 for normal)
+
+        Returns
+        -------
+        torch.Tensor
+            Computed loss value
+        """
+        pass
+
+    def forward(
+        self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Forward pass that calls the abstract compute_flood_loss method.
+
+        Parameters
+        ----------
+        predictions : torch.Tensor
+            Model predictions [batch_size, seq_len, output_features]
+        targets : torch.Tensor
+            Target values [batch_size, seq_len, output_features]
+        flood_mask : torch.Tensor
+            Flood mask [batch_size, seq_len] (1 for flood, 0 for normal)
+
+        Returns
+        -------
+        torch.Tensor
+            Computed loss value
+        """
+        return self.compute_flood_loss(predictions, targets, flood_mask)
+
+
+class FloodLoss(FloodBaseLoss):
+    def __init__(
+        self,
+        loss_func: Union[torch.nn.Module, str] = "MSELoss",
+        flood_weight: float = 2.0,
+        flood_strategy: str = "weight",
+        flood_focus_factor: float = 2.0,
+        device: list = None,
+    ):
+        """
+        General flood-aware loss function with configurable base loss and strategy.
+
+        Parameters
+        ----------
+        loss_func : Union[torch.nn.Module, str]
+            Base loss function to use. Can be a PyTorch loss function or string name.
+            Supported strings: "MSELoss", "MAELoss", "RMSELoss", "L1Loss"
+        flood_weight : float
+            Weight multiplier for flood events when using "weight" strategy, default is 2.0
+        flood_strategy : str
+            Strategy for handling flood events:
+            - "weight": Apply higher weights to flood events
+            - "focal": Use focal loss approach based on flood event frequency
+        flood_focus_factor : float
+            Factor for focal loss when using "focal" strategy, default is 2.0
+        device : list
+            Device configuration, default is None (auto-detect)
+        """
+        super(FloodLoss, self).__init__()
         self.flood_weight = flood_weight
-        self.mse_loss = torch.nn.MSELoss(reduction="none")
+        self.flood_strategy = flood_strategy
+        self.flood_focus_factor = flood_focus_factor
+        self.device = get_the_device(device if device is not None else [0])
 
-    def forward(self, predictions, targets, flood_mask):
+        # Initialize base loss function
+        if isinstance(loss_func, str):
+            loss_dict = {
+                # NOTE: reduction="none" is important, otherwise the loss will be reduced to a scalar
+                "MSELoss": torch.nn.MSELoss(reduction="none"),
+                "MAELoss": torch.nn.L1Loss(reduction="none"),
+                "L1Loss": torch.nn.L1Loss(reduction="none"),
+                "RMSELoss": RMSELoss(),
+            }
+            if loss_func in loss_dict:
+                self.base_loss_func = loss_dict[loss_func]
+            else:
+                raise ValueError(f"Unsupported loss function string: {loss_func}")
+        else:
+            self.base_loss_func = loss_func
+
+    def compute_flood_loss(
+        self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
+    ) -> torch.Tensor:
         """
-        predictions: [batch_size, seq_len, output_features]
-        targets: [batch_size, seq_len, output_features]
-        flood_mask: [batch_size, seq_len] (1 for flood, 0 for normal)
+        Compute flood-aware loss using the specified strategy.
+
+        Parameters
+        ----------
+        predictions : torch.Tensor
+            Model predictions [batch_size, seq_len, output_features]
+        targets : torch.Tensor
+            Target values [batch_size, seq_len, output_features]
+        flood_mask : torch.Tensor
+            Flood mask [batch_size, seq_len, 1] (1 for flood, 0 for normal)
+
+        Returns
+        -------
+        torch.Tensor
+            Computed loss value
         """
-        # 计算MSE损失
-        mse_loss = self.mse_loss(predictions, targets)
+        # Ensure flood_mask has correct shape
+        if flood_mask.dim() == 3 and flood_mask.shape[-1] == 1:
+            flood_mask = flood_mask.squeeze(-1)  # Remove last dimension if it's 1
 
-        # 为洪水事件增加权重
-        weights = torch.ones_like(flood_mask)
-        weights[flood_mask == 1] = self.flood_weight
+        if self.flood_strategy == "weight":
+            return self._compute_weighted_loss(predictions, targets, flood_mask)
+        elif self.flood_strategy == "focal":
+            return self._compute_focal_loss(predictions, targets, flood_mask)
+        else:
+            raise ValueError(f"Unsupported flood strategy: {self.flood_strategy}")
 
-        # 应用权重
-        weighted_loss = mse_loss * weights.unsqueeze(-1)
+    def _compute_weighted_loss(
+        self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute loss with higher weights for flood events."""
+        # Compute base loss
+        if isinstance(self.base_loss_func, RMSELoss):
+            # Special handling for RMSELoss which doesn't have reduction="none"
+            base_loss = torch.pow(predictions - targets, 2)
+        else:
+            base_loss = self.base_loss_func(predictions, targets)
 
-        return weighted_loss.mean()
+        # Apply flood weights
+        weights = torch.ones_like(flood_mask, dtype=predictions.dtype)
+        weights[flood_mask >= 1] = self.flood_weight
+
+        # Apply weights to loss
+        if base_loss.dim() == 3:  # [batch, seq, features]
+            weighted_loss = base_loss * weights.unsqueeze(-1)
+        else:  # [batch, seq]
+            weighted_loss = base_loss * weights
+
+        if isinstance(self.base_loss_func, RMSELoss):
+            return torch.sqrt(weighted_loss.mean())
+        else:
+            return weighted_loss.mean()
+
+    def _compute_focal_loss(
+        self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute focal loss that emphasizes flood events."""
+        # Compute base loss
+        if isinstance(self.base_loss_func, RMSELoss):
+            base_loss = torch.pow(predictions - targets, 2)
+        else:
+            base_loss = self.base_loss_func(predictions, targets)
+
+        # Calculate flood ratio for focal weighting
+        flood_ratio = flood_mask.float().mean(dim=1, keepdim=True)  # [batch_size, 1]
+
+        # Focal weight: higher weight when flood events are rare
+        focal_weight = (1 - flood_ratio) ** self.flood_focus_factor
+
+        # Separate flood and normal events
+        flood_loss = base_loss * flood_mask.unsqueeze(-1).float()
+        normal_loss = base_loss * (1 - flood_mask.unsqueeze(-1).float())
+
+        # Apply focal weight to flood events
+        weighted_flood_loss = flood_loss * focal_weight.unsqueeze(-1)
+
+        # Combine losses
+        total_loss = weighted_flood_loss + normal_loss
+
+        if isinstance(self.base_loss_func, RMSELoss):
+            return torch.sqrt(total_loss.mean())
+        else:
+            return total_loss.mean()

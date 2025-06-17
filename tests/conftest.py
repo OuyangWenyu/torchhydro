@@ -791,6 +791,7 @@ def selfmadehydrodataset_args():
     project_name = os.path.join("test_selfmadehydrodataset", "exp1")
     data_dir = SETTING["local_data_path"]["datasets-interim"]
     source_path = os.path.join(data_dir, "songliaorrevent")
+    DEVICE = -1
     return cmd(
         sub=project_name,
         source_cfgs={
@@ -802,7 +803,7 @@ def selfmadehydrodataset_args():
                 "offset_to_utc": True,  # if you use Chinese dataset with start time 08:00, you need to set it to True
             },
         },
-        ctx=[-1],
+        ctx=[DEVICE],
         model_name="SimpleLSTM",
         model_hyperparam={
             "input_size": 1,
@@ -824,13 +825,31 @@ def selfmadehydrodataset_args():
         var_out=["inflow", "flood_event"],
         dataset="FloodEventDataset",
         scaler="DapengScaler",
+        variable_length_cfgs={
+            # whether to use variable length training
+            "use_variable_length": True,
+            # variable length type:
+            # - "fixed": use predefined lengths (replaces old multi_length_training)
+            # - "dynamic": automatic padding with mask (replaces old mask_cfgs)
+            "variable_length_type": "dynamic",
+            # for "fixed" type: specify exact sequence lengths to use
+            "fixed_lengths": None,
+            # Pad strategy: "Pad" or "multi_table" (multi_table not fully tested yet)
+            "pad_strategy": "Pad",
+        },
         train_epoch=2,
         save_epoch=1,
         model_loader={"load_way": "specified", "test_epoch": 2},
         train_period=["1980-01-01", "2010-12-31"],
         valid_period=["2011-01-01", "2015-12-31"],
         test_period=["2016-01-01", "2020-12-31"],
-        loss_func="FloodWeightedMSELoss",
+        loss_func="FloodLoss",
+        loss_param={
+            "loss_func": "MSELoss",
+            "flood_weight": 2.0,
+            "flood_strategy": "weight",
+            "device": [DEVICE],
+        },
         opt="Adam",
         lr_scheduler={
             "lr": 0.0001,
