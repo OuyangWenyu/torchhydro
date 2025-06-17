@@ -343,7 +343,11 @@ class DeepHydro(DeepHydroInterface):
             which_first_tensor=training_cfgs["which_first_tensor"],
         )
         valid_logs["valid_loss"] = valid_loss
-        if self.cfgs["training_cfgs"]["calc_metrics"]:
+        if (
+            self.cfgs["training_cfgs"]["valid_batch_mode"] == "test"
+            and self.cfgs["training_cfgs"]["calc_metrics"]
+        ):
+            # NOTE: Now we only evaluate the metrics for test-mode validation
             target_col = self.cfgs["data_cfgs"]["target_cols"]
             valid_metrics = evaluate_validation(
                 validation_data_loader,

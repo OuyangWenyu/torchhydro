@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2025-06-16 16:06:10
+LastEditTime: 2025-06-17 10:39:32
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: \torchhydro\tests\test_train_camels_lstm.py
@@ -35,6 +35,20 @@ def test_train_evaluate_varied_seq(args, config_data):
         "input_size": 23,
         "output_size": 1,
         "hidden_size": 128,
+    }
+    update_cfg(config_data, args)
+    train_and_evaluate(config_data)
+
+
+def test_train_evaluate_valid_batch_mode_train_and_rolling_eval(args, config_data):
+    args.valid_batch_mode = "train"
+    args.rolling = 1
+    args.hrwin = 0
+    args.frwin = 20
+    args.evaluator = {
+        "eval_way": "rolling",
+        "stride": 1,
+        "recover_mode": "byensembles",
     }
     update_cfg(config_data, args)
     train_and_evaluate(config_data)

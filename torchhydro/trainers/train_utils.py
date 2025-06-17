@@ -1,15 +1,17 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-06-16 23:34:53
+LastEditTime: 2025-06-17 10:43:39
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
+
 import copy
 import fnmatch
+import itertools
 import os
 import re
 import shutil
@@ -377,9 +379,24 @@ def get_preds_to_be_eval(
                 hindcast_output_window,
                 labels,
             )
+        elif recover_mode == "byensembles":
+            pred = _recover_samples_to_3d_by_4d_ensembles(
+                data_shape,
+                valorte_data_loader,
+                stride,
+                hindcast_output_window,
+                output,
+            )
+            obs = _recover_samples_to_3d_by_4d_ensembles(
+                data_shape,
+                valorte_data_loader,
+                stride,
+                hindcast_output_window,
+                labels,
+            )
         else:
             raise ValueError(
-                f"Unsupported recover_mode: {recover_mode}, must be 'bybasins' or 'byforecast'"
+                f"Unsupported recover_mode: {recover_mode}, must be 'bybasins' or 'byforecast' or 'byensembles'"
             )
     else:
         raise ValueError("eval_way should be rolling or 1pace")
@@ -668,6 +685,92 @@ def _recover_samples_to_basin(arr_3d, valorte_data_loader, pace_idx):
         basin_array[basin, result_time_idx, :] = value
 
     return basin_array
+
+
+def _recover_samples_to_3d_by_4d_ensembles(
+    data_shape,
+    valorte_data_loader,
+    stride,
+    hindcast_output_window,
+    arr_3d,
+):
+    """
+    Merge the rolling prediction results and calculate the average value for the same time period.
+
+    Parameters
+    ----------
+    data_shape : tuple
+        The shape of the data, containing three elements (basin_num, nt, nf), representing the number of basins, the number of time steps, and the number of features, respectively.
+    valorte_data_loader : DataLoader
+        The corresponding data loader used to obtain the basin-time index mapping.
+    stride : int
+        The stride of the rolling.
+    hindcast_output_window : int
+        The length of the historical output window.
+    arr_3d : np.ndarray
+        The 3D prediction array with the shape (samples, time_steps, features).
+
+    Returns
+    -------
+    np.ndarray
+        The reorganized 3D array with the shape (basin_num, time_length, nf).
+        The value of each time period is the average of all predictions.
+    """
+    basin_num, nt, nf = data_shape
+    dataset = valorte_data_loader.dataset
+    basin_num = len(dataset.t_s_dict["sites_id"])
+    forecast_length = dataset.horizon
+    rho = dataset.rho
+
+    # Calculate the actual time length
+    actual_time_length = nt - rho + hindcast_output_window
+
+    # Create the result array and count array
+    result = np.full((basin_num, actual_time_length, nf), np.nan)
+    count_array = np.zeros((basin_num, actual_time_length, nf))
+
+    # Reshape arr_3d to the required shape
+    output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
+    samples_per_basin = output.shape[1]
+
+    # Process each basin
+    for basin_idx, sample_idx in itertools.product(range(basin_num), range(samples_per_basin)):
+        # Calculate the starting position of the current sample on the time axis
+        sample_start_time = sample_idx * stride
+
+        # Extract the prediction sequence (the last forecast_length time steps)
+        prediction_sequence = output[basin_idx, sample_idx, -forecast_length:, :]
+
+        # Assign the prediction values to the corresponding time positions
+        for horizon_idx in range(forecast_length):
+            target_time = sample_start_time + horizon_idx
+
+            # Ensure that the time range is not exceeded
+            if target_time < actual_time_length:
+                # Accumulate the prediction values
+                if np.isnan(result[basin_idx, target_time, :]).all():
+                    result[basin_idx, target_time, :] = prediction_sequence[
+                        horizon_idx, :
+                    ]
+                    count_array[basin_idx, target_time, :] = 1
+                else:
+                    # If there is a value, accumulate
+                    valid_mask = ~np.isnan(prediction_sequence[horizon_idx, :])
+                    result[
+                        basin_idx, target_time, valid_mask
+                    ] += prediction_sequence[horizon_idx, valid_mask]
+                    count_array[basin_idx, target_time, valid_mask] += 1
+
+    # Calculate the average value
+    for basin_idx in range(basin_num):
+        for time_idx in range(actual_time_length):
+            for feature_idx in range(nf):
+                if count_array[basin_idx, time_idx, feature_idx] > 1:
+                    result[basin_idx, time_idx, feature_idx] /= count_array[
+                        basin_idx, time_idx, feature_idx
+                    ]
+
+    return result
 
 
 def evaluate_validation(
