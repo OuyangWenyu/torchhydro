@@ -1165,7 +1165,7 @@ class Arch(object):
         residual,
         phi,
         theta,
-        a,
+        a,  # todo:
     ):
         """
         significance test for parameters of ARIMA model.    t test
