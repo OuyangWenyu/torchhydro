@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-06-17 09:12:39
+LastEditTime: 2025-06-17 11:06:05
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -1024,12 +1024,8 @@ class ObsForeDataset(BaseDataset):
         )
         return data_dict
 
-    def _denorm():
-        # TODO: 满足不同需求的计算指标
-        pass
-
     def __getitem__(self, item: int):
-        """获取数据集中的一个样本
+        """Get a sample from the dataset
 
         Parameters
         ----------

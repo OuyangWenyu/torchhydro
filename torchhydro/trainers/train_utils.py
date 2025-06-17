@@ -1,13 +1,12 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-06-17 10:43:39
+LastEditTime: 2025-06-17 11:51:49
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
-
 
 import copy
 import fnmatch
@@ -33,7 +32,7 @@ from hydroutils.hydro_file import (
     unserialize_json,
     get_latest_file_in_a_lst,
 )
-
+from torchhydro.datasets.data_sets import FloodEventDataset
 from torchhydro.models.crits import FloodBaseLoss, GaussianLoss
 
 
@@ -398,6 +397,23 @@ def get_preds_to_be_eval(
             raise ValueError(
                 f"Unsupported recover_mode: {recover_mode}, must be 'bybasins' or 'byforecast' or 'byensembles'"
             )
+    elif evaluator["eval_way"] == "floodevent":
+        # For flood event evaluation, stride is not typically used, but we set it to 1 for consistency
+        stride = evaluator.get("stride", 1)
+        pred = _recover_samples_to_continuous_by_floodevent(
+            data_shape,
+            valorte_data_loader,
+            stride,
+            hindcast_output_window,
+            output,
+        )
+        obs = _recover_samples_to_continuous_by_floodevent(
+            data_shape,
+            valorte_data_loader,
+            stride,
+            hindcast_output_window,
+            labels,
+        )
     else:
         raise ValueError("eval_way should be rolling or 1pace")
 
@@ -734,7 +750,9 @@ def _recover_samples_to_3d_by_4d_ensembles(
     samples_per_basin = output.shape[1]
 
     # Process each basin
-    for basin_idx, sample_idx in itertools.product(range(basin_num), range(samples_per_basin)):
+    for basin_idx, sample_idx in itertools.product(
+        range(basin_num), range(samples_per_basin)
+    ):
         # Calculate the starting position of the current sample on the time axis
         sample_start_time = sample_idx * stride
 
@@ -756,9 +774,9 @@ def _recover_samples_to_3d_by_4d_ensembles(
                 else:
                     # If there is a value, accumulate
                     valid_mask = ~np.isnan(prediction_sequence[horizon_idx, :])
-                    result[
-                        basin_idx, target_time, valid_mask
-                    ] += prediction_sequence[horizon_idx, valid_mask]
+                    result[basin_idx, target_time, valid_mask] += prediction_sequence[
+                        horizon_idx, valid_mask
+                    ]
                     count_array[basin_idx, target_time, valid_mask] += 1
 
     # Calculate the average value
@@ -769,6 +787,135 @@ def _recover_samples_to_3d_by_4d_ensembles(
                     result[basin_idx, time_idx, feature_idx] /= count_array[
                         basin_idx, time_idx, feature_idx
                     ]
+
+    return result
+
+
+def _recover_samples_to_continuous_by_floodevent(
+    data_shape,
+    valorte_data_loader,
+    stride,
+    hindcast_output_window,
+    arr_3d,
+):
+    """
+    Turn the independent flood events to continuous time series
+
+    The flood event data is a series of independent flood events, which are not continuous in time.
+    This function puts these data in the corresponding time positions of the original time series length,
+    so that it is convenient to perform the inverse normalization operation.
+
+    For FloodEventDataset, this function handles the flood_event column properly:
+    - If arr_3d is predictions missing flood_event column, adds a placeholder column
+    - If arr_3d is observations with flood_event column, keeps it as is
+    This ensures dimensional consistency for subsequent denormalization.
+
+    Parameters
+    ----------
+    data_shape : tuple
+        The shape of the data, containing three elements (basin_num, nt, nf), representing the number of basins, the number of time steps, and the number of features, respectively.
+    valorte_data_loader : DataLoader
+        The corresponding data loader used to obtain the basin-time index mapping.
+    stride : int
+        The stride of the rolling.
+    hindcast_output_window : int
+        The length of the historical output window.
+    arr_3d : np.ndarray
+        The 3D prediction array with the shape (samples, time_steps, features).
+        For flood datasets, may or may not include flood_event column.
+
+    Returns
+    -------
+    np.ndarray
+        The reorganized 3D array with the shape (basin_num, time_length, nf).
+        The independent flood event data is placed in the correct position of the original time series.
+        For flood datasets, ensures consistent dimensionality with target columns.
+    """
+    basin_num, nt, nf = data_shape
+    dataset = valorte_data_loader.dataset
+
+    # Get the actual number of basins
+    basin_num = len(dataset.t_s_dict["sites_id"])
+
+    # Check if this is a FloodEventDataset and handle flood_event column properly
+    is_flood_dataset = isinstance(dataset, FloodEventDataset)
+
+    # For flood datasets, we need to ensure consistency between predictions and observations
+    # If arr_3d is predictions and missing flood_event column, we need to add it
+    # If arr_3d is observations with flood_event column, we keep it as is
+    if is_flood_dataset:
+        expected_features = len(dataset.data_cfgs["target_cols"])
+        current_features = arr_3d.shape[-1]
+
+        if current_features < expected_features:
+            # This is likely predictions missing flood_event column, add it
+            # We need to get the actual flood_event data from the dataset for each sample
+            flood_event_data = np.zeros((arr_3d.shape[0], arr_3d.shape[1], 1))
+
+            # Try to get the actual flood_event data from the dataset
+            for sample_idx in range(arr_3d.shape[0]):
+                basin_idx, start_time, actual_length = dataset.lookup_table[sample_idx]
+                end_time = start_time + actual_length
+                if end_time > dataset.nt:
+                    end_time = dataset.nt
+                    actual_length = end_time - start_time
+
+                # Get the actual flood_event data from the dataset
+                if hasattr(dataset, "y") and dataset.flood_event_idx is not None:
+                    sample_length = min(arr_3d.shape[1], actual_length)
+                    actual_flood_events = dataset.y[
+                        basin_idx,
+                        start_time : start_time + sample_length,
+                        dataset.flood_event_idx,
+                    ]
+                    flood_event_data[sample_idx, :sample_length, 0] = (
+                        actual_flood_events
+                    )
+
+            arr_3d_processed = np.concatenate([arr_3d, flood_event_data], axis=-1)
+            # Update nf to match the expected number of features
+            nf = expected_features
+        else:
+            # This is likely observations with flood_event column, keep as is
+            arr_3d_processed = arr_3d
+            nf = current_features
+    else:
+        arr_3d_processed = arr_3d
+
+    # Create the result array, initialized with NaN
+    result = np.full((basin_num, nt, nf), np.nan)
+
+    # Iterate over each sample
+    for sample_idx in range(arr_3d_processed.shape[0]):
+        # Get the basin, start time, and actual length of the current sample from lookup_table
+        basin_idx, start_time, actual_length = dataset.lookup_table[sample_idx]
+
+        # Get the prediction result of the current sample
+        sample_prediction = arr_3d_processed[sample_idx, :, :]  # [time_steps, features]
+
+        # Calculate the end time
+        end_time = start_time + actual_length
+
+        # Ensure that the time range is not exceeded
+        if end_time > nt:
+            end_time = nt
+            actual_length = end_time - start_time
+
+        # Ensure that the length of the prediction result matches the actual length
+        pred_length = min(sample_prediction.shape[0], actual_length)
+
+        # Place the prediction result in the correct position of the original time series
+        # Note: here we need to handle the possible length mismatch problem
+        if pred_length > 0:
+            # If the prediction length is greater than the actual length, take the first part
+            if pred_length > actual_length:
+                pred_to_use = sample_prediction[:actual_length, :]
+            else:
+                pred_to_use = sample_prediction[:pred_length, :]
+
+            # Fill the prediction result into the corresponding position
+            end_fill = start_time + pred_to_use.shape[0]
+            result[basin_idx, start_time:end_fill, :] = pred_to_use
 
     return result
 

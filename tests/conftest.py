@@ -858,4 +858,5 @@ def selfmadehydrodataset_args():
         which_first_tensor="sequence",
         valid_batch_mode="train",
         rolling=-1,
+        evaluator={"eval_way": "floodevent"},
     )
