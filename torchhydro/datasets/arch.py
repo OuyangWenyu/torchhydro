@@ -384,7 +384,9 @@ class Arch(object):
         """
         least squares estimation of Augmented Dickey-Fuller Tested.
         minimize the square summation of residual error -> parameters of adf model.
-        dx(t) = rho*x(t-1) + b_1*dx(t-1) + b_2*dx(t-2) + ... + b_(p-1)*dx(t-(p-1)) + e(t)   Applied Time Series Analysis p228 formula(6.7)
+        Applied Time Series Analysis p228 formula(6.7)
+        dx(t) = rho*x(t-1) + b_1*dx(t-1) + b_2*dx(t-2) + ... + b_(p-1)*dx(t-(p-1)) + e(t)
+
         Parameters
         ----------
         x: time series
@@ -450,6 +452,7 @@ class Arch(object):
     ):
         """
         Time Series Analysis  James D.Hamilton  p882 table B.6
+
         Returns
         -------
 
@@ -483,27 +486,37 @@ class Arch(object):
             [-3.96, -3.66, -3.41, -3.12, -1.25, -0.94, -0.66, -0.33],
         ]
         data = np.array([case_1, case_2, case_4])
-        # sample_size_T = T
-        # columns = p
-        # index = pd.MultiIndex.from_product([case_names, sample_size_T])
-        # table_B_6 = pd.DataFrame(data=data, index=index, columns=columns)
-        # table_B_6.columns = p
-        # table_B_6.index.name = "sample size T"
-        # table_B_6.set_index("sample size T", inplace=True)
+
+        # locate
         case_i = case_names.index(case)
-        sl_i = p.index(significance_level)
-        for i in range(1, len(T)-1):
-            if n_sample <= T[0]:
-                n_sample = T[0]
-                break
-            if n_sample > T[-2]:
-                n_sample = T[-1]
-                break
-            if (n_sample > T[i-1]) and (n_sample <= T[i]):
-                n_sample = T[i]
-                break
-        sample_i = T.index(n_sample)
-        tau_critical = data[case_i, sample_i, sl_i]
+        if significance_level in p:
+            sl_i = p.index(significance_level)
+        else:
+            raise ValueError('Significance level = ' + str(significance_level) + 'not in Significance level array.')
+        sample_i = None
+        sample_within = None
+        if (n_sample >= T[0]) and (n_sample <= T[-2]):
+            if n_sample in T:
+                sample_i = T.index(n_sample)
+            else:
+                n_T = len(T)
+                for i in range(n_T-1):
+                    if (n_sample > T[i]) and (n_sample < T[i+1]):
+                        sample_i = [i, i+1]
+                        sample_within = [T[i], T[i+1]]
+                        break
+        elif n_sample > T[-2]:
+            sample_i = T[-1]
+        else:
+            raise ValueError('sample volume n_sample = ' + str(n_sample) + 'out of range.')
+
+        # querying
+        if type(sample_i) is list:
+            critical_0 = data[case_i, sample_i[0], sl_i]
+            critical_1 = data[case_i, sample_i[1], sl_i]
+            tau_critical = (critical_1 - critical_0) / (sample_within[1] - sample_within[0]) * (n_sample - sample_within[0]) + critical_0  # linear interpolation
+        else:
+            tau_critical = data[case_i, sample_i, sl_i]
 
         return tau_critical
 
