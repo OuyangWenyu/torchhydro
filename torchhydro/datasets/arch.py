@@ -2,8 +2,6 @@
 import numpy as np
 from typing import Optional
 
-import pylab as p
-
 
 class Arch(object):
     """
@@ -98,7 +96,6 @@ class Arch(object):
             mean_y = mean_x
         if mean_y is None:
             mean_y = np.mean(y)
-        # n_x = x.shape[0]
         n_x = len(x)
         cov = 0
         for i in range(n_x):
@@ -133,8 +130,10 @@ class Arch(object):
         if ((mean_x is not None) and (mean_y is None)) or ((mean_x is None) and (mean_y is not None)):
             raise ValueError("Error: Please set mean_x and mean_y at the same time or do not set both.")
         cov_xy = self.cov(x, y, mean_x=mean_x, mean_y=mean_y)
-        std_x = pow(self.cov(x, mean_x=mean_x), 0.5)
-        std_y = pow(self.cov(y, mean_x=mean_y), 0.5)
+        var_x = self.cov(x, mean_x=mean_x)
+        std_x = pow(var_x, 0.5)
+        var_y = self.cov(y, mean_x=mean_y)
+        std_y = pow(var_y, 0.5)
         rho_xy = cov_xy / (std_x * std_y)
         return rho_xy
 
@@ -142,13 +141,15 @@ class Arch(object):
         self,
         x,
         p,
+        var_x: Optional = None,
     ):
         """
-        unbiased acf.
+        biased acf.  Applied Time Series Analysis（4th edition） Yan Wang  p66
         Parameters
         ----------
         x: time series
         p: degree
+        var_x: variance
 
         Returns
         -------
@@ -162,9 +163,12 @@ class Arch(object):
         if p == 0:
             x_ = x[:]
         else:
-            x_ = x[:-p]
+            x_ = x[:n_x-p]
         y_ = x[p:]
-        rho_p_xx = self.correlation_coefficient(x_, y_, mean_x, mean_x)
+        cov_xy = self.cov(x_, y_, mean_x, mean_x)
+        if var_x is None:
+            var_x = self.cov(x=x, mean_x=mean_x)
+        rho_p_xx = (cov_xy / var_x) * ((n_x - p) / n_x)
 
         return rho_p_xx
 
@@ -194,9 +198,11 @@ class Arch(object):
                 if m < 10:
                     m = n_x - 10
         p = list(range(0, m+1))
+        mean_x = np.mean(x)
+        var_x = self.cov(x, mean_x=mean_x)
         acf = [0]*(m+1)
         for i in range(m+1):
-            acf[i] = self.autocorrelation_coefficient(x, p[i])
+            acf[i] = self.autocorrelation_coefficient(x, p[i], var_x)
         return acf
 
     def partial_autocorrelation_function(
