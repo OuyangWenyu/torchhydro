@@ -1346,10 +1346,12 @@ def test_arch_one_step():
     q = 3
     y_residual_2 = np.power(y_residual, 2)
     y_residual_2_ = y_residual_2[2:2+q]
-    alpha = [1, 0.5]
+    alpha = [1, 0.5, -0.5]
     epsilon_t = arch.arch_one_step(y_residual_2_, alpha, e[2+q-1])
     print("epsilon_t")
     print(epsilon_t)
+# epsilon_t
+# 7.0818825770004645
 
 def test_arch():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
@@ -1364,11 +1366,17 @@ def test_arch():
                   0.18368458, 1.3957388, -0.13007158]
     arch = Arch(x)
     y_residual_2 = np.power(y_residual, 2)
-    alpha = [0.5, 0.5, 0.5]
+    y_residual_2 = y_residual_2.tolist()
+    alpha = [0.5, 0.5, 0.5, 1]  # omega
     q = 3
     epsilon = arch.arch(y_residual_2, e, alpha, q)
     print("epsilon")
     print(epsilon)
+# epsilon
+# [  0.           0.           7.00148942  -4.85853011   5.30047417
+#  -11.96630872   5.28427529  -1.43442452   0.92057858  -0.19125989
+#    1.82441633  -3.33679254  -0.45009062  -0.59027021   2.31820296
+#   -1.65459017  -0.10712434  -1.23454872   0.24357103]
 
 def test_arch_least_squares_estimation():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
