@@ -985,7 +985,7 @@ class Arch(object):
 
         x_residual = np.array(x) - np.array(y_t)
 
-        return x_residual, y_t, R_2, a_diagonal
+        return x_residual, y_t, R_2, phi, theta, a_diagonal
 
     def LB_statistic(
         self,
@@ -1153,7 +1153,7 @@ class Arch(object):
         residual,
         phi,
         theta,
-        a,  # todo:
+        a_diagonal,
     ):
         """
         significance test for parameters of ARIMA model.    t test
@@ -1162,8 +1162,7 @@ class Arch(object):
         ----------
         phi
         theta
-        a
-
+        a_diagonal
         Returns
         -------
 
@@ -1175,7 +1174,7 @@ class Arch(object):
         residual_2 = np.power(residual, 2)
         sum_residual_2 = np.sum(residual_2)
         t = t / np.sqrt(sum_residual_2)
-        a_ = np.sqrt(a)
+        a_ = np.sqrt(a_diagonal)
         t = t / a_
         t_statistic = t * beta
 
@@ -1274,7 +1273,7 @@ class Arch(object):
         residual,
         phi,
         theta,
-        a,
+        a_diagonal,
         m,
         significance_level,
     ):
@@ -1284,14 +1283,14 @@ class Arch(object):
         ----------
         phi
         theta
-        a
+        a_diagonal
 
         Returns
         -------
 
         """
         n_resudual = len(residual)
-        t_statistic = self.t_statistic(residual, phi, theta, a)
+        t_statistic = self.t_statistic(residual, phi, theta, a_diagonal)
         t_statistic = np.absolute(t_statistic)
         t_critical = self.get_t_statistic(n_resudual-m, significance_level)
 
@@ -1301,7 +1300,7 @@ class Arch(object):
 
         b_significant = []
         for i in range(len(t_statistic)):
-            if t_statistic[i] < t_critical[i]:
+            if t_statistic[i] > t_critical:
                 b_i = H0
             else:
                 b_i = H1
