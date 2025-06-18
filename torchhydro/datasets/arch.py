@@ -1355,8 +1355,9 @@ class Arch(object):
 
         """
         residual_2 = np.power(residual, 2)
+        residual_2 = residual_2.tolist()
         # Portmanteau Q test
-        Q_statistic = self.LB_statistic(residual_2, q)
+        Q_statistic, acf = self.LB_statistic(residual_2, q)
         chi_critical_Q = self.get_chi_critical(q-1, significance_level)
 
         # LM test
@@ -1364,8 +1365,8 @@ class Arch(object):
         residual_2_fit = self.arma(x=residual_2, e=None, phi=a, theta=None, p=q, q=0)  # ar model
         e = residual_2 - residual_2_fit
         e_2 = np.power(e, 2)
-        lm_statistic = self.LM_statistic(residual_2, q, e_2)
-        chi_critical_lm = self.get_chi_critical(q-1, significance_level)
+        LM_statistic = self.LM_statistic(residual_2, q, e_2)
+        chi_critical_LM = self.get_chi_critical(q-1, significance_level)
 
         # assumption
         H0 = True
@@ -1377,12 +1378,12 @@ class Arch(object):
         else:
             b_arch_Q = H1
 
-        if lm_statistic > chi_critical_lm:
-            b_arch_lm = H0
+        if LM_statistic > chi_critical_LM:
+            b_arch_LM = H0
         else:
-            b_arch_lm = H1
+            b_arch_LM = H1
 
-        return b_arch_Q, b_arch_lm
+        return b_arch_Q, b_arch_LM
 
     def arch_one_step(
         self,
