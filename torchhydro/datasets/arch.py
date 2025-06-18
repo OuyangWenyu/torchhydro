@@ -802,7 +802,7 @@ class Arch(object):
         if n_x > 100:  # todo:
             Q_statistic = self.Q_statistic(x, m)
         else:
-            Q_statistic = self.LB_statistic(x, m)
+            Q_statistic, acf = self.LB_statistic(x, m)
         Q_critical = self.get_chi_critical(m, significance_level)
 
         # assumption

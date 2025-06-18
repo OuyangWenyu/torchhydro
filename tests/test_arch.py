@@ -655,7 +655,8 @@ def test_white_noise_test():
     b_white_noise = arch.white_noise_test(x=e, m=m, significance_level=significant)
     print("b_white_noise")
     print(b_white_noise)
-
+# b_white_noise
+# True
 
 def test_arima():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
