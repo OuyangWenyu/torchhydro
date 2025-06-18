@@ -320,7 +320,7 @@ class Arch(object):
         A,
         Y,
         b_s_a: Optional = False,
-        b_B_1: Optional = False,
+        b_a_diagonal: Optional = False,
     ):
         """
         ordinary least squares, ols.
@@ -371,8 +371,12 @@ class Arch(object):
 
             return a, R_2, se_a0
 
-        if b_B_1:
-            return a, R_2, B_1
+        if b_a_diagonal:
+            n_B = B_1.shape[0]
+            a_diagonal = np.zeros(n_B)
+            for i in range(n_B):
+                a_diagonal[i] = B_1[i, i]
+            return a, R_2, a_diagonal
 
         return a, R_2
 
@@ -935,7 +939,7 @@ class Arch(object):
             xp.append(xp_i[:])
 
         # matrix operations, calculate the coefficient matrix.
-        a, R_2, B_1 = self.ordinary_least_squares(xp, xf, b_B_1=True)
+        a, R_2, a_diagonal = self.ordinary_least_squares(xp, xf, b_a_diagonal=True)
 
         # allot parameters
         phi = []
@@ -947,7 +951,7 @@ class Arch(object):
         else:
             theta = -a[:]
 
-        return phi, theta, R_2, B_1
+        return phi, theta, R_2, a_diagonal
 
     def x_residual(
         self,
@@ -973,15 +977,15 @@ class Arch(object):
         """
         if d > 0:
             dx, mean_dx, tx = self.integration(x, d)
-            phi, theta, R_2, B_1 = self.arma_least_squares_estimation(dx, e[d:], p, q)
+            phi, theta, R_2, a_diagonal = self.arma_least_squares_estimation(dx, e[d:], p, q)
             y_t = self.arima(x, e, phi, theta, p, d, q, dx, mean_dx, tx)
         else:
-            phi, theta, R_2, B_1 = self.arma_least_squares_estimation(x, e, p, q)
+            phi, theta, R_2, a_diagonal = self.arma_least_squares_estimation(x, e, p, q)
             y_t = self.arima(x, e, phi, theta, p, d, q)
 
         x_residual = np.array(x) - np.array(y_t)
 
-        return x_residual, y_t, R_2, B_1
+        return x_residual, y_t, R_2, a_diagonal
 
     def LB_statistic(
         self,
@@ -1249,7 +1253,7 @@ class Arch(object):
         else:
             raise ValueError('Index m = ' + str(m) + 'out of range.')
 
-        significance_level_ = 1 - significance_level
+        significance_level_ = significance_level  # 1 -
         if significance_level_ in p:
             sl_i = p.index(significance_level_)
         else:
