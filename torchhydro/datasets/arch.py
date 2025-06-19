@@ -652,7 +652,9 @@ class Arch(object):
         mean_dx = np.mean(dx)
         dx_c = (dx - mean_dx).tolist()
 
-        return dx_c, mean_dx, tx
+        # return dx_c, mean_dx, tx
+
+        return dx, tx
 
     def ar_one_step(
         self,
@@ -825,8 +827,9 @@ class Arch(object):
         p: int = 0,
         d: int = 0,
         q: int = 0,
-        dx_c: Optional = None,
-        mean_dx: Optional = None,
+        # dx_c: Optional = None,
+        # mean_dx: Optional = None,
+        dx: Optional = None,
         tx: Optional = None,
     ):
         """
@@ -858,12 +861,15 @@ class Arch(object):
 
         n_x = len(x)
         # integrate
-        if (dx_c is None) or (mean_dx is None) or (tx is None):
+        # if (dx_c is None) or (mean_dx is None) or (tx is None):
+        if (dx is None) or (tx is None):
             if d > 0:
-                dx_c, mean_dx, tx = self.integration(x, d)
+                # dx_c, mean_dx, tx = self.integration(x, d)
+                dx, tx = self.integration(x, d)
             else:
-                dx_c = x
-                mean_dx = 0
+                # dx_c = x
+                # mean_dx = 0
+                dx = x
                 tx = np.zeros(n_x)
 
         # arma
@@ -871,16 +877,20 @@ class Arch(object):
         if q > 0:
             e_ = e[d:]
             if p > 0:
-                y_ = self.arma(x=dx_c, e=e_, phi=phi, theta=theta, p=p, q=q)  # arma
+                # y_ = self.arma(x=dx_c, e=e_, phi=phi, theta=theta, p=p, q=q)  # arma
+                y_ = self.arma(x=dx, e=e_, phi=phi, theta=theta, p=p, q=q)
             else:
-                y_ = self.arma(x=dx_c, e=e_, theta=theta, q=q)  # ma
+                # y_ = self.arma(x=dx_c, e=e_, theta=theta, q=q)  # ma
+                y_ = self.arma(x=dx, e=e_, theta=theta, q=q)  # ma
         elif p > 0:
-            y_ = self.arma(x=dx_c, phi=phi, p=p)  # ar
+            # y_ = self.arma(x=dx_c, phi=phi, p=p)  # ar
+            y_ = self.arma(x=dx, phi=phi, p=p)
         else:
-            return dx_c, mean_dx, tx  # i
+            # return dx_c, mean_dx, tx  # i
+            return dx, tx
 
         # arma + i
-        y[d:] = y[d:] + mean_dx
+        # y[d:] = y[d:] + mean_dx
         y[d:] = y[d:] + y_[:]
         y = y + tx
 
