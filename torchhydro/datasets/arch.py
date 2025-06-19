@@ -362,7 +362,7 @@ class Arch(object):
             var_e = np.matmul(e_t, e)
             var_e = var_e / n_y
             std_e = np.sqrt(var_e)
-            x = A[:, 0]             # Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge chapter 3
+            x = A[:, 0]             # Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge chapter 3 P79-80
             var_x = self.cov(x)
             std_x = np.sqrt(var_x)
             x_A = A[:, 1:]
@@ -1011,9 +1011,11 @@ class Arch(object):
 
         """
         if d > 0:
-            dx, mean_dx, tx = self.integration(x, d)
+            # dx, mean_dx, tx = self.integration(x, d)
+            dx, tx = self.integration(x, d)
             phi, theta, R_2, a_diagonal = self.arma_least_squares_estimation(dx, e[d:], p, q)
-            y_t = self.arima(x, e, phi, theta, p, d, q, dx, mean_dx, tx)
+            # y_t = self.arima(x, e, phi, theta, p, d, q, dx, mean_dx, tx)
+            y_t = self.arima(x, e, phi, theta, p, d, q, dx, tx)
         else:
             phi, theta, R_2, a_diagonal = self.arma_least_squares_estimation(x, e, p, q)
             y_t = self.arima(x, e, phi, theta, p, d, q)
@@ -1132,7 +1134,6 @@ class Arch(object):
         else:
             raise ValueError('Index m = ' + str(m) + 'out of range.')
 
-        # significance_level_ = 1 - significance_level
         if significance_level in p:
             sl_i = p.index(significance_level)
         else:
@@ -1171,8 +1172,8 @@ class Arch(object):
         if m > n_residula:  # todo:
             raise ValueError("degree m = " + str(m) + " out of series length.")
         LB, acf = self.LB_statistic(residual, m)
-        significance_level_ = 1 - significance_level
-        chi_critical = self.get_chi_critical(m, significance_level_)
+        # significance_level_ = 1 - significance_level
+        chi_critical = self.get_chi_critical(m, significance_level)       # 概率论与数理统计 p201
 
         # assumption
         H0 = True
@@ -1195,6 +1196,7 @@ class Arch(object):
         """
         significance test for parameters of ARIMA model.    t test
         Applied Time Series Analysis（4th edition） Yan Wang p78
+        Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge  p96-109
         Parameters
         ----------
         phi
@@ -1289,11 +1291,10 @@ class Arch(object):
         else:
             raise ValueError('Index m = ' + str(m) + 'out of range.')
 
-        significance_level_ = significance_level  # 1 -
-        if significance_level_ in p:
-            sl_i = p.index(significance_level_)
+        if significance_level in p:
+            sl_i = p.index(significance_level)
         else:
-            raise ValueError('1 - Significance level = ' + str(significance_level_) + 'not in Significance level array.')
+            raise ValueError('Significance level = ' + str(significance_level) + 'not in Significance level array.')
 
         # querying
         if type(m_i) is list:
@@ -1316,6 +1317,7 @@ class Arch(object):
     ):
         """
         significance test for parameters of ARIMA model.    t test
+        Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge  p96-109
         Parameters
         ----------
         phi
@@ -1329,18 +1331,19 @@ class Arch(object):
         n_resudual = len(residual)
         t_statistic = self.t_statistic(residual, phi, theta, a_diagonal)
         t_statistic = np.absolute(t_statistic)
+        # significance_level_ = 1 - significance_level
         t_critical = self.get_t_statistic(n_resudual-m, significance_level)
 
         # assumption
-        H0 = True
-        H1 = False
+        H0 = False
+        H1 = True
 
         b_significant = []
         for i in range(len(t_statistic)):
-            if t_statistic[i] > t_critical:
-                b_i = H0
-            else:
+            if t_statistic[i] >= t_critical:
                 b_i = H1
+            else:
+                b_i = H0
             b_significant.append(b_i)
 
         return b_significant

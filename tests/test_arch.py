@@ -1293,7 +1293,7 @@ def test_test_arima():
 # True
 # b_significant  m=2
 # False
-# b_significant  m=6
+# b_significant  m=6 y_residual_arima_p1d2q1
 # True
 
 def test_t_statistic():
@@ -1340,12 +1340,14 @@ def test_test_parameters():
     phi = [-1.03210395]
     theta = [-0.21305252]
     a_diagonal = [0.00044262, 0.0325121]
-    m = 6
+    m = 12
     significance_level = 0.05
     b_significant = arch.test_parameters(y_residual_arima_p1d2q1, phi, theta, a_diagonal, m, significance_level)
     print("b_significant")
     print(b_significant)
 # b_significant  m=6
+# [True, False]
+# b_significant  m=12
 # [True, False]
 # b_significant  m=18
 # [True, False]
