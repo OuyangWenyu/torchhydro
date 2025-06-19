@@ -641,8 +641,6 @@ def test_Q_statistic():
          1.01188889, -0.57269492, -0.01185729, -0.82473649, -0.15685514, 0.64138841, -0.58062781, -0.28572059,
          -0.57613976, -0.7341727, -0.56021319, 0.09836834, -1.00627741, 0.34544864, 1.77083512, 0.8530771,
          -0.08080261, -0.77659602]
-    np.random.seed(1)
-    e = np.random.standard_normal(size=60)
     m = 6
     arch = Arch(x)
     Q = arch.Q_statistic(x=e, m=m)
@@ -660,7 +658,7 @@ def test_white_noise_test():
     m = 6
     significant = 0.05
     arch = Arch(x)
-    b_white_noise = arch.white_noise_test(x=e_100, m=m, significance_level=significant)
+    b_white_noise = arch.white_noise_test(x=e_1000, m=m, significance_level=significant)
     print("b_white_noise")
     print(b_white_noise)
 # b_white_noise  m=1
@@ -670,6 +668,8 @@ def test_white_noise_test():
 # b_white_noise  m=12
 # True
 # b_white_noise  m=18
+# True
+# b_white_noise  m=6  e_1000
 # True
 
 def test_arima():
