@@ -633,9 +633,13 @@ def test_Q_statistic():
          1.01188889, -0.57269492, -0.01185729, -0.82473649, -0.15685514, 0.64138841, -0.58062781, -0.28572059,
          -0.57613976, -0.7341727, -0.56021319, 0.09836834, -1.00627741, 0.34544864, 1.77083512, 0.8530771,
          -0.08080261, -0.77659602]
+
+    e = np.random.normal(loc=1.0, scale=1.0, size=100)
     m = 1
     arch = Arch(x)
     Q = arch.Q_statistic(x=e, m=m)
+    print("e")
+    print(e)
     print("Q")
     print(Q)
 # Q
@@ -649,13 +653,19 @@ def test_white_noise_test():
          1.01188889, -0.57269492, -0.01185729, -0.82473649, -0.15685514, 0.64138841, -0.58062781, -0.28572059,
          -0.57613976, -0.7341727, -0.56021319, 0.09836834, -1.00627741, 0.34544864, 1.77083512, 0.8530771,
          -0.08080261, -0.77659602]
-    m = 1
+    m = 6
     significant = 0.05
     arch = Arch(x)
     b_white_noise = arch.white_noise_test(x=e, m=m, significance_level=significant)
     print("b_white_noise")
     print(b_white_noise)
-# b_white_noise
+# b_white_noise  m=1
+# True
+# b_white_noise  m=6
+# True
+# b_white_noise  m=12
+# True
+# b_white_noise  m=18
 # True
 
 def test_arima():
@@ -1268,9 +1278,9 @@ def test_test_arima():
                                0.7008, 0.1526, 0.8938, 0.6001, 0.9735, -0.2358, 1.2422, -0.3879, -1.5876, -1.4872,
                                0.1559, 0.5370]
     arch = Arch(x)
-    m = 2
+    m = 6
     p = 0.05
-    b_significant = arch.test_arima(e, m, p)
+    b_significant = arch.test_arima(y_residual_arima_p1d2q1, m, p)
     print("b_significant")
     print(b_significant)
 # b_significant
@@ -1280,7 +1290,7 @@ def test_test_arima():
 # b_significant  m=2
 # False
 # b_significant  m=6
-# False
+# True
 
 def test_t_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]

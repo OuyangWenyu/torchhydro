@@ -818,6 +818,28 @@ class Arch(object):
 
         return b_white_noise
 
+    def white_noise_test_degree(
+        self,
+        x,
+        m_list,
+        significance_level,
+    ):
+        """
+        white noise test with multiple free degree.
+        Parameters
+        ----------
+        x
+        m_list: free degree list
+        significance_level
+
+        Returns
+        -------
+
+        """
+        n_degree = len(m_list)
+
+
+
     def arima(
         self,
         x,
@@ -1107,11 +1129,11 @@ class Arch(object):
         else:
             raise ValueError('Index m = ' + str(m) + 'out of range.')
 
-        significance_level_ = 1 - significance_level
-        if significance_level_ in p:
-            sl_i = p.index(significance_level_)
+        # significance_level_ = 1 - significance_level
+        if significance_level in p:
+            sl_i = p.index(significance_level)
         else:
-            raise ValueError('Significance level = 1 - ' + str(significance_level) + 'not in Significance level array.')
+            raise ValueError('Significance level = ' + str(significance_level) + 'not in Significance level array.')
 
         # querying
         if type(m_i) is list:
@@ -1131,6 +1153,7 @@ class Arch(object):
     ):
         """
         significance test of ARIMA model.  chi-square test
+
         Parameters
         ----------
         residual
@@ -1145,13 +1168,14 @@ class Arch(object):
         if m > n_residula:  # todo:
             raise ValueError("degree m = " + str(m) + " out of series length.")
         LB, acf = self.LB_statistic(residual, m)
-        chi_critical = self.get_chi_critical(m, significance_level)
+        significance_level_ = 1 - significance_level
+        chi_critical = self.get_chi_critical(m, significance_level_)
 
         # assumption
         H0 = True
         H1 = False
 
-        if LB < chi_critical:
+        if LB < chi_critical:    #Applied Time Series Analysis（4th edition） Yan Wang p30
             b_significant = H0
         else:
             b_significant = H1
