@@ -1,7 +1,7 @@
 import numpy as np
 from hydrodataset import CamelsYstl
 from torchhydro.datasets.arch import Arch
-
+from tests.test_arch_data import e_42, e_60, e_100, e_500, e_1000
 
 class Ystl(object):
     def __init__(self):
@@ -625,6 +625,14 @@ def test_integration():
 # mean_dx
 # 0.0
 
+def test_generate_white_noise():
+    np.random.seed(1)
+    e = np.random.standard_normal(size=1000)
+    e = e.tolist()
+    print("e")
+    print(e)
+
+
 def test_Q_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     e = [1.7353783, -0.50072347, -0.41713881, -0.96193568, 0.97644057, -2.19050576, 1.8558447, -0.65017396,
@@ -634,8 +642,8 @@ def test_Q_statistic():
          -0.57613976, -0.7341727, -0.56021319, 0.09836834, -1.00627741, 0.34544864, 1.77083512, 0.8530771,
          -0.08080261, -0.77659602]
     np.random.seed(1)
-    e = np.random.standard_normal(size=500)
-    m = 1
+    e = np.random.standard_normal(size=60)
+    m = 6
     arch = Arch(x)
     Q = arch.Q_statistic(x=e, m=m)
     print("e")
@@ -649,16 +657,10 @@ def test_Q_statistic():
 
 def test_white_noise_test():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
-    e = [1.7353783, -0.50072347, -0.41713881, -0.96193568, 0.97644057, -2.19050576, 1.8558447, -0.65017396,
-         0.43007204, -0.13833744, 1.57314088, -1.94910777, -0.21138426, -0.27302141, 1.24480238, -0.98885833,
-         -0.06139527, -0.76682548, 0.15324669, 0.69384815, -0.98958624, 1.25575665, 1.01262366, 0.61352728,
-         1.01188889, -0.57269492, -0.01185729, -0.82473649, -0.15685514, 0.64138841, -0.58062781, -0.28572059,
-         -0.57613976, -0.7341727, -0.56021319, 0.09836834, -1.00627741, 0.34544864, 1.77083512, 0.8530771,
-         -0.08080261, -0.77659602]
     m = 6
     significant = 0.05
     arch = Arch(x)
-    b_white_noise = arch.white_noise_test(x=e, m=m, significance_level=significant)
+    b_white_noise = arch.white_noise_test(x=e_100, m=m, significance_level=significant)
     print("b_white_noise")
     print(b_white_noise)
 # b_white_noise  m=1

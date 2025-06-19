@@ -791,6 +791,8 @@ class Arch(object):
     ):
         """
         white noise test
+        Applied Time Series Analysis（4th edition） Yan Wang p30    概率论与数理统计 p201
+
         Parameters
         ----------
         x: time series
@@ -805,13 +807,14 @@ class Arch(object):
             Q_statistic = self.Q_statistic(x, m)
         else:
             Q_statistic, acf = self.LB_statistic(x, m)
-        Q_critical = self.get_chi_critical(m, significance_level)
+        # significance_level_ = 1 - significance_level
+        Q_critical = self.get_chi_critical(m, significance_level)    # 概率论与数理统计 p201
 
         # assumption
         H0 = True
         H1 = False
 
-        if Q_statistic > Q_critical:   # Applied Time Series Analysis（4th edition） Yan Wang p30
+        if Q_statistic < Q_critical:   # Applied Time Series Analysis（4th edition） Yan Wang p30
             b_white_noise = H0
         else:
             b_white_noise = H1
