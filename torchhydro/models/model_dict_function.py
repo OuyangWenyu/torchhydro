@@ -48,6 +48,7 @@ from torchhydro.models.crits import (
     QuantileLoss,
     PenalizedMSELoss,
     FloodLoss,
+    HybridLoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
@@ -115,6 +116,7 @@ pytorch_criterion_dict = {
     "QuantileLoss": QuantileLoss,
     "MSELoss": PenalizedMSELoss,
     "FloodLoss": FloodLoss,
+    "HybridLoss": HybridLoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}

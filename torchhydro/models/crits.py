@@ -987,3 +987,43 @@ class FloodLoss(FloodBaseLoss):
             return torch.sqrt(total_loss.mean())
         else:
             return total_loss.mean()
+
+
+class PESLoss(torch.nn.Module):
+    def __init__(self):
+        """
+        PES Loss: MSE × sigmoid(MSE)
+
+        This loss function applies a sigmoid activation to MSE and then multiplies it with MSE,
+        creating a non-linear penalty that increases more gradually for larger errors.
+        """
+        super(PESLoss, self).__init__()
+        self.mse = torch.nn.MSELoss()
+
+    def forward(self, output: torch.Tensor, target: torch.Tensor):
+        mse_value = self.mse(output, target)
+        sigmoid_mse = torch.sigmoid(mse_value)
+        return mse_value * sigmoid_mse
+
+
+class HybridLoss(torch.nn.Module):
+    def __init__(self, mae_weight=0.5):
+        """
+        Hybrid Loss: PES loss + mae_weight × MAE
+
+        Combines PES loss (MSE × sigmoid(MSE)) with Mean Absolute Error.
+
+        Parameters
+        ----------
+        mae_weight : float
+            Weight for the MAE component, default is 0.5
+        """
+        super(HybridLoss, self).__init__()
+        self.pes_loss = PESLoss()
+        self.mae = torch.nn.L1Loss()
+        self.mae_weight = mae_weight
+
+    def forward(self, output: torch.Tensor, target: torch.Tensor):
+        pes = self.pes_loss(output, target)
+        mae = self.mae(output, target)
+        return pes + self.mae_weight * mae
