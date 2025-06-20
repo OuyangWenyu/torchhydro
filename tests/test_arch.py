@@ -1,7 +1,7 @@
 import numpy as np
 from hydrodataset import CamelsYstl
 from torchhydro.datasets.arch import Arch
-from tests.test_arch_data import e_42, e_60, e_100, e_500, e_1000
+from tests.test_arch_data import e_42, e_42_original, e_60, e_100, e_500, e_1000, y_arma_3_100, y_residual_arma_3_p3d0q3_100, y_streamflow_100, y_streamflow_395, y_residual_streamflow_395
 
 class Ystl(object):
     def __init__(self):
@@ -277,11 +277,21 @@ def test_adf_test():
     arch = Arch(x)
     case = "case 1"
     significance_level = 0.05
-    b_stability = arch.adf_test(dx_c_42, 3, case, significance_level)
+    b_stability = arch.adf_test(y_streamflow_395, 3, case, significance_level)
     print("b_stability")
     print(b_stability)
 # b_stability
 # True
+# b_stability  e_100
+# True
+# b_stability  e_60
+# True
+# b_stability  e_42
+# True
+# b_stability  y_streamflow_100
+# False
+# b_stability  y_streamflow_395
+# False
 
 def test_integrated_one_degree():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
@@ -347,6 +357,22 @@ def test_integrate_d_degree():
 #  79. 69. 83. 73. 87. 77.]
 # b_stability
 # False
+
+def test_integration_streamflow():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    arch = Arch(x)
+    d = 3
+    y_integrated, y_trend = arch.integration(x=y_streamflow_395, d=d)
+    p = 1
+    case = "case 1"
+    significance_level = 0.05
+    b_stability = arch.adf_test(y_integrated, p, case, significance_level)
+    print("y_integrated")
+    print(y_integrated)
+    print("y_trend")
+    print(y_trend)
+    print("b_stability")
+    print(b_stability)
 
 def test_ar_one_step():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
@@ -632,6 +658,12 @@ def test_generate_white_noise():
     print("e")
     print(e)
 
+def test_streamflow():
+    ystl = Ystl()
+    y_streamflow = ystl.streamflow
+    print("y_streamflow")
+    print(y_streamflow)
+
 
 def test_Q_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
@@ -658,7 +690,7 @@ def test_white_noise_test():
     m = 6
     significant = 0.05
     arch = Arch(x)
-    b_white_noise = arch.white_noise_test(x=e_1000, m=m, significance_level=significant)
+    b_white_noise = arch.white_noise_test(x=e_100, m=m, significance_level=significant)
     print("b_white_noise")
     print(b_white_noise)
 # b_white_noise  m=1
@@ -670,6 +702,12 @@ def test_white_noise_test():
 # b_white_noise  m=18
 # True
 # b_white_noise  m=6  e_1000
+# True
+# b_white_noise  m=6  e_42
+# False
+# b_white_noise  m=6  e_60
+# False
+# b_white_noise  m=6  e_100
 # True
 
 def test_arima():
@@ -1087,7 +1125,7 @@ def test_x_residual():
     p = 3
     d = 0
     q = 3
-    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_arma_3, e, p, d, q)
+    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_arma_3_100, e_100, p, d, q)
     print("x_residual")
     print(x_residual)
     print("y_t")
@@ -1270,6 +1308,89 @@ def test_x_residual():
 # [0.3 0.2 0.1]
 # se_beta
 # [3.526733475186766e-10, 3.718670773606283e-10, 1.7479428215457548e-10, 3.5304111238549773e-10, 1.746122221821107e-10, 1.4576179032287249e-10]
+# x_residual
+# [ 0.00000000e+00  0.00000000e+00  0.00000000e+00  7.07850714e-06
+#  -1.84118727e-05 -4.96932612e-05  1.18716461e-05 -3.45149134e-06
+#   4.65827736e-05  1.32450478e-05 -5.69784772e-06 -4.83891361e-05
+#  -1.44751510e-05  5.08497398e-05 -3.52324284e-05  1.16367642e-05
+#  -3.19466688e-05  4.71479075e-05  4.69608181e-06  2.38304425e-06
+#  -2.82728804e-05  2.06828106e-05 -1.24679889e-05  2.06018725e-06
+#  -4.17025513e-05 -7.57017405e-06  2.76334732e-05  3.51475450e-05
+#   9.44212707e-07 -5.93816667e-05  4.89211652e-05  3.96426060e-05
+#   5.80358517e-06 -2.94243875e-05 -6.02725046e-05  4.26012989e-05
+#  -1.31698825e-05  1.08831058e-05 -6.79371946e-06  4.91008551e-05
+#  -4.64820912e-05 -2.83401571e-05  5.04359283e-05 -5.28636854e-05
+#   2.05063723e-05  9.30135202e-06  1.16044390e-05 -4.99421408e-05
+#  -2.21851146e-05  2.55310521e-05 -1.76202885e-05 -3.26287740e-05
+#   5.26421105e-07 -3.04370898e-05  2.32499499e-05  2.98514539e-05
+#  -2.08165477e-05  5.23228914e-06 -8.29142066e-06  4.84658205e-05
+#  -4.48634019e-06 -4.06970031e-05  3.65988431e-05  9.69915780e-06
+#   9.85261234e-06  1.96547155e-05  1.73363361e-05  2.57153700e-06
+#  -3.05401396e-05  1.45208560e-05 -1.37019611e-05  3.01767995e-05
+#   2.68286250e-05 -5.04675319e-05  3.36811815e-05 -8.07250391e-06
+#  -1.66324701e-05 -3.36405515e-05  6.25814663e-06  1.63090716e-05
+#  -2.76136645e-05  4.89030316e-05 -5.02545686e-05 -4.32614681e-05
+#   1.73518778e-05  2.10010653e-05  3.84374669e-05 -5.37038865e-05
+#   2.13003387e-05 -1.98064147e-05  2.26983042e-05 -4.32221757e-05
+#   2.57885543e-05 -3.18221212e-05 -3.23785397e-07  4.36212759e-05
+#   3.58994701e-05 -3.06695927e-05 -1.69359348e-05  2.24804636e-05]
+# y_t
+# [  1.62434536  -0.61175641  -0.52817175  -1.06196741   0.22235134
+#   -1.95349311   0.06139824  -0.41122424  -0.40623355  -0.6993039
+#    0.81397429  -1.56746678  -1.92038785  -1.56168838  -0.04962349
+#   -1.45487576  -1.86078043  -2.3923877   -1.98072659  -1.21048914
+#   -2.54942721  -1.47687092  -0.56287061  -0.69241604  -0.45446928
+#   -1.59596536  -1.8715723   -2.58910705  -2.55761851  -1.73176882
+#   -2.52837223  -3.08847458  -3.5664135   -4.12321339  -4.47432467
+#   -4.16031213  -5.19278259  -4.87600318  -3.09907387  -3.00849309
+#   -4.28405284  -5.66087063  -6.2055702   -4.12707152  -4.44331102
+#   -5.99715648  -6.03117575  -3.85660223  -4.52706032  -5.04635171
+#   -5.28358672  -6.02166065  -7.43392046  -7.62412203  -7.5633008
+#   -7.07001295  -6.69592684  -6.54643732  -7.16875479  -7.02780661
+#   -8.42484333  -7.60064992  -7.50190897  -8.66891275  -8.77204848
+#   -9.19105565  -8.54357146  -7.7403444   -6.74596309  -9.71324556
+#  -12.0120102  -12.02969779 -11.43157002 -10.92607879 -11.52087084
+#  -14.50608293 -14.96272487 -13.82108157 -14.17568387 -14.55479482
+#  -15.79132526 -16.81462056 -17.1928818  -17.43142398 -18.16933812
+#  -19.07124851 -20.66428661 -20.98189476 -21.58167932 -21.51269005
+#  -21.67047407 -23.18031821 -25.09142083 -26.72701895 -27.00954144
+#  -27.91736499 -29.64460666 -30.8562772  -32.62569962 -33.10497916]
+# R_2
+# 0.9999999999871758
+# phi
+# [ 1.05000148 -0.19999837  0.19999655]
+# theta
+# [0.30000549 0.2000049  0.0999975 ]
+# se_beta
+# [2.330751891026416e-05, 2.5574868559214998e-05, 8.828379847179134e-06, 2.3583773354609526e-05, 1.1762251886041388e-05, 9.797838306742823e-06]
+
+def test_x_residual_streamflow():
+    x = [1, 2]
+    arch = Arch(x)
+    p = 2
+    d = 0
+    q = 0
+    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_streamflow_395, e_100, p, d, q)
+    print("x_residual")
+    print(x_residual)
+    print("y_t")
+    print(y_t)
+    print("R_2")
+    print(R_2)
+    print("phi")
+    print(phi)
+    print("theta")
+    print(theta)
+    print("se_beta")
+    print(se_beta)
+# R_2
+# 0.9933629294169934
+# phi
+# [ 1.86818005 -0.87194949]
+# theta
+# []
+# se_beta
+# [0.027635877526645366, 0.02762854656367414]
 
 def test_LB_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
@@ -1385,7 +1506,7 @@ def test_test_arima():
     arch = Arch(x)
     m = 6
     p = 0.05
-    b_significant = arch.test_arima(e_1000, m, p)
+    b_significant = arch.test_arima(y_residual_streamflow_395, m, p)
     print("b_significant")
     print(b_significant)
 # b_significant
@@ -1400,6 +1521,10 @@ def test_test_arima():
 # False
 # b_significant e_1000
 # True
+# b_significant  y_residual_arma_3_p3d0q3_100 m=6
+# False
+# b_significant  e_42 m=6
+# False
 
 def test_t_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
@@ -1457,12 +1582,18 @@ def test_test_parameters():
                                 5.78E-10, -5.54E-10, 3.70E-10, 1.01E-10, 3.07E-11, -3.62E-10, -1.22E-10, -1.31E-10,
                                 -2.18E-10, 2.73E-10]
     arch = Arch(x)
-    phi = [1.1, -0.2, 0.2]
-    theta = [0.3, 0.2, 0.1]
-    se_beta = [3.526733475186766e-10, 3.718670773606283e-10, 1.7479428215457548e-10, 3.5304111238549773e-10, 1.746122221821107e-10, 1.4576179032287249e-10]
+    # phi = [1.1, -0.2, 0.2]
+    # theta = [0.3, 0.2, 0.1]
+    # se_beta = [3.526733475186766e-10, 3.718670773606283e-10, 1.7479428215457548e-10, 3.5304111238549773e-10, 1.746122221821107e-10, 1.4576179032287249e-10]
+    # phi = [1.05000148, -0.19999837, 0.19999655]
+    # theta = [0.30000549, 0.2000049, 0.0999975 ]
+    # se_beta = [2.330751891026416e-05, 2.5574868559214998e-05, 8.828379847179134e-06, 2.3583773354609526e-05, 1.1762251886041388e-05, 9.797838306742823e-06]
+    phi = [1.86818005, -0.87194949]
+    theta = []
+    se_beta = [0.027635877526645366, 0.02762854656367414]
     m = 6
     significance_level = 0.05
-    b_significant = arch.test_parameters(y_residual_arma_3_p3d0q3, phi, theta, se_beta, m, significance_level)
+    b_significant = arch.test_parameters(y_residual_streamflow_395, phi, theta, se_beta, m, significance_level)
     print("b_significant")
     print(b_significant)
 # b_significant  m=6
@@ -1473,6 +1604,10 @@ def test_test_parameters():
 # [True, False]
 # b_significant  m=6  y_residual_arma_3_p3d0q3
 # [True, True, True, True, True, True]
+# b_significant  m=6 y_residual_arma_3_p3d0q3_100
+# [True, True, True, True, True, True]
+# b_significant  m=6 y_residual_streamflow_395
+# [True, True]
 
 def test_LM_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
