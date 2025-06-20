@@ -4,7 +4,8 @@ from torchhydro.datasets.arch import Arch
 from tests.test_arch_data import (
     e_42, e_42_original, e_60, e_100, e_395, e_500, e_1000,
     y_arma_3_100, y_residual_arma_3_p3d0q3_100,
-    y_streamflow_100, y_streamflow_395, y_residual_streamflow_395, y_residual_2_streamflow_395
+    y_streamflow_100, y_streamflow_395, y_residual_streamflow_395, y_residual_2_streamflow_395,
+    y_residual_streamflow_1460,
 )
 
 class Ystl(object):
@@ -1412,7 +1413,7 @@ def test_x_residual_streamflow():
     p = 2
     d = 0
     q = 0
-    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_streamflow_395, e_100, p, d, q)
+    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_residual_streamflow_1460, e_100, p, d, q)
     print("x_residual")
     print(x_residual)
     print("y_t")
@@ -1425,6 +1426,7 @@ def test_x_residual_streamflow():
     print(theta)
     print("se_beta")
     print(se_beta)
+# y_residual_streamflow_395
 # R_2
 # 0.9933629294169934
 # phi
@@ -1433,6 +1435,15 @@ def test_x_residual_streamflow():
 # []
 # se_beta
 # [0.027635877526645366, 0.02762854656367414]
+# y_residual_streamflow_1460
+# R_2
+# 0.9207290207522015
+# phi
+# [ 1.5331421  -0.61353046]
+# theta
+# []
+# se_beta
+# [0.02077505901306154, 0.020776326740508087]
 
 def test_LB_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
