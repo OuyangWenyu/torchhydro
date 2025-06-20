@@ -5,7 +5,7 @@ from tests.test_arch_data import (
     e_42, e_42_original, e_60, e_100, e_395, e_500, e_1000,
     y_arma_3_100, y_residual_arma_3_p3d0q3_100,
     y_streamflow_100, y_streamflow_395, y_residual_streamflow_395, y_residual_2_streamflow_395,
-    y_residual_streamflow_1460,
+    y_streamflow_1460,
 )
 
 class Ystl(object):
@@ -93,7 +93,7 @@ def test_autocorrelation_function():
     y_non_stationary = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35, 41, 39, 45, 43, 49,
                         47, 53, 51, 57, 55, 61, 59, 65, 63, 69, 67, 73, 71, 77, 75, 81, 79, 85]
     arch = Arch(y)
-    acf_y = arch.autocorrelation_function(y_residual_2_streamflow_395)
+    acf_y = arch.autocorrelation_function(y_streamflow_1460, 500)
     print("acf_y")
     print(acf_y)
 # acf_y
@@ -164,7 +164,7 @@ def test_partial_autocorrelation_function():
     y_non_stationary = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35, 41, 39, 45, 43, 49,
                         47, 53, 51, 57, 55, 61, 59, 65, 63, 69, 67, 73, 71, 77, 75, 81, 79, 85]
     arch = Arch(y)
-    pacf_y= arch.partial_autocorrelation_function(y_residual_2_streamflow_395)
+    pacf_y= arch.partial_autocorrelation_function(y_streamflow_1460, 500)
     print("pacf_y")
     print(pacf_y)
 # pacf_y
@@ -1413,11 +1413,13 @@ def test_x_residual_streamflow():
     p = 2
     d = 0
     q = 0
-    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_residual_streamflow_1460, e_100, p, d, q)
-    print("x_residual")
-    print(x_residual)
-    print("y_t")
-    print(y_t)
+    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_streamflow_1460, e_100, p, d, q)
+    # print("x_residual")
+    # print(x_residual)
+    # print("y_t")
+    # print(y_t)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\x_residual.txt', x_residual)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_t.txt', y_t)
     print("R_2")
     print(R_2)
     print("phi")
@@ -1435,7 +1437,7 @@ def test_x_residual_streamflow():
 # []
 # se_beta
 # [0.027635877526645366, 0.02762854656367414]
-# y_residual_streamflow_1460
+# y_residual_streamflow_1460  p=2
 # R_2
 # 0.9207290207522015
 # phi
@@ -1444,6 +1446,15 @@ def test_x_residual_streamflow():
 # []
 # se_beta
 # [0.02077505901306154, 0.020776326740508087]
+# y_residual_streamflow_1460  p=3
+# R_2
+# 0.9344269048513744
+# phi
+# [ 1.80161201 -1.28440015  0.43756275]
+# theta
+# []
+# se_beta
+# [0.02400366981844562, 0.040984491020285965, 0.024005252043346952]
 
 def test_LB_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
