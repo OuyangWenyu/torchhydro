@@ -955,7 +955,7 @@ class FloodLoss(FloodBaseLoss):
         if isinstance(self.base_loss_func, RMSELoss):
             return torch.sqrt(weighted_loss.mean())
         else:
-            return weighted_loss.mean()
+            return weighted_loss.nanmean()
 
     def _compute_focal_loss(
         self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor

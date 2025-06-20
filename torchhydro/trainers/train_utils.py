@@ -1278,7 +1278,7 @@ def compute_validation(
             if torch.isnan(valid_loss_):
                 # for not-train mode, we may get all nan data for trg
                 # so we skip this batch
-                # continue
+                continue
                 print("NAN loss detected, skipping this batch")
             valid_loss = valid_loss + valid_loss_.item()
             iter_num = iter_num + 1
