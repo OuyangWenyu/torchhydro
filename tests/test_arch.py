@@ -1,7 +1,11 @@
 import numpy as np
 from hydrodataset import CamelsYstl
 from torchhydro.datasets.arch import Arch
-from tests.test_arch_data import e_42, e_42_original, e_60, e_100, e_500, e_1000, y_arma_3_100, y_residual_arma_3_p3d0q3_100, y_streamflow_100, y_streamflow_395, y_residual_streamflow_395
+from tests.test_arch_data import (
+    e_42, e_42_original, e_60, e_100, e_395, e_500, e_1000,
+    y_arma_3_100, y_residual_arma_3_p3d0q3_100,
+    y_streamflow_100, y_streamflow_395, y_residual_streamflow_395, y_residual_2_streamflow_395
+)
 
 class Ystl(object):
     def __init__(self):
@@ -88,7 +92,7 @@ def test_autocorrelation_function():
     y_non_stationary = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35, 41, 39, 45, 43, 49,
                         47, 53, 51, 57, 55, 61, 59, 65, 63, 69, 67, 73, 71, 77, 75, 81, 79, 85]
     arch = Arch(y)
-    acf_y = arch.autocorrelation_function(y_streamflow_395)
+    acf_y = arch.autocorrelation_function(y_residual_2_streamflow_395)
     print("acf_y")
     print(acf_y)
 # acf_y
@@ -159,7 +163,7 @@ def test_partial_autocorrelation_function():
     y_non_stationary = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35, 41, 39, 45, 43, 49,
                         47, 53, 51, 57, 55, 61, 59, 65, 63, 69, 67, 73, 71, 77, 75, 81, 79, 85]
     arch = Arch(y)
-    pacf_y= arch.partial_autocorrelation_function(y_streamflow_395)
+    pacf_y= arch.partial_autocorrelation_function(y_residual_2_streamflow_395)
     print("pacf_y")
     print(pacf_y)
 # pacf_y
@@ -1640,7 +1644,7 @@ def test_test_parameters():
 # [True, False]
 # b_significant  m=18
 # [True, False]
-# b_significant  m=6  y_residual_arma_3_p3d0q3
+# b_significant  m=6 y_residual_arma_3_p3d0q3
 # [True, True, True, True, True, True]
 # b_significant  m=6 y_residual_arma_3_p3d0q3_100
 # [True, True, True, True, True, True]
@@ -1672,17 +1676,23 @@ def test_arch_test():
                   0.54786256, -1.83051924, 1.84837348, 0.76232344, 0.96888897, -1.44205859, 1.03469247,
                   0.18368458, 1.3957388, -0.13007158]
     arch = Arch(x)
-    q = 3
+    q = 2
     # y_residual_2 = np.power(y_residual, 2)
     # y_residual_2 = y_residual_2.tolist()
     significance_level = 0.05
-    b_arch_Q, b_arch_LM = arch.arch_test(y_residual, q, significance_level)
+    b_arch_Q, b_arch_LM = arch.arch_test(y_residual_streamflow_395, q, significance_level)
     print("b_arch_Q")
     print(b_arch_Q)
     print("b_arch_LM")
     print(b_arch_LM)
 # b_arch_Q, b_arch_LM
 # (True, True)
+# b_arch_Q, b_arch_LM  q=2  y_residual_streamflow_395
+# (True, False)
+# b_arch_Q, b_arch_LM  q=3  y_residual_streamflow_395
+# (True, False)
+# b_arch_Q, b_arch_LM  q=6  y_residual_streamflow_395
+# (True, False)
 
 def test_arch_one_step():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
@@ -1720,9 +1730,9 @@ def test_arch():
     arch = Arch(x)
     y_residual_2 = np.power(y_residual, 2)
     y_residual_2 = y_residual_2.tolist()
-    alpha = [0.5, 0.5, 0.5, 1]  # omega
-    q = 3
-    epsilon = arch.arch(y_residual_2, e, alpha, q)
+    alpha = [-0.83992955, 0.99515675, 8.27269624]  # omega
+    q = 2
+    epsilon = arch.arch(y_residual_2_streamflow_395, e_395, alpha, q)
     print("epsilon")
     print(epsilon)
 # epsilon
@@ -1748,12 +1758,14 @@ def test_arch_least_squares_estimation():
     arch = Arch(x)
     y_residual_2 = np.power(y_residual, 2)
     y_residual_2 = y_residual_2.tolist()
-    q = 3
-    a, R_2 = arch.arch_least_squares_estimation(y_residual_2, e_, q)
+    q = 2
+    a, R_2 = arch.arch_least_squares_estimation(y_residual_streamflow_395, e_395, q)
     print("a")
     print(a)
 # a
 # [-0.15440176  0.04380729 -0.03932036 -0.4725204 ]
+# a
+# [-0.83992955  0.99515675  8.27269624]
 
 def test_garch_one_step():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
