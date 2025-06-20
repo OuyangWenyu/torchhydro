@@ -1385,7 +1385,7 @@ def test_test_arima():
     arch = Arch(x)
     m = 6
     p = 0.05
-    b_significant = arch.test_arima(y_residual_arma_3_p3d0q3, m, p)
+    b_significant = arch.test_arima(e_1000, m, p)
     print("b_significant")
     print(b_significant)
 # b_significant
@@ -1395,6 +1395,10 @@ def test_test_arima():
 # b_significant  m=2
 # False
 # b_significant  m=6 y_residual_arima_p1d2q1
+# True
+# b_significant  y_residual_arma_3_p3d0q3
+# False
+# b_significant e_1000
 # True
 
 def test_t_statistic():

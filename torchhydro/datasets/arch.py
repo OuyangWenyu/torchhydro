@@ -1343,6 +1343,7 @@ class Arch(object):
         phi
         theta
         a_diagonal
+        se_beta
 
         Returns
         -------
