@@ -320,6 +320,7 @@ class Arch(object):
         A,
         Y,
         b_s_a: Optional = False,
+        b_se_beta: Optional = False,
         b_a_diagonal: Optional = False,
     ):
         """
@@ -331,12 +332,14 @@ class Arch(object):
         A: matrix
         Y: matrix
         b_s_a: bool,
+        b_se_beta
 
         Returns
         -------
 
         """
         # matrix operations, calculate the coefficient matrix.
+        A = np.array(A)
         At = np.transpose(A)
         B = np.matmul(At, A)
         try:
@@ -354,7 +357,8 @@ class Arch(object):
         R = self.correlation_coefficient(Y, y_)
         R_2 = pow(R, 2)
 
-        if b_s_a:  # Econometric chapter 3
+        b_s = (b_s_a or b_se_beta)
+        if b_s:
             n_y = len(Y)
             e = Y - y_
             e = np.absolute(e)
@@ -362,21 +366,32 @@ class Arch(object):
             var_e = np.matmul(e_t, e)
             var_e = var_e / n_y
             std_e = np.sqrt(var_e)
-            x = A[:, 0]             # Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge chapter 3 P79-80
-            var_x = self.cov(x)
-            std_x = np.sqrt(var_x)
-            x_A = A[:, 1:]
-            _, x_R_2 = self.ordinary_least_squares(x_A, x)
-            se_a0 = std_e / (np.sqrt(n_y) * std_x * np.sqrt(1 - x_R_2))  # standard error of a[0]
+            if b_s_a:  # Econometric chapter 3
+                x = A[:, 0]             # Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge chapter 3 P79-80
+                var_x = self.cov(x)
+                std_x = np.sqrt(var_x)
+                x_A = A[:, 1:]
+                _, x_R_2 = self.ordinary_least_squares(x_A, x)
+                se_a0 = std_e / (np.sqrt(n_y) * std_x * np.sqrt(1 - x_R_2))  # standard error of a[0]
+                return a, R_2, se_a0
+            if b_se_beta:
+                n_A = A.shape[1]
+                se_beta = [0]*n_A
+                for i in range(n_A):
+                    x_i = A[:, i]       # Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge chapter 3 P79-80
+                    var_xi = self.cov(x_i)
+                    std_xi = np.sqrt(var_xi)
+                    xi_A = np.delete(A, i, axis=1)
+                    _, xi_R_2 = self.ordinary_least_squares(xi_A, x_i)
+                    se_beta[i] = std_e / (np.sqrt(n_y) * std_xi * np.sqrt(1 - xi_R_2))  # standard error of a[0]
+                return a, R_2, se_beta
 
-            return a, R_2, se_a0
-
-        if b_a_diagonal:
-            n_B = B_1.shape[0]
-            a_diagonal = np.zeros(n_B)
-            for i in range(n_B):
-                a_diagonal[i] = B_1[i, i]
-            return a, R_2, a_diagonal
+        # if b_a_diagonal:
+        #     n_B = B_1.shape[0]
+        #     a_diagonal = np.zeros(n_B)
+        #     for i in range(n_B):
+        #         a_diagonal[i] = B_1[i, i]
+        #     return a, R_2, a_diagonal
 
         return a, R_2
 
@@ -645,12 +660,13 @@ class Arch(object):
         # integrate
         if d > 0:
             dx, tx = self.integrate_d_degree(x, d)
+            dx = dx.tolist()
         else:
             dx = x  # integration
             tx = [0]*n_x  # trend
         # center
-        mean_dx = np.mean(dx)
-        dx_c = (dx - mean_dx).tolist()
+        # mean_dx = np.mean(dx)
+        # dx_c = (dx - mean_dx).tolist()
 
         # return dx_c, mean_dx, tx
 
@@ -974,7 +990,8 @@ class Arch(object):
             xp.append(xp_i[:])
 
         # matrix operations, calculate the coefficient matrix.
-        a, R_2, a_diagonal = self.ordinary_least_squares(xp, xf, b_a_diagonal=True)
+        # a, R_2, a_diagonal = self.ordinary_least_squares(xp, xf, b_a_diagonal=True)
+        a, R_2, se_beta = self.ordinary_least_squares(xp, xf, b_se_beta=True)
 
         # allot parameters
         phi = []
@@ -986,7 +1003,7 @@ class Arch(object):
         else:
             theta = -a[:]
 
-        return phi, theta, R_2, a_diagonal
+        return phi, theta, R_2, se_beta
 
     def x_residual(
         self,
@@ -1013,16 +1030,16 @@ class Arch(object):
         if d > 0:
             # dx, mean_dx, tx = self.integration(x, d)
             dx, tx = self.integration(x, d)
-            phi, theta, R_2, a_diagonal = self.arma_least_squares_estimation(dx, e[d:], p, q)
+            phi, theta, R_2, se_beta = self.arma_least_squares_estimation(dx, e[d:], p, q)
             # y_t = self.arima(x, e, phi, theta, p, d, q, dx, mean_dx, tx)
             y_t = self.arima(x, e, phi, theta, p, d, q, dx, tx)
         else:
-            phi, theta, R_2, a_diagonal = self.arma_least_squares_estimation(x, e, p, q)
+            phi, theta, R_2, se_beta = self.arma_least_squares_estimation(x, e, p, q)
             y_t = self.arima(x, e, phi, theta, p, d, q)
 
         x_residual = np.array(x) - np.array(y_t)
 
-        return x_residual, y_t, R_2, phi, theta, a_diagonal
+        return x_residual, y_t, R_2, phi, theta, se_beta
 
     def LB_statistic(
         self,
@@ -1191,7 +1208,8 @@ class Arch(object):
         residual,
         phi,
         theta,
-        a_diagonal,
+        # a_diagonal,
+        se_beta,
     ):
         """
         significance test for parameters of ARIMA model.    t test
@@ -1207,15 +1225,16 @@ class Arch(object):
 
         """
         beta = phi + theta
-        m = len(beta)
-        n_residual = len(residual)
-        t = np.sqrt(n_residual-m)
-        residual_2 = np.power(residual, 2)
-        sum_residual_2 = np.sum(residual_2)
-        t = t / np.sqrt(sum_residual_2)
-        a_ = np.sqrt(a_diagonal)
-        t = t / a_
-        t_statistic = t * beta
+        # m = len(beta)
+        # n_residual = len(residual)
+        # t = np.sqrt(n_residual-m)
+        # residual_2 = np.power(residual, 2)
+        # sum_residual_2 = np.sum(residual_2)
+        # t = t / np.sqrt(sum_residual_2)
+        # a_ = np.sqrt(a_diagonal)
+        # t = t / a_
+        # t_statistic = t * beta
+        t_statistic = np.array(beta) / np.array(se_beta)
 
         return t_statistic
 
@@ -1311,7 +1330,8 @@ class Arch(object):
         residual,
         phi,
         theta,
-        a_diagonal,
+        # a_diagonal,
+        se_beta,
         m,
         significance_level,
     ):
@@ -1329,7 +1349,7 @@ class Arch(object):
 
         """
         n_resudual = len(residual)
-        t_statistic = self.t_statistic(residual, phi, theta, a_diagonal)
+        t_statistic = self.t_statistic(residual, phi, theta, se_beta)
         t_statistic = np.absolute(t_statistic)
         # significance_level_ = 1 - significance_level
         t_critical = self.get_t_statistic(n_resudual-m, significance_level)
