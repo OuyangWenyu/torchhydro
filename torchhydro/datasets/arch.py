@@ -525,7 +525,7 @@ class Arch(object):
                         sample_within = [T[i], T[i+1]]
                         break
         elif n_sample > T[-2]:
-            sample_i = T[-1]
+            sample_i = -1
         else:
             raise ValueError('sample volume n_sample = ' + str(n_sample) + 'out of range.')
 
@@ -939,8 +939,8 @@ class Arch(object):
 
     def arma_least_squares_estimation(
         self,
-        x: Optional,
-        e: Optional,
+        x: Optional = None,
+        e: Optional = None,
         p: int = 0,
         q: int = 0,
     ):
@@ -1008,10 +1008,10 @@ class Arch(object):
     def x_residual(
         self,
         x,
-        e,
-        p,
-        d,
-        q,
+        e: Optional = None,
+        p: int = 0,
+        d: int = 0,
+        q: int = 0,
     ):
         """
         residual of ARIMA model.
@@ -1030,11 +1030,21 @@ class Arch(object):
         if d > 0:
             # dx, mean_dx, tx = self.integration(x, d)
             dx, tx = self.integration(x, d)
-            phi, theta, R_2, se_beta = self.arma_least_squares_estimation(dx, e[d:], p, q)
+            if q > 0:
+                if e is None:
+                    raise ValueError("e must be provided.")
+                phi, theta, R_2, se_beta = self.arma_least_squares_estimation(x=dx, e=e[d:], p=p, q=q)
+            else:
+                phi, theta, R_2, se_beta = self.arma_least_squares_estimation(x=dx, p=p)
             # y_t = self.arima(x, e, phi, theta, p, d, q, dx, mean_dx, tx)
             y_t = self.arima(x, e, phi, theta, p, d, q, dx, tx)
         else:
-            phi, theta, R_2, se_beta = self.arma_least_squares_estimation(x, e, p, q)
+            if q > 0:
+                if e is None:
+                    raise ValueError("e must be provided.")
+                phi, theta, R_2, se_beta = self.arma_least_squares_estimation(x=x, e=e, p=p, q=q)
+            else:
+                phi, theta, R_2, se_beta = self.arma_least_squares_estimation(x=x, p=p)
             y_t = self.arima(x, e, phi, theta, p, d, q)
 
         x_residual = np.array(x) - np.array(y_t)
@@ -1444,6 +1454,7 @@ class Arch(object):
         self,
         fd_n,
         fd_d,
+        significance_level,
     ):
         """
         F test critical table
@@ -1452,7 +1463,7 @@ class Arch(object):
         ----------
         fd_n
         fd_d
-        significance_level
+        significance_level: only two significance level, 0.05 and 0.01.
 
         Returns
         -------
@@ -1704,14 +1715,17 @@ class Arch(object):
 
         # querying
         if type(fd_k[0]) is list:
-            if type(fd_k[0]) is list:
+            if type(fd_k[1]) is list:
                 critical_0 = data[fd_k[0], fd_k[1]]
                 critical_1 = data[fd_k[0], fd_k[1]]
                 F_critical = (critical_1 - critical_0) / (fd_within[1] - fd_within[0]) * (fd_n - fd_within[0]) + critical_0  # linear interpolation
             else:
-
+                F_critical = data[fd_k[0], fd_k[1]]
         else:
-            F_critical = data[fd_k[0], fd_k[1]]
+            if type(fd_k[1]) is list:
+                F_critical = data[fd_k[0], fd_k[1]]
+            else:
+                F_critical = data[fd_k[0], fd_k[1]]
 
         return F_critical
 
@@ -1836,7 +1850,7 @@ class Arch(object):
     def arch_least_squares_estimation(
         self,
         residual_2,
-        e,
+        e_2,
         q,
     ):
         """
@@ -1844,8 +1858,7 @@ class Arch(object):
         Parameters
         ----------
         residual_2
-        e
-        alpha
+        e_2
         q
 
 
@@ -1858,7 +1871,7 @@ class Arch(object):
         # construct matrix
         xf = residual_2[q:]
         xf = np.array(xf)
-        ef = e[q:]
+        ef = e_2[q:]
         ef = np.array(ef)
         xf = xf / ef
         xf = np.transpose(xf)
