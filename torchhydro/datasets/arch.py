@@ -1676,29 +1676,29 @@ class Arch(object):
         data = np.array(data)
 
         # locate
-        n_i = None
-        n_within = None
-        n_n_index = len(fd_numerator)
-        if (fd_n >= fd_numerator[0]) and (fd_n <= fd_numerator[-2]):
-            if fd_n in fd_numerator:
-                n_i = fd_numerator.index(fd_n)
+        fd_name = [fd_numerator, fd_denominator]
+        fd_ = [12, 30]
+        n_fd_ = 2
+        fd_k = [0]*n_fd_
+        for k in range(n_fd_):
+            n_i = None
+            n_within = None
+            n_n_index = len(fd_name[k])
+            if (fd_n >= fd_name[k][0]) and (fd_n <= fd_name[k][-2]):
+                if fd_n in fd_name[k]:
+                    n_i = fd_name[k].index(fd_n)
+                else:
+                    fd = fd_name[k].index(fd_[k])
+                    for i in range(fd, n_n_index - 2):
+                        if (fd_n > fd_name[k][i]) and (fd_n < fd_name[k][i + 1]):
+                            n_i = [i, i + 1]
+                            n_within = [fd_name[k][i], fd_name[k][i + 1]]
+                            break
+            elif fd_n > fd_name[k][-2]:
+                n_i = n_n_index - 1
             else:
-                n_12 = fd_numerator.index(12)
-                for i in range(n_12, n_n_index - 2):
-                    if (fd_n > fd_numerator[i]) and (fd_n < fd_numerator[i + 1]):
-                        n_i = [i, i + 1]
-                        n_within = [fd_numerator[i], fd_numerator[i + 1]]
-                        break
-        elif fd_n > fd_numerator[-2]:
-            n_i = n_n_index - 1
-        else:
-            raise ValueError('Index m = ' + str(fd_n) + 'out of range.')
-
-        # todo:
-        if significance_level in p:
-            sl_i = p.index(significance_level)
-        else:
-            raise ValueError('Significance level = ' + str(significance_level) + 'not in Significance level array.')
+                raise ValueError('Index m = ' + str(fd_n) + 'out of range.')
+            fd_k[k] = n_i
 
         # querying
         if type(n_i) is list:
@@ -1751,6 +1751,7 @@ class Arch(object):
 
         # bpLM test
         bpLM = self.BPtest_LM_statistic(R_2, n_residual_2)
+        chi_critical_bpLM = self.get_chi_critical(q, significance_level)
 
         # assumption
         H0 = True
