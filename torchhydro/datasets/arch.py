@@ -1238,7 +1238,7 @@ class Arch(object):
 
         return t_statistic
 
-    def get_t_statistic(
+    def get_t_critical(
         self,
         m,
         significance_level,
@@ -1353,7 +1353,7 @@ class Arch(object):
         t_statistic = self.t_statistic(residual, phi, theta, se_beta)
         t_statistic = np.absolute(t_statistic)
         # significance_level_ = 1 - significance_level
-        t_critical = self.get_t_statistic(n_resudual-m, significance_level)
+        t_critical = self.get_t_critical(n_resudual-m, significance_level)
 
         # assumption
         H0 = False
@@ -1398,6 +1398,68 @@ class Arch(object):
 
         return lm
 
+    def F_statistic(
+        self,
+        R_2,
+        k,
+        n
+    ):
+        """
+        F statistic
+        Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge  p217
+        Parameters
+        ----------
+        R_2
+        k
+        n
+
+        Returns
+        -------
+
+        """
+        F_statistic = (R_2 / k) / ((1 - R_2) / (n - k - 1))
+        return F_statistic
+
+    def BPtest_LM_statistic(
+        self,
+        R_2,
+        n,
+    ):
+        """
+        BP test LM
+        Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge  p217
+        Parameters
+        ----------
+        R_2
+        n
+
+        Returns
+        -------
+
+        """
+        bpLM = n * R_2
+        return bpLM
+
+    def get_F_critical(
+        self,
+        m,
+        significance_level,
+    ):
+        """
+        F test critical table
+        Time Series Analysis  James D.Hamilton table B.3 F distribution P874
+        Parameters
+        ----------
+        m
+        significance_level
+
+        Returns
+        -------
+
+        """
+
+
+
     def arch_test(
         self,
         residual,
@@ -1405,6 +1467,8 @@ class Arch(object):
         significance_level,
     ):
         """
+        Applied Time Series Analysis（4th edition） Yan Wang p145-148
+        Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge p216-219
 
         Parameters
         ----------

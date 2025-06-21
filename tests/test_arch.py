@@ -5,7 +5,7 @@ from tests.test_arch_data import (
     e_42, e_42_original, e_60, e_100, e_395, e_500, e_1000,
     y_arma_3_100, y_residual_arma_3_p3d0q3_100,
     y_streamflow_100, y_streamflow_395, y_residual_streamflow_395, y_residual_2_streamflow_395,
-    y_streamflow_1460,
+    y_streamflow_1460, y_residual_streamflow_1460,
 )
 
 class Ystl(object):
@@ -1698,11 +1698,11 @@ def test_arch_test():
                   0.54786256, -1.83051924, 1.84837348, 0.76232344, 0.96888897, -1.44205859, 1.03469247,
                   0.18368458, 1.3957388, -0.13007158]
     arch = Arch(x)
-    q = 2
+    q = 6
     # y_residual_2 = np.power(y_residual, 2)
     # y_residual_2 = y_residual_2.tolist()
     significance_level = 0.05
-    b_arch_Q, b_arch_LM = arch.arch_test(y_residual_streamflow_395, q, significance_level)
+    b_arch_Q, b_arch_LM = arch.arch_test(y_residual_streamflow_1460, q, significance_level)
     print("b_arch_Q")
     print(b_arch_Q)
     print("b_arch_LM")
@@ -1715,6 +1715,8 @@ def test_arch_test():
 # (True, False)
 # b_arch_Q, b_arch_LM  q=6  y_residual_streamflow_395
 # (True, False)
+# b_arch_Q, b_arch_LM  q=6  y_residual_streamflow_1460
+# (False, False)
 
 def test_arch_one_step():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
