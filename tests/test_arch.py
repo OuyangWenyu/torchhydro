@@ -1790,14 +1790,20 @@ def test_arch_least_squares_estimation():
     arch = Arch(x)
     y_residual_2 = np.power(y_residual, 2)
     y_residual_2 = y_residual_2.tolist()
-    q = 2
-    a, R_2 = arch.arch_least_squares_estimation(y_residual_streamflow_1460, e_395, q)
+    q = 3
+    a, R_2 = arch.arch_least_squares_estimation(y_residual_streamflow_395, e_395, q)
     print("a")
     print(a)
+    print("R_2")
+    print(R_2)
 # a
 # [-0.15440176  0.04380729 -0.03932036 -0.4725204 ]
 # a
 # [-0.83992955  0.99515675  8.27269624]
+# a  y_residual_streamflow_395  q=3
+# [-0.70201995  0.6920069   0.43783969  8.07358349]
+# R_2
+# 0.002887935766330832
 
 def test_garch_one_step():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]

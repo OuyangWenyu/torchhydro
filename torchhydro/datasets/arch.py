@@ -1704,9 +1704,12 @@ class Arch(object):
 
         # querying
         if type(fd_k[0]) is list:
-            critical_0 = data[fd_k[0], fd_k[1]]
-            critical_1 = data[fd_k[0], fd_k[1]]
-            F_critical = (critical_1 - critical_0) / (fd_within[1] - fd_within[0]) * (fd_n - fd_within[0]) + critical_0  # linear interpolation
+            if type(fd_k[0]) is list:
+                critical_0 = data[fd_k[0], fd_k[1]]
+                critical_1 = data[fd_k[0], fd_k[1]]
+                F_critical = (critical_1 - critical_0) / (fd_within[1] - fd_within[0]) * (fd_n - fd_within[0]) + critical_0  # linear interpolation
+            else:
+
         else:
             F_critical = data[fd_k[0], fd_k[1]]
 
