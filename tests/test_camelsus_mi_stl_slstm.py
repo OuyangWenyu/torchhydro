@@ -169,7 +169,7 @@ def test_camelsus_sltLstm(arg_camelsus_sltLstm):
     train_and_evaluate(config_data)
     print("All processes are finished!")
 
-# Epoch 10     Loss     2.2842 time 264.16 lr 1.0               this=1/2
+# Epoch 10      Loss      2.2842 time 264.16 lr 1.0                this=2/3
 # sLSTM(
 #   (linearIn): Linear(in_features=3, out_features=256, bias=True)
 #   (lstm): LSTM(256, 256, num_layers=10)
