@@ -2,7 +2,7 @@ import numpy as np
 from hydrodataset import CamelsYstl
 from torchhydro.datasets.arch import Arch
 from tests.test_arch_data import (
-    e_42, e_42_original, e_60, e_100, e_395, e_500, e_1000,
+    e_42, e_42_original, e_60, e_100, e_395, e_500, e_1000, e_1460,
     y_arma_3_100, y_residual_arma_3_p3d0q3_100,
     y_streamflow_100, y_streamflow_395, y_residual_streamflow_395, y_residual_2_streamflow_395,
     y_streamflow_1460, y_residual_streamflow_1460,
@@ -696,10 +696,11 @@ def test_integration():
 
 def test_generate_white_noise():
     np.random.seed(1)
-    e = np.random.standard_normal(size=1000)
-    e = e.tolist()
-    print("e")
-    print(e)
+    e = np.random.standard_normal(size=1460)
+    # e = e.tolist()
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e.txt', e)
+    # print("e")
+    # print(e)
 
 def test_streamflow():
     ystl = Ystl()
@@ -1570,7 +1571,7 @@ def test_test_arima():
     arch = Arch(x)
     m = 6
     p = 0.05
-    b_significant = arch.test_arima(y_residual_streamflow_395, m, p)
+    b_significant = arch.test_arima(y_residual_streamflow_1460, m, p)
     print("b_significant")
     print(b_significant)
 # b_significant
@@ -1588,6 +1589,8 @@ def test_test_arima():
 # b_significant  y_residual_arma_3_p3d0q3_100 m=6
 # False
 # b_significant  e_42 m=6
+# False
+# b_significant  y_residual_streamflow_1460 m=6  p=3
 # False
 
 def test_t_statistic():
@@ -1621,12 +1624,12 @@ def test_t_statistic():
 # [ 3.11903354e+09 -5.37826584e+08  1.14420219e+09  8.49759389e+08
 #   1.14539519e+09  6.86050849e+08]
 
-def test_get_t_statistic():
+def test_get_t_critical():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     arch = Arch(x)
     m = 18
     p = 0.05
-    t_critical = arch.get_t_statistic(42-m, p)
+    t_critical = arch.get_t_critical(42-m, p)
     print("t_critical")
     print(t_critical)
 # t_critical
@@ -1652,12 +1655,15 @@ def test_test_parameters():
     # phi = [1.05000148, -0.19999837, 0.19999655]
     # theta = [0.30000549, 0.2000049, 0.0999975 ]
     # se_beta = [2.330751891026416e-05, 2.5574868559214998e-05, 8.828379847179134e-06, 2.3583773354609526e-05, 1.1762251886041388e-05, 9.797838306742823e-06]
-    phi = [1.86818005, -0.87194949]
+    # phi = [1.86818005, -0.87194949]
+    # theta = []
+    # se_beta = [0.027635877526645366, 0.02762854656367414]
+    phi = [1.80161201, -1.28440015, 0.43756275]
     theta = []
-    se_beta = [0.027635877526645366, 0.02762854656367414]
+    se_beta = [0.02400366981844562, 0.040984491020285965, 0.024005252043346952]
     m = 6
     significance_level = 0.05
-    b_significant = arch.test_parameters(y_residual_streamflow_395, phi, theta, se_beta, m, significance_level)
+    b_significant = arch.test_parameters(y_residual_streamflow_1460, phi, theta, se_beta, m, significance_level)
     print("b_significant")
     print(b_significant)
 # b_significant  m=6
@@ -1672,6 +1678,8 @@ def test_test_parameters():
 # [True, True, True, True, True, True]
 # b_significant  m=6 y_residual_streamflow_395
 # [True, True]
+# b_significant  m=6 y_residual_streamflow_1460
+# [True, True, True]
 
 def test_LM_statistic():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
@@ -1783,7 +1791,7 @@ def test_arch_least_squares_estimation():
     y_residual_2 = np.power(y_residual, 2)
     y_residual_2 = y_residual_2.tolist()
     q = 2
-    a, R_2 = arch.arch_least_squares_estimation(y_residual_streamflow_395, e_395, q)
+    a, R_2 = arch.arch_least_squares_estimation(y_residual_streamflow_1460, e_395, q)
     print("a")
     print(a)
 # a

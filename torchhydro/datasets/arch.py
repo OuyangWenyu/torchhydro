@@ -1680,6 +1680,7 @@ class Arch(object):
         fd_ = [12, 30]
         n_fd_ = 2
         fd_k = [0]*n_fd_
+        fd_within = []
         for k in range(n_fd_):
             n_i = None
             n_within = None
@@ -1699,17 +1700,17 @@ class Arch(object):
             else:
                 raise ValueError('Index m = ' + str(fd_n) + 'out of range.')
             fd_k[k] = n_i
+            fd_within.append(n_within[:])
 
         # querying
-        if type(n_i) is list:
-            critical_0 = data[n_i[0], sl_i]
-            critical_1 = data[n_i[1], sl_i]
-            F_critical = (critical_1 - critical_0) / (n_within[1] - n_within[0]) * (fd_n - n_within[0]) + critical_0  # linear interpolation
+        if type(fd_k[0]) is list:
+            critical_0 = data[fd_k[0], fd_k[1]]
+            critical_1 = data[fd_k[0], fd_k[1]]
+            F_critical = (critical_1 - critical_0) / (fd_within[1] - fd_within[0]) * (fd_n - fd_within[0]) + critical_0  # linear interpolation
         else:
-            F_critical = data[n_i, sl_i]
+            F_critical = data[fd_k[0], fd_k[1]]
 
         return F_critical
-
 
     def arch_test(
         self,
