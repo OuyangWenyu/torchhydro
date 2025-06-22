@@ -1765,7 +1765,7 @@ class Arch(object):
         # F test
         n_residual_2 = len(residual_2)
         F_statistic = self.F_statistic(R_2, q, n_residual_2)
-        F_critical = self.get_F_critical(n_residual_2-q-1, q)
+        F_critical = self.get_F_critical(n_residual_2-q-1, q, significance_level)
 
         # bpLM test
         bpLM = self.BPtest_LM_statistic(R_2, n_residual_2)
@@ -1885,6 +1885,46 @@ class Arch(object):
         a, R_2 = self.ordinary_least_squares(xp, xf)
 
         return a, R_2
+
+    def mL_estimation(
+        self,
+        x,
+        y,
+        e,
+    ):
+        """
+        maximum likelihood estimation, 概率论与数理统计 p152
+        Time Series Analysis  James D.Hamilton p131
+        pdf, likelihood function
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        b0 = 0.5
+        b1 = 0.2
+        wt = 3
+        pi = np.pi
+        sum_lene = 0
+        sum_y = 0
+        sum_se = 0
+        for i in range(self.length):
+            p_e = pow(e[i], 2)
+            ln_i = np.log(p_e)
+            sum_lene = sum_lene + ln_i
+            p_y = pow(y[i]-b0-b1*x[i], 2)
+            sum_i = p_y / p_e
+            se_i = p_y / p_e
+            sum_se = sum_se + se_i
+
+        # mle
+        lnLt = -0.5*np.log(2*pi) - sum_lene / (2 * self.length)
+        lnLt = -0.5*np.log(2*pi) - sum_lene / (2 * self.length) - sum_se / (2 * self.length)
+
+        return lnLt
 
     def garch_one_step(
         self,
