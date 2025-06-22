@@ -1712,21 +1712,23 @@ class Arch(object):
             fd_within.append(n_within[:])
 
         if significance_level not in p:
+            sl_i = p.index(significance_level)
+        else:
             raise ValueError('Significance level = ' + str(significance_level) + 'not in Significance level array.')
 
         # querying
         if type(fd_k[0]) is list:
             if type(fd_k[1]) is list:
-                critical_0 = data[fd_k[0], fd_k[1]]
-                critical_1 = data[fd_k[0], fd_k[1]]
+                critical_0 = data[fd_k[0], sl_i, fd_k[1]]
+                critical_1 = data[fd_k[0], sl_i, fd_k[1]]
                 F_critical = (critical_1 - critical_0) / (fd_within[1] - fd_within[0]) * (fd_n - fd_within[0]) + critical_0  # linear interpolation
             else:
-                F_critical = data[fd_k[0], fd_k[1]]
+                F_critical = data[fd_k[0], sl_i, fd_k[1]]
         else:
             if type(fd_k[1]) is list:
-                F_critical = data[fd_k[0], fd_k[1]]
+                F_critical = data[fd_k[0], sl_i, fd_k[1]]
             else:
-                F_critical = data[fd_k[0], fd_k[1]]
+                F_critical = data[fd_k[0], sl_i, fd_k[1]]
 
         return F_critical
 
@@ -1861,7 +1863,6 @@ class Arch(object):
         residual_2
         e_2
         q
-
 
         Returns
         -------

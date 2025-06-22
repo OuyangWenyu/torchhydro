@@ -1769,6 +1769,17 @@ def test_arch_least_squares_estimation():
 # R_2
 # 0.0011974949973335661
 
+def test_mL_estimation():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    arch = Arch(x)
+    x = 0
+    y = 0
+    e = 0.05
+    lnLt = arch.mL_estimation(x, y, e)
+    print("lnLt")
+    print(lnLt)
+
+
 def test_garch_one_step():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     e = [1.7353783, -0.50072347, -0.41713881, -0.96193568, 0.97644057, -2.19050576, 1.8558447, -0.65017396,
