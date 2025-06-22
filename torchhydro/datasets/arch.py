@@ -22,7 +22,6 @@ class Arch(object):
     """
     def __init__(
         self,
-        x,
     ):
         """ """
         self.original_dataset = None
@@ -30,10 +29,10 @@ class Arch(object):
         self.deficient_dataset = None
         self.degree_m = 0  # arch degree
         self.r = None  # coefficient of arch model
-        self.x = x
+        # self.x = x
         self.e = None  # error
-        self.length = len(x)
-        self.mean = np.mean(x)
+        # self.length = len(x)
+        # self.mean = np.mean(x)
         self.p = None  # degree of autoregression
         self.q = None  # degree of moving average
         self.d = None  # degree of integrate
@@ -1947,6 +1946,30 @@ class Arch(object):
 
         """
 
+    def arch_one_degree_mle(
+        self,
+        residual_2,
+        e,
+        p=1,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual_2
+        e_2
+        p
+
+        Returns
+        -------
+
+        """
+        alpha = [0]*(p+1)
+        ht = alpha[0] + alpha[1] * residual_2
+        epsilon = np.sqrt(ht)
+        epsilon = epsilon * e
+
+        return epsilon
 
     def garch_one_step(
         self,
