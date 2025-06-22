@@ -216,9 +216,7 @@ class Arch(object):
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p51
         Parameters
         ----------
-        x
         r
-        k
 
         Returns
         -------
@@ -256,8 +254,8 @@ class Arch(object):
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p52
         Parameters
         ----------
-        x
-        k
+        x: time series.
+        k: degree of partial auto-correlation function.
 
         Returns
         -------
@@ -1473,7 +1471,7 @@ class Arch(object):
                         27, 28, 29, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 55, 60, 65, 70, 80, 100, 125, 150, 200,
                         400, 1000, "∞"]
         fd_denominator = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20, 24, 30, 40, 50, 75, 100, 200, 500, "∞"]
-
+        p = [0.05, 0.01]
         data = [
             [[161, 200, 216, 225, 230, 234, 237, 239, 241, 242, 243, 244, 245, 246, 248, 249, 250, 251, 252, 253, 253,
              254, 254, 254],
@@ -1712,6 +1710,9 @@ class Arch(object):
                 raise ValueError('Index m = ' + str(fd_n) + 'out of range.')
             fd_k[k] = n_i
             fd_within.append(n_within[:])
+
+        if significance_level not in p:
+            raise ValueError('Significance level = ' + str(significance_level) + 'not in Significance level array.')
 
         # querying
         if type(fd_k[0]) is list:
