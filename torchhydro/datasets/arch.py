@@ -392,6 +392,18 @@ class Arch(object):
 
         return a, R_2
 
+    def ar_maximum_likelihood_estimation(
+        self,
+    ):
+        """
+        Time Series Analysis  James D.Hamilton  chapter 5 p134
+        Returns
+        -------
+
+        """
+
+
+
     def adf_least_squares_estimation(
         self,
         x,
@@ -1945,6 +1957,7 @@ class Arch(object):
         -------
 
         """
+
 
     def arch_one_degree_mle(
         self,
