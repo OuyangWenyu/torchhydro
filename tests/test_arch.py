@@ -1188,24 +1188,6 @@ def test_x_residual():
 # R_2
 # 1.0000000000000004
 # x_residual
-# [ 0.00000000e+00  0.00000000e+00  0.00000000e+00 -6.19948537e-13
-#  -7.88702437e-13 -7.99360578e-13 -9.68114477e-13 -9.80548975e-13
-#  -1.14752652e-12 -1.15818466e-12 -1.32871492e-12 -1.33582034e-12
-#  -1.50635060e-12 -1.51700874e-12 -1.68753900e-12 -1.69109171e-12
-#  -1.86517468e-12 -1.86872740e-12 -2.04636308e-12 -2.06057393e-12
-#  -2.22399876e-12 -2.22399876e-12 -2.40163445e-12 -2.42295073e-12
-#  -2.58637556e-12 -2.58637556e-12 -2.76401124e-12 -2.77822210e-12
-#  -2.94164693e-12 -2.94164693e-12 -3.11928261e-12 -3.14059889e-12
-#  -3.30402372e-12 -3.29691829e-12 -3.49587026e-12 -3.49587026e-12
-#  -3.66640052e-12 -3.66640052e-12 -3.82271992e-12 -3.82271992e-12
-#  -4.02167188e-12 -4.05009359e-12]
-# y_42
-# [-1.  5.  3.  9.  7. 13. 11. 17. 15. 21. 19. 25. 23. 29. 27. 33. 31. 37.
-#  35. 41. 39. 45. 43. 49. 47. 53. 51. 57. 55. 61. 59. 65. 63. 69. 67. 73.
-#  71. 77. 75. 81. 79. 85.]
-# R_2
-# 1.0000000000000004
-# x_residual
 # [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.
 #  0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
 # y_42
@@ -1398,10 +1380,6 @@ def test_x_residual_streamflow():
     d = 0
     q = 0
     x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_streamflow_1460, e_100, p, d, q)
-    # print("x_residual")
-    # print(x_residual)
-    # print("y_t")
-    # print(y_t)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\x_residual.txt', x_residual)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_t.txt', y_t)
     print("R_2")
@@ -1661,6 +1639,35 @@ def test_LM_statistic():
 # 0.6707065303253715
 # LM
 # -129.27344400589584
+
+def test_F_statistic():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    arch = Arch(x)
+    R_2 = 0
+    k = 0
+    n = 0
+    F_statistic = arch.F_statistic(R_2, k, n)
+    print("F_statistic")
+    print(F_statistic)
+
+def test_BPtest_LM_statistic():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    arch = Arch(x)
+    R_2 = 0
+    n = 0
+    BPtest_LM_statistic = arch.BPtest_LM_statistic(R_2, n)
+    print("BPtest_LM_statistic")
+    print(BPtest_LM_statistic)
+
+def test_get_F_critical():
+    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    arch = Arch(x)
+    fd_n = 0
+    fd_d = 0
+    significance_level = 0.05
+    F_critical = arch.get_F_critical(fd_n, fd_d, significance_level)
+    print("F_critical")
+    print(F_critical)
 
 def test_arch_test():
     x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]

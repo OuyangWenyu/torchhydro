@@ -1927,6 +1927,26 @@ class Arch(object):
 
         return lnLt
 
+    def ml_function(
+        self,
+        residual_2,
+        beta,
+        sigma,
+    ):
+        """
+        maximum likelihood function.  Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan p214
+        Parameters
+        ----------
+        residual_2
+        beta
+        sigma
+
+        Returns
+        -------
+
+        """
+
+
     def garch_one_step(
         self,
         h,
