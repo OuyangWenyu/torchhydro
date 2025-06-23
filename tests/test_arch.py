@@ -5,7 +5,7 @@ from tests.test_arch_data import (
     e_42, e_42_original, e_60, e_100, e_395, e_500, e_1000, e_1460,
     y_arma_3_100, y_residual_arma_3_p3d0q3_100,
     y_streamflow_100, y_streamflow_395, y_residual_streamflow_395, y_residual_2_streamflow_395,
-    y_streamflow_1460, y_residual_streamflow_1460,
+    y_streamflow_1460, y_residual_streamflow_1460, y_residual_2_streamflow_1460,
 )
 
 class Ystl(object):
@@ -93,7 +93,7 @@ def test_autocorrelation_function():
     y_non_stationary = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35, 41, 39, 45, 43, 49,
                         47, 53, 51, 57, 55, 61, 59, 65, 63, 69, 67, 73, 71, 77, 75, 81, 79, 85]
     arch = Arch()
-    acf_y = arch.autocorrelation_function(y_streamflow_1460, 500)
+    acf_y = arch.autocorrelation_function(y_residual_streamflow_1460, 500)
     print("acf_y")
     print(acf_y)
 # acf_y_non_stationary
@@ -154,7 +154,7 @@ def test_partial_autocorrelation_function():
     y_non_stationary = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35, 41, 39, 45, 43, 49,
                         47, 53, 51, 57, 55, 61, 59, 65, 63, 69, 67, 73, 71, 77, 75, 81, 79, 85]
     arch = Arch()
-    pacf_y= arch.partial_autocorrelation_function(y_streamflow_1460, 500)
+    pacf_y= arch.partial_autocorrelation_function(y_residual_streamflow_1460, 500)
     print("pacf_y")
     print(pacf_y)
 # pacf_y  y_streamflow_100
@@ -296,7 +296,7 @@ def test_adf_test():
     arch = Arch()
     case = "case 1"
     significance_level = 0.05
-    b_stability = arch.adf_test(y_streamflow_1460, 3, case, significance_level)
+    b_stability = arch.adf_test(y_residual_2_streamflow_395, 3, case, significance_level)
     print("b_stability")
     print(b_stability)
 # b_stability
@@ -312,6 +312,10 @@ def test_adf_test():
 # b_stability  y_streamflow_395
 # False
 # b_stability  y_streamflow_1460
+# True
+# b_stability  y_residual_2_streamflow_1460
+# True
+# b_stability  y_residual_2_streamflow_395
 # True
 
 def test_integrated_one_degree():
@@ -1662,8 +1666,10 @@ def test_arch_test():
 # (True, False)
 # b_arch_Q, b_arch_LM  q=6  y_residual_streamflow_395
 # (True, False)
+# b_arch_Q, b_arch_LM  q=3  y_residual_streamflow_1460
+# (True, False)
 # b_arch_Q, b_arch_LM  q=6  y_residual_streamflow_1460
-# (False, False)
+# (True, False)
 
 def test_arch_one_step():
     e = [1.7353783, -0.50072347, -0.41713881, -0.96193568, 0.97644057, -2.19050576, 1.8558447, -0.65017396,
@@ -1728,7 +1734,7 @@ def test_arch_least_squares_estimation():
     y_residual_2 = y_residual_2.tolist()
     q = 3
     e_2 = np.power(e_395, 2)
-    a, R_2 = arch.arch_least_squares_estimation(y_residual_2_streamflow_395, e_2, q)
+    a, R_2 = arch.arch_least_squares_estimation(y_residual_2_streamflow_1460, q)
     print("a")
     print(a)
     print("R_2")
@@ -1737,6 +1743,14 @@ def test_arch_least_squares_estimation():
 # [ 5.37474523e+01 -5.26041074e+01  9.55464424e+00  2.15040052e+04]
 # R_2
 # 0.0011974949973335661
+# a  y_residual_2_streamflow_395  q=3
+# [ 0.86070866 -0.50716606  0.41552226 35.10725569]
+# R_2
+# 0.23602067035348345
+# a  y_residual_2_streamflow_1460  q=3
+# [1.25569344e-01 6.10891224e-02 4.37201780e-02 1.33278024e+04]
+# R_2
+# 0.025185118907720204
 
 def test_mL_estimation():
     arch = Arch()

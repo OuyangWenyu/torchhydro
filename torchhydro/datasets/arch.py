@@ -283,6 +283,7 @@ class Arch(object):
         self,
         x,
         p: int = 2,
+        b_constant: bool = False,
     ):
         """
         least squares estimation of autoregressive.
@@ -306,6 +307,11 @@ class Arch(object):
             xp_i = x[i:i+p]
             xp_i.reverse()
             xp.append(xp_i)
+
+        if b_constant:
+            xp_constant = np.ones(n_x-p)
+            xp = np.array(xp)
+            xp = np.column_stack((xp, xp_constant))
 
         # matrix operations, calculate the coefficient matrix.
         a, R_2 = self.ordinary_least_squares(xp, xf)
@@ -736,6 +742,7 @@ class Arch(object):
         theta: Optional = None,
         p: int = 0,
         q: int = 0,
+        b_constant: bool = False,
     ):
         """
         ARMA model, multi-step.
@@ -771,6 +778,8 @@ class Arch(object):
             for i in range(start, n_x):
                 x_i = x[i-p:i]
                 x_i.reverse()
+                if b_constant:
+                    x_i.append(1)
                 ar[i-start] = self.ar_one_step(x_i, phi)
             y[start:] = ar[:]
         if q > 0:
@@ -1769,8 +1778,8 @@ class Arch(object):
         chi_critical_Q = self.get_chi_critical(q-1, significance_level)
 
         # LM test
-        a, R_2 = self.ar_least_squares_estimation(residual_2, q)
-        residual_2_fit = self.arma(x=residual_2, e=None, phi=a, theta=None, p=q, q=0)  # ar model
+        a, R_2 = self.ar_least_squares_estimation(residual_2, q, True)
+        residual_2_fit = self.arma(x=residual_2, e=None, phi=a, theta=None, p=q, q=0, b_constant=True)  # ar model
         e = residual_2 - residual_2_fit
         e_2 = np.power(e, 2)
         LM_statistic = self.LM_statistic(residual_2, q, e_2)
@@ -1864,7 +1873,7 @@ class Arch(object):
     def arch_least_squares_estimation(
         self,
         residual_2,
-        e_2,
+        # e_2,
         q,
     ):
         """
@@ -1884,9 +1893,9 @@ class Arch(object):
         # construct matrix
         xf = residual_2[q:]
         xf = np.array(xf)
-        ef = e_2[q:]
-        ef = np.array(ef)
-        xf = xf / ef
+        # ef = e_2[q:]
+        # ef = np.array(ef)
+        # xf = xf / ef
         xf = np.transpose(xf)
 
         xp = []
@@ -1924,7 +1933,8 @@ class Arch(object):
         sum_lene = 0
         sum_y = 0
         sum_se = 0
-        for i in range(self.length):
+        n_x = len(x)
+        for i in range(n_x):
             p_e = pow(e[i], 2)
             ln_i = np.log(p_e)
             sum_lene = sum_lene + ln_i
@@ -1934,8 +1944,8 @@ class Arch(object):
             sum_se = sum_se + se_i
 
         # mle
-        lnLt = -0.5*np.log(2*pi) - sum_lene / (2 * self.length)
-        lnLt = -0.5*np.log(2*pi) - sum_lene / (2 * self.length) - sum_se / (2 * self.length)
+        lnLt = -0.5*np.log(2*pi) - sum_lene / (2 * n_x)
+        lnLt = -0.5*np.log(2*pi) - sum_lene / (2 * n_x) - sum_se / (2 * n_x)
 
         return lnLt
 
