@@ -1706,47 +1706,59 @@ class Arch(object):
 
         # locate
         fd_name = [fd_numerator, fd_denominator]
-        fd_ = [12, 30]
+        fd_ = [30, 12]
         n_fd_ = 2
+        fd_v = [fd_n, fd_d]
         fd_k = [0]*n_fd_
         fd_within = []
         for k in range(n_fd_):
             n_i = None
             n_within = None
             n_n_index = len(fd_name[k])
-            if (fd_n >= fd_name[k][0]) and (fd_n <= fd_name[k][-2]):
-                if fd_n in fd_name[k]:
-                    n_i = fd_name[k].index(fd_n)
+            if (fd_v[k] >= fd_name[k][0]) and (fd_v[k] <= fd_name[k][-2]):
+                if fd_v[k] in fd_name[k]:
+                    n_i = fd_name[k].index(fd_v[k])
                 else:
                     fd = fd_name[k].index(fd_[k])
                     for i in range(fd, n_n_index - 2):
-                        if (fd_n > fd_name[k][i]) and (fd_n < fd_name[k][i + 1]):
+                        if (fd_v[k] > fd_name[k][i]) and (fd_v[k] < fd_name[k][i + 1]):
                             n_i = [i, i + 1]
                             n_within = [fd_name[k][i], fd_name[k][i + 1]]
                             break
-            elif fd_n > fd_name[k][-2]:
+            elif fd_v[k] > fd_name[k][-2]:
                 n_i = n_n_index - 1
             else:
-                raise ValueError('Index m = ' + str(fd_n) + 'out of range.')
+                raise ValueError('Index m = ' + str(fd_v[k]) + 'out of range.')
             fd_k[k] = n_i
-            fd_within.append(n_within[:])
+            if n_within is not None:
+                fd_within.append(n_within[:])
+            else:
+                fd_within.append(None)
 
-        if significance_level not in p:
+        if significance_level in p:
             sl_i = p.index(significance_level)
         else:
-            raise ValueError('Significance level = ' + str(significance_level) + 'not in Significance level array.')
+            raise ValueError('Significance level = ' + str(significance_level) + ' not in Significance level array.')
 
         # querying
         if type(fd_k[0]) is list:
             if type(fd_k[1]) is list:
-                critical_0 = data[fd_k[0], sl_i, fd_k[1]]
-                critical_1 = data[fd_k[0], sl_i, fd_k[1]]
-                F_critical = (critical_1 - critical_0) / (fd_within[1] - fd_within[0]) * (fd_n - fd_within[0]) + critical_0  # linear interpolation
+                critical_00 = data[fd_k[0][0], sl_i, fd_k[1][0]]
+                critical_01 = data[fd_k[0][1], sl_i, fd_k[1][0]]
+                critical_10 = data[fd_k[0][0], sl_i, fd_k[1][1]]
+                critical_11 = data[fd_k[0][1], sl_i, fd_k[1][1]]
+                F_critical0 = (critical_01 - critical_00) / (fd_within[0][1] - fd_within[0][0]) * (fd_n - fd_within[0][0]) + critical_00  # linear interpolation
+                F_critical1 = (critical_11 - critical_10) / (fd_within[0][1] - fd_within[0][0]) * (fd_n - fd_within[0][0]) + critical_10
+                F_critical = (F_critical1 - F_critical0) / (fd_within[1][1] - fd_within[1][0]) * (fd_d - fd_within[1][0]) + F_critical0
             else:
-                F_critical = data[fd_k[0], sl_i, fd_k[1]]
+                critical_0 = data[fd_k[0][0], sl_i, fd_k[1]]
+                critical_1 = data[fd_k[0][1], sl_i, fd_k[1]]
+                F_critical = (critical_1 - critical_0) / (fd_within[0][1] - fd_within[0][0]) * (fd_n - fd_within[0][0]) + critical_0
         else:
             if type(fd_k[1]) is list:
-                F_critical = data[fd_k[0], sl_i, fd_k[1]]
+                critical_0 = data[fd_k[0], sl_i, fd_k[1][0]]
+                critical_1 = data[fd_k[0], sl_i, fd_k[1][1]]
+                F_critical = (critical_1 - critical_0) / (fd_within[1][1] - fd_within[1][0]) * (fd_d - fd_within[1][0]) + critical_0
             else:
                 F_critical = data[fd_k[0], sl_i, fd_k[1]]
 
@@ -1787,8 +1799,8 @@ class Arch(object):
 
         # F test
         n_residual_2 = len(residual_2)
-        # F_statistic = self.F_statistic(R_2, q, n_residual_2)
-        # F_critical = self.get_F_critical(n_residual_2-q-1, q, significance_level)
+        F_statistic = self.F_statistic(R_2, q, n_residual_2)
+        F_critical = self.get_F_critical(n_residual_2-q-1, q, significance_level)
 
         # bpLM test
         bpLM_statistic = self.BPtest_LM_statistic(R_2, n_residual_2)
@@ -1809,12 +1821,17 @@ class Arch(object):
         else:
             b_arch_LM = H1
 
+        if F_statistic < F_critical:
+            b_arch_F = H0
+        else:
+            b_arch_F = H1
+
         if bpLM_statistic > chi_critical_bpLM:
             b_arch_bpLM = H0
         else:
             b_arch_bpLM = H1
 
-        return b_arch_Q, b_arch_LM, b_arch_bpLM
+        return b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM
 
     def arch_one_step(
         self,
@@ -1998,6 +2015,28 @@ class Arch(object):
         epsilon = epsilon * e
 
         return epsilon
+
+    def std_function(
+        self,
+        w,
+        e,
+        std,
+    ):
+        """std function"""
+        q = e.shape[0]
+        p = std.shape[0]
+        a = [0]*q
+        b = [0]*p
+        sum_e = 0
+        sum_std = 0
+        for i in range(q):
+            e_i = a[i] * pow(e[i], 2)
+            sum_e = sum_e + e_i
+        for i in range(p):
+            std_i = b[i] * pow(std[i], 2)
+            sum_std = sum_std + std_i
+        std_t = w + sum_e + sum_std
+        return std_t
 
     def garch_one_step(
         self,

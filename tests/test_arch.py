@@ -1186,30 +1186,6 @@ def test_x_residual():
 # a_diagonal
 # [0.00040064]
 # x_residual
-# [ 0.          0.          0.          0.79397652 -0.51466611  1.725641
-#  -1.13232029 -0.00205007 -0.03471921 -0.21012213 -1.28683611  1.3571145
-#   0.88347822  0.06122573 -0.92980285  0.46681841  0.52890566  0.52307427
-#   0.26695905 -0.98332938  1.09859177 -1.30175444 -1.02333415 -1.08610094
-#  -0.88577079  0.10027781  0.39070302  0.57043108  0.58939896 -0.86480166
-#   0.70081002  0.15259318  0.89384488  0.6000891   0.97346217 -0.23584514
-#   1.24215142 -0.38789033 -1.58760219 -1.48718962  0.15588401  0.53697959]
-# y_42
-# [-1.          5.          3.          8.20602348  7.51466611 11.274359
-#  12.13232029 17.00205007 15.03471921 21.21012213 20.28683611 23.6428855
-#  22.11652178 28.93877427 27.92980285 32.53318159 30.47109434 36.47692573
-#  34.73304095 41.98332938 37.90140823 46.30175444 44.02333415 50.08610094
-#  47.88577079 52.89972219 50.60929698 56.42956892 54.41060104 61.86480166
-#  58.29918998 64.84740682 62.10615512 68.3999109  66.02653783 73.23584514
-#  69.75784858 77.38789033 76.58760219 82.48718962 78.84411599 84.46302041]
-# R_2
-# 0.9893443873943417
-# phi
-# [-1.03210395]
-# theta
-# [-0.21305252]
-# a_diagonal
-# [0.00044262 0.0325121]
-# x_residual
 # [ 0.00000000e+00  0.00000000e+00  4.44089210e-16  1.40331335e+00
 #  -8.17717294e-01 -4.99646601e-01 -3.29780729e-01  1.84984922e+00
 #  -4.27926446e+00  3.93349275e+00 -2.04579485e+00  5.20593307e-02
@@ -1622,29 +1598,41 @@ def test_LM_statistic():
 
 def test_F_statistic():
     arch = Arch()
-    R_2 = 0
-    k = 0
-    n = 0
+    R_2 = 0.025185118907720204
+    k = 3
+    n = 1460
     F_statistic = arch.F_statistic(R_2, k, n)
     print("F_statistic")
     print(F_statistic)
+# F_statistic
+# 12.538973241959683
 
 def test_BPtest_LM_statistic():
     arch = Arch()
-    R_2 = 0
-    n = 0
+    R_2 = 0.025185118907720204
+    n = 1460
     BPtest_LM_statistic = arch.BPtest_LM_statistic(R_2, n)
     print("BPtest_LM_statistic")
     print(BPtest_LM_statistic)
+# BPtest_LM_statistic
+# 36.7702736052715
 
 def test_get_F_critical():
     arch = Arch()
-    fd_n = 0
-    fd_d = 0
+    fd_n = 110
+    fd_d = 45
     significance_level = 0.05
     F_critical = arch.get_F_critical(fd_n, fd_d, significance_level)
     print("F_critical")
     print(F_critical)
+# F_critical (50, 0.05, 2)
+# 3.18
+# F_critical (110, 0.05, 2)
+# 3.082
+# F_critical (100, 0.05, 45)
+# 1.495
+# F_critical (110, 0.05, 45)
+# 1.4849999999999999
 
 def test_arch_test():
     y_residual = [0, 0, -7.00148942, 2.81307703, -0.86616938, 2.35613508, -1.19714684, 0.4232423, -0.4589695,
@@ -1653,11 +1641,13 @@ def test_arch_test():
     arch = Arch()
     q = 3
     significance_level = 0.05
-    b_arch_Q, b_arch_LM, b_arch_bpLM = arch.arch_test(y_residual_streamflow_1460, q, significance_level)
+    b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = arch.arch_test(y_residual_streamflow_395, q, significance_level)
     print("b_arch_Q")
     print(b_arch_Q)
     print("b_arch_LM")
     print(b_arch_LM)
+    print("b_arch_F")
+    print(b_arch_F)
     print("b_arch_bpLM")
     print(b_arch_bpLM)
 # b_arch_Q, b_arch_LM
@@ -1674,6 +1664,8 @@ def test_arch_test():
 # (True, False)
 # b_arch_Q, b_arch_LM, b_arch_bpLM  q=3  y_residual_streamflow_1460
 # (True, False, True)
+# b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM  q=3  y_residual_streamflow_1460
+# (True, False, False, True)
 
 def test_arch_one_step():
     e = [1.7353783, -0.50072347, -0.41713881, -0.96193568, 0.97644057, -2.19050576, 1.8558447, -0.65017396,
