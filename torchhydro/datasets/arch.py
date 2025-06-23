@@ -15,9 +15,9 @@ class Arch(object):
     I, integrate model.
     ARCH, autoregressive conditional heteroscedasticity model.
 
-    distribution of series -> check relationship -> mean value function
-
     adf check
+
+    AIC degree
 
     """
     def __init__(
@@ -1365,6 +1365,7 @@ class Arch(object):
     ):
         """
         significance test for parameters of ARIMA model.    t test
+        Applied Time Series Analysis（4th edition） Yan Wang p78
         Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge  p96-109
         Parameters
         ----------
@@ -1764,6 +1765,28 @@ class Arch(object):
 
         return F_critical
 
+    def p_statistic(
+        self,
+        x,
+    ):
+        """
+        p statistic
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        x_mean = np.mean(x)
+        u0 = 0.5
+        sigma = np.std(x)
+        n_x = len(x)
+        z = (x_mean - u0) / (sigma / pow(n_x, 0.5))
+        p_statistic = np.abs(z) < 0.01
+        return p_statistic
+
     def arch_test(
         self,
         residual,
@@ -1789,7 +1812,7 @@ class Arch(object):
         Q_statistic, acf = self.LB_statistic(residual_2, q)
         chi_critical_Q = self.get_chi_critical(q-1, significance_level)
 
-        # LM test
+        # LM test  # todo:
         a, R_2 = self.ar_least_squares_estimation(residual_2, q, True)
         residual_2_fit = self.arma(x=residual_2, e=None, phi=a, theta=None, p=q, q=0, b_constant=True)  # ar model
         e = residual_2 - residual_2_fit
@@ -1811,7 +1834,7 @@ class Arch(object):
         H1 = True   # exist stdi!=0 (1<i<k), be ARCH.
 
         # test
-        if Q_statistic <= chi_critical_Q:  # todo:
+        if Q_statistic <= chi_critical_Q:
             b_arch_Q = H0
         else:
             b_arch_Q = H1
@@ -1837,7 +1860,7 @@ class Arch(object):
         self,
         residual_2,
         alpha,
-        e,
+        # e,
     ):
         """
         arch model.   single step
@@ -1856,14 +1879,14 @@ class Arch(object):
         """
         residual_2_t = np.transpose(residual_2)
         h_t = np.matmul(alpha, residual_2_t)
-        epsilon_t = np.sqrt(h_t) * e
+        epsilon_t = np.sqrt(h_t)  # * e
 
         return epsilon_t
 
     def arch(
         self,
         residual_2,
-        e,
+        # e,
         alpha,
         q,
     ):
@@ -1888,7 +1911,7 @@ class Arch(object):
             residual_2_i = residual_2[i-q:i]
             residual_2_i.reverse()
             residual_2_i.append(1)  # omega
-            epsilon[i] = self.arch_one_step(residual_2_i, alpha, e[i])
+            epsilon[i] = self.arch_one_step(residual_2_i, alpha,)   # e[i]
 
         return epsilon
 
