@@ -1669,7 +1669,7 @@ class FloodEventDataset(BaseDataset):
         start_idx = None
 
         for i, event in enumerate(flood_events):
-            if event >= 0 and not in_sequence:
+            if event > 0 and not in_sequence:
                 # Start of a new flood sequence
                 in_sequence = True
                 start_idx = i
