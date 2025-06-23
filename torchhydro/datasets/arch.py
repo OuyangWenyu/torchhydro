@@ -1787,11 +1787,11 @@ class Arch(object):
 
         # F test
         n_residual_2 = len(residual_2)
-        F_statistic = self.F_statistic(R_2, q, n_residual_2)
-        F_critical = self.get_F_critical(n_residual_2-q-1, q, significance_level)
+        # F_statistic = self.F_statistic(R_2, q, n_residual_2)
+        # F_critical = self.get_F_critical(n_residual_2-q-1, q, significance_level)
 
         # bpLM test
-        bpLM = self.BPtest_LM_statistic(R_2, n_residual_2)
+        bpLM_statistic = self.BPtest_LM_statistic(R_2, n_residual_2)
         chi_critical_bpLM = self.get_chi_critical(q, significance_level)
 
         # assumption
@@ -1809,7 +1809,12 @@ class Arch(object):
         else:
             b_arch_LM = H1
 
-        return b_arch_Q, b_arch_LM
+        if bpLM_statistic > chi_critical_bpLM:
+            b_arch_bpLM = H0
+        else:
+            b_arch_bpLM = H1
+
+        return b_arch_Q, b_arch_LM, b_arch_bpLM
 
     def arch_one_step(
         self,

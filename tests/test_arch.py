@@ -1651,13 +1651,15 @@ def test_arch_test():
                   0.54786256, -1.83051924, 1.84837348, 0.76232344, 0.96888897, -1.44205859, 1.03469247,
                   0.18368458, 1.3957388, -0.13007158]
     arch = Arch()
-    q = 6
+    q = 3
     significance_level = 0.05
-    b_arch_Q, b_arch_LM = arch.arch_test(y_residual_streamflow_1460, q, significance_level)
+    b_arch_Q, b_arch_LM, b_arch_bpLM = arch.arch_test(y_residual_streamflow_1460, q, significance_level)
     print("b_arch_Q")
     print(b_arch_Q)
     print("b_arch_LM")
     print(b_arch_LM)
+    print("b_arch_bpLM")
+    print(b_arch_bpLM)
 # b_arch_Q, b_arch_LM
 # (True, True)
 # b_arch_Q, b_arch_LM  q=2  y_residual_streamflow_395
@@ -1670,6 +1672,8 @@ def test_arch_test():
 # (True, False)
 # b_arch_Q, b_arch_LM  q=6  y_residual_streamflow_1460
 # (True, False)
+# b_arch_Q, b_arch_LM, b_arch_bpLM  q=3  y_residual_streamflow_1460
+# (True, False, True)
 
 def test_arch_one_step():
     e = [1.7353783, -0.50072347, -0.41713881, -0.96193568, 0.97644057, -2.19050576, 1.8558447, -0.65017396,
