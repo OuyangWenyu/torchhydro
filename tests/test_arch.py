@@ -1664,8 +1664,10 @@ def test_arch_test():
 # (True, False)
 # b_arch_Q, b_arch_LM, b_arch_bpLM  q=3  y_residual_streamflow_1460
 # (True, False, True)
+# b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM  q=3  y_residual_streamflow_395
+# (True, False, True, True)
 # b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM  q=3  y_residual_streamflow_1460
-# (True, False, False, True)
+# (True, False, True, True)
 
 def test_arch_one_step():
     e = [1.7353783, -0.50072347, -0.41713881, -0.96193568, 0.97644057, -2.19050576, 1.8558447, -0.65017396,

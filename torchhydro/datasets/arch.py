@@ -1807,16 +1807,16 @@ class Arch(object):
         chi_critical_bpLM = self.get_chi_critical(q, significance_level)
 
         # assumption
-        H0 = True
-        H1 = False
+        H0 = False  # std1=std2=...=stdk=0, no ARCH.
+        H1 = True   # exist stdi!=0 (1<i<k), be ARCH.
 
         # test
-        if Q_statistic > chi_critical_Q:
+        if Q_statistic <= chi_critical_Q:  # todo:
             b_arch_Q = H0
         else:
             b_arch_Q = H1
 
-        if LM_statistic > chi_critical_LM:
+        if LM_statistic <= chi_critical_LM:
             b_arch_LM = H0
         else:
             b_arch_LM = H1
@@ -1826,7 +1826,7 @@ class Arch(object):
         else:
             b_arch_F = H1
 
-        if bpLM_statistic > chi_critical_bpLM:
+        if bpLM_statistic <= chi_critical_bpLM:
             b_arch_bpLM = H0
         else:
             b_arch_bpLM = H1
