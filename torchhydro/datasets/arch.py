@@ -311,7 +311,7 @@ class Arch(object):
         if b_constant:
             xp_constant = np.ones(n_x-p)
             xp = np.array(xp)
-            xp = np.column_stack((xp, xp_constant))
+            xp = np.insert(xp, xp_constant, 0, axis=1)
 
         # matrix operations, calculate the coefficient matrix.
         a, R_2 = self.ordinary_least_squares(xp, xf)
@@ -777,9 +777,9 @@ class Arch(object):
             ar = np.zeros(n_x-start)
             for i in range(start, n_x):
                 x_i = x[i-p:i]
-                x_i.reverse()
                 if b_constant:
                     x_i.append(1)
+                x_i.reverse()
                 ar[i-start] = self.ar_one_step(x_i, phi)
             y[start:] = ar[:]
         if q > 0:
@@ -1946,8 +1946,8 @@ class Arch(object):
         xp = []
         for i in range(q, n_residual_2):
             xp_i = residual_2[i-q:i]
-            xp_i.reverse()
             xp_i.append(1)  # omega
+            xp_i.reverse()
             xp.append(xp_i)
         a, R_2 = self.ordinary_least_squares(xp, xf)
 
