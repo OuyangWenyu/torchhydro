@@ -324,7 +324,6 @@ class Arch(object):
         Y,
         b_s_a: Optional = False,
         b_se_beta: Optional = False,
-        b_a_diagonal: Optional = False,
     ):
         """
         ordinary least squares, ols.
@@ -388,13 +387,6 @@ class Arch(object):
                     _, xi_R_2 = self.ordinary_least_squares(xi_A, x_i)
                     se_beta[i] = std_e / (np.sqrt(n_y) * std_xi * np.sqrt(1 - xi_R_2))  # standard error of a[0]
                 return a, R_2, se_beta
-
-        # if b_a_diagonal:
-        #     n_B = B_1.shape[0]
-        #     a_diagonal = np.zeros(n_B)
-        #     for i in range(n_B):
-        #         a_diagonal[i] = B_1[i, i]
-        #     return a, R_2, a_diagonal
 
         return a, R_2
 
@@ -738,11 +730,11 @@ class Arch(object):
         self,
         x,
         e: Optional = None,
+        b_constant: bool = False,
         phi: Optional = None,
         theta: Optional = None,
         p: int = 0,
         q: int = 0,
-        b_constant: bool = False,
     ):
         """
         ARMA model, multi-step.
@@ -752,6 +744,7 @@ class Arch(object):
         ----------
         x: time series
         e: time series
+        b_constant: constant item or not in AR(P) model.
         phi: parameters of AR(p) model
         theat: parameters of MA(q) model
         p: degree of autoregression model
@@ -778,7 +771,7 @@ class Arch(object):
             for i in range(start, n_x):
                 x_i = x[i-p:i]
                 if b_constant:
-                    x_i.append(1)
+                    x_i.append(1)  # constant item
                 x_i.reverse()
                 ar[i-start] = self.ar_one_step(x_i, phi)
             y[start:] = ar[:]
@@ -1358,7 +1351,6 @@ class Arch(object):
         residual,
         phi,
         theta,
-        # a_diagonal,
         se_beta,
         m,
         significance_level,
@@ -1371,7 +1363,6 @@ class Arch(object):
         ----------
         phi
         theta
-        a_diagonal
         se_beta
 
         Returns
