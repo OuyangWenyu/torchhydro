@@ -1389,6 +1389,61 @@ class Arch(object):
 
         return b_significant
 
+    def arima_infer(
+        self,
+        x,
+        e,
+        alpha,
+        theta,
+        p,
+        d,
+        q,
+        t,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        e
+        alpha
+        theta
+        p
+        d
+        q
+        t
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        if n_x < p+q:
+            raise ValueError("x is too small.")
+        y = [0]*t
+        for i in range(t):
+            if  i == 0:
+                x_i = x[n_x-1-(p+q):]
+                x_i.reverse()
+                e_i = e[n_x-1-(p+q):]
+                e_i.reverse()
+                y[i] = self.arima(x_i, e_i, alpha, theta, p, d, q)
+            elif i > 1 and i < (p+q):
+                x_i = x[n_x-1-(p+q-i):]
+                x_i = x_i + y[:i]
+                x_i.reverse()
+                e_i = e[n_x-1-(p+q-i):]
+                e_i.reverse()
+                y[i] = self.arima(x_i, e_i, alpha, theta, p, d, q)
+            else:
+                x_i = y[i-1-(p+q):i-1]
+                x_i.reverse()
+                e_i = e[n_x-1-(p+q):i-1]
+                e_i.reverse()
+                y[i] = self.arima(x_i, e_i, alpha, theta, p, d, q)
+        y = x + y
+
+        return y
+
     def LM_statistic(
         self,
         residual_2,
@@ -2003,7 +2058,6 @@ class Arch(object):
         -------
 
         """
-
 
     def arch_one_degree_mle(
         self,
