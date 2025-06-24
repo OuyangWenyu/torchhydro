@@ -1389,16 +1389,12 @@ class Arch(object):
 
         return b_significant
 
-    def arima_infer(
+    def arma_one_step(
         self,
         x,
-        e,
-        alpha,
-        theta,
-        p,
-        d,
-        q,
-        t,
+        e: Optional[list] = None,
+        phi: Optional[list] = None,
+        theta: Optional[list] = None,
     ):
         """
 
@@ -1406,12 +1402,49 @@ class Arch(object):
         ----------
         x
         e
-        alpha
+        phi
+        theta
+
+        Returns
+        -------
+
+        """
+        if (phi is None) and (theta is None):
+            raise ValueError('Either phi or theta must be provided.')
+
+        x_infer = 0
+        if phi is not None:
+            ar = self.ar_one_step(x, phi)
+            x_infer = ar
+        if theta is not None:
+            ma = self.ma_one_step(e, theta)
+            x_infer = x_infer + ma
+
+        return x_infer
+
+    def arima_infer(
+        self,
+        t: int,
+        x,
+        e: Optional = None,
+        phi: Optional[list] = None,
+        theta: Optional[list] = None,
+        p: Optional[int] = 0,
+        d: Optional[int] = 0,  # todo:
+        q: Optional[int] = 0,
+    ):
+        """
+
+        Parameters
+        ----------
+        t
+        x
+        e
+        phi
         theta
         p
         d
         q
-        t
         Returns
         -------
 
@@ -1419,30 +1452,48 @@ class Arch(object):
         n_x = len(x)
         if n_x < p+q:
             raise ValueError("x is too small.")
-        y = [0]*t
-        for i in range(t):
-            if  i == 0:
-                x_i = x[n_x-1-(p+q):]
-                x_i.reverse()
-                e_i = e[n_x-1-(p+q):]
-                e_i.reverse()
-                y[i] = self.arima(x_i, e_i, alpha, theta, p, d, q)
-            elif i > 1 and i < (p+q):
-                x_i = x[n_x-1-(p+q-i):]
-                x_i = x_i + y[:i]
-                x_i.reverse()
-                e_i = e[n_x-1-(p+q-i):]
-                e_i.reverse()
-                y[i] = self.arima(x_i, e_i, alpha, theta, p, d, q)
-            else:
-                x_i = y[i-1-(p+q):i-1]
-                x_i.reverse()
-                e_i = e[n_x-1-(p+q):i-1]
-                e_i.reverse()
-                y[i] = self.arima(x_i, e_i, alpha, theta, p, d, q)
-        y = x + y
+        x_infer = [0]*t
+        if q > 0:
+            for i in range(t):
+                if i == 0:
+                    x_i = x[n_x-1-(p+q):]
+                    x_i.reverse()
+                    e_i = e[n_x-1-(p+q):]
+                    e_i.reverse()
+                elif (i > 1) and (i < (p+q)):
+                    x_i = x[n_x-1-(p+q-i):]
+                    x_i = x_i + x_infer[:i]
+                    x_i.reverse()
+                    e_i = e[n_x-1-(p+q-i):]
+                    e_i.reverse()
+                else:
+                    x_i = x_infer[i-1-(p+q):i-1]
+                    x_i.reverse()
+                    e_i = e[n_x-1-(p+q):i-1]
+                    e_i.reverse()
+                if p > 0:
+                    x_infer[i] = self.arma_one_step(x_i, e_i, phi, theta)
+                else:
+                    x_infer[i] = self.arma_one_step(x_i, e_i, theta=theta)
+        else:
+            for i in range(t):
+                if i == 0:
+                    x_i = x[n_x - (p + q):]
+                    x_i.reverse()
+                elif (i > 0) and (i < (p + q)):
+                    x_i = x[n_x - (p + q - i):]
+                    x_i = x_i + x_infer[:i]
+                    x_i.reverse()
+                else:
+                    x_i = x_infer[i - (p + q):i]
+                    x_i.reverse()
+                # x_infer[i] = self.arima(x=x_i, phi=phi, theta=theta, p=p, d=d)
+                x_infer[i] = self.arma_one_step(x=x_i, phi=phi)
 
-        return y
+        return x_infer
+
+
+
 
     def LM_statistic(
         self,
