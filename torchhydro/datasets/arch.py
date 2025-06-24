@@ -1422,6 +1422,36 @@ class Arch(object):
 
         return x_infer
 
+    def reverse_integrate_one_degree_one_step(
+        self,
+        tx,
+    ):
+        """
+
+        Parameters
+        ----------
+        tx: trend of time series.
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        dx = np.zeros(n_x-1)
+        tx = np.zeros(n_x)
+        tx[0] = x[0]
+        for i in range(0, n_x):
+            if i == 0:
+                tx_i = x[i]
+                tx[i] = tx_i
+            else:
+                dx_i = x[i] - x[i-1]
+                tx_i = x[i-1]
+                dx[i-1] = dx_i
+                tx[i] = tx_i
+
+        return dx, tx
+
     def arima_infer(
         self,
         t: int,

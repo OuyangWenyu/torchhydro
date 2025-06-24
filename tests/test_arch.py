@@ -6,6 +6,7 @@ from tests.test_arch_data import (
     y_arma_3_100, y_residual_arma_3_p3d0q3_100,
     y_streamflow_100, y_streamflow_395, y_residual_streamflow_395, y_residual_2_streamflow_395,
     y_streamflow_1460, y_residual_streamflow_1460, y_residual_2_streamflow_1460,
+    y_streamflow_395_itp,
 )
 
 class Ystl(object):
@@ -1428,7 +1429,7 @@ def test_x_residual_streamflow():
     p = 2
     d = 0
     q = 0
-    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_streamflow_1460, e_100, p, d, q)
+    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_streamflow_395_itp, e_100, p, d, q)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\x_residual.txt', x_residual)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_t.txt', y_t)
     print("R_2")
