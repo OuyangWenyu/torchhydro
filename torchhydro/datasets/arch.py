@@ -328,6 +328,7 @@ class Arch(object):
         """
         ordinary least squares, ols.
         minimize the square summation of residual error -> parameters of model.
+        numerical analysis page 67-71.
         a = (A' * A)_1 * A' * Y
         Parameters
         ----------
@@ -1424,33 +1425,55 @@ class Arch(object):
 
     def reverse_integrate_one_degree_one_step(
         self,
-        tx,
+        x_infer_t,
+        x_t_,
     ):
         """
 
         Parameters
         ----------
-        tx: trend of time series.
+        x_infer_t: infer item of arma model at t.
+        x_t_: trend of time series at t, = x(t-1).
 
         Returns
         -------
 
         """
-        n_x = len(x)
-        dx = np.zeros(n_x-1)
-        tx = np.zeros(n_x)
-        tx[0] = x[0]
-        for i in range(0, n_x):
-            if i == 0:
-                tx_i = x[i]
-                tx[i] = tx_i
-            else:
-                dx_i = x[i] - x[i-1]
-                tx_i = x[i-1]
-                dx[i-1] = dx_i
-                tx[i] = tx_i
+        x_infer = x_infer_t + x_t_
 
-        return dx, tx
+        return x_infer
+
+    def reverse_integrate_d_degree_one_step(
+        self,
+        d,
+        x_infer_t,
+        x_t_,
+    ):
+        """
+
+        Parameters
+        ----------
+        d
+        x_infer_t
+        x_t_
+
+        Returns
+        -------
+
+        """
+        n_x_t = len(x_t_)
+        if n_x_t != d:
+            raise ValueError("The length of x_t_ need to be equal to d.")
+
+        tx = [0]*d  # trend
+        for i in range(d-1):  # todo:
+            tx[i] = x_t_[i+1] - x_t_[i]
+        tx[-1] = x_t_[-1]
+        tx.reverse()
+
+        x_infer = x_infer_t + sum(tx)
+
+        return x_infer
 
     def arima_infer(
         self,
