@@ -242,8 +242,9 @@ class MAPELoss(torch.nn.Module):
 
 
 class MAELoss(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, reduction: str = "mean"):
         super().__init__()
+        self.reduction = reduction
 
     def forward(self, output: torch.Tensor, target: torch.Tensor):
         # Create a mask to filter out NaN values
@@ -254,7 +255,14 @@ class MAELoss(torch.nn.Module):
         output = output[mask]
 
         # Calculate MAE for the non-NaN values
-        return torch.mean(torch.abs(target - output))
+        if self.reduction == "mean":  # Return mean MAe
+            return torch.mean(torch.abs(target - output))
+        elif self.reduction == "none":
+            return torch.abs(target - output)
+        else:
+            raise ValueError(
+                "Reduction must be 'mean' or 'none', got {}".format(self.reduction)
+            )
 
 
 class PenalizedMSELoss(torch.nn.Module):
@@ -855,9 +863,11 @@ class FloodLoss(FloodBaseLoss):
         self,
         loss_func: Union[torch.nn.Module, str] = "MSELoss",
         flood_weight: float = 2.0,
+        non_flood_weight: float = 1.0,
         flood_strategy: str = "weight",
         flood_focus_factor: float = 2.0,
         device: list = None,
+        **kwargs,
     ):
         """
         General flood-aware loss function with configurable base loss and strategy.
@@ -869,6 +879,8 @@ class FloodLoss(FloodBaseLoss):
             Supported strings: "MSELoss", "MAELoss", "RMSELoss", "L1Loss"
         flood_weight : float
             Weight multiplier for flood events when using "weight" strategy, default is 2.0
+        non_flood_weight : float
+            Weight multiplier for non-flood events when using "weight" strategy, default is 1.0
         flood_strategy : str
             Strategy for handling flood events:
             - "weight": Apply higher weights to flood events
@@ -880,6 +892,7 @@ class FloodLoss(FloodBaseLoss):
         """
         super(FloodLoss, self).__init__()
         self.flood_weight = flood_weight
+        self.non_flood_weight = non_flood_weight
         self.flood_strategy = flood_strategy
         self.flood_focus_factor = flood_focus_factor
         self.device = get_the_device(device if device is not None else [0])
@@ -892,6 +905,9 @@ class FloodLoss(FloodBaseLoss):
                 "MAELoss": torch.nn.L1Loss(reduction="none"),
                 "L1Loss": torch.nn.L1Loss(reduction="none"),
                 "RMSELoss": RMSELoss(),
+                "HybridLoss": HybridLoss(
+                    kwargs.get("mae_weight", 0.5), reduction="none"
+                ),
             }
             if loss_func in loss_dict:
                 self.base_loss_func = loss_dict[loss_func]
@@ -940,10 +956,19 @@ class FloodLoss(FloodBaseLoss):
             # Special handling for RMSELoss which doesn't have reduction="none"
             base_loss = torch.pow(predictions - targets, 2)
         else:
+            mask = ~torch.isnan(targets)
+            predictions = predictions[mask]
+            targets = targets[mask]
+            flood_mask = flood_mask[
+                mask.squeeze(-1)
+            ]  # Ensure flood_mask matches predictions/targets
             base_loss = self.base_loss_func(predictions, targets)
+        # return base_loss
 
         # Apply flood weights
-        weights = torch.ones_like(flood_mask, dtype=predictions.dtype)
+        weights = torch.full_like(
+            flood_mask, self.non_flood_weight, dtype=predictions.dtype
+        )
         weights[flood_mask >= 1] = self.flood_weight
 
         # Apply weights to loss
@@ -951,11 +976,13 @@ class FloodLoss(FloodBaseLoss):
             weighted_loss = base_loss * weights.unsqueeze(-1)
         else:  # [batch, seq]
             weighted_loss = base_loss * weights
+        valid_mask = ~torch.isnan(weighted_loss)
+        weighted_loss = weighted_loss[valid_mask]
 
         if isinstance(self.base_loss_func, RMSELoss):
             return torch.sqrt(weighted_loss.mean())
         else:
-            return weighted_loss.nanmean()
+            return torch.mean(weighted_loss)
 
     def _compute_focal_loss(
         self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
@@ -998,7 +1025,7 @@ class PESLoss(torch.nn.Module):
         creating a non-linear penalty that increases more gradually for larger errors.
         """
         super(PESLoss, self).__init__()
-        self.mse = torch.nn.MSELoss()
+        self.mse = torch.nn.MSELoss(reduction="none")
 
     def forward(self, output: torch.Tensor, target: torch.Tensor):
         mse_value = self.mse(output, target)
@@ -1007,7 +1034,7 @@ class PESLoss(torch.nn.Module):
 
 
 class HybridLoss(torch.nn.Module):
-    def __init__(self, mae_weight=0.5):
+    def __init__(self, mae_weight: float = 0.5, reduction: str = "mean"):
         """
         Hybrid Loss: PES loss + mae_weight × MAE
 
@@ -1017,13 +1044,78 @@ class HybridLoss(torch.nn.Module):
         ----------
         mae_weight : float
             Weight for the MAE component, default is 0.5
+        reduction : str
+            Reduction method for the loss, default is "mean". Can be "mean" or "none".
+            If "none", returns the loss without reduction.
         """
         super(HybridLoss, self).__init__()
         self.pes_loss = PESLoss()
-        self.mae = torch.nn.L1Loss()
+        self.mae = MAELoss(reduction=reduction)
         self.mae_weight = mae_weight
+        self.reduction = reduction
 
     def forward(self, output: torch.Tensor, target: torch.Tensor):
         pes = self.pes_loss(output, target)
         mae = self.mae(output, target)
-        return pes + self.mae_weight * mae
+        if self.reduction == "none":
+            return pes + self.mae_weight * mae
+        elif self.reduction == "mean":
+            loss = pes + self.mae_weight * mae
+            valid_mask = ~torch.isnan(loss)
+            return torch.mean(loss[valid_mask])
+        else:
+            raise ValueError(
+                f"Unsupported reduction method: {self.reduction}. Use 'mean' or 'none'."
+            )
+
+
+class HybridFloodloss(FloodBaseLoss):
+    def __init__(self, mae_weight=0.5):
+        """
+        Hybrid Flood Loss: PES loss + mae_weight × MAE with flood weighting
+
+        Combines PES loss (MSE × sigmoid(MSE)) with Mean Absolute Error,
+        applying flood weighting to the loss.
+
+        The difference from FloodLoss is that this class filter flood events first then calculate loss,
+        because Hybrid does sigmoid on MSE, when the non-flood-weight is 0, which means we do not want to
+        calculate loss on non-flood events, so we need to filter them out first.
+
+        Parameters
+        ----------
+        mae_weight : float
+            Weight for the MAE component, default is 0.5
+        flood_weight : float
+            Weight multiplier for flood events, default is 2.0
+        """
+        super(HybridFloodloss, self).__init__()
+        self.mae_weight = mae_weight
+
+    def compute_flood_loss(
+        self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Compute flood-aware loss using the specified strategy.
+
+        Parameters
+        ----------
+        predictions : torch.Tensor
+            Model predictions [batch_size, seq_len, output_features]
+        targets : torch.Tensor
+            Target values [batch_size, seq_len, output_features]
+        flood_mask : torch.Tensor
+            Flood mask [batch_size, seq_len, 1] (1 for flood, 0 for normal)
+
+        Returns
+        -------
+        torch.Tensor
+            Computed loss value
+        """
+        boolean_mask = flood_mask.to(torch.bool)
+        predictions = predictions[boolean_mask]
+        targets = targets[boolean_mask]
+
+        base_loss_func = HybridLoss(self.mae_weight)
+        # Compute base loss
+        base_loss = base_loss_func(predictions, targets)
+        return base_loss
