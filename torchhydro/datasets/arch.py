@@ -1458,6 +1458,7 @@ class Arch(object):
         x,
         b_constant: bool = False,
         e: Optional = None,
+        tx: Optional = None,
         phi: Optional[list] = None,
         theta: Optional[list] = None,
         p: Optional[int] = 0,
@@ -1483,6 +1484,8 @@ class Arch(object):
         n_x = len(x)
         if n_x < p+q:
             raise ValueError("x is too small.")
+        if (d > 0) and (tx is None):
+            raise ValueError("tx need be provided when d > 0.")
 
         x_infer = [0]*t
         if q > 0:
@@ -1505,6 +1508,11 @@ class Arch(object):
                     x_infer[i] = self.arma_one_step(x_i, e_i, phi, theta)
                 else:
                     x_infer[i] = self.arma_one_step(x_i, e_i, theta=theta)
+                if d > 0:
+                    if i == 0:
+                        x_infer[i] = x_infer[i] + tx
+                    else:  # todo:
+                        x_infer[i] = x_infer[i] + x_infer[i-1]
         else:
             for i in range(t):
                 if i == 0:
@@ -1516,6 +1524,11 @@ class Arch(object):
                     x_i = x_infer[i - (p + q):i]
                 x_i.reverse()
                 x_infer[i] = self.arma_one_step(x=x_i, phi=phi)
+                if d > 0:
+                    if i == 0:
+                        x_infer[i] = x_infer[i] + tx
+                    else:  # todo:
+                        x_infer[i] = x_infer[i] + x_infer[i-1]
 
         return x_infer
 
