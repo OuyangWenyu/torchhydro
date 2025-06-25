@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-06-17 15:18:39
+LastEditTime: 2025-06-25 16:46:18
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /torchhydro/torchhydro/datasets/data_sets.py
+FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -185,7 +185,7 @@ class BaseDataset(Dataset):
             frwin = self.evaluation_cfgs["frwin"]
         if rolling == 0:
             hrwin = 0 if hrwin is None else hrwin
-            frwin = self.nt - hrwin
+            frwin = self.nt - hrwin - self.warmup_length
         if self.is_new_batch_way:
             # we will set the batch data for valid and test
             self.rolling = rolling
@@ -1196,9 +1196,21 @@ class FlexibleDataset(BaseDataset):
         x = xr.merge(x_datasets) if x_datasets else xr.Dataset()
         y = xr.merge(y_datasets) if y_datasets else xr.Dataset()
         c = xr.merge(c_datasets) if c_datasets else xr.Dataset()
-        if "streamflow" in y:
+        # Check if any flow variable exists in y dataset instead of hardcoding "streamflow"
+        flow_var_name = (
+            self.streamflow_name
+            if hasattr(self, "streamflow_name") and self.streamflow_name in y
+            else None
+        )
+        if flow_var_name is None:
+            # fallback: check if any target variable is in y
+            for target_var in self.data_cfgs["target_cols"]:
+                if target_var in y:
+                    flow_var_name = target_var
+                    break
+        if flow_var_name and flow_var_name in y:
             area = data_source_.camels.read_area(self.t_s_dict["sites_id"])
-            y.update(streamflow_unit_conv(y[["streamflow"]], area))
+            y.update(streamflow_unit_conv(y[[flow_var_name]], area))
         x_origin, y_origin, c_origin = self._to_dataarray_with_unit(x, y, c)
         return x_origin, y_origin, c_origin
 
@@ -1853,11 +1865,12 @@ class FloodEventDataset(BaseDataset):
         2. Flood mask for weighted loss computation
         """
         basin, start_idx, actual_length = self.lookup_table[item]
+        warmup_length = self.warmup_length
         end_idx = start_idx + actual_length
 
         # Get input and target data for the actual valid range
         x = self.x[basin, start_idx:end_idx, :]
-        y = self.y[basin, start_idx:end_idx, :]
+        y = self.y[basin, start_idx + warmup_length : end_idx, :]
 
         # Create flood mask from flood_event column
         flood_mask = self._create_flood_mask(y)
@@ -1879,3 +1892,105 @@ class FloodEventDataset(BaseDataset):
         xc = np.concatenate((x, c), axis=1)
 
         return torch.from_numpy(xc).float(), torch.from_numpy(y_with_flood_mask).float()
+
+
+class FloodEventDplDataset(FloodEventDataset):
+    """Dataset class for flood event detection and prediction with differential parameter learning support.
+
+    This dataset combines FloodEventDataset's flood event handling capabilities with
+    DplDataset's data format for differential parameter learning (dPL) models.
+    It handles flood event sequences and returns data in the format required for
+    physical hydrological models with neural network components.
+    """
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        """Initialize FloodEventDplDataset
+
+        Parameters
+        ----------
+        cfgs : dict
+            Configuration dictionary containing data_cfgs, training_cfgs, evaluation_cfgs
+        is_tra_val_te : str
+            One of 'train', 'valid', or 'test'
+        """
+        super(FloodEventDplDataset, self).__init__(cfgs, is_tra_val_te)
+
+        # Additional attributes for DPL functionality
+        self.target_as_input = self.data_cfgs["target_as_input"]
+        self.constant_only = self.data_cfgs["constant_only"]
+
+        if self.target_as_input and (not self.train_mode):
+            # if the target is used as input and train_mode is False,
+            # we need to get the target data in training period to generate pbm params
+            self.train_dataset = FloodEventDplDataset(cfgs, is_tra_val_te="train")
+
+    def __getitem__(self, item: int):
+        """Get one sample from the dataset in DPL format with flood mask
+
+        Returns data in the format required for differential parameter learning:
+        - x_train: not normalized forcing data
+        - z_train: normalized data for DL model (with flood mask)
+        - y_train: not normalized output data
+
+        Parameters
+        ----------
+        item : int
+            Index of the sample
+
+        Returns
+        -------
+        tuple
+            ((x_train, z_train), y_train) where:
+            - x_train: torch.Tensor, not normalized forcing data
+            - z_train: torch.Tensor, normalized data for DL model
+            - y_train: torch.Tensor, not normalized output data with flood mask
+        """
+        basin, start_idx, actual_length = self.lookup_table[item]
+        end_idx = start_idx + actual_length
+        warmup_length = self.warmup_length
+        # Get normalized data first (using parent's logic for flood mask)
+        xc_norm, y_norm_with_mask = super(FloodEventDplDataset, self).__getitem__(item)
+
+        # Get original (not normalized) data
+        x_origin = self.x_origin[basin, start_idx:end_idx, :]
+        y_origin = self.y_origin[basin, start_idx + warmup_length : end_idx, :]
+
+        # Create flood mask for original y data
+        flood_mask_origin = self._create_flood_mask(y_origin)
+        y_origin_with_mask = y_origin.copy()
+        y_origin_with_mask[:, self.flood_event_idx] = flood_mask_origin.squeeze()
+
+        # Prepare z_train based on configuration
+        if self.target_as_input:
+            # y_norm and xc_norm are concatenated and used for DL model
+            # the order of xc_norm and y_norm matters, please be careful!
+            z_train = torch.cat((xc_norm, y_norm_with_mask), -1)
+        elif self.constant_only:
+            # only use attributes data for DL model
+            if self.c is None or self.c.shape[-1] == 0:
+                # If no constant features, use a zero tensor
+                z_train = torch.zeros((actual_length, 1)).float()
+            else:
+                c = self.c[basin, :]
+                # Repeat constants for the actual sequence length
+                c_repeated = (
+                    np.repeat(c, actual_length, axis=0).reshape(c.shape[0], -1).T
+                )
+                z_train = torch.from_numpy(c_repeated).float()
+        else:
+            # Use normalized input features with constants
+            z_train = xc_norm.float()
+
+        # Prepare x_train (original forcing data with constants if available)
+        if self.c is None or self.c.shape[-1] == 0:
+            x_train = torch.from_numpy(x_origin).float()
+        else:
+            c = self.c_origin[basin, :]
+            c_repeated = np.repeat(c, actual_length, axis=0).reshape(c.shape[0], -1).T
+            x_origin_with_c = np.concatenate((x_origin, c_repeated), axis=1)
+            x_train = torch.from_numpy(x_origin_with_c).float()
+
+        # y_train is the original output data with flood mask
+        y_train = torch.from_numpy(y_origin_with_mask).float()
+
+        return (x_train, z_train), y_train

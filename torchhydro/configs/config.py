@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-06-16 14:53:30
+LastEditTime: 2025-06-25 11:58:35
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -1151,11 +1151,9 @@ def update_cfg(cfg_file, new_args):
     if new_args.feature_mapping is not None:
         cfg_file["data_cfgs"]["feature_mapping"] = new_args.feature_mapping
     if new_args.target_as_input is not None:
-        cfg_file["data_cfgs"]["target_as_input"] = bool(new_args.target_as_input > 0)
+        cfg_file["data_cfgs"]["target_as_input"] = new_args.target_as_input > 0
     if new_args.constant_only is not None:
-        cfg_file["data_cfgs"]["constant_only"] = bool(new_args.constant_only > 0)
-    else:
-        cfg_file["data_cfgs"]["target_as_input"] = True
+        cfg_file["data_cfgs"]["constant_only"] = new_args.constant_only > 0
     if new_args.calc_metrics is not None:
         cfg_file["training_cfgs"]["calc_metrics"] = new_args.calc_metrics
     if new_args.train_epoch is not None:

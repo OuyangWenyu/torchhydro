@@ -184,8 +184,9 @@ class Resulter:
         # NOTE: all datasource should have read_area method
         basin_area = data_source.read_area(basin_id)
         target_unit = "m^3/s"
-        # NOTE: the name of var flow should be streamflow
-        var_flow = "streamflow"
+        # Get the flow variable name dynamically from config instead of hardcoding "streamflow"
+        # NOTE: the first target variable must be the flow variable
+        var_flow = self.cfgs["data_cfgs"]["target_cols"][0]
         streamflow_ds = ds[[var_flow]]
         ds_ = streamflow_unit_conv(
             streamflow_ds, basin_area, target_unit=target_unit, inverse=True

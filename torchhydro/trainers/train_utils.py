@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-06-17 11:51:49
+LastEditTime: 2025-06-25 15:07:42
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -283,9 +283,11 @@ def get_preds_to_be_eval(
     target_data = target_scaler.data_target
     rho = valorte_data_loader.dataset.rho
     horizon = valorte_data_loader.dataset.horizon
+    warmup_length = valorte_data_loader.dataset.warmup_length
     hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
     nf = valorte_data_loader.dataset.noutputvar  # number of features
-    nt = valorte_data_loader.dataset.nt  # number of time steps
+    # number of time steps after warmup as outputs typically don't include warmup period
+    nt = valorte_data_loader.dataset.nt - warmup_length
     basin_num = len(target_data.basin)
     data_shape = (basin_num, nt, nf)
     if evaluator["eval_way"] == "once":
@@ -1077,8 +1079,9 @@ def varied_length_collate_fn(batch):
     """
 
     xs, ys = zip(*batch)
-    xs_lens = [x.shape[0] for x in xs]
-    ys_lens = [y.shape[0] for y in ys]
+    # sometimes x is a tuple like in dpl dataset, then we can get the shape of the first element as the length
+    xs_lens = [x[0].shape[0] if type(x) in [tuple, list] else x.shape[0] for x in xs]
+    ys_lens = [y[0].shape[0] if type(y) in [tuple, list] else y.shape[0] for y in ys]
     # if all ys_lens are the same, use default collate_fn to create tensors
     if len(set(ys_lens)) == 1 and len(set(xs_lens)) == 1:
         xs_tensor = default_collate(xs)

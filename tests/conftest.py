@@ -860,3 +860,95 @@ def selfmadehydrodataset_args():
         rolling=-1,
         evaluator={"eval_way": "floodevent"},
     )
+
+
+@pytest.fixture()
+def selfmadehydrodataset_dpl4xaj_args():
+    project_name = os.path.join("test_selfmadehydrodataset", "dpl4xajexp1")
+    data_dir = SETTING["local_data_path"]["datasets-interim"]
+    source_path = os.path.join(data_dir, "songliaorrevent")
+    DEVICE = -1
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "selfmadehydrodataset",
+            "source_path": source_path,
+            "other_settings": {
+                "time_unit": ["1D"],
+                "dataset_name": "songliaorrevent",
+                "offset_to_utc": True,  # if you use Chinese dataset with start time 08:00, you need to set it to True
+            },
+        },
+        ctx=[DEVICE],
+        model_name="DplLstmXaj",
+        model_hyperparam={
+            "n_input_features": 2,
+            "n_output_features": 15,
+            "n_hidden_states": 16,
+            "kernel_size": 15,
+            "warmup_length": 30,
+            "param_limit_func": "clamp",
+            "param_test_way": "final",
+            "source_book": "HF",
+            "source_type": "sources",
+            "return_et": False,
+        },
+        gage_id=["songliao_21401550"],
+        batch_size=8,
+        warmup_length=30,
+        hindcast_length=0,
+        forecast_length=20,
+        # for flood event dataset, we need to set the forecast length for testing
+        frwin=20,
+        min_time_unit="D",
+        min_time_interval="1",
+        var_t=["rain", "potential_evaporation_hourly"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        target_as_input=False,
+        dataset="FloodEventDplDataset",
+        scaler="DapengScaler",
+        scaler_params={
+            "prcp_norm_cols": [
+                "inflow",
+            ],
+            "gamma_norm_cols": [
+                "rain",
+                "potential_evaporation_hourly",
+            ],
+            "pbm_norm": True,
+        },
+        variable_length_cfgs={
+            # whether to use variable length training
+            "use_variable_length": True,
+            # variable length type:
+            # - "fixed": use predefined lengths (replaces old multi_length_training)
+            # - "dynamic": automatic padding with mask (replaces old mask_cfgs)
+            "variable_length_type": "dynamic",
+            # for "fixed" type: specify exact sequence lengths to use
+            "fixed_lengths": None,
+            # Pad strategy: "Pad" or "multi_table" (multi_table not fully tested yet)
+            "pad_strategy": "Pad",
+        },
+        train_epoch=2,
+        save_epoch=1,
+        model_loader={"load_way": "specified", "test_epoch": 2},
+        train_period=["1980-01-01", "2010-12-31"],
+        valid_period=["2011-01-01", "2015-12-31"],
+        test_period=["2016-01-01", "2020-12-31"],
+        loss_func="HybridFloodloss",
+        loss_param={
+            "mae_weight": 0.5,
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.0001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},
+    )

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:17:44
-LastEditTime: 2025-06-15 08:32:00
+LastEditTime: 2025-06-25 16:48:42
 LastEditors: Wenyu Ouyang
 Description: normalize the data
 FilePath: \torchhydro\torchhydro\datasets\data_scalers.py
@@ -368,7 +368,9 @@ class DapengScaler(object):
         np.ndarray
             mean_prcp with the same unit as streamflow
         """
-        final_unit = self.data_target.attrs["units"]["streamflow"]
+        # Get the first target variable (usually flow variable) instead of hardcoding "streamflow"
+        flow_var_name = self.data_cfgs["target_cols"][0]
+        final_unit = self.data_target.attrs["units"][flow_var_name]
         mean_prcp = self.data_source.read_mean_prcp(
             self.t_s_dict["sites_id"], unit=final_unit
         )

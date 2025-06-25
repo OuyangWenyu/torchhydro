@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-17 18:02:27
-LastEditTime: 2025-01-01 18:20:54
+LastEditTime: 2025-06-25 14:07:58
 LastEditors: Wenyu Ouyang
 Description: ANN model
 FilePath: \torchhydro\torchhydro\models\ann.py
@@ -63,7 +63,8 @@ class SimpleAnn(nn.Module):
                 if len(dr) > 1:
                     dropout_list.append(nn.Dropout(dr[1]))
             else:
-                dropout_list.append(dr)
+                # dr must be a float
+                dropout_list.append(nn.Dropout(dr))
         else:
             linear_list.add_module("linear1", nn.Linear(nx, hidden_size[0]))
             if type(dr) is float:

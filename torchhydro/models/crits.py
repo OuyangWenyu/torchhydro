@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-06-16 23:17:11
+LastEditTime: 2025-06-25 12:07:22
 LastEditors: Wenyu Ouyang
 Description: Loss functions
 FilePath: \torchhydro\torchhydro\models\crits.py
@@ -1116,6 +1116,4 @@ class HybridFloodloss(FloodBaseLoss):
         targets = targets[boolean_mask]
 
         base_loss_func = HybridLoss(self.mae_weight)
-        # Compute base loss
-        base_loss = base_loss_func(predictions, targets)
-        return base_loss
+        return base_loss_func(predictions, targets)
