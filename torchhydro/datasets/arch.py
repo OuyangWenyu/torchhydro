@@ -1447,7 +1447,7 @@ class Arch(object):
         self,
         d,
         x_infer_t,
-        x_t_,
+        x_t,
     ):
         """
 
@@ -1461,17 +1461,25 @@ class Arch(object):
         -------
 
         """
-        n_x_t = len(x_t_)
+        n_x_t = len(x_t)
         if n_x_t != d:
             raise ValueError("The length of x_t_ need to be equal to d.")
 
-        tx = [0]*d  # trend
-        for i in range(d-1):  # todo:
-            tx[i] = x_t_[i+1] - x_t_[i]
-        tx[-1] = x_t_[-1]
-        tx.reverse()
+        tx = []  # trend
+        tx.append(x_t)
+        for i in range(d-1):
+            tx_i = [0]*(d-i-1)
+            if i == 0:
+                x_t_i = x_t
+            else:
+                x_t_i = tx[i]
+            for j in range(d-1-i):
+                tx_i[j] = x_t_i[j+1] - x_t_i[j]
+            tx.append(tx_i[:])
 
-        x_infer = x_infer_t + sum(tx)
+        x_infer = x_infer_t
+        for i in range(d-1, -1, -1):
+                x_infer = self.reverse_integrate_one_degree_one_step(x_infer, tx[i][-1])
 
         return x_infer
 
@@ -1485,7 +1493,7 @@ class Arch(object):
         phi: Optional[list] = None,
         theta: Optional[list] = None,
         p: Optional[int] = 0,
-        d: Optional[int] = 0,  # todo:
+        d: Optional[int] = 0,
         q: Optional[int] = 0,
     ):
         """
@@ -1506,9 +1514,9 @@ class Arch(object):
         """
         n_x = len(x)
         if n_x < p+q:
-            raise ValueError("x is too small.")
-        if (d > 0) and (tx is None):
-            raise ValueError("tx need be provided when d > 0.")
+            raise ValueError("the length of x need be equal to or larger then p+q")
+        if (d > 0) and (n_x < d):
+            raise ValueError("the length of x need be equal to or larger then d.")
 
         x_infer = [0]*t
         if q > 0:
@@ -1533,9 +1541,13 @@ class Arch(object):
                     x_infer[i] = self.arma_one_step(x_i, e_i, theta=theta)
                 if d > 0:
                     if i == 0:
-                        x_infer[i] = x_infer[i] + tx
-                    else:  # todo:
-                        x_infer[i] = x_infer[i] + x_infer[i-1]
+                        tx = x[-d:]
+                    elif i > 0 and i < d:
+                        tx = x[-d+i:]
+                        tx = tx + x_infer[i-1-i:i-1]  # todo:
+                    else:
+                        tx = x_infer[i-1-d:i-1]
+                    x_infer[i] = x_infer[i] + self.reverse_integrate_d_degree_one_step(d, x_infer[i], tx)
         else:
             for i in range(t):
                 if i == 0:

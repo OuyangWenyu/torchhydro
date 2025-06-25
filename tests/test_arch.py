@@ -1683,6 +1683,27 @@ def test_arma_one_step():
 # x_infer
 # 46.652627192999994
 
+def test_reverse_integrate_one_degree_one_step():
+    arch = Arch()
+    x_infer_t = 0.0
+    x_t_ = -0.6
+    x_infer = arch.reverse_integrate_one_degree_one_step(x_infer_t, x_t_)
+    print("x_infer")
+    print(x_infer)
+# x_infer
+# -0.6
+
+def test_reverse_integrate_d_degree_one_step():
+    arch = Arch()
+    d = 3
+    x_infer_t = 0.1
+    x_t_ = [97.0, 96.5, 95.9]
+    x_infer = arch.reverse_integrate_d_degree_one_step(d, x_infer_t, x_t_)
+    print("x_infer")
+    print(x_infer)
+# x_infer
+# 95.30000000000001
+
 def test_arima_infer():
     arch = Arch()
     x = [54.3, 53.2, 52.1, 50.9, 50.4, 50.4, 50.4, 50.4, 50.0, 49.3 ]
