@@ -1469,10 +1469,7 @@ class Arch(object):
         tx.append(x_t)
         for i in range(d-1):
             tx_i = [0]*(d-i-1)
-            if i == 0:
-                x_t_i = x_t
-            else:
-                x_t_i = tx[i]
+            x_t_i = tx[i]
             for j in range(d-1-i):
                 tx_i[j] = x_t_i[j+1] - x_t_i[j]
             tx.append(tx_i[:])
@@ -1512,19 +1509,36 @@ class Arch(object):
 
         """
         n_x = len(x)
-        if n_x < p+q:
-            raise ValueError("the length of x need be equal to or larger then p+q")
-        if (d > 0) and (n_x < d):
-            raise ValueError("the length of x need be equal to or larger then d.")
+        max_pq = max(p, q)
+        if (d > 0) and (n_x < d+max_pq):
+            raise ValueError("the length of x need be equal to or larger then d+max(p,q).")
+        elif n_x < max_pq:
+            raise ValueError("the length of x need be equal to or larger then max(p,q).")
+
+        dx = []  # trend
+        x_t = x[-(max_pq + d):]
+        dx.append(x_t)
+        xx = dx[:]
+        d_x = [dx[-1]]
+        if d > 0:
+            for i in range(max_pq + d - 1):
+                tx_i = [0] * (max_pq + d - i - 1)
+                x_t_i = dx[i]
+                for j in range(max_pq + d - 1 - i):
+                    tx_i[j] = x_t_i[j + 1] - x_t_i[j]
+                dx.append(tx_i[:])
+                d_x.append(tx_i[-1])
+            xx = dx[-1][:]
+            # todo:
 
         x_infer = [0]*t
         if q > 0:
             for i in range(t):
                 if i == 0:
-                    x_i = x[n_x-1-(p+q):]
+                    x_i = xx[:]
                     e_i = e[n_x-1-(p+q):]
                 elif (i > 1) and (i < (p+q)):
-                    x_i = x[n_x-1-(p+q-i):]
+                    x_i = xx[n_x-1-(p+q-i):]
                     x_i = x_i + x_infer[:i]
                     e_i = e[n_x-1-(p+q-i):]
                 else:
@@ -1540,7 +1554,7 @@ class Arch(object):
                     x_infer[i] = self.arma_one_step(x_i, e_i, theta=theta)
                 if d > 0:
                     if i == 0:
-                        tx = x[-d:]
+                        tx = d_x[-d:]
                     elif i > 0 and i < d:
                         tx = x[-d+i:]
                         tx = tx + x_infer[i-(d-i):i]
@@ -1550,9 +1564,9 @@ class Arch(object):
         else:
             for i in range(t):
                 if i == 0:
-                    x_i = x[n_x - (p + q):]
+                    x_i = xx[:]
                 elif (i > 0) and (i < (p + q)):
-                    x_i = x[n_x - (p + q - i):]
+                    x_i = xx[n_x - (p + q - i):]
                     x_i = x_i + x_infer[:i]
                 else:
                     x_i = x_infer[i - (p + q):i]

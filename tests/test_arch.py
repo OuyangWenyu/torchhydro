@@ -2047,3 +2047,8 @@ def test_garch_least_squares_estimation():
     print(a)
     print("R_2")
     print(R_2)
+
+
+def test_ar1():
+    x = [0.8, 0.2, -1.2, -0.4, 0.0]
+
