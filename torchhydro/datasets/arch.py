@@ -1489,7 +1489,6 @@ class Arch(object):
         x,
         b_constant: bool = False,
         e: Optional = None,
-        tx: Optional = None,
         phi: Optional[list] = None,
         theta: Optional[list] = None,
         p: Optional[int] = 0,
@@ -1561,9 +1560,13 @@ class Arch(object):
                 x_infer[i] = self.arma_one_step(x=x_i, phi=phi)
                 if d > 0:
                     if i == 0:
-                        x_infer[i] = x_infer[i] + tx
-                    else:  # todo:
-                        x_infer[i] = x_infer[i] + x_infer[i-1]
+                        tx = x[-d:]
+                    elif i > 0 and i < d:
+                        tx = x[-d+i:]
+                        tx = tx + x_infer[i-1-i:i-1]  # todo:
+                    else:
+                        tx = x_infer[i-1-d:i-1]
+                    x_infer[i] = x_infer[i] + self.reverse_integrate_d_degree_one_step(d, x_infer[i], tx)
 
         return x_infer
 
