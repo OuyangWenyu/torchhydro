@@ -1543,9 +1543,9 @@ class Arch(object):
                         tx = x[-d:]
                     elif i > 0 and i < d:
                         tx = x[-d+i:]
-                        tx = tx + x_infer[i-1-i:i-1]  # todo:
+                        tx = tx + x_infer[i-(d-i):i]
                     else:
-                        tx = x_infer[i-1-d:i-1]
+                        tx = x_infer[i-d:i]
                     x_infer[i] = x_infer[i] + self.reverse_integrate_d_degree_one_step(d, x_infer[i], tx)
         else:
             for i in range(t):
@@ -1563,9 +1563,9 @@ class Arch(object):
                         tx = x[-d:]
                     elif i > 0 and i < d:
                         tx = x[-d+i:]
-                        tx = tx + x_infer[i-1-i:i-1]  # todo:
+                        tx = tx + x_infer[i-(d-i):i]
                     else:
-                        tx = x_infer[i-1-d:i-1]
+                        tx = x_infer[i-d:i]
                     x_infer[i] = x_infer[i] + self.reverse_integrate_d_degree_one_step(d, x_infer[i], tx)
 
         return x_infer
