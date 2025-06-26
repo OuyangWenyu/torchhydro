@@ -1,4 +1,7 @@
-""" """
+"""
+nothing but English.
+"""
+
 import numpy as np
 from typing import Optional
 
@@ -2099,7 +2102,7 @@ class Arch(object):
         q,
     ):
         """
-        GARCH Models  Structure, Statistical Inference and Financial Applications  Christian Francq & Jean-Michel Zakoian P128
+        GARCH Models Structure, Statistical Inference and Financial Applications  Christian Francq & Jean-Michel Zakoian P128
         Parameters
         ----------
         residual_2
