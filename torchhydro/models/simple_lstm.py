@@ -17,6 +17,7 @@ from torch import Tensor as T
 from torch.nn import Parameter as P
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
+
 class SimpleLSTM(nn.Module):
     def __init__(self, input_size, output_size, hidden_size, dr=0.0):
         super(SimpleLSTM, self).__init__()
@@ -28,11 +29,13 @@ class SimpleLSTM(nn.Module):
         self.dropout = nn.Dropout(p=dr)
         self.linearOut = nn.Linear(hidden_size, output_size)
 
-    def forward(self, x,src_lens=None, trg_lens=None):
+    def forward(self, x, src_lens=None, trg_lens=None):
         x0 = F.relu(self.linearIn(x))
         if src_lens is not None:
             # 训练阶段，支持变长序列
-            packed_x = pack_padded_sequence(x0, src_lens, batch_first=False, enforce_sorted=False)
+            packed_x = pack_padded_sequence(
+                x0, src_lens, batch_first=False, enforce_sorted=False
+            )
             packed_out, (hn, cn) = self.lstm(packed_x)
             out_lstm, _ = pad_packed_sequence(packed_out, batch_first=False)
         else:
@@ -211,7 +214,7 @@ class SimpleLSTMForecast(SimpleLSTM):
         )
         self.forecast_length = forecast_length
 
-    def forward(self, x):
+    def forward(self, x, src_lens=None, trg_lens=None):
         # 调用父类的forward方法获取完整的输出
         full_output = super(SimpleLSTMForecast, self).forward(x)
 
