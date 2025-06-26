@@ -2137,7 +2137,7 @@ class Arch(object):
         self,
         A,
         Y,
-        Omega,
+        Omega,  # todo:
     ):
         """
         generalized least squares,
@@ -2169,7 +2169,7 @@ class Arch(object):
             raise ValueError("matmul: Input operand 1 has a mismatch in its core dimension 0, with gufunc signature (n?,k),(k,m?)->(n?,m?) (size 22 is different from 23)")
 
         # R_2, coefficient of determination
-        y_ = np.matmul(A, a)  # todo:
+        y_ = np.matmul(A, a)
         R = self.correlation_coefficient(Y, y_)
         R_2 = pow(R, 2)
 
@@ -2179,10 +2179,11 @@ class Arch(object):
         self,
         residual_2,
         q,
-        Omega,
+        Omega,  # todo:
     ):
         """
-
+        fgls
+        GARCH Models Structure, Statistical Inference and Financial Applications  Christian Francq & Jean-Michel Zakoian P132
         Parameters
         ----------
         residual_2
@@ -2193,7 +2194,23 @@ class Arch(object):
         -------
 
         """
+        n_residual_2 = len(residual_2)
 
+        # construct matrix
+        xf = residual_2[q:]
+        xf = np.array(xf)
+        xf = np.transpose(xf)
+
+        xp = []
+        for i in range(q, n_residual_2):
+            xp_i = residual_2[i-q:i]
+            xp_i.append(1)  # omega
+            xp_i.reverse()
+            xp.append(xp_i)
+
+        a, R_2 = self.generalized_least_squares(xp, xf, Omega)
+
+        return a, R_2
 
 
     def mL_estimation(
