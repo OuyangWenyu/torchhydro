@@ -2093,7 +2093,7 @@ class Arch(object):
 
         return epsilon_2
 
-    def arch_least_squares_estimation(
+    def arch_ordinary_least_squares_estimation(
         self,
         residual_2,
         q,
@@ -2129,6 +2129,69 @@ class Arch(object):
         delta_2 = np.sum(residual_2 - y_) / (n_residual_2-q-1)
 
         return a, R_2, delta_2
+
+    def generalized_least_squares(
+        self,
+        A,
+        Y,
+        Omega,
+    ):
+        """
+        generalized least squares,
+        GARCH Models  Francq & Zakoian 2010 P132
+        Parameters
+        ----------
+        A
+        Y
+        Omega
+
+        Returns
+        -------
+
+        """
+        # matrix operations, calculate the coefficient matrix.
+        A = np.array(A)
+        At = np.transpose(A)
+        B = np.matmul(At, Omega)
+        B = np.matmul(B, A)
+        try:
+            B_1 = np.linalg.inv(B)
+        except np.linalg.LinAlgError:
+            raise np.linalg.LinAlgError("Singular matrix")
+        a = np.matmul(B_1, At)
+        a = np.matmul(a, Omega)
+        try:
+            a = np.matmul(a, Y)  # parameters
+        except ValueError:
+            raise ValueError("matmul: Input operand 1 has a mismatch in its core dimension 0, with gufunc signature (n?,k),(k,m?)->(n?,m?) (size 22 is different from 23)")
+
+        # R_2, coefficient of determination
+        y_ = np.matmul(A, a)  # todo:
+        R = self.correlation_coefficient(Y, y_)
+        R_2 = pow(R, 2)
+
+        return a, R_2
+
+    def arch_feasible_generalized_least_squares_estimation(
+        self,
+        residual_2,
+        q,
+        Omega,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual_2
+        q
+        Omega
+
+        Returns
+        -------
+
+        """
+
+
 
     def mL_estimation(
         self,

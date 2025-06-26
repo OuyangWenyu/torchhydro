@@ -1980,7 +1980,7 @@ def test_arch_least_squares_estimation():
     y_residual_2 = y_residual_2.tolist()
     q = 3
     e_2 = np.power(e_395, 2)
-    a, R_2, delta_2 = arch.arch_least_squares_estimation(y_residual_2_streamflow_1460, q)
+    a, R_2, delta_2 = arch.arch_ordinary_least_squares_estimation(y_residual_2_streamflow_1460, q)
     print("a")
     print(a)
     print("R_2")
