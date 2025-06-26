@@ -2037,15 +2037,14 @@ class Arch(object):
 
         return b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM
 
-    def arch_one_step(
+    def delta_2_one_step(
         self,
         residual_2,
         alpha,
-        # e,
     ):
         """
-        arch model.   single step
-        Applied Time Series Analysis（4th edition） Yan Wang p147
+        delta_2, one step.   single step
+        GARCH Models  Francq & Zakoian 2010 P128  formula (6.3)
         Parameters
         ----------
         residual_2:
@@ -2059,19 +2058,18 @@ class Arch(object):
 
         """
         residual_2_t = np.transpose(residual_2)
-        h_t = np.matmul(alpha, residual_2_t)
-        epsilon_t = np.sqrt(h_t)  # * e
+        delta_2_i = np.matmul(alpha, residual_2_t)
 
-        return epsilon_t
+        return delta_2_i
 
-    def arch(
+    def epsilon_2(
         self,
         residual_2,
         alpha,
         q,
     ):
         """
-        Time Series Analysis  James D.Hamilton p762
+        GARCH Models  Francq & Zakoian 2010 P128  formula (6.3)
         Parameters
         ----------
         residual_2
@@ -2084,16 +2082,16 @@ class Arch(object):
 
         """
         n_residual_2 = len(residual_2)
-        epsilon = np.zeros(n_residual_2)
-        epsilon[:q] = np.sqrt(residual_2[:q])
+        epsilon_2 = np.zeros(n_residual_2)
+        epsilon_2[:q] = np.sqrt(residual_2[:q])
 
         for i in range(q, n_residual_2):
             residual_2_i = residual_2[i-q:i]
-            residual_2_i.reverse()
             residual_2_i.append(1)  # omega
-            epsilon[i] = self.arch_one_step(residual_2_i, alpha,)   # e[i]
+            residual_2_i.reverse()
+            epsilon_2[i] = self.delta_2_one_step(residual_2_i, alpha,)
 
-        return epsilon
+        return epsilon_2
 
     def arch_least_squares_estimation(
         self,
@@ -2101,16 +2099,16 @@ class Arch(object):
         q,
     ):
         """
-        GARCH Models Structure, Statistical Inference and Financial Applications  Christian Francq  Jean-Michel Zakoian P128
+        GARCH Models  Structure, Statistical Inference and Financial Applications  Christian Francq & Jean-Michel Zakoian P128
         Parameters
         ----------
         residual_2
-        e_2
         q
 
         Returns
         -------
-
+        a: theta0
+        delta_2: delta0_2
         """
         n_residual_2 = len(residual_2)
 
@@ -2127,7 +2125,7 @@ class Arch(object):
             xp.append(xp_i)
         a, R_2 = self.ordinary_least_squares(xp, xf)
 
-        y_ = self.arch(residual_2, a, q)
+        y_ = self.epsilon_2(residual_2, a, q)
         delta_2 = np.sum(residual_2 - y_) / (n_residual_2-q-1)
 
         return a, R_2, delta_2
