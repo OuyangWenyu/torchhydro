@@ -1483,8 +1483,8 @@ class Arch(object):
     def arima_infer(
         self,
         t: int,
-        x: Optional = None,
         b_constant: bool = False,
+        x: Optional = None,
         e: Optional = None,
         phi: Optional[list] = None,
         theta: Optional[list] = None,
@@ -1508,23 +1508,27 @@ class Arch(object):
         -------
 
         """
-        n_x = len(x)
-        max_pq = max(p, q)    # todo:
-        if (d > 0) and (n_x < d+max_pq):
-            raise ValueError("the length of x need be equal to or larger then d+max(p,q).")
-        elif n_x < max_pq:
-            raise ValueError("the length of x need be equal to or larger then max(p,q).")
+        if ((d > 0) or (p > 0)) and (x is None):
+            raise ValueError("x need be provided when either d or p > 0.")
+        if q > 0 and (e is None):
+            raise ValueError("e need be provided when q > 0.")
+        n_x = 0
+        if x is not None:
+            n_x = len(x)
+        pd = p + d
+        if n_x < pd:
+            raise ValueError("the length of x need be larger then p+d.")
 
         dx = []  # trend
-        x_t = x[-(max_pq + d):]
+        x_t = x[-pd:]
         dx.append(x_t)
         xx = dx[:]
         d_x = [dx[-1]]
         if d > 0:
-            for i in range(max_pq + d - 1):
-                tx_i = [0] * (max_pq + d - i - 1)
+            for i in range(pd + d - 1):
+                tx_i = [0] * (pd + d - i - 1)
                 x_t_i = dx[i]
-                for j in range(max_pq + d - 1 - i):
+                for j in range(pd + d - 1 - i):
                     tx_i[j] = x_t_i[j + 1] - x_t_i[j]
                 dx.append(tx_i[:])
                 d_x.append(tx_i[-1])
@@ -1538,8 +1542,8 @@ class Arch(object):
                 if p > 0:
                     if i == 0:
                         x_i = xx[:]
-                    elif (i > 1) and (i < max_pq):
-                        x_i = xx[-(max_pq-i):]
+                    elif (i > 1) and (i < pd):
+                        x_i = xx[-(pd-i):]
                         x_i = x_i + x_infer[:i]
                     else:
                         x_i = x_infer[i-1-p:i-1]
@@ -1554,7 +1558,7 @@ class Arch(object):
                 if i == 0:
                     x_i = xx[:]
                 elif (i > 0) and (i < (p + q)):
-                    x_i = xx[-(max_pq-i):]
+                    x_i = xx[-(pd-i):]
                     x_i = x_i + x_infer[:i]
                 else:
                     x_i = x_infer[i-1-p:i-1]
@@ -2063,7 +2067,6 @@ class Arch(object):
     def arch(
         self,
         residual_2,
-        # e,
         alpha,
         q,
     ):
@@ -2095,11 +2098,10 @@ class Arch(object):
     def arch_least_squares_estimation(
         self,
         residual_2,
-        # e_2,
         q,
     ):
         """
-
+        GARCH Models Structure, Statistical Inference and Financial Applications  Christian Francq  Jean-Michel Zakoian P128
         Parameters
         ----------
         residual_2
@@ -2115,9 +2117,6 @@ class Arch(object):
         # construct matrix
         xf = residual_2[q:]
         xf = np.array(xf)
-        # ef = e_2[q:]
-        # ef = np.array(ef)
-        # xf = xf / ef
         xf = np.transpose(xf)
 
         xp = []
@@ -2128,7 +2127,10 @@ class Arch(object):
             xp.append(xp_i)
         a, R_2 = self.ordinary_least_squares(xp, xf)
 
-        return a, R_2
+        y_ = self.arch(residual_2, a, q)
+        delta_2 = np.sum(residual_2 - y_) / (n_residual_2-q-1)
+
+        return a, R_2, delta_2
 
     def mL_estimation(
         self,

@@ -2048,6 +2048,25 @@ def test_garch_least_squares_estimation():
     print("R_2")
     print(R_2)
 
+def ar1(
+    x,
+    phi,
+    c,
+    e,
+):
+    """AR(1)"""
+    x_t = c + phi * x + e
+
+    return x_t
+
+def arch_ordinary_least_squares_estimation():
+    """
+    estimation of ARCH(q) models by ordinary least squares.
+    Returns
+    -------
+
+    """
+
 
 def test_ar1():
     x = [0.8, 0.2, -1.2, -0.4, 0.0]
