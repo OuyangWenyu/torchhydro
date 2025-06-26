@@ -1392,7 +1392,7 @@ class Arch(object):
 
     def arma_one_step(
         self,
-        x,
+        x: Optional[list] = None,
         e: Optional[list] = None,
         phi: Optional[list] = None,
         theta: Optional[list] = None,
@@ -1483,7 +1483,7 @@ class Arch(object):
     def arima_infer(
         self,
         t: int,
-        x,
+        x: Optional = None,
         b_constant: bool = False,
         e: Optional = None,
         phi: Optional[list] = None,
@@ -1509,7 +1509,7 @@ class Arch(object):
 
         """
         n_x = len(x)
-        max_pq = max(p, q)
+        max_pq = max(p, q)    # todo:
         if (d > 0) and (n_x < d+max_pq):
             raise ValueError("the length of x need be equal to or larger then d+max(p,q).")
         elif n_x < max_pq:
@@ -1529,58 +1529,49 @@ class Arch(object):
                 dx.append(tx_i[:])
                 d_x.append(tx_i[-1])
             xx = dx[-1][:]
-            # todo:
 
         x_infer = [0]*t
         if q > 0:
             for i in range(t):
-                if i == 0:
-                    x_i = xx[:]
-                    e_i = e[n_x-1-(p+q):]
-                elif (i > 1) and (i < (p+q)):
-                    x_i = xx[n_x-1-(p+q-i):]
-                    x_i = x_i + x_infer[:i]
-                    e_i = e[n_x-1-(p+q-i):]
-                else:
-                    x_i = x_infer[i-1-(p+q):i-1]
-                    e_i = e[n_x-1-(p+q):i-1]
-                if b_constant:
-                    x_i.append(1)
-                x_i.reverse()
+                e_i = e[i - q:i]
                 e_i.reverse()
                 if p > 0:
+                    if i == 0:
+                        x_i = xx[:]
+                    elif (i > 1) and (i < max_pq):
+                        x_i = xx[-(max_pq-i):]
+                        x_i = x_i + x_infer[:i]
+                    else:
+                        x_i = x_infer[i-1-p:i-1]
+                    if b_constant:
+                        x_i.append(1)
+                    x_i.reverse()
                     x_infer[i] = self.arma_one_step(x_i, e_i, phi, theta)
                 else:
-                    x_infer[i] = self.arma_one_step(x_i, e_i, theta=theta)
-                if d > 0:
-                    if i == 0:
-                        tx = d_x[-d:]
-                    elif i > 0 and i < d:
-                        tx = x[-d+i:]
-                        tx = tx + x_infer[i-(d-i):i]
-                    else:
-                        tx = x_infer[i-d:i]
-                    x_infer[i] = x_infer[i] + self.reverse_integrate_d_degree_one_step(d, x_infer[i], tx)
-        else:
+                    x_infer[i] = self.arma_one_step(e_i, theta=theta)
+        elif p > 0:
             for i in range(t):
                 if i == 0:
                     x_i = xx[:]
                 elif (i > 0) and (i < (p + q)):
-                    x_i = xx[n_x - (p + q - i):]
+                    x_i = xx[-(max_pq-i):]
                     x_i = x_i + x_infer[:i]
                 else:
-                    x_i = x_infer[i - (p + q):i]
+                    x_i = x_infer[i-1-p:i-1]
+                if b_constant:
+                    x_i.append(1)
                 x_i.reverse()
                 x_infer[i] = self.arma_one_step(x=x_i, phi=phi)
-                if d > 0:
-                    if i == 0:
-                        tx = x[-d:]
-                    elif i > 0 and i < d:
-                        tx = x[-d+i:]
-                        tx = tx + x_infer[i-(d-i):i]
-                    else:
-                        tx = x_infer[i-d:i]
-                    x_infer[i] = x_infer[i] + self.reverse_integrate_d_degree_one_step(d, x_infer[i], tx)
+        if d > 0:
+            for i in range(t):
+                if i == 0:
+                    tx = x[-d:]
+                elif i > 0 and i < d:
+                    tx = x[-d+i:]
+                    tx = tx + x_infer[i-(d-i):i]
+                else:
+                    tx = x_infer[i-d:i]
+                x_infer[i] = x_infer[i] + self.reverse_integrate_d_degree_one_step(d, x_infer[i], tx)
 
         return x_infer
 
