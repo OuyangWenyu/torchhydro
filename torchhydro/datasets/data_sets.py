@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-05-15 19:35:47
+LastEditTime: 2025-06-25 16:46:18
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -185,7 +185,7 @@ class BaseDataset(Dataset):
             frwin = self.evaluation_cfgs["frwin"]
         if rolling == 0:
             hrwin = 0 if hrwin is None else hrwin
-            frwin = self.nt - hrwin
+            frwin = self.nt - hrwin - self.warmup_length
         if self.is_new_batch_way:
             # we will set the batch data for valid and test
             self.rolling = rolling
@@ -221,6 +221,8 @@ class BaseDataset(Dataset):
     @property
     def noutputvar(self):
         """How many output variables in the dataset
+        Used in evaluation.
+
         Returns
         -------
         int
@@ -312,67 +314,23 @@ class BaseDataset(Dataset):
         return self.num_samples
 
     def __getitem__(self, item: int):
-        if not self.train_mode:
-            basin, idx = self.lookup_table[item]
-            warmup_length = self.warmup_length
-            x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
-            y = self.y[basin, idx : idx + self.rho + self.horizon, :]
-            if self.c is None or self.c.shape[-1] == 0:
-                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-            c = self.c[basin, :]
-            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xc = np.concatenate((x, c), axis=1)
-            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        """Get one sample from the dataset with unified return format
 
-        if self.training_cfgs["multi_length_training"]["is_multi_length_training"]:
-            if (
-                self.training_cfgs["multi_length_training"]["multi_len_train_type"]
-                == "Pad"
-            ):
-                basin, idx, window = self.lookup_table[item]
-                warmup_length = self.warmup_length
-                x = self.x[basin, idx - warmup_length : idx + window + self.horizon, :]
-                y = self.y[basin, idx : idx + window + self.horizon, :]
-                if self.c is None or self.c.shape[-1] == 0:
-                    return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-                c = self.c[basin, :]
-                c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-                xc = np.concatenate((x, c), axis=1)
-                return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-            elif (
-                self.training_cfgs["multi_length_training"]["multi_len_train_type"]
-                == "multi_table"
-            ):
-                window_len, idx_in_specific_table = self.lookup_table[item]
-                basin, time_step = self.lookup_tables_by_length[window_len][
-                    idx_in_specific_table
-                ]
-                x = self.x[
-                    basin,
-                    time_step
-                    - self.warmup_length : time_step
-                    + window_len
-                    + self.horizon,
-                    :,
-                ]
-                y = self.y[basin, time_step : time_step + window_len + self.horizon, :]
-                if self.c is None or self.c.shape[-1] == 0:
-                    return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-                c = self.c[basin, :]
-                c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-                xc = np.concatenate((x, c), axis=1)
-                return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
-        else:
-            basin, idx = self.lookup_table[item]
-            warmup_length = self.warmup_length
-            x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
-            y = self.y[basin, idx : idx + self.rho + self.horizon, :]
-            if self.c is None or self.c.shape[-1] == 0:
-                return torch.from_numpy(x).float(), torch.from_numpy(y).float()
-            c = self.c[basin, :]
-            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xc = np.concatenate((x, c), axis=1)
-            return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        Returns:
+        --------
+        tuple[torch.Tensor, torch.Tensor]
+            (input_data, output_data)
+        """
+        basin, idx, actual_length = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        x = self.x[basin, idx - warmup_length : idx + actual_length, :]
+        y = self.y[basin, idx : idx + actual_length, :]
+        if self.c is None or self.c.shape[-1] == 0:
+            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
 
     def _load_data(self):
         origin_data = self._read_xyc()
@@ -380,13 +338,7 @@ class BaseDataset(Dataset):
         norm_data = self._normalize(origin_data)
         origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
         self._trans2nparr(origin_data_wonan, norm_data_wonan)
-        if (
-            self.training_cfgs["multi_length_training"]["multi_len_train_type"]
-            == "multi_table"
-        ):
-            self._create_multi_len_lookup_table()
-        else:
-            self._create_lookup_table()
+        self._create_lookup_table()
 
     def _trans2nparr(self, origin_data, norm_data):
         """To make __getitem__ more efficient,
@@ -395,8 +347,12 @@ class BaseDataset(Dataset):
         for key in origin_data.keys():
             _origin = origin_data[key]
             _norm = norm_data[key]
-            norm_arr = _norm.to_numpy()
-            origin_arr = _origin.to_numpy()
+            if _origin is None or _norm is None:
+                norm_arr = None
+                origin_arr = None
+            else:
+                norm_arr = _norm.to_numpy()
+                origin_arr = _origin.to_numpy()
             if key == "relevant_cols":
                 self.x_origin = origin_arr
                 self.x = norm_arr
@@ -475,17 +431,18 @@ class BaseDataset(Dataset):
         units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
         if target_scaler.pbm_norm:
             units = {**units, **target_data.attrs["units"]}
+        # mainly to get information about the time points of norm_data
         selected_time_points = self._selected_time_points_for_denorm()
         selected_data = target_data.sel(time=selected_time_points)
 
         # 处理四维数据
         if norm_data.ndim == 4:
-            # 检查是否是按预测步长组织的数据
+            # Check if the data is organized by basins
             if self.evaluation_cfgs["evaluator"]["recover_mode"] == "bybasins":
-                # 形状为 (basin_num, i_e_time_length, forecast_length, nf)
+                # Shape: (basin_num, i_e_time_length, forecast_length, nf)
                 basin_num, i_e_time_length, forecast_length, nf = norm_data.shape
 
-                # 如果指定了pace_idx，则选择特定的预测步长
+                # If pace_idx is specified, select the specific forecast step
                 if (
                     pace_idx is not None
                     and pace_idx != np.nan
@@ -497,7 +454,7 @@ class BaseDataset(Dataset):
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
                         # 当只有一个流域时，选择第一个流域的坐标
-                        basin_coord = selected_data.coords["basin"].values[0:1]
+                        basin_coord = selected_data.coords["basin"].values[:1]
                     else:
                         basin_coord = selected_data.coords["basin"].values[:basin_num]
 
@@ -506,7 +463,6 @@ class BaseDataset(Dataset):
                         "time": selected_data.coords["time"][:i_e_time_length],
                         "variable": selected_data.coords["variable"],
                     }
-                    dims = ["basin", "time", "variable"]
                 else:
                     # 如果没有指定pace_idx，则创建一个新的维度'horizon'
                     norm_data_3d = norm_data.reshape(
@@ -535,7 +491,7 @@ class BaseDataset(Dataset):
 
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
-                        basin_coord = selected_data.coords["basin"].values[0:1]
+                        basin_coord = selected_data.coords["basin"].values[:1]
                     else:
                         basin_coord = selected_data.coords["basin"].values[:basin_num]
 
@@ -544,7 +500,6 @@ class BaseDataset(Dataset):
                         "time": new_times,
                         "variable": selected_data.coords["variable"],
                     }
-                    dims = ["basin", "time", "variable"]
             else:  # byforecast模式
                 # 形状为 (forecast_length, basin_num, i_e_time_length, nf)
                 forecast_length, basin_num, i_e_time_length, nf = norm_data.shape
@@ -559,7 +514,7 @@ class BaseDataset(Dataset):
                     norm_data_3d = norm_data[pace_idx]
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
-                        basin_coord = selected_data.coords["basin"].values[0:1]
+                        basin_coord = selected_data.coords["basin"].values[:1]
                     else:
                         basin_coord = selected_data.coords["basin"].values[:basin_num]
 
@@ -568,10 +523,9 @@ class BaseDataset(Dataset):
                         "time": selected_data.coords["time"][:i_e_time_length],
                         "variable": selected_data.coords["variable"],
                     }
-                    dims = ["basin", "time", "variable"]
                 else:
-                    # 如果没有指定pace_idx，则创建一个新的维度'horizon'
-                    # 重塑为 (forecast_length, basin_num, i_e_time_length, nf) -> (basin_num, forecast_length * i_e_time_length, nf)
+                    # If pace_idx is not specified, create a new dimension 'horizon'
+                    # Reshape (forecast_length, basin_num, i_e_time_length, nf) -> (basin_num, forecast_length * i_e_time_length, nf)
                     norm_data_3d = np.transpose(norm_data, (1, 0, 2, 3)).reshape(
                         basin_num, forecast_length * i_e_time_length, nf
                     )
@@ -599,7 +553,7 @@ class BaseDataset(Dataset):
 
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
-                        basin_coord = selected_data.coords["basin"].values[0:1]
+                        basin_coord = selected_data.coords["basin"].values[:1]
                     else:
                         basin_coord = selected_data.coords["basin"].values[:basin_num]
 
@@ -608,23 +562,13 @@ class BaseDataset(Dataset):
                         "time": new_times,
                         "variable": selected_data.coords["variable"],
                     }
-                    dims = ["basin", "time", "variable"]
+            dims = ["basin", "time", "variable"]
         else:
-            # 三维数据直接处理
-            # 修改这里：确保basin坐标长度与数据维度匹配
-            if norm_data.shape[0] == 1 and len(selected_data.coords["basin"]) > 1:
-                basin_coord = selected_data.coords["basin"].values[0:1]
-                coords = {
-                    "basin": basin_coord,
-                    "time": selected_data.coords["time"],
-                    "variable": selected_data.coords["variable"],
-                }
-            else:
-                coords = selected_data.coords
+            coords = selected_data.coords
             dims = selected_data.dims
             norm_data_3d = norm_data
 
-        # 创建DataArray并反归一化
+        # create DataArray and inverse transform
         denorm_xr_ds = target_scaler.inverse_transform(
             xr.DataArray(
                 norm_data_3d,
@@ -766,7 +710,11 @@ class BaseDataset(Dataset):
         return {
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
             "target_cols": y_origin.transpose("basin", "time", "variable"),
-            "constant_cols": c_origin.transpose("basin", "variable"),
+            "constant_cols": (
+                c_origin.transpose("basin", "variable")
+                if c_origin is not None
+                else None
+            ),
         }
 
     def _trans2da_and_setunits(self, ds):
@@ -801,6 +749,10 @@ class BaseDataset(Dataset):
         for key in origin_data.keys():
             _origin = origin_data[key]
             _norm = norm_data[key]
+            if _origin is None or _norm is None:
+                origins_wonan[key] = None
+                norms_wonan[key] = None
+                continue
             kill_way = "interpolate"
             if key == "relevant_cols":
                 rm_nan = data_cfgs["relevant_rm_nan"]
@@ -836,7 +788,7 @@ class BaseDataset(Dataset):
             else:
                 norm = _norm
                 origin = _origin
-            if key == "target_cols":
+            if key == "target_cols" or not rm_nan:
                 warn_if_nan(origin, nan_mode="all", data_name="nan_filled target data")
                 warn_if_nan(norm, nan_mode="all", data_name="nan_filled target data")
             else:
@@ -862,63 +814,76 @@ class BaseDataset(Dataset):
         rho = self.rho
         warmup_length = self.warmup_length
         horizon = self.horizon
+        seq_len = warmup_length + rho + horizon
         max_time_length = self.nt
-        is_multi_len_train = self.training_cfgs["multi_length_training"][
-            "is_multi_length_training"
-        ]
-        multi_window_lengths = self.training_cfgs["multi_length_training"][
-            "multi_window_lengths"
-        ]
+        variable_length_cfgs = self.training_cfgs.get("variable_length_cfgs", {})
+        use_variable_length = variable_length_cfgs.get("use_variable_length", False)
+        variable_length_type = variable_length_cfgs.get(
+            "variable_length_type", "dynamic"
+        )
+        fixed_lengths = variable_length_cfgs.get("fixed_lengths", [365, 1095, 1825])
+        # Use fixed type variable length if enabled and type is fixed
+        is_fixed_length_train = use_variable_length and variable_length_type == "fixed"
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
             if not self.train_mode:
                 # we don't need to ignore those with full nan in target vars for prediction without loss calculation
                 # all samples should be included so that we can recover results to specified basins easily
                 lookup.extend(
-                    (basin, f)
+                    (basin, f, seq_len)
                     for f in range(warmup_length, max_time_length - rho - horizon + 1)
                 )
             else:
                 # some dataloader load data with warmup period, so leave some periods for it
                 # [warmup_len] -> time_start -> [rho] -> [horizon]
+                #                       window: \-----------------/ meaning rho + horizon
                 nan_array = np.isnan(self.y[basin, :, :])
-                if is_multi_len_train:
-                    for window in multi_window_lengths:
-                        for f in range(
-                            warmup_length, max_time_length - window - horizon + 1
-                        ):
-                            # 检查目标区间内是否全为nan
-                            if not np.all(nan_array[f + window : f + window + horizon]):
-                                # 记录 (basin, 起始位置, 窗口长度)
-                                lookup.append((basin, f, window))
+                if is_fixed_length_train:
+                    for window in fixed_lengths:
+                        lookup.extend(
+                            (basin, f, window)
+                            for f in range(
+                                warmup_length,
+                                max_time_length - window + 1,
+                            )
+                            # if all nan in window, we skip this sample
+                            if not np.all(nan_array[f : f + window])
+                        )
                 else:
-
                     lookup.extend(
-                        (basin, f)
+                        (basin, f, seq_len)
                         for f in range(
                             warmup_length, max_time_length - rho - horizon + 1
                         )
-                        if not np.all(nan_array[f + rho : f + rho + horizon])
+                        # if all nan in rho + horizon window, we skip this sample
+                        if not np.all(nan_array[f : f + rho + horizon])
                     )
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
 
     def _create_multi_len_lookup_table(self):
+        """
+        Create a lookup table for multi-length training
+        TODO: not fully tested
+        """
         lookup = []
         # list to collect basins ids of basins without a single training sample
         basin_coordinates = len(self.t_s_dict["sites_id"])
         rho = self.rho
         warmup_length = self.warmup_length
         horizon = self.horizon
+        seq_len = warmup_length + rho + horizon
         max_time_length = self.nt
-        is_multi_len_train = self.training_cfgs["multi_length_training"][
-            "is_multi_length_training"
-        ]
-        multi_window_lengths = self.training_cfgs["multi_length_training"][
-            "multi_window_lengths"
-        ]
+        variable_length_cfgs = self.training_cfgs.get("variable_length_cfgs", {})
+        use_variable_length = variable_length_cfgs.get("use_variable_length", False)
+        variable_length_type = variable_length_cfgs.get(
+            "variable_length_type", "dynamic"
+        )
+        fixed_lengths = variable_length_cfgs.get("fixed_lengths", [365, 1095, 1825])
+        # Use fixed type variable length if enabled and type is fixed
+        is_fixed_length_train = use_variable_length and variable_length_type == "fixed"
 
         # 初始化不同长度的lookup表
-        self.lookup_tables_by_length = {length: [] for length in multi_window_lengths}
+        self.lookup_tables_by_length = {length: [] for length in fixed_lengths}
 
         # New: Global lookup table to map a single index to (window_length, index_within_that_window_length_table)
         self.global_lookup_table_indices = []
@@ -931,15 +896,15 @@ class BaseDataset(Dataset):
                 # If multi_length_training is active, we might need to decide which window_len to use for prediction.
                 # For now, let's stick to the original logic for train_mode=False
                 lookup.extend(
-                    (basin, f)
+                    (basin, f, seq_len)
                     for f in range(warmup_length, max_time_length - rho - horizon + 1)
                 )
             else:
                 # some dataloader load data with warmup period, so leave some periods for it
                 # [warmup_len] -> time_start -> [rho] -> [horizon]
                 nan_array = np.isnan(self.y[basin, :, :])
-                if is_multi_len_train:
-                    for window in multi_window_lengths:
+                if is_fixed_length_train:
+                    for window in fixed_lengths:
                         for f in range(
                             warmup_length, max_time_length - window - horizon + 1
                         ):
@@ -956,15 +921,15 @@ class BaseDataset(Dataset):
                                 )
                 else:
                     lookup.extend(
-                        (basin, f)
+                        (basin, f, seq_len)
                         for f in range(
                             warmup_length, max_time_length - rho - horizon + 1
                         )
                         if not np.all(nan_array[f + rho : f + rho + horizon])
                     )
 
-        if is_multi_len_train and self.train_mode:
-            # If multi-length training is enabled and in train mode, use the global lookup table
+        if is_fixed_length_train and self.train_mode:
+            # If fixed-length training is enabled and in train mode, use the global lookup table
             self.lookup_table = dict(enumerate(self.global_lookup_table_indices))
             self.num_samples = len(self.global_lookup_table_indices)
         else:
@@ -1056,12 +1021,8 @@ class ObsForeDataset(BaseDataset):
         )
         return data_dict
 
-    def _denorm():
-        # TODO: 满足不同需求的计算指标
-        pass
-
     def __getitem__(self, item: int):
-        """获取数据集中的一个样本
+        """Get a sample from the dataset
 
         Parameters
         ----------
@@ -1075,7 +1036,7 @@ class ObsForeDataset(BaseDataset):
             and y contains target values
         """
         # train mode
-        basin, idx = self.lookup_table[item]
+        basin, idx, _ = self.lookup_table[item]
         warmup_length = self.warmup_length
         # for x, we only chose data before horizon, but we may need forecast data for not all variables
         # hence, to avoid nan values for some variables without forecast in horizon
@@ -1172,7 +1133,7 @@ class DplDataset(BaseDataset):
         rho = self.rho
         horizon = self.horizon
         xc_norm, _ = super(DplDataset, self).__getitem__(item)
-        basin, time = self.lookup_table[item]
+        basin, time, _ = self.lookup_table[item]
         if self.target_as_input:
             # y_morn and xc_norm are concatenated and used for DL model
             y_norm = torch.from_numpy(
@@ -1235,9 +1196,21 @@ class FlexibleDataset(BaseDataset):
         x = xr.merge(x_datasets) if x_datasets else xr.Dataset()
         y = xr.merge(y_datasets) if y_datasets else xr.Dataset()
         c = xr.merge(c_datasets) if c_datasets else xr.Dataset()
-        if "streamflow" in y:
+        # Check if any flow variable exists in y dataset instead of hardcoding "streamflow"
+        flow_var_name = (
+            self.streamflow_name
+            if hasattr(self, "streamflow_name") and self.streamflow_name in y
+            else None
+        )
+        if flow_var_name is None:
+            # fallback: check if any target variable is in y
+            for target_var in self.data_cfgs["target_cols"]:
+                if target_var in y:
+                    flow_var_name = target_var
+                    break
+        if flow_var_name and flow_var_name in y:
             area = data_source_.camels.read_area(self.t_s_dict["sites_id"])
-            y.update(streamflow_unit_conv(y[["streamflow"]], area))
+            y.update(streamflow_unit_conv(y[[flow_var_name]], area))
         x_origin, y_origin, c_origin = self._to_dataarray_with_unit(x, y, c)
         return x_origin, y_origin, c_origin
 
@@ -1302,7 +1275,7 @@ class Seq2SeqDataset(BaseDataset):
         return self.target_scaler.data_target.coords["time"][self.warmup_length : -1]
 
     def __getitem__(self, item: int):
-        basin, time = self.lookup_table[item]
+        basin, time, _ = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
         hindcast_output_window = self.data_cfgs.get("hindcast_output_window", 0)
@@ -1351,7 +1324,7 @@ class SeqForecastDataset(Seq2SeqDataset):
         super(SeqForecastDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     def __getitem__(self, item: int):
-        basin, time = self.lookup_table[item]
+        basin, time, _ = self.lookup_table[item]
         rho = self.rho  # forecast history
         horizon = self.horizon  # forecast length
         hindcast_output_window = self.data_cfgs.get("hindcast_output_window", 0)
@@ -1373,7 +1346,7 @@ class TransformerDataset(Seq2SeqDataset):
         super(TransformerDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     def __getitem__(self, item: int):
-        basin, idx = self.lookup_table[item]
+        basin, idx, _ = self.lookup_table[item]
         rho = self.rho
         horizon = self.horizon
 
@@ -1399,7 +1372,7 @@ class ForecastDataset(BaseDataset):
         super(ForecastDataset, self).__init__(data_cfgs, is_tra_val_te)
 
     def __getitem__(self, item):
-        basin, idx = self.lookup_table[item]
+        basin, idx, _ = self.lookup_table[item]
         warmup_length = self.warmup_length
         x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
         y = self.y[basin, idx + self.rho : idx + self.rho + self.horizon, :]
@@ -1532,7 +1505,7 @@ class HFDataset(BaseDataset):
         return data_forcing_ds, data_output_ds
 
     def __getitem__(self, item: int):
-        basin, idx = self.lookup_table[item]
+        basin, idx, _ = self.lookup_table[item]
         warmup_length = self.warmup_length
         xf = self.x[
             basin,
@@ -1557,3 +1530,467 @@ class HFDataset(BaseDataset):
             torch.from_numpy(xq_rho).float(),
             torch.from_numpy(xq_hor).float(),
         ], torch.from_numpy(y).float()
+
+
+class FloodEventDataset(BaseDataset):
+    """Dataset class for flood event detection and prediction tasks.
+
+    This dataset is specifically designed to handle flood event data where
+    flood_event column contains binary indicators (0 for normal, non-zero for flood).
+    It automatically creates a flood_mask from the flood_event data for special
+    loss computation purposes.
+
+    The dataset reads data using SelfMadeHydroDataset from hydrodatasource,
+    expecting CSV files with columns like: time, rain, inflow, flood_event.
+    """
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        """Initialize FloodEventDataset
+
+        Parameters
+        ----------
+        cfgs : dict
+            Configuration dictionary containing data_cfgs, training_cfgs, evaluation_cfgs
+        is_tra_val_te : str
+            One of 'train', 'valid', or 'test'
+        """
+        # Find flood_event column index for later processing
+        target_cols = cfgs["data_cfgs"]["target_cols"]
+        self.flood_event_idx = None
+        for i, col in enumerate(target_cols):
+            if "flood_event" in col.lower():
+                self.flood_event_idx = i
+                break
+
+        if self.flood_event_idx is None:
+            raise ValueError(
+                "flood_event column not found in target_cols. Please ensure flood_event is included in the target columns."
+            )
+        super(FloodEventDataset, self).__init__(cfgs, is_tra_val_te)
+
+    @property
+    def noutputvar(self):
+        """How many output variables in the dataset
+        Used in evaluation.
+        For flood datasets, the number of output variables is 2.
+        But we don't need flood_mask in evaluation.
+
+        Returns
+        -------
+        int
+            number of variables
+        """
+        return len(self.data_cfgs["target_cols"]) - 1
+
+    def _create_flood_mask(self, y):
+        """Create flood mask from flood_event column
+
+        Parameters
+        ----------
+        y : np.ndarray
+            Target data with shape [seq_len, n_targets] containing flood_event column
+
+        Returns
+        -------
+        np.ndarray
+            Flood mask with shape [seq_len, 1] where 1 indicates flood event, 0 indicates normal
+        """
+        if self.flood_event_idx >= y.shape[1]:
+            raise ValueError(
+                f"flood_event_idx {self.flood_event_idx} exceeds target dimensions {y.shape[1]}"
+            )
+
+        # Extract flood_event column
+        flood_events = y[:, self.flood_event_idx]
+
+        # Create binary mask: 1 for flood (non-zero), 0 for normal (zero)
+        no_flood_data = min(flood_events)
+        flood_mask = (flood_events != no_flood_data).astype(np.float32)
+
+        # Reshape to maintain dimension consistency
+        flood_mask = flood_mask.reshape(-1, 1)
+
+        return flood_mask
+
+    def _create_lookup_table(self):
+        """Create lookup table based on flood events with sliding window
+
+        This method creates samples where:
+        1. For each flood event sequence:
+           - In training: use sliding window to generate samples with fixed length
+           - In testing: use the entire flood event sequence as one sample with its actual length
+        2. Each sample covers the full sequence length without internal structure division
+        """
+        lookup = []
+
+        # Calculate total sample sequence length for training/validation
+        sample_seqlen = self.warmup_length + self.rho + self.horizon
+
+        for basin_idx in range(self.ngrid):
+            # Get flood events for this basin
+            flood_events = self.y_origin[basin_idx, :, self.flood_event_idx]
+
+            # Find flood event sequences (consecutive non-zero values)
+            flood_sequences = self._find_flood_sequences(flood_events)
+
+            for seq_start, seq_end in flood_sequences:
+                if self.is_new_batch_way:
+                    # For test period, use the entire flood event sequence as one sample
+                    # But we need to ensure the sample includes enough context (sample_seqlen)
+                    flood_length = seq_end - seq_start + 1
+
+                    # Calculate the start index to include enough context before the flood
+                    # We want to include some data before the flood event starts
+                    context_before = min(sample_seqlen - flood_length, seq_start)
+                    context_before = max(context_before, 0)
+                    # The actual start index should be early enough to provide context
+                    actual_start = seq_start - context_before
+
+                    # The total length should be at least sample_seqlen or the actual flood sequence length
+                    total_length = max(sample_seqlen, flood_length + context_before)
+
+                    # Ensure we don't exceed the data bounds
+                    if actual_start + total_length > self.nt:
+                        total_length = self.nt - actual_start
+
+                    lookup.append((basin_idx, actual_start, total_length))
+                else:
+                    # For training, use sliding window approach
+                    self._create_sliding_window_samples(
+                        basin_idx, seq_start, seq_end, sample_seqlen, lookup
+                    )
+
+        self.lookup_table = dict(enumerate(lookup))
+        self.num_samples = len(self.lookup_table)
+
+    def _find_flood_sequences(self, flood_events):
+        """Find sequences of consecutive flood events
+
+        Parameters
+        ----------
+        flood_events : np.ndarray
+            1D array of flood event indicators
+
+        Returns
+        -------
+        list
+            List of tuples (start_idx, end_idx) for each flood sequence
+        """
+        sequences = []
+        in_sequence = False
+        start_idx = None
+
+        for i, event in enumerate(flood_events):
+            if event > 0 and not in_sequence:
+                # Start of a new flood sequence
+                in_sequence = True
+                start_idx = i
+            elif event == 0 and in_sequence:
+                # End of current flood sequence
+                in_sequence = False
+                sequences.append((start_idx, i - 1))
+            elif i == len(flood_events) - 1 and in_sequence:
+                # End of data while in sequence
+                sequences.append((start_idx, i))
+
+        return sequences
+
+    def _create_sliding_window_samples(
+        self, basin_idx, seq_start, seq_end, sample_seqlen, lookup
+    ):
+        """Create samples for a flood sequence using sliding window approach with data validity check
+
+        Parameters
+        ----------
+        basin_idx : int
+            Index of the basin
+        seq_start : int
+            Start index of flood sequence
+        seq_end : int
+            End index of flood sequence
+        sample_seqlen : int
+            Maximum length of each sample (warmup_length + rho + horizon)
+        lookup : list
+            List to append new samples to (basin_idx, actual_start, actual_length)
+        """
+        # Generate sliding window samples for this flood sequence
+        # Each window should include at least some flood event data
+
+        # Calculate the range where we can place the sliding window
+        # The window end should not exceed the flood sequence end
+        max_window_start = min(
+            seq_end - sample_seqlen + 1, self.nt - sample_seqlen
+        )  # Window end should not exceed seq_end or data bounds
+        min_window_start = max(
+            0, seq_start - sample_seqlen + 1
+        )  # Window must include at least the first flood event
+
+        # Ensure we have a valid range
+        if max_window_start < min_window_start:
+            return  # Skip this flood sequence if no valid window can be created
+
+        # Generate samples with sliding window
+        for window_start in range(min_window_start, max_window_start + 1):
+            window_end = window_start + sample_seqlen - 1
+
+            # Check if the window is valid (doesn't exceed data bounds and flood sequence)
+            if window_end < self.nt and window_end <= seq_end:
+                # Check if this window includes at least some flood events
+                window_includes_flood = (window_start <= seq_end) and (
+                    window_end >= seq_start
+                )
+
+                if window_includes_flood:
+                    # Find the actual valid data range within this window closest to flood
+                    actual_start, actual_length = self._find_valid_data_range(
+                        basin_idx, window_start, window_end, seq_start, seq_end
+                    )
+
+                    # Only add sample if we have sufficient valid data
+                    if (
+                        actual_length >= self.rho + self.horizon
+                    ):  # At least need rho + horizon
+                        lookup.append((basin_idx, actual_start, actual_length))
+
+    def _find_valid_data_range(
+        self, basin_idx, window_start, window_end, flood_start, flood_end
+    ):
+        """Find the continuous valid data range closest to the flood sequence
+
+        Parameters
+        ----------
+        basin_idx : int
+            Basin index
+        window_start : int
+            Start of the window to check
+        window_end : int
+            End of the window to check
+        flood_start : int
+            Start index of the flood sequence
+        flood_end : int
+            End index of the flood sequence
+
+        Returns
+        -------
+        tuple
+            (actual_start, actual_length) of the valid data range closest to flood sequence
+        """
+        # Get data for this basin and window
+        x_window = self.x[basin_idx, window_start : window_end + 1, :]
+
+        # Check for NaN values in both input and output
+        valid_mask = ~np.isnan(x_window).any(axis=1)  # Valid if no NaN in any feature
+
+        # Find the continuous valid sequence closest to the flood sequence
+        closest_start, closest_length = self._find_closest_valid_sequence(
+            valid_mask, window_start, flood_start, flood_end
+        )
+
+        if closest_length <= 0:
+            return window_start, 0
+        return closest_start, closest_length
+
+    def _find_closest_valid_sequence(
+        self, valid_mask, window_start, flood_start, flood_end
+    ):
+        """Find the continuous valid sequence closest to the flood sequence
+
+        Parameters
+        ----------
+        valid_mask : np.ndarray
+            Boolean array indicating valid positions within the window
+        window_start : int
+            Start index of the window in the original time series
+        flood_start : int
+            Start index of the flood sequence in the original time series
+        flood_end : int
+            End index of the flood sequence in the original time series
+
+        Returns
+        -------
+        tuple
+            (closest_start, closest_length) in original time series coordinates
+        """
+        if not valid_mask.any():
+            return window_start, 0
+
+        # Find all continuous valid sequences within the window
+        sequences = []
+        current_start = None
+
+        for i, is_valid in enumerate(valid_mask):
+            if is_valid and current_start is None:
+                current_start = i
+            elif not is_valid and current_start is not None:
+                sequences.append((current_start, i - current_start))
+                current_start = None
+
+        # Handle case where sequence continues to the end
+        if current_start is not None:
+            sequences.append((current_start, len(valid_mask) - current_start))
+
+        if not sequences:
+            return window_start, 0
+
+        # If only one sequence, return it directly
+        if len(sequences) == 1:
+            seq_start_rel, seq_length = sequences[0]
+            seq_start_abs = window_start + seq_start_rel
+            return seq_start_abs, seq_length
+
+        # Find the sequence closest to the flood sequence
+        flood_center = (flood_start + flood_end) / 2
+        closest_sequence = None
+        min_distance = float("inf")
+
+        for seq_start_rel, seq_length in sequences:
+            seq_start_abs = window_start + seq_start_rel
+            seq_end_abs = seq_start_abs + seq_length - 1
+            seq_center = (seq_start_abs + seq_end_abs) / 2
+
+            # Calculate distance from sequence center to flood center
+            distance = abs(seq_center - flood_center)
+
+            if distance < min_distance:
+                min_distance = distance
+                closest_sequence = (seq_start_abs, seq_length)
+
+        return closest_sequence or (window_start, 0)
+
+    def __getitem__(self, item: int):
+        """Get one sample from the dataset with flood mask
+
+        Returns samples with:
+        1. Variable length sequences (no padding)
+        2. Flood mask for weighted loss computation
+        """
+        basin, start_idx, actual_length = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        end_idx = start_idx + actual_length
+
+        # Get input and target data for the actual valid range
+        x = self.x[basin, start_idx:end_idx, :]
+        y = self.y[basin, start_idx + warmup_length : end_idx, :]
+
+        # Create flood mask from flood_event column
+        flood_mask = self._create_flood_mask(y)
+
+        # Replace the original flood_event column with the new flood_mask
+        y_with_flood_mask = y.copy()
+        y_with_flood_mask[:, self.flood_event_idx] = flood_mask.squeeze()
+
+        # Handle constant features if available
+        if self.c is None or self.c.shape[-1] == 0:
+            return (
+                torch.from_numpy(x).float(),
+                torch.from_numpy(y_with_flood_mask).float(),
+            )
+
+        # Add constant features to input
+        c = self.c[basin, :]
+        c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+        xc = np.concatenate((x, c), axis=1)
+
+        return torch.from_numpy(xc).float(), torch.from_numpy(y_with_flood_mask).float()
+
+
+class FloodEventDplDataset(FloodEventDataset):
+    """Dataset class for flood event detection and prediction with differential parameter learning support.
+
+    This dataset combines FloodEventDataset's flood event handling capabilities with
+    DplDataset's data format for differential parameter learning (dPL) models.
+    It handles flood event sequences and returns data in the format required for
+    physical hydrological models with neural network components.
+    """
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        """Initialize FloodEventDplDataset
+
+        Parameters
+        ----------
+        cfgs : dict
+            Configuration dictionary containing data_cfgs, training_cfgs, evaluation_cfgs
+        is_tra_val_te : str
+            One of 'train', 'valid', or 'test'
+        """
+        super(FloodEventDplDataset, self).__init__(cfgs, is_tra_val_te)
+
+        # Additional attributes for DPL functionality
+        self.target_as_input = self.data_cfgs["target_as_input"]
+        self.constant_only = self.data_cfgs["constant_only"]
+
+        if self.target_as_input and (not self.train_mode):
+            # if the target is used as input and train_mode is False,
+            # we need to get the target data in training period to generate pbm params
+            self.train_dataset = FloodEventDplDataset(cfgs, is_tra_val_te="train")
+
+    def __getitem__(self, item: int):
+        """Get one sample from the dataset in DPL format with flood mask
+
+        Returns data in the format required for differential parameter learning:
+        - x_train: not normalized forcing data
+        - z_train: normalized data for DL model (with flood mask)
+        - y_train: not normalized output data
+
+        Parameters
+        ----------
+        item : int
+            Index of the sample
+
+        Returns
+        -------
+        tuple
+            ((x_train, z_train), y_train) where:
+            - x_train: torch.Tensor, not normalized forcing data
+            - z_train: torch.Tensor, normalized data for DL model
+            - y_train: torch.Tensor, not normalized output data with flood mask
+        """
+        basin, start_idx, actual_length = self.lookup_table[item]
+        end_idx = start_idx + actual_length
+        warmup_length = self.warmup_length
+        # Get normalized data first (using parent's logic for flood mask)
+        xc_norm, y_norm_with_mask = super(FloodEventDplDataset, self).__getitem__(item)
+
+        # Get original (not normalized) data
+        x_origin = self.x_origin[basin, start_idx:end_idx, :]
+        y_origin = self.y_origin[basin, start_idx + warmup_length : end_idx, :]
+
+        # Create flood mask for original y data
+        flood_mask_origin = self._create_flood_mask(y_origin)
+        y_origin_with_mask = y_origin.copy()
+        y_origin_with_mask[:, self.flood_event_idx] = flood_mask_origin.squeeze()
+
+        # Prepare z_train based on configuration
+        if self.target_as_input:
+            # y_norm and xc_norm are concatenated and used for DL model
+            # the order of xc_norm and y_norm matters, please be careful!
+            z_train = torch.cat((xc_norm, y_norm_with_mask), -1)
+        elif self.constant_only:
+            # only use attributes data for DL model
+            if self.c is None or self.c.shape[-1] == 0:
+                # If no constant features, use a zero tensor
+                z_train = torch.zeros((actual_length, 1)).float()
+            else:
+                c = self.c[basin, :]
+                # Repeat constants for the actual sequence length
+                c_repeated = (
+                    np.repeat(c, actual_length, axis=0).reshape(c.shape[0], -1).T
+                )
+                z_train = torch.from_numpy(c_repeated).float()
+        else:
+            # Use normalized input features with constants
+            z_train = xc_norm.float()
+
+        # Prepare x_train (original forcing data with constants if available)
+        if self.c is None or self.c.shape[-1] == 0:
+            x_train = torch.from_numpy(x_origin).float()
+        else:
+            c = self.c_origin[basin, :]
+            c_repeated = np.repeat(c, actual_length, axis=0).reshape(c.shape[0], -1).T
+            x_origin_with_c = np.concatenate((x_origin, c_repeated), axis=1)
+            x_train = torch.from_numpy(x_origin_with_c).float()
+
+        # y_train is the original output data with flood mask
+        y_train = torch.from_numpy(y_origin_with_mask).float()
+
+        return (x_train, z_train), y_train

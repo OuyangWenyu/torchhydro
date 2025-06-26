@@ -2,6 +2,7 @@
 Simulates streamflow over time using the model logic from GR4J as implemented in PyTorch.
 This function can be used to offer up the functionality of GR4J with added gradient information.
 """
+
 from typing import Tuple, Optional, Union
 
 import torch
@@ -9,7 +10,7 @@ from torch import nn
 from torch import Tensor
 from torch.nn import functional as F
 
-from torchhydro.models.simple_lstm import SimpleLSTM # type: ignore
+from torchhydro.models.simple_lstm import SimpleLSTM  # type: ignore
 from torchhydro.models.ann import SimpleAnn
 from torchhydro.models.dpl4xaj import ann_pbm, lstm_pbm
 from torchhydro.models.kernel_conv import uh_conv
@@ -149,9 +150,9 @@ def uh_gr4j(x4):
         limit_uh2_smaller_x4 = uh2_ords_t_seq_x4 / x4[i]
         uh2_larger_x4 = 2 - uh2_ords_t_larger_x4 / x4[i]
         limit_uh2_larger_x4 = F.relu(uh2_larger_x4)
-        s_curve1t = limit_uh1_x4 ** 2.5
-        s_curve21t = 0.5 * limit_uh2_smaller_x4 ** 2.5
-        s_curve22t = 1.0 - 0.5 * limit_uh2_larger_x4 ** 2.5
+        s_curve1t = limit_uh1_x4**2.5
+        s_curve21t = 0.5 * limit_uh2_smaller_x4**2.5
+        s_curve22t = 1.0 - 0.5 * limit_uh2_larger_x4**2.5
         s_curve2t = torch.cat([s_curve21t, s_curve22t])
         uh1_ordinate = s_curve1t - s_curve1t1
         uh2_ordinate = s_curve2t - s_curve2t1
@@ -270,9 +271,7 @@ class Gr4j4Dpl(nn.Module):
                 q, r = routing(q9[i, :, 0], q1[i, :, 0], x2, x3, r)
             streamflow_[i, :] = q
         streamflow = torch.unsqueeze(streamflow_, dim=2)
-        if return_state:
-            return streamflow, s, r
-        return streamflow
+        return (streamflow, s, r) if return_state else streamflow
 
 
 class DplLstmGr4j(nn.Module):
@@ -311,9 +310,7 @@ class DplLstmGr4j(nn.Module):
             3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
         """
         super(DplLstmGr4j, self).__init__()
-        self.dl_model = SimpleLSTM(
-            n_input_features, n_output_features, n_hidden_states
-        )
+        self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)
         self.pb_model = Gr4j4Dpl(warmup_length)
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
@@ -337,8 +334,7 @@ class DplLstmGr4j(nn.Module):
         torch.Tensor
             one time forward result
         """
-        q = lstm_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
-        return q
+        return lstm_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
 
 
 class DplAnnGr4j(nn.Module):
@@ -401,5 +397,4 @@ class DplAnnGr4j(nn.Module):
         torch.Tensor
             one time forward result
         """
-        q = ann_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
-        return q
+        return ann_pbm(self.dl_model, self.pb_model, self.param_func, x, z)

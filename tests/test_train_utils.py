@@ -4,9 +4,7 @@ from torchhydro.trainers.train_utils import read_pth_from_model_loader
 import numpy as np
 from torchhydro.trainers.train_utils import _recover_samples_to_4d
 from torchhydro.trainers.train_utils import _recover_samples_to_4d_by_forecast
-from torchhydro.trainers.train_utils import _recover_samples_to_4d_by_forecast
-from torchhydro.trainers.train_utils import _recover_samples_to_4d_by_forecast
-from torchhydro.trainers.train_utils import _recover_samples_to_4d_by_forecast
+from torchhydro.trainers.train_utils import _recover_samples_to_3d_by_4d_ensembles
 
 
 def test_read_pth_from_model_loader_specified():
@@ -340,4 +338,237 @@ def test_recover_samples_to_4d_by_forecast_empty():
     )
 
     assert result.shape == (forecast_length, basin_num, 0, nf)
+    assert np.all(np.isnan(result))
+
+
+def test_recover_samples_to_3d_by_4d_ensembles_basic():
+    """Test basic functionality of _recover_samples_to_3d_by_4d_ensembles"""
+    basin_num = 2
+    nt = 10
+    nf = 1
+    forecast_length = 3
+    stride = 1
+    hindcast_output_window = 0
+    rho = 2
+    samples_per_basin = 4
+    arr_3d_time_steps = 5  # must be >= forecast_length
+
+    class DummyDataset:
+        def __init__(self):
+            self.t_s_dict = {"sites_id": [0, 1]}
+            self.horizon = forecast_length
+            self.rho = rho
+
+    class DummyDataLoader:
+        def __init__(self):
+            self.dataset = DummyDataset()
+
+    # Create test data: basin_num * samples_per_basin total samples
+    total_samples = basin_num * samples_per_basin
+    arr_3d = np.arange(total_samples * arr_3d_time_steps * nf).reshape(
+        total_samples, arr_3d_time_steps, nf
+    )
+
+    data_shape = (basin_num, nt, nf)
+    data_loader = DummyDataLoader()
+
+    result = _recover_samples_to_3d_by_4d_ensembles(
+        data_shape, data_loader, stride, hindcast_output_window, arr_3d
+    )
+
+    # Check output shape
+    expected_time_length = nt - rho + hindcast_output_window
+    assert result.shape == (basin_num, expected_time_length, nf)
+
+    # Check that the result contains some non-NaN values
+    assert not np.all(np.isnan(result))
+
+
+def test_recover_samples_to_3d_by_4d_ensembles_averaging():
+    """Test that overlapping predictions are correctly averaged"""
+    basin_num = 1
+    nt = 8
+    nf = 1
+    forecast_length = 2
+    stride = 1
+    hindcast_output_window = 0
+    rho = 2
+    samples_per_basin = 3
+
+    class DummyDataset:
+        def __init__(self):
+            self.t_s_dict = {"sites_id": [0]}
+            self.horizon = forecast_length
+            self.rho = rho
+
+    class DummyDataLoader:
+        def __init__(self):
+            self.dataset = DummyDataset()
+
+    # Create predictable test data
+    total_samples = basin_num * samples_per_basin
+    arr_3d = np.ones((total_samples, 4, nf)) * 10  # All predictions are 10
+
+    data_shape = (basin_num, nt, nf)
+    data_loader = DummyDataLoader()
+
+    result = _recover_samples_to_3d_by_4d_ensembles(
+        data_shape, data_loader, stride, hindcast_output_window, arr_3d
+    )
+
+    # Where multiple predictions overlap, the average should still be 10
+    # (since all predictions are 10)
+    non_nan_mask = ~np.isnan(result[0, :, 0])
+    assert np.allclose(result[0, non_nan_mask, 0], 10.0)
+
+
+def test_recover_samples_to_3d_by_4d_ensembles_with_nan():
+    """Test handling of NaN values in predictions"""
+    basin_num = 1
+    nt = 8
+    nf = 1
+    forecast_length = 2
+    stride = 1
+    hindcast_output_window = 0
+    rho = 2
+    samples_per_basin = 2
+
+    class DummyDataset:
+        def __init__(self):
+            self.t_s_dict = {"sites_id": [0]}
+            self.horizon = forecast_length
+            self.rho = rho
+
+    class DummyDataLoader:
+        def __init__(self):
+            self.dataset = DummyDataset()
+
+    # Create test data with some NaN values
+    total_samples = basin_num * samples_per_basin
+    arr_3d = np.ones((total_samples, 4, nf))
+    arr_3d[0, -1, :] = np.nan  # Add NaN to the last prediction step of first sample
+
+    data_shape = (basin_num, nt, nf)
+    data_loader = DummyDataLoader()
+
+    result = _recover_samples_to_3d_by_4d_ensembles(
+        data_shape, data_loader, stride, hindcast_output_window, arr_3d
+    )
+
+    # Result should handle NaN values properly
+    assert result.shape == (basin_num, nt - rho + hindcast_output_window, nf)
+    # Should have some valid (non-NaN) values
+    assert not np.all(np.isnan(result))
+
+
+def test_recover_samples_to_3d_by_4d_ensembles_multiple_features():
+    """Test with multiple features"""
+    basin_num = 2
+    nt = 8
+    nf = 3
+    forecast_length = 2
+    stride = 1
+    hindcast_output_window = 0
+    rho = 2
+    samples_per_basin = 2
+
+    class DummyDataset:
+        def __init__(self):
+            self.t_s_dict = {"sites_id": [0, 1]}
+            self.horizon = forecast_length
+            self.rho = rho
+
+    class DummyDataLoader:
+        def __init__(self):
+            self.dataset = DummyDataset()
+
+    total_samples = basin_num * samples_per_basin
+    arr_3d = np.arange(total_samples * 4 * nf).reshape(total_samples, 4, nf)
+
+    data_shape = (basin_num, nt, nf)
+    data_loader = DummyDataLoader()
+
+    result = _recover_samples_to_3d_by_4d_ensembles(
+        data_shape, data_loader, stride, hindcast_output_window, arr_3d
+    )
+
+    # Check output shape
+    expected_time_length = nt - rho + hindcast_output_window
+    assert result.shape == (basin_num, expected_time_length, nf)
+
+    # All features should be processed
+    for feature_idx in range(nf):
+        feature_data = result[:, :, feature_idx]
+        assert not np.all(np.isnan(feature_data))
+
+
+def test_recover_samples_to_3d_by_4d_ensembles_edge_cases():
+    """Test edge cases and boundary conditions"""
+    basin_num = 1
+    nt = 5
+    nf = 1
+    forecast_length = 1
+    stride = 2  # Larger stride
+    hindcast_output_window = 0
+    rho = 1
+    samples_per_basin = 2
+
+    class DummyDataset:
+        def __init__(self):
+            self.t_s_dict = {"sites_id": [0]}
+            self.horizon = forecast_length
+            self.rho = rho
+
+    class DummyDataLoader:
+        def __init__(self):
+            self.dataset = DummyDataset()
+
+    total_samples = basin_num * samples_per_basin
+    arr_3d = np.ones((total_samples, 3, nf)) * 5.0
+
+    data_shape = (basin_num, nt, nf)
+    data_loader = DummyDataLoader()
+
+    result = _recover_samples_to_3d_by_4d_ensembles(
+        data_shape, data_loader, stride, hindcast_output_window, arr_3d
+    )
+
+    # Check that function handles larger stride correctly
+    expected_time_length = nt - rho + hindcast_output_window
+    assert result.shape == (basin_num, expected_time_length, nf)
+
+
+def test_recover_samples_to_3d_by_4d_ensembles_empty_input():
+    """Test with empty input"""
+    basin_num = 1
+    nt = 5
+    nf = 1
+    forecast_length = 2
+    stride = 1
+    hindcast_output_window = 0
+    rho = 2
+
+    class DummyDataset:
+        def __init__(self):
+            self.t_s_dict = {"sites_id": [0]}
+            self.horizon = forecast_length
+            self.rho = rho
+
+    class DummyDataLoader:
+        def __init__(self):
+            self.dataset = DummyDataset()
+
+    # Empty input array
+    arr_3d = np.empty((0, 4, nf))
+
+    data_shape = (basin_num, nt, nf)
+    data_loader = DummyDataLoader()
+
+    result = _recover_samples_to_3d_by_4d_ensembles(
+        data_shape, data_loader, stride, hindcast_output_window, arr_3d
+    )
+
+    # Should return array of correct shape but all NaN
+    expected_time_length = nt - rho + hindcast_output_window
+    assert result.shape == (basin_num, expected_time_length, nf)
     assert np.all(np.isnan(result))

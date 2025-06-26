@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-05-14 19:32:29
+LastEditTime: 2025-06-16 23:33:35
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
@@ -50,6 +50,7 @@ from torchhydro.trainers.train_utils import (
     read_pth_from_model_loader,
     torch_single_train,
     get_preds_to_be_eval,
+    varied_length_collate_fn,
 )
 
 
@@ -342,7 +343,11 @@ class DeepHydro(DeepHydroInterface):
             which_first_tensor=training_cfgs["which_first_tensor"],
         )
         valid_logs["valid_loss"] = valid_loss
-        if self.cfgs["training_cfgs"]["calc_metrics"]:
+        if (
+            self.cfgs["training_cfgs"]["valid_batch_mode"] == "test"
+            and self.cfgs["training_cfgs"]["calc_metrics"]
+        ):
+            # NOTE: Now we only evaluate the metrics for test-mode validation
             target_col = self.cfgs["data_cfgs"]["target_cols"]
             valid_metrics = evaluate_validation(
                 validation_data_loader,
@@ -387,10 +392,10 @@ class DeepHydro(DeepHydroInterface):
         with torch.no_grad():
             test_preds = []
             obss = []
-            for i, (xs, ys) in enumerate(
+            for i, batch in enumerate(
                 tqdm(test_dataloader, desc="Model inference", unit="batch")
             ):
-                ys, pred = model_infer(seq_first, device, self.model, xs, ys)
+                ys, pred = model_infer(seq_first, device, self.model, batch)
                 test_preds.append(pred.cpu())
                 obss.append(ys.cpu())
                 if i % 100 == 0:
@@ -435,16 +440,6 @@ class DeepHydro(DeepHydroInterface):
             **criterion_init_params
         )
 
-    @staticmethod
-    def collate_fn(batch):
-        from torch.nn.utils.rnn import pad_sequence
-        xs, ys = zip(*batch)
-        xs_lens = [x.shape[0] for x in xs]
-        ys_lens = [y.shape[0] for y in ys]
-        xs_pad = pad_sequence(xs, batch_first=True, padding_value=0)
-        ys_pad = pad_sequence(ys, batch_first=True, padding_value=0)
-        return xs_pad, ys_pad, xs_lens, ys_lens
-
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         if mode == "infer":
             return DataLoader(
@@ -466,28 +461,10 @@ class DeepHydro(DeepHydroInterface):
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
         sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
-        if training_cfgs["multi_length_training"]["is_multi_length_training"]:
-            if training_cfgs["multi_length_training"]["multi_len_train_type"] == "multi_table":
-                data_loader = DataLoader(
-                    self.traindataset,
-                    batch_sampler=sampler,
-                    num_workers=worker_num,
-                    pin_memory=pin_memory,
-                    timeout=0,
-                )
-            else:
-                data_loader = DataLoader(
-                    self.traindataset,
-                    batch_size=training_cfgs["batch_size"],
-                    shuffle=(sampler is None),
-                    sampler=sampler,
-                    num_workers=worker_num,
-                    pin_memory=pin_memory,
-                    timeout=0,
-                    collate_fn=self.collate_fn,
-                )
-        else:
-            data_loader = DataLoader(
+        _collate_fn = None
+        if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
+            _collate_fn = varied_length_collate_fn
+        data_loader = DataLoader(
             self.traindataset,
             batch_size=training_cfgs["batch_size"],
             shuffle=(sampler is None),
@@ -495,6 +472,7 @@ class DeepHydro(DeepHydroInterface):
             num_workers=worker_num,
             pin_memory=pin_memory,
             timeout=0,
+            collate_fn=_collate_fn,
         )
         if data_cfgs["t_range_valid"] is not None:
             validation_data_loader = DataLoader(
@@ -562,10 +540,9 @@ class DeepHydro(DeepHydroInterface):
                 "ngrid": ngrid,
                 "nt": nt,
             }
-        if sampler_name == "WindowLenBatchSampler":
+        elif sampler_name == "WindowLenBatchSampler":
             sampler_hyperparam |= {
                 "batch_size": batch_size,
-
             }
 
         return sampler_class(train_dataset, **sampler_hyperparam)

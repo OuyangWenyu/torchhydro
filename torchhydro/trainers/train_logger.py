@@ -120,7 +120,11 @@ class TrainLogger:
         logs = {}
         yield logs
         valid_loss = logs["valid_loss"]
-        if self.training_cfgs["calc_metrics"]:
+        if (
+            self.training_cfgs["valid_batch_mode"] == "test"
+            and self.training_cfgs["calc_metrics"]
+        ):
+            # NOTE: Now we only evaluate the metrics for test-mode validation
             valid_metrics = logs["valid_metrics"]
             val_log = "Epoch {} Valid Loss {:.4f} Valid Metric {}".format(
                 epoch, valid_loss, valid_metrics

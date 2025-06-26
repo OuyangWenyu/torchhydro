@@ -2,7 +2,7 @@
 The method is similar with dpl4xaj.py.
 The difference between dpl4xaj and dpl4xaj_nn4et is:
 in the former, the parameter of PBM is only one output of a DL model,
-while in the latter, time series output of a DL model can be as parameter of PBM 
+while in the latter, time series output of a DL model can be as parameter of PBM
 and some modules could be replaced with neural networks
 """
 
@@ -473,6 +473,7 @@ class DplLstmNnModuleXaj(nn.Module):
         nn_hidden_size=None,
         nn_dropout=0.2,
         et_output=3,
+        return_et=True,
     ):
         """
         Differential Parameter learning model: LSTM -> Param -> XAJ
@@ -503,6 +504,8 @@ class DplLstmNnModuleXaj(nn.Module):
             but remember these ways are only for non-variable parameters
         param_var_index
             variable parameters' indices in all parameters
+        return_et
+            if True, return evapotranspiration
         """
         if param_var_index is None:
             param_var_index = [0, 1, 6]
@@ -524,6 +527,7 @@ class DplLstmNnModuleXaj(nn.Module):
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
         self.param_var_index = param_var_index
+        self.return_et = return_et
 
     def forward(self, x, z):
         """
@@ -562,4 +566,4 @@ class DplLstmNnModuleXaj(nn.Module):
             params = params[-1, :, :]
         # Please put p in the first location and pet in the second
         q, e = self.pb_model(x[:, :, : self.pb_model.feature_size], params)
-        return torch.cat([q, e], dim=-1)
+        return torch.cat([q, e], dim=-1) if self.return_et else q

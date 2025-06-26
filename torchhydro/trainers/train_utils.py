@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-05-15 16:24:12
+LastEditTime: 2025-06-25 15:07:42
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -10,6 +10,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 
 import copy
 import fnmatch
+import itertools
 import os
 import re
 import shutil
@@ -22,6 +23,8 @@ import xarray as xr
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch.utils.data.dataloader import default_collate
+from torch.nn.utils.rnn import pad_sequence
 
 from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import (
@@ -29,8 +32,8 @@ from hydroutils.hydro_file import (
     unserialize_json,
     get_latest_file_in_a_lst,
 )
-
-from torchhydro.models.crits import GaussianLoss
+from torchhydro.datasets.data_sets import FloodEventDataset
+from torchhydro.models.crits import FloodBaseLoss, GaussianLoss
 
 
 def _rolling_preds_for_once_eval(
@@ -94,8 +97,9 @@ def _rolling_preds_for_once_eval(
     return the_array_.reshape(ngrid, recover_len, nf)
 
 
-def model_infer(seq_first, device, model, xs, ys, src_lens=None, trg_lens=None):
-    """_summary_
+def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
+    """
+    Unified model inference function with variable length support
 
     Parameters
     ----------
@@ -105,10 +109,10 @@ def model_infer(seq_first, device, model, xs, ys, src_lens=None, trg_lens=None):
         cpu or gpu
     model : torch.nn.Module
         the model
-    xs : list or tensor
-        xs is always batch first
-    ys : tensor
-        observed data
+    batch : tuple or list
+        batch data from collate_fn or dataset
+    variable_length_cfgs : dict, optional
+        variable length configuration containing mask settings
 
     Returns
     -------
@@ -116,6 +120,10 @@ def model_infer(seq_first, device, model, xs, ys, src_lens=None, trg_lens=None):
         first is the observed data, second is the predicted data;
         both tensors are batch first
     """
+    xs, ys, xs_mask, ys_mask, xs_lens, ys_lens = get_masked_tensors(
+        variable_length_cfgs, batch, seq_first
+    )
+    # Process input data
     if type(xs) is list:
         xs = [
             (
@@ -133,20 +141,37 @@ def model_infer(seq_first, device, model, xs, ys, src_lens=None, trg_lens=None):
                 else xs.to(device)
             )
         ]
+
+    # Process target data
     if ys is not None:
         ys = (
             ys.permute([1, 0, 2]).to(device)
             if seq_first and ys.ndim == 3
             else ys.to(device)
         )
-    output = model(*xs, src_lens, trg_lens)
+
+    # Process masks if available
+    if xs_mask is not None and ys_mask is not None:
+        xs_mask = xs_mask.to(device)
+        ys_mask = ys_mask.to(device)
+        # Use mask-aware inference with xs masks and lengths
+        output = model(*xs, mask=xs_mask, seq_lengths=xs_lens)
+    else:
+        # Standard inference
+        output = model(*xs)
+
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
         output = output[0]
+
+    if ys_mask is not None:
+        ys = ys.masked_fill(ys_mask == 0, torch.nan)
+
     if seq_first:
         output = output.transpose(0, 1)
         if ys is not None:
             ys = ys.transpose(0, 1)
+
     return ys, output
 
 
@@ -255,9 +280,11 @@ def get_preds_to_be_eval(
     target_data = target_scaler.data_target
     rho = valorte_data_loader.dataset.rho
     horizon = valorte_data_loader.dataset.horizon
+    warmup_length = valorte_data_loader.dataset.warmup_length
     hindcast_output_window = target_scaler.data_cfgs["hindcast_output_window"]
     nf = valorte_data_loader.dataset.noutputvar  # number of features
-    nt = valorte_data_loader.dataset.nt  # number of time steps
+    # number of time steps after warmup as outputs typically don't include warmup period
+    nt = valorte_data_loader.dataset.nt - warmup_length
     basin_num = len(target_data.basin)
     data_shape = (basin_num, nt, nf)
     valte_dataset = valorte_data_loader.dataset
@@ -406,6 +433,60 @@ def get_preds_to_be_eval(
                 hindcast_output_window,
                 labels,
             )
+        elif recover_mode == "byensembles":
+            pred = _recover_samples_to_3d_by_4d_ensembles(
+                data_shape,
+                valorte_data_loader,
+                stride,
+                hindcast_output_window,
+                output,
+            )
+            obs = _recover_samples_to_3d_by_4d_ensembles(
+                data_shape,
+                valorte_data_loader,
+                stride,
+                hindcast_output_window,
+                labels,
+            )
+        else:
+            raise ValueError(
+                f"Unsupported recover_mode: {recover_mode}, must be 'bybasins' or 'byforecast' or 'byensembles'"
+            )
+    elif evaluator["eval_way"] == "floodevent":
+        # For flood event evaluation, stride is not typically used, but we set it to 1 for consistency
+        stride = evaluator.get("stride", 1)
+        pred = _recover_samples_to_continuous_by_floodevent(
+            data_shape,
+            valorte_data_loader,
+            stride,
+            hindcast_output_window,
+            output,
+        )
+        obs = _recover_samples_to_continuous_by_floodevent(
+            data_shape,
+            valorte_data_loader,
+            stride,
+            hindcast_output_window,
+            labels,
+        )
+    else:
+        raise ValueError("eval_way should be rolling or 1pace")
+
+    # pace_idx = np.nan
+    recover_mode = evaluator.get("recover_mode")
+    valte_dataset = valorte_data_loader.dataset
+    # 检查数据维度并进行适当处理
+    if pred.ndim == 4:
+        # 如果是四维数据，需要根据评估方式选择合适的处理方法
+        if evaluator["eval_way"] == "1pace" and "pace_idx" in evaluator:
+            # 对于1pace模式，选择特定的预测步长
+            pace_idx = evaluator["pace_idx"]
+            # 选择特定预测步长的数据
+            pred_3d = pred[:, :, pace_idx, :]
+            obs_3d = obs[:, :, pace_idx, :]
+            preds_xr = valte_dataset.denormalize(pred_3d, pace_idx)
+            obss_xr = valte_dataset.denormalize(obs_3d, pace_idx)
+        elif evaluator["eval_way"] == "rolling" and recover_mode == "byforecast":
             # 对于byforecast模式，需要特殊处理
             # 创建一个列表存储每个预测步长的结果
             preds_xr_list = []
@@ -430,8 +511,6 @@ def get_preds_to_be_eval(
             raise ValueError(
                 f"Unsupported recover_mode: {recover_mode}, must be 'bybasins' or 'byforecast'"
             )
-    else:
-        raise ValueError("eval_way should be rolling or 1pace")
 
     # 以下代码只有在1pace模式或者三维数据的情况下才会执行
     pace_idx = np.nan
@@ -450,9 +529,10 @@ def get_preds_to_be_eval(
             # 其他四维数据情况，可能需要特殊处理
             raise ValueError("Unsupported 4D data format for this evaluation mode")
     else:
-        # 三维数据直接处理
-        preds_xr = valte_dataset.denormalize(pred, pace_idx)
-        obss_xr = valte_dataset.denormalize(obs, pace_idx)
+        # for 3d data, directly process
+        # TODO: maybe need more test for the pace_idx case
+        preds_xr = valte_dataset.denormalize(pred)
+        obss_xr = valte_dataset.denormalize(obs)
 
     return obss_xr, preds_xr
 
@@ -680,6 +760,223 @@ def _recover_samples_to_basin(arr_3d, valorte_data_loader, pace_idx):
     return basin_array
 
 
+def _recover_samples_to_3d_by_4d_ensembles(
+    data_shape,
+    valorte_data_loader,
+    stride,
+    hindcast_output_window,
+    arr_3d,
+):
+    """
+    Merge the rolling prediction results and calculate the average value for the same time period.
+
+    Parameters
+    ----------
+    data_shape : tuple
+        The shape of the data, containing three elements (basin_num, nt, nf), representing the number of basins, the number of time steps, and the number of features, respectively.
+    valorte_data_loader : DataLoader
+        The corresponding data loader used to obtain the basin-time index mapping.
+    stride : int
+        The stride of the rolling.
+    hindcast_output_window : int
+        The length of the historical output window.
+    arr_3d : np.ndarray
+        The 3D prediction array with the shape (samples, time_steps, features).
+
+    Returns
+    -------
+    np.ndarray
+        The reorganized 3D array with the shape (basin_num, time_length, nf).
+        The value of each time period is the average of all predictions.
+    """
+    basin_num, nt, nf = data_shape
+    dataset = valorte_data_loader.dataset
+    basin_num = len(dataset.t_s_dict["sites_id"])
+    forecast_length = dataset.horizon
+    rho = dataset.rho
+
+    # Calculate the actual time length
+    actual_time_length = nt - rho + hindcast_output_window
+
+    # Create the result array and count array
+    result = np.full((basin_num, actual_time_length, nf), np.nan)
+    count_array = np.zeros((basin_num, actual_time_length, nf))
+
+    # Reshape arr_3d to the required shape
+    output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
+    samples_per_basin = output.shape[1]
+
+    # Process each basin
+    for basin_idx, sample_idx in itertools.product(
+        range(basin_num), range(samples_per_basin)
+    ):
+        # Calculate the starting position of the current sample on the time axis
+        sample_start_time = sample_idx * stride
+
+        # Extract the prediction sequence (the last forecast_length time steps)
+        prediction_sequence = output[basin_idx, sample_idx, -forecast_length:, :]
+
+        # Assign the prediction values to the corresponding time positions
+        for horizon_idx in range(forecast_length):
+            target_time = sample_start_time + horizon_idx
+
+            # Ensure that the time range is not exceeded
+            if target_time < actual_time_length:
+                # Accumulate the prediction values
+                if np.isnan(result[basin_idx, target_time, :]).all():
+                    result[basin_idx, target_time, :] = prediction_sequence[
+                        horizon_idx, :
+                    ]
+                    count_array[basin_idx, target_time, :] = 1
+                else:
+                    # If there is a value, accumulate
+                    valid_mask = ~np.isnan(prediction_sequence[horizon_idx, :])
+                    result[basin_idx, target_time, valid_mask] += prediction_sequence[
+                        horizon_idx, valid_mask
+                    ]
+                    count_array[basin_idx, target_time, valid_mask] += 1
+
+    # Calculate the average value
+    for basin_idx in range(basin_num):
+        for time_idx in range(actual_time_length):
+            for feature_idx in range(nf):
+                if count_array[basin_idx, time_idx, feature_idx] > 1:
+                    result[basin_idx, time_idx, feature_idx] /= count_array[
+                        basin_idx, time_idx, feature_idx
+                    ]
+
+    return result
+
+
+def _recover_samples_to_continuous_by_floodevent(
+    data_shape,
+    valorte_data_loader,
+    stride,
+    hindcast_output_window,
+    arr_3d,
+):
+    """
+    Turn the independent flood events to continuous time series
+
+    The flood event data is a series of independent flood events, which are not continuous in time.
+    This function puts these data in the corresponding time positions of the original time series length,
+    so that it is convenient to perform the inverse normalization operation.
+
+    For FloodEventDataset, this function handles the flood_event column properly:
+    - If arr_3d is predictions missing flood_event column, adds a placeholder column
+    - If arr_3d is observations with flood_event column, keeps it as is
+    This ensures dimensional consistency for subsequent denormalization.
+
+    Parameters
+    ----------
+    data_shape : tuple
+        The shape of the data, containing three elements (basin_num, nt, nf), representing the number of basins, the number of time steps, and the number of features, respectively.
+    valorte_data_loader : DataLoader
+        The corresponding data loader used to obtain the basin-time index mapping.
+    stride : int
+        The stride of the rolling.
+    hindcast_output_window : int
+        The length of the historical output window.
+    arr_3d : np.ndarray
+        The 3D prediction array with the shape (samples, time_steps, features).
+        For flood datasets, may or may not include flood_event column.
+
+    Returns
+    -------
+    np.ndarray
+        The reorganized 3D array with the shape (basin_num, time_length, nf).
+        The independent flood event data is placed in the correct position of the original time series.
+        For flood datasets, ensures consistent dimensionality with target columns.
+    """
+    basin_num, nt, nf = data_shape
+    dataset = valorte_data_loader.dataset
+
+    # Get the actual number of basins
+    basin_num = len(dataset.t_s_dict["sites_id"])
+
+    # Check if this is a FloodEventDataset and handle flood_event column properly
+    is_flood_dataset = isinstance(dataset, FloodEventDataset)
+
+    # For flood datasets, we need to ensure consistency between predictions and observations
+    # If arr_3d is predictions and missing flood_event column, we need to add it
+    # If arr_3d is observations with flood_event column, we keep it as is
+    if is_flood_dataset:
+        expected_features = len(dataset.data_cfgs["target_cols"])
+        current_features = arr_3d.shape[-1]
+
+        if current_features < expected_features:
+            # This is likely predictions missing flood_event column, add it
+            # We need to get the actual flood_event data from the dataset for each sample
+            flood_event_data = np.zeros((arr_3d.shape[0], arr_3d.shape[1], 1))
+
+            # Try to get the actual flood_event data from the dataset
+            for sample_idx in range(arr_3d.shape[0]):
+                basin_idx, start_time, actual_length = dataset.lookup_table[sample_idx]
+                end_time = start_time + actual_length
+                if end_time > dataset.nt:
+                    end_time = dataset.nt
+                    actual_length = end_time - start_time
+
+                # Get the actual flood_event data from the dataset
+                if hasattr(dataset, "y") and dataset.flood_event_idx is not None:
+                    sample_length = min(arr_3d.shape[1], actual_length)
+                    actual_flood_events = dataset.y[
+                        basin_idx,
+                        start_time : start_time + sample_length,
+                        dataset.flood_event_idx,
+                    ]
+                    flood_event_data[sample_idx, :sample_length, 0] = (
+                        actual_flood_events
+                    )
+
+            arr_3d_processed = np.concatenate([arr_3d, flood_event_data], axis=-1)
+            # Update nf to match the expected number of features
+            nf = expected_features
+        else:
+            # This is likely observations with flood_event column, keep as is
+            arr_3d_processed = arr_3d
+            nf = current_features
+    else:
+        arr_3d_processed = arr_3d
+
+    # Create the result array, initialized with NaN
+    result = np.full((basin_num, nt, nf), np.nan)
+
+    # Iterate over each sample
+    for sample_idx in range(arr_3d_processed.shape[0]):
+        # Get the basin, start time, and actual length of the current sample from lookup_table
+        basin_idx, start_time, actual_length = dataset.lookup_table[sample_idx]
+
+        # Get the prediction result of the current sample
+        sample_prediction = arr_3d_processed[sample_idx, :, :]  # [time_steps, features]
+
+        # Calculate the end time
+        end_time = start_time + actual_length
+
+        # Ensure that the time range is not exceeded
+        if end_time > nt:
+            end_time = nt
+            actual_length = end_time - start_time
+
+        # Ensure that the length of the prediction result matches the actual length
+        pred_length = min(sample_prediction.shape[0], actual_length)
+
+        # Place the prediction result in the correct position of the original time series
+        # Note: here we need to handle the possible length mismatch problem
+        if pred_length > 0:
+            # If the prediction length is greater than the actual length, take the first part
+            if pred_length > actual_length:
+                pred_to_use = sample_prediction[:actual_length, :]
+            else:
+                pred_to_use = sample_prediction[:pred_length, :]
+
+            # Fill the prediction result into the corresponding position
+            end_fill = start_time + pred_to_use.shape[0]
+            result[basin_idx, start_time:end_fill, :] = pred_to_use
+
+    return result
+
+
 def evaluate_validation(
     validation_data_loader,
     output,
@@ -760,7 +1057,7 @@ def evaluate_validation(
 
 def compute_loss(
     labels: torch.Tensor, output: torch.Tensor, criterion, **kwargs
-) -> float:
+) -> torch.Tensor:
     """
     Function for computing the loss
 
@@ -779,7 +1076,7 @@ def compute_loss(
 
     Returns
     -------
-    float
+    torch.Tensor
         the computed loss
     """
     # a = np.sum(output.cpu().detach().numpy(),axis=1)/len(output)
@@ -794,6 +1091,12 @@ def compute_loss(
         else:
             g_loss = GaussianLoss(output[0][:, 0], output[1][:, 0])
         return g_loss(labels)
+    if isinstance(criterion, FloodBaseLoss):
+        # labels has one more column than output, which is the flood mask
+        # so we need to remove the last column of labels to get targets
+        flood_mask = labels[:, :, -1:]  # Extract flood mask from last column
+        targets = labels[:, :, :-1]  # Extract targets (remove last column)
+        return criterion(output, targets, flood_mask)
     if (
         isinstance(output, torch.Tensor)
         and len(labels.shape) != len(output.shape)
@@ -807,6 +1110,118 @@ def compute_loss(
     return criterion(output, labels.float())
 
 
+def varied_length_collate_fn(batch):
+    """Collate function for variable length training
+
+    This function is automatically used by DataLoader when variable_length_cfgs["use_variable_length"] is True.
+    It pads sequences to the same length and generates corresponding masks.
+
+    Parameters
+    ----------
+    batch : list of tuples
+        The batch data after the dataset __getitem__ method
+
+    Returns
+    -------
+    list
+        [xs_pad, ys_pad, xs_lens, ys_lens, xs_mask, ys_mask]
+        - xs_pad: padded input sequences [batch, max_seq_len, input_dim]
+        - ys_pad: padded output sequences [batch, max_seq_len, output_dim]
+        - xs_lens: original sequence lengths for input
+        - ys_lens: original sequence lengths for output
+        - xs_mask: valid position mask for input [batch, max_seq_len]
+        - ys_mask: valid position mask for output [batch, max_seq_len]
+    """
+
+    xs, ys = zip(*batch)
+    # sometimes x is a tuple like in dpl dataset, then we can get the shape of the first element as the length
+    xs_lens = [x[0].shape[0] if type(x) in [tuple, list] else x.shape[0] for x in xs]
+    ys_lens = [y[0].shape[0] if type(y) in [tuple, list] else y.shape[0] for y in ys]
+    # if all ys_lens are the same, use default collate_fn to create tensors
+    if len(set(ys_lens)) == 1 and len(set(xs_lens)) == 1:
+        xs_tensor = default_collate(xs)
+        ys_tensor = default_collate(ys)
+        return [xs_tensor, ys_tensor, None, None, None, None]
+
+    # pad the batch data with padding value 0
+    xs_pad = pad_sequence(xs, batch_first=True, padding_value=0)
+    ys_pad = pad_sequence(ys, batch_first=True, padding_value=0)
+
+    # generate the mask for the batch data
+    # xs_mask: [batch_size, max_seq_len] or [batch_size, max_seq_len, 1]
+    batch_size = len(xs_lens)
+    max_xs_len = max(xs_lens)
+    max_ys_len = max(ys_lens)
+
+    # create the mask for the input sequence (True for valid positions, False for padding positions)
+    xs_mask = torch.zeros(batch_size, max_xs_len, dtype=torch.bool)
+    for i, length in enumerate(xs_lens):
+        xs_mask[i, :length] = True
+
+    # create the mask for the output sequence
+    ys_mask = torch.zeros(batch_size, max_ys_len, dtype=torch.bool)
+    for i, length in enumerate(ys_lens):
+        ys_mask[i, :length] = True
+
+    return [
+        xs_pad,
+        ys_pad,
+        xs_lens,
+        ys_lens,
+        xs_mask,
+        ys_mask,
+    ]
+
+
+def get_masked_tensors(variable_length_cfgs, batch, seq_first):
+    """Get the mask for the data
+
+    Parameters
+    ----------
+    variable_length_cfgs : dict
+        The variable length configuration
+    batch : tuple or list
+        The batch data from collate_fn or dataset
+    seq_first : bool
+        Whether the data is in sequence first format
+
+    Returns
+    -------
+    tuple
+        (xs, ys, xs_mask, ys_mask, xs_lens, ys_lens)
+    """
+    xs_mask = None
+    ys_mask = None
+    xs_lens = None
+    ys_lens = None
+
+    if variable_length_cfgs is None:
+        xs, ys = batch
+        return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
+
+    if variable_length_cfgs.get("use_variable_length", False):
+        # When using variable length training, batch comes from varied_length_collate_fn
+        # which returns [xs_pad, ys_pad, xs_lens, ys_lens, xs_mask, ys_mask]
+        xs, ys, xs_lens, ys_lens, xs_mask_bool, ys_mask_bool = batch
+        if xs_mask_bool is None and ys_mask_bool is None:
+            # sometime even you choose to use variable length training, the batch data may still be fixed length
+            # so we need to return the batch data directly
+            return xs, ys, xs_mask_bool, ys_mask_bool, xs_lens, ys_lens
+        # Convert masks to the format expected by model (float tensor with shape [..., 1])
+        xs_mask = xs_mask_bool.unsqueeze(-1).float()  # [batch, seq, 1]
+        ys_mask = ys_mask_bool.unsqueeze(-1).float()  # [batch, seq, 1]
+
+        # Convert to appropriate format for model if needed
+        if seq_first:
+            xs_mask = xs_mask.transpose(0, 1)  # [seq, batch, 1]
+            ys_mask = ys_mask.transpose(0, 1)  # [seq, batch, 1]
+    else:
+        # Standard fixed-length training
+        xs, ys = batch
+
+    return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
+
+
 def torch_single_train(
     model,
     opt: optim.Optimizer,
@@ -814,7 +1229,7 @@ def torch_single_train(
     data_loader: DataLoader,
     device=None,
     **kwargs,
-) -> float:
+):
     """
     Training function for one epoch
 
@@ -833,7 +1248,7 @@ def torch_single_train(
 
     Returns
     -------
-    tuple(float, int)
+    tuple(torch.Tensor, int)
         loss of this epoch and number of all iterations
 
     Raises
@@ -847,20 +1262,14 @@ def torch_single_train(
     running_loss = 0.0
     which_first_tensor = kwargs["which_first_tensor"]
     seq_first = which_first_tensor != "batch"
+    variable_length_cfgs = data_loader.dataset.training_cfgs.get(
+        "variable_length_cfgs", None
+    )
     pbar = tqdm(data_loader)
 
     for _, batch in enumerate(pbar):
-        if len(batch) == 4:
-            src, trg, src_lens, trg_lens = batch
-            trg, output = model_infer(
-                seq_first, device, model, src, trg, src_lens, trg_lens
-            )
-        elif len(batch) == 2:
-            src, trg = batch
-            # 如果没有 src_lens 和 trg_lens，可以传递 None 或默认值
-            trg, output = model_infer(seq_first, device, model, src, trg, None, None)
-        else:
-            raise ValueError(f"Unsupported batch format with {len(batch)} elements")
+        # mask handling is already done inside model_infer function
+        trg, output = model_infer(seq_first, device, model, batch, variable_length_cfgs)
         loss = compute_loss(trg, output, criterion, **kwargs)
         if loss > 100:
             print("Warning: high loss detected")
@@ -919,8 +1328,8 @@ def compute_validation(
     pred_final = None
     with torch.no_grad():
         iter_num = 0
-        for src, trg in tqdm(data_loader, desc="Evaluating", total=len(data_loader)):
-            trg, output = model_infer(seq_first, device, model, src, trg)
+        for batch in tqdm(data_loader, desc="Evaluating", total=len(data_loader)):
+            trg, output = model_infer(seq_first, device, model, batch)
             obs.append(trg)
             preds.append(output)
             valid_loss_ = compute_loss(trg, output, criterion)
@@ -928,19 +1337,24 @@ def compute_validation(
                 # for not-train mode, we may get all nan data for trg
                 # so we skip this batch
                 continue
-                # print("NAN loss detected, skipping this batch")
+                print("NAN loss detected, skipping this batch")
             valid_loss = valid_loss + valid_loss_.item()
             iter_num = iter_num + 1
+
+            # For flood datasets, remove the flood_mask column from observations
+            # to match the prediction dimensions for evaluation
+            trg_for_eval = (
+                trg[:, :, :-1] if isinstance(criterion, FloodBaseLoss) else trg
+            )
             # clear memory to save GPU memory
             if obs_final is None:
-                obs_final = trg.detach().cpu()
+                obs_final = trg_for_eval.detach().cpu()
                 pred_final = output.detach().cpu()
             else:
-                obs_final = torch.cat([obs_final, trg.detach().cpu()], dim=0)
+                obs_final = torch.cat([obs_final, trg_for_eval.detach().cpu()], dim=0)
                 pred_final = torch.cat([pred_final, output.detach().cpu()], dim=0)
             del trg, output
             torch.cuda.empty_cache()
-        # first dim is batch
     valid_loss = valid_loss / iter_num
     y_obs = obs_final.numpy()
     y_pred = pred_final.numpy()

@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:17:44
-LastEditTime: 2025-04-19 14:05:54
+LastEditTime: 2025-06-25 16:48:42
 LastEditors: Wenyu Ouyang
 Description: normalize the data
-FilePath: /torchhydro/torchhydro/datasets/data_scalers.py
+FilePath: \torchhydro\torchhydro\datasets\data_scalers.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -368,7 +368,9 @@ class DapengScaler(object):
         np.ndarray
             mean_prcp with the same unit as streamflow
         """
-        final_unit = self.data_target.attrs["units"]["streamflow"]
+        # Get the first target variable (usually flow variable) instead of hardcoding "streamflow"
+        flow_var_name = self.data_cfgs["target_cols"][0]
+        final_unit = self.data_target.attrs["units"][flow_var_name]
         mean_prcp = self.data_source.read_mean_prcp(
             self.t_s_dict["sites_id"], unit=final_unit
         )
@@ -430,6 +432,8 @@ class DapengScaler(object):
         """
         stat_dict = {}
         for k, v in vars_data.items():
+            if v is None:
+                continue
             for i in range(len(v.coords["variable"].values)):
                 var_name = v.coords["variable"].values[i]
                 if var_name in self.prcp_norm_cols:
@@ -446,7 +450,7 @@ class DapengScaler(object):
 
         return stat_dict
 
-    def get_data_norm(self, data, to_norm: bool = True) -> np.array:
+    def get_data_norm(self, data, to_norm: bool = True) -> np.ndarray:
         """
         Get normalized values
 
@@ -506,4 +510,9 @@ class DapengScaler(object):
             y: 3-d  gages_num*time_num*1
             c: 2-d  gages_num*var_num
         """
-        return {k: self.get_data_norm(v) for k, v in vars_data.items()}
+        if vars_data is None:
+            return None
+        return {
+            k: self.get_data_norm(v) if v is not None else None
+            for k, v in vars_data.items()
+        }

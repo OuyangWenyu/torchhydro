@@ -239,8 +239,9 @@ class Resulter:
         # NOTE: all datasource should have read_area method
         basin_area = data_source.read_area(basin_id)
         target_unit = "m^3/s"
-        # NOTE: the name of var flow should be streamflow
-        var_flow = "streamflow"
+        # Get the flow variable name dynamically from config instead of hardcoding "streamflow"
+        # NOTE: the first target variable must be the flow variable
+        var_flow = self.cfgs["data_cfgs"]["target_cols"][0]
         streamflow_ds = ds[[var_flow]]
         ds_ = streamflow_unit_conv(
             streamflow_ds, basin_area, target_unit=target_unit, inverse=True
@@ -303,8 +304,8 @@ class Resulter:
         # here the batch is just an index of lookup table, so any batch size could be chosen
         params_lst = []
         with torch.no_grad():
-            for xs, ys in test_dataloader:
-                ys, gen = model_infer(seq_first, device, dl_model, xs[1], ys)
+            for batch in test_dataloader:
+                ys, gen = model_infer(seq_first, device, dl_model, batch)
                 # we set all params' values in [0, 1] and will scale them when forwarding
                 if param_func == "clamp":
                     params_ = torch.clamp(gen, min=0.0, max=1.0)

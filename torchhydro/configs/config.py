@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-05-14 19:32:13
+LastEditTime: 2025-06-25 11:58:35
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -245,14 +245,23 @@ def default_config_file():
             # 2020-09-30now, 30hindcast, 2forecast, [1, 2]leadtime means 2020-09-01 to 2020-09-30 obs concatenate with 2020-10-01 to 2010-10-02 forecast data from 2020-09-30
             "lead_time_type": "fixed",  # must be fixed or increasing
             "lead_time_start": 1,
-
-            "multi_length_training": {
-                "multi_len_train_type":"Pad", # Pad or multi_table(must be WindowLenBatchSampler for multi_table mode)
-                "is_multi_length_training": False,
-                "multi_window_lengths":[0,730,1460] # [0,730,1460] means 1years, 3years, 5years
+            # Variable length training configuration (unified mask_cfgs and multi_length_training)
+            "variable_length_cfgs": {
+                # whether to use variable length training
+                "use_variable_length": False,
+                # variable length type:
+                # - "fixed": use predefined lengths (replaces old multi_length_training)
+                # - "dynamic": automatic padding with mask (replaces old mask_cfgs)
+                "variable_length_type": "dynamic",
+                # for "fixed" type: specify exact sequence lengths to use
+                "fixed_lengths": [
+                    365,
+                    1095,
+                    1825,
+                ],
+                # Pad strategy: "Pad" or "multi_table" (multi_table not fully tested yet)
+                "pad_strategy": "Pad",
             },
-
-
             # valid batch can be organized as same way with training or testing
             "valid_batch_mode": "test",
             "criterion": "RMSE",
@@ -336,6 +345,7 @@ def default_config_file():
             # a rolling window (rwin) can be chosen:
             # hindcast (hrwin) and forecast (frwin) length in rwin need to be chosen
             # and then rwin = hrwin + frwin
+            # when rolling is -1, we will use the each flood event sequence as one sample for testing
             "rolling": 0,
             "hrwin": None,
             "frwin": None,
@@ -371,7 +381,7 @@ def cmd(
     scaler_params=None,
     dataset=None,
     model_loader=None,
-    multi_length_training=None,
+    variable_length_cfgs=None,
     sampler=None,
     fl_sample=None,
     fl_num_users=None,
@@ -889,10 +899,10 @@ def cmd(
         type=int,
     )
     parser.add_argument(
-        "--multi_length_training",
-        dest="multi_length_training",
-        help="the way to load multi_length_training",
-        default=multi_length_training,
+        "--variable_length_cfgs",
+        dest="variable_length_cfgs",
+        help="variable length training configuration",
+        default=variable_length_cfgs,
         type=json.loads,
     )
     parser.add_argument(
@@ -1141,11 +1151,9 @@ def update_cfg(cfg_file, new_args):
     if new_args.feature_mapping is not None:
         cfg_file["data_cfgs"]["feature_mapping"] = new_args.feature_mapping
     if new_args.target_as_input is not None:
-        cfg_file["data_cfgs"]["target_as_input"] = bool(new_args.target_as_input > 0)
+        cfg_file["data_cfgs"]["target_as_input"] = new_args.target_as_input > 0
     if new_args.constant_only is not None:
-        cfg_file["data_cfgs"]["constant_only"] = bool(new_args.constant_only > 0)
-    else:
-        cfg_file["data_cfgs"]["target_as_input"] = True
+        cfg_file["data_cfgs"]["constant_only"] = new_args.constant_only > 0
     if new_args.calc_metrics is not None:
         cfg_file["training_cfgs"]["calc_metrics"] = new_args.calc_metrics
     if new_args.train_epoch is not None:
@@ -1172,8 +1180,10 @@ def update_cfg(cfg_file, new_args):
             raise AttributeError(
                 "Please make sure size of vars in data_cfgs/target_cols is same as n_output"
             )
-    if new_args.multi_length_training is not None:
-        cfg_file["training_cfgs"]["multi_length_training"] = new_args.multi_length_training
+    if new_args.variable_length_cfgs is not None:
+        cfg_file["training_cfgs"][
+            "variable_length_cfgs"
+        ] = new_args.variable_length_cfgs
 
     if new_args.model_hyperparam is not None:
         # raise AttributeError("Please set the model_hyperparam!!!")
