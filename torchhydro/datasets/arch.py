@@ -2308,17 +2308,18 @@ class Arch(object):
         xp = np.array(xp)
         xp = np.delete(xp, q_n, axis=1)
 
-        # if b_y:
-        #     a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
-        #     return a, R_2, y
-        # else:
-        #     a, R_2 = self.generalized_least_squares(xp, xf, Omega_diagonal)
-        #     return a, R_2
+        if b_y:
+            a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
+            a = np.insert(a, q_n, 0)
+            return a, R_2, y
+        else:
+            a, R_2 = self.generalized_least_squares(xp, xf, Omega_diagonal)
+            a = np.insert(a, q_n, 0)
+            return a, R_2
 
-        a, R_2 = self.ordinary_least_squares(xp, xf)
-        a = np.insert(a, q_n, 0)
-
-        return a, R_2
+        # a, R_2 = self.ordinary_least_squares(xp, xf)
+        # a = np.insert(a, q_n, 0)
+        # return a, R_2
 
 
 
