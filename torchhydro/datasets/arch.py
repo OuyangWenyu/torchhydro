@@ -2175,6 +2175,58 @@ class Arch(object):
 
         return a, R_2
 
+    def Omega_i(
+        self,
+        Zi,
+        theta,
+    ):
+        """
+        sigma_i(-4)
+        GARCH Models  Francq & Zakoian 2010 P132
+        Parameters
+        ----------
+        residual_2
+        theta
+
+        Returns
+        -------
+
+        """
+        theta = np.transpose(theta)
+        sigma_2 = np.matmul(Zi, theta)
+        sigma = np.sqrt(sigma_2)
+        sigma_n4 = pow(sigma, -4)
+
+        return sigma_n4
+
+
+    def Omega(
+        self,
+        residual_2,
+        theta,
+    ):
+        """
+        Omega, based on ARCH(1).
+        GARCH Models  Francq & Zakoian 2010 P132
+        Parameters
+        ----------
+        residual_2
+        theta
+        q
+
+        Returns
+        -------
+
+        """
+        n_residual_2 = len(residual_2)
+        Omega = [0]*(n_residual_2-1)
+        for i in range(1, n_residual_2):
+            x_i = [1]
+            x_i = x_i.append(residual_2[i])
+            Omega[i-1] = self.Omega_i(x_i, theta)
+
+        return Omega
+
     def arch_feasible_generalized_least_squares_estimation(
         self,
         residual_2,

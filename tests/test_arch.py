@@ -1978,9 +1978,9 @@ def test_arch_least_squares_estimation():
     arch = Arch()
     y_residual_2 = np.power(y_residual, 2)
     y_residual_2 = y_residual_2.tolist()
-    q = 3
+    q = 1
     e_2 = np.power(e_395, 2)
-    a, R_2, delta_2 = arch.arch_ordinary_least_squares_estimation(y_residual_2_streamflow_1460, q)
+    a, R_2, delta_2 = arch.arch_ordinary_least_squares_estimation(y_residual_2_streamflow_395, q)
     print("a")
     print(a)
     print("R_2")
@@ -1999,6 +1999,30 @@ def test_arch_least_squares_estimation():
 # 0.025185118907720204
 # delta_2
 # 2.0724485863696087e-10
+# a  y_residual_2_streamflow_395  q=1
+# [41.6261723   0.67115674]
+# R_2
+# 0.1912180277043999
+# delta_2
+# -2.3142358823738634e-15
+
+def test_Omega_i():
+    arch = Arch()
+    theta = [41.6261723, 0.67115674]
+    Zi = [1, y_residual_2_streamflow_395[1]]
+    sigma_n4 = arch.Omega_i(Zi, theta)
+    print("sigma_n4")
+    print(sigma_n4)
+# sigma_n4
+# 0.0005771212224997373
+
+def test_Omega():
+    arch = Arch()
+    theta = [1, 1.1]
+    Omega = arch.Omega(y_residual_2_streamflow_395, theta)
+    print("Omega")
+    print(Omega)
+
 
 def test_mL_estimation():
     arch = Arch()
