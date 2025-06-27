@@ -2325,7 +2325,6 @@ class Arch(object):
         self,
         residual_2,
         delta_2,
-        q,
         alpha,
         beta,
     ):
@@ -2345,7 +2344,7 @@ class Arch(object):
         theta = alpha + beta
         theta = np.transpose(theta)
         x = residual_2 + delta_2
-        delta_2 = np.matmul(x, alpha)
+        delta_2 = np.matmul(x, theta)
 
         return delta_2
 

@@ -6,7 +6,8 @@ from tests.test_arch_data import (
     y_arma_3_100, y_residual_arma_3_p3d0q3_100,
     y_streamflow_100, y_streamflow_395, y_residual_streamflow_395, y_residual_2_streamflow_395,
     y_streamflow_1460, y_residual_streamflow_1460, y_residual_2_streamflow_1460,
-    y_streamflow_395_itp, y_streamflow_395_Omege,
+    y_streamflow_395_itp,
+    y_streamflow_395_Omege, y_streamflow_1460_Omege,
 )
 
 class Ystl(object):
@@ -1980,7 +1981,7 @@ def test_arch_least_squares_estimation():
     y_residual_2 = y_residual_2.tolist()
     q = 1
     e_2 = np.power(e_395, 2)
-    a, R_2, delta_2 = arch.arch_ordinary_least_squares_estimation(y_residual_2_streamflow_395, q)
+    a, R_2, delta_2 = arch.arch_ordinary_least_squares_estimation(y_residual_2_streamflow_1460, q)
     print("a")
     print(a)
     print("R_2")
@@ -2005,6 +2006,12 @@ def test_arch_least_squares_estimation():
 # 0.1912180277043999
 # delta_2
 # -2.3142358823738634e-15
+# a
+# [1.49127499e+04 1.37672850e-01]
+# R_2
+# 0.018953813664857603
+# delta_2
+# 9.581507969295046e-12
 
 def test_Omega_i():
     arch = Arch()
@@ -2020,17 +2027,20 @@ def test_Omega_i():
 
 def test_Omega():
     arch = Arch()
-    theta = [41.6261723, 0.67115674]
-    Omega = arch.Omega(y_residual_2_streamflow_395, theta)
+    # theta = [41.6261723, 0.67115674]
+    theta = [1.49127499e+04, 1.37672850e-01]
+    Omega = arch.Omega(y_residual_2_streamflow_1460, theta)
     print("Omega")
     print(Omega)
 # Omega
 # y_streamflow_395_Omege
+# Omega
+# y_streamflow_1460_Omege
 
 def test_arch_feasible_generalized_least_squares_estimation():
     arch = Arch()
     q = 3
-    a, R_2, y = arch.arch_feasible_generalized_least_squares_estimation(y_residual_2_streamflow_395, q, y_streamflow_395_Omege, b_y=True)
+    a, R_2, y = arch.arch_feasible_generalized_least_squares_estimation(y_residual_2_streamflow_1460, q, y_streamflow_1460_Omege, b_y=True)
     print("a")
     print(a)
     print("R_2")
@@ -2041,6 +2051,13 @@ def test_arch_feasible_generalized_least_squares_estimation():
 # [ 2.18960415  0.02024819 -0.0022809   0.01220647]
 # R_2
 # 0.20152472141990246
+# a
+# [6.71658575e+02 2.37001714e-02 3.90087440e-02 3.41720975e-02]
+# R_2
+# 0.01887150094068471
+# y
+# [671.65857542 672.93963109 674.96591371 ... 672.13081132 672.10939714
+#  672.09004761]
 
 def test_arch_constrained_ordinary_least_squares():
     arch = Arch()
