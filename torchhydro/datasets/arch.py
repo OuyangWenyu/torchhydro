@@ -2221,8 +2221,7 @@ class Arch(object):
         n_residual_2 = len(residual_2)
         Omega = [0]*(n_residual_2-1)
         for i in range(1, n_residual_2):
-            x_i = [1]
-            x_i = x_i.append(residual_2[i])
+            x_i = [1] + [residual_2[i]]
             Omega[i-1] = self.Omega_i(x_i, theta)
 
         return Omega
