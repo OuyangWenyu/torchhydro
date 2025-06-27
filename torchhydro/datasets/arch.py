@@ -2137,7 +2137,8 @@ class Arch(object):
         self,
         A,
         Y,
-        Omega,  # todo:
+        Omega,
+        b_y: bool = False,
     ):
         """
         generalized least squares,
@@ -2173,6 +2174,9 @@ class Arch(object):
         R = self.correlation_coefficient(Y, y_)
         R_2 = pow(R, 2)
 
+        if b_y:
+            return a, R_2, y_
+
         return a, R_2
 
     def Omega_i(
@@ -2194,8 +2198,8 @@ class Arch(object):
         """
         theta = np.transpose(theta)
         sigma_2 = np.matmul(Zi, theta)
-        sigma = np.sqrt(sigma_2)
-        sigma_n4 = pow(sigma, -4)
+        # sigma = np.sqrt(sigma_2)
+        sigma_n4 = pow(sigma_2, -2)
 
         return sigma_n4
 
@@ -2230,7 +2234,8 @@ class Arch(object):
         self,
         residual_2,
         q,
-        Omega,  # todo:
+        Omega,
+        b_y: bool = False
     ):
         """
         fgls
@@ -2245,11 +2250,11 @@ class Arch(object):
         -------
 
         """
+        Omega_diagonal = np.diag(Omega[q - 1:])
         n_residual_2 = len(residual_2)
 
         # construct matrix
         xf = residual_2[q:]
-        xf = np.array(xf)
         xf = np.transpose(xf)
 
         xp = []
@@ -2259,9 +2264,62 @@ class Arch(object):
             xp_i.reverse()
             xp.append(xp_i)
 
-        a, R_2 = self.generalized_least_squares(xp, xf, Omega)
+        if b_y:
+            a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
+            return a, R_2, y
+        else:
+            a, R_2 = self.generalized_least_squares(xp, xf, Omega_diagonal)
+            return a, R_2
+
+    def arch_constrained_ordinary_least_squares(
+        self,
+        residual_2,
+        q,
+        Omega,
+        q_n,
+        b_y: bool = False,
+    ):
+        """
+        constrained ordinary least squares
+        GARCH Models  Francq & Zakoian 2010 p135-137
+        Parameters
+        ----------
+        residual_2
+        q
+
+        Returns
+        -------
+
+        """
+        Omega_diagonal = np.diag(Omega[q - 1:])
+        n_residual_2 = len(residual_2)
+
+        # construct matrix
+        xf = residual_2[q:]
+        xf = np.transpose(xf)
+
+        xp = []
+        for i in range(q, n_residual_2):
+            xp_i = residual_2[i-q:i]
+            xp_i.append(1)  # omega
+            xp_i.reverse()
+            xp.append(xp_i)
+
+        xp = np.array(xp)
+        xp = np.delete(xp, q_n, axis=1)
+
+        # if b_y:
+        #     a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
+        #     return a, R_2, y
+        # else:
+        #     a, R_2 = self.generalized_least_squares(xp, xf, Omega_diagonal)
+        #     return a, R_2
+
+        a, R_2 = self.ordinary_least_squares(xp, xf)
+        a = np.insert(a, q_n, 0)
 
         return a, R_2
+
 
 
     def mL_estimation(
