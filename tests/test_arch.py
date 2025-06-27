@@ -2129,6 +2129,18 @@ def test_arch_constrained_ordinary_least_squares():
 #   2.20536373  2.20741291  2.2544775   2.26336522  2.23692659  2.24435223
 #   2.19214392  2.19343042]
 
+def test_conditional_quasi_likelihood():
+    arch = Arch()
+    p = 2
+    q = 3
+    residual_2 = y_residual_2_streamflow_395[1:1+q]
+    delta_2 = [1, 1,1, 1,2]
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    beta = [2.18518342, 0.01851308, 0., 0.01112357]
+    delta_2 = arch.conditional_quasi_likelihood(residual_2, delta_2, q, alpha, beta)
+    print("delta_2")
+    print(delta_2)
+
 def test_mL_estimation():
     arch = Arch()
     x = 0

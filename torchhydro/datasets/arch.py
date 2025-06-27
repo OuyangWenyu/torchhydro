@@ -2321,7 +2321,33 @@ class Arch(object):
         # a = np.insert(a, q_n, 0)
         # return a, R_2
 
+    def conditional_quasi_likelihood(
+        self,
+        residual_2,
+        delta_2,
+        q,
+        alpha,
+        beta,
+    ):
+        """
+        conditional quasi likelihood
+        GARCH Models  Francq & Zakoian 2010 p142-143
+        Parameters
+        ----------
+        residual_2
+        q
+        alpha
 
+        Returns
+        -------
+
+        """
+        theta = alpha + beta
+        theta = np.transpose(theta)
+        x = residual_2 + delta_2
+        delta_2 = np.matmul(x, alpha)
+
+        return delta_2
 
     def mL_estimation(
         self,
