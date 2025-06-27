@@ -2146,6 +2146,18 @@ def test_arch_constrained_ordinary_least_squares():
 #   2.20536373  2.20741291  2.2544775   2.26336522  2.23692659  2.24435223
 #   2.19214392  2.19343042]
 
+def test_initial_values():
+    arch = Arch()
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    beta = [2.18518342, 0.01851308, 0., 0.01112357]
+    ini_values = arch.initial_values(alpha, beta)
+    print("ini_values")
+    print(ini_values)
+# ini_values
+# -1.755933641468865  # todo:
+# ini_values  omega
+# 2.18518342
+
 def test_conditional_quasi_likelihood():
     arch = Arch()
     p = 2

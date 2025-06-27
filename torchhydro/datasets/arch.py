@@ -2321,6 +2321,31 @@ class Arch(object):
         # a = np.insert(a, q_n, 0)
         # return a, R_2
 
+    def initial_values(
+        self,
+        alpha,
+        beta,
+    ):
+        """
+        initial values
+        GARCH Models  Francq & Zakoian 2010 p142 formula (7.5)
+        Parameters
+        ----------
+        alpha
+        beta
+
+        Returns
+        -------
+
+        """
+        omega = alpha[0]
+        ini_values = omega / (1- sum(alpha[1:]) - sum(beta))
+
+        if ini_values < 0:
+            ini_values = omega
+
+        return ini_values
+
     def conditional_quasi_likelihood(
         self,
         residual_2,
