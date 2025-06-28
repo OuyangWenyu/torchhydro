@@ -2400,10 +2400,23 @@ class Arch(object):
 
         alpha = []  # todo:
         beta = []
+        p = 3
+        q = 2
         alpha_eta = alpha * eta_2  # GARCH Models  Francq & Zakoian 2010 p144
         beta_eta = beta * eta_2
 
-        # A0_t =
+        unit_diag_q = np.identity(q-1)
+        A0_t1 = np.zeros((q, q))
+        A0_t1[0, :] = alpha_eta
+        A0_t1[1:,:(q-1)] = unit_diag_q
+        A0_t2 = np.zeros((p, p))
+        A0_t2[0, :] = beta_eta
+        A0_t3 = np.zeros((q, q))
+        A0_t3[0, :] = alpha
+        unit_diag_p = np.identity(p - 1)
+        A0_t4 = np.zeros((p, p))
+        A0_t4[0, :] = beta
+        A0_t4[1:, :(p - 1)] = unit_diag_p
 
         return l
 
