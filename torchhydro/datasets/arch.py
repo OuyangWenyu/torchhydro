@@ -2497,8 +2497,8 @@ class Arch(object):
         b,
         alpha,
         beta,
-        e,
-        h,
+        e0,
+        h0,
     ):
         """
         GARCH Models  Francq & Zakoian 2010  p150
@@ -2518,15 +2518,22 @@ class Arch(object):
         -------
 
         """
+        n_e0 = len(e0)
+        n_h0 = len(h0)
+        start = max(P, Q, p, q)
+        if n_e0 < start:
+            raise ValueError("the length of e0 cannot be less than max(P, Q, p, q).")
+        if n_h0 < start:
+            raise ValueError("the length of h0 cannot be less than max(P, Q, p, q).")
         n_x = len(x)
         c0 = np.mean(x)
         a = np.transpose(a)
         b = np.transpose(b)
         alpha = np.transpose(alpha)
         beta = np.transpose(beta)
-        start = max(P, Q, p, q)
 
-        e = [0]*n_x
+
+        e = [0]*n_x  # todo:
         h = [0]*n_x
         xx = [0]*n_x
         for i in range(start, n_x):
@@ -2544,7 +2551,8 @@ class Arch(object):
             x_i = np.array(x_i) - c0
             ei = e[i-1-Q:i-1]
             ei.reverse()
-            xx_i = np.matmul(x_i, a)
+            xx_i = np.matmul(x_i, a) + e[i] - np.matmul(ei, b) + c0
+            xx[i] = xx_i
 
         return h, e, xx
 
