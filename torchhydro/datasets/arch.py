@@ -2458,7 +2458,7 @@ class Arch(object):
         alpha,
     ):
         """
-
+        GARCH Models  Francq & Zakoian 2010  p147
         Parameters
         ----------
         residual_2
@@ -2469,17 +2469,19 @@ class Arch(object):
 
         """
         n_residual_2 = len(residual_2)
-        matrixj = 0
+
+        matrixj = []
         for i in range(1, n_residual_2):
             x_i = residual_2[i]
             delta_2_i = alpha[0] + alpha[1] * residual_2[i-1]
             x_i_2 = np.power(x_i, 2)
             delta_2_i_2 = np.power(delta_2_i, 2)
-            j0 = 1 / delta_2_i
-            j1 = x_i / delta_2_i
-            j2 = x_i / delta_2_i
-            j3 = x_i_2 / delta_2_i_2
-
+            j_i = np.zeros((2, 2))
+            j_i[0, 0] = 1 / delta_2_i
+            j_i[0, 1] = x_i / delta_2_i
+            j_i[1, 0] = x_i / delta_2_i
+            j_i[1, 1] = x_i_2 / delta_2_i_2
+            matrixj.append(j_i)
 
         return matrixj
 
