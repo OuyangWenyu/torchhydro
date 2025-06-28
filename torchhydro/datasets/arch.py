@@ -2485,6 +2485,69 @@ class Arch(object):
 
         return matrixj
 
+    def arma_garch(
+        self,
+        x,
+        eta,
+        P,
+        Q,
+        p,
+        q,
+        a,
+        b,
+        alpha,
+        beta,
+        e,
+        h,
+    ):
+        """
+        GARCH Models  Francq & Zakoian 2010  p150
+        Parameters
+        ----------
+        x
+        P
+        Q
+        p
+        q
+        a
+        b
+        alpha
+        beta
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        c0 = np.mean(x)
+        a = np.transpose(a)
+        b = np.transpose(b)
+        alpha = np.transpose(alpha)
+        beta = np.transpose(beta)
+        start = max(P, Q, p, q)
+
+        e = [0]*n_x
+        h = [0]*n_x
+        xx = [0]*n_x
+        for i in range(start, n_x):
+            e_ = e[i-q:i]
+            e_.append(1)
+            e_.reverse()
+            h_ = h[i-p:i]
+            h_.reverse()
+            h_i = np.matmul(e_, alpha) + np.matmul(h_, beta)
+            e_i = np.sqrt(h_i) * eta[i]
+            h[i] = h_i
+            e[i] = e_i
+            x_i = x[i-P:i]
+            x_i.reverse()
+            x_i = np.array(x_i) - c0
+            ei = e[i-1-Q:i-1]
+            ei.reverse()
+            xx_i = np.matmul(x_i, a)
+
+        return h, e, xx
+
 
     def mL_estimation(
         self,
