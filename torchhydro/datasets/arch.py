@@ -2417,8 +2417,72 @@ class Arch(object):
         A0_t4 = np.zeros((p, p))
         A0_t4[0, :] = beta
         A0_t4[1:, :(p - 1)] = unit_diag_p
+        A0_t1 = np.concatenate((A0_t1, A0_t2), axis=1)
+        A0_t3 = np.concatenate((A0_t3, A0_t4), axis=1)
+        A0_t = np.concatenate((A0_t1, A0_t3), axis=0)
 
         return l
+
+    def arch_asymptotic_variance(
+        self,
+        residual_2,
+        alpha,
+    ):
+        """
+        GARCH Models  Francq & Zakoian 2010  p147
+        Parameters
+        ----------
+        residual_2
+        alpha
+
+        Returns
+        -------
+
+        """
+        n_residual_2 = len(residual_2)
+        sum_f = 0
+        for i in range(1, n_residual_2):
+            x_i = residual_2[i]
+            delta_2_i = alpha[0] + alpha[1] * residual_2[i-1]
+            f = x_i - delta_2_i
+            delta_2_i_2 = np.power(delta_2_i, 2)
+            f = f / delta_2_i_2
+            sum_f = sum_f + f
+        average_f = sum_f / n_residual_2
+
+        return average_f
+
+    def matrix_J(
+        self,
+        residual_2,
+        alpha,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual_2
+        alpha
+
+        Returns
+        -------
+
+        """
+        n_residual_2 = len(residual_2)
+        matrixj = 0
+        for i in range(1, n_residual_2):
+            x_i = residual_2[i]
+            delta_2_i = alpha[0] + alpha[1] * residual_2[i-1]
+            x_i_2 = np.power(x_i, 2)
+            delta_2_i_2 = np.power(delta_2_i, 2)
+            j0 = 1 / delta_2_i
+            j1 = x_i / delta_2_i
+            j2 = x_i / delta_2_i
+            j3 = x_i_2 / delta_2_i_2
+
+
+        return matrixj
+
 
     def mL_estimation(
         self,

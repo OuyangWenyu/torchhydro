@@ -2183,6 +2183,19 @@ def test_likelihood_equations():
     print("l")
     print(l)
 
+def test_arch_asymptotic_variance():
+    arch = Arch()
+    p = 2
+    q = 3
+    residual_2 = y_residual_2_streamflow_395[1:1+q]
+    delta_2 = [1, 1,1, 1,2]
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    beta = [2.18518342, 0.01851308, 0., 0.01112357]
+    eta_2 = [2.18518342, 0.01851308, 0., 0.01112357]
+    average_f = arch.arch_asymptotic_variance(residual_2, alpha)
+    print("average_f")
+    print(average_f)
+
 def test_mL_estimation():
     arch = Arch()
     x = 0
