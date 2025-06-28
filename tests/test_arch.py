@@ -2154,7 +2154,7 @@ def test_initial_values():
     print("ini_values")
     print(ini_values)
 # ini_values
-# -1.755933641468865  # todo:
+# -5933641468865  # todo:1.75
 # ini_values  omega
 # 2.18518342
 
@@ -2169,6 +2169,24 @@ def test_conditional_quasi_likelihood():
     delta_2 = arch.conditional_quasi_likelihood(residual_2, delta_2, q, alpha, beta)
     print("delta_2")
     print(delta_2)
+
+def test_arma_garch():
+    arch = Arch()
+    P = 3
+    Q = 2
+    p = 2
+    q = 3
+    residual_2 = y_residual_2_streamflow_395[1:1+q]
+    delta_2 = [1, 1,1, 1,2]
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    beta = [2.18518342, 0.01851308, 0., 0.01112357]
+    h, e, xx = arch.arma_garch(residual_2, delta_2, P, Q, p, q, alpha, beta)
+    print("h")
+    print(h)
+    print("e")
+    print(e)
+    print("xx")
+    print(xx)
 
 def test_likelihood_equations():
     arch = Arch()

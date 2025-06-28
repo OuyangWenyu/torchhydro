@@ -2533,7 +2533,7 @@ class Arch(object):
         beta = np.transpose(beta)
 
 
-        e = [0]*n_x  # todo:
+        e = [0]*n_x
         h = [0]*n_x
         xx = [0]*n_x
         for i in range(start, n_x):
