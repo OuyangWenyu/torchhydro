@@ -2170,6 +2170,19 @@ def test_conditional_quasi_likelihood():
     print("delta_2")
     print(delta_2)
 
+def test_likelihood_equations():
+    arch = Arch()
+    p = 2
+    q = 3
+    residual_2 = y_residual_2_streamflow_395[1:1+q]
+    delta_2 = [1, 1,1, 1,2]
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    beta = [2.18518342, 0.01851308, 0., 0.01112357]
+    eta_2 = [2.18518342, 0.01851308, 0., 0.01112357]
+    l = arch.likelihood_equations(residual_2, delta_2, eta_2)
+    print("l")
+    print(l)
+
 def test_mL_estimation():
     arch = Arch()
     x = 0

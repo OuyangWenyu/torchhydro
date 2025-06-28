@@ -2373,6 +2373,40 @@ class Arch(object):
 
         return delta_2
 
+    def likelihood_equations(
+        self,
+        residual_2,
+        delta_2,
+        eta_2,
+    ):
+        """
+        likelihood equations
+        GARCH Models  Francq & Zakoian 2010 p143
+        Parameters
+        ----------
+        residual_2
+        delta_2
+        eta_2
+
+        Returns
+        -------
+
+        """
+        n_residual_2 = len(residual_2)
+        l = np.array(residual_2) - np.array(delta_2)
+        delta_n4 = np.power(delta_2, -2)
+        l = l * delta_n4
+        l = np.average(l)
+
+        alpha = []  # todo:
+        beta = []
+        alpha_eta = alpha * eta_2  # GARCH Models  Francq & Zakoian 2010 p144
+        beta_eta = beta * eta_2
+
+        # A0_t =
+
+        return l
+
     def mL_estimation(
         self,
         x,
