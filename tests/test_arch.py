@@ -2188,6 +2188,15 @@ def test_arma_garch():
     print("xx")
     print(xx)
 
+def test_asymptotic_variance_a0_alpha0():
+    arch = Arch()
+    a = 1
+    alpha = 2
+    variance = arch.asymptotic_variance_a0_alpha0(a, alpha)
+    print("variance")
+    print(variance)
+
+
 def test_likelihood_equations():
     arch = Arch()
     p = 2
