@@ -1,7 +1,7 @@
 """
 nothing but English.
 """
-
+import mpmath.libmp
 import numpy as np
 from typing import Optional
 
@@ -2060,8 +2060,8 @@ class Arch(object):
         -------
 
         """
-        residual_2_t = np.transpose(residual_2)
-        delta_2_i = np.matmul(alpha, residual_2_t)
+        # residual_2_t = np.transpose(residual_2)
+        delta_2_i = np.matmul(residual_2, alpha)
 
         return delta_2_i
 
@@ -2088,11 +2088,13 @@ class Arch(object):
         epsilon_2 = np.zeros(n_residual_2)
         epsilon_2[:q] = np.sqrt(residual_2[:q])
 
+        alpha_t = np.transpose(alpha)
+
         for i in range(q, n_residual_2):
             residual_2_i = residual_2[i-q:i]
             residual_2_i.append(1)  # omega
             residual_2_i.reverse()
-            epsilon_2[i] = self.delta_2_one_step(residual_2_i, alpha,)
+            epsilon_2[i] = self.delta_2_one_step(residual_2_i, alpha_t)
 
         return epsilon_2
 
@@ -2606,6 +2608,84 @@ class Arch(object):
 
         return av
 
+    def delta_2(
+        self,
+        residual_2,
+        alpha,
+    ):
+        """
+        Time Series Analysis  James D.Hamilton P766
+        Parameters
+        ----------
+        residual_2
+        alpha
+
+        Returns
+        -------
+
+        """
+        n_residual_2 = len(residual_2)
+        q = len(alpha) - 1
+
+        alpha_t = np.transpose(alpha)
+        delta_2 = []
+        for i in range(q, n_residual_2):
+            x_i = residual_2[i-q:i]
+            x_i.append(1)
+            x_i.reverse()
+            delta_2_i = self.delta_2_one_step(x_i, alpha_t)
+            delta_2.append(delta_2_i)
+
+        return delta_2
+
+    def log_likelihood_bc(
+        self,
+        residual_2,
+        alpha
+    ):
+        """
+        Time Series Analysis  James D.Hamilton P766
+        Parameters
+        ----------
+        residual_2
+        alpha
+
+        Returns
+        -------
+
+        """
+        q = len(alpha) -1
+        alpha_ = np.transpose(alpha)
+        delta_2 = self.delta_2(residual_2, alpha_)
+        L_theta_b = np.log(delta_2) / 2
+        L_theta_b = np.sum(L_theta_b)
+        L_theta_c = np.array(residual_2[q:]) / np.array(delta_2)
+        L_theta_c = np.sum(L_theta_c) / 2
+        L_theta_bc = L_theta_b + L_theta_c
+
+        return L_theta_bc
+
+    def distance_theta_0_1(
+        self,
+        theta0,
+        theta1,
+    ):
+        """
+        Time Series Analysis  James D.Hamilton P155
+        Parameters
+        ----------
+        theta0
+        theta1
+
+        Returns
+        -------
+
+        """
+        d = np.array(theta1) - np.array(theta0)
+        d_t = np.transpose(d)
+        dist = np.matmul(d, d_t)
+
+        return dist
 
     def mL_estimation(
         self,
