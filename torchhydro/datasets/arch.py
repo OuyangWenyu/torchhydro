@@ -2687,6 +2687,28 @@ class Arch(object):
 
         return dist
 
+    def gradient_theta(
+        self,
+        lambd,
+        theta0,
+        theta1,
+    ):
+        """
+        gradient
+        Parameters
+        ----------
+        lambd
+        theta0
+        theta1
+
+        Returns
+        -------
+
+        """
+        g = -2 * lambd * self.distance_theta_0_1(theta0, theta1)
+
+        return g
+
     def mL_estimation(
         self,
         x,
