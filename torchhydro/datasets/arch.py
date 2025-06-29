@@ -2742,8 +2742,100 @@ class Arch(object):
 
         return theta1_
 
+    def gradient_thetai(
+        self,
+        x,
+        theta,
+        d_theta,
+        i_theta,
+        p,
+        q,
+    ):
+        """
+        gradient of single parameter.
+        Time Series Analysis  James D.Hamilton P156
+        Parameters
+        ----------
+        theta: list of parameters.
+        d_theta: the change range of single parameter.
+        i_theta: the index of single parameter in parameter list.
 
+        Returns
+        -------
 
+        """
+        theta_i = theta[i_theta] + d_theta
+        theta1 = theta
+        theta1[i_theta] = theta_i
+        phi0 = theta[:p]
+        alpha0 = theta[p:]
+        residual0 = self.x_residual_via_parameters(x=x, phi=phi0)
+        residual0_2 = np.power(residual0, 2)
+        L0 = self.log_likelihood_bc(residual0_2, alpha0)
+        phi1 = theta1[:p]
+        alpha1 = theta1[p:]
+        residual1 = self.x_residual_via_parameters(x=x, phi=phi1)
+        residual1_2 = np.power(residual1, 2)
+        L1 = self.log_likelihood_bc(residual1_2, alpha1)
+
+        grad = (L1 - L0) / d_theta
+
+        return grad
+
+    def x_residual_via_parameters(
+        self,
+        x,
+        phi,
+    ):
+        """
+        residual via parameters.
+        Parameters
+        ----------
+        x
+        alpha
+
+        Returns
+        -------
+
+        """
+        p = len(phi)
+        y_t = self.arima(x=x, phi=phi, p=p)
+        x_residual = np.array(x) - np.array(y_t)
+
+        return x_residual
+
+    def gradient(
+        self,
+        x,
+        theta,
+        d_theta,
+        p,
+        q,
+    ):
+        """
+        gradient of all parameters.
+        Time Series Analysis  James D.Hamilton P156
+        Parameters
+        ----------
+        x
+        theta
+        d_theta
+        p
+        q
+
+        Returns
+        -------
+
+        """
+        n_theta = len(theta)
+        if n_theta != p + q:
+            raise ValueError("the length of theta do not equal to p+q, error!")
+
+        gradient = [0]*n_theta
+        for i in range(n_theta):
+            gradient[i] = self.gradient_thetai(x, theta, d_theta, i, p, q)
+
+        return gradient
 
 
     def mL_estimation(
