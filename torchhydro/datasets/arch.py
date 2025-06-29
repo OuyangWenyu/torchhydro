@@ -2695,6 +2695,7 @@ class Arch(object):
     ):
         """
         gradient
+        Time Series Analysis  James D.Hamilton P155
         Parameters
         ----------
         lambd
@@ -2705,9 +2706,42 @@ class Arch(object):
         -------
 
         """
-        g = -2 * lambd * self.distance_theta_0_1(theta0, theta1)
+        grad = -2 * lambd * (np.array(theta1) - np.array(theta0))
 
-        return g
+        return grad
+
+    def grid_search(
+        self,
+        residual_2,
+        theta0,
+        grad,
+    ):
+        """
+        grid searching
+        Time Series Analysis  James D.Hamilton P157
+        Parameters
+        ----------
+        theta0
+
+        Returns
+        -------
+
+        """
+        s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
+        n_s = len(s)
+
+        L_theta_bc = [0] * n_s
+        theta1 = [0] * n_s
+        for i in range(n_s):
+            theta1[i] = np.array(theta0) + s[i] * grad
+            L_theta_bc[i] = self.log_likelihood_bc(residual_2, theta1[i])
+
+        theta1 = theta1
+        return theta1
+
+
+
+
 
     def mL_estimation(
         self,

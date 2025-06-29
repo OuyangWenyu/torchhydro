@@ -2183,6 +2183,27 @@ def test_log_likelihood_bc():
 # L_theta_bc
 # 3366.3309763442985
 
+def test_distance_theta_0_1():
+    arch = Arch()
+    theta0 = [2.18518342, 0.01851308, 0., 0.01112357]
+    theta1 = [34.83797803, 0.60908538, 0., 0.16389898]
+    L_theta_bc = arch.distance_theta_0_1(theta0, theta1)
+    print("L_theta_bc")
+    print(L_theta_bc)
+# L_theta_bc
+# 1066.577111810273
+
+def test_gradient_theta():
+    arch = Arch()
+    lambd = 0.8
+    theta0 = [2.18518342, 0.01851308, 0., 0.01112357]
+    theta1 = [34.83797803, 0.60908538, 0., 0.16389898]
+    grad = arch.gradient_theta(lambd, theta0, theta1)
+    print("grad")
+    print(grad)
+# grad
+# [-52.24447138  -0.94491568  -0.          -0.24444066]
+
 def test_mL_estimation():
     arch = Arch()
     x = 0
