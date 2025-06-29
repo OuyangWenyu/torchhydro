@@ -2562,6 +2562,7 @@ class Arch(object):
         alpha,
     ):
         """
+        asymptotic variance
         GARCH Models  Francq & Zakoian 2010  p155
         Parameters
         ----------
@@ -2600,7 +2601,9 @@ class Arch(object):
         av23_X = "-"
         av = np.empty((2, 2, 4))
 
-        # todo:
+        # set value
+        av[0, 0, 0] = av00_N
+
         return av
 
 
