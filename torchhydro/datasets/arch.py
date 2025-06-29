@@ -2714,7 +2714,7 @@ class Arch(object):
         self,
         residual_2,
         theta0,
-        grad,
+        grad,  # todo:
     ):
         """
         grid searching
@@ -2731,13 +2731,16 @@ class Arch(object):
         n_s = len(s)
 
         L_theta_bc = [0] * n_s
-        theta1 = [0] * n_s
+        theta1 = []
         for i in range(n_s):
-            theta1[i] = np.array(theta0) + s[i] * grad
-            L_theta_bc[i] = self.log_likelihood_bc(residual_2, theta1[i])
+            theta1_i = np.array(theta0) + s[i] * grad
+            theta1.append(theta1_i)
+            L_theta_bc_i = self.log_likelihood_bc(residual_2, theta1_i)
+            L_theta_bc[i] = L_theta_bc_i
+        i_max = np.argmax(L_theta_bc)
+        theta1_ = theta1[i_max]
 
-        theta1 = theta1
-        return theta1
+        return theta1_
 
 
 
