@@ -1425,12 +1425,11 @@ def test_x_residual():
 # [2.330751891026416e-05, 2.5574868559214998e-05, 8.828379847179134e-06, 2.3583773354609526e-05, 1.1762251886041388e-05, 9.797838306742823e-06]
 
 def test_x_residual_streamflow():
-    x = [1, 2]
     arch = Arch()
     p = 2
     d = 0
     q = 0
-    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_streamflow_395_itp, e_100, p, d, q)
+    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_streamflow_395, e_100, p, d, q)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\x_residual.txt', x_residual)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_t.txt', y_t)
     print("R_2")
@@ -1459,6 +1458,24 @@ def test_x_residual_streamflow():
 # []
 # se_beta
 # [0.02400366981844562, 0.040984491020285965, 0.024005252043346952]
+# y_streamflow_395 p=3
+# R_2
+# 0.9950663164644005
+# phi
+# [ 2.40237309 -2.01357576  0.61026411]
+# theta
+# []
+# se_beta
+# [0.04991477786357921, 0.09593768871420823, 0.049900263471139426]
+# y_streamflow_395 p=2
+# R_2
+# 0.9933629294169934
+# phi
+# [ 1.86818005 -0.87194949]
+# theta
+# []
+# se_beta
+# [0.027635877526645366, 0.02762854656367414]
 
 def test_LB_statistic():
     y_residual = [0, 0, -0.65798056, 1.20741142, -0.99820696, 2.40876836, -1.85362018, 0.85126399, -0.45792635,
@@ -2203,6 +2220,54 @@ def test_gradient_theta():
     print(grad)
 # grad
 # [-52.24447138  -0.94491568  -0.          -0.24444066]
+
+def test_x_residual_via_parameters():
+    arch = Arch()
+    x = y_streamflow_395
+    phi = [1.86818005, -0.87194949]
+    x_residual, y_t = arch.x_residual_via_parameters(x, phi)
+    print("x_residual")
+    print(x_residual)
+    print("y_t")
+    print(y_t)
+# x_residual
+# [ 0.00000000e+00  0.00000000e+00  1.39448223e+00  1.31951719e+00
+# y_t
+# [167.6        165.8        163.60551777 163.68048281 164.3780424
+
+def test_gradient_thetai():
+    arch = Arch()
+    x = y_streamflow_395
+    p = 2
+    q = 3
+    phi = [1.86818005, -0.87194949]
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    theta = phi + alpha
+    d_theta = 0.001
+    i_theta = 0
+    grad, residual0, residual1 = arch.gradient_thetai(x, theta, d_theta, i_theta, p, q)
+    print("grad")
+    print(grad)
+    print("residual0")
+    print(residual0)
+    print("residual1")
+    print(residual1)
+# grad
+# 0.0
+
+def test_gradient():
+    arch = Arch()
+    x = y_streamflow_395
+    p = 2
+    q = 3
+    phi = [1.86818005, -0.87194949]
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    theta = phi + alpha
+    d_theta = 0.000001
+    i_theta = 0
+    grad = arch.gradient_thetai(x, theta, d_theta, i_theta, p, q)
+    print("grad")
+    print(grad)
 
 def test_grid_search():
     arch = Arch()
