@@ -2881,9 +2881,14 @@ class Arch(object):
         -------
 
         """
+        n_theta = len(theta0)
+        if n_theta < p+q+1:
+            raise ValueError("the length of theta0 need be equal to p+q+1.")
+
         e_distance_grad_0 = 0.001
         e_likelihood_theta_1_0 = 0.001
         e_distance_theta_1_0 = 0.001
+        max_loop = 10000
 
         iloop = 0
         while True:
@@ -2900,13 +2905,12 @@ class Arch(object):
             distance_grad_0 = self.distance_theta_0_1(gradient)
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
 
-            if (distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0) or (distance_theta_1_0 <= e_distance_theta_1_0):
+            if (distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0) or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop):
                 break
             else:
                 theta0 = theta1[:]
 
         return theta1
-
 
 
     def mL_estimation(
