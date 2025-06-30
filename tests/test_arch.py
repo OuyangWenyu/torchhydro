@@ -2237,6 +2237,23 @@ def test_gradient_ascent():
     print("theta1")
     print(theta1)
 
+def test_H_gradient_thetai():
+    arch = Arch()
+    x = y_streamflow_395
+    p = 2
+    q = 3
+    phi = [1.86818005, -0.87194949]
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    theta = phi + alpha
+    d_theta = 0.000001
+    i_theta = 0
+    grad, residual0, residual1 = arch.H_gradient_thetai(x, theta, d_theta, i_theta, p, q)
+    print("grad")
+    print(grad)
+    print("residual0")
+    print(residual0)
+    print("residual1")
+    print(residual1)
 
 def test_mL_estimation():
     arch = Arch()

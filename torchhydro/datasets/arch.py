@@ -2896,7 +2896,7 @@ class Arch(object):
             phi = theta0[:p]
             residual0 = self.x_residual_via_parameters(x, phi)
             residual0_2 = np.power(residual0, 2)
-            gradient = self.gradient(x, theta0, d_theta, p, q, residual0_2)
+            gradient = self.gradient(x, theta0, d_theta, p, q, residual0_2)  # todo:
             theta1, likelihood_theta_1_0, L_theta_bc = self.grid_search(residual0_2, theta0, gradient)
             print(str(iloop) + " theta1 L_theta_bc")
             print(theta1)
@@ -2912,6 +2912,56 @@ class Arch(object):
 
         return theta1
 
+    def H_gradient_thetai(
+        self,
+        x,
+        theta0,
+        d_theta,
+        i_theta,
+        p,
+        q,
+        residual0_2: Optional = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        theta0
+        d_theta
+        i_theta
+        p
+        q
+        residual0_2
+
+        Returns
+        -------
+
+        """
+        # theta1
+        theta_i = theta0[i_theta] + d_theta
+        theta1 = theta0[:]
+        theta1[i_theta] = theta_i
+
+        # likelihood of theta
+        alpha0 = theta0[p:]
+        if residual0_2 is None:
+            phi0 = theta0[:p]
+            residual0 = self.x_residual_via_parameters(x=x, phi=phi0)
+            residual0_2 = np.power(residual0, 2)
+        L0 = self.log_likelihood_bc(residual0_2, alpha0)
+
+        # likelihood of theta1
+        phi1 = theta1[:p]
+        alpha1 = theta1[p:]
+        residual1 = self.x_residual_via_parameters(x=x, phi=phi1)
+        residual1_2 = np.power(residual1, 2)
+        L1 = self.log_likelihood_bc(residual1_2, alpha1)
+
+        # gradient
+        grad = (L1 - L0) / d_theta
+
+        return grad
 
     def mL_estimation(
         self,
