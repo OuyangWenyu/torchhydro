@@ -2655,13 +2655,15 @@ class Arch(object):
         -------
 
         """
-        q = len(alpha) -1
+        q = len(alpha) - 1
         alpha_ = np.transpose(alpha)
         delta_2 = self.delta_2(residual_2, alpha_)
         L_theta_b = np.log(delta_2) / 2
         L_theta_b = np.sum(L_theta_b)
+
         L_theta_c = np.array(residual_2[q:]) / np.array(delta_2)
         L_theta_c = np.sum(L_theta_c) / 2
+
         L_theta_bc = L_theta_b + L_theta_c
 
         return L_theta_bc
@@ -2736,11 +2738,12 @@ class Arch(object):
     def gradient_thetai(
         self,
         x,
-        theta,
+        theta0,
         d_theta,
         i_theta,
         p,
         q,
+        residual0_2: Optional = None,
     ):
         """
         gradient of single parameter.
@@ -2756,15 +2759,16 @@ class Arch(object):
 
         """
         # theta1
-        theta_i = theta[i_theta] + d_theta
-        theta1 = theta
+        theta_i = theta0[i_theta] + d_theta
+        theta1 = theta0[:]
         theta1[i_theta] = theta_i
 
         # likelihood of theta
-        phi0 = theta[:p]
-        alpha0 = theta[p:]
-        residual0 = self.x_residual_via_parameters(x=x, phi=phi0)
-        residual0_2 = np.power(residual0, 2)
+        alpha0 = theta0[p:]
+        if residual0_2 is None:
+            phi0 = theta0[:p]
+            residual0 = self.x_residual_via_parameters(x=x, phi=phi0)
+            residual0_2 = np.power(residual0, 2)
         L0 = self.log_likelihood_bc(residual0_2, alpha0)
 
         # likelihood of theta1
@@ -2777,15 +2781,16 @@ class Arch(object):
         # gradient
         grad = (L1 - L0) / d_theta
 
-        return grad, residual0, residual1
+        return grad  #, residual0, residual1
 
     def gradient(
         self,
         x,
-        theta,
+        theta0,
         d_theta,
         p,
         q,
+        residual0_2: Optional = None,
     ):
         """
         gradient of all parameters.
@@ -2793,7 +2798,7 @@ class Arch(object):
         Parameters
         ----------
         x
-        theta
+        theta0
         d_theta
         p
         q
@@ -2802,13 +2807,13 @@ class Arch(object):
         -------
 
         """
-        n_theta = len(theta)
+        n_theta = len(theta0)
         if n_theta != p + q + 1:  # omega of arch model
             raise ValueError("the length of theta do not equal to p+q, error!")
 
         gradient = [0]*n_theta
         for i in range(n_theta):
-            gradient[i] = self.gradient_thetai(x, theta, d_theta, i, p, q)
+            gradient[i] = self.gradient_thetai(x, theta0, d_theta, i, p, q, residual0_2)
 
         return gradient
 
@@ -2835,7 +2840,7 @@ class Arch(object):
         L_theta_bc = [0] * n_s
         theta1 = []
         for i in range(n_s):
-            theta1_i = np.array(theta0) + s[i] * grad
+            theta1_i = np.array(theta0) + s[i] * np.array(grad)
             theta1.append(theta1_i)
             L_theta_bc_i = self.log_likelihood_bc(residual_2, theta1_i)
             L_theta_bc[i] = L_theta_bc_i
@@ -2844,6 +2849,49 @@ class Arch(object):
 
         return theta1_
 
+    def gradient_ascent(
+        self,
+        x,
+        theta0,
+        d_theta,
+        p,
+        q,
+    ):
+        """
+        gradient ascent
+        Time Series Analysis  James D.Hamilton P157
+        Parameters
+        ----------
+        x
+        theta0
+        d_theta
+        p
+        q
+
+        Returns
+        -------
+
+        """
+        e_distance_grad_0 = 0.001
+        e_theta = 0.001
+        e_distance_theta_1_0 = 0.001
+
+        while True:
+            phi = theta0[:p]
+            residual0 = self.x_residual_via_parameters(x, phi)
+            residual0_2 = np.power(residual0, 2)
+            gradient = self.gradient(x, theta0, d_theta, p, q, residual0_2)
+            theta1 = self.grid_search(residual0_2, theta0, gradient)
+
+            distance_grad_0 = self.distance_theta_0_1(gradient, theta1)  # todo:
+            distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
+
+            if distance_theta_1_0 < e_distance_theta_1_0:
+                break
+            else:
+                theta0 = theta1[:]
+
+        return theta1
 
 
 
