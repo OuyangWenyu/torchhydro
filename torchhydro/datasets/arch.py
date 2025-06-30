@@ -2671,7 +2671,7 @@ class Arch(object):
     def distance_theta_0_1(
         self,
         theta0,
-        theta1,
+        theta1: Optional = None,
     ):
         """
         Time Series Analysis  James D.Hamilton P155
@@ -2684,6 +2684,9 @@ class Arch(object):
         -------
 
         """
+        if theta1 is None:
+            n_theta0 = len(theta0)
+            theta1 = [0]*n_theta0
         d = np.array(theta1) - np.array(theta0)
         d_t = np.transpose(d)
         dist = np.matmul(d, d_t)
@@ -2883,10 +2886,10 @@ class Arch(object):
             gradient = self.gradient(x, theta0, d_theta, p, q, residual0_2)
             theta1 = self.grid_search(residual0_2, theta0, gradient)
 
-            distance_grad_0 = self.distance_theta_0_1(gradient, theta1)  # todo:
+            distance_grad_0 = self.distance_theta_0_1(gradient)
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
 
-            if distance_theta_1_0 < e_distance_theta_1_0:
+            if (distance_grad_0 <= e_distance_grad_0) or (distance_theta_1_0 <= e_distance_theta_1_0):
                 break
             else:
                 theta0 = theta1[:]

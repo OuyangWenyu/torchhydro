@@ -2204,11 +2204,14 @@ def test_distance_theta_0_1():
     arch = Arch()
     theta0 = [2.18518342, 0.01851308, 0., 0.01112357]
     theta1 = [34.83797803, 0.60908538, 0., 0.16389898]
-    L_theta_bc = arch.distance_theta_0_1(theta0, theta1)
-    print("L_theta_bc")
-    print(L_theta_bc)
-# L_theta_bc
+    gradient = [-30052.930200781702, -30781.481516442, -1146.8238021734578, -14832.662553089904, -6339.343972740608, -17149.872735899407]
+    distance = arch.distance_theta_0_1(gradient)
+    print("distance")
+    print(distance)
+# distance  theta0 theta1
 # 1066.577111810273
+# distance  gradient
+# 2406306718.109453
 
 def test_gradient_theta():
     arch = Arch()
