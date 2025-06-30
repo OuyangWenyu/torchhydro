@@ -2243,7 +2243,7 @@ def test_gradient_thetai():
     phi = [1.86818005, -0.87194949]
     alpha = [2.18518342, 0.01851308, 0., 0.01112357]
     theta = phi + alpha
-    d_theta = 0.001
+    d_theta = 0.1
     i_theta = 0
     grad, residual0, residual1 = arch.gradient_thetai(x, theta, d_theta, i_theta, p, q)
     print("grad")
@@ -2252,8 +2252,22 @@ def test_gradient_thetai():
     print(residual0)
     print("residual1")
     print(residual1)
-# grad
+# grad  d_theta=0.001
 # 0.0
+# residual0
+# [ 0.00000000e+00  0.00000000e+00  1.22868223e+00  1.15451719e+00
+# residual1
+# [ 0.00000000e+00  0.00000000e+00  1.22868223e+00  1.15451719e+00
+# grad  d_theta=0.01
+# 0.0
+# residual0
+# [ 0.00000000e+00  0.00000000e+00 -2.63517766e-01 -3.30482808e-01
+# grad  d_theta=0.1
+# 0.0
+# residual0
+# [   0.            0.          -15.18551777  -15.18048281  -15.8780424
+# residual1
+# [   0.            0.          -15.18551777  -15.18048281  -15.8780424
 
 def test_gradient():
     arch = Arch()
