@@ -2319,6 +2319,18 @@ def test_grid_search():
 # theta1
 # [-1876.4399575  -1924.71454427   -69.49130422  -927.02289649  -396.2089983  -1071.85592242]
 
+def test_gradient_ascent():
+    arch = Arch()
+    phi = [1.86818005, -0.87194949]
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    theta = phi + alpha
+    d_theta = 0.000001
+    p = 2
+    q = 3
+    theta1 = arch.gradient_ascent(y_residual_2_streamflow_395, theta, d_theta, p, q)
+    print("theta1")
+    print(theta1)
+
 def test_mL_estimation():
     arch = Arch()
     x = 0

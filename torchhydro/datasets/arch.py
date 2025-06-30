@@ -2840,6 +2840,8 @@ class Arch(object):
         s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         n_s = len(s)
 
+        L_theta_bc0 = self.log_likelihood_bc(residual_2, theta0)
+
         L_theta_bc = [0] * n_s
         theta1 = []
         for i in range(n_s):
@@ -2847,10 +2849,14 @@ class Arch(object):
             theta1.append(theta1_i)
             L_theta_bc_i = self.log_likelihood_bc(residual_2, theta1_i)
             L_theta_bc[i] = L_theta_bc_i
+
         i_max = np.argmax(L_theta_bc)
         theta1_ = theta1[i_max]
+        L_theta_bc_ = L_theta_bc[i_max]
 
-        return theta1_
+        likelihood_theta_1_0 = np.absolute(L_theta_bc_-L_theta_bc0)
+
+        return theta1_, likelihood_theta_1_0, L_theta_bc_
 
     def gradient_ascent(
         self,
@@ -2876,26 +2882,30 @@ class Arch(object):
 
         """
         e_distance_grad_0 = 0.001
-        e_theta = 0.001
+        e_likelihood_theta_1_0 = 0.001
         e_distance_theta_1_0 = 0.001
 
+        iloop = 0
         while True:
+            iloop = iloop + 1
             phi = theta0[:p]
             residual0 = self.x_residual_via_parameters(x, phi)
             residual0_2 = np.power(residual0, 2)
             gradient = self.gradient(x, theta0, d_theta, p, q, residual0_2)
-            theta1 = self.grid_search(residual0_2, theta0, gradient)
+            theta1, likelihood_theta_1_0, L_theta_bc = self.grid_search(residual0_2, theta0, gradient)
+            print(str(iloop) + " theta1 L_theta_bc")
+            print(theta1)
+            print(L_theta_bc)
 
             distance_grad_0 = self.distance_theta_0_1(gradient)
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
 
-            if (distance_grad_0 <= e_distance_grad_0) or (distance_theta_1_0 <= e_distance_theta_1_0):
+            if (distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0) or (distance_theta_1_0 <= e_distance_theta_1_0):
                 break
             else:
                 theta0 = theta1[:]
 
         return theta1
-
 
 
 
