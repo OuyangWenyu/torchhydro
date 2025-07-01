@@ -2824,6 +2824,27 @@ class Arch(object):
 
         return gradient
 
+    def gradient_module(
+        self,
+        grad,
+    ):
+        """
+
+        Parameters
+        ----------
+        grad
+
+        Returns
+        -------
+
+        """
+        grad_t = np.transpose(grad)
+        module = np.matmul(grad, grad_t)
+        module = np.sqrt(module)
+
+        return module
+
+
     def grid_search(
         self,
         residual_2,
@@ -2844,6 +2865,9 @@ class Arch(object):
 
         """
         s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
+        grad_module = self.gradient_module(grad)
+        if grad_module > 100:
+            s = np.array(s) * d_theta
         n_s = len(s)
 
         alpha0 = theta0[p:]
@@ -2852,18 +2876,18 @@ class Arch(object):
         L_theta = [0] * n_s
         theta1 = []
         for i in range(n_s):
-            theta1_i = np.array(theta0) + s[i] * d_theta * np.array(grad)
+            theta1_i = np.array(theta0) + s[i] * np.array(grad)
             theta1.append(theta1_i)
             alpha_i = theta1_i[p:]
             L_theta[i] = self.log_likelihood(residual_2, alpha_i)
 
         i_max = np.argmax(L_theta)
         theta1_ = theta1[i_max]
-        L_theta = L_theta[i_max]
+        L_theta_ = L_theta[i_max]
 
-        likelihood_theta_1_0 = np.absolute(L_theta-L_theta0)
+        likelihood_theta_1_0 = np.absolute(L_theta_-L_theta0)
 
-        return theta1_, likelihood_theta_1_0, L_theta
+        return theta1_, likelihood_theta_1_0, L_theta_
 
     def gradient_ascent(
         self,
@@ -2915,6 +2939,10 @@ class Arch(object):
 
             if ((distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0)
                 or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
+                print("distance_grad_0 = " + str(distance_grad_0))
+                print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0))
+                print("distance_theta_1_0 = " + str(distance_theta_1_0))
+                print("iloop = " + str(iloop))
                 break
             else:
                 theta0 = theta1[:]
