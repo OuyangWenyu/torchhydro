@@ -2796,6 +2796,7 @@ class Arch(object):
         d_theta,
         p,
         q,
+        i_theta,
         residual0_2: Optional = None,
     ):
         """
@@ -2818,7 +2819,7 @@ class Arch(object):
             raise ValueError("the length of theta do not equal to p+q, error!")
 
         gradient = [0]*n_theta
-        for i in range(n_theta):
+        for i in i_theta:
             gradient[i] = self.gradient_thetai(x, theta0, d_theta, i, p, q, residual0_2)
 
         return gradient
@@ -2828,6 +2829,8 @@ class Arch(object):
         residual_2,
         theta0,
         grad,
+        d_theta,
+        p,
     ):
         """
         grid searching
@@ -2843,23 +2846,24 @@ class Arch(object):
         s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         n_s = len(s)
 
-        L_theta0 = self.log_likelihood(residual_2, theta0)
+        alpha0 = theta0[p:]
+        L_theta0 = self.log_likelihood(residual_2, alpha0)
 
         L_theta = [0] * n_s
         theta1 = []
         for i in range(n_s):
-            theta1_i = np.array(theta0) + s[i] * np.array(grad)
+            theta1_i = np.array(theta0) + s[i] * d_theta * np.array(grad)
             theta1.append(theta1_i)
-            L_theta_i = self.log_likelihood(residual_2, theta1_i)
-            L_theta[i] = L_theta_i
+            alpha_i = theta1_i[p:]
+            L_theta[i] = self.log_likelihood(residual_2, alpha_i)
 
         i_max = np.argmax(L_theta)
         theta1_ = theta1[i_max]
-        L_theta_bc_ = L_theta[i_max]
+        L_theta = L_theta[i_max]
 
-        likelihood_theta_1_0 = np.absolute(L_theta_bc_-L_theta0)
+        likelihood_theta_1_0 = np.absolute(L_theta-L_theta0)
 
-        return theta1_, likelihood_theta_1_0, L_theta_bc_
+        return theta1_, likelihood_theta_1_0, L_theta
 
     def gradient_ascent(
         self,
@@ -2868,6 +2872,7 @@ class Arch(object):
         d_theta,
         p,
         q,
+        i_theta,
     ):
         """
         gradient ascent
@@ -2891,7 +2896,7 @@ class Arch(object):
         e_distance_grad_0 = 0.001
         e_likelihood_theta_1_0 = 0.001
         e_distance_theta_1_0 = 0.001
-        max_loop = 2
+        max_loop = 20
 
         iloop = 0
         while True:
@@ -2899,8 +2904,8 @@ class Arch(object):
             phi = theta0[:p]
             residual0 = self.x_residual_via_parameters(x, phi)
             residual0_2 = np.power(residual0, 2)
-            gradient = self.gradient(x, theta0, d_theta, p, q, residual0_2)  # todo:
-            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient)
+            gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
+            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient, d_theta, p)
             print(str(iloop) + " theta1 L_theta")
             print(theta1)
             print(L_theta)
