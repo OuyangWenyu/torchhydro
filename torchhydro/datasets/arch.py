@@ -2921,6 +2921,40 @@ class Arch(object):
 
         return theta1
 
+    def multi_gradient_ascent(
+        self,
+        x,
+        theta0,
+        d_theta,
+        p,
+        q,
+        i_theta,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        theta0
+        d_theta
+        p
+        q
+        i_theta
+
+        Returns
+        -------
+
+        """
+        n_theta = len(theta0)
+
+        theta1 = []
+        for i in range(n_theta):
+            theta0_i = theta0[i]
+            theta1_i = self.gradient_ascent(x, theta0_i, d_theta, p, q, i_theta)
+            theta1.append(theta1_i)
+
+        return theta1
+
     def H_gradient_thetai(
         self,
         x,
