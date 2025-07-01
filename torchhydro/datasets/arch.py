@@ -2638,7 +2638,7 @@ class Arch(object):
 
         return delta_2
 
-    def log_likelihood_bc(
+    def log_likelihood(
         self,
         residual_2,
         alpha
@@ -2655,18 +2655,21 @@ class Arch(object):
         -------
 
         """
+        n_residual_2 = len(residual_2)
+        L_theta_a = n_residual_2 / 2 * np.log(2 * np.pi)
+
         q = len(alpha) - 1
         alpha_ = np.transpose(alpha)
         delta_2 = self.delta_2(residual_2, alpha_)
-        L_theta_b = np.log(delta_2) / 2
-        L_theta_b = np.sum(L_theta_b)
+        L_theta_b = np.log(delta_2)
+        L_theta_b = np.sum(L_theta_b) / 2
 
         L_theta_c = np.array(residual_2[q:]) / np.array(delta_2)
         L_theta_c = np.sum(L_theta_c) / 2
 
-        L_theta_bc = L_theta_b + L_theta_c
+        L_theta = - (L_theta_a + L_theta_b + L_theta_c)
 
-        return L_theta_bc
+        return L_theta
 
     def distance_theta_0_1(
         self,
@@ -2772,14 +2775,14 @@ class Arch(object):
             phi0 = theta0[:p]
             residual0 = self.x_residual_via_parameters(x=x, phi=phi0)
             residual0_2 = np.power(residual0, 2)
-        L0 = self.log_likelihood_bc(residual0_2, alpha0)
+        L0 = self.log_likelihood(residual0_2, alpha0)
 
         # likelihood of theta1
         phi1 = theta1[:p]
         alpha1 = theta1[p:]
         residual1 = self.x_residual_via_parameters(x=x, phi=phi1)
         residual1_2 = np.power(residual1, 2)
-        L1 = self.log_likelihood_bc(residual1_2, alpha1)
+        L1 = self.log_likelihood(residual1_2, alpha1)
 
         # gradient
         grad = (L1 - L0) / d_theta
@@ -2840,21 +2843,21 @@ class Arch(object):
         s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         n_s = len(s)
 
-        L_theta_bc0 = self.log_likelihood_bc(residual_2, theta0)
+        L_theta0 = self.log_likelihood(residual_2, theta0)
 
-        L_theta_bc = [0] * n_s
+        L_theta = [0] * n_s
         theta1 = []
         for i in range(n_s):
             theta1_i = np.array(theta0) + s[i] * np.array(grad)
             theta1.append(theta1_i)
-            L_theta_bc_i = self.log_likelihood_bc(residual_2, theta1_i)
-            L_theta_bc[i] = L_theta_bc_i
+            L_theta_i = self.log_likelihood(residual_2, theta1_i)
+            L_theta[i] = L_theta_i
 
-        i_max = np.argmax(L_theta_bc)
+        i_max = np.argmax(L_theta)
         theta1_ = theta1[i_max]
-        L_theta_bc_ = L_theta_bc[i_max]
+        L_theta_bc_ = L_theta[i_max]
 
-        likelihood_theta_1_0 = np.absolute(L_theta_bc_-L_theta_bc0)
+        likelihood_theta_1_0 = np.absolute(L_theta_bc_-L_theta0)
 
         return theta1_, likelihood_theta_1_0, L_theta_bc_
 
@@ -2888,7 +2891,7 @@ class Arch(object):
         e_distance_grad_0 = 0.001
         e_likelihood_theta_1_0 = 0.001
         e_distance_theta_1_0 = 0.001
-        max_loop = 10000
+        max_loop = 2
 
         iloop = 0
         while True:
@@ -2905,7 +2908,8 @@ class Arch(object):
             distance_grad_0 = self.distance_theta_0_1(gradient)
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
 
-            if (distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0) or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop):
+            if ((distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0)
+                or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
                 break
             else:
                 theta0 = theta1[:]
@@ -2949,14 +2953,14 @@ class Arch(object):
             phi0 = theta0[:p]
             residual0 = self.x_residual_via_parameters(x=x, phi=phi0)
             residual0_2 = np.power(residual0, 2)
-        L0 = self.log_likelihood_bc(residual0_2, alpha0)
+        L0 = self.log_likelihood(residual0_2, alpha0)
 
         # likelihood of theta1
         phi1 = theta1[:p]
         alpha1 = theta1[p:]
         residual1 = self.x_residual_via_parameters(x=x, phi=phi1)
         residual1_2 = np.power(residual1, 2)
-        L1 = self.log_likelihood_bc(residual1_2, alpha1)
+        L1 = self.log_likelihood(residual1_2, alpha1)
 
         # gradient
         grad = (L1 - L0) / d_theta
