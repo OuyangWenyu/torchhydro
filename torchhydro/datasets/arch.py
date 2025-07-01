@@ -2893,9 +2893,9 @@ class Arch(object):
         if n_theta < p+q+1:
             raise ValueError("the length of theta0 need be equal to p+q+1.")
 
-        e_distance_grad_0 = 0.001
-        e_likelihood_theta_1_0 = 0.001
-        e_distance_theta_1_0 = 0.001
+        e_distance_grad_0 = 0.000001
+        e_likelihood_theta_1_0 = 0.000001
+        e_distance_theta_1_0 = 0.000001
         max_loop = 20
 
         iloop = 0
