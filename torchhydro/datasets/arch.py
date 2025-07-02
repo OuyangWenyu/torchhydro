@@ -4,6 +4,7 @@ nothing but English.
 import mpmath.libmp
 import numpy as np
 from typing import Optional
+import time
 
 
 class Arch(object):
@@ -2744,7 +2745,7 @@ class Arch(object):
     def gradient_thetai(
         self,
         x,
-        theta0,
+        theta,
         d_theta,
         i_theta,
         p,
@@ -2764,9 +2765,10 @@ class Arch(object):
         -------
 
         """
+        theta0 = theta[:]
         # theta1
         theta_i = theta0[i_theta] + d_theta
-        theta1 = theta0[:]
+        theta1 = theta0.copy()
         theta1[i_theta] = theta_i
 
         # likelihood of theta
@@ -2792,7 +2794,7 @@ class Arch(object):
     def gradient(
         self,
         x,
-        theta0,
+        theta,
         d_theta,
         p,
         q,
@@ -2814,13 +2816,13 @@ class Arch(object):
         -------
 
         """
-        n_theta = len(theta0)
+        n_theta = len(theta)
         if n_theta != p + q + 1:  # omega of arch model
             raise ValueError("the length of theta do not equal to p+q, error!")
 
         gradient = [0]*n_theta
         for i in i_theta:
-            gradient[i] = self.gradient_thetai(x, theta0, d_theta, i, p, q, residual0_2)
+            gradient[i] = self.gradient_thetai(x, theta, d_theta, i, p, q, residual0_2)
 
         return gradient
 
@@ -2892,7 +2894,7 @@ class Arch(object):
     def gradient_ascent(
         self,
         x,
-        theta0,
+        theta,
         d_theta,
         p,
         q,
@@ -2913,16 +2915,18 @@ class Arch(object):
         -------
 
         """
-        n_theta = len(theta0)
+        n_theta = len(theta)
         if n_theta < p+q+1:
             raise ValueError("the length of theta0 need be equal to p+q+1.")
 
         e_distance_grad_0 = 0.000001
         e_likelihood_theta_1_0 = 0.000001
         e_distance_theta_1_0 = 0.000001
-        max_loop = 20
+        max_loop = 10000
+        node_loop = 500
 
         iloop = 0
+        theta0 = theta[:]
         while True:
             iloop = iloop + 1
             phi = theta0[:p]
@@ -2930,15 +2934,24 @@ class Arch(object):
             residual0_2 = np.power(residual0, 2)
             gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
             theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient, d_theta, p)
-            print(str(iloop) + " theta1 L_theta")
-            print(theta1)
-            print(L_theta)
+            # print(str(iloop) + " theta1 L_theta", flush=True)
+            # print(theta1, flush=True)
+            # print(L_theta, flush=True)
 
             distance_grad_0 = self.distance_theta_0_1(gradient)
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
 
+            if iloop % node_loop == 0:
+                print("----------iloop = " + str(iloop) + "----------", flush=True)
+                print(theta1, flush=True)
+                print(L_theta, flush=True)
+                print("distance_grad_0 = " + str(distance_grad_0), flush=True)
+                print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0), flush=True)
+                print("distance_theta_1_0 = " + str(distance_theta_1_0), flush=True)
+
             if ((distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0)
                 or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
+                print("----------end----------", flush=True)
                 print("distance_grad_0 = " + str(distance_grad_0))
                 print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0))
                 print("distance_theta_1_0 = " + str(distance_theta_1_0))
@@ -2952,7 +2965,7 @@ class Arch(object):
     def multi_gradient_ascent(
         self,
         x,
-        theta0,
+        theta,
         d_theta,
         p,
         q,
@@ -2963,7 +2976,7 @@ class Arch(object):
         Parameters
         ----------
         x
-        theta0
+        theta: multi initial values of parameters
         d_theta
         p
         q
@@ -2973,11 +2986,11 @@ class Arch(object):
         -------
 
         """
-        n_theta = len(theta0)
+        n_theta = len(theta)
 
         theta1 = []
         for i in range(n_theta):
-            theta0_i = theta0[i]
+            theta0_i = theta[i]
             theta1_i = self.gradient_ascent(x, theta0_i, d_theta, p, q, i_theta)
             theta1.append(theta1_i)
 
