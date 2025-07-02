@@ -2920,7 +2920,7 @@ class Arch(object):
             raise ValueError("the length of theta0 need be equal to p+q+1.")
 
         e_distance_grad_0 = 0.001
-        e_likelihood_theta_1_0 = 0.01
+        e_likelihood_theta_1_0 = 0.001
         e_distance_theta_1_0 = 0.01
         max_loop = 10000
         node_loop = 500
@@ -2933,14 +2933,14 @@ class Arch(object):
             residual0 = self.x_residual_via_parameters(x, phi)
             residual0_2 = np.power(residual0, 2)
             gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
-            gradient = np.where(gradient < 0, -gradient, gradient)
+            gradient_ = np.where(gradient < 0, -gradient, gradient)
             gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
-            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient, d_theta, p)
+            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, d_theta, p)
 
             distance_grad_0 = self.distance_theta_0_1(gradient)
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
 
-            if iloop % node_loop == 0:
+            if (iloop % node_loop) == 0:
                 print("----------iloop = " + str(iloop) + "----------", flush=True)
                 print(theta1, flush=True)
                 print(L_theta, flush=True)
@@ -2951,6 +2951,8 @@ class Arch(object):
             if ((distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0)
                 or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
                 print("----------end----------", flush=True)
+                print("gradient = " + str(gradient))
+                print("L_theta" + str(L_theta))
                 print("distance_grad_0 = " + str(distance_grad_0))
                 print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0))
                 print("distance_theta_1_0 = " + str(distance_theta_1_0))
