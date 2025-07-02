@@ -2934,9 +2934,6 @@ class Arch(object):
             residual0_2 = np.power(residual0, 2)
             gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
             theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient, d_theta, p)
-            # print(str(iloop) + " theta1 L_theta", flush=True)
-            # print(theta1, flush=True)
-            # print(L_theta, flush=True)
 
             distance_grad_0 = self.distance_theta_0_1(gradient)
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
