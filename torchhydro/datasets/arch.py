@@ -2636,6 +2636,9 @@ class Arch(object):
             x_i = x_i[::-1]
             delta_2_i = self.delta_2_one_step(x_i, alpha_t)
             delta_2.append(delta_2_i)
+        delta_2 = np.array(delta_2)
+        delta_2_q = np.full(q, delta_2[0])
+        delta_2 = np.insert(delta_2, 0, delta_2_q)
 
         return delta_2
 
@@ -2665,7 +2668,7 @@ class Arch(object):
         L_theta_b = np.log(delta_2)
         L_theta_b = np.sum(L_theta_b) / 2
 
-        L_theta_c = np.array(residual_2[q:]) / np.array(delta_2)
+        L_theta_c = np.array(residual_2) / delta_2
         L_theta_c = np.sum(L_theta_c) / 2
 
         L_theta = - (L_theta_a + L_theta_b + L_theta_c)
