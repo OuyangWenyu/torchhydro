@@ -2820,7 +2820,7 @@ class Arch(object):
         if n_theta != p + q + 1:  # omega of arch model
             raise ValueError("the length of theta do not equal to p+q, error!")
 
-        gradient = [0]*n_theta
+        gradient = np.zeros(n_theta)
         for i in i_theta:
             gradient[i] = self.gradient_thetai(x, theta, d_theta, i, p, q, residual0_2)
 
@@ -2850,7 +2850,7 @@ class Arch(object):
     def grid_search(
         self,
         residual_2,
-        theta0,
+        theta,
         grad,
         d_theta,
         p,
@@ -2872,13 +2872,13 @@ class Arch(object):
             s = np.array(s) * d_theta
         n_s = len(s)
 
-        alpha0 = theta0[p:]
+        alpha0 = theta[p:]
         L_theta0 = self.log_likelihood(residual_2, alpha0)
 
         L_theta = [0] * n_s
         theta1 = []
         for i in range(n_s):
-            theta1_i = np.array(theta0) + s[i] * np.array(grad)
+            theta1_i = np.array(theta) + s[i] * np.array(grad)
             theta1.append(theta1_i)
             alpha_i = theta1_i[p:]
             L_theta[i] = self.log_likelihood(residual_2, alpha_i)
@@ -2919,9 +2919,9 @@ class Arch(object):
         if n_theta < p+q+1:
             raise ValueError("the length of theta0 need be equal to p+q+1.")
 
-        e_distance_grad_0 = 0.000001
-        e_likelihood_theta_1_0 = 0.000001
-        e_distance_theta_1_0 = 0.000001
+        e_distance_grad_0 = 0.001
+        e_likelihood_theta_1_0 = 0.01
+        e_distance_theta_1_0 = 0.01
         max_loop = 10000
         node_loop = 500
 
@@ -2933,6 +2933,8 @@ class Arch(object):
             residual0 = self.x_residual_via_parameters(x, phi)
             residual0_2 = np.power(residual0, 2)
             gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
+            gradient = np.where(gradient < 0, -gradient, gradient)
+            gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
             theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient, d_theta, p)
 
             distance_grad_0 = self.distance_theta_0_1(gradient)
