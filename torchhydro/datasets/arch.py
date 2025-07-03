@@ -2641,7 +2641,7 @@ class Arch(object):
 
         return delta_2
 
-    def log_likelihood(
+    def log_likelihood_gauss_vt(
         self,
         residual_2,
         alpha
@@ -2779,7 +2779,7 @@ class Arch(object):
             residual0 = self.x_residual_via_parameters(x=x, phi=phi0)
             residual0_2 = np.power(residual0, 2)
         alpha0 = theta0[p:]
-        L0 = self.log_likelihood(residual0_2, alpha0)
+        L0 = self.log_likelihood_gauss_vt(residual0_2, alpha0)
 
         # likelihood of theta1
         if i_theta < p:
@@ -2789,7 +2789,7 @@ class Arch(object):
         else:
             residual1_2 = residual0_2
         alpha1 = theta1[p:]
-        L1 = self.log_likelihood(residual1_2, alpha1)
+        L1 = self.log_likelihood_gauss_vt(residual1_2, alpha1)
 
         # gradient
         grad_ = L1 - L0
@@ -2880,7 +2880,7 @@ class Arch(object):
         n_s = len(s)
 
         alpha0 = theta[p:]
-        L_theta0 = self.log_likelihood(residual_2, alpha0)
+        L_theta0 = self.log_likelihood_gauss_vt(residual_2, alpha0)
 
         L_theta = [0] * n_s
         theta1 = []
@@ -2888,7 +2888,7 @@ class Arch(object):
             theta1_i = np.array(theta) + s[i] * np.array(grad)
             theta1.append(theta1_i)
             alpha_i = theta1_i[p:]
-            L_theta[i] = self.log_likelihood(residual_2, alpha_i)
+            L_theta[i] = self.log_likelihood_gauss_vt(residual_2, alpha_i)
 
         i_max = np.argmax(L_theta)
         theta1_ = theta1[i_max]
@@ -3042,14 +3042,14 @@ class Arch(object):
             phi0 = theta0[:p]
             residual0 = self.x_residual_via_parameters(x=x, phi=phi0)
             residual0_2 = np.power(residual0, 2)
-        L0 = self.log_likelihood(residual0_2, alpha0)
+        L0 = self.log_likelihood_gauss_vt(residual0_2, alpha0)
 
         # likelihood of theta1
         phi1 = theta1[:p]
         alpha1 = theta1[p:]
         residual1 = self.x_residual_via_parameters(x=x, phi=phi1)
         residual1_2 = np.power(residual1, 2)
-        L1 = self.log_likelihood(residual1_2, alpha1)
+        L1 = self.log_likelihood_gauss_vt(residual1_2, alpha1)
 
         # gradient
         grad = (L1 - L0) / d_theta

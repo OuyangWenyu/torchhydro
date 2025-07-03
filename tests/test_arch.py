@@ -2106,17 +2106,18 @@ def test_delta_2():
     alpha4_ = [4.81614767e+03, 1.59475061e+03, 0.00000000e+00, 4.92331438e+04]
     residual_2 = y_residual_2_streamflow_1460
     alpha = [6.71921606e+02, 1.62963230e+04, 3.34895884e+02, 3.69703420e+01]
+    alpha = [6.85822878e+02, 1.73127878e+03, 5.06418697e+02, 3.99362576e+02]
     delta_2 = arch.delta_2(residual_2, alpha)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta_2.txt', delta_2)
     # print("delta_2")
     # print(delta_2)
 
 
-def test_log_likelihood():
+def test_log_likelihood_gauss_vt():
     arch = Arch()
     residual_2 = y_residual_2_streamflow_395
     alpha = [2.18518342, 0.01851308, 0., 0.01112357]
-    L_theta = arch.log_likelihood(residual_2, alpha)
+    L_theta = arch.log_likelihood_gauss_vt(residual_2, alpha)
     print("L_theta")
     print(L_theta)
 # L_theta_bc
@@ -2177,10 +2178,6 @@ def test_gradient_thetai():
     grad = arch.gradient_thetai(x, theta, d_theta, i_theta, p, q)
     print("grad")
     print(grad)
-    # print("residual0")
-    # print(residual0)
-    # print("residual1")
-    # print(residual1)
 # grad   d_theta=0.000001  i_theta=0
 # 30052.930200326955
 # grad
@@ -2208,14 +2205,6 @@ def test_gradient():
     grad = arch.gradient(x, theta, d_theta, p, q, i_theta)
     print("grad")
     print(grad)
-# grad  d_theta=0.000001
-# [0, 0, 1146.8238021734578, 14832.662553089904, 0, 17149.872735899407]
-# grad  alpha1
-# [0, 0, -0.40426266423310153, -0.39192309486679733, 0, -0.12180657904536929]
-# grad  alpha2
-# [0, 0, -0.8498277566104662, -10.047750492958585, 0, -4.117954404136981]
-# grad  alpha3
-# [0, 0, -0.821793264549342, -9.939450137608219, 0, -4.3086290588689735]
 # grad   alpha4
 # [0, 0, 867.7843084115011, 380.4215930358623, 0, 1610.3814296002383]
 # grad   alpha4_
@@ -2303,7 +2292,7 @@ def test_gradient_ascent():
     alpha_1460 = [6.71658575e+02, 2.37001714e-02, 3.90087440e-02, 3.41720975e-02]
     # alpha_1460 = [4.81614767e+03, 1.59475061e+03, 0.00000000e+00, 4.92331438e+04]
     theta = phi_1460 + alpha_1460
-    d_theta = 0.000001
+    d_theta = 0.0001
     p = 3
     q = 3
     i_theta = [2, 3, 5]
@@ -2311,26 +2300,6 @@ def test_gradient_ascent():
     theta1 = arch.gradient_ascent(y_streamflow_1460, theta, d_theta, p, q, i_theta)
     print("theta1")
     print(theta1)
-# ----------end----------  alpha4 = [2.18518342, 0.1112357, 0., 0.1851308]
-# gradient = [ 0.          0.         -0.00042434 -0.00032929  0.         -0.00010134]
-# L_theta-3561.166588186187
-# distance_grad_0 = 2.98762035511107e-07
-# likelihood_theta_1_0 = 1.8672380974749103e-08
-# distance_theta_1_0 = 1.1670389193521491e-09
-# iloop = 2
-# theta1
-# [ 1.86818005e+00 -8.71949490e-01  1.08007438e+05  1.10653579e+05
-#   0.00000000e+00  1.11013486e+06]
-# ----------end----------   alpha2 = [35.19315819, 0.9220255, 0., 3.8679039]
-# gradient = [ 0.          0.         -0.03076005 -0.01813408  0.          0.00748952]
-# L_theta = -2923.9374243997095
-# distance_grad_0 = 0.0013311181762888265
-# likelihood_theta_1_0 = 7.618325389557867e-05
-# distance_theta_1_0 = 5.199680376979688e-06
-# iloop = 2
-# theta1
-# [ 1.86818005e+00 -8.71949490e-01  1.37244233e+03  1.82313809e+03
-#   0.00000000e+00  1.34555206e+04]
 # ----------end----------  d_theta = 0.0001
 # gradient = [ 0.          0.         -0.00010347 -0.00014186  0.          0.        ]
 # L_theta = -3827.5507060450977
