@@ -2061,7 +2061,6 @@ class Arch(object):
         -------
 
         """
-        # residual_2_t = np.transpose(residual_2)
         delta_2_i = np.matmul(residual_2, alpha)
 
         return delta_2_i
@@ -2648,7 +2647,7 @@ class Arch(object):
         alpha
     ):
         """
-        log likelihood function, b and c item.
+        log likelihood function, a, b and c item.
         Time Series Analysis  James D.Hamilton P766
         Parameters
         ----------
@@ -2659,15 +2658,15 @@ class Arch(object):
         -------
 
         """
+        # a
         n_residual_2 = len(residual_2)
         L_theta_a = n_residual_2 / 2 * np.log(2 * np.pi)
-
-        q = len(alpha) - 1
+        # b
         alpha_ = np.transpose(alpha)
         delta_2 = self.delta_2(residual_2, alpha_)
         L_theta_b = np.log(delta_2)
         L_theta_b = np.sum(L_theta_b) / 2
-
+        # c
         L_theta_c = np.array(residual_2) / delta_2
         L_theta_c = np.sum(L_theta_c) / 2
 
@@ -2783,10 +2782,13 @@ class Arch(object):
         L0 = self.log_likelihood(residual0_2, alpha0)
 
         # likelihood of theta1
-        phi1 = theta1[:p]
+        if i_theta < p:
+            phi1 = theta1[:p]
+            residual1 = self.x_residual_via_parameters(x=x, phi=phi1)
+            residual1_2 = np.power(residual1, 2)
+        else:
+            residual1_2 = residual0_2
         alpha1 = theta1[p:]
-        residual1 = self.x_residual_via_parameters(x=x, phi=phi1)
-        residual1_2 = np.power(residual1, 2)
         L1 = self.log_likelihood(residual1_2, alpha1)
 
         # gradient
@@ -2814,6 +2816,7 @@ class Arch(object):
         d_theta
         p
         q
+        i_theta: the index list of parameters need to estimate.
 
         Returns
         -------
@@ -2821,7 +2824,7 @@ class Arch(object):
         """
         n_theta = len(theta)
         if n_theta != p + q + 1:  # omega of arch model
-            raise ValueError("the length of theta do not equal to p+q, error!")
+            raise ValueError("the length of theta do not equal to p+q+1, error!")
 
         gradient = np.zeros(n_theta)
         for i in i_theta:
@@ -2870,9 +2873,9 @@ class Arch(object):
 
         """
         s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
-        grad_module = self.gradient_module(grad)
-        if grad_module > 100:
-            s = np.array(s) * d_theta
+        # grad_module = self.gradient_module(grad)
+        # if grad_module > 100:
+        #     s = np.array(s) * d_theta  # todo:
         n_s = len(s)
 
         alpha0 = theta[p:]
@@ -2955,7 +2958,7 @@ class Arch(object):
                 or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
                 print("----------end----------", flush=True)
                 print("gradient = " + str(gradient))
-                print("L_theta" + str(L_theta))
+                print("L_theta = " + str(L_theta))
                 print("distance_grad_0 = " + str(distance_grad_0))
                 print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0))
                 print("distance_theta_1_0 = " + str(distance_theta_1_0))
