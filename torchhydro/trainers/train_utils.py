@@ -746,7 +746,7 @@ def _recover_samples_to_basin(arr_3d, valorte_data_loader, pace_idx):
 
     for sample_idx in range(arr_3d.shape[0]):
         # Get the basin and start time index corresponding to this sample
-        basin, start_time = dataset.lookup_table[sample_idx]
+        basin, start_time, _ = dataset.lookup_table[sample_idx]
         # Calculate the time position in the result array
         if pace_idx < 0:
             value = arr_3d[sample_idx, pace_idx, :]
