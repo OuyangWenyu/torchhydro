@@ -2301,13 +2301,14 @@ def test_gradient_ascent():
     theta = phi + alpha4
     phi_1460 = [1.80161201, -1.28440015, 0.43756275]
     alpha_1460 = [6.71658575e+02, 2.37001714e-02, 3.90087440e-02, 3.41720975e-02]
+    # alpha_1460 = [4.81614767e+03, 1.59475061e+03, 0.00000000e+00, 4.92331438e+04]
     theta = phi_1460 + alpha_1460
     d_theta = 0.000001
     p = 3
     q = 3
     i_theta = [2, 3, 5]
     i_theta = [3, 4, 5, 6]
-    theta1 = arch.gradient_ascent(y_residual_2_streamflow_1460, theta, d_theta, p, q, i_theta)
+    theta1 = arch.gradient_ascent(y_streamflow_1460, theta, d_theta, p, q, i_theta)
     print("theta1")
     print(theta1)
 # ----------end----------  alpha4 = [2.18518342, 0.1112357, 0., 0.1851308]
