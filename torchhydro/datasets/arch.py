@@ -3005,6 +3005,28 @@ class Arch(object):
 
         return theta1
 
+    def st_theta(
+        self,
+        residual_2,
+        h,
+
+    ):
+        """
+
+        Time Series Analysis  James D.Hamilton P767
+        Parameters
+        ----------
+        residual_2
+        h
+
+        Returns
+        -------
+
+        """
+        st = (residual_2 - h) / (2 * h * h)
+
+        return st
+
     def H_gradient_thetai(
         self,
         x,
