@@ -2774,11 +2774,11 @@ class Arch(object):
         theta1[i_theta] = theta_i
 
         # likelihood of theta
-        alpha0 = theta0[p:]
         if residual0_2 is None:
             phi0 = theta0[:p]
             residual0 = self.x_residual_via_parameters(x=x, phi=phi0)
             residual0_2 = np.power(residual0, 2)
+        alpha0 = theta0[p:]
         L0 = self.log_likelihood(residual0_2, alpha0)
 
         # likelihood of theta1
@@ -2792,9 +2792,10 @@ class Arch(object):
         L1 = self.log_likelihood(residual1_2, alpha1)
 
         # gradient
-        grad = (L1 - L0) / d_theta
+        grad_ = L1 - L0
+        grad = grad_ / d_theta
 
-        return grad  #, residual0, residual1
+        return grad
 
     def gradient(
         self,
@@ -2873,9 +2874,9 @@ class Arch(object):
 
         """
         s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
-        grad_module = self.gradient_module(grad)
-        if grad_module > 100:
-            s = np.array(s) * d_theta  # todo:
+        # grad_module = self.gradient_module(grad)
+        # if grad_module > 100:
+        # s = np.array(s) * d_theta  # todo:
         n_s = len(s)
 
         alpha0 = theta[p:]
@@ -2909,6 +2910,7 @@ class Arch(object):
         """
         gradient ascent
         Time Series Analysis  James D.Hamilton P157
+        高等数学 下册 p64、p101-108
         Parameters
         ----------
         x
@@ -2927,7 +2929,7 @@ class Arch(object):
 
         e_distance_grad_0 = 0.001
         e_likelihood_theta_1_0 = 0.001
-        e_distance_theta_1_0 = 0.01
+        e_distance_theta_1_0 = 0.001
         max_loop = 10000
         node_loop = 500
 
