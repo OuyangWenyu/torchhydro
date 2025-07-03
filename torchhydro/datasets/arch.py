@@ -2873,9 +2873,9 @@ class Arch(object):
 
         """
         s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
-        # grad_module = self.gradient_module(grad)
-        # if grad_module > 100:
-        #     s = np.array(s) * d_theta  # todo:
+        grad_module = self.gradient_module(grad)
+        if grad_module > 100:
+            s = np.array(s) * d_theta  # todo:
         n_s = len(s)
 
         alpha0 = theta[p:]
