@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-25 08:21:27
-LastEditTime: 2024-11-04 18:16:08
+LastEditTime: 2025-06-04 17:31:19
 LastEditors: Wenyu Ouyang
 Description: Some sampling class or functions
 FilePath: \torchhydro\torchhydro\datasets\sampler.py
@@ -14,6 +14,7 @@ from torch.utils.data import RandomSampler, Sampler
 from torchhydro.datasets.data_sets import BaseDataset
 from typing import Iterator, Optional
 import torch
+import random
 
 
 class KuaiSampler(RandomSampler):
@@ -106,7 +107,7 @@ class BasinBatchSampler(Sampler[int]):
         return len(self.dataset)
 
     def __iter__(self) -> Iterator[int]:
-        n = self.dataset.data_cfgs["batch_size"]
+        n = self.dataset.training_cfgs["batch_size"]
         basin_number = len(self.dataset.data_cfgs["object_ids"])
         basin_range = len(self.dataset) // basin_number
         if n > basin_range:
@@ -132,6 +133,92 @@ class BasinBatchSampler(Sampler[int]):
 
     def __len__(self) -> int:
         return self.num_samples
+
+
+class WindowLenBatchSampler(Sampler):
+    def __init__(self, dataset, batch_size, balance_strategy="equal"):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.window_lengths = list(dataset.lookup_tables_by_length.keys())
+        self.indices_by_window_len = {
+            window_len: [
+                i
+                for i, (w, _) in enumerate(dataset.lookup_table.values())
+                if w == window_len
+            ]
+            for window_len in self.window_lengths
+        }
+        self.balance_strategy = balance_strategy  # 'equal' 或 'proportional'
+
+    def __iter__(self):
+        # 修正：返回批次索引列表的迭代器，而不是单个索引的迭代器
+        batches = []
+
+        # 确定每个窗口长度应该提供多少批次
+        if self.balance_strategy == "equal":
+            # 每个窗口长度提供相同数量的批次
+            min_batches = min(
+                len(indices) // self.batch_size
+                for indices in self.indices_by_window_len.values()
+            )
+            batches_per_window = {wl: min_batches for wl in self.window_lengths}
+        else:  # 'proportional'
+            # 按比例分配批次
+            total_samples = sum(
+                len(indices) for indices in self.indices_by_window_len.values()
+            )
+            total_full_batches = sum(
+                len(indices) // self.batch_size
+                for indices in self.indices_by_window_len.values()
+            )
+            batches_per_window = {}
+            for wl in self.window_lengths:
+                samples = len(self.indices_by_window_len[wl])
+                batches_per_window[wl] = max(
+                    1, int(samples / total_samples * total_full_batches)
+                )
+
+        # 打乱窗口长度顺序
+        import random
+
+        window_lengths = random.sample(self.window_lengths, len(self.window_lengths))
+
+        # 为每个窗口长度创建批次
+        for window_len in window_lengths:
+            window_indices = self.indices_by_window_len[window_len].copy()
+            random.shuffle(window_indices)  # 打乱索引
+
+            # 限制批次数量以实现平衡
+            max_batches = batches_per_window[window_len]
+            batch_count = 0
+
+            for i in range(0, len(window_indices), self.batch_size):
+                if batch_count >= max_batches:
+                    break
+
+                batch_indices = window_indices[i : i + self.batch_size]
+                if len(batch_indices) == self.batch_size:  # 只保留完整批次
+                    batches.append(batch_indices)
+                    batch_count += 1
+
+        # 最后再打乱所有批次的顺序
+        random.shuffle(batches)
+
+        # 返回批次列表的迭代器
+        return iter(batches)
+
+    def __len__(self):
+        if self.balance_strategy == "equal":
+            min_batches = min(
+                len(indices) // self.batch_size
+                for indices in self.indices_by_window_len.values()
+            )
+            return min_batches * len(self.window_lengths)
+        else:  # 'proportional'
+            return sum(
+                len(indices) // self.batch_size
+                for indices in self.indices_by_window_len.values()
+            )
 
 
 def fl_sample_basin(dataset: BaseDataset):
@@ -209,5 +296,6 @@ data_sampler_dict = {
     "KuaiSampler": KuaiSampler,
     "BasinBatchSampler": BasinBatchSampler,
     # TODO: DistributedSampler need more test
-    # "DistSampler": DistributedSampler,
+    # TODO: WindowLenBatchSampler need more test
+    "WindowLenBatchSampler": WindowLenBatchSampler,
 }

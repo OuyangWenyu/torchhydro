@@ -59,7 +59,7 @@ def config():
         test_period=["2015-01-01", "2020-01-01"],
         valid_period=["2020-01-01", "2022-01-01"],
         batch_size=100,
-        forecast_history=30,
+        hindcast_length=30,
         forecast_length=30,
         min_time_unit="D",
         min_time_interval=1,

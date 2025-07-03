@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2024-10-29 14:29:55
+LastEditTime: 2025-06-17 10:39:32
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: \torchhydro\tests\test_train_camels_lstm.py
@@ -18,6 +18,42 @@ def test_train_evaluate(args, config_data):
     train_and_evaluate(config_data)
 
 
+def test_train_evaluate_varied_seq(args, config_data):
+    """set varied seq length for training"""
+    args.variable_length_cfgs = {
+        "use_variable_length": True,
+        "variable_length_type": "fixed",  # Use fixed length mode
+        "fixed_lengths": [
+            30,
+            60,
+            90,
+        ],  # [30,60,90] means 30, 60, 90 periods
+        "pad_strategy": "Pad",
+    }
+    args.model_name = "SimpleLSTM"
+    args.model_hyperparam = {
+        "input_size": 23,
+        "output_size": 1,
+        "hidden_size": 128,
+    }
+    update_cfg(config_data, args)
+    train_and_evaluate(config_data)
+
+
+def test_train_evaluate_valid_batch_mode_train_and_rolling_eval(args, config_data):
+    args.valid_batch_mode = "train"
+    args.rolling = 1
+    args.hrwin = 0
+    args.frwin = 20
+    args.evaluator = {
+        "eval_way": "rolling",
+        "stride": 1,
+        "recover_mode": "byensembles",
+    }
+    update_cfg(config_data, args)
+    train_and_evaluate(config_data)
+
+
 def test_train_evaluate_continue(args, config_data):
     """We test the training and evaluation process with the continue_train
       flag set to 1 and the start_epoch set to 2. This will load a pretrained
@@ -27,9 +63,9 @@ def test_train_evaluate_continue(args, config_data):
 
     Parameters
     ----------
-    args : _type_
+    args
         basic args in conftest.py
-    config_data : _type_
+    config_data
         default config data
     """
     args.continue_train = 1
@@ -37,6 +73,6 @@ def test_train_evaluate_continue(args, config_data):
     args.train_mode = 1
     update_cfg(config_data, args)
     config_data["model_cfgs"]["weight_path"] = os.path.join(
-        config_data["data_cfgs"]["test_path"], "model_Ep1.pth"
+        config_data["data_cfgs"]["case_dir"], "model_Ep1.pth"
     )
     train_and_evaluate(config_data)

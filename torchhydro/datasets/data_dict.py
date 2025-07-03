@@ -1,36 +1,44 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-11-02 21:17:44
+LastEditTime: 2025-07-01 08:42:52
 LastEditors: Wenyu Ouyang
 Description: A dict used for data source and data loader
-FilePath: /torchhydro/torchhydro/datasets/data_dict.py
+FilePath: \torchhydro\torchhydro\datasets\data_dict.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
 from torchhydro.datasets.data_sets import (
     BaseDataset,
+    FloodEventDplDataset,
+    ForecastDataset,
+    HFDataset,
     BasinSingleFlowDataset,
     DplDataset,
     FlexibleDataset,
+    ObsForeDataset,
     Seq2SeqDataset,
     SeqForecastDataset,
     TransformerDataset,
     BALSTMDataset,
-    VanillaLSTMDataset,
-    EncDecBALSTMDataset
+    EncDecBALSTMDataset,
+    FloodEventDataset,
 )
 
 
 datasets_dict = {
     "StreamflowDataset": BaseDataset,
+    "ForecastDataset": ForecastDataset,
+    "HFDataset": HFDataset,
     "SingleflowDataset": BasinSingleFlowDataset,
     "DplDataset": DplDataset,
     "FlexDataset": FlexibleDataset,
     "Seq2SeqDataset": Seq2SeqDataset,
     "SeqForecastDataset": SeqForecastDataset,
-    "TransformerDataset":TransformerDataset,
     "BALSTMDataset": BALSTMDataset,
-    "VanillaLSTMDataset":VanillaLSTMDataset,
-    "EncDecBALSTMDataset":EncDecBALSTMDataset
+    "EncDecBALSTMDataset": EncDecBALSTMDataset,
+    "TransformerDataset": TransformerDataset,
+    "ObsForeDataset": ObsForeDataset,
+    "FloodEventDataset": FloodEventDataset,
+    "FloodEventDplDataset": FloodEventDplDataset,
 }

@@ -38,11 +38,15 @@ def config(var_c, var_t):
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
-        source="Caravan",
-        source_path=os.path.join(
-            SETTING["local_data_path"]["datasets-origin"], "caravan"
-        ),
-        source_region="Global",
+        source_cfgs={
+            "source_name": "Caravan",
+            "source_path": os.path.join(
+                SETTING["local_data_path"]["datasets-origin"], "caravan"
+            ),
+            "other_settings": {
+                "source_region": "Global",
+            },
+        },
         ctx=[-1],
         model_name="CpuLSTM",
         model_hyperparam={
@@ -63,7 +67,7 @@ def config(var_c, var_t):
             "hysets_06444000",
         ],
         batch_size=8,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=20,
         var_t=var_t,
         var_c=var_c,

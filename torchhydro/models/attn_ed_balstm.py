@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torchhydro.models.balstm_model import SimpleBALSTM
 
+
 class StateTransferNetwork(nn.Module):
     def __init__(self, hidden_dim):
         super(StateTransferNetwork, self).__init__()
@@ -13,25 +14,43 @@ class StateTransferNetwork(nn.Module):
         transfer_cell = self.fc_cell(cell)
         return transfer_hidden, transfer_cell
 
+
 class AttentionModule(nn.Module):
     def __init__(self, hidden_dim):
         super(AttentionModule, self).__init__()
-        self.attn = nn.Linear(hidden_dim + 1, hidden_dim)  # Combine hidden state and encoder output
+        self.attn = nn.Linear(
+            hidden_dim + 1, hidden_dim
+        )  # Combine hidden state and encoder output
         self.v = nn.Parameter(torch.rand(hidden_dim))  # Attention scoring vector
 
     def forward(self, hidden, encoder_outputs):
 
         batch_size, seq_len, hidden_dim = encoder_outputs.size()
-        hidden = hidden[-1].unsqueeze(1).repeat(1, seq_len, 1)  # (batch, seq_len, hidden_dim)
-        energy = torch.tanh(self.attn(torch.cat((hidden, encoder_outputs), dim=2)))  # (batch, seq_len, hidden_dim)
+        hidden = (
+            hidden[-1].unsqueeze(1).repeat(1, seq_len, 1)
+        )  # (batch, seq_len, hidden_dim)
+        energy = torch.tanh(
+            self.attn(torch.cat((hidden, encoder_outputs), dim=2))
+        )  # (batch, seq_len, hidden_dim)
         attn_weights = torch.softmax(energy.matmul(self.v), dim=1)  # (batch, seq_len)
-        context = torch.bmm(attn_weights.unsqueeze(1), encoder_outputs).squeeze(1)  # (batch, hidden_dim)
+        context = torch.bmm(attn_weights.unsqueeze(1), encoder_outputs).squeeze(
+            1
+        )  # (batch, hidden_dim)
         return context, attn_weights
 
 
 class GlobalEncoder(nn.Module):
 
-    def __init__(self, input_size_sta, input_size_dyn, input_size_glo, hidden_size, output_size, dropout=0.4,num_layers=2):
+    def __init__(
+        self,
+        input_size_sta,
+        input_size_dyn,
+        input_size_glo,
+        hidden_size,
+        output_size,
+        dropout=0.4,
+        num_layers=2,
+    ):
         super(GlobalEncoder, self).__init__()
         self.balstm = SimpleBALSTM(
             input_size_sta,
@@ -52,6 +71,7 @@ class Decoder(nn.Module):
     """
     Decoder for generating future time steps based on encoder outputs and initial states.
     """
+
     def __init__(self, input_dim, output_dim, hidden_dim, num_layers=2, dropout=0.3):
         super(Decoder, self).__init__()
         self.hidden_dim = hidden_dim

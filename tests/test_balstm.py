@@ -1,3 +1,12 @@
+"""
+Author: Yicheng Sun
+Date: 2024-11-01 08:28:51
+LastEditTime: 2025-07-01 18:19:32
+LastEditors: Wenyu Ouyang
+Description: Test BALSTM model
+FilePath: \torchhydro\tests\test_balstm.py
+Copyright (c) 2023-2026 Wenyu Ouyang. All rights reserved.
+"""
 import pytest
 import torch
 from torchhydro.models.balstm_model import BALSTM
@@ -26,7 +35,7 @@ def model():
     )
 
 
-def test_forward_bslstm(model):
+def test_forward_balstm(model):
     batch_size = 32
     seq_length = 12
     input_size_sta = 195

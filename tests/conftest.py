@@ -61,7 +61,7 @@ def args():
             "01170100",
         ],
         batch_size=8,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=20,
         min_time_unit="D",
         min_time_interval="1",
@@ -136,8 +136,8 @@ def mtl_args():
             "01170100",
         ],
         batch_size=100,
-        forecast_history=0,
-        forecast_length=365,  # batch_size=100, forecast_history=365,
+        hindcast_length=0,
+        forecast_length=365,  # batch_size=100, rho=365,
         var_t=[
             "temperature",
             "specific_humidity",
@@ -212,7 +212,7 @@ def s2s_args(basin4test):
             # number of min-time-intervals to predict; horizon
             "forecast_length": 56,
             # Number of preceding streamflow time steps included in the output,
-            # which must be less than or equal to forecast_history, and is recommended to be set to 1
+            # which must be less than or equal to hindcast_length, and is recommended to be set to 1
             "hindcast_output_window": 1,
             "teacher_forcing_ratio": 0.5,
         },
@@ -220,7 +220,7 @@ def s2s_args(basin4test):
         gage_id=basin4test,
         batch_size=512,
         # historical number of min-time-intervals; 240 means 240 * 3H = 720H
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval="3",
@@ -308,7 +308,7 @@ def trans_args(basin4test):
         model_loader={"load_way": "best"},
         gage_id=basin4test,
         batch_size=128,
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval="3",
@@ -430,7 +430,7 @@ def dpl_args():
         valid_period=valid_period,
         test_period=test_period,
         batch_size=50,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=60,
         var_t=[
             "prcp",
@@ -487,7 +487,7 @@ def seq2seq_config():
         # gage_id=gage_id,
         gage_id=["21400800", "21401550", "21401300", "21401900"],
         batch_size=128,
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval=3,
@@ -608,7 +608,7 @@ def dpl4hbv_selfmadehydrodataset_args():
         valid_period=valid_period,
         test_period=test_period,
         batch_size=300,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=365,
         var_t=[
             # although the name is hourly, it might be daily according to your choice
@@ -732,7 +732,7 @@ def dpl4xaj_selfmadehydrodataset_args():
         valid_period=valid_period,
         test_period=test_period,
         batch_size=300,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=365,
         var_t=[
             # although the name is hourly, it might be daily according to your choice
@@ -796,9 +796,17 @@ def BALSTM_config():
         sub=project_name,
         source_cfgs={
             "source_name": "longtermdataset",
-            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "source_path": os.path.join(
+                # gmspa means ​​Global Monthly Streamflow Predictors Archive​
+                SETTING["local_data_path"]["datasets-interim"],
+                "gmspa",
+            ),
+            "other_settings": {
+                "time_unit": ["1M"],
+                "trange4cache": ["1800-01-01", "2024-12-31"],
+            },
         },
-        ctx=[1],
+        ctx=[0],
         model_name="BALSTM",
         model_hyperparam={
             "output_size": 1,
@@ -812,11 +820,11 @@ def BALSTM_config():
         },
         model_loader={"load_way": "best"},
         gage_id=[
-            "Caravan_6978250",
-            "Caravan_6976450",
-            "Caravan_6976400",
-            "Caravan_6975140",
-            "Caravan_4234010",
+            "grdc_4234010",
+            "grdc_6975140",
+            "grdc_6976400",
+            "grdc_6976450",
+            "grdc_6978250",
         ],
         batch_size=32,
         forecast_history=10,
@@ -873,3 +881,171 @@ def BALSTM_config():
     )
     update_cfg(config_data, args)
     return config_data
+
+
+@pytest.fixture()
+def selfmadehydrodataset_args():
+    project_name = os.path.join("test_selfmadehydrodataset", "exp1")
+    data_dir = SETTING["local_data_path"]["datasets-interim"]
+    source_path = os.path.join(data_dir, "songliaorrevent")
+    DEVICE = -1
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "selfmadehydrodataset",
+            "source_path": source_path,
+            "other_settings": {
+                "time_unit": ["1D"],
+                "dataset_name": "songliaorrevent",
+                "offset_to_utc": True,  # if you use Chinese dataset with start time 08:00, you need to set it to True
+            },
+        },
+        ctx=[DEVICE],
+        model_name="SimpleLSTM",
+        model_hyperparam={
+            "input_size": 1,
+            "output_size": 1,
+            "hidden_size": 16,
+        },
+        gage_id=["songliao_20800900"],
+        batch_size=8,
+        hindcast_length=0,
+        forecast_length=20,
+        # for flood event dataset, we need to set the forecast length for testing
+        frwin=20,
+        min_time_unit="D",
+        min_time_interval="1",
+        var_t=["rain"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        dataset="FloodEventDataset",
+        scaler="DapengScaler",
+        variable_length_cfgs={
+            # whether to use variable length training
+            "use_variable_length": True,
+            # variable length type:
+            # - "fixed": use predefined lengths (replaces old multi_length_training)
+            # - "dynamic": automatic padding with mask (replaces old mask_cfgs)
+            "variable_length_type": "dynamic",
+            # for "fixed" type: specify exact sequence lengths to use
+            "fixed_lengths": None,
+            # Pad strategy: "Pad" or "multi_table" (multi_table not fully tested yet)
+            "pad_strategy": "Pad",
+        },
+        train_epoch=2,
+        save_epoch=1,
+        model_loader={"load_way": "specified", "test_epoch": 2},
+        train_period=["1980-01-01", "2010-12-31"],
+        valid_period=["2011-01-01", "2015-12-31"],
+        test_period=["2016-01-01", "2020-12-31"],
+        loss_func="FloodLoss",
+        loss_param={
+            "loss_func": "MSELoss",
+            "flood_weight": 2.0,
+            "flood_strategy": "weight",
+            "device": [DEVICE],
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.0001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},
+    )
+
+
+@pytest.fixture()
+def selfmadehydrodataset_dpl4xaj_args():
+    project_name = os.path.join("test_selfmadehydrodataset", "dpl4xajexp1")
+    data_dir = SETTING["local_data_path"]["datasets-interim"]
+    source_path = os.path.join(data_dir, "songliaorrevent")
+    DEVICE = -1
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "selfmadehydrodataset",
+            "source_path": source_path,
+            "other_settings": {
+                "time_unit": ["1D"],
+                "dataset_name": "songliaorrevent",
+                "offset_to_utc": True,  # if you use Chinese dataset with start time 08:00, you need to set it to True
+            },
+        },
+        ctx=[DEVICE],
+        model_name="DplLstmXaj",
+        model_hyperparam={
+            "n_input_features": 2,
+            "n_output_features": 15,
+            "n_hidden_states": 16,
+            "kernel_size": 15,
+            "warmup_length": 30,
+            "param_limit_func": "clamp",
+            "param_test_way": "final",
+            "source_book": "HF",
+            "source_type": "sources",
+            "return_et": False,
+        },
+        gage_id=["songliao_21401550"],
+        batch_size=8,
+        warmup_length=30,
+        hindcast_length=0,
+        forecast_length=20,
+        # for flood event dataset, we need to set the forecast length for testing
+        frwin=20,
+        min_time_unit="D",
+        min_time_interval="1",
+        var_t=["rain", "potential_evaporation_hourly"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        target_as_input=False,
+        dataset="FloodEventDplDataset",
+        scaler="DapengScaler",
+        scaler_params={
+            "prcp_norm_cols": [
+                "inflow",
+            ],
+            "gamma_norm_cols": [
+                "rain",
+                "potential_evaporation_hourly",
+            ],
+            "pbm_norm": True,
+        },
+        variable_length_cfgs={
+            # whether to use variable length training
+            "use_variable_length": True,
+            # variable length type:
+            # - "fixed": use predefined lengths (replaces old multi_length_training)
+            # - "dynamic": automatic padding with mask (replaces old mask_cfgs)
+            "variable_length_type": "dynamic",
+            # for "fixed" type: specify exact sequence lengths to use
+            "fixed_lengths": None,
+            # Pad strategy: "Pad" or "multi_table" (multi_table not fully tested yet)
+            "pad_strategy": "Pad",
+        },
+        train_epoch=2,
+        save_epoch=1,
+        model_loader={"load_way": "specified", "test_epoch": 2},
+        train_period=["1980-01-01", "2010-12-31"],
+        valid_period=["2011-01-01", "2015-12-31"],
+        test_period=["2016-01-01", "2020-12-31"],
+        loss_func="HybridFloodloss",
+        loss_param={
+            "mae_weight": 0.5,
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.0001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},
+    )

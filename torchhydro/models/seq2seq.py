@@ -65,7 +65,7 @@ class Encoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.pre_fc = nn.Linear(input_dim, hidden_dim)
         self.pre_relu = nn.ReLU()
-        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=True)
+        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers)
         self.dropout = nn.Dropout(dropout)
         self.fc = nn.Linear(hidden_dim, output_dim)
 
@@ -88,7 +88,7 @@ class Decoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.pre_fc = nn.Linear(input_dim, hidden_dim)
         self.pre_relu = nn.ReLU()
-        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=True)
+        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers)
         self.dropout = nn.Dropout(dropout)
         self.fc_out = nn.Linear(hidden_dim, output_dim)
 
@@ -157,6 +157,12 @@ class GeneralSeq2Seq(nn.Module):
         )
         self.transfer = StateTransferNetwork(hidden_dim=hidden_size)
 
+    def _teacher_forcing_preparation(self, trgs):
+        # teacher forcing preparation
+        valid_mask = ~torch.isnan(trgs)
+        random_vals = torch.rand_like(valid_mask, dtype=torch.float)
+        return (random_vals < self.teacher_forcing_ratio) * valid_mask
+
     def forward(self, *src):
         if len(src) == 3:
             encoder_input, decoder_input, trgs = src
@@ -165,40 +171,43 @@ class GeneralSeq2Seq(nn.Module):
             device = decoder_input.device
             trgs = torch.full(
                 (
-                    decoder_input.shape[0],  # batch_size
                     self.hindcast_output_window + self.trg_len,  # seq
+                    decoder_input.shape[1],  # batch_size
                     self.output_size,  # features
                 ),
                 float("nan"),
             ).to(device)
-        encoder_outputs, hidden_, cell_ = self.encoder(encoder_input)
+        trgs_q = trgs[:, :, :1]
+        trgs_s = trgs[:, :, 1:]
+        trgs = torch.cat((trgs_s, trgs_q), dim=2)  # sq
+        encoder_outputs, hidden_, cell_ = self.encoder(encoder_input)  # sq
         hidden, cell = self.transfer(hidden_, cell_)
         outputs = []
-        current_input = encoder_outputs[:, -1, :].unsqueeze(1)
+        prev_output = encoder_outputs[-1, :, :].unsqueeze(0)  # sq
+        _, batch_size, _ = decoder_input.size()
 
+        outputs = torch.zeros(self.trg_len, batch_size, self.output_size).to(
+            decoder_input.device
+        )
+        use_teacher_forcing = self._teacher_forcing_preparation(trgs)
         for t in range(self.trg_len):
-            p = decoder_input[:, t, :].unsqueeze(1)
-            current_input = torch.cat((current_input, p), dim=2)
-            output, hidden, cell = self.decoder(current_input, hidden, cell)
-            outputs.append(output.squeeze(1))
-            trg = trgs[:, (self.hindcast_output_window + t), :].unsqueeze(1)
-            valid_mask = ~torch.isnan(trg)
-            random_vals = torch.rand_like(valid_mask, dtype=torch.float)
-            use_teacher_forcing = (
-                random_vals < self.teacher_forcing_ratio
-            ) * valid_mask
-            current_input = torch.where(
-                torch.isnan(trg),  # if trg is nan
-                output,  # then use output
-                trg * use_teacher_forcing
-                + output
-                * (~use_teacher_forcing),  # else calculate with teacher forcing
+            pc = decoder_input[t : t + 1, :, :]  # sq
+            obs = trgs[self.hindcast_output_window + t, :, :].unsqueeze(0)  # sq
+            safe_obs = torch.where(torch.isnan(obs), torch.zeros_like(obs), obs)
+            prev_output = torch.where(  # sq
+                use_teacher_forcing[t : t + 1, :, :],
+                safe_obs,
+                prev_output,
             )
-
-        outputs = torch.stack(outputs, dim=1)
+            current_input = torch.cat((pc, prev_output), dim=2)  # pcsq
+            output, hidden, cell = self.decoder(current_input, hidden, cell)
+            outputs[t, :, :] = output.squeeze(0)  # sq
         if self.hindcast_output_window > 0:
-            prec_outputs = encoder_outputs[:, -self.hindcast_output_window :, :]
-            outputs = torch.cat((prec_outputs, outputs), dim=1)
+            prec_outputs = encoder_outputs[-self.hindcast_output_window :, :, :]
+            outputs = torch.cat((prec_outputs, outputs), dim=0)
+        outputs_s = outputs[:, :, :1]
+        outputs_q = outputs[:, :, 1:]
+        outputs = torch.cat((outputs_q, outputs_s), dim=2)  # qs
         return outputs
 
 

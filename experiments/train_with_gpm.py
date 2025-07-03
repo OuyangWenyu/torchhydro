@@ -64,7 +64,7 @@ def config():
         gage_id=gage_id,
         # gage_id=["21400800", "21401550", "21401300", "21401900"],
         batch_size=256,
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval=3,

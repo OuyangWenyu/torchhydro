@@ -52,7 +52,7 @@ def get_config_data():
         gage_id=gage_id,
         model_loader={"load_way": "best"},
         batch_size=1024,
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval=3,

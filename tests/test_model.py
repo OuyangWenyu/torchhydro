@@ -33,7 +33,7 @@ def test_model():
         },
     }
     batch_size = 2
-    forecast_history = 168
+    hindcast_length = 168
 
     # Initialize the model
     model_config = model_configs["Seq2Seq"]
@@ -52,19 +52,19 @@ def test_model():
     if model_config["model_mode"] == "single":
         src1 = torch.rand(
             batch_size,
-            forecast_history,
+            hindcast_length,
             model_config["input_size"] - 1,
         )
         src2 = torch.rand(
-            batch_size, forecast_history, model_config["cnn_size"]
+            batch_size, hindcast_length, model_config["cnn_size"]
         )
     else:  # "dual"
         src1 = torch.rand(
-            batch_size, forecast_history, model_config["input_size"]
+            batch_size, hindcast_length, model_config["input_size"]
         )
         src2 = torch.rand(
             batch_size,
-            forecast_history,
+            hindcast_length,
             model_config["input_size_encoder2"],
         )
 

@@ -1,13 +1,14 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-01-01 18:46:49
+LastEditTime: 2025-06-16 23:33:35
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: \torchhydro\torchhydro\trainers\deep_hydro.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
+import bisect
 import copy
 import os
 from abc import ABC, abstractmethod
@@ -43,12 +44,13 @@ from torchhydro.trainers.train_logger import TrainLogger
 from torchhydro.trainers.train_utils import (
     EarlyStopper,
     average_weights,
-    denormalize4eval,
     evaluate_validation,
     compute_validation,
     model_infer,
     read_pth_from_model_loader,
     torch_single_train,
+    get_preds_to_be_eval,
+    varied_length_collate_fn,
 )
 
 
@@ -165,7 +167,7 @@ class DeepHydro(DeepHydroInterface):
             if self.weight_path is None or self.cfgs["model_cfgs"]["continue_train"]:
                 # if no weight path is provided
                 # or weight file is provided but continue train again,
-                # we will use the trained model in the new test_path directory
+                # we will use the trained model in the new case_dir directory
                 self.weight_path = self._get_trained_model()
         elif mode != "train":
             raise ValueError("Invalid mode; must be 'train' or 'infer'")
@@ -225,7 +227,7 @@ class DeepHydro(DeepHydroInterface):
         dataset_name = data_cfgs["dataset"]
 
         if dataset_name in list(datasets_dict.keys()):
-            dataset = datasets_dict[dataset_name](data_cfgs, is_tra_val_te)
+            dataset = datasets_dict[dataset_name](self.cfgs, is_tra_val_te)
         else:
             raise NotImplementedError(
                 f"Error the dataset {str(dataset_name)} was not found in the dataset dict. Please add it."
@@ -237,7 +239,7 @@ class DeepHydro(DeepHydroInterface):
         # A dictionary of the necessary parameters for training
         training_cfgs = self.cfgs["training_cfgs"]
         # The file path to load model weights from; defaults to "model_save"
-        model_filepath = self.cfgs["data_cfgs"]["test_path"]
+        model_filepath = self.cfgs["data_cfgs"]["case_dir"]
         data_cfgs = self.cfgs["data_cfgs"]
         es = None
         if training_cfgs["early_stopping"]:
@@ -281,7 +283,7 @@ class DeepHydro(DeepHydroInterface):
             if es and not es.check_loss(
                 self.model,
                 valid_loss,
-                self.cfgs["data_cfgs"]["test_path"],
+                self.cfgs["data_cfgs"]["case_dir"],
             ):
                 print("Stopping model now")
                 break
@@ -301,9 +303,15 @@ class DeepHydro(DeepHydroInterface):
         elif isinstance(lr_scheduler_cfg, dict) and all(
             isinstance(epoch, int) for epoch in lr_scheduler_cfg
         ):
-            scheduler = LambdaLR(
-                opt, lr_lambda=lambda epoch: lr_scheduler_cfg.get(epoch, 1.0)
-            )
+            # piecewise constant learning rate
+            epochs = sorted(lr_scheduler_cfg.keys())
+            values = [lr_scheduler_cfg[e] for e in epochs]
+
+            def lr_lambda(epoch):
+                idx = bisect.bisect_right(epochs, epoch) - 1
+                return 1.0 if idx < 0 else values[idx]
+
+            scheduler = LambdaLR(opt, lr_lambda=lr_lambda)
         elif "lr_factor" in lr_scheduler_cfg and "lr_patience" not in lr_scheduler_cfg:
             scheduler = ExponentialLR(opt, gamma=lr_scheduler_cfg["lr_factor"])
         elif "lr_factor" in lr_scheduler_cfg:
@@ -337,7 +345,11 @@ class DeepHydro(DeepHydroInterface):
             which_first_tensor=training_cfgs["which_first_tensor"],
         )
         valid_logs["valid_loss"] = valid_loss
-        if self.cfgs["evaluation_cfgs"]["calc_metrics"]:
+        if (
+            self.cfgs["training_cfgs"]["valid_batch_mode"] == "test"
+            and self.cfgs["training_cfgs"]["calc_metrics"]
+        ):
+            # NOTE: Now we only evaluate the metrics for test-mode validation
             target_col = self.cfgs["data_cfgs"]["target_cols"]
             valid_metrics = evaluate_validation(
                 validation_data_loader,
@@ -352,7 +364,7 @@ class DeepHydro(DeepHydroInterface):
 
     def _get_trained_model(self):
         model_loader = self.cfgs["evaluation_cfgs"]["model_loader"]
-        model_pth_dir = self.cfgs["data_cfgs"]["test_path"]
+        model_pth_dir = self.cfgs["data_cfgs"]["case_dir"]
         return read_pth_from_model_loader(model_loader, model_pth_dir)
 
     def model_evaluate(self) -> Tuple[Dict, np.array, np.array]:
@@ -372,7 +384,6 @@ class DeepHydro(DeepHydroInterface):
         """infer using trained model and unnormalized results"""
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
-        evaluation_cfgs = self.cfgs["evaluation_cfgs"]
         device = get_the_device(self.cfgs["training_cfgs"]["device"])
         test_dataloader = self._get_dataloader(training_cfgs, data_cfgs, mode="infer")
         seq_first = training_cfgs["which_first_tensor"] == "sequence"
@@ -381,17 +392,18 @@ class DeepHydro(DeepHydroInterface):
         test_preds = []
         obss = []
         with torch.no_grad():
-            for xs, ys in test_dataloader:
-                # here the a batch doesn't mean a basin; it is only an index in lookup table
-                # for NtoN mode, only basin is index in lookup table, so the batch is same as basin
-                # for Nto1 mode, batch is only an index
-                ys, pred = model_infer(seq_first, device, self.model, xs, ys)
-                test_preds.append(pred.cpu().numpy())
-                obss.append(ys.cpu().numpy())
-                # clear GPU cache -- this will not impact results
-                torch.cuda.empty_cache()
-            pred = reduce(lambda x, y: np.vstack((x, y)), test_preds)
-            obs = reduce(lambda x, y: np.vstack((x, y)), obss)
+            test_preds = []
+            obss = []
+            for i, batch in enumerate(
+                tqdm(test_dataloader, desc="Model inference", unit="batch")
+            ):
+                ys, pred = model_infer(seq_first, device, self.model, batch)
+                test_preds.append(pred.cpu())
+                obss.append(ys.cpu())
+                if i % 100 == 0:
+                    torch.cuda.empty_cache()
+            pred = torch.cat(test_preds, dim=0).numpy()  # 在最后转换为numpy
+            obs = torch.cat(obss, dim=0).numpy()  # 在最后转换为numpy
         if pred.ndim == 2:
             # TODO: check
             # the ndim is 2 meaning we use an Nto1 mode
@@ -399,38 +411,12 @@ class DeepHydro(DeepHydroInterface):
             # params of reshape should be (basin size, time length)
             pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
             obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
-
-        if evaluation_cfgs["rolling"] > 0:
-            if evaluation_cfgs["rolling"] != data_cfgs["forecast_length"]:
-                raise NotImplementedError(
-                    "rolling should be equal to forecast_length in data_cfgs now, others are not supported yet"
-                )
-            # TODO: now we only guarantee each time has only one value,
-            # so we directly reshape the data rather than a real rolling
-            ngrid = self.testdataset.ngrid
-            nt = self.testdataset.nt
-            target_len = len(data_cfgs["target_cols"])
-            hindcast_output_window = data_cfgs["hindcast_output_window"]
-            forecast_length = data_cfgs["forecast_length"]
-            window_size = hindcast_output_window + forecast_length
-            rho = data_cfgs["forecast_history"]
-            recover_len = nt - rho + hindcast_output_window
-            samples = int(pred.shape[0] / ngrid)
-            pred_ = np.full((ngrid, recover_len, target_len), np.nan)
-            obs_ = np.full((ngrid, recover_len, target_len), np.nan)
-            # recover pred to pred_ and obs to obs_
-            pred_4d = pred.reshape(ngrid, samples, window_size, target_len)
-            obs_4d = obs.reshape(ngrid, samples, window_size, target_len)
-            for i in range(ngrid):
-                for j in range(recover_len - window_size + 1):
-                    pred_[i, j : j + window_size, :] = pred_4d[i, j, :, :]
-            for i in range(ngrid):
-                for j in range(recover_len - window_size + 1):
-                    obs_[i, j : j + window_size, :] = obs_4d[i, j, :, :]
-            pred = pred_.reshape(ngrid, recover_len, target_len)
-            obs = obs_.reshape(ngrid, recover_len, target_len)
-        pred_xr, obs_xr = denormalize4eval(
-            test_dataloader, pred, obs, rolling=evaluation_cfgs["rolling"]
+        evaluation_cfgs = self.cfgs["evaluation_cfgs"]
+        obs_xr, pred_xr = get_preds_to_be_eval(
+            test_dataloader,
+            evaluation_cfgs,
+            pred,
+            obs,
         )
         return pred_xr, obs_xr
 
@@ -458,26 +444,15 @@ class DeepHydro(DeepHydroInterface):
 
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         if mode == "infer":
-            ngrid = self.testdataset.ngrid
-            if data_cfgs["sampler"] != "BasinBatchSampler":
-                # TODO: this case should be tested more
-                return DataLoader(
-                    self.testdataset,
-                    batch_size=training_cfgs["batch_size"],
-                    shuffle=False,
-                    sampler=None,
-                    batch_sampler=None,
-                    drop_last=False,
-                    timeout=0,
-                    worker_init_fn=None,
-                )
-            test_num_samples = self.testdataset.num_samples
             return DataLoader(
                 self.testdataset,
-                batch_size=test_num_samples // ngrid,
+                batch_size=training_cfgs["batch_size"],
                 shuffle=False,
+                sampler=None,
+                batch_sampler=None,
                 drop_last=False,
                 timeout=0,
+                worker_init_fn=None,
             )
         worker_num = 0
         pin_memory = False
@@ -487,7 +462,10 @@ class DeepHydro(DeepHydroInterface):
         if "pin_memory" in training_cfgs:
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
-        sampler = self._get_sampler(data_cfgs, self.traindataset)
+        sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
+        _collate_fn = None
+        if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
+            _collate_fn = varied_length_collate_fn
         data_loader = DataLoader(
             self.traindataset,
             batch_size=training_cfgs["batch_size"],
@@ -496,6 +474,7 @@ class DeepHydro(DeepHydroInterface):
             num_workers=worker_num,
             pin_memory=pin_memory,
             timeout=0,
+            collate_fn=_collate_fn,
         )
         if data_cfgs["t_range_valid"] is not None:
             validation_data_loader = DataLoader(
@@ -510,7 +489,7 @@ class DeepHydro(DeepHydroInterface):
 
         return data_loader, None
 
-    def _get_sampler(self, data_cfgs, train_dataset):
+    def _get_sampler(self, data_cfgs, training_cfgs, train_dataset):
         """
         return data sampler based on the provided configuration and training dataset.
 
@@ -518,17 +497,19 @@ class DeepHydro(DeepHydroInterface):
         ----------
         data_cfgs : dict
             Configuration dictionary containing parameters for data sampling. Expected keys are:
-            - "batch_size": int, size of each batch.
-            - "forecast_history": int, number of past time steps to consider.
-            - "warmup_length": int, length of the warmup period.
-            - "forecast_length": int, number of future time steps to predict.
             - "sampler": dict, containing:
             - "name": str, name of the sampler to use.
             - "sampler_hyperparam": dict, optional hyperparameters for the sampler.
+        training_cfgs: dict
+            Configuration dictionary containing parameters for training. Expected keys are:
+            - "batch_size": int, size of each batch.
         train_dataset : Dataset
             The training dataset object which contains the data to be sampled. Expected attributes are:
             - ngrid: int, number of grids in the dataset.
             - nt: int, number of time steps in the dataset.
+            - rho: int, length of the input sequence.
+            - warmup_length: int, length of the warmup period.
+            - horizon: int, length of the forecast horizon.
 
         Returns
         -------
@@ -542,10 +523,10 @@ class DeepHydro(DeepHydroInterface):
         """
         if data_cfgs["sampler"] is None:
             return None
-        batch_size = data_cfgs["batch_size"]
-        rho = data_cfgs["forecast_history"]
-        warmup_length = data_cfgs["warmup_length"]
-        horizon = data_cfgs["forecast_length"]
+        batch_size = training_cfgs["batch_size"]
+        rho = train_dataset.rho
+        warmup_length = train_dataset.warmup_length
+        horizon = train_dataset.horizon
         ngrid = train_dataset.ngrid
         nt = train_dataset.nt
         sampler_name = data_cfgs["sampler"]
@@ -561,6 +542,11 @@ class DeepHydro(DeepHydroInterface):
                 "ngrid": ngrid,
                 "nt": nt,
             }
+        elif sampler_name == "WindowLenBatchSampler":
+            sampler_hyperparam |= {
+                "batch_size": batch_size,
+            }
+
         return sampler_class(train_dataset, **sampler_hyperparam)
 
 
@@ -745,7 +731,12 @@ class TransLearnHydro(DeepHydro):
             raise NotImplementedError(
                 "For transfer learning, we need a pre-trained model"
             )
-        model = super().load_model(mode)
+        if mode == "train":
+            model = super().load_model(mode)
+        elif mode == "infer":
+            self.weight_path = self._get_trained_model()
+            model = self._load_model_from_pth()
+            model.to(self.device)
         if (
             "weight_path_add" in model_cfgs
             and "freeze_params" in model_cfgs["weight_path_add"]
@@ -889,7 +880,7 @@ class DistributedDeepHydro(MultiTaskHydro):
         self.model = DDP(model, device_ids=[self.rank])
         training_cfgs = self.cfgs["training_cfgs"]
         # The file path to load model weights from; defaults to "model_save"
-        model_filepath = self.cfgs["data_cfgs"]["test_path"]
+        model_filepath = self.cfgs["data_cfgs"]["case_dir"]
         data_cfgs = self.cfgs["data_cfgs"]
         es = None
         if training_cfgs["early_stopping"]:
@@ -934,7 +925,7 @@ class DistributedDeepHydro(MultiTaskHydro):
             if es and not es.check_loss(
                 self.model,
                 valid_loss,
-                self.cfgs["data_cfgs"]["test_path"],
+                self.cfgs["data_cfgs"]["case_dir"],
             ):
                 print("Stopping model now")
                 break
