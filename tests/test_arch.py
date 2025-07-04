@@ -2458,12 +2458,12 @@ def test_st_theta():
     q = 3
     phi = [1.86818005, -0.87194949]
     alpha = [35.19315819, 0.9220255,  0., 3.8679039]
-    residual_2 = y_residual_2_streamflow_395[2:2+q+2]
+    residual_2 = y_residual_2_streamflow_395[2:2+q+1]  # t = 5
     residual_2.reverse()
     max_pq = max(p,q)
     x = y_streamflow_395[2:2+max_pq+1]
     x.reverse()
-    residual_2_ = residual_2[:]
+    residual_2_ = residual_2.copy()
     residual_2_[0] = 1
     alpha_ = np.transpose(alpha)
     h = arch.delta_2_one_step(residual_2_, alpha_)

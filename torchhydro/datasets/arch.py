@@ -3015,7 +3015,7 @@ class Arch(object):
         q,
     ):
         """
-
+        the gradient about theta of condition log likelihood of the t-th value
         Time Series Analysis  James D.Hamilton P767、p780
         Parameters
         ----------
@@ -3035,7 +3035,9 @@ class Arch(object):
         residual_1 = residual_2[1:]
         residual_1 = np.sqrt(residual_1)
         x_1 = x[1:]
-        st_1 = -2 * np.array(alpha) * residual_1 * np.array(x_1)
+        alpha_ = alpha[1:]
+        st_1 = -2 * np.array(alpha_) * residual_1
+        st_1 = st_1 * np.array(x_1)
         st_1 = np.sum(st_1)
         st_1 = np.insert(zt_phi, 0, st_1)
         st_1 = np.transpose(st_1)
@@ -3043,10 +3045,10 @@ class Arch(object):
         residual_2_ = residual_2[0]
         h_2 = h
         x_2 = x[:-1]
-        st_2 = x_2 * residual_2_
+        st_2 = np.array(x_2) * residual_2_
         st_2 = st_2 / h_2
         zero_2 = np.zeros(q+1)
-        st_2 = np.concatenate(st_2, zero_2)
+        st_2 = np.concatenate((st_2, zero_2))
         st_2 = np.transpose(st_2)
 
         st = st_0 * st_1 + st_2
