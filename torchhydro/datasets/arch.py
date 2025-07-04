@@ -4,6 +4,7 @@ nothing but English.
 import mpmath.libmp
 import numpy as np
 from typing import Optional
+import math
 import time
 
 
@@ -3161,9 +3162,9 @@ class Arch(object):
 
         # L_theta_a
         a = (v + 1) / 2
-        a_t = self.gamma(a)
+        a_t = math.gamma(a)
         b = v / 2
-        b_t = self.gamma(b)
+        b_t = math.gamma(b)
         c = np.power(v-2, -0.5)
         d = a_t / (np.sqrt(np.pi) * b_t) * c
         L_theta_a = n_residual * np.log(d)
@@ -3173,12 +3174,17 @@ class Arch(object):
         L_theta_b = np.sum(L_theta_b)
         L_theta_b = L_theta_b / 2
 
+        # L_theta_c
+        L_theta_c = np.array(residual_2) / np.array(h)
+        L_theta_c = L_theta_c / (v - 2)
+        L_theta_c = 1 + L_theta_c
+        L_theta_c = np.log(L_theta_c)
+        L_theta_c = np.sum(L_theta_c)
+        L_theta_c = (v + 1) / 2 * L_theta_c
 
+        L_theta = L_theta_a - L_theta_b - L_theta_c
 
-
-        L = 0
-
-        return L
+        return L_theta
 
 
 

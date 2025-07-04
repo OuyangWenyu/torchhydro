@@ -2454,13 +2454,15 @@ def test_H_gradient_thetai():
 
 def test_st_theta():
     arch = Arch()
-    p=2
+    p = 2
     q = 3
-    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
-    residual_2 = y_residual_2_streamflow_395[:q+1]
+    phi = [1.86818005, -0.87194949]
+    alpha = [35.19315819, 0.9220255,  0., 3.8679039]
+    residual_2 = y_residual_2_streamflow_395[2:2+q+2]
     residual_2.reverse()
     max_pq = max(p,q)
-    x = y_streamflow_395[:max_pq]
+    x = y_streamflow_395[2:2+max_pq+1]
+    x.reverse()
     residual_2_ = residual_2[:]
     residual_2_[0] = 1
     alpha_ = np.transpose(alpha)
@@ -2475,6 +2477,7 @@ def test_s_theat():
     p=2
     q = 3
     alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    alpha = [35.19315819, 0.9220255, 0., 3.8679039]
     residual_2 = y_residual_2_streamflow_395
     x = y_streamflow_395
     s = arch.s_theat(x, residual_2, alpha, p, q)
@@ -2488,11 +2491,25 @@ def test_gradient_s():
     q = 3
     phi = [1.86818005, -0.87194949]
     alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    alpha = [35.19315819, 0.9220255, 0., 3.8679039]
     theta = phi + alpha
     gradient = arch.gradient_s(x, theta, p, q)
     print("gradient")
     print(gradient)
 
+def test_log_likelihood_gamma():
+    arch = Arch()
+    x = y_streamflow_395
+    p = 2
+    q = 3
+    v = 2
+    phi = [1.86818005, -0.87194949]
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    theta = phi + alpha
+    residual_2 = y_residual_2_streamflow_395
+    L_theta = arch.log_likelihood_gamma(v, residual_2, theta, p, q)
+    print("L_theta")
+    print(L_theta)
 
 def test_mL_estimation():
     arch = Arch()
