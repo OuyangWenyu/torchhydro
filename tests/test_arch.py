@@ -2481,6 +2481,19 @@ def test_s_theat():
     print("s")
     print(s)
 
+def test_gradient_s():
+    arch = Arch()
+    x = y_streamflow_395
+    p = 2
+    q = 3
+    phi = [1.86818005, -0.87194949]
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    theta = phi + alpha
+    gradient = arch.gradient_s(x, theta, p, q)
+    print("gradient")
+    print(gradient)
+
+
 def test_mL_estimation():
     arch = Arch()
     x = 0

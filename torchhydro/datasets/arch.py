@@ -3015,7 +3015,7 @@ class Arch(object):
     ):
         """
 
-        Time Series Analysis  James D.Hamilton P767
+        Time Series Analysis  James D.Hamilton P767、p780
         Parameters
         ----------
         residual_2
@@ -3061,7 +3061,7 @@ class Arch(object):
         q,
     ):
         """
-
+        Time Series Analysis  James D.Hamilton P767
         Parameters
         ----------
         x
@@ -3074,23 +3074,94 @@ class Arch(object):
 
         """
         n_x = len(x)
-        alpha_ = np.transpose(alpha)
-        max_pq = max(p, q)
         h = self.delta_2(residual_2, alpha)
 
-        s = np.zeros(n_x)
+        s = []
+        max_pq = max(p, q)
         for i in range(n_x):
-            residual_2_i = residual_2[:q + 1]
+            residual_2_i = residual_2[i-q:i+1]
             residual_2_i.reverse()
-            x_i = x[:max_pq]
+            x_i = x[i-max_pq:i]
             x_i.reverse()
-            residual_2_i_ = residual_2_i[:]
-            residual_2_i_[0] = 1
             h_i = h[i]
-            st = self.st_theta(residual_2, x_i, h_i, alpha, q)
-            s[i] = st
+            s_i = self.st_theta(residual_2, x_i, h_i, alpha, q)
+            s.append(s_i)
 
         return s
+
+    def gradient_s(
+        self,
+        x,
+        theta,
+        p,
+        q,
+    ):
+        """
+
+        Parameters
+        ----------
+        s
+
+        Returns
+        -------
+
+        """
+        phi = theta[:p]
+        alpha = theta[p:]
+        residual = self.x_residual_via_parameters(x, phi)
+        residual_2 = np.power(residual, 2)
+        s = self.s_theat(x, residual_2, alpha, p, q)
+        gradient = np.sum(s, axis=1)
+
+        return gradient
+
+    def gamma(
+        self,
+        v,
+    ):
+        """
+        gamma function
+        Parameters
+        ----------
+        v: free degree
+
+        Returns
+        -------
+
+        """
+        gamma = v
+        return gamma
+
+    def c(
+        self,
+        v,
+        residual_2,
+        theta,
+        p,
+        q,
+    ):
+        """
+
+        Parameters
+        ----------
+        v
+        residual_2
+        theta
+        p
+        q
+
+        Returns
+        -------
+
+        """
+        alpha = theta[p:]
+        h = self.delta_2(residual_2, alpha)
+        L = 0
+
+        return L
+
+
+
 
     def H_gradient_thetai(
         self,
