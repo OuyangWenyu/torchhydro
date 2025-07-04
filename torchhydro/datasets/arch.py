@@ -3121,6 +3121,7 @@ class Arch(object):
     ):
         """
         gamma function
+        高等数学 上册 p266
         Parameters
         ----------
         v: free degree
@@ -3132,7 +3133,7 @@ class Arch(object):
         gamma = v
         return gamma
 
-    def c(
+    def log_likelihood_gamma(
         self,
         v,
         residual_2,
@@ -3154,8 +3155,27 @@ class Arch(object):
         -------
 
         """
+        n_residual = len(residual_2)
         alpha = theta[p:]
         h = self.delta_2(residual_2, alpha)
+
+        # L_theta_a
+        a = (v + 1) / 2
+        a_t = self.gamma(a)
+        b = v / 2
+        b_t = self.gamma(b)
+        c = np.power(v-2, -0.5)
+        d = a_t / (np.sqrt(np.pi) * b_t) * c
+        L_theta_a = n_residual * np.log(d)
+
+        # L_theta_b
+        L_theta_b = np.log(h)
+        L_theta_b = np.sum(L_theta_b)
+        L_theta_b = L_theta_b / 2
+
+
+
+
         L = 0
 
         return L
