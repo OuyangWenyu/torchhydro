@@ -3012,6 +3012,7 @@ class Arch(object):
         x,
         h,
         alpha,
+        p,
         q,
     ):
         """
@@ -3027,29 +3028,40 @@ class Arch(object):
         -------
 
         """
+        # st_0
         residual_t_2 = residual_2[0]
         st_0 = (residual_t_2 - h) / (2 * h * h)
 
-        zt_phi = residual_2[:]
-        zt_phi[0] = 1
+        # st_1
+        alpha_ = alpha[1:]  # zt_aux
         residual_1 = residual_2[1:]
         residual_1 = np.sqrt(residual_1)
         x_1 = x[1:]
-        alpha_ = alpha[1:]
-        st_1 = -2 * np.array(alpha_) * residual_1
-        st_1 = st_1 * np.array(x_1)
-        st_1 = np.sum(st_1)
-        st_1 = np.insert(zt_phi, 0, st_1)
-        st_1 = np.transpose(st_1)
+        st_1 = []
+        for i in range(q):
+            alpha_i = alpha_[i]
+            u_i = residual_1[i]
+            x_i = x_1[i:i+p]
+            x_i = np.transpose(x_i)
+            st_1_i = alpha_i * u_i * x_i
+            st_1.append(st_1_i)
+        st_1 = np.array(st_1)
+        st_1 = np.sum(st_1, axis=0)
+        zt_alpha = residual_2[:]  # zt_alpha
+        zt_alpha[0] = 1
+        zt_alpha = np.transpose(zt_alpha)
+        st_1 = np.concatenate((st_1, zt_alpha), axis=0)  # st_1
 
+        # st_2
         residual_2_ = residual_2[0]
         h_2 = h
-        x_2 = x[:-1]
-        st_2 = np.array(x_2) * residual_2_
+        x_2 = x[:p]
+        x_2 = np.transpose(x_2)
+        st_2 = x_2 * residual_2_
         st_2 = st_2 / h_2
         zero_2 = np.zeros(q+1)
-        st_2 = np.concatenate((st_2, zero_2))
-        st_2 = np.transpose(st_2)
+        zero_2 = np.transpose(zero_2)
+        st_2 = np.concatenate((st_2, zero_2), axis=0)
 
         st = st_0 * st_1 + st_2
 
@@ -3058,8 +3070,7 @@ class Arch(object):
     def s_theat(
         self,
         x,
-        residual_2,
-        alpha,
+        theta,
         p,
         q,
     ):
@@ -3077,6 +3088,10 @@ class Arch(object):
 
         """
         n_x = len(x)
+        phi = theta[:p]
+        alpha = theta[p:]
+        residual = self.x_residual_via_parameters(x, phi)
+        residual_2 = np.power(residual, 2)
         h = self.delta_2(residual_2, alpha)
 
         s = []
@@ -3087,7 +3102,7 @@ class Arch(object):
             x_i = x[i-max_pq:i]
             x_i.reverse()
             h_i = h[i]
-            s_i = self.st_theta(residual_2, x_i, h_i, alpha, q)
+            s_i = self.st_theta(residual_2, x_i, h_i, alpha, p, q)
             s.append(s_i)
 
         return s

@@ -2458,29 +2458,32 @@ def test_st_theta():
     q = 3
     phi = [1.86818005, -0.87194949]
     alpha = [35.19315819, 0.9220255,  0., 3.8679039]
-    residual_2 = y_residual_2_streamflow_395[2:2+q+1]  # t = 5
+    residual_2 = y_residual_2_streamflow_395[4:4+q+1]  # t = 8  i=7
     residual_2.reverse()
-    max_pq = max(p,q)
-    x = y_streamflow_395[2:2+max_pq+1]
+    x = y_streamflow_395[4-p:4+q]
     x.reverse()
     residual_2_ = residual_2.copy()
     residual_2_[0] = 1
     alpha_ = np.transpose(alpha)
     h = arch.delta_2_one_step(residual_2_, alpha_)
-    st = arch.st_theta(residual_2, x, h, alpha, q)
+    st = arch.st_theta(residual_2, x, h, alpha, p, q)
     print("st")
     print(st)
-
+# st
+# [-5.24625544e+00 -5.24240296e+00 -1.35432734e-02 -1.04699592e-03
+#  -5.23896533e-03 -5.23896533e-03]
 
 def test_s_theat():
     arch = Arch()
     p=2
     q = 3
+    phi = [1.86818005, -0.87194949]
     alpha = [2.18518342, 0.01851308, 0., 0.01112357]
     alpha = [35.19315819, 0.9220255, 0., 3.8679039]
+    theta = phi + alpha
     residual_2 = y_residual_2_streamflow_395
     x = y_streamflow_395
-    s = arch.s_theat(x, residual_2, alpha, p, q)
+    s = arch.s_theat(x, theta, p, q)
     print("s")
     print(s)
 
