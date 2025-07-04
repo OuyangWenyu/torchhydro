@@ -2452,6 +2452,27 @@ def test_H_gradient_thetai():
     print("residual1")
     print(residual1)
 
+def test_st_theta():
+    arch = Arch()
+    p=2
+    q = 3
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    residual_2 = y_residual_2_streamflow_395[:q+1]
+    residual_2.reverse()
+    max_pq = max(p,q)
+    x = y_streamflow_395[:max_pq]
+    residual_2_ = residual_2[:]
+    residual_2_[0] = 1
+    alpha_ = np.transpose(alpha)
+    h = arch.delta_2_one_step(residual_2_, alpha_)
+    st = arch.st_theta(residual_2, x, h, alpha, q)
+    print("st")
+    print(st)
+
+
+
+
+
 def test_mL_estimation():
     arch = Arch()
     x = 0

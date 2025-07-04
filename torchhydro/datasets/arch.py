@@ -3008,8 +3008,10 @@ class Arch(object):
     def st_theta(
         self,
         residual_2,
+        x,
         h,
-
+        alpha,
+        q,
     ):
         """
 
@@ -3018,14 +3020,75 @@ class Arch(object):
         ----------
         residual_2
         h
+        alpha
 
         Returns
         -------
 
         """
-        st = (residual_2 - h) / (2 * h * h)
+        residual_t_2 = residual_2[0]
+        st_0 = (residual_t_2 - h) / (2 * h * h)
+
+        zt_phi = residual_2[:]
+        zt_phi[0] = 1
+        residual_1 = residual_2[1:]
+        residual_1 = np.sqrt(residual_1)
+        x_1 = x[1:]
+        st_1 = -2 * np.array(alpha) * residual_1 * np.array(x_1)
+        st_1 = np.sum(st_1)
+        st_1 = np.insert(zt_phi, 0, st_1)
+        st_1 = np.transpose(st_1)
+
+        residual_2_ = residual_2[0]
+        h_2 = h
+        x_2 = x[:-1]
+        st_2 = x_2 * residual_2_
+        st_2 = st_2 / h_2
+        zero_2 = np.zeros(q+1)
+        st_2 = np.concatenate(st_2, zero_2)
+        st_2 = np.transpose(st_2)
+
+        st = st_0 * st_1 + st_2
 
         return st
+
+    def s_theat(
+        self,
+        x,
+        residual_2,
+        alpha,
+        p,
+        q,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        residual_2
+        alpha
+        q
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+
+        s = np.zeros(n_x)
+        for i in range(n_x):
+            residual_2 = residual_2[:q + 1]
+            residual_2.reverse()
+            max_pq = max(p, q)
+            x_i = x[:max_pq]
+            residual_2_ = residual_2[:]
+            residual_2_[0] = 1
+            alpha_ = np.transpose(alpha)
+            h = self.delta_2_one_step(residual_2_, alpha_)
+            st = self.st_theta(residual_2, x, h, alpha, q)
+            s[i] = st
+
+        return s
 
     def H_gradient_thetai(
         self,
