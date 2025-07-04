@@ -3074,18 +3074,20 @@ class Arch(object):
 
         """
         n_x = len(x)
+        alpha_ = np.transpose(alpha)
+        max_pq = max(p, q)
+        h = self.delta_2(residual_2, alpha)
 
         s = np.zeros(n_x)
         for i in range(n_x):
-            residual_2 = residual_2[:q + 1]
-            residual_2.reverse()
-            max_pq = max(p, q)
+            residual_2_i = residual_2[:q + 1]
+            residual_2_i.reverse()
             x_i = x[:max_pq]
-            residual_2_ = residual_2[:]
-            residual_2_[0] = 1
-            alpha_ = np.transpose(alpha)
-            h = self.delta_2_one_step(residual_2_, alpha_)
-            st = self.st_theta(residual_2, x, h, alpha, q)
+            x_i.reverse()
+            residual_2_i_ = residual_2_i[:]
+            residual_2_i_[0] = 1
+            h_i = h[i]
+            st = self.st_theta(residual_2, x_i, h_i, alpha, q)
             s[i] = st
 
         return s

@@ -2470,8 +2470,16 @@ def test_st_theta():
     print(st)
 
 
-
-
+def test_s_theat():
+    arch = Arch()
+    p=2
+    q = 3
+    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
+    residual_2 = y_residual_2_streamflow_395
+    x = y_streamflow_395
+    s = arch.s_theat(x, residual_2, alpha, p, q)
+    print("s")
+    print(s)
 
 def test_mL_estimation():
     arch = Arch()
