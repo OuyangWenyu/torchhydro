@@ -3097,14 +3097,14 @@ class Arch(object):
         h = self.delta_2(residual_2, alpha)
 
         s = []
-        max_pq = max(p, q)
-        for i in range(n_x):
+        start = p + q
+        for i in range(start, n_x-1):
             residual_2_i = residual_2[i-q:i+1]
-            residual_2_i.reverse()
-            x_i = x[i-max_pq:i]
+            residual_2_i = residual_2_i[::-1]
+            x_i = x[i-p-q:i]
             x_i.reverse()
             h_i = h[i]
-            s_i = self.st_theta(residual_2, x_i, h_i, alpha, p, q)
+            s_i = self.st_theta(residual_2_i, x_i, h_i, alpha, p, q)
             s.append(s_i)
 
         return s
