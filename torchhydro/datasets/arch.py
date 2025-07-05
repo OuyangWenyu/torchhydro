@@ -3135,6 +3135,63 @@ class Arch(object):
 
         return gradient
 
+    def residual_divide_delta_mean_std(
+        self,
+        residual,
+        delta,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual
+        delta
+
+        Returns
+        -------
+
+        """
+        e = np.array(residual) / np.array(delta)
+        mean = np.mean(e)
+        std = np.std(e)
+
+        return mean, std
+
+    def arima_arch(
+        self,
+        x,
+        theta,
+        p,
+        q
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        theta
+        p
+        q
+
+        Returns
+        -------
+
+        """
+        n_theta = len(theta)
+        if n_theta != p+q+1:
+            raise ValueError("the length of theta need to be equal to p+q+1.")
+        phi = theta[:p]
+        alpha = theta[p:]
+
+        y_t = self.arima(x=x, phi=phi, p=p)
+        residual = np.array(x) - np.array(y_t)
+        residual_2 = np.power(residual, 2)
+        delta_2 = self.delta_2(residual_2, alpha)
+        delta = np.sqrt(delta_2)
+        mean, std = self.residual_divide_delta_mean_std(residual, delta)
+
+        return mean, std
+
     def gamma(
         self,
         v,
