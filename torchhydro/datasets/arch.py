@@ -2894,6 +2894,9 @@ class Arch(object):
         i_max = np.argmax(L_theta)
         theta1_ = theta1[i_max]
         L_theta_ = L_theta[i_max]
+        if L_theta_ < L_theta0:
+            theta1_ = theta[:]
+            L_theta_ = L_theta0
 
         likelihood_theta_1_0 = np.absolute(L_theta_-L_theta0)
 
@@ -2954,7 +2957,8 @@ class Arch(object):
             if (iloop % node_loop) == 0:
                 print("----------iloop = " + str(iloop) + "----------", flush=True)
                 print(theta1, flush=True)
-                print(L_theta, flush=True)
+                print("gradient = " + str(gradient))
+                print("L_theta = " + str(L_theta))
                 print("distance_grad_0 = " + str(distance_grad_0), flush=True)
                 print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0), flush=True)
                 print("distance_theta_1_0 = " + str(distance_theta_1_0), flush=True)
@@ -3261,8 +3265,6 @@ class Arch(object):
         L_theta = L_theta_a - L_theta_b - L_theta_c
 
         return L_theta
-
-
 
 
     def H_gradient_thetai(
