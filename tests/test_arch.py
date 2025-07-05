@@ -2973,12 +2973,20 @@ def test_gradient_s():
 def test_residual_divide_delta_mean_std():
     arch = Arch()
     residual = y_residual_streamflow_395
-    delta_2 = y_residual_2_streamflow_395
-    mean, std = arch.residual_divide_delta_mean_std(residual, delta_2)
+    phi = [1.86818005, -0.87194949]
+    alpha = [35.19315819, 0.9220255, 0., 3.8679039]
+    theta = phi + alpha
+    delta_2 = arch.delta_2(y_residual_2_streamflow_395, alpha)
+    delta = np.sqrt(delta_2)
+    mean, std = arch.residual_divide_delta_mean_std(residual, delta)
     print("mean")
     print(mean)
     print("std")
     print(std)
+# mean
+# 0.161609753502022
+# std
+# 0.829115257619602
 
 def test_arima_arch():
     arch = Arch()
@@ -2993,6 +3001,10 @@ def test_arima_arch():
     print(mean)
     print("std")
     print(std)
+# mean
+# 0.16160932078025916
+# std
+# 0.8291152060653459
 
 def test_log_likelihood_gamma():
     arch = Arch()

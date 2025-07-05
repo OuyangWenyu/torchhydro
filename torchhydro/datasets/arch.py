@@ -2877,13 +2877,13 @@ class Arch(object):
         s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         # grad_module = self.gradient_module(grad)
         # if grad_module > 100:
-        # s = np.array(s) * d_theta  # todo:
+        # s = np.array(s) * d_theta
         n_s = len(s)
 
         alpha0 = theta[p:]
         L_theta0 = self.log_likelihood_gauss_vt(residual_2, alpha0)
 
-        L_theta = [0] * n_s
+        L_theta = [0] * n_s  # todo
         theta1 = []
         for i in range(n_s):
             theta1_i = np.array(theta) + s[i] * np.array(grad)
@@ -2931,6 +2931,7 @@ class Arch(object):
         if n_theta < p+q+1:
             raise ValueError("the length of theta0 need be equal to p+q+1.")
 
+        # termination term
         e_distance_grad_0 = 0.001
         e_likelihood_theta_1_0 = 0.001
         e_distance_theta_1_0 = 0.001
