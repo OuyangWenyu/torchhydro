@@ -2862,6 +2862,7 @@ class Arch(object):
         grad,
         d_theta,
         p,
+        s: Optional = None,
     ):
         """
         grid searching
@@ -2874,7 +2875,8 @@ class Arch(object):
         -------
 
         """
-        s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
+        if s is None:
+            s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         # grad_module = self.gradient_module(grad)
         # if grad_module > 100:
         # s = np.array(s) * d_theta
@@ -2883,18 +2885,26 @@ class Arch(object):
         alpha0 = theta[p:]
         L_theta0 = self.log_likelihood_gauss_vt(residual_2, alpha0)
 
-        L_theta = [0] * n_s  # todo
+        L_theta = []
         theta1 = []
         for i in range(n_s):
             theta1_i = np.array(theta) + s[i] * np.array(grad)
-            theta1.append(theta1_i)
             alpha_i = theta1_i[p:]
-            L_theta[i] = self.log_likelihood_gauss_vt(residual_2, alpha_i)
+            indices = alpha_i[np.where(alpha_i < 0)]
+            if indices.size > 0:
+                continue
+            L_theta_i = self.log_likelihood_gauss_vt(residual_2, alpha_i)
+            L_theta.append(L_theta_i)
+            theta1.append(theta1_i)
 
         i_max = np.argmax(L_theta)
         theta1_ = theta1[i_max]
         L_theta_ = L_theta[i_max]
-        if L_theta_ < L_theta0:
+        if (L_theta_ < L_theta0) and (i_max == 0):
+            s = 0.5 * np.array(s)
+            theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search(residual_2, theta, grad, d_theta, p, s)
+            return theta1_, likelihood_theta_1_0, L_theta_
+        elif L_theta_ < L_theta0:
             theta1_ = theta[:]
             L_theta_ = L_theta0
 
@@ -2948,9 +2958,9 @@ class Arch(object):
             # gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
             gradient = self.gradient_s(x, theta0, p, q)
             gradient[:p] = 0
-            gradient_ = np.where(gradient < 0, -gradient, gradient)
+            # gradient_ = np.where(gradient < 0, -gradient, gradient)
             gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
-            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, d_theta, p)
+            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient, d_theta, p)
 
             distance_grad_0 = self.distance_theta_0_1(gradient)
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
