@@ -2295,7 +2295,7 @@ def test_gradient_ascent():
     alpha2_395 = [35.19315819, 0.9220255, 0., 3.8679039]
     alpha3 = [35.40975055, 1.11804071, 0., 3.56875317]
     alpha4_395 = [0.5, 1.1, 0., 0.1]
-    theta = phi + alpha2_395
+    theta = phi + alpha
     x = y_streamflow_1460
     phi_1460 = [1.80161201, -1.28440015, 0.43756275]
     alpha_1460 = [6.71658575e+02, 2.37001714e-02, 3.90087440e-02, 3.41720975e-02]
@@ -2969,7 +2969,7 @@ def test_log_likelihood_gamma():
     x = y_streamflow_395
     p = 2
     q = 3
-    v = 2
+    v = 3
     phi = [1.86818005, -0.87194949]
     alpha = [2.18518342, 0.01851308, 0., 0.01112357]
     theta = phi + alpha
@@ -2977,6 +2977,8 @@ def test_log_likelihood_gamma():
     L_theta = arch.log_likelihood_gamma(v, residual_2, theta, p, q)
     print("L_theta")
     print(L_theta)
+# L_theta
+# -932.9348379994717
 
 def test_mL_estimation():
     arch = Arch()

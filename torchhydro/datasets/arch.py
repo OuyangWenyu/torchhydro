@@ -3219,10 +3219,10 @@ class Arch(object):
         q,
     ):
         """
-
+        Time Series Analysis  James D.Hamilton p768
         Parameters
         ----------
-        v
+        v: parameter of gamma function, >2.
         residual_2
         theta
         p
