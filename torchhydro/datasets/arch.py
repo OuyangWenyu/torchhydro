@@ -2941,7 +2941,9 @@ class Arch(object):
             phi = theta0[:p]
             residual0 = self.x_residual_via_parameters(x, phi)
             residual0_2 = np.power(residual0, 2)
-            gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
+            # gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
+            gradient = self.gradient_s(x, theta0, p, q)
+            gradient[:p] = 0
             gradient_ = np.where(gradient < 0, -gradient, gradient)
             gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
             theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, d_theta, p)
@@ -3118,18 +3120,18 @@ class Arch(object):
 
         Parameters
         ----------
-        s
+        x
+        theta
+        p
+        q
 
         Returns
         -------
 
         """
-        phi = theta[:p]
-        alpha = theta[p:]
-        residual = self.x_residual_via_parameters(x, phi)
-        residual_2 = np.power(residual, 2)
-        s = self.s_theat(x, residual_2, alpha, p, q)
-        gradient = np.sum(s, axis=1)
+        s = self.s_theat(x, theta, p, q)
+        s = np.array(s)
+        gradient = np.sum(s, axis=0)
 
         return gradient
 

@@ -2104,10 +2104,12 @@ def test_delta_2():
     alpha4_ = [1.37244233e+03, 1.82313809e+03, 0.00000000e+00, 1.34555206e+04]
     alpha4_ = [35.19315819, 0.9220255, 0., 3.8679039]
     alpha4_ = [4.81614767e+03, 1.59475061e+03, 0.00000000e+00, 4.92331438e+04]
+    delta_2 = arch.delta_2(residual_2, alpha4_)
     residual_2 = y_residual_2_streamflow_1460
     alpha = [6.71921606e+02, 1.62963230e+04, 3.34895884e+02, 3.69703420e+01]
     alpha = [6.85822878e+02, 1.73127878e+03, 5.06418697e+02, 3.99362576e+02]
-    delta_2 = arch.delta_2(residual_2, alpha)
+    alpha = [6.98690405e+02, 2.76598574e+01, 2.82575788e+01, 2.89027965e+01]
+    # delta_2 = arch.delta_2(residual_2, alpha)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta_2.txt', delta_2)
     # print("delta_2")
     # print(delta_2)
@@ -2280,6 +2282,7 @@ def test_grid_search():
 
 def test_gradient_ascent():
     arch = Arch()
+    x_1 = y_streamflow_395
     phi = [1.86818005, -0.87194949]
     alpha = [2.18518342, 0.01851308, 0., 0.01112357]
     alpha4 = [2.18518342, 0.1112357, 0., 0.1851308]
@@ -2288,16 +2291,17 @@ def test_gradient_ascent():
     alpha3 = [35.40975055, 1.11804071, 0., 3.56875317]
     alpha4 = [0.5, 1.1, 0., 0.1]
     theta = phi + alpha4
+    x = y_streamflow_1460
     phi_1460 = [1.80161201, -1.28440015, 0.43756275]
     alpha_1460 = [6.71658575e+02, 2.37001714e-02, 3.90087440e-02, 3.41720975e-02]
     # alpha_1460 = [4.81614767e+03, 1.59475061e+03, 0.00000000e+00, 4.92331438e+04]
-    theta = phi_1460 + alpha_1460
+    # theta = phi_1460 + alpha_1460
     d_theta = 0.0001
-    p = 3
+    p = 2
     q = 3
     i_theta = [2, 3, 5]
     i_theta = [3, 4, 5, 6]
-    theta1 = arch.gradient_ascent(y_streamflow_1460, theta, d_theta, p, q, i_theta)
+    theta1 = arch.gradient_ascent(x_1, theta, d_theta, p, q, i_theta)
     print("theta1")
     print(theta1)
 # ----------end----------  d_theta = 0.0001
@@ -2358,6 +2362,32 @@ def test_gradient_ascent():
 # theta1
 # [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  6.85841330e+02
 #   1.72718618e+03  5.06455958e+02  3.99554559e+02]
+## alpha_1460 = [6.71658575e+02, 2.37001714e-02, 3.90087440e-02, 3.41720975e-02]
+# ----------iloop = 500----------
+# [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  6.86775448e+02
+#   1.54702554e+01  1.58026636e+01  1.61509502e+01]
+# -7650.576718764932
+# distance_grad_0 = 0.46242184127025104
+# likelihood_theta_1_0 = 0.5473601216599491
+# distance_theta_1_0 = 0.0018063353174610796
+# ----------iloop = 1000----------
+# [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  6.95833923e+02
+#   2.47418951e+01  2.52800945e+01  2.58585563e+01]
+# -7859.342400723227
+# distance_grad_0 = 0.28984167634142805
+# likelihood_theta_1_0 = 0.3251084104358597
+# distance_theta_1_0 = 0.0011321940482097365
+# ----------end----------
+# gradient = [ 0.          0.          0.         -0.24507663 -0.25026354 -0.25528777
+#  -0.26092525]
+# L_theta = -7914.171319967093
+# distance_grad_0 = 0.2559482211985308
+# likelihood_theta_1_0 = 0.28289593429690285
+# distance_theta_1_0 = 0.0009997977390571475
+# iloop = 1181
+# theta1
+# [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  6.98690405e+02
+#   2.76598574e+01  2.82575788e+01  2.89027965e+01]
 
 def test_multi_gradient_ascent():
     arch = Arch()
@@ -2499,6 +2529,9 @@ def test_gradient_s():
     gradient = arch.gradient_s(x, theta, p, q)
     print("gradient")
     print(gradient)
+# gradient
+# [-1619.12801894 -1640.28632029    -3.43881184    -3.4317577
+#     -3.44010076    -3.45012194]
 
 def test_log_likelihood_gamma():
     arch = Arch()
