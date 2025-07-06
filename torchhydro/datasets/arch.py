@@ -2925,7 +2925,6 @@ class Arch(object):
         residual_2,
         theta,
         grad,
-        d_theta,
         p,
         q,
         s: Optional = None,
@@ -2936,7 +2935,6 @@ class Arch(object):
         ----------
         residual_2
         theta
-        grad
         d_theta
         p
         q
@@ -2951,35 +2949,48 @@ class Arch(object):
         n_s = len(s)
 
         # theta0
-        alpha0 = theta[p:]
+        alpha0 = np.array(theta[p:])
         L_theta0 = self.log_likelihood_gauss_vt(residual_2, alpha0)
 
-        indices = alpha0[np.where(alpha0 > 0)]
+        indices = np.where(alpha0 > 0)
+        indices = indices[0]
         n_indices = indices.size
-        n_0 = q + 1 - n_indices
         if n_indices > 0:
             gradient = grad[p:]
             for i in range(n_indices):
-                L_theta = []
-                theta1 = []
-                theta0 = theta[:]
+                L_theta_i = []
+                theta1_i = []
+                if i == 0:
+                    theta0_i = theta[:]
+                    L_theta0_i = L_theta0
+                    alpha0_i = theta0_i[p:].copy()
                 for j in range(n_s):
-                    alpha_i_j = alpha0[indices[i]] + s[j] * gradient[indices[i]]
+                    alpha_i_j = alpha0_i[indices[i]] + s[j] * gradient[indices[i]]
                     if alpha_i_j <= 0:
                         continue
-                    alpha_j = alpha0[:]
+                    alpha_j = alpha0_i[:]
                     alpha_j[indices[i]] = alpha_i_j
-                    theta1_j = theta0[:]
-                    theta1_j[p:] = alpha_j[:]
-                    L_theta_i = self.log_likelihood_gauss_vt(residual_2, alpha_j)
-                    L_theta.append(L_theta_i)
-                    theta1.append(theta1_j)
-                if len(L_theta) > 0:
-                    i_max = np.argmax(L_theta)
-                    theta1_ = theta1[i_max]
-                    L_theta_ = L_theta[i_max]
-                    if (L_theta_ > L_theta0):
-                        alpha0 = alpha_j[:]
+                    theta1_j = theta0_i[:]
+                    theta1_j[p:] = alpha_j[:].copy()
+                    L_theta_i_j = self.log_likelihood_gauss_vt(residual_2, alpha_j)
+                    L_theta_i.append(L_theta_i_j)
+                    theta1_i.append(theta1_j)
+                if len(L_theta_i) > 0:
+                    i_max = np.argmax(L_theta_i)
+                    theta1_i_ = theta1_i[i_max]
+                    L_theta_i_ = L_theta_i[i_max]
+                    if (L_theta_i_ > L_theta0_i):
+                        theta0_i = theta1_i_[:]
+                        L_theta0_i = L_theta_i
+                        alpha0_i = theta1_i_[p:]
+
+            theta1 = theta0_i
+            L_theta = L_theta0_i
+            likelihood_theta_1_0 = np.absolute(L_theta - L_theta0)
+
+            return theta1, likelihood_theta_1_0, L_theta
+        else:
+            return theta, 0, L_theta0
 
 
     def gradient_ascent(

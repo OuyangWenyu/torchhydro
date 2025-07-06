@@ -2294,6 +2294,23 @@ def test_grid_search():
 # L_theta
 # -2933.0312462223073
 
+def test_grid_search_single_parameter():
+    arch = Arch()
+    residual_2 = y_residual_2_streamflow_395
+    phi = [1.86818005, -0.87194949]
+    alpha = [34.54383114, 0.25392635, 0., 2.69992071]
+    theta = phi + alpha
+    gradient = [0., 0., -3.51171334, -3.5041112, -3.51313309, -3.52424726]
+    p = 2
+    q = 3
+    theta1, likelihood_theta_1_0, L_theta = arch.grid_search_single_parameter(residual_2, theta, gradient, p, q)
+    print("theta1")
+    print(theta1)
+    print("likelihood_theta_1_0")
+    print(likelihood_theta_1_0)
+    print("L_theta")
+    print(L_theta)
+
 def test_gradient_ascent():
     arch = Arch()
     x_1 = y_streamflow_395
