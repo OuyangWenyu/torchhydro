@@ -2920,6 +2920,64 @@ class Arch(object):
 
         return theta1_, likelihood_theta_1_0, L_theta_
 
+    def grid_search_single_parameter(
+        self,
+        residual_2,
+        theta,
+        grad,
+        d_theta,
+        p,
+        q,
+        s: Optional = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual_2
+        theta
+        grad
+        d_theta
+        p
+        q
+        s
+
+        Returns
+        -------
+
+        """
+        if s is None:
+            s = [1 / 16, 1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8, 16]
+        n_s = len(s)
+
+        # theta0
+        alpha0 = theta[p:]
+        L_theta0 = self.log_likelihood_gauss_vt(residual_2, alpha0)
+
+        indices = alpha0[np.where(alpha0 > 0)]
+        n_indices = indices.size
+        if n_indices > 0:
+            L_theta = []
+            theta1 = []
+            gradient = grad[p:]
+            for i in range(n_indices):
+                for j in range(n_s):
+                    theta1_i = np.array(theta) + s[j] * np.array(grad)
+                    alpha_i_j = alpha0[indices[i]] + s[j] * gradient[indices[i]]
+                    alpha_j = alpha0[:]
+                    alpha_j[indices[i]] = alpha_i_j
+                    theta1_j = theta[:]
+                    theta1_j[p:] = alpha_j[:]
+                    indices = alpha_i[np.where(alpha_i < 0)]
+                    n_indices = indices.size
+                    if (n_indices > 0) and (n_indices < q + 1):
+                        alpha_i = np.where(alpha_i < 0, 0, alpha_i)
+                        theta1_i[p:] = alpha_i[:]
+                    elif (n_indices > 0) and (n_indices == q + 1):
+                        continue
+                    L_theta_i = self.log_likelihood_gauss_vt(residual_2, alpha_i)
+                    L_theta.append(L_theta_i)
+                    theta1.append(theta1_i)
 
     def gradient_ascent(
         self,
