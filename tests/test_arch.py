@@ -2117,6 +2117,7 @@ def test_delta_2():
     alpha_395_2 = [28, 0.15392635, 0., 1.1]
     alpha_395_2 = [2, 1]
     alpha_395_2 = [25, 0.1, 0., 0.95]
+    alpha_395_2 = [27.52040446, 0.25392635, 0.0, 0.9377970799999997]
     delta_2 = arch.delta_2(residual_2, alpha_395_2)
     residual_2 = y_residual_2_streamflow_1460
     alpha = [6.71921606e+02, 1.62963230e+04, 3.34895884e+02, 3.69703420e+01]
@@ -2310,6 +2311,12 @@ def test_grid_search_single_parameter():
     print(likelihood_theta_1_0)
     print("L_theta")
     print(L_theta)
+# theta1
+# [1.86818005, -0.87194949, 27.52040446, 0.25392635, 0.0, 0.9377970799999997]
+# likelihood_theta_1_0
+# 9.206679431804105
+# L_theta
+# -1311.1707213307743
 
 def test_gradient_ascent():
     arch = Arch()

@@ -2926,7 +2926,6 @@ class Arch(object):
         theta,
         grad,
         p,
-        q,
         s: Optional = None,
     ):
         """
@@ -2935,9 +2934,8 @@ class Arch(object):
         ----------
         residual_2
         theta
-        d_theta
+        grad
         p
-        q
         s
 
         Returns
@@ -2945,7 +2943,7 @@ class Arch(object):
 
         """
         if s is None:
-            s = [1 / 16, 1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8, 16]
+            s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         n_s = len(s)
 
         # theta0
@@ -2981,10 +2979,10 @@ class Arch(object):
                     L_theta_i_ = L_theta_i[i_max]
                     if (L_theta_i_ > L_theta0_i):
                         theta0_i = theta1_i_[:]
-                        L_theta0_i = L_theta_i
-                        alpha0_i = theta1_i_[p:]
+                        L_theta0_i = L_theta_i_
+                        alpha0_i = theta1_i_[p:].copy()
 
-            theta1 = theta0_i
+            theta1 = theta0_i[:]
             L_theta = L_theta0_i
             likelihood_theta_1_0 = np.absolute(L_theta - L_theta0)
 
