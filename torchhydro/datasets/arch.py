@@ -2862,6 +2862,7 @@ class Arch(object):
         grad,
         d_theta,
         p,
+        q,
         s: Optional = None,
     ):
         """
@@ -2891,26 +2892,39 @@ class Arch(object):
             theta1_i = np.array(theta) + s[i] * np.array(grad)
             alpha_i = theta1_i[p:]
             indices = alpha_i[np.where(alpha_i < 0)]
-            if indices.size > 0:
-                continue
+            n_indices = indices.size
+            try:
+                if (n_indices > 0) and (n_indices < q+1):
+                    alpha_i = np.where(alpha_i < 0, 0, alpha_i)
+                    theta1_i[p:] = alpha_i[:]
+                elif (n_indices > 0) and (n_indices == q+1):
+                    continue
+            except ValueError:
+                raise ValueError("The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()")
+
             L_theta_i = self.log_likelihood_gauss_vt(residual_2, alpha_i)
             L_theta.append(L_theta_i)
             theta1.append(theta1_i)
 
-        i_max = np.argmax(L_theta)
-        theta1_ = theta1[i_max]
-        L_theta_ = L_theta[i_max]
-        if (L_theta_ < L_theta0) and (i_max == 0):
-            s = 0.5 * np.array(s)
-            theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search(residual_2, theta, grad, d_theta, p, s)
-            return theta1_, likelihood_theta_1_0, L_theta_
-        elif L_theta_ < L_theta0:
+        if len(L_theta) > 0:
+            i_max = np.argmax(L_theta)
+            theta1_ = theta1[i_max]
+            L_theta_ = L_theta[i_max]
+            if (L_theta_ < L_theta0):   #  and (i_max == 0)
+                s = 0.5 * np.array(s)
+                theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search(residual_2, theta, grad, d_theta, p, q, s)
+                return theta1_, likelihood_theta_1_0, L_theta_
+            # elif L_theta_ < L_theta0:
+            #     theta1_ = theta[:]
+            #     L_theta_ = L_theta0
+        else:
             theta1_ = theta[:]
             L_theta_ = L_theta0
 
         likelihood_theta_1_0 = np.absolute(L_theta_-L_theta0)
 
         return theta1_, likelihood_theta_1_0, L_theta_
+
 
     def gradient_ascent(
         self,
@@ -2958,9 +2972,8 @@ class Arch(object):
             # gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
             gradient = self.gradient_s(x, theta0, p, q)
             gradient[:p] = 0
-            # gradient_ = np.where(gradient < 0, -gradient, gradient)
             gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
-            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient, d_theta, p)
+            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient, d_theta, p, q)
 
             distance_grad_0 = self.distance_theta_0_1(gradient)
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
