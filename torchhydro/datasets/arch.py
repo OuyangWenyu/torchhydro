@@ -2878,14 +2878,13 @@ class Arch(object):
         """
         if s is None:
             s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
-        # grad_module = self.gradient_module(grad)
-        # if grad_module > 100:
-        # s = np.array(s) * d_theta
         n_s = len(s)
 
+        # theta0
         alpha0 = theta[p:]
         L_theta0 = self.log_likelihood_gauss_vt(residual_2, alpha0)
 
+        # search
         L_theta = []
         theta1 = []
         for i in range(n_s):
@@ -2893,15 +2892,11 @@ class Arch(object):
             alpha_i = theta1_i[p:]
             indices = alpha_i[np.where(alpha_i < 0)]
             n_indices = indices.size
-            try:
-                if (n_indices > 0) and (n_indices < q+1):
-                    alpha_i = np.where(alpha_i < 0, 0, alpha_i)
-                    theta1_i[p:] = alpha_i[:]
-                elif (n_indices > 0) and (n_indices == q+1):
-                    continue
-            except ValueError:
-                raise ValueError("The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()")
-
+            if (n_indices > 0) and (n_indices < q+1):
+                alpha_i = np.where(alpha_i < 0, 0, alpha_i)
+                theta1_i[p:] = alpha_i[:]
+            elif (n_indices > 0) and (n_indices == q+1):
+                continue
             L_theta_i = self.log_likelihood_gauss_vt(residual_2, alpha_i)
             L_theta.append(L_theta_i)
             theta1.append(theta1_i)
