@@ -2645,7 +2645,7 @@ class Arch(object):
     def log_likelihood_gauss_vt(
         self,
         residual_2,
-        alpha
+        alpha,
     ):
         """
         log likelihood function, a, b and c item.
@@ -2906,8 +2906,10 @@ class Arch(object):
             theta1_ = theta1[i_max]
             L_theta_ = L_theta[i_max]
             if (L_theta_ < L_theta0):   #  and (i_max == 0)
-                s = 0.5 * np.array(s)
-                theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search(residual_2, theta, grad, d_theta, p, q, s)
+                # s = 0.5 * np.array(s)
+                # theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search(residual_2, theta, grad, d_theta, p, q, s)
+                # return theta1_, likelihood_theta_1_0, L_theta_
+                theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search_single_parameter(residual_2, theta, grad, p)
                 return theta1_, likelihood_theta_1_0, L_theta_
             # elif L_theta_ < L_theta0:
             #     theta1_ = theta[:]
@@ -3029,19 +3031,24 @@ class Arch(object):
 
         iloop = 0
         theta0 = theta[:]
+        gradient = None
         while True:
-            iloop = iloop + 1
             phi = theta0[:p]
             residual0 = self.x_residual_via_parameters(x, phi)
             residual0_2 = np.power(residual0, 2)
             # gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
-            gradient = self.gradient_s(x, theta0, p, q)
-            gradient[:p] = 0
-            gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
+            if iloop == 0:
+                gradient = self.gradient_s(x, theta0, p, q)
+                gradient[:p] = 0
+                # gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
             theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient, d_theta, p, q)
 
-            distance_grad_0 = self.distance_theta_0_1(gradient)
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
+            if likelihood_theta_1_0 > 0:
+                gradient = self.gradient_s(x, theta1, p, q)
+                gradient[:p] = 0
+                theta0 = theta1[:]
+            distance_grad_0 = self.distance_theta_0_1(gradient)
 
             if (iloop % node_loop) == 0:
                 print("----------iloop = " + str(iloop) + "----------", flush=True)
@@ -3051,6 +3058,7 @@ class Arch(object):
                 print("distance_grad_0 = " + str(distance_grad_0), flush=True)
                 print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0), flush=True)
                 print("distance_theta_1_0 = " + str(distance_theta_1_0), flush=True)
+                print(f"theta1 = " + str(theta1))
 
             if ((distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0)
                 or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
@@ -3062,8 +3070,8 @@ class Arch(object):
                 print("distance_theta_1_0 = " + str(distance_theta_1_0))
                 print("iloop = " + str(iloop))
                 break
-            else:
-                theta0 = theta1[:]
+
+            iloop = iloop + 1
 
         return theta1
 
