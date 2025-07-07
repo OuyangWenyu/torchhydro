@@ -2942,7 +2942,8 @@ class Arch(object):
         b_arima: bool = False,
     ):
         """
-
+        grid searching of single parameter
+        Time Series Analysis  James D.Hamilton P157
         Parameters
         ----------
         residual_2
@@ -2989,9 +2990,15 @@ class Arch(object):
                     if i in indices_alpha:
                         if theta_i_j <= 0:
                             continue
-                    theta1_j = theta0_i[:].copy()
-                    theta1_j[i] = theta_i_j
-                    alpha1_j = theta1_j[p:].copy()
+                    if b_arima:
+                        theta1_j = theta0_i[:].copy()
+                        theta1_j[i] = theta_i_j
+                        alpha1_j = theta1_j[p:].copy()
+                    else:
+                        alpha1_j = theta0_i[p:].copy()
+                        alpha1_j[i] = theta_i_j
+                        theta1_j = theta0_i[:].copy()
+                        theta1_j[p:] = alpha1_j[:].copy()
                     if b_arima:
                         phi1_j = theta1_j[:p]
                         residual_j = self.x_residual_via_parameters(x, phi1_j)
@@ -3016,7 +3023,6 @@ class Arch(object):
             return theta1, likelihood_theta_1_0, L_theta
         else:
             return theta, 0, L_theta0
-
 
     def gradient_ascent(
         self,
