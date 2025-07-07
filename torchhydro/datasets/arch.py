@@ -3041,7 +3041,7 @@ class Arch(object):
             # gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
             if iloop == 0:
                 gradient = self.gradient_s(x, theta0, p, q)
-                gradient_ = gradient[:]
+                gradient_ = gradient[:].copy()
                 gradient_[:p] = 0
                 # gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
             theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, d_theta, p, q)
@@ -3049,9 +3049,9 @@ class Arch(object):
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
             if likelihood_theta_1_0 > 0:
                 gradient = self.gradient_s(x, theta1, p, q)
-                gradient_ = gradient[:]
+                gradient_ = gradient[:].copy()
                 gradient_[:p] = 0
-                theta0 = theta1[:]
+                theta0 = theta1[:].copy()
             distance_grad_0 = self.distance_theta_0_1(gradient_)
 
             if (iloop % node_loop) == 0:
