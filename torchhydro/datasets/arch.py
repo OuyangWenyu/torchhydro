@@ -6,6 +6,7 @@ import numpy as np
 from typing import Optional
 import math
 import time
+import copy
 
 
 class Arch(object):
@@ -2889,21 +2890,21 @@ class Arch(object):
         theta1 = []
         for i in range(n_s):
             theta1_i = np.array(theta) + s[i] * np.array(grad)
-            alpha_i = theta1_i[p:]
+            alpha_i = theta1_i[p:].copy()
             indices = alpha_i[np.where(alpha_i < 0)]
             n_indices = indices.size
             if (n_indices > 0) and (n_indices < q+1):
                 alpha_i = np.where(alpha_i < 0, 0, alpha_i)
-                theta1_i[p:] = alpha_i[:]
+                theta1_i[p:] = alpha_i[:].copy()
             elif (n_indices > 0) and (n_indices == q+1):
                 continue
             L_theta_i = self.log_likelihood_gauss_vt(residual_2, alpha_i)
             L_theta.append(L_theta_i)
-            theta1.append(theta1_i)
+            theta1.append(theta1_i[:])
 
         if len(L_theta) > 0:
             i_max = np.argmax(L_theta)
-            theta1_ = theta1[i_max]
+            theta1_ = theta1[i_max][:]
             L_theta_ = L_theta[i_max]
             if (L_theta_ < L_theta0):   #  and (i_max == 0)
                 # s = 0.5 * np.array(s)
@@ -2961,28 +2962,28 @@ class Arch(object):
                 L_theta_i = []
                 theta1_i = []
                 if i == 0:
-                    theta0_i = theta[:]
+                    theta0_i = copy.deepcopy(theta)
                     L_theta0_i = L_theta0
                     alpha0_i = theta0_i[p:].copy()
                 for j in range(n_s):
                     alpha_i_j = alpha0_i[indices[i]] + s[j] * gradient[indices[i]]
                     if alpha_i_j <= 0:
                         continue
-                    alpha_j = alpha0_i[:]
+                    alpha_j = alpha0_i[:].copy()
                     alpha_j[indices[i]] = alpha_i_j
-                    theta1_j = theta0_i[:]
+                    theta1_j = theta0_i[:].copy()
                     theta1_j[p:] = alpha_j[:].copy()
                     L_theta_i_j = self.log_likelihood_gauss_vt(residual_2, alpha_j)
                     L_theta_i.append(L_theta_i_j)
-                    theta1_i.append(theta1_j)
+                    theta1_i.append(theta1_j[:])
                 if len(L_theta_i) > 0:
                     i_max = np.argmax(L_theta_i)
-                    theta1_i_ = theta1_i[i_max]
+                    theta1_i_ = theta1_i[i_max][:]
                     L_theta_i_ = L_theta_i[i_max]
                     if (L_theta_i_ > L_theta0_i):
                         theta0_i = theta1_i_[:]
                         L_theta0_i = L_theta_i_
-                        alpha0_i = theta1_i_[p:].copy()
+                        alpha0_i = theta0_i[p:].copy()
 
             theta1 = theta0_i[:]
             L_theta = L_theta0_i
