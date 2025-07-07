@@ -3033,6 +3033,7 @@ class Arch(object):
         iloop = 0
         theta0 = theta[:]
         gradient = None
+        gradient_ = None
         while True:
             phi = theta0[:p]
             residual0 = self.x_residual_via_parameters(x, phi)
@@ -3040,16 +3041,18 @@ class Arch(object):
             # gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
             if iloop == 0:
                 gradient = self.gradient_s(x, theta0, p, q)
-                gradient[:p] = 0
+                gradient_ = gradient[:]
+                gradient_[:p] = 0
                 # gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
-            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient, d_theta, p, q)
+            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, d_theta, p, q)
 
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
             if likelihood_theta_1_0 > 0:
                 gradient = self.gradient_s(x, theta1, p, q)
-                gradient[:p] = 0
+                gradient_ = gradient[:]
+                gradient_[:p] = 0
                 theta0 = theta1[:]
-            distance_grad_0 = self.distance_theta_0_1(gradient)
+            distance_grad_0 = self.distance_theta_0_1(gradient_)
 
             if (iloop % node_loop) == 0:
                 print("----------iloop = " + str(iloop) + "----------", flush=True)
@@ -3112,6 +3115,7 @@ class Arch(object):
 
     def st_theta(
         self,
+        residual,
         residual_2,
         x,
         h,
@@ -3138,8 +3142,7 @@ class Arch(object):
 
         # st_1
         alpha_ = alpha[1:]  # zt_aux
-        residual_1 = residual_2[1:]
-        residual_1 = np.sqrt(residual_1)
+        residual_1 = residual[1:]
         x_1 = x[1:]
         st_1 = []
         for i in range(q):
@@ -3151,17 +3154,17 @@ class Arch(object):
             st_1.append(st_1_i)
         st_1 = np.array(st_1)
         st_1 = np.sum(st_1, axis=0)
-        zt_alpha = residual_2[:]  # zt_alpha
+        zt_alpha = residual_2[:]    # zt_alpha
         zt_alpha[0] = 1
         zt_alpha = np.transpose(zt_alpha)
         st_1 = np.concatenate((st_1, zt_alpha), axis=0)  # st_1
 
         # st_2
-        residual_2_ = residual_2[0]
+        residual_ = residual[0]
         h_2 = h
         x_2 = x[:p]
         x_2 = np.transpose(x_2)
-        st_2 = x_2 * residual_2_
+        st_2 = x_2 * residual_
         st_2 = st_2 / h_2
         zero_2 = np.zeros(q+1)
         zero_2 = np.transpose(zero_2)
@@ -3201,12 +3204,14 @@ class Arch(object):
         s = []
         start = p + q
         for i in range(start, n_x-1):
+            residual_i = residual[i-q:i+1]
+            residual_i = residual_i[::-1]
             residual_2_i = residual_2[i-q:i+1]
             residual_2_i = residual_2_i[::-1]
             x_i = x[i-p-q:i]
             x_i.reverse()
             h_i = h[i]
-            s_i = self.st_theta(residual_2_i, x_i, h_i, alpha, p, q)
+            s_i = self.st_theta(residual_i, residual_2_i, x_i, h_i, alpha, p, q)
             s.append(s_i)
 
         return s
