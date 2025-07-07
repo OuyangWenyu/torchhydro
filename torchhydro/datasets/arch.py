@@ -2918,7 +2918,7 @@ class Arch(object):
                 # s = 0.5 * np.array(s)
                 # theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search(residual_2, theta, grad, d_theta, p, q, s)
                 # return theta1_, likelihood_theta_1_0, L_theta_
-                theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search_single_parameter(residual_2, theta, grad, p)
+                theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search_single_parameter(residual_2, theta, grad, p, x=x, b_arima=b_arima)
                 return theta1_, likelihood_theta_1_0, L_theta_
             # elif L_theta_ < L_theta0:
             #     theta1_ = theta[:]
@@ -2937,6 +2937,7 @@ class Arch(object):
         theta,
         grad,
         p,
+        x: Optional,
         s: Optional = None,
         b_arima: bool = False,
     ):
@@ -2974,6 +2975,8 @@ class Arch(object):
             indices = indices_alpha[:]
             gradient = grad[p:]
         n_indices = indices.size
+        theta0_i = None
+        L_theta0_i = None
         if n_indices > 0:
             for i in indices:
                 L_theta_i = []
@@ -2981,17 +2984,21 @@ class Arch(object):
                 if i == 0:
                     theta0_i = copy.deepcopy(theta)
                     L_theta0_i = L_theta0
-                    alpha0_i = theta0_i[p:].copy()
                 for j in range(n_s):
                     theta_i_j = theta0_i[i] + s[j] * gradient[i]
-                    alpha_i_j = theta_i[i]
-                    if alpha_i_j <= 0:
-                        continue
-                    alpha_j = alpha0_i[:].copy()
-                    alpha_j[indices[i]] = alpha_i_j
+                    if i in indices_alpha:
+                        if theta_i_j <= 0:
+                            continue
                     theta1_j = theta0_i[:].copy()
-                    theta1_j[p:] = alpha_j[:].copy()
-                    L_theta_i_j = self.log_likelihood_gauss_vt(residual_2, alpha_j)
+                    theta1_j[i] = theta_i_j
+                    alpha1_j = theta1_j[p:].copy()
+                    if b_arima:
+                        phi1_j = theta1_j[:p]
+                        residual_j = self.x_residual_via_parameters(x, phi1_j)
+                        residual_2_j = np.power(residual_j, 2)
+                    else:
+                        residual_2_j = residual_2
+                    L_theta_i_j = self.log_likelihood_gauss_vt(residual_2_j, alpha1_j)
                     L_theta_i.append(L_theta_i_j)
                     theta1_i.append(theta1_j[:])
                 if len(L_theta_i) > 0:
@@ -3001,7 +3008,6 @@ class Arch(object):
                     if (L_theta_i_ > L_theta0_i):
                         theta0_i = theta1_i_[:]
                         L_theta0_i = L_theta_i_
-                        alpha0_i = theta0_i[p:].copy()
 
             theta1 = theta0_i[:]
             L_theta = L_theta0_i
