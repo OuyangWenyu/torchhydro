@@ -2864,7 +2864,9 @@ class Arch(object):
         d_theta,
         p,
         q,
+        x: Optional,
         s: Optional = None,
+        b_arima: bool = False,
     ):
         """
         grid searching
@@ -2898,7 +2900,13 @@ class Arch(object):
                 theta1_i[p:] = alpha_i[:].copy()
             elif (n_indices > 0) and (n_indices == q+1):
                 continue
-            L_theta_i = self.log_likelihood_gauss_vt(residual_2, alpha_i)
+            if b_arima:
+                phi_i = theta1_i[:p]
+                residual_i = self.x_residual_via_parameters(x, phi_i)
+                residual_2_i = np.power(residual_i, 2)
+            else:
+                residual_2_i = residual_2
+            L_theta_i = self.log_likelihood_gauss_vt(residual_2_i, alpha_i)
             L_theta.append(L_theta_i)
             theta1.append(theta1_i[:])
 
@@ -2930,6 +2938,7 @@ class Arch(object):
         grad,
         p,
         s: Optional = None,
+        b_arima: bool = False,
     ):
         """
 
@@ -2953,12 +2962,20 @@ class Arch(object):
         alpha0 = np.array(theta[p:])
         L_theta0 = self.log_likelihood_gauss_vt(residual_2, alpha0)
 
-        indices = np.where(alpha0 > 0)
-        indices = indices[0]
+        indices_alpha = np.where(alpha0 > 0)
+        indices_alpha = indices_alpha[0]
+        n_indices_alpha = indices_alpha.size
+        if b_arima:
+            indices_alpha = indices_alpha + p
+            indices_phi = list(range(p))
+            indices = np.insert(indices_alpha[:], 0, indices_phi)
+            gradient = grad[:]
+        else:
+            indices = indices_alpha[:]
+            gradient = grad[p:]
         n_indices = indices.size
         if n_indices > 0:
-            gradient = grad[p:]
-            for i in range(n_indices):
+            for i in indices:
                 L_theta_i = []
                 theta1_i = []
                 if i == 0:
@@ -2966,7 +2983,8 @@ class Arch(object):
                     L_theta0_i = L_theta0
                     alpha0_i = theta0_i[p:].copy()
                 for j in range(n_s):
-                    alpha_i_j = alpha0_i[indices[i]] + s[j] * gradient[indices[i]]
+                    theta_i_j = theta0_i[i] + s[j] * gradient[i]
+                    alpha_i_j = theta_i[i]
                     if alpha_i_j <= 0:
                         continue
                     alpha_j = alpha0_i[:].copy()
@@ -3002,6 +3020,7 @@ class Arch(object):
         p,
         q,
         i_theta,
+        b_arima: bool = False,
     ):
         """
         gradient ascent
@@ -3031,26 +3050,34 @@ class Arch(object):
         node_loop = 500
 
         iloop = 0
-        theta0 = theta[:]
+        theta0 = theta[:].copy()
         gradient = None
         gradient_ = None
-        while True:
+        residual0_2 = None
+        if not b_arima:
             phi = theta0[:p]
             residual0 = self.x_residual_via_parameters(x, phi)
             residual0_2 = np.power(residual0, 2)
+        while True:
+            if b_arima:
+                phi = theta0[:p]
+                residual0 = self.x_residual_via_parameters(x, phi)
+                residual0_2 = np.power(residual0, 2)
             # gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
             if iloop == 0:
                 gradient = self.gradient_s(x, theta0, p, q)
                 gradient_ = gradient[:].copy()
-                gradient_[:p] = 0
+                if not b_arima:
+                    gradient_[:p] = 0
                 # gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
-            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, d_theta, p, q)
+            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, d_theta, p, q, x=x, b_arima=b_arima)
 
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
             if likelihood_theta_1_0 > 0:
                 gradient = self.gradient_s(x, theta1, p, q)
                 gradient_ = gradient[:].copy()
-                gradient_[:p] = 0
+                if not b_arima:
+                    gradient_[:p] = 0
                 theta0 = theta1[:].copy()
             distance_grad_0 = self.distance_theta_0_1(gradient_)
 
