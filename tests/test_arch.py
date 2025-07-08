@@ -2372,7 +2372,7 @@ def test_gradient_ascent():
     i_theta = [2, 3, 5]
     i_theta = [3, 4, 5, 6]
     b_arima = True
-    theta1 = arch.gradient_ascent(x_1, theta, d_theta, p, q, i_theta, b_arima)
+    theta1 = arch.gradient_ascent(x_1, theta, p, q, b_arima)
     print("theta1")
     print(theta1)
 ## y_streamflow_395  phi = [1.86818005, -0.87194949]  alpha3 = [6.68332411, 0.04860733, 0., 1.17182912]

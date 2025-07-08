@@ -14,7 +14,7 @@ class Arch(object):
     Autoregressive Conditional Heteroscedasticity model, ARCH.  Based on ARIMA.
     autoregression integrated moving average, ARIMA.
     time series imputation
-    σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q), αq>0
+    σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0
 
     AR，auto-regression model.
     MA, moving average model.
@@ -2861,17 +2861,15 @@ class Arch(object):
         residual_2,
         theta,
         grad,
-        d_theta,
         p,
         q,
         x: Optional,
-        s: Optional = None,
         b_arima: bool = False,
     ):
         """
         grid searching
         Time Series Analysis  James D.Hamilton P157
-        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q), αq>0
+        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0
         Parameters
         ----------
         theta0
@@ -2880,8 +2878,7 @@ class Arch(object):
         -------
 
         """
-        if s is None:
-            s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
+        s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         n_s = len(s)
 
         # theta0
@@ -2891,7 +2888,12 @@ class Arch(object):
         # search
         L_theta = []
         theta1 = []
+        alpha0_0 = None
+        alphaq_0 = None
         for i in range(n_s):
+            if i ==0:
+                alpha0_0 = theta[p]
+                alphaq_0 = theta[p+q]
             theta1_i = np.array(theta) + s[i] * np.array(grad)
             alpha_i = theta1_i[p:].copy()
             indices = np.where(alpha_i < 0)
@@ -2900,9 +2902,9 @@ class Arch(object):
             if (n_indices > 0) and (n_indices <= q+1):
                 alpha_i_ = np.where(alpha_i < 0, 0, alpha_i)
                 if 0 in indices:
-                    alpha_i_[0] = alpha_i[0]
+                    alpha_i_[0] = alpha0_0
                 if q in indices:
-                    alpha_i_[q] = alpha_i[q]
+                    alpha_i_[q] = alphaq_0
                 alpha_i = alpha_i_[:].copy()
                 theta1_i[p:] = alpha_i[:].copy()
             if b_arima:
@@ -2912,6 +2914,8 @@ class Arch(object):
             else:
                 residual_2_i = residual_2
             L_theta_i = self.log_likelihood_gauss_vt(residual_2_i, alpha_i)
+            alpha0_0 = theta1_i[p]
+            alphaq_0 = theta1_i[p + q]
             L_theta.append(L_theta_i)
             theta1.append(theta1_i[:])
 
@@ -2919,15 +2923,9 @@ class Arch(object):
             i_max = np.argmax(L_theta)
             theta1_ = theta1[i_max][:]
             L_theta_ = L_theta[i_max]
-            if (L_theta_ < L_theta0):   #  and (i_max == 0)
-                # s = 0.5 * np.array(s)
-                # theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search(residual_2, theta, grad, d_theta, p, q, s)
-                # return theta1_, likelihood_theta_1_0, L_theta_
+            if (L_theta_ < L_theta0):
                 theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search_single_parameter(residual_2, theta, grad, p, q, x=x, b_arima=b_arima)
                 return theta1_, likelihood_theta_1_0, L_theta_
-            # elif L_theta_ < L_theta0:
-            #     theta1_ = theta[:]
-            #     L_theta_ = L_theta0
         else:
             theta1_ = theta[:]
             L_theta_ = L_theta0
@@ -2944,12 +2942,11 @@ class Arch(object):
         p,
         q,
         x: Optional,
-        s: Optional = None,
         b_arima: bool = False,
     ):
         """
         grid searching of single parameter
-        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q), αq>0
+        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0
         Time Series Analysis  James D.Hamilton P157
         Parameters
         ----------
@@ -2963,8 +2960,7 @@ class Arch(object):
         -------
 
         """
-        if s is None:
-            s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
+        s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         n_s = len(s)
         if b_arima:
             n_p = p + q +1
@@ -3046,10 +3042,8 @@ class Arch(object):
         self,
         x,
         theta,
-        d_theta,
         p,
         q,
-        i_theta,
         b_arima: bool = False,
     ):
         """
@@ -3100,7 +3094,7 @@ class Arch(object):
                 if not b_arima:
                     gradient_[:p] = 0
                 # gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
-            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, d_theta, p, q, x=x, b_arima=b_arima)
+            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, p, q, x=x, b_arima=b_arima)
 
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
             if likelihood_theta_1_0 > 0:
