@@ -14,7 +14,7 @@ class Arch(object):
     Autoregressive Conditional Heteroscedasticity model, ARCH.  Based on ARIMA.
     autoregression integrated moving average, ARIMA.
     time series imputation
-    σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0
+    σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0, (α1+α2+...+αq)<1
 
     AR，auto-regression model.
     MA, moving average model.
@@ -1217,7 +1217,6 @@ class Arch(object):
         if m > n_residula:  # todo:
             raise ValueError("degree m = " + str(m) + " out of series length.")
         LB, acf = self.LB_statistic(residual, m)
-        # significance_level_ = 1 - significance_level
         chi_critical = self.get_chi_critical(m, significance_level)       # 概率论与数理统计 p201
 
         # assumption
@@ -1233,10 +1232,8 @@ class Arch(object):
 
     def t_statistic(
         self,
-        residual,
         phi,
         theta,
-        # a_diagonal,
         se_beta,
     ):
         """
@@ -2744,7 +2741,7 @@ class Arch(object):
         y_t = self.arima(x=x, phi=phi, p=p)
         x_residual = np.array(x) - np.array(y_t)
 
-        return x_residual        # , y_t
+        return x_residual
 
     def gradient_thetai(
         self,
@@ -2753,7 +2750,6 @@ class Arch(object):
         d_theta,
         i_theta,
         p,
-        q,
         residual0_2: Optional = None,
     ):
         """
@@ -2831,7 +2827,7 @@ class Arch(object):
 
         gradient = np.zeros(n_theta)
         for i in i_theta:
-            gradient[i] = self.gradient_thetai(x, theta, d_theta, i, p, q, residual0_2)
+            gradient[i] = self.gradient_thetai(x, theta, d_theta, i, p, residual0_2=residual0_2)
 
         return gradient
 
@@ -3078,8 +3074,6 @@ class Arch(object):
                 phi = theta0[:p]
                 residual0 = self.x_residual_via_parameters(x, phi)
                 residual0_2 = np.power(residual0, 2)
-            # gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
-            # gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
             if iloop == 0:
                 gradient = self.gradient_s(x, theta0, p, q)
                 gradient_ = gradient[:].copy()
@@ -3402,7 +3396,6 @@ class Arch(object):
         d_theta,
         i_theta,
         p,
-        q,
         residual0_2: Optional = None,
     ):
         """
@@ -3468,9 +3461,9 @@ class Arch(object):
 
         return mse
 
-    def mcar(
-        self,
-    ):
+    # def mcar(
+    #     self,
+    # ):
 
 
     def mL_estimation(
