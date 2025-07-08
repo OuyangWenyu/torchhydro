@@ -2869,6 +2869,7 @@ class Arch(object):
         """
         grid searching
         Time Series Analysis  James D.Hamilton P157
+        Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p290
         σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0
         Parameters
         ----------
@@ -2948,6 +2949,7 @@ class Arch(object):
         grid searching of single parameter
         σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0
         Time Series Analysis  James D.Hamilton P157
+        Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p290
         Parameters
         ----------
         residual_2
@@ -2963,25 +2965,13 @@ class Arch(object):
         s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         n_s = len(s)
         if b_arima:
-            n_p = p + q +1
+            n_p = p + q + 1
         else:
             n_p = q + 1
 
         # theta0
         alpha0 = np.array(theta[p:])
         L_theta0 = self.log_likelihood_gauss_vt(residual_2, alpha0)
-
-        # indices_alpha = np.where(alpha0 > 0)
-        # indices_alpha = indices_alpha[0]
-        # if b_arima:
-        #     indices_alpha = indices_alpha + p
-        #     indices_phi = list(range(p))
-        #     indices = np.insert(indices_alpha[:], 0, indices_phi)
-        #     gradient = grad[:]
-        # else:
-        #     indices = indices_alpha[:]
-        #     gradient = grad[p:]
-        # n_indices = indices.size
 
         theta0_i = None
         L_theta0_i = None
@@ -2992,25 +2982,27 @@ class Arch(object):
             if i == 0:
                 theta0_i = copy.deepcopy(theta)
                 L_theta0_i = L_theta0
+            if b_arima:
+                ii = i
+            else:
+                ii = i + p
             for j in range(n_s):
-                if not b_arima:
-                    i = i + p
                 if j == 0:
-                    theta_i_j0 = theta0_i[i]
-                theta_i_j = theta0_i[i] + s[j] * grad[i]
+                    theta_i_j0 = theta0_i[ii]
+                theta_i_j = theta0_i[ii] + s[j] * grad[ii]
                 if theta_i_j <= 0:
-                    if (i >= p) and (i < p+q+1):
-                        if (i == p) or (i == p+q):
+                    if (ii >= p) and (ii < p+q+1):
+                        if (ii == p) or (ii == p+q):
                             theta_i_j = theta_i_j0
                         else:
                             theta_i_j = 0
                 if b_arima:
                     theta1_j = theta0_i[:].copy()
-                    theta1_j[i] = theta_i_j
+                    theta1_j[ii] = theta_i_j
                     alpha1_j = theta1_j[p:].copy()
                 else:
                     alpha1_j = theta0_i[p:].copy()
-                    alpha1_j[i] = theta_i_j
+                    alpha1_j[ii] = theta_i_j
                     theta1_j = theta0_i[:].copy()
                     theta1_j[p:] = alpha1_j[:].copy()
                 if b_arima:
@@ -3020,7 +3012,7 @@ class Arch(object):
                 else:
                     residual_2_j = residual_2
                 L_theta_i_j = self.log_likelihood_gauss_vt(residual_2_j, alpha1_j)
-                theta_i_j0 = theta1_j[i]
+                theta_i_j0 = theta1_j[ii]
                 L_theta_i.append(L_theta_i_j)
                 theta1_i.append(theta1_j[:])
 
@@ -3134,10 +3126,8 @@ class Arch(object):
         self,
         x,
         theta,
-        d_theta,
         p,
         q,
-        i_theta,
     ):
         """
 
@@ -3159,7 +3149,7 @@ class Arch(object):
         theta1 = []
         for i in range(n_theta):
             theta0_i = theta[i]
-            theta1_i = self.gradient_ascent(x, theta0_i, d_theta, p, q, i_theta)
+            theta1_i = self.gradient_ascent(x, theta0_i, p, q, b_arima=True)
             theta1.append(theta1_i)
 
         return theta1
@@ -3318,6 +3308,7 @@ class Arch(object):
     def arima_arch(
         self,
         x,
+        e,
         theta,
         p,
         q
@@ -3327,6 +3318,7 @@ class Arch(object):
         Parameters
         ----------
         x
+        e
         theta
         p
         q
@@ -3346,9 +3338,11 @@ class Arch(object):
         residual_2 = np.power(residual, 2)
         delta_2 = self.delta_2(residual_2, alpha)
         delta = np.sqrt(delta_2)
+        epsilon = delta * np.array(e)
+        y_t = y_t + epsilon
         mean, std = self.residual_divide_delta_mean_std(residual, delta)
 
-        return mean, std
+        return y_t, mean, std
 
     def gamma(
         self,
