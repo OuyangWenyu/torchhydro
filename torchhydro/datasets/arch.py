@@ -2855,7 +2855,6 @@ class Arch(object):
 
         return module
 
-
     def grid_search(
         self,
         residual_2,
@@ -2870,7 +2869,7 @@ class Arch(object):
         grid searching
         Time Series Analysis  James D.Hamilton P157
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p290
-        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0
+        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0, (αq>0, α1+α2+...+αq)<1
         Parameters
         ----------
         theta0
@@ -2947,7 +2946,7 @@ class Arch(object):
     ):
         """
         grid searching of single parameter
-        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0
+        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), (αq>0, α1+α2+...+αq)<1
         Time Series Analysis  James D.Hamilton P157
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p290
         Parameters
@@ -3080,12 +3079,12 @@ class Arch(object):
                 residual0 = self.x_residual_via_parameters(x, phi)
                 residual0_2 = np.power(residual0, 2)
             # gradient = self.gradient(x, theta0, d_theta, p, q, i_theta, residual0_2)
+            # gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
             if iloop == 0:
                 gradient = self.gradient_s(x, theta0, p, q)
                 gradient_ = gradient[:].copy()
                 if not b_arima:
                     gradient_[:p] = 0
-                # gradient = np.where(abs(gradient) < 0.0001, 0, gradient)
             theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, p, q, x=x, b_arima=b_arima)
 
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
@@ -3344,24 +3343,6 @@ class Arch(object):
 
         return y_t, mean, std
 
-    def gamma(
-        self,
-        v,
-    ):
-        """
-        gamma function
-        高等数学 上册 p266
-        Parameters
-        ----------
-        v: free degree
-
-        Returns
-        -------
-
-        """
-        gamma = v
-        return gamma
-
     def log_likelihood_gamma(
         self,
         v,
@@ -3413,7 +3394,6 @@ class Arch(object):
         L_theta = L_theta_a - L_theta_b - L_theta_c
 
         return L_theta
-
 
     def H_gradient_thetai(
         self,
