@@ -3037,6 +3037,8 @@ class Arch(object):
         gradient ascent
         Time Series Analysis  James D.Hamilton P157
         高等数学 下册 p64、p101-108
+        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0, (α1+α2+...+αq)<1
+        Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p290
         Parameters
         ----------
         x
@@ -3054,9 +3056,9 @@ class Arch(object):
             raise ValueError("the length of theta0 need be equal to p+q+1.")
 
         # termination term
-        e_distance_grad_0 = 0.001
-        e_likelihood_theta_1_0 = 0.001
-        e_distance_theta_1_0 = 0.001
+        e_distance_grad_0 = 0.0001
+        e_likelihood_theta_1_0 = 0.0001
+        e_distance_theta_1_0 = 0.0001
         max_loop = 10000
         node_loop = 500
 
@@ -3102,14 +3104,26 @@ class Arch(object):
 
             if ((distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0)
                 or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
-                print("----------end----------", flush=True)
-                print("gradient = " + str(gradient))
-                print("L_theta = " + str(L_theta))
-                print("distance_grad_0 = " + str(distance_grad_0))
-                print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0))
-                print("distance_theta_1_0 = " + str(distance_theta_1_0))
-                print("iloop = " + str(iloop))
-                break
+                alpha1 = theta1[p+1:].copy()
+                indices = np.where(alpha1 >= 1)
+                indices = indices[0]
+                n_indices = indices.size
+                sum_alpha1 = np.sum(alpha1)
+                if n_indices > 0:
+                    alpha1_ = np.where(alpha1 >= 1, alpha1/(alpha1+0.5), alpha1)
+                    theta1[p+1:] = alpha1_[:].copy()
+                elif sum_alpha1 >= 1:
+                    alpha1_ = alpha1 / (sum_alpha1 + 0.05)
+                    theta1[p+1:] = alpha1_[:].copy()
+                else:
+                    print("----------end----------", flush=True)
+                    print("gradient = " + str(gradient))
+                    print("L_theta = " + str(L_theta))
+                    print("distance_grad_0 = " + str(distance_grad_0))
+                    print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0))
+                    print("distance_theta_1_0 = " + str(distance_theta_1_0))
+                    print("iloop = " + str(iloop))
+                    break
 
             iloop = iloop + 1
 
