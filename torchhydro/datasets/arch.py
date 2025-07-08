@@ -14,7 +14,7 @@ class Arch(object):
     Autoregressive Conditional Heteroscedasticity model, ARCH.  Based on ARIMA.
     autoregression integrated moving average, ARIMA.
     time series imputation
-    σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αp*a(t-p)^2
+    σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q), αq>0
 
     AR，auto-regression model.
     MA, moving average model.
@@ -2871,6 +2871,7 @@ class Arch(object):
         """
         grid searching
         Time Series Analysis  James D.Hamilton P157
+        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q), αq>0
         Parameters
         ----------
         theta0
@@ -2893,13 +2894,17 @@ class Arch(object):
         for i in range(n_s):
             theta1_i = np.array(theta) + s[i] * np.array(grad)
             alpha_i = theta1_i[p:].copy()
-            indices = alpha_i[np.where(alpha_i < 0)]
+            indices = np.where(alpha_i < 0)
+            indices = indices[0]
             n_indices = indices.size
-            if (n_indices > 0) and (n_indices < q+1):
-                alpha_i = np.where(alpha_i < 0, 0, alpha_i)
+            if (n_indices > 0) and (n_indices <= q+1):
+                alpha_i_ = np.where(alpha_i < 0, 0, alpha_i)
+                if 0 in indices:
+                    alpha_i_[0] = alpha_i[0]
+                if q in indices:
+                    alpha_i_[q] = alpha_i[q]
+                alpha_i = alpha_i_[:].copy()
                 theta1_i[p:] = alpha_i[:].copy()
-            elif (n_indices > 0) and (n_indices == q+1):
-                continue
             if b_arima:
                 phi_i = theta1_i[:p]
                 residual_i = self.x_residual_via_parameters(x, phi_i)
@@ -2918,7 +2923,7 @@ class Arch(object):
                 # s = 0.5 * np.array(s)
                 # theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search(residual_2, theta, grad, d_theta, p, q, s)
                 # return theta1_, likelihood_theta_1_0, L_theta_
-                theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search_single_parameter(residual_2, theta, grad, p, x=x, b_arima=b_arima)
+                theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search_single_parameter(residual_2, theta, grad, p, q, x=x, b_arima=b_arima)
                 return theta1_, likelihood_theta_1_0, L_theta_
             # elif L_theta_ < L_theta0:
             #     theta1_ = theta[:]
@@ -2937,12 +2942,14 @@ class Arch(object):
         theta,
         grad,
         p,
+        q,
         x: Optional,
         s: Optional = None,
         b_arima: bool = False,
     ):
         """
         grid searching of single parameter
+        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q), αq>0
         Time Series Analysis  James D.Hamilton P157
         Parameters
         ----------
@@ -2959,70 +2966,81 @@ class Arch(object):
         if s is None:
             s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         n_s = len(s)
+        if b_arima:
+            n_p = p + q +1
+        else:
+            n_p = q + 1
 
         # theta0
         alpha0 = np.array(theta[p:])
         L_theta0 = self.log_likelihood_gauss_vt(residual_2, alpha0)
 
-        indices_alpha = np.where(alpha0 > 0)
-        indices_alpha = indices_alpha[0]
-        n_indices_alpha = indices_alpha.size
-        if b_arima:
-            indices_alpha = indices_alpha + p
-            indices_phi = list(range(p))
-            indices = np.insert(indices_alpha[:], 0, indices_phi)
-            gradient = grad[:]
-        else:
-            indices = indices_alpha[:]
-            gradient = grad[p:]
-        n_indices = indices.size
+        # indices_alpha = np.where(alpha0 > 0)
+        # indices_alpha = indices_alpha[0]
+        # if b_arima:
+        #     indices_alpha = indices_alpha + p
+        #     indices_phi = list(range(p))
+        #     indices = np.insert(indices_alpha[:], 0, indices_phi)
+        #     gradient = grad[:]
+        # else:
+        #     indices = indices_alpha[:]
+        #     gradient = grad[p:]
+        # n_indices = indices.size
+
         theta0_i = None
         L_theta0_i = None
-        if n_indices > 0:
-            for i in indices:
-                L_theta_i = []
-                theta1_i = []
-                if i == 0:
-                    theta0_i = copy.deepcopy(theta)
-                    L_theta0_i = L_theta0
-                for j in range(n_s):
-                    theta_i_j = theta0_i[i] + s[j] * gradient[i]
-                    if i in indices_alpha:
-                        if theta_i_j <= 0:
-                            continue
-                    if b_arima:
-                        theta1_j = theta0_i[:].copy()
-                        theta1_j[i] = theta_i_j
-                        alpha1_j = theta1_j[p:].copy()
-                    else:
-                        alpha1_j = theta0_i[p:].copy()
-                        alpha1_j[i] = theta_i_j
-                        theta1_j = theta0_i[:].copy()
-                        theta1_j[p:] = alpha1_j[:].copy()
-                    if b_arima:
-                        phi1_j = theta1_j[:p]
-                        residual_j = self.x_residual_via_parameters(x, phi1_j)
-                        residual_2_j = np.power(residual_j, 2)
-                    else:
-                        residual_2_j = residual_2
-                    L_theta_i_j = self.log_likelihood_gauss_vt(residual_2_j, alpha1_j)
-                    L_theta_i.append(L_theta_i_j)
-                    theta1_i.append(theta1_j[:])
-                if len(L_theta_i) > 0:
-                    i_max = np.argmax(L_theta_i)
-                    theta1_i_ = theta1_i[i_max][:]
-                    L_theta_i_ = L_theta_i[i_max]
-                    if (L_theta_i_ > L_theta0_i):
-                        theta0_i = theta1_i_[:]
-                        L_theta0_i = L_theta_i_
+        theta_i_j0 = None
+        for i in range(n_p):
+            L_theta_i = []
+            theta1_i = []
+            if i == 0:
+                theta0_i = copy.deepcopy(theta)
+                L_theta0_i = L_theta0
+            for j in range(n_s):
+                if not b_arima:
+                    i = i + p
+                if j == 0:
+                    theta_i_j0 = theta0_i[i]
+                theta_i_j = theta0_i[i] + s[j] * grad[i]
+                if theta_i_j <= 0:
+                    if (i >= p) and (i < p+q+1):
+                        if (i == p) or (i == p+q):
+                            theta_i_j = theta_i_j0
+                        else:
+                            theta_i_j = 0
+                if b_arima:
+                    theta1_j = theta0_i[:].copy()
+                    theta1_j[i] = theta_i_j
+                    alpha1_j = theta1_j[p:].copy()
+                else:
+                    alpha1_j = theta0_i[p:].copy()
+                    alpha1_j[i] = theta_i_j
+                    theta1_j = theta0_i[:].copy()
+                    theta1_j[p:] = alpha1_j[:].copy()
+                if b_arima:
+                    phi1_j = theta1_j[:p]
+                    residual_j = self.x_residual_via_parameters(x, phi1_j)
+                    residual_2_j = np.power(residual_j, 2)
+                else:
+                    residual_2_j = residual_2
+                L_theta_i_j = self.log_likelihood_gauss_vt(residual_2_j, alpha1_j)
+                theta_i_j0 = theta1_j[i]
+                L_theta_i.append(L_theta_i_j)
+                theta1_i.append(theta1_j[:])
 
-            theta1 = theta0_i[:]
-            L_theta = L_theta0_i
-            likelihood_theta_1_0 = np.absolute(L_theta - L_theta0)
+            if len(L_theta_i) > 0:
+                i_max = np.argmax(L_theta_i)
+                theta1_i_ = theta1_i[i_max][:]
+                L_theta_i_ = L_theta_i[i_max]
+                if (L_theta_i_ > L_theta0_i):
+                    theta0_i = theta1_i_[:]
+                    L_theta0_i = L_theta_i_
 
-            return theta1, likelihood_theta_1_0, L_theta
-        else:
-            return theta, 0, L_theta0
+        theta1 = theta0_i[:]
+        L_theta = L_theta0_i
+        likelihood_theta_1_0 = np.absolute(L_theta - L_theta0)
+
+        return theta1, likelihood_theta_1_0, L_theta
 
     def gradient_ascent(
         self,
