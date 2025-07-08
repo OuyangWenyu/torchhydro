@@ -2869,7 +2869,7 @@ class Arch(object):
         grid searching
         Time Series Analysis  James D.Hamilton P157
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p290
-        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0, (αq>0, α1+α2+...+αq)<1
+        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0, (α1+α2+...+αq)<1
         Parameters
         ----------
         theta0
@@ -2946,7 +2946,7 @@ class Arch(object):
     ):
         """
         grid searching of single parameter
-        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), (αq>0, α1+α2+...+αq)<1
+        σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0, (α1+α2+...+αq)<1
         Time Series Analysis  James D.Hamilton P157
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p290
         Parameters
@@ -3445,6 +3445,33 @@ class Arch(object):
         grad = (L1 - L0) / d_theta
 
         return grad
+
+    def mse(
+        self,
+        x,
+        y,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        y
+
+        Returns
+        -------
+
+        """
+        error = np.array(y) - np.array(x)
+        error_2 = np.power(error, 2)
+        mse = np.mean(error_2)
+
+        return mse
+
+    def mcar(
+        self,
+    ):
+
 
     def mL_estimation(
         self,
