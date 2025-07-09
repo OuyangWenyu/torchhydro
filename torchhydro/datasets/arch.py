@@ -3419,6 +3419,7 @@ class Arch(object):
         residual = np.array(x) - np.array(y_t)
         residual_2 = np.power(residual, 2)
         epsilon = self.arch(residual_2, e, alpha)
+
         y_t = y_t + epsilon
 
         return y_t
