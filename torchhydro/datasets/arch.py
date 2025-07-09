@@ -3114,10 +3114,7 @@ class Arch(object):
                 indices2_ = alpha1[np.where(alpha1 > 0)]
                 indices2 = indices2[0]
                 n_indices2 = indices2.size
-                b_sorted = False
-                # indices0 = np.where(alpha1 == 0)
-                # indices0 = indices2[0]
-                # n_indices0 = indices2.size
+                b_sorted = self.b_sort(indices2_)
                 if n_indices1 > 0:
                     alpha1_ = np.where(alpha1 >= 1, alpha1/(alpha1+0.005), alpha1)
                     theta1[p+1:] = alpha1_[:].copy()
@@ -3125,12 +3122,11 @@ class Arch(object):
                     alpha1_ = alpha1 / (sum_alpha1 + 0.005)
                     theta1[p+1:] = alpha1_[:].copy()
                 elif not b_sorted:
-                    b_sorted = True
                     if n_indices2 > 1:
-                        if self.b_sort(indices2_):
-                            indices2_ = np.sort(indices2_)
-                            for i in range(n_indices2):
-                                alpha1[indices2[i]] = indices2_[i]
+                        indices2_ = np.sort(indices2_, )
+                        indices2_ = indices2_[::-1]
+                        for i in range(n_indices2):
+                            alpha1[indices2[i]] = indices2_[i]
                     theta1[p+1:] = alpha1[:].copy()
                 else:
                     print("----------end----------", flush=True)
