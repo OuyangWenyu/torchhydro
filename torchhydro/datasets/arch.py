@@ -2860,6 +2860,7 @@ class Arch(object):
         q,
         x: Optional,
         b_arima: bool = False,
+        b_constrained: bool = False,
     ):
         """
         grid searching
@@ -2882,49 +2883,53 @@ class Arch(object):
         L_theta0 = self.log_likelihood_gauss_vt(residual_2, alpha0)
 
         # search
-        L_theta = []
-        theta1 = []
-        alpha0_0 = None
-        alphaq_0 = None
-        for i in range(n_s):
-            if i ==0:
-                alpha0_0 = theta[p]
-                alphaq_0 = theta[p+q]
-            theta1_i = np.array(theta) + s[i] * np.array(grad)
-            alpha_i = theta1_i[p:].copy()
-            indices = np.where(alpha_i < 0)
-            indices = indices[0]
-            n_indices = indices.size
-            if (n_indices > 0) and (n_indices <= q+1):
-                alpha_i_ = np.where(alpha_i < 0, 0, alpha_i)
-                if 0 in indices:
-                    alpha_i_[0] = alpha0_0
-                if q in indices:
-                    alpha_i_[q] = alphaq_0
-                alpha_i = alpha_i_[:].copy()
-                theta1_i[p:] = alpha_i[:].copy()
-            if b_arima:
-                phi_i = theta1_i[:p]
-                residual_i = self.x_residual_via_parameters(x, phi_i)
-                residual_2_i = np.power(residual_i, 2)
-            else:
-                residual_2_i = residual_2
-            L_theta_i = self.log_likelihood_gauss_vt(residual_2_i, alpha_i)
-            alpha0_0 = theta1_i[p]
-            alphaq_0 = theta1_i[p + q]
-            L_theta.append(L_theta_i)
-            theta1.append(theta1_i[:])
+        if not b_constrained:
+            L_theta = []
+            theta1 = []
+            alpha0_0 = None
+            alphaq_0 = None
+            for i in range(n_s):
+                if i ==0:
+                    alpha0_0 = theta[p]
+                    alphaq_0 = theta[p+q]
+                theta1_i = np.array(theta) + s[i] * np.array(grad)
+                alpha_i = theta1_i[p:].copy()
+                indices = np.where(alpha_i < 0)
+                indices = indices[0]
+                n_indices = indices.size
+                if (n_indices > 0) and (n_indices <= q+1):
+                    alpha_i_ = np.where(alpha_i < 0, 0, alpha_i)
+                    if 0 in indices:
+                        alpha_i_[0] = alpha0_0
+                    if q in indices:
+                        alpha_i_[q] = alphaq_0
+                    alpha_i = alpha_i_[:].copy()
+                    theta1_i[p:] = alpha_i[:].copy()
+                if b_arima:
+                    phi_i = theta1_i[:p]
+                    residual_i = self.x_residual_via_parameters(x, phi_i)
+                    residual_2_i = np.power(residual_i, 2)
+                else:
+                    residual_2_i = residual_2
+                L_theta_i = self.log_likelihood_gauss_vt(residual_2_i, alpha_i)
+                alpha0_0 = theta1_i[p]
+                alphaq_0 = theta1_i[p + q]
+                L_theta.append(L_theta_i)
+                theta1.append(theta1_i[:])
 
-        if len(L_theta) > 0:
-            i_max = np.argmax(L_theta)
-            theta1_ = theta1[i_max][:]
-            L_theta_ = L_theta[i_max]
-            if (L_theta_ < L_theta0):
-                theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search_single_parameter(residual_2, theta, grad, p, q, x=x, b_arima=b_arima)
-                return theta1_, likelihood_theta_1_0, L_theta_
+            if len(L_theta) > 0:
+                i_max = np.argmax(L_theta)
+                theta1_ = theta1[i_max][:]
+                L_theta_ = L_theta[i_max]
+                if (L_theta_ < L_theta0):
+                    theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search_single_parameter(residual_2, theta, grad, p, q, x=x, b_arima=b_arima)
+                    return theta1_, likelihood_theta_1_0, L_theta_
+            else:
+                theta1_ = theta[:]
+                L_theta_ = L_theta0
         else:
-            theta1_ = theta[:]
-            L_theta_ = L_theta0
+            theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search_single_parameter(residual_2, theta, grad, p, q, x=x, b_arima=b_arima)
+            return theta1_, likelihood_theta_1_0, L_theta_
 
         likelihood_theta_1_0 = np.absolute(L_theta_-L_theta0)
 
@@ -3052,7 +3057,7 @@ class Arch(object):
 
         """
         n_theta = len(theta)
-        if n_theta < p+q+1:
+        if n_theta != p+q+1:
             raise ValueError("the length of theta0 need be equal to p+q+1.")
 
         # termination term
@@ -3067,6 +3072,7 @@ class Arch(object):
         gradient = None
         gradient_ = None
         residual0_2 = None
+        b_constrained = False
         if not b_arima:
             phi = theta0[:p]
             residual0 = self.x_residual_via_parameters(x, phi)
@@ -3081,7 +3087,7 @@ class Arch(object):
                 gradient_ = gradient[:].copy()
                 if not b_arima:
                     gradient_[:p] = 0
-            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, p, q, x=x, b_arima=b_arima)
+            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, p, q, x=x, b_arima=b_arima, b_constrained=b_constrained)
 
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
             if likelihood_theta_1_0 > 0:
@@ -3142,6 +3148,7 @@ class Arch(object):
                 if not b_arima:
                     gradient_[:p] = 0
                 theta0 = theta1[:].copy()
+                b_constrained = True
 
             iloop = iloop + 1
 
