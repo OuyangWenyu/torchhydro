@@ -3110,49 +3110,57 @@ class Arch(object):
 
             if ((distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0)
                 or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
-                alpha1 = theta1[p+1:].copy()
-                alpha1 = np.array(alpha1)
-                indices1 = np.where(alpha1 >= 1)
-                indices1 = indices1[0]
-                n_indices1 = indices1.size
-                sum_alpha1 = np.sum(alpha1)
-                indices2 = np.where(alpha1 > 0)
-                indices2_ = alpha1[np.where(alpha1 > 0)]
-                indices2 = indices2[0]
-                n_indices2 = indices2.size
-                b_sorted = self.b_sort(indices2_)
-                if n_indices1 > 0:
-                    alpha1_ = np.where(alpha1 >= 1, alpha1/(alpha1+0.005), alpha1)
-                    theta1[p+1:] = alpha1_[:].copy()
-                elif sum_alpha1 >= 1:
-                    alpha1_ = alpha1 / (sum_alpha1 + 0.005)
-                    theta1[p+1:] = alpha1_[:].copy()
-                elif not b_sorted:
-                    if n_indices2 > 1:
-                        indices2_ = np.sort(indices2_, )
-                        indices2_ = indices2_[::-1]
-                        for i in range(n_indices2):
-                            alpha1[indices2[i]] = indices2_[i]
-                    theta1[p+1:] = alpha1[:].copy()
-                else:
-                    print("----------end----------", flush=True)
-                    print("gradient = " + str(gradient))
-                    print("L_theta = " + str(L_theta))
-                    print("distance_grad_0 = " + str(distance_grad_0))
-                    print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0))
-                    print("distance_theta_1_0 = " + str(distance_theta_1_0))
-                    print("iloop = " + str(iloop))
-                    break
-                gradient = self.gradient_s(x, theta1, p, q)
-                gradient_ = gradient[:].copy()
-                if not b_arima:
-                    gradient_[:p] = 0
-                theta0 = theta1[:].copy()
-                b_constrained = True
+                # alpha1 = theta1[p+1:].copy()
+                # alpha1 = np.array(alpha1)
+                # indices1 = np.where(alpha1 >= 1)
+                # indices1 = indices1[0]
+                # n_indices1 = indices1.size
+                # sum_alpha1 = np.sum(alpha1)
+                # indices2 = np.where(alpha1 > 0)
+                # indices2_ = alpha1[np.where(alpha1 > 0)]
+                # indices2 = indices2[0]
+                # n_indices2 = indices2.size
+                # b_sorted = self.b_sort(indices2_)
+                # if n_indices1 > 0:
+                #     alpha1_ = np.where(alpha1 >= 1, alpha1/(alpha1+0.005), alpha1)
+                #     theta1[p+1:] = alpha1_[:].copy()
+                # elif sum_alpha1 >= 1:
+                #     alpha1_ = alpha1 / (sum_alpha1 + 0.005)
+                #     theta1[p+1:] = alpha1_[:].copy()
+                # elif not b_sorted:
+                #     if n_indices2 > 1:
+                #         indices2_ = np.sort(indices2_, )
+                #         indices2_ = indices2_[::-1]
+                #         for i in range(n_indices2):
+                #             alpha1[indices2[i]] = indices2_[i]
+                #     theta1[p+1:] = alpha1[:].copy()
+                # else:
+                #     print("----------end----------", flush=True)
+                #     print("gradient = " + str(gradient))
+                #     print("L_theta = " + str(L_theta))
+                #     print("distance_grad_0 = " + str(distance_grad_0))
+                #     print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0))
+                #     print("distance_theta_1_0 = " + str(distance_theta_1_0))
+                #     print("iloop = " + str(iloop))
+                #     break
+                # gradient = self.gradient_s(x, theta1, p, q)
+                # gradient_ = gradient[:].copy()
+                # if not b_arima:
+                #     gradient_[:p] = 0
+                # theta0 = theta1[:].copy()
+                # b_constrained = True
+
+                print("----------end----------", flush=True)
+                print("gradient = " + str(gradient))
+                print("L_theta = " + str(L_theta))
+                print("distance_grad_0 = " + str(distance_grad_0))
+                print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0))
+                print("distance_theta_1_0 = " + str(distance_theta_1_0))
+                print("iloop = " + str(iloop))
 
             iloop = iloop + 1
 
-        return theta1
+            return theta1
 
     def b_sort(
         self,

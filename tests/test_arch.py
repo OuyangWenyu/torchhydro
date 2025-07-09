@@ -2414,17 +2414,17 @@ def test_gradient_ascent():
     alpha3 = [31.407267353060522, 0.24797631, 0.0, 0.3684060832831398]
     alpha3 = [2.13532, 0.24797631, 0.0, 9.13934837]
     alpha3 = [27.58876158046549, 0.24797631, 0.0, 0.41743525552577315]
-    theta = phi + alpha3
+    # theta = phi + alpha3
     # theta = [9.16096572e+03, 9.20671727e+03, 4.28662871e+01, 9.57687128e-01, 1.54552824e-02, 2.38826394e-02]
     x = y_streamflow_1460
     phi_1460 = [1.80161201, -1.28440015, 0.43756275]
     alpha_1460 = [6.71658575e+02, 2.37001714e-02, 3.90087440e-02, 3.41720975e-02]
     # alpha_1460 = [4.81614767e+03, 1.59475061e+03, 0.00000000e+00, 4.92331438e+04]
-    # theta = phi_1460 + alpha_1460
+    theta = phi_1460 + alpha_1460
     p = 2
     q = 3
     b_arima = True
-    theta1 = arch.gradient_ascent(x_1, theta, p, q, b_arima)
+    theta1 = arch.gradient_ascent(x, theta, p, q, b_arima)
     print("theta1")
     print(theta1)
 ## y_streamflow_395  phi = [1.86818005, -0.87194949]   alpha3 = [9.57176198, 0.24797631, 0., 9.13934837]
