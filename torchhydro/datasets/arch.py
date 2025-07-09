@@ -3105,16 +3105,33 @@ class Arch(object):
             if ((distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0)
                 or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
                 alpha1 = theta1[p+1:].copy()
-                indices = np.where(alpha1 >= 1)
-                indices = indices[0]
-                n_indices = indices.size
+                alpha1 = np.array(alpha1)
+                indices1 = np.where(alpha1 >= 1)
+                indices1 = indices1[0]
+                n_indices1 = indices1.size
                 sum_alpha1 = np.sum(alpha1)
-                if n_indices > 0:
-                    alpha1_ = np.where(alpha1 >= 1, alpha1/(alpha1+0.5), alpha1)
+                indices2 = np.where(alpha1 > 0)
+                indices2_ = alpha1[np.where(alpha1 > 0)]
+                indices2 = indices2[0]
+                n_indices2 = indices2.size
+                b_sorted = False
+                # indices0 = np.where(alpha1 == 0)
+                # indices0 = indices2[0]
+                # n_indices0 = indices2.size
+                if n_indices1 > 0:
+                    alpha1_ = np.where(alpha1 >= 1, alpha1/(alpha1+0.005), alpha1)
                     theta1[p+1:] = alpha1_[:].copy()
                 elif sum_alpha1 >= 1:
-                    alpha1_ = alpha1 / (sum_alpha1 + 0.05)
+                    alpha1_ = alpha1 / (sum_alpha1 + 0.005)
                     theta1[p+1:] = alpha1_[:].copy()
+                elif not b_sorted:
+                    b_sorted = True
+                    if n_indices2 > 1:
+                        if self.b_sort(indices2_):
+                            indices2_ = np.sort(indices2_)
+                            for i in range(n_indices2):
+                                alpha1[indices2[i]] = indices2_[i]
+                    theta1[p+1:] = alpha1[:].copy()
                 else:
                     print("----------end----------", flush=True)
                     print("gradient = " + str(gradient))
@@ -3124,10 +3141,30 @@ class Arch(object):
                     print("distance_theta_1_0 = " + str(distance_theta_1_0))
                     print("iloop = " + str(iloop))
                     break
+                gradient = self.gradient_s(x, theta1, p, q)
+                gradient_ = gradient[:].copy()
+                if not b_arima:
+                    gradient_[:p] = 0
+                theta0 = theta1[:].copy()
 
             iloop = iloop + 1
 
         return theta1
+
+    def b_sort(
+        self,
+        x,
+    ):
+        """whether to need to sorting or not."""
+        n_x = x.size
+        b_sort = False
+        for i in range(1, n_x):
+            x_i = x[i]
+            x_i_1 = x[i-1]
+            if x_i < x_i_1:
+                b_sort = True
+                break
+        return b_sort
 
     def multi_gradient_ascent(
         self,
