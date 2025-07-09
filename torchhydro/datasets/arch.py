@@ -3124,10 +3124,10 @@ class Arch(object):
                 if n_indices1 > 1:
                     b_sorted = self.b_sort(indices2_)
                 if n_indices1 > 0:
-                    alpha1_ = np.where(alpha1 >= 1, alpha1/(alpha1+0.1), alpha1)
+                    alpha1_ = np.where(alpha1 >= 1, alpha1/(alpha1+1), alpha1)
                     theta1[p+1:] = alpha1_[:].copy()
                 elif sum_alpha1 >= 1:
-                    alpha1_ = alpha1 / (sum_alpha1 + 0.005)
+                    alpha1_ = alpha1 / (sum_alpha1 + 0.2)
                     theta1[p+1:] = alpha1_[:].copy()
                 elif not b_sorted:
                     if n_indices2 > 1:
