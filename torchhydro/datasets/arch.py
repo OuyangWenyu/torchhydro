@@ -3466,6 +3466,34 @@ class Arch(object):
 
         return y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e
 
+    def residual_sign(
+        self,
+        residual,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual
+
+        Returns
+        -------
+
+        """
+        n_residual = residual.size
+        residual_sign = np.zeros(n_residual)
+
+        for i in range(n_residual):
+            if residual[i] > 0:
+                residual_sign[i] = 1
+            elif residual[i] < 0:
+                residual_sign[i] = -1
+            else:
+                residual_sign[i] = 0
+
+        return residual_sign
+
+
     def log_likelihood_gamma(
         self,
         v,

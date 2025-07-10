@@ -2472,46 +2472,6 @@ def test_gradient_ascent():
     theta1 = arch.gradient_ascent(x, theta, p, q, b_arima)
     print("theta1")
     print(theta1)
-## y_streamflow_1460  phi_1460 = [1.80161201, -1.28440015, 0.43756275]  alpha_1460 = [6.71658575e+02, 2.37001714e-02, 3.90087440e-02, 3.41720975e-02]
-# ----------iloop = 0----------
-# [1.80161201, -1.28440015, 0.43756275, 694.8050247685098, 5.658997571510659, 0.039008744, 0.0341720975]
-# gradient = [ 1.34531870e+03  1.39197610e+03  1.48115248e+03 -5.18603365e-01
-#  -5.44429136e-01 -5.69778583e-01 -5.96807238e-01]
-# L_theta = -7098.493682688225
-# distance_grad_0 = 5941293.787020951
-# likelihood_theta_1_0 = 1665.8182863251395
-# distance_theta_1_0 = 567.5147136738411
-# theta1 = [1.80161201, -1.28440015, 0.43756275, 694.8050247685098, 5.658997571510659, 0.039008744, 0.0341720975]
-# ----------end----------
-# gradient = [ 6.71114527e+03  7.15997795e+03  7.42278577e+03 -3.95621207e-01
-#  -4.68627390e-01 -5.52328023e-01 -6.40643789e-01]
-# L_theta = -6310.894214538778
-# distance_grad_0 = 151402504.78470275
-# likelihood_theta_1_0 = 0.0
-# distance_theta_1_0 = 0.0
-# iloop = 54
-# theta1
-# [1.80161201, -1.28440015, 0.43756275, 5.938228063533756, 5.658997571510659, 0.039008744, 0.0341720975]
-## y_streamflow_1460  phi_1460 = [1.80161201, -1.28440015, 0.43756275]  alpha_1460 = [5.938228063533756, 5.658997571510659]
-# ----------iloop = 0----------
-# [1.80161201, -1.28440015, 0.43756275, 28.400114831218225, 7.0584111660567554]
-# gradient = [ 8.32763348e+03  3.94722644e+03  2.56758178e+03 -9.45476507e-01
-#  -1.00220168e+00]
-# L_theta = -6448.302928806799
-# distance_grad_0 = 91522554.0772145
-# likelihood_theta_1_0 = 103.78395360317882
-# distance_theta_1_0 = 506.49471557287904
-# theta1 = [1.80161201, -1.28440015, 0.43756275, 28.400114831218225, 7.0584111660567554]
-# ----------end----------
-# gradient = [ 1.28380341e+04  6.72781255e+03  4.78321743e+03  2.34062269e-02
-#  -3.41756110e-02]
-# L_theta = -6444.37843621435
-# distance_grad_0 = 232957749.36248887
-# likelihood_theta_1_0 = 0.00013881146787753096
-# distance_theta_1_0 = 1.9019738695739833e-05
-# iloop = 3
-# theta1
-# [1.80161201, -1.28440015, 0.43756275, 21.535282870299323, 7.054050003517278]
 ## y_streamflow_1460  phi_1460 = [1.80161201, -1.28440015, 0.43756275]  alpha_1460 = [5.938228063533756, 0.658997571510659, 0.039008744, 0.0341720975]
 # ----------iloop = 0----------
 # [ 1.80161201 -1.28440015  0.43756275 17.292236   12.0022614  11.3951344
@@ -3412,7 +3372,7 @@ def test_arima_arch_1460():
 def test_residual_center():
     arch = Arch()
     residual = y_residual_streamflow_1460
-    residual_center, mean_residual = arch.residual_center(residual)
+    mean_residual, residual_center = arch.residual_center(residual)
     print("residual_center")
     print(residual_center)
     print("mean_residual")
@@ -3422,6 +3382,17 @@ def test_residual_center():
 #  -11.84331171]
 # mean_residual
 # 13.743311712328769
+
+def test_residual_sign():
+    arch = Arch()
+    residual = y_residual_streamflow_1460
+    mean_residual, residual_center = arch.residual_center(residual)
+    residual_sign = arch.residual_sign(residual_center)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_sign.txt', residual_sign)
+    print("residual_sign")
+    print(residual_sign)
+# residual_sign
+# [-1. -1. -1. ... -1. -1. -1.]
 
 def test_log_likelihood_gamma():
     arch = Arch()
