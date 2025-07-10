@@ -3002,7 +3002,7 @@ class Arch(object):
                     alpha1_j = theta1_j[p:].copy()
                 else:
                     alpha1_j = theta0_i[p:].copy()
-                    alpha1_j[ii] = theta_i_j
+                    alpha1_j[ii-p] = theta_i_j
                     theta1_j = theta0_i[:].copy()
                     theta1_j[p:] = alpha1_j[:].copy()
                 if b_arima:
@@ -3152,15 +3152,6 @@ class Arch(object):
                 theta0 = theta1[:].copy()
                 b_constrained = True
 
-                # print("----------end----------", flush=True)
-                # print("gradient = " + str(gradient))
-                # print("L_theta = " + str(L_theta))
-                # print("distance_grad_0 = " + str(distance_grad_0))
-                # print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0))
-                # print("distance_theta_1_0 = " + str(distance_theta_1_0))
-                # print("iloop = " + str(iloop))
-                # break
-
             iloop = iloop + 1
 
         return theta1
@@ -3179,6 +3170,24 @@ class Arch(object):
                 b_sort = True
                 break
         return b_sort
+
+    def residual_center(
+        self,
+        residual,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual
+
+        Returns
+        -------
+
+        """
+        mean_residual = np.mean(residual)
+        residual_center = np.array(residual) - mean_residual
+        return residual_center, mean_residual
 
     def multi_gradient_ascent(
         self,
