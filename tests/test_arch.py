@@ -1458,10 +1458,10 @@ def test_x_residual():
 
 def test_x_residual_streamflow():
     arch = Arch()
-    p = 2
+    p = 5
     d = 0
     q = 0
-    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_streamflow_395, e_100, p, d, q)
+    x_residual, y_t, R_2, phi, theta, se_beta = arch.x_residual(y_streamflow_1460, e_100, p, d, q)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\x_residual.txt', x_residual)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_t.txt', y_t)
     print("R_2")
@@ -2185,13 +2185,16 @@ def test_delta_2():
     alpha_395_2 = [9.57176198, 0.19900104230560642, 0.0, 0.7608739469009016]
     alpha_395_2 = [9.57176198, 0.653031955108359, 0.0, 0.19799621871888057]
     alpha_395_2 = [32.627761957093725, 0.34626167604364577, 0.0, 0.29322838191996803]
-    delta_2 = arch.delta_2(residual_2, alpha_395_2)
-    # residual_2 = y_residual_2_streamflow_1460
+    # delta_2 = arch.delta_2(residual_2, alpha_395_2)
+    residual = y_residual_streamflow_1460
+    mean_residual, residual_center = arch.residual_center(residual)
+    residual_2 = np.power(residual_center, 2)
     alpha = [6.71921606e+02, 1.62963230e+04, 3.34895884e+02, 3.69703420e+01]
     alpha = [6.85822878e+02, 1.73127878e+03, 5.06418697e+02, 3.99362576e+02]
     alpha = [6.98690405e+02, 2.76598574e+01, 2.82575788e+01, 2.89027965e+01]
     alpha = [5.938228063533756, 5.658997571510659, 0.039008744, 0.0341720975]
-    # delta_2 = arch.delta_2(residual_2, alpha)
+    alpha_1460 = [8.11449905e+02, 6.55662354e-01, 2.01090012e-01, 1.14012439e-02]
+    delta_2 = arch.delta_2(residual_2, alpha)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta_2.txt', delta_2)
     # print("delta_2")
     # print(delta_2)
@@ -2453,11 +2456,13 @@ def test_gradient_ascent():
     # theta = [9.16096572e+03, 9.20671727e+03, 4.28662871e+01, 9.57687128e-01, 1.54552824e-02, 2.38826394e-02]
     x = y_streamflow_1460
     phi_1460 = [1.80161201, -1.28440015, 0.43756275]
-    alpha_1460 = [6.71658575e+02, 2.37001714e-02, 3.90087440e-02, 3.41720975e-02]
-    alpha_1460 = [4.81614767e+03, 1.59475061e+03, 0.00000000e+00, 4.92331438e+04]
     alpha_1460 = [5.938228063533756, 5.658997571510659, 0.039008744, 0.0341720975]
     alpha_1460 = [5.938228063533756, 5.658997571510659]
     alpha_1460 = [5.938228063533756, 0.658997571510659, 0.039008744, 0.0341720975]
+    alpha_1460 = [8.11449905e+02, 6.55662354e-01, 2.01090012e-01, 1.14012439e-02]
+    alpha_1460 = [8.12368859e+02, 6.54006050e-01, 2.01399265e-01, 1.21316704e-02]
+    alpha_1460 = [6.71658575e+02, 2.37001714e-02, 3.90087440e-02, 3.41720975e-02]
+    alpha_1460 = [4.81614767e+03, 1.59475061e+03, 0.00000000e+00, 4.92331438e+04]
     theta = phi_1460 + alpha_1460
     p = 3
     q = 3
@@ -2537,6 +2542,74 @@ def test_gradient_ascent():
 # iloop = 3
 # theta1
 # [1.80161201, -1.28440015, 0.43756275, 21.535282870299323, 7.054050003517278]
+## y_streamflow_1460  phi_1460 = [1.80161201, -1.28440015, 0.43756275]  alpha_1460 = [5.938228063533756, 0.658997571510659, 0.039008744, 0.0341720975]
+# ----------iloop = 0----------
+# [ 1.80161201 -1.28440015  0.43756275 17.292236   12.0022614  11.3951344
+#  11.43740637]
+# gradient = [-1.15725361e+04 -1.17612310e+04 -1.18464206e+04 -1.06519367e+00
+#  -1.07940242e+00 -1.09336094e+00 -1.10910066e+00]
+# L_theta = -8134.75116196288
+# distance_grad_0 = 4.725289563079558
+# likelihood_theta_1_0 = 23789.979751855106
+# distance_theta_1_0 = 516.5784726054528
+# theta1 = [ 1.80161201 -1.28440015  0.43756275 17.292236   12.0022614  11.3951344
+#  11.43740637]
+# ----------iloop = 500----------
+# [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  8.06557236e+02
+#   6.55662354e-01  2.01090012e-01  1.14012439e-02]
+# gradient = [ 5.33340579e+03  5.28505519e+03  5.36795999e+03  3.31290422e-03
+#  -2.70941170e-02 -5.50003088e-02 -8.47470168e-02]
+# L_theta = -7635.548844614645
+# distance_grad_0 = 0.010952157327739926
+# likelihood_theta_1_0 = 0.02035471701674396
+# distance_theta_1_0 = 0.0028603185572896794
+# theta1 = [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  8.06557236e+02
+#   6.55662354e-01  2.01090012e-01  1.14012439e-02]
+# ----------end----------
+# gradient = [ 5.29856642e+03  5.24960230e+03  5.33128685e+03  6.19380373e-04
+#  -2.96235473e-02 -5.73772743e-02 -8.69621998e-02]
+# L_theta = -7633.707932654618
+# distance_grad_0 = 0.011732513984570071
+# likelihood_theta_1_0 = 0.0037191354867900372
+# distance_theta_1_0 = 9.994684067330912e-05
+# iloop = 690
+# theta1
+# [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  8.11449905e+02
+#   6.55662354e-01  2.01090012e-01  1.14012439e-02]
+## y_streamflow_1460  phi_1460 = [1.80161201, -1.28440015, 0.43756275]  alpha_1460 = [6.71658575e+02, 2.37001714e-02, 3.90087440e-02, 3.41720975e-02]
+# ----------iloop = 0----------
+# [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  6.72381902e+02
+#   7.28112346e-01  7.26196417e-01  7.03084385e-01]
+# gradient = [ 5.74536924e+03  5.80873119e+03  6.09747284e+03 -8.01888831e-02
+#  -1.13004088e-01 -1.43175803e-01 -1.75452664e-01]
+# L_theta = -7697.468800614687
+# distance_grad_0 = 0.07048312862157823
+# likelihood_theta_1_0 = 1082.855501717796
+# distance_theta_1_0 = 1.939068364579012
+# theta1 = [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  6.72381902e+02
+#   7.28112346e-01  7.26196417e-01  7.03084385e-01]
+# ----------iloop = 500----------
+# [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  8.08392711e+02
+#   6.54006050e-01  2.01399265e-01  1.21316704e-02]
+# gradient = [ 5.31850625e+03  5.26969361e+03  5.35284943e+03  2.79825753e-03
+#  -2.75482429e-02 -5.53975153e-02 -8.50838106e-02]
+# L_theta = -7634.943978277717
+# distance_grad_0 = 0.011074875456096266
+# likelihood_theta_1_0 = 0.017044677668309305
+# distance_theta_1_0 = 0.0020405053084921855
+# theta1 = [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  8.08392711e+02
+#   6.54006050e-01  2.01399265e-01  1.21316704e-02]
+# ----------end----------
+# gradient = [ 5.29029542e+03  5.24098718e+03  5.32315361e+03  6.15136649e-04
+#  -2.95984026e-02 -5.73241471e-02 -8.68793632e-02]
+# L_theta = -7633.4575754765665
+# distance_grad_0 = 0.01171052541667883
+# likelihood_theta_1_0 = 0.0036775911084987456
+# distance_theta_1_0 = 9.85803157593531e-05
+# iloop = 672
+# theta1
+# [ 1.80161201e+00 -1.28440015e+00  4.37562750e-01  8.12368859e+02
+#   6.54006050e-01  2.01399265e-01  1.21316704e-02]
 
 def test_multi_gradient_ascent():
     arch = Arch()
@@ -3265,6 +3338,40 @@ def test_arima_arch():
 #  302.94325343 280.46516582 252.21595745 256.82116009 256.80201978
 #  246.96795035 243.42758475 237.17462639 226.39020721 226.05220622
 #  219.81860359 233.52500867 214.42638702 214.95634823 201.38352977]
+
+def test_arima_arch_1460():
+    arch = Arch()
+    x = y_streamflow_1460
+    e = e_1460
+    p = 3
+    q = 3
+    phi_1460 = [1.80161201, -1.28440015, 0.43756275]
+    alpha_1460 = [8.11449905e+02, 6.55662354e-01, 2.01090012e-01, 1.14012439e-02]
+    theta = phi_1460 + alpha_1460
+    y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e = arch.arima_arch(x, e, theta, p, q)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch.txt', y_arch)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arima.txt', y_arima)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual.txt', residual)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_center.txt', residual_center)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_2.txt', residual_2)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta_2.txt', delta_2)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta.txt', delta)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\epsilon.txt', epsilon)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e.txt', e)
+    # print("y_t")
+    # print(y_t)
+    print("mean_residual")
+    print(mean_residual)
+    # print("epsilon")
+    # print(epsilon)
+# y_t
+# [232.07313035 160.43569425 162.24667303 ...  16.13071354  66.09205889
+#   24.38924423]
+# mean_residual
+# 13.743311710946587
+# epsilon
+# [ 50.72981864 -19.10761746 -16.49663868 ... -45.73323852   4.22810684
+#  -36.75406303]
 
 def test_residual_center():
     arch = Arch()

@@ -2854,6 +2854,7 @@ class Arch(object):
     def grid_search(
         self,
         residual_2,
+        mean_residual,
         theta,
         grad,
         p,
@@ -2886,6 +2887,7 @@ class Arch(object):
         if not b_constrained:
             L_theta = []
             theta1 = []
+            mean_residual1 = []
             alpha0_0 = None
             alphaq_0 = None
             for i in range(n_s):
@@ -2908,7 +2910,9 @@ class Arch(object):
                 if b_arima:
                     phi_i = theta1_i[:p]
                     residual_i = self.x_residual_via_parameters(x, phi_i)
-                    residual_2_i = np.power(residual_i, 2)
+                    mean_residual_i, residual_center_i = self.residual_center(residual_i)
+                    residual_2_i = np.power(residual_center_i, 2)
+                    mean_residual1.append(mean_residual_i)
                 else:
                     residual_2_i = residual_2
                 L_theta_i = self.log_likelihood_gauss_vt(residual_2_i, alpha_i)
@@ -2921,23 +2925,29 @@ class Arch(object):
                 i_max = np.argmax(L_theta)
                 theta1_ = theta1[i_max][:]
                 L_theta_ = L_theta[i_max]
+                if b_arima:
+                    mean_residual_ = mean_residual1[i_max]
+                else:
+                    mean_residual_ = mean_residual
                 if (L_theta_ < L_theta0):
-                    theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search_single_parameter(residual_2, theta, grad, p, q, x=x, b_arima=b_arima)
-                    return theta1_, likelihood_theta_1_0, L_theta_
+                    theta1_, likelihood_theta_1_0, L_theta_, mean_residual_ = self.grid_search_single_parameter(residual_2, mean_residual, theta, grad, p, q, x=x, b_arima=b_arima)
+                    return theta1_, likelihood_theta_1_0, L_theta_, mean_residual_
             else:
                 theta1_ = theta[:]
                 L_theta_ = L_theta0
+                mean_residual_ = mean_residual
         else:
-            theta1_, likelihood_theta_1_0, L_theta_ = self.grid_search_single_parameter(residual_2, theta, grad, p, q, x=x, b_arima=b_arima)
-            return theta1_, likelihood_theta_1_0, L_theta_
+            theta1_, likelihood_theta_1_0, L_theta_, mean_residual_ = self.grid_search_single_parameter(residual_2, mean_residual, theta, grad, p, q, x=x, b_arima=b_arima)
+            return theta1_, likelihood_theta_1_0, L_theta_, mean_residual_
 
         likelihood_theta_1_0 = np.absolute(L_theta_-L_theta0)
 
-        return theta1_, likelihood_theta_1_0, L_theta_
+        return theta1_, likelihood_theta_1_0, L_theta_, mean_residual_
 
     def grid_search_single_parameter(
         self,
         residual_2,
+        mean_residual,
         theta,
         grad,
         p,
@@ -2972,6 +2982,7 @@ class Arch(object):
         # theta0
         alpha0 = np.array(theta[p:])
         L_theta0 = self.log_likelihood_gauss_vt(residual_2, alpha0)
+        mean_residual0 = mean_residual
 
         theta0_i = None
         L_theta0_i = None
@@ -2979,6 +2990,7 @@ class Arch(object):
         for i in range(n_p):
             L_theta_i = []
             theta1_i = []
+            mean_residual1_i = []
             if i == 0:
                 theta0_i = copy.deepcopy(theta)
                 L_theta0_i = L_theta0
@@ -3008,7 +3020,9 @@ class Arch(object):
                 if b_arima:
                     phi1_j = theta1_j[:p]
                     residual_j = self.x_residual_via_parameters(x, phi1_j)
-                    residual_2_j = np.power(residual_j, 2)
+                    mean_residual_j, residual_center_j = self.residual_center(residual_j)
+                    residual_2_j = np.power(residual_center_j, 2)
+                    mean_residual1_i.append(mean_residual_j)
                 else:
                     residual_2_j = residual_2
                 L_theta_i_j = self.log_likelihood_gauss_vt(residual_2_j, alpha1_j)
@@ -3020,15 +3034,21 @@ class Arch(object):
                 i_max = np.argmax(L_theta_i)
                 theta1_i_ = theta1_i[i_max][:]
                 L_theta_i_ = L_theta_i[i_max]
+                if b_arima:
+                    mean_residual1_ = mean_residual1_i[i_max]
+                else:
+                    mean_residual1_ = mean_residual0
                 if (L_theta_i_ > L_theta0_i):
                     theta0_i = theta1_i_[:]
                     L_theta0_i = L_theta_i_
+                    mean_residual0 = mean_residual1_
 
         theta1 = theta0_i[:]
         L_theta = L_theta0_i
         likelihood_theta_1_0 = np.absolute(L_theta - L_theta0)
+        mean_residual_ = mean_residual0
 
-        return theta1, likelihood_theta_1_0, L_theta
+        return theta1, likelihood_theta_1_0, L_theta, mean_residual_
 
     def gradient_ascent(
         self,
@@ -3072,22 +3092,25 @@ class Arch(object):
         gradient = None
         gradient_ = None
         residual0_2 = None
+        mean_residual0 = None
         b_constrained = False
         if not b_arima:
             phi = theta0[:p]
             residual0 = self.x_residual_via_parameters(x, phi)
-            residual0_2 = np.power(residual0, 2)
+            mean_residual0, residual0_center = self.residual_center(residual0)
+            residual0_2 = np.power(residual0_center, 2)
         while True:
             if b_arima:
                 phi = theta0[:p]
                 residual0 = self.x_residual_via_parameters(x, phi)
-                residual0_2 = np.power(residual0, 2)
+                mean_residual0, residual0_center = self.residual_center(residual0)
+                residual0_2 = np.power(residual0_center, 2)
             if iloop == 0:
                 gradient = self.gradient_s(x, theta0, p, q)
                 gradient_ = gradient[:].copy()
                 if not b_arima:
                     gradient_[:p] = 0
-            theta1, likelihood_theta_1_0, L_theta = self.grid_search(residual0_2, theta0, gradient_, p, q, x=x, b_arima=b_arima, b_constrained=b_constrained)
+            theta1, likelihood_theta_1_0, L_theta, mean_residual = self.grid_search(residual0_2, mean_residual0, theta0, gradient_, p, q, x=x, b_arima=b_arima, b_constrained=b_constrained)
 
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
             if likelihood_theta_1_0 > 0:
@@ -3187,7 +3210,8 @@ class Arch(object):
         """
         mean_residual = np.mean(residual)
         residual_center = np.array(residual) - mean_residual
-        return residual_center, mean_residual
+
+        return mean_residual, residual_center
 
     def multi_gradient_ascent(
         self,
@@ -3394,7 +3418,7 @@ class Arch(object):
         delta = np.sqrt(delta_2)
         epsilon = delta * np.array(e)
 
-        return epsilon
+        return epsilon, delta_2, delta
 
     def arima_arch(
         self,
@@ -3424,14 +3448,15 @@ class Arch(object):
         phi = theta[:p]
         alpha = theta[p:]
 
-        y_t = self.arima(x=x, phi=phi, p=p)
-        residual = np.array(x) - np.array(y_t)
-        residual_2 = np.power(residual, 2)
-        epsilon = self.arch(residual_2, e, alpha)
+        y_arima = self.arima(x=x, phi=phi, p=p)
+        residual = np.array(x) - np.array(y_arima)
+        mean_residual, residual_center = self.residual_center(residual)
+        residual_2 = np.power(residual_center, 2)
+        epsilon, delta_2, delta = self.arch(residual_2, e, alpha)
 
-        y_t = y_t + epsilon
+        y_arch = y_arima + mean_residual + epsilon
 
-        return y_t
+        return y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e
 
     def log_likelihood_gamma(
         self,
