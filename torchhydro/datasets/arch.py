@@ -7,6 +7,7 @@ from typing import Optional
 import math
 import time
 import copy
+import random
 
 
 class Arch(object):
@@ -3423,7 +3424,6 @@ class Arch(object):
     def arima_arch(
         self,
         x,
-        e,
         theta,
         p,
         q
@@ -3433,7 +3433,6 @@ class Arch(object):
         Parameters
         ----------
         x
-        e
         theta
         p
         q
@@ -3447,13 +3446,22 @@ class Arch(object):
             raise ValueError("the length of theta need to be equal to p+q+1.")
         phi = theta[:p]
         alpha = theta[p:]
+        n_x = len(x)
 
+        # arima and residual
         y_arima = self.arima(x=x, phi=phi, p=p)
         residual = np.array(x) - np.array(y_arima)
         mean_residual, residual_center = self.residual_center(residual)
         residual_2 = np.power(residual_center, 2)
+
+        # white noise
+        random.seed(time.time())
+        e = np.random.normal(loc=0, scale=1, size=n_x)
+
+        # arch
         epsilon, delta_2, delta = self.arch(residual_2, e, alpha)
 
+        # arima + arch
         y_arch = y_arima + mean_residual + epsilon
 
         return y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e
