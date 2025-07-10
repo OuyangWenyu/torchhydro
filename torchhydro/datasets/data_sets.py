@@ -406,7 +406,8 @@ class BaseDataset(Dataset):
         -------
             a list of time points
         """
-        return self.target_scaler.data_target.coords["time"][:]
+        # may cause bug when running dpl model, needs more check
+        return self.target_scaler.data_target.coords["time"][self.warmup_length :]
 
     def denormalize(self, norm_data, pace_idx=None):
         """Denormalize the norm_data
