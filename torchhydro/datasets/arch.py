@@ -3417,7 +3417,7 @@ class Arch(object):
         """
         delta_2 = self.delta_2(residual_2, alpha)
         delta = np.sqrt(delta_2)
-        epsilon = delta * np.array(e)
+        epsilon = delta * e
 
         return epsilon, delta_2, delta
 
@@ -3452,6 +3452,7 @@ class Arch(object):
         y_arima = self.arima(x=x, phi=phi, p=p)
         residual = np.array(x) - np.array(y_arima)
         mean_residual, residual_center = self.residual_center(residual)
+        # residual_sign = self.residual_sign(residual_center)
         residual_2 = np.power(residual_center, 2)
 
         # white noise
