@@ -323,8 +323,8 @@ class BaseDataset(Dataset):
         """
         basin, idx, actual_length = self.lookup_table[item]
         warmup_length = self.warmup_length
-        x = self.x[basin, idx - warmup_length : idx + actual_length, :]
-        y = self.y[basin, idx : idx + actual_length, :]
+        x = self.x[basin, idx - warmup_length : idx + actual_length - warmup_length, :]
+        y = self.y[basin, idx : idx + actual_length - warmup_length, :]
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x).float(), torch.from_numpy(y).float()
         c = self.c[basin, :]
@@ -406,7 +406,7 @@ class BaseDataset(Dataset):
         -------
             a list of time points
         """
-        return self.target_scaler.data_target.coords["time"][self.warmup_length :]
+        return self.target_scaler.data_target.coords["time"][:]
 
     def denormalize(self, norm_data, pace_idx=None):
         """Denormalize the norm_data
