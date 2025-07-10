@@ -1145,9 +1145,9 @@ def test_arma_least_squares_estimation():
                -8.0, 8.0, -8.0, 8.0, -8.0, 8.0, -8.0, 8.0, -8.0, 8.0, -8.0, 8.0, -8.0, 8.0, -8.0, 8.0, -8.0, 8.0,
                -8.0, 8.0, -8.0, 8.0]
     arch = Arch()
-    p = 3
+    p = 5
     q = 0
-    phi, theat, R_2, B_1 = arch.arma_least_squares_estimation(y_residual_2_streamflow_1460, e=e, p=p, q=q)
+    phi, theat, R_2, B_1 = arch.arma_least_squares_estimation(y_streamflow_1460, e=e, p=p, q=q)
     print("phi")
     print(phi)
     print("theat")
@@ -1207,6 +1207,27 @@ def test_arma_least_squares_estimation():
 # []
 # R_2
 # 0.025183448141315852
+# y_streamflow_1460  p=3
+# phi
+# [ 1.80161201 -1.28440015  0.43756275]
+# theat
+# []
+# R_2
+# 0.9344269048513744
+# y_streamflow_1460  p=4
+# phi
+# [ 1.87735466 -1.50673214  0.74942559 -0.173099  ]
+# theat
+# []
+# R_2
+# 0.9367795602495427
+# y_streamflow_1460  p=5
+# phi
+# [ 1.91134184 -1.65388684  1.04528139 -0.5417279   0.19634819]
+# theat
+# []
+# R_2
+# 0.9387957167533237
 def test_x_residual():
     y_42 = [-1, 5, 3, 9, 7, 13, 11, 17, 15, 21, 19, 25, 23, 29, 27, 33, 31, 37, 35, 41, 39, 45, 43, 49, 47,
             53, 51, 57, 55, 61, 59, 65, 63, 69, 67, 73, 71, 77, 75, 81, 79, 85]
@@ -3247,12 +3268,17 @@ def test_arima_arch():
 
 def test_residual_center():
     arch = Arch()
-    residual = y_residual_streamflow_395
+    residual = y_residual_streamflow_1460
     residual_center, mean_residual = arch.residual_center(residual)
     print("residual_center")
     print(residual_center)
     print("mean_residual")
     print(mean_residual)
+# residual_center
+# [-13.74331171 -13.74331171 -13.74331171 ... -11.46391171 -11.86391171
+#  -11.84331171]
+# mean_residual
+# 13.743311712328769
 
 def test_log_likelihood_gamma():
     arch = Arch()
