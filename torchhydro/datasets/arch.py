@@ -3454,13 +3454,17 @@ class Arch(object):
         mean_residual, residual_center = self.residual_center(residual)
         residual_2 = np.power(residual_center, 2)
 
-        # white noise  # todo:
-        random.seed(time.time())
+        # white noise
+        random.seed(time.time()+1)
         e = np.random.normal(loc=0, scale=1, size=n_x)
-        e = np.clip(e, -1.2, 1.2)
+        e_max = np.max(e)
+        e_min = np.min(e)
+        e_range = e_max - e_min
+        range = 2.4
+        e_ = e / e_range * range
 
         # arch
-        epsilon, delta_2, delta = self.arch(residual_2, e, alpha)
+        epsilon, delta_2, delta = self.arch(residual_2, e_, alpha)
 
         # arima + arch
         y_arch = y_arima + mean_residual + epsilon
@@ -3469,11 +3473,49 @@ class Arch(object):
         y_arch_s = self.moving_average_smoothing(5, y_arch)
 
         # NSE
-        nse = self.nse(x, y_arch_s)
+        nse = self.nse(x, y_arch)
         # RMSE
-        rmse, max_abs_error = self.rmse(x, y_arch_s)
+        rmse, max_abs_error = self.rmse(x, y_arch)
 
-        return y_arch, y_arch_s, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e, nse, rmse, max_abs_error
+        return y_arch, y_arch_s, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e, e_, nse, rmse, max_abs_error
+
+    def arima_arch_model(
+        self,
+        x,
+        theta,
+        p,
+        q,
+        nse,
+        rmse,
+        max_error,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        theta
+        p
+        q
+        count
+
+        Returns
+        -------
+
+        """
+        i_loop = 0
+        while True:
+            i_loop = i_loop + 1
+            (y_arch_i, y_arch_s_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,
+             delta_i, epsilon_i, e_i, e_ii, nse_i, rmse_i, max_abs_error_i) = self.arima_arch(x, theta, p, q)
+            if max_abs_error_i <= max_error:
+                if rmse_i <= rmse:
+                    if nse_i >= nse:
+                        return (i_loop, y_arch_i, y_arch_s_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,
+                                delta_i, epsilon_i, e_i, e_ii, nse_i, rmse_i, max_abs_error_i)
+            if i_loop > 1000:
+                break
+        return i_loop
 
     def residual_sign(
         self,
