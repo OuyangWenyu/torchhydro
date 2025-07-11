@@ -3470,14 +3470,14 @@ class Arch(object):
         y_arch = y_arima + mean_residual + epsilon
 
         # smooth
-        y_arch_s = self.moving_average_smoothing(5, y_arch)
+        # y_arch_s = self.moving_average_smoothing(5, y_arch)
 
         # NSE
         nse = self.nse(x, y_arch)
         # RMSE
         rmse, max_abs_error = self.rmse(x, y_arch)
 
-        return y_arch, y_arch_s, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e, e_, nse, rmse, max_abs_error
+        return y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e, e_, nse, rmse, max_abs_error     # y_arch_s,
 
     def arima_arch_model(
         self,
@@ -3494,11 +3494,14 @@ class Arch(object):
 
         Parameters
         ----------
-        x
-        theta
-        p
-        q
-        count
+        x: time series
+        theta: parameters of arima and arch model.
+        p: degree / parameter number of ar model.
+        q: degree / parameter number of arch model
+        nse:
+        rmse:
+        max_error:
+        max_loop:
 
         Returns
         -------
@@ -3507,12 +3510,12 @@ class Arch(object):
         i_loop = 0
         while True:
             i_loop = i_loop + 1
-            (y_arch_i, y_arch_s_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,
+            (y_arch_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,   # y_arch_s_i,
              delta_i, epsilon_i, e_i, e_ii, nse_i, rmse_i, max_abs_error_i) = self.arima_arch(x, theta, p, q)
             if nse_i >= nse:
                 if rmse_i <= rmse:
                     if max_abs_error_i <= max_error:
-                        return (i_loop, y_arch_i, y_arch_s_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,
+                        return (i_loop, y_arch_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,   # y_arch_s_i,
                                 delta_i, epsilon_i, e_i, e_ii, nse_i, rmse_i, max_abs_error_i)
             if i_loop > max_loop:
                 print("i_loop=" + str(i_loop) + " > max_loop=" + str(max_loop) + ", Please fine-tune the parameters.")

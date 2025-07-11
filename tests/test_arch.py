@@ -3360,12 +3360,12 @@ def test_arima_arch_model():
     theta = phi_1460 + alpha_1460
     nse = 0.92
     rmse = 130
-    max_error = 2500
+    max_error = 2000
     max_loop =1000
-    (n_loop, y_arch, y_arch_s, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon,
+    (n_loop, y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon,   #y_arch_s,
      e, e_, nse, rmse, max_abs_error) = arch.arima_arch_model(x, theta, p, q, nse, rmse, max_error, max_loop)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch.txt', y_arch)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch_s.txt', y_arch_s)
+    # np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch_s.txt', y_arch_s)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arima.txt', y_arima)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual.txt', residual)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_center.txt', residual_center)
@@ -3373,7 +3373,7 @@ def test_arima_arch_model():
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta_2.txt', delta_2)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta.txt', delta)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\epsilon.txt', epsilon)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e.txt', e)
+    # np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e.txt', e)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e_.txt', e_)
     print("n_loop = " + str(n_loop))
     print("mean_residual = " + str(mean_residual))
@@ -3398,12 +3398,6 @@ def test_arima_arch_model():
 # NSE = 0.9399722485755084
 # RMSE = 124.86277331050377
 # max_abs_error = 2632.3670951118047
-# e19    nse = 0.92  rmse = 130  max_error = 2500
-# n_loop = 534
-# mean_residual = 13.743311710946587
-# NSE = 0.9446363984454708
-# RMSE = 119.91378357126327
-# max_abs_error = 2485.639805242475
 # e20    nse = 0.92  rmse = 130  max_error = 2500
 # n_loop = 97
 # mean_residual = 13.743311710946587
