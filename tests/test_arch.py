@@ -3319,11 +3319,16 @@ def test_arima_arch_1460():
 # mean_residual = 13.743311710946587
 # RMSE = 198.04628262376028
 # max_abs_error = 4239.408388947576
-# e12
+# e13
 # mean_residual = 13.743311710946587
 # NSE = 0.8963015155709045
 # RMSE = 164.1130601263889
 # max_abs_error = 3991.533857455335
+# e14
+# mean_residual = 13.743311710946587
+# NSE = 0.8906916385007407
+# RMSE = 168.49368605135302
+# max_abs_error = 3983.5711724228454
 
 def test_residual_center():
     arch = Arch()

@@ -3429,7 +3429,7 @@ class Arch(object):
         q
     ):
         """
-
+        arima-arch model
         Parameters
         ----------
         x
@@ -3452,12 +3452,12 @@ class Arch(object):
         y_arima = self.arima(x=x, phi=phi, p=p)
         residual = np.array(x) - np.array(y_arima)
         mean_residual, residual_center = self.residual_center(residual)
-        # residual_sign = self.residual_sign(residual_center)
         residual_2 = np.power(residual_center, 2)
 
-        # white noise
+        # white noise  # todo:
         random.seed(time.time())
         e = np.random.normal(loc=0, scale=1, size=n_x)
+        e = np.clip(e, -1.2, 1.2)
 
         # arch
         epsilon, delta_2, delta = self.arch(residual_2, e, alpha)
