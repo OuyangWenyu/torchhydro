@@ -88,12 +88,14 @@ class Arch(object):
         covariance and variance
         Parameters
         ----------
-        x
-        y
+        x: the first time series.
+        y: Optional, the second time series.
+        mean_x: Optional, mean value of the first time series.
+        mean_y: Optional, mean value of the second time series.
 
         Returns
         -------
-
+        cov: the covariance of x and y. If y is None, the variance of x.
         """
         if mean_x is None:
             mean_x = np.mean(x)
@@ -113,6 +115,7 @@ class Arch(object):
             cov = cov / n_x
         except ZeroDivisionError:
             raise ZeroDivisionError('division by zero')
+
         return cov
 
     def correlation_coefficient(
@@ -126,12 +129,14 @@ class Arch(object):
         correlation coefficient, R^2.
         Parameters
         ----------
-        x
-        y
+        x: the first time series.
+        y: Optional, the second time series.
+        mean_x: Optional, mean value of the first time series.
+        mean_y: Optional, mean value of the second time series.
 
         Returns
         -------
-
+        rho_xy: the correlation coefficient of x and y.
         """
         if ((mean_x is not None) and (mean_y is None)) or ((mean_x is None) and (mean_y is not None)):
             raise ValueError("Error: Please set mean_x and mean_y at the same time or do not set both.")
@@ -141,6 +146,7 @@ class Arch(object):
         var_y = self.cov(y, mean_x=mean_y)
         std_y = pow(var_y, 0.5)
         rho_xy = cov_xy / (std_x * std_y)
+
         return rho_xy
 
     def autocorrelation_coefficient(
@@ -155,11 +161,11 @@ class Arch(object):
         ----------
         x: time series
         p: degree
-        var_x: variance
+        var_x: optional, variance of x.
 
         Returns
         -------
-
+        rho_p_xx: the p degree auto-correlation coefficient of x.
         """
         # n_x = x.shape[0]
         n_x = len(x)
@@ -190,11 +196,11 @@ class Arch(object):
         Parameters
         ----------
         x: time series
-        m: degree
+        m: the max degree
 
         Returns
         -------
-
+        acf: auto-correlation function series.
         """
         if m is None:
             n_x = len(x)
@@ -222,11 +228,11 @@ class Arch(object):
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p51
         Parameters
         ----------
-        r
+        r: auto-correlation function series.
 
         Returns
         -------
-
+        pacc_k: partial auto-correlation coefficient.
         """
         k = len(r) - 1
         # D
@@ -265,7 +271,7 @@ class Arch(object):
 
         Returns
         -------
-
+        pacf: partial auto-correlation function.
         """
         if k is None:
             n_x = len(x)
@@ -300,9 +306,11 @@ class Arch(object):
         ----------
         x: time series
         p: the degree of autoregressive.
+        b_constant: whether to contain the constant item or not.
         Returns
         -------
-
+        a: the estimated parameters.
+        R_2: the correlation coefficient.
         """
         n_x = len(x)
 
@@ -329,8 +337,8 @@ class Arch(object):
         self,
         A,
         Y,
-        b_s_a: Optional = False,
-        b_se_beta: Optional = False,
+        b_s_a: bool = False,
+        b_se_beta: bool = False,
     ):
         """
         ordinary least squares, ols.
@@ -339,10 +347,10 @@ class Arch(object):
         a = (A' * A)_1 * A' * Y
         Parameters
         ----------
-        A: matrix
-        Y: matrix
-        b_s_a: bool,
-        b_se_beta
+        A: coefficient matrix
+        Y: target matrix
+        b_s_a: bool, whether to return se_a0 or not.
+        b_se_beta: bool, whether to return se_beta or not.
 
         Returns
         -------
@@ -427,7 +435,8 @@ class Arch(object):
         p: the degree of adf.
         Returns
         -------
-
+        rho:
+        s_rho
         """
         n_x = len(x)
 
@@ -454,7 +463,6 @@ class Arch(object):
         rho = a[0]
         s_rho = s_a0
 
-        # return a, R_2, s_a0
         return rho, s_rho
 
     def tau_statistic(
@@ -609,7 +617,8 @@ class Arch(object):
 
         Returns
         -------
-
+        dx: the integrated series of single degree.
+        tx: the trend series.
         """
         n_x = len(x)
         dx = np.zeros(n_x-1)
@@ -641,7 +650,8 @@ class Arch(object):
 
         Returns
         -------
-
+        dx: the integrated series of d degree.
+        tx: the trend series.
         """
         n_x = len(x)
         tx = np.zeros(n_x)  # trend
@@ -661,7 +671,7 @@ class Arch(object):
         d,
     ):
         """
-
+        integration
         Parameters
         ----------
         x: time series
@@ -669,7 +679,8 @@ class Arch(object):
 
         Returns
         -------
-
+        dx: the integrated series.
+        tx: the trend series.
         """
         n_x = len(x)
         # integrate
@@ -693,20 +704,20 @@ class Arch(object):
         phi,
     ):
         """
-        AR(p) model
+        AR model, single step.
         Parameters
         ----------
         x: time series
         phi: parameters of AR(p) model
-        p: degree of autoregression model
 
         Returns
         -------
-
+        ar: the single step auto-regression result.
         """
         # ar
         xt = np.transpose(x)
         ar = np.matmul(phi, xt)
+
         return ar
 
     def ma_one_step(
@@ -715,16 +726,15 @@ class Arch(object):
         theta,
     ):
         """
-        MA(q) model
+        MA model, single step.
         Parameters
         ----------
         e: time series
         theta: parameters of MA(p) model
-        q: degree of moving average model
 
         Returns
         -------
-
+        ma: the single step move average result.
         """
         # MA
         et = e[1:]
@@ -732,6 +742,7 @@ class Arch(object):
         ma0 = e[0]
         ma = np.matmul(theta, et)
         ma = ma0 - ma
+
         return ma
 
     def arma(
@@ -760,7 +771,7 @@ class Arch(object):
 
         Returns
         -------
-
+        y: the result of arma model.
         """
         # check parameters
         if p > 0:
@@ -835,7 +846,7 @@ class Arch(object):
         significance_level: significance level
         Returns
         -------
-
+        b_white_noise: the test result, whether the x is white noise series or not.
         """
         n_x = len(x)
         if n_x > 100:  # todo:
@@ -909,7 +920,7 @@ class Arch(object):
 
         Returns
         -------
-
+        y: the result of arima(p,d,q) model.
         """
         # parameter check
         if p > 0:
@@ -974,7 +985,10 @@ class Arch(object):
 
         Returns
         -------
-
+        phi: the estimated parameters of ar(p) model.
+        theta: the estimated parameters of ma(q) model.
+        R_2:
+        se_beta:
         """
         # parameter check
         if p > 0:
