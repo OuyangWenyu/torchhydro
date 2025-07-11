@@ -3360,25 +3360,24 @@ def test_arima_arch_model():
     theta = phi_1460 + alpha_1460
     nse = 0.92
     rmse = 130
-    max_error = 2000
+    max_error = 2400
     max_loop =1000
     result = arch.arima_arch_model(x, theta, p, q, nse, rmse, max_error, max_loop)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch.txt', result["y_arch"])
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arima.txt', result["y_arima"])
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual.txt', result["residual"])
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_center.txt', result["residual_center"])
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_2.txt', result["residual_2"])
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta_2.txt', result["delta_2"])
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta.txt', result["delta"])
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\epsilon.txt', result["epsilon"])
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e_.txt', result["e_"])
-    # np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch_s.txt', y_arch_s)
-    # np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e.txt', e)
-    print("n_loop = " + str(result["n_loop"]))
-    print("mean_residual = " + str(result["mean_residual"]))
-    print("NSE = " + str(result["nse"]))
-    print("RMSE = " + str(result["rmse"]))
-    print("max_abs_error = " + str(result["max_abs_error"]))
+    if result["y_arch"] is not None:
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch.txt', result["y_arch"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arima.txt', result["y_arima"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual.txt', result["residual"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_center.txt', result["residual_center"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_2.txt', result["residual_2"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta_2.txt', result["delta_2"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta.txt', result["delta"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\epsilon.txt', result["epsilon"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e_.txt', result["e"])
+        print("n_loop = " + str(result["i_loop"]))
+        print("mean_residual = " + str(result["mean_residual"]))
+        print("NSE = " + str(result["nse"]))
+        print("RMSE = " + str(result["rmse"]))
+        print("max_abs_error = " + str(result["max_abs_error"]))
 # e16    nse = 0.9  rmse = 150  max_error = 3500
 # n_loop = 2
 # mean_residual = 13.743311710946587
@@ -3403,6 +3402,12 @@ def test_arima_arch_model():
 # NSE = 0.9474276062760204
 # RMSE = 116.85190983060292
 # max_abs_error = 2337.8740910390716
+# e21    nse = 0.92  rmse = 130  max_error = 2400
+# n_loop = 505
+# mean_residual = 13.743311710946587
+# NSE = 0.939438206953457
+# RMSE = 125.41696918041434
+# max_abs_error = 2293.1312354338224
 
 def test_residual_sign():
     arch = Arch()

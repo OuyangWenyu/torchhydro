@@ -2963,11 +2963,14 @@ class Arch(object):
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p290
         Parameters
         ----------
-        residual_2
-        theta
-        grad
-        p
-        s
+        residual_2: square of centered residuals.
+        mean_residual: the mean value of residuals.
+        theta: parameters of arima and arch model.
+        grad: gradient of theta.
+        p: degree / parameter number of ar model.
+        q: degree / parameter number of arch model.
+        x: Optional, the original time series.
+        b_arima: bool, whether estimate the parameters of arima model or not.
 
         Returns
         -------
@@ -3067,15 +3070,15 @@ class Arch(object):
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p290
         Parameters
         ----------
-        x
-        theta0
-        d_theta
-        p
-        q
+        x: time series.
+        theta: parameters of arima and arch model.
+        p: degree / parameter number of ar model.
+        q: degree / parameter number of arch model.
+        b_arima: bool, whether estimate the parameters of arima model or not.
 
         Returns
         -------
-
+        theta1: the estimated parameters.
         """
         n_theta = len(theta)
         if n_theta != p+q+1:
@@ -3200,14 +3203,15 @@ class Arch(object):
         residual,
     ):
         """
-
+        center the residual series.
         Parameters
         ----------
-        residual
+        residual: residual series.
 
         Returns
         -------
-
+        mean_residual: mean value of residuals.
+        residual_center: the centered residual series.
         """
         mean_residual = np.mean(residual)
         residual_center = np.array(residual) - mean_residual
@@ -3261,13 +3265,17 @@ class Arch(object):
         Time Series Analysis  James D.Hamilton P767、p780
         Parameters
         ----------
-        residual_2
-        h
-        alpha
+        residual: residual series.
+        residual_2: the square of residuals
+        x: time series.
+        h: variance of period of t.
+        alpha: parameters of arch model.
+        p: degree / parameter number of ar model.
+        q: degree / parameter number of arch model.
 
         Returns
         -------
-
+        gradient of parameter at period of t.
         """
         # st_0
         residual_t_2 = residual_2[0]
@@ -3318,14 +3326,14 @@ class Arch(object):
         Time Series Analysis  James D.Hamilton P767
         Parameters
         ----------
-        x
-        residual_2
-        alpha
-        q
+        x: time series
+        residual_2: the square of residuals
+        p: degree / parameter number of ar model.
+        q: degree / parameter number of arch model.
 
         Returns
         -------
-
+        gradient series of parameter at each period of time.
         """
         n_x = len(x)
         phi = theta[:p]
@@ -3360,14 +3368,14 @@ class Arch(object):
 
         Parameters
         ----------
-        x
-        theta
-        p
-        q
+        x: time series
+        theta: parameters
+        p: degree / parameter number of ar model.
+        q: degree / parameter number of arch model.
 
         Returns
         -------
-
+        gradient of parameters.
         """
         s = self.s_theat(x, theta, p, q)
         s = np.array(s)
@@ -3407,13 +3415,13 @@ class Arch(object):
 
         Parameters
         ----------
-        residual_2
-        e
-        alpha
+        residual_2: the square of residuals
+        e: gauss white noise
+        alpha: parameters of arch model
 
         Returns
         -------
-
+        epsilon, delta_2, delta
         """
         delta_2 = self.delta_2(residual_2, alpha)
         delta = np.sqrt(delta_2)
@@ -3432,10 +3440,10 @@ class Arch(object):
         arima-arch model
         Parameters
         ----------
-        x
-        theta
-        p
-        q
+        x: time series
+        theta: parameters of arima and arch model.
+        p: degree / parameter number of ar model.
+        q: degree / parameter number of arch model
 
         Returns
         -------
@@ -3477,7 +3485,7 @@ class Arch(object):
         # RMSE
         rmse, max_abs_error = self.rmse(x, y_arch)
 
-        return y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse, rmse, max_abs_error     # y_arch_s,
+        return y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse, rmse, max_abs_error
 
     def arima_arch_model(
         self,
@@ -3498,14 +3506,14 @@ class Arch(object):
         theta: parameters of arima and arch model.
         p: degree / parameter number of ar model.
         q: degree / parameter number of arch model
-        nse:
-        rmse:
-        max_error:
-        max_loop:
+        nse: threshold of nse
+        rmse: threshold of rmse
+        max_error: threshold of max_error
+        max_loop: threshold of max_loop
 
         Returns
         -------
-
+        result: the result dict
         """
         result = {
             "i_loop": 0,
@@ -3523,10 +3531,11 @@ class Arch(object):
             "rmse": None,
             "max_abs_error": None,
         }
+
         i_loop = 0
         while True:
             i_loop = i_loop + 1
-            (y_arch_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,   # y_arch_s_i,
+            (y_arch_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,
              delta_i, epsilon_i, e_ii, nse_i, rmse_i, max_abs_error_i) = self.arima_arch(x, theta, p, q)
             if nse_i >= nse:
                 if rmse_i <= rmse:
