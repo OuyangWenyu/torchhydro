@@ -1984,12 +1984,16 @@ class Arch(object):
 
         Parameters
         ----------
-        residual
-        q
+        residual: centered residuals.
+        q: parameters of arch model.
+        significance_level: the significance level.
 
         Returns
         -------
-
+        b_arch_Q,
+        b_arch_LM,
+        b_arch_F,
+        b_arch_bpLM
         """
         residual_2 = np.power(residual, 2)
         residual_2 = residual_2.tolist()
@@ -2051,15 +2055,12 @@ class Arch(object):
         GARCH Models  Francq & Zakoian 2010 P128  formula (6.3)
         Parameters
         ----------
-        residual_2:
-        e:
-        omega:
-        q: degree of arch model.
-        alpha:
+        residual_2: square of centered residuals.
+        alpha: parameters of arch model.
 
         Returns
         -------
-
+        delta_2_i: square delta of single step
         """
         delta_2_i = np.matmul(residual_2, alpha)
 
@@ -2107,8 +2108,8 @@ class Arch(object):
         GARCH Models Structure, Statistical Inference and Financial Applications  Christian Francq & Jean-Michel Zakoian P128
         Parameters
         ----------
-        residual_2
-        q
+        residual_2: square of centered residuals.
+        q: degree / parameter number of arch model.
 
         Returns
         -------
@@ -2150,6 +2151,7 @@ class Arch(object):
         A
         Y
         Omega
+        b_y: bool, whether return y or not.
 
         Returns
         -------
@@ -2191,8 +2193,8 @@ class Arch(object):
         GARCH Models  Francq & Zakoian 2010 P132
         Parameters
         ----------
-        residual_2
-        theta
+        Zi:
+        theta: parameters of arch model.
 
         Returns
         -------
@@ -2200,7 +2202,6 @@ class Arch(object):
         """
         theta = np.transpose(theta)
         sigma_2 = np.matmul(Zi, theta)
-        # sigma = np.sqrt(sigma_2)
         sigma_n4 = pow(sigma_2, -2)
 
         return sigma_n4
@@ -2216,9 +2217,8 @@ class Arch(object):
         GARCH Models  Francq & Zakoian 2010 P132
         Parameters
         ----------
-        residual_2
-        theta
-        q
+        residual_2: square of centered residuals.
+        theta: parameters of arch model.
 
         Returns
         -------
@@ -2240,13 +2240,14 @@ class Arch(object):
         b_y: bool = False
     ):
         """
-        fgls
+        feasible generalized least squares for estimation of parameters of arch model.
         GARCH Models Structure, Statistical Inference and Financial Applications  Christian Francq & Jean-Michel Zakoian P132
         Parameters
         ----------
-        residual_2
-        q
-        Omega
+        residual_2: square of centered residuals.
+        q: degree / parameter number of arch model.
+        Omega:
+        b_y: bool, whether return y or not.
 
         Returns
         -------
@@ -2266,12 +2267,12 @@ class Arch(object):
             xp_i.reverse()
             xp.append(xp_i)
 
+        a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
+
         if b_y:
-            a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
             return a, R_2, y
-        else:
-            a, R_2 = self.generalized_least_squares(xp, xf, Omega_diagonal)
-            return a, R_2
+
+        return a, R_2
 
     def arch_constrained_ordinary_least_squares(
         self,
@@ -2282,12 +2283,15 @@ class Arch(object):
         b_y: bool = False,
     ):
         """
-        constrained ordinary least squares
+        constrained ordinary least squares for estimation of parameters of arch model.
         GARCH Models  Francq & Zakoian 2010 p135-137
         Parameters
         ----------
-        residual_2
-        q
+        residual_2: square of centered residuals.
+        q: degree / parameter number of arch model.
+        Omega:
+        q_n: the index of the constrained parameters.
+        b_y: bool, whether return y or not.
 
         Returns
         -------
@@ -2310,18 +2314,14 @@ class Arch(object):
         xp = np.array(xp)
         xp = np.delete(xp, q_n, axis=1)
 
-        if b_y:
-            a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
-            a = np.insert(a, q_n, 0)
-            return a, R_2, y
-        else:
-            a, R_2 = self.generalized_least_squares(xp, xf, Omega_diagonal)
-            a = np.insert(a, q_n, 0)
-            return a, R_2
+        a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
+        a = np.insert(a, q_n, 0)
 
-        # a, R_2 = self.ordinary_least_squares(xp, xf)
-        # a = np.insert(a, q_n, 0)
-        # return a, R_2
+        if b_y:
+            return a, R_2, y
+
+        return a, R_2
+
 
     def initial_values(
         self,
@@ -2614,15 +2614,16 @@ class Arch(object):
         alpha,
     ):
         """
+        conditional heteroscedasticity of arch model.
         Time Series Analysis  James D.Hamilton P766
         Parameters
         ----------
-        residual_2
-        alpha
+        residual_2: square of centered residuals.
+        alpha: parameters of arch model
 
         Returns
         -------
-
+        delta_2: variance of arch model.
         """
         n_residual_2 = len(residual_2)
         q = len(alpha) - 1
@@ -2647,16 +2648,16 @@ class Arch(object):
         alpha,
     ):
         """
-        log likelihood function, a, b and c item.
+        log likelihood function, the gauss vt assumption. a, b and c item.
         Time Series Analysis  James D.Hamilton P766
         Parameters
         ----------
-        residual_2
-        alpha
+        residual_2: square of centered residuals.
+        alpha: parameters of arch model.
 
         Returns
         -------
-
+        L_theta: likelihood value of parameters of phi and alpha.
         """
         # a
         n_residual_2 = len(residual_2)
@@ -2731,12 +2732,12 @@ class Arch(object):
         residual via parameters.
         Parameters
         ----------
-        x
-        alpha
+        x: time series.
+        phi: parameters of arima model.
 
         Returns
         -------
-
+        x_residual: residuals of arima model.
         """
         p = len(phi)
         y_t = self.arima(x=x, phi=phi, p=p)
@@ -2871,11 +2872,22 @@ class Arch(object):
         σ(t)^2 = α0 + α1*a(t-1)^2 + α2*a(t-2)^2 + ... + αq*a(t-q)^2     α0>0, αi>=0(i=1,2,...,q-1), αq>0, (α1+α2+...+αq)<1
         Parameters
         ----------
-        theta0
+        residual_2: square of centered residuals.
+        mean_residual: the mean value of residuals before centered.
+        theta: parameters of arima and arch model.
+        grad； the gradient of theta.
+        p: degree / parameter number of ar model.
+        q: degree / parameter number of arch model.
+        x: Optional, the original time series.
+        b_arima: bool, whether estimate the parameters of arima model or not.
+        b_constrained: bool = False,
 
         Returns
         -------
-
+        theta1_: the estimated parameters.
+        likelihood_theta_1_0: the change value of likelihood value between theta0 and theta1
+        L_theta_: likelihood value of theta1
+        mean_residual_: the mean value of residuals before centered.
         """
         s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         n_s = len(s)
@@ -2964,7 +2976,7 @@ class Arch(object):
         Parameters
         ----------
         residual_2: square of centered residuals.
-        mean_residual: the mean value of residuals.
+        mean_residual: the mean value of residuals before centered.
         theta: parameters of arima and arch model.
         grad: gradient of theta.
         p: degree / parameter number of ar model.
@@ -2974,7 +2986,10 @@ class Arch(object):
 
         Returns
         -------
-
+        theta1: the estimated parameters.
+        likelihood_theta_1_0: the change value of likelihood value between theta0 and theta1
+        L_theta: likelihood value of theta1
+        mean_residual_: the mean value of residuals before centered.
         """
         s = [1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16]
         n_s = len(s)
