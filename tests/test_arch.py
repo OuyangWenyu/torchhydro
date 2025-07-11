@@ -3361,8 +3361,9 @@ def test_arima_arch_model():
     nse = 0.92
     rmse = 130
     max_error = 2500
+    max_loop =1000
     (n_loop, y_arch, y_arch_s, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon,
-     e, e_, nse, rmse, max_abs_error) = arch.arima_arch_model(x, theta, p, q, nse, rmse, max_error)
+     e, e_, nse, rmse, max_abs_error) = arch.arima_arch_model(x, theta, p, q, nse, rmse, max_error, max_loop)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch.txt', y_arch)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch_s.txt', y_arch_s)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arima.txt', y_arima)
@@ -3403,6 +3404,12 @@ def test_arima_arch_model():
 # NSE = 0.9446363984454708
 # RMSE = 119.91378357126327
 # max_abs_error = 2485.639805242475
+# e20    nse = 0.92  rmse = 130  max_error = 2500
+# n_loop = 97
+# mean_residual = 13.743311710946587
+# NSE = 0.9474276062760204
+# RMSE = 116.85190983060292
+# max_abs_error = 2337.8740910390716
 
 def test_residual_sign():
     arch = Arch()

@@ -3488,6 +3488,7 @@ class Arch(object):
         nse,
         rmse,
         max_error,
+        max_loop,
     ):
         """
 
@@ -3508,12 +3509,13 @@ class Arch(object):
             i_loop = i_loop + 1
             (y_arch_i, y_arch_s_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,
              delta_i, epsilon_i, e_i, e_ii, nse_i, rmse_i, max_abs_error_i) = self.arima_arch(x, theta, p, q)
-            if max_abs_error_i <= max_error:
+            if nse_i >= nse:
                 if rmse_i <= rmse:
-                    if nse_i >= nse:
+                    if max_abs_error_i <= max_error:
                         return (i_loop, y_arch_i, y_arch_s_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,
                                 delta_i, epsilon_i, e_i, e_ii, nse_i, rmse_i, max_abs_error_i)
-            if i_loop > 1000:
+            if i_loop > max_loop:
+                print("i_loop=" + str(i_loop) + " > max_loop=" + str(max_loop) + ", Please fine-tune the parameters.")
                 break
         return i_loop
 
