@@ -3362,24 +3362,23 @@ def test_arima_arch_model():
     rmse = 130
     max_error = 2000
     max_loop =1000
-    (n_loop, y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon,   #y_arch_s,
-     e, e_, nse, rmse, max_abs_error) = arch.arima_arch_model(x, theta, p, q, nse, rmse, max_error, max_loop)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch.txt', y_arch)
+    result = arch.arima_arch_model(x, theta, p, q, nse, rmse, max_error, max_loop)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch.txt', result["y_arch"])
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arima.txt', result["y_arima"])
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual.txt', result["residual"])
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_center.txt', result["residual_center"])
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_2.txt', result["residual_2"])
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta_2.txt', result["delta_2"])
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta.txt', result["delta"])
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\epsilon.txt', result["epsilon"])
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e_.txt', result["e_"])
     # np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch_s.txt', y_arch_s)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arima.txt', y_arima)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual.txt', residual)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_center.txt', residual_center)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_2.txt', residual_2)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta_2.txt', delta_2)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta.txt', delta)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\epsilon.txt', epsilon)
     # np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e.txt', e)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e_.txt', e_)
-    print("n_loop = " + str(n_loop))
-    print("mean_residual = " + str(mean_residual))
-    print("NSE = " + str(nse))
-    print("RMSE = " + str(rmse))
-    print("max_abs_error = " + str(max_abs_error))
+    print("n_loop = " + str(result["n_loop"]))
+    print("mean_residual = " + str(result["mean_residual"]))
+    print("NSE = " + str(result["nse"]))
+    print("RMSE = " + str(result["rmse"]))
+    print("max_abs_error = " + str(result["max_abs_error"]))
 # e16    nse = 0.9  rmse = 150  max_error = 3500
 # n_loop = 2
 # mean_residual = 13.743311710946587

@@ -13,7 +13,7 @@ import pandas as pd
 from pandas import DataFrame as df
 
 
-class Node:
+class Node(object):
     """
     basin node, similar to river node.
     """
@@ -56,7 +56,7 @@ class Node:
             self.device = None
 
 
-class Basin:
+class Basin(object):
     """
     basin object, reference to river.
     """
@@ -159,7 +159,7 @@ class Basin:
             self.device = None
 
 
-class BasinTree:
+class BasinTree(object):
     """
     generate the basin tree through catchment nestedness information
     This class use to figure out the link/topology relationship between basins.
