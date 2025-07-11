@@ -3288,8 +3288,9 @@ def test_arima_arch_1460():
     phi_1460 = [1.80161201, -1.28440015, 0.43756275]
     alpha_1460 = [8.11449905e+02, 6.55662354e-01, 2.01090012e-01, 1.14012439e-02]
     theta = phi_1460 + alpha_1460
-    y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e = arch.arima_arch(x, theta, p, q)
+    y_arch, y_arch_s, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e, nse, rmse, max_abs_error = arch.arima_arch(x, theta, p, q)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch.txt', y_arch)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arch_s.txt', y_arch_s)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\y_arima.txt', y_arima)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual.txt', residual)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_center.txt', residual_center)
@@ -3298,12 +3299,10 @@ def test_arima_arch_1460():
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta.txt', delta)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\epsilon.txt', epsilon)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e.txt', e)
-    # print("y_t")
-    # print(y_t)
-    print("mean_residual")
-    print(mean_residual)
-    # print("epsilon")
-    # print(epsilon)
+    print("mean_residual = " + str(mean_residual))
+    print("NSE = " + str(nse))
+    print("RMSE = " + str(rmse))
+    print("max_abs_error = " + str(max_abs_error))
 # y_t
 # [232.07313035 160.43569425 162.24667303 ...  16.13071354  66.09205889
 #   24.38924423]
@@ -3312,6 +3311,19 @@ def test_arima_arch_1460():
 # epsilon
 # [ 50.72981864 -19.10761746 -16.49663868 ... -45.73323852   4.22810684
 #  -36.75406303]
+# e11
+# mean_residual = 13.743311710946587
+# rmse = 22544.377726316325
+# max_abs_error = 2402.5336010916626
+# e12
+# mean_residual = 13.743311710946587
+# RMSE = 198.04628262376028
+# max_abs_error = 4239.408388947576
+# e12
+# mean_residual = 13.743311710946587
+# NSE = 0.8963015155709045
+# RMSE = 164.1130601263889
+# max_abs_error = 3991.533857455335
 
 def test_residual_center():
     arch = Arch()

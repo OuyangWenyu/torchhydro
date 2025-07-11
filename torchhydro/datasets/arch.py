@@ -3465,7 +3465,15 @@ class Arch(object):
         # arima + arch
         y_arch = y_arima + mean_residual + epsilon
 
-        return y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e
+        # smooth
+        y_arch_s = self.moving_average_smoothing(5, y_arch)
+
+        # NSE
+        nse = self.nse(x, y_arch_s)
+        # RMSE
+        rmse, max_abs_error = self.rmse(x, y_arch_s)
+
+        return y_arch, y_arch_s, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e, nse, rmse, max_abs_error
 
     def residual_sign(
         self,
@@ -3597,13 +3605,13 @@ class Arch(object):
 
         return grad
 
-    def mse(
+    def rmse(
         self,
         x,
         y,
     ):
         """
-
+        RMSE
         Parameters
         ----------
         x
@@ -3613,15 +3621,79 @@ class Arch(object):
         -------
 
         """
-        error = np.array(y) - np.array(x)
+        error = np.array(x) - np.array(y)
         error_2 = np.power(error, 2)
         mse = np.mean(error_2)
+        rmse = np.sqrt(mse)
 
-        return mse
+        max_abs_error = np.absolute(error)
+        max_abs_error = np.max(max_abs_error)
 
-    # def mcar(
-    #     self,
-    # ):
+        return rmse, max_abs_error
+
+    def nse(
+        self,
+        x,
+        y,
+    ):
+        """
+        NSE
+        Parameters
+        ----------
+        x
+        y
+
+        Returns
+        -------
+
+        """
+        mean_x = np.mean(x)
+        so = np.array(y) - np.array(x)
+        so = np.power(so, 2)
+        so = np.sum(so)
+        om = np.array(x) - mean_x
+        om = np.power(om, 2)
+        om = np.sum(om)
+        nse = 1 - so / om
+
+        return nse
+
+    def moving_average_smoothing(
+        self,
+        width,
+        x,
+    ):
+        """
+        moving average smoothing
+        Parameters
+        ----------
+        width: int, window width.
+        x: series need to smoothing.
+        negative: bool, positive or negative.
+        Returns
+        -------
+        result, the smoothed series by moving average filter.
+        """
+        length = len(x)
+        k = int(width/2)
+        result = [0]*length
+        for i in range(length):
+            # start
+            if i < k:
+                xx = x[:i+k+1]
+                n_xx = i+k+1
+            # end
+            elif i > (length-1) - k:
+                xx = x[i-k:]
+                n_xx = length - i + k
+            # middle
+            else:
+                xx = x[i-k:i+k+1]
+                n_xx = width
+            x_i = np.sum(xx)/n_xx
+            result[i] = x_i
+
+        return result
 
 
     def mL_estimation(
