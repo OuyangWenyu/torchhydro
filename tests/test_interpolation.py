@@ -1,11 +1,11 @@
 
-from hydrodataset import Camels
+from hydrodataset import CamelsCh
 
 class Camelsdata(object):
     def __init__(self):
-        self.datasource = Camels()
-        self.basin = ["01013500",]
-        self.time_range = ["1980-01-01", "2014-12-31"]
+        self.datasource = CamelsCh()
+        self.basin = ["5011",]  # ["01013500",]
+        self.time_range = ["1981-01-01", "2020-12-31"]  # ["1980-01-01", "2014-12-31"]
         self.var_list = ["streamflow"]
         self.pet_list = ["pet"]
         self.prcp_list = ["prcp"]
@@ -40,4 +40,8 @@ class Camelsdata(object):
 def test_readdat():
     camelsdata = Camelsdata()
     x = camelsdata.streamflow
-    print(x.shape)
+    print(len(x))
+# Camels  01013500
+# 12784
+# CamelsCh  5011
+14610
