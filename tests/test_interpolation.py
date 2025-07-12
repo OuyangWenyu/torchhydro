@@ -1,11 +1,14 @@
 
 from hydrodataset import CamelsCh
+from test_arch_data import camelsch_streamflow
+from torchhydro.datasets.interpolation import Interpolation
+
 
 class Camelsdata(object):
     def __init__(self):
         self.datasource = CamelsCh()
         self.basin = ["5011",]  # ["01013500",]
-        self.time_range = ["1981-01-01", "2020-12-31"]  # ["1980-01-01", "2014-12-31"]
+        self.time_range = ["1984-01-01", "1987-12-31"]  # ["1980-01-01", "2014-12-31"]
         self.var_list = ["streamflow"]
         self.pet_list = ["pet"]
         self.prcp_list = ["prcp"]
@@ -44,4 +47,11 @@ def test_readdat():
 # Camels  01013500
 # 12784
 # CamelsCh  5011
-14610
+# 14610
+# CamelsCh  5011  ["1984-01-01", "1987-12-31"]
+# 1461
+
+def test_smooth_test():
+    inter = Interpolation()
+    b_ = inter.smooth_test()
+    print("b_ = " + str(b_))

@@ -4,7 +4,7 @@ import numpy as np
 
 from arch import Arch as arch
 
-class interpolation(object):
+class Interpolation(object):
     """
     Time series interpolation class.
 
@@ -46,4 +46,40 @@ class interpolation(object):
 
         x = np.load(path)
 
-        return x
+        return
+
+    def smooth_test(
+        self,
+        x,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        p = 1
+        case = 1
+        significance_level = 0.05
+        b_ = arch.adf_test(x, p, case, significance_level)
+
+        return b_
+
+    def degree(
+        self,
+        x,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
