@@ -952,3 +952,55 @@ def selfmadehydrodataset_dpl4xaj_args():
         rolling=-1,
         evaluator={"eval_way": "floodevent"},
     )
+
+
+@pytest.fixture()
+def selfmadehydrodataset_tlargs():
+    project_name = os.path.join("test_selfmadehydrodataset", "camelstlexp1")
+    DEVICE = 0
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "camels_us",
+            "source_path": os.path.join(
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
+            ),
+        },
+        source_region="US",
+        ctx=[DEVICE],
+        model_type="TransLearn",
+        model_name="KaiLSTM",
+        model_hyperparam={
+            "linear_size": len(var_c_target) + len(var_t_target),
+            "n_input_features": len(var_c_source) + len(var_t_source),
+            "n_output_features": 1,
+            "n_hidden_states": 256,
+        },
+        opt="Adadelta",
+        loss_func="RMSESum",
+        batch_size=5,
+        hindcast_length=0,
+        forecast_length=20,
+        rs=1234,
+        train_period=["2010-10-01", "2011-10-01"],
+        test_period=["2011-10-01", "2012-10-01"],
+        scaler="DapengScaler",
+        sampler="KuaiSampler",
+        dataset="StreamflowDataset",
+        weight_path=weight_path,
+        weight_path_add={
+            "freeze_params": ["lstm.b_hh", "lstm.b_ih", "lstm.w_hh", "lstm.w_ih"]
+        },
+        continue_train=True,
+        train_epoch=20,
+        te=20,
+        save_epoch=10,
+        var_t=var_t_target,
+        var_c=var_c_target,
+        var_out=["streamflow"],
+        gage_id=[
+            "01055000",
+            "01057000",
+            "01170100",
+        ],
+    )
