@@ -542,7 +542,10 @@ class Arch(object):
         critical value(1%, 5%, 10%)
         Parameters
         ----------
-        x
+        x: time series.
+        p: the degree of adf.
+        case:
+        significance_level: significance level
 
         Returns
         -------

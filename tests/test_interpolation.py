@@ -1,6 +1,6 @@
 
 from hydrodataset import CamelsCh
-from test_arch_data import camelsch_streamflow
+from test_arch_data import camelsch_streamflow_8487, camelsch_streamflow_8183
 from torchhydro.datasets.interpolation import Interpolation
 
 
@@ -53,5 +53,7 @@ def test_readdat():
 
 def test_smooth_test():
     inter = Interpolation()
-    b_ = inter.smooth_test()
+    b_ = inter.smooth_test(camelsch_streamflow_8183)
     print("b_ = " + str(b_))
+# camelsch_streamflow_8183
+# b_ = True

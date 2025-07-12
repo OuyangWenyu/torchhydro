@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from arch import Arch as arch
+from torchhydro.datasets.arch import Arch
 
 class Interpolation(object):
     """
@@ -10,8 +10,10 @@ class Interpolation(object):
 
     """
     def __init__(self):
+        self.arch = Arch()
         self.x = None
         self.y = None
+
 
 
     def cal_7_stat_inds(self, x):
@@ -62,10 +64,10 @@ class Interpolation(object):
         -------
 
         """
-        p = 1
-        case = 1
+        p = 3
+        case = "case 1"
         significance_level = 0.05
-        b_ = arch.adf_test(x, p, case, significance_level)
+        b_ = self.arch.adf_test(x, p, case, significance_level)
 
         return b_
 
