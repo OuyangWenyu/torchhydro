@@ -85,3 +85,29 @@ class Interpolation(object):
         -------
 
         """
+        acf = self.arch.autocorrelation_function(x)
+        pacf = self.arch.partial_autocorrelation_function(x)
+
+        return acf, pacf
+
+    def arima_parameter(
+        self,
+        x,
+        p,
+        q,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        p
+        q
+
+        Returns
+        -------
+
+        """
+        phi, theta,R_2, se_beta = self.arch.arma_least_squares_estimation(x=x, p=p, q=q)
+
+        return phi, theta, R_2, se_beta

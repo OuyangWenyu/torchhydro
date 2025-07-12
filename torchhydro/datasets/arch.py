@@ -176,9 +176,9 @@ class Arch(object):
         if m is None:
             n_x = len(x)
             if n_x < 50:  # hydrology statistics p318
-                m = int(n_x / 1.3) - 1
+                m = int(n_x / 1.5) - 1
             else:
-                m = int(n_x / 1.3)
+                m = int(n_x / 1.5)
                 if m < 10:
                     m = n_x - 10
         p = list(range(0, m+1))
@@ -247,9 +247,9 @@ class Arch(object):
         if k is None:
             n_x = len(x)
             if n_x < 50:  # hydrology statistics p318
-                m = int(n_x / 1.3) - 1
+                m = int(n_x / 1.5) - 1
             else:
-                m = int(n_x / 1.3)
+                m = int(n_x / 1.5)
                 if m < 10:
                     m = n_x - 10
             k = m  # the max degree of pacf
