@@ -987,7 +987,7 @@ class Arch(object):
         -------
         phi: the estimated parameters of ar(p) model.
         theta: the estimated parameters of ma(q) model.
-        R_2:
+        R_2: the correlation coefficient.
         se_beta:
         """
         # parameter check
@@ -1058,6 +1058,12 @@ class Arch(object):
 
         Returns
         -------
+        x_residual: residual of ARIMA model.
+        y_t: the result of arima(p,d,q) model.
+        R_2: the correlation coefficient.
+        phi: parameters of ar(p) model.
+        theta: parameters of ma(q) model.
+        se_beta:
 
         """
         if d > 0:
@@ -1124,13 +1130,13 @@ class Arch(object):
         Time Series Analysis  James D.Hamilton  p872 table B.2
         Parameters
         ----------
-        m
-        significance_level
-        n_sample
+        m: free degree of chi square distribution.
+        significance_level: significance level.
+        n_sample: number of samples.
 
         Returns
         -------
-
+        chi_critical:
         """
         # table
         m_index = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
@@ -1220,13 +1226,13 @@ class Arch(object):
 
         Parameters
         ----------
-        residual
-        m
-        significance_level
+        residual: residuals
+        m: free degree of chi square test
+        significance_level: significance level
 
         Returns
         -------
-
+        b_significant: be significant or not.
         """
         n_residula = len(residual)
         if m > n_residula:  # todo:
@@ -1257,9 +1263,10 @@ class Arch(object):
         Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge  p96-109
         Parameters
         ----------
-        phi
-        theta
-        a_diagonal
+        phi: parameters of ar model.
+        theta: parameters of ma model.
+        a_diagonal:
+
         Returns
         -------
 
