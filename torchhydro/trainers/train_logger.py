@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-05-04 11:30:00
+LastEditTime: 2025-07-12 11:33:21
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
-FilePath: \torchhydro\torchhydro\trainers\train_logger.py
+FilePath: /torchhydro/torchhydro/trainers/train_logger.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -17,6 +17,8 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from torchhydro.trainers.train_utils import total_fab
+
+from torchhydro.trainers.train_utils import get_lastest_logger_file_in_a_dir
 
 
 def save_model(model, model_file):
@@ -50,16 +52,40 @@ class TrainLogger:
         self.train_time = []
         # log loss for each epoch
         self.epoch_loss = []
+        # reload previous logs if continue_train is True and weight_path is not None
+        if (
+            self.model_cfgs["continue_train"]
+            and self.model_cfgs["weight_path"] is not None
+        ):
+            the_logger_file = get_lastest_logger_file_in_a_dir(self.training_save_dir)
+            if the_logger_file is not None:
+                with open(the_logger_file, "r") as f:
+                    logs = json.load(f)
+            start_epoch = self.training_cfgs["start_epoch"]
+            # read the logs before start_epoch and load them to session_params, train_time, epoch_loss
+            for log in logs["run"]:
+                if log["epoch"] < start_epoch:
+                    self.session_params.append(log)
+                    self.train_time.append(log["train_time"])
+                    self.epoch_loss.append(float(log["train_loss"]))
 
     def save_session_param(
         self, epoch, total_loss, n_iter_ep, valid_loss=None, valid_metrics=None
     ):
-        if valid_loss is None or valid_metrics is None:
-            epoch_params = {
-                "epoch": epoch,
-                "train_loss": str(total_loss),
-                "iter_num": n_iter_ep,
-            }
+        if valid_metrics is None:
+            if valid_loss is None:
+                epoch_params = {
+                    "epoch": epoch,
+                    "train_loss": str(total_loss),
+                    "iter_num": n_iter_ep,
+                }
+            else:
+                epoch_params = {
+                    "epoch": epoch,
+                    "train_loss": str(total_loss),
+                    "validation_loss": str(valid_loss),
+                    "iter_num": n_iter_ep,
+                }
         else:
             epoch_params = {
                 "epoch": epoch,
@@ -75,7 +101,7 @@ class TrainLogger:
     def log_epoch_train(self, epoch):
         start_time = time.time()
         logs = {}
-        # here content in the with block will be performed
+        # here content in the 'with' block will be performed after yeild
         yield logs
         total_loss = logs["train_loss"]
         elapsed_time = time.time() - start_time
@@ -96,7 +122,11 @@ class TrainLogger:
         logs = {}
         yield logs
         valid_loss = logs["valid_loss"]
-        if self.evaluation_cfgs["calc_metrics"]:
+        if (
+            self.training_cfgs["valid_batch_mode"] == "test"
+            and self.training_cfgs["calc_metrics"]
+        ):
+            # NOTE: Now we only evaluate the metrics for test-mode validation
             valid_metrics = logs["valid_metrics"]
             val_log = "Epoch {} Valid Loss {:.4f} Valid Metric {}".format(
                 epoch, valid_loss, valid_metrics
@@ -109,12 +139,14 @@ class TrainLogger:
                 for evaluation_metric in evaluation_metrics:
                     self.tb.add_scalar(
                         f"Valid{target_col[i]}{evaluation_metric}mean",
-                        np.mean(valid_metrics[f"{evaluation_metric} of {target_col[i]}"]),
+                        np.nanmean(
+                            valid_metrics[f"{evaluation_metric} of {target_col[i]}"]
+                        ),
                         epoch,
                     )
                     self.tb.add_scalar(
                         f"Valid{target_col[i]}{evaluation_metric}median",
-                        np.median(
+                        np.nanmedian(
                             valid_metrics[f"{evaluation_metric} of {target_col[i]}"]
                         ),
                         epoch,
@@ -142,8 +174,8 @@ class TrainLogger:
             self._save_final_epoch(params, model)
 
     def _save_final_epoch(self, params, model):
-        # In final epoch, we save the model and params in test_path
-        final_path = params["data_cfgs"]["test_path"]
+        # In final epoch, we save the model and params in case_dir
+        final_path = params["data_cfgs"]["case_dir"]
         params["run"] = self.session_params
         time_stamp = datetime.now().strftime("%d_%B_%Y%I_%M%p")
         model_save_path = os.path.join(final_path, f"{time_stamp}_model.pth")
@@ -177,41 +209,45 @@ class TrainLogger:
             torch model
         """
         # input4modelplot = torch.randn(
-        #     self.data_cfgs["batch_size"],
-        #     self.data_cfgs["forecast_history"],
+        #     self.training_cfgs["batch_size"],
+        #     self.training_cfgs["hindcast_length"],
         #     # self.model_cfgs["model_hyperparam"]["n_input_features"],
         #     self.model_cfgs["model_hyperparam"]["input_size"],
         # )
         if self.data_cfgs["model_mode"] == "single":
             input4modelplot = [
                 torch.randn(
-                    self.data_cfgs["batch_size"],
-                    self.data_cfgs["forecast_history"],
+                    self.training_cfgs["batch_size"],
+                    self.training_cfgs["hindcast_length"],
                     self.data_cfgs["input_features"] - 1,
                 ),
                 torch.randn(
-                    self.data_cfgs["batch_size"],
-                    self.data_cfgs["forecast_history"],
+                    self.training_cfgs["batch_size"],
+                    self.training_cfgs["hindcast_length"],
                     self.data_cfgs["cnn_size"],
                 ),
                 torch.rand(
-                    self.data_cfgs["batch_size"], 1, self.data_cfgs["output_features"]
+                    self.training_cfgs["batch_size"],
+                    1,
+                    self.data_cfgs["output_features"],
                 ),
             ]
         else:
             input4modelplot = [
                 torch.randn(
-                    self.data_cfgs["batch_size"],
-                    self.data_cfgs["forecast_history"],
+                    self.training_cfgs["batch_size"],
+                    self.training_cfgs["hindcast_length"],
                     self.data_cfgs["input_features"],
                 ),
                 torch.randn(
-                    self.data_cfgs["batch_size"],
-                    self.data_cfgs["forecast_history"],
+                    self.training_cfgs["batch_size"],
+                    self.training_cfgs["hindcast_length"],
                     self.data_cfgs["input_size_encoder2"],
                 ),
                 torch.rand(
-                    self.data_cfgs["batch_size"], 1, self.data_cfgs["output_features"]
+                    self.training_cfgs["batch_size"],
+                    1,
+                    self.data_cfgs["output_features"],
                 ),
             ]
         self.tb.add_graph(model, input4modelplot)

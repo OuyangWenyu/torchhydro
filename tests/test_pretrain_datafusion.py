@@ -29,13 +29,15 @@ def config():
     project_name = "test_pretrain_fusion/exp1"
     args = cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": {
                 "forcing": "basins-origin/hour_data/1h/mean_data/mean_data_merged",
                 "target": "basins-origin/hour_data/1h/mean_data/mean_data_merged",
                 "attributes": "basins-origin/attributes.nc",
             },
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[1],
         model_type="TransLearn",
@@ -63,7 +65,7 @@ def config():
         },
         loss_func="RMSESum",
         batch_size=256,
-        forecast_history=168,
+        hindcast_length=168,
         forecast_length=24,
         train_period=[
             ("2022-07-08", "2022-09-29"),
@@ -75,7 +77,7 @@ def config():
             ("2023-07-08", "2023-09-29"),
         ],
         dataset="MultiSourceDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="DapengScaler",
         weight_path=weight_path,
         weight_path_add={
@@ -141,8 +143,6 @@ def config():
             "01414500",
         ],
         which_first_tensor="batch",
-        rolling=False,
-        long_seq_pred=False,
         early_stopping=True,
         patience=4,
     )

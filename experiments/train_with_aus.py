@@ -1,13 +1,3 @@
-"""
-Author: Wenyu Ouyang
-Date: 2024-04-17 12:55:24
-LastEditTime: 2024-05-27 10:10:35
-LastEditors: Wenyu Ouyang
-Description:
-FilePath: \torchhydro\tests\test_train_seq2seq.py
-Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
-"""
-
 import logging
 import os.path
 import pathlib
@@ -22,56 +12,60 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.deep_hydro import train_worker
 from torchhydro.trainers.trainer import train_and_evaluate
 
-# from torchhydro.trainers.trainer import train_and_evaluate, ensemble_train_and_evaluate
-
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
 show = pd.read_csv(
-    os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_id(all).csv"),
+    os.path.join(pathlib.Path(__file__).parent.parent, "data/basin_aus.csv"),
     dtype={"id": str},
 )
-# gage_id = show["id"].values.tolist()
-gage_id = ["songliao_21401550"]
+gage_id = show["id"].values.tolist()
+# print(gage_id)
 
-
-@pytest.fixture()
 def config():
     # 设置测试所需的项目名称和默认配置文件
-    project_name = os.path.join("train_with_gpm", "ex1")
+    project_name = os.path.join(
+        "train_with_camelsaus", "camelsaus_test"
+    )
     config_data = default_config_file()
 
     # 填充测试所需的命令行参数
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source": "HydroMean",
-            "source_path": "/ftproot/basins-interim/",
+            "source_name": "selfmadehydrodataset",
+            "source_path": "/home/estelle/HydroDataCompiler-main/notebooks/camelsaus_test",
+            "other_settings": {"time_unit": ["1D"]},
         },
-        ctx=[2],
-        model_name="Seq2Seq",
-        model_hyperparam={
-            "en_input_size": 17,
-            "de_input_size": 18,
-            "output_size": 2,
-            "hidden_size": 256,
-            "forecast_length": 56,
-            "prec_window": 1,
-            "teacher_forcing_ratio": 0.5,
-        },
+        # sampler="BasinBatchSampler",
+        # scaler="DapengScaler",
+        ctx=[0],
+        # dataset="StreamflowDataset",
+        dataset="Seq2SeqDataset",
+        sampler="BasinBatchSampler",
+        scaler="DapengScaler",
         model_loader={"load_way": "best"},
+        model_name="KuaiLSTM",
+        model_hyperparam={
+            "n_input_features": 16,
+            "n_output_features": 1,
+            "n_hidden_states": 30,
+            "dr": 0.2,
+        },
         gage_id=gage_id,
-        # gage_id=["21400800", "21401550", "21401300", "21401900"],
-        batch_size=256,
-        forecast_history=240,
-        forecast_length=56,
-        min_time_unit="h",
-        min_time_interval=3,
+        train_period=["1980-01-01", "2020-01-01"],
+        test_period=["2015-01-01", "2020-01-01"],
+        valid_period=["2020-01-01", "2022-01-01"],
+        batch_size=100,
+        hindcast_length=30,
+        forecast_length=30,
+        min_time_unit="D",
+        min_time_interval=1,
+        var_out=["streamflow"],
         var_t=[
-            "precipitationCal",
-            "sm_surface",
+            "total_precipitation_hourly",
         ],
         var_c=[
             "area",  # 面积
@@ -90,15 +84,8 @@ def config():
             "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
             "dor_pc_pva",  # 调节程度
         ],
-        var_out=["streamflow", "sm_surface"],
-        dataset="Seq2SeqDataset",
-        sampler="HydroSampler",
-        scaler="DapengScaler",
-        train_epoch=100,
+        train_epoch=30,
         save_epoch=1,
-        train_period=[("2016-06-01-01", "2023-11-01-01")],
-        test_period=[("2015-06-01-01", "2016-06-01-01")],
-        valid_period=[("2015-06-01-01", "2016-06-01-01")],
         loss_func="MultiOutLoss",
         loss_param={
             "loss_funcs": "RMSESum",
@@ -107,21 +94,10 @@ def config():
             "item_weight": [0.8, 0.2],
         },
         opt="Adam",
-        lr_scheduler={
-            "lr": 0.0001,
-            "lr_factor": 0.9,
-        },
         which_first_tensor="batch",
-        rolling=False,
-        long_seq_pred=False,
         calc_metrics=False,
         early_stopping=True,
-        # ensemble=True,
-        # ensemble_items={
-        #     "batch_sizes": [256, 512],
-        # },
         patience=10,
-        model_type="MTL",
     )
 
     # 更新默认配置
@@ -130,8 +106,5 @@ def config():
     return config_data
 
 
-def test_seq2seq(config):
-    # world_size = len(config["training_cfgs"]["device"])
-    # mp.spawn(train_worker, args=(world_size, config), nprocs=world_size, join=True)
-    train_and_evaluate(config)
-    # ensemble_train_and_evaluate(config)
+configs = config()
+train_and_evaluate(configs)

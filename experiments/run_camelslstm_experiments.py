@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-09-09 14:47:42
-LastEditTime: 2024-05-27 15:49:03
+LastEditTime: 2024-11-11 18:33:10
 LastEditors: Wenyu Ouyang
 Description: a script to run experiments for LSTM - CAMELS
 FilePath: \torchhydro\experiments\run_camelslstm_experiments.py
@@ -34,8 +34,9 @@ VAR_C_CHOSEN_FROM_CAMELS_US = [
     "geol_permeability",
 ]
 VAR_T_CHOSEN_FROM_DAYMET = [
-    "dayl",
+    # NOTE: prcp must be the first variable
     "prcp",
+    "dayl",
     "srad",
     "swe",
     "tmax",
@@ -46,12 +47,12 @@ VAR_T_CHOSEN_FROM_DAYMET = [
 
 def run_normal_dl(
     project_name,
+    gage_id_file,
     var_c=VAR_C_CHOSEN_FROM_CAMELS_US,
     var_t=VAR_T_CHOSEN_FROM_DAYMET,
     train_period=None,
     valid_period=None,
     test_period=None,
-    gage_id_file="/mnt/sdc/owen/code/HydroFL/scripts/camels531.csv",
 ):
     if train_period is None:
         train_period = ["1985-10-01", "1995-10-01"]
@@ -80,7 +81,7 @@ def run_normal_dl(
         dataset="StreamflowDataset",
         scaler="DapengScaler",
         batch_size=512,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=366,
         var_t=var_t,
         var_c=var_c,
@@ -104,4 +105,10 @@ def run_normal_dl(
     print("All processes are finished!")
 
 
-run_normal_dl(os.path.join("ndl", "explstm"))
+# the gage_id.txt file is set by the user, it must be the format like:
+# GAUGE_ID
+# 01013500
+# 01022500
+# ......
+# Then it can be read by pd.read_csv(gage_id_file, dtype={0: str}).iloc[:, 0].values to get the gage_id list
+run_normal_dl(os.path.join("ndl", "explstm"), "xxx/xxx/gage_id.txt")

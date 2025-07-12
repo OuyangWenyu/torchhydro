@@ -1,7 +1,7 @@
 import os
 import pytest
 
-from torchhydro.configs.config import cmd, default_config_file
+from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 import logging
 import pandas as pd
@@ -59,7 +59,7 @@ def args():
             "01170100",
         ],
         batch_size=8,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=20,
         min_time_unit="D",
         min_time_interval="1",
@@ -134,8 +134,8 @@ def mtl_args():
             "01170100",
         ],
         batch_size=100,
-        forecast_history=0,
-        forecast_length=365,  # batch_size=100, forecast_history=365,
+        hindcast_length=0,
+        forecast_length=365,  # batch_size=100, rho=365,
         var_t=[
             "temperature",
             "specific_humidity",
@@ -190,13 +190,15 @@ def s2s_args(basin4test):
     project_name = os.path.join("test_seq2seq", "gpmsmapexp1")
     return cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": {
                 "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[0],
         model_name="Seq2Seq",
@@ -207,15 +209,16 @@ def s2s_args(basin4test):
             "hidden_size": 256,
             # number of min-time-intervals to predict; horizon
             "forecast_length": 56,
-            # 将前序径流一起作为输出，选择的时段数，该值需小于等于 forecast_history ，建议置为1
-            "prec_window": 1,
+            # Number of preceding streamflow time steps included in the output,
+            # which must be less than or equal to hindcast_length, and is recommended to be set to 1
+            "hindcast_output_window": 1,
             "teacher_forcing_ratio": 0.5,
         },
         model_loader={"load_way": "best"},
         gage_id=basin4test,
         batch_size=512,
         # historical number of min-time-intervals; 240 means 240 * 3H = 720H
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval="3",
@@ -242,7 +245,7 @@ def s2s_args(basin4test):
         ],
         var_out=["streamflow", "sm_surface"],
         dataset="Seq2SeqDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="DapengScaler",
         train_epoch=1,
         save_epoch=1,
@@ -264,8 +267,6 @@ def s2s_args(basin4test):
             "lr_factor": 0.96,
         },
         which_first_tensor="batch",
-        rolling=False,
-        long_seq_pred=False,
         calc_metrics=False,
         early_stopping=True,
         patience=8,
@@ -279,13 +280,15 @@ def trans_args(basin4test):
     project_name = os.path.join("test_trans", "gpmsmapexp1")
     return cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": {
                 "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[0],
         model_name="Transformer",
@@ -298,12 +301,12 @@ def trans_args(basin4test):
             "nhead": 8,
             "num_layers": 4,
             "dropout": 0.1,
-            "prec_window": 0,
+            "hindcast_output_window": 0,
         },
         model_loader={"load_way": "best"},
         gage_id=basin4test,
         batch_size=128,
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval="3",
@@ -330,7 +333,7 @@ def trans_args(basin4test):
         ],
         var_out=["streamflow", "sm_surface"],
         dataset="TransformerDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="DapengScaler",
         train_epoch=10,
         save_epoch=1,
@@ -350,8 +353,6 @@ def trans_args(basin4test):
             "lr_factor": 0.96,
         },
         which_first_tensor="sequence",
-        rolling=False,
-        long_seq_pred=False,
         calc_metrics=False,
         early_stopping=True,
         patience=8,
@@ -375,6 +376,7 @@ def dpl_args():
             "source_path": os.path.join(data_origin_dir, "camels", "camels_us"),
         },
         ctx=[0],
+        model_type="MTL",
         # model_name="DplLstmXaj",
         model_name="DplAttrXaj",
         model_hyperparam={
@@ -386,7 +388,14 @@ def dpl_args():
             "warmup_length": 30,
             "param_limit_func": "clamp",
         },
-        loss_func="RMSESum",
+        loss_func="MultiOutLoss",
+        loss_param={
+            "loss_funcs": "RMSESum",
+            "data_gap": [0, 0],
+            "device": [0],
+            "item_weight": [1, 0],
+            "limit_part": [1],
+        },
         dataset="DplDataset",
         scaler="DapengScaler",
         scaler_params={
@@ -419,7 +428,7 @@ def dpl_args():
         valid_period=valid_period,
         test_period=test_period,
         batch_size=50,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=60,
         var_t=[
             "prcp",
@@ -431,7 +440,10 @@ def dpl_args():
             "tmin",
             "vp",
         ],
-        var_out=["streamflow"],
+        # NOTE: The second variable is not necessary, or not used in the model. But to keep the same length with model output, we add a dummy variable.
+        var_out=["streamflow", "ET"],
+        n_output=2,
+        fill_nan=["no", "no"],
         target_as_input=0,
         constant_only=1,
         train_epoch=2,
@@ -442,4 +454,553 @@ def dpl_args():
         warmup_length=30,
         opt="Adadelta",
         which_first_tensor="sequence",
+    )
+
+
+@pytest.fixture()
+def seq2seq_config():
+    project_name = os.path.join("train_with_gpm", "ex_test")
+    config_data = default_config_file()
+    args = cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "selfmadehydrodataset",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {
+                "time_unit": ["3h"],
+            },
+        },
+        ctx=[0],
+        model_name="Seq2Seq",
+        model_hyperparam={
+            "en_input_size": 17,
+            "de_input_size": 18,
+            "output_size": 2,
+            "hidden_size": 256,
+            "forecast_length": 56,
+            "hindcast_output_window": 1,
+            "teacher_forcing_ratio": 0.5,
+        },
+        model_loader={"load_way": "best"},
+        gage_id=gage_id,
+        # gage_id=["21400800", "21401550", "21401300", "21401900"],
+        batch_size=128,
+        hindcast_length=240,
+        forecast_length=56,
+        min_time_unit="h",
+        min_time_interval=3,
+        var_t=[
+            "precipitationCal",
+            "sm_surface",
+        ],
+        var_c=[
+            "area",  # 面积
+            "ele_mt_smn",  # 海拔(空间平均)
+            "slp_dg_sav",  # 地形坡度 (空间平均)
+            "sgr_dk_sav",  # 河流坡度 (平均)
+            "for_pc_sse",  # 森林覆盖率
+            "glc_cl_smj",  # 土地覆盖类型
+            "run_mm_syr",  # 陆面径流 (流域径流的空间平均值)
+            "inu_pc_slt",  # 淹没范围 (长期最大)
+            "cmi_ix_syr",  # 气候湿度指数
+            "aet_mm_syr",  # 实际蒸散发 (年平均)
+            "snw_pc_syr",  # 雪盖范围 (年平均)
+            "swc_pc_syr",  # 土壤水含量
+            "gwt_cm_sav",  # 地下水位深度
+            "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
+            "dor_pc_pva",  # 调节程度
+        ],
+        var_out=["streamflow", "sm_surface"],
+        dataset="Seq2SeqDataset",
+        scaler="DapengScaler",
+        train_epoch=2,
+        save_epoch=1,
+        train_mode=True,
+        train_period=["2016-06-01-01", "2016-08-01-01"],
+        test_period=["2015-06-01-01", "2015-08-01-01"],
+        valid_period=["2015-06-01-01", "2015-08-01-01"],
+        loss_func="MultiOutLoss",
+        loss_param={
+            "loss_funcs": "RMSESum",
+            "data_gap": [0, 0],
+            "device": [0],
+            "item_weight": [0.8, 0.2],
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.0001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="batch",
+        rolling=56,
+        calc_metrics=False,
+        early_stopping=True,
+        # ensemble=True,
+        # ensemble_items={
+        #     "batch_sizes": [256, 512],
+        # },
+        patience=10,
+        model_type="MTL",
+    )
+
+    # update the config data
+    update_cfg(config_data, args)
+
+    return config_data
+
+
+@pytest.fixture()
+def dpl4hbv_selfmadehydrodataset_args():
+    project_name = os.path.join("test", "expdpl4hbv")
+    train_period = ["2014-10-01", "2018-10-01"]
+    valid_period = ["2017-10-01", "2021-10-01"]
+    # valid_period = None
+    test_period = ["2017-10-01", "2021-10-01"]
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "selfmadehydrodataset",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {"time_unit": ["1D"]},
+        },
+        model_type="Normal",
+        ctx=[0],
+        model_name="DplLstmHbv",
+        model_hyperparam={
+            "n_input_features": 6,
+            # "n_input_features": 19,
+            "n_output_features": 14,
+            "n_hidden_states": 64,
+            "kernel_size": 15,
+            "warmup_length": 365,
+            "param_limit_func": "clamp",
+            "param_test_way": "final",
+        },
+        loss_func="RMSESum",
+        dataset="DplDataset",
+        scaler="DapengScaler",
+        scaler_params={
+            "prcp_norm_cols": [
+                "streamflow",
+            ],
+            "gamma_norm_cols": [
+                "total_precipitation_hourly",
+                "potential_evaporation_hourly",
+            ],
+            "pbm_norm": True,
+        },
+        gage_id=[
+            # "camels_01013500",
+            # "camels_01022500",
+            # "camels_01030500",
+            # "camels_01031500",
+            # "camels_01047000",
+            # "camels_01052500",
+            # "camels_01054200",
+            # "camels_01055000",
+            # "camels_01057000",
+            # "camels_01170100",
+            "changdian_61561"
+        ],
+        train_period=train_period,
+        valid_period=valid_period,
+        test_period=test_period,
+        batch_size=300,
+        hindcast_length=0,
+        forecast_length=365,
+        var_t=[
+            # although the name is hourly, it might be daily according to your choice
+            "total_precipitation_hourly",
+            "potential_evaporation_hourly",
+            "temperature_2m",
+            "snow_depth_water_equivalent",
+            "snowfall_hourly",
+            "dewpoint_temperature_2m",
+        ],
+        var_c=[
+            # "sgr_dk_sav",
+            # "pet_mm_syr",
+            # "slp_dg_sav",
+            # "for_pc_sse",
+            # "pre_mm_syr",
+            # "slt_pc_sav",
+            # "swc_pc_syr",
+            # "soc_th_sav",
+            # "cly_pc_sav",
+            # "ari_ix_sav",
+            # "snd_pc_sav",
+            # "ele_mt_sav",
+            # "area",
+            # "tmp_dc_syr",
+            # "crp_pc_sse",
+            # "lit_cl_smj",
+            # "wet_cl_smj",
+            # "snw_pc_syr",
+            # "glc_cl_smj",
+        ],
+        # NOTE: although we set total_evaporation_hourly as output, it is not used in the training process
+        var_out=["streamflow"],
+        target_as_input=0,
+        constant_only=0,
+        # train_epoch=100,
+        train_epoch=2,
+        save_epoch=10,
+        model_loader={
+            "load_way": "specified",
+            # "test_epoch": 100,
+            "test_epoch": 2,
+        },
+        warmup_length=365,
+        opt="Adadelta",
+        which_first_tensor="sequence",
+        # train_mode=0,
+        # weight_path="C:\\Users\\wenyu\\code\\torchhydro\\results\\test_camels\\expdpl61561201\\10_September_202402_32PM_model.pth",
+        # continue_train=0,
+    )
+
+
+@pytest.fixture()
+def dpl4xaj_selfmadehydrodataset_args():
+    project_name = os.path.join("test_camels", "expdpl61561201")
+    train_period = ["2014-10-01", "2018-10-01"]
+    valid_period = ["2017-10-01", "2021-10-01"]
+    # valid_period = None
+    test_period = ["2017-10-01", "2021-10-01"]
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "selfmadehydrodataset",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {"time_unit": ["1D"]},
+        },
+        model_type="MTL",
+        ctx=[1],
+        # model_name="DplLstmXaj",
+        # model_name="DplAttrXaj",
+        model_name="DplNnModuleXaj",
+        model_hyperparam={
+            "n_input_features": 6,
+            # "n_input_features": 19,
+            "n_output_features": 15,
+            "n_hidden_states": 64,
+            "kernel_size": 15,
+            "warmup_length": 365,
+            "param_limit_func": "clamp",
+            "param_test_way": "final",
+            "source_book": "HF",
+            "source_type": "sources",
+            "et_output": 1,
+            "param_var_index": [],
+        },
+        # loss_func="RMSESum",
+        loss_func="MultiOutLoss",
+        loss_param={
+            "loss_funcs": "RMSESum",
+            "data_gap": [0, 0],
+            "device": [0],
+            "item_weight": [1, 0],
+            "limit_part": [1],
+        },
+        dataset="DplDataset",
+        scaler="DapengScaler",
+        scaler_params={
+            "prcp_norm_cols": [
+                "streamflow",
+            ],
+            "gamma_norm_cols": [
+                "total_precipitation_hourly",
+                "potential_evaporation_hourly",
+            ],
+            "pbm_norm": True,
+        },
+        gage_id=[
+            # "camels_01013500",
+            # "camels_01022500",
+            # "camels_01030500",
+            # "camels_01031500",
+            # "camels_01047000",
+            # "camels_01052500",
+            # "camels_01054200",
+            # "camels_01055000",
+            # "camels_01057000",
+            # "camels_01170100",
+            "changdian_61561"
+        ],
+        train_period=train_period,
+        valid_period=valid_period,
+        test_period=test_period,
+        batch_size=300,
+        hindcast_length=0,
+        forecast_length=365,
+        var_t=[
+            # although the name is hourly, it might be daily according to your choice
+            "total_precipitation_hourly",
+            "potential_evaporation_hourly",
+            "snow_depth_water_equivalent",
+            "snowfall_hourly",
+            "dewpoint_temperature_2m",
+            "temperature_2m",
+        ],
+        var_c=[
+            # "sgr_dk_sav",
+            # "pet_mm_syr",
+            # "slp_dg_sav",
+            # "for_pc_sse",
+            # "pre_mm_syr",
+            # "slt_pc_sav",
+            # "swc_pc_syr",
+            # "soc_th_sav",
+            # "cly_pc_sav",
+            # "ari_ix_sav",
+            # "snd_pc_sav",
+            # "ele_mt_sav",
+            # "area",
+            # "tmp_dc_syr",
+            # "crp_pc_sse",
+            # "lit_cl_smj",
+            # "wet_cl_smj",
+            # "snw_pc_syr",
+            # "glc_cl_smj",
+        ],
+        # NOTE: although we set total_evaporation_hourly as output, it is not used in the training process
+        var_out=["streamflow", "total_evaporation_hourly"],
+        n_output=2,
+        # TODO: if chose "mean", metric results' format is different, this should be refactored
+        fill_nan=["no", "no"],
+        target_as_input=0,
+        constant_only=0,
+        # train_epoch=100,
+        train_epoch=2,
+        save_epoch=10,
+        model_loader={
+            "load_way": "specified",
+            # "test_epoch": 100,
+            "test_epoch": 2,
+        },
+        warmup_length=365,
+        opt="Adadelta",
+        which_first_tensor="sequence",
+        # train_mode=0,
+        # weight_path="C:\\Users\\wenyu\\code\\torchhydro\\results\\test_camels\\expdpl61561201\\10_September_202402_32PM_model.pth",
+        # continue_train=0,
+    )
+
+
+@pytest.fixture()
+def selfmadehydrodataset_args():
+    project_name = os.path.join("test_selfmadehydrodataset", "exp1")
+    data_dir = SETTING["local_data_path"]["datasets-interim"]
+    source_path = os.path.join(data_dir, "songliaorrevent")
+    DEVICE = -1
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "selfmadehydrodataset",
+            "source_path": source_path,
+            "other_settings": {
+                "time_unit": ["1D"],
+                "dataset_name": "songliaorrevent",
+                "offset_to_utc": True,  # if you use Chinese dataset with start time 08:00, you need to set it to True
+            },
+        },
+        ctx=[DEVICE],
+        model_name="SimpleLSTM",
+        model_hyperparam={
+            "input_size": 1,
+            "output_size": 1,
+            "hidden_size": 16,
+        },
+        gage_id=["songliao_20800900"],
+        batch_size=8,
+        hindcast_length=0,
+        forecast_length=20,
+        # for flood event dataset, we need to set the forecast length for testing
+        frwin=20,
+        min_time_unit="D",
+        min_time_interval="1",
+        var_t=["rain"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        dataset="FloodEventDataset",
+        scaler="DapengScaler",
+        variable_length_cfgs={
+            # whether to use variable length training
+            "use_variable_length": True,
+            # variable length type:
+            # - "fixed": use predefined lengths (replaces old multi_length_training)
+            # - "dynamic": automatic padding with mask (replaces old mask_cfgs)
+            "variable_length_type": "dynamic",
+            # for "fixed" type: specify exact sequence lengths to use
+            "fixed_lengths": None,
+            # Pad strategy: "Pad" or "multi_table" (multi_table not fully tested yet)
+            "pad_strategy": "Pad",
+        },
+        train_epoch=2,
+        save_epoch=1,
+        model_loader={"load_way": "specified", "test_epoch": 2},
+        train_period=["1980-01-01", "2010-12-31"],
+        valid_period=["2011-01-01", "2015-12-31"],
+        test_period=["2016-01-01", "2020-12-31"],
+        loss_func="FloodLoss",
+        loss_param={
+            "loss_func": "MSELoss",
+            "flood_weight": 2.0,
+            "flood_strategy": "weight",
+            "device": [DEVICE],
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.0001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},
+    )
+
+
+@pytest.fixture()
+def selfmadehydrodataset_dpl4xaj_args():
+    project_name = os.path.join("test_selfmadehydrodataset", "dpl4xajexp1")
+    data_dir = SETTING["local_data_path"]["datasets-interim"]
+    source_path = os.path.join(data_dir, "songliaorrevent")
+    DEVICE = -1
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "selfmadehydrodataset",
+            "source_path": source_path,
+            "other_settings": {
+                "time_unit": ["1D"],
+                "dataset_name": "songliaorrevent",
+                "offset_to_utc": True,  # if you use Chinese dataset with start time 08:00, you need to set it to True
+            },
+        },
+        ctx=[DEVICE],
+        model_name="DplLstmXaj",
+        model_hyperparam={
+            "n_input_features": 2,
+            "n_output_features": 15,
+            "n_hidden_states": 16,
+            "kernel_size": 15,
+            "warmup_length": 30,
+            "param_limit_func": "clamp",
+            "param_test_way": "final",
+            "source_book": "HF",
+            "source_type": "sources",
+            "return_et": False,
+        },
+        gage_id=["songliao_21401550"],
+        batch_size=8,
+        warmup_length=30,
+        hindcast_length=0,
+        forecast_length=20,
+        # for flood event dataset, we need to set the forecast length for testing
+        frwin=20,
+        min_time_unit="D",
+        min_time_interval="1",
+        var_t=["rain", "potential_evaporation_hourly"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        target_as_input=False,
+        dataset="FloodEventDplDataset",
+        scaler="DapengScaler",
+        scaler_params={
+            "prcp_norm_cols": [
+                "inflow",
+            ],
+            "gamma_norm_cols": [
+                "rain",
+                "potential_evaporation_hourly",
+            ],
+            "pbm_norm": True,
+        },
+        variable_length_cfgs={
+            # whether to use variable length training
+            "use_variable_length": True,
+            # variable length type:
+            # - "fixed": use predefined lengths (replaces old multi_length_training)
+            # - "dynamic": automatic padding with mask (replaces old mask_cfgs)
+            "variable_length_type": "dynamic",
+            # for "fixed" type: specify exact sequence lengths to use
+            "fixed_lengths": None,
+            # Pad strategy: "Pad" or "multi_table" (multi_table not fully tested yet)
+            "pad_strategy": "Pad",
+        },
+        train_epoch=2,
+        save_epoch=1,
+        model_loader={"load_way": "specified", "test_epoch": 2},
+        train_period=["1980-01-01", "2010-12-31"],
+        valid_period=["2011-01-01", "2015-12-31"],
+        test_period=["2016-01-01", "2020-12-31"],
+        loss_func="HybridFloodloss",
+        loss_param={
+            "mae_weight": 0.5,
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.0001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},
+    )
+
+
+@pytest.fixture()
+def selfmadehydrodataset_tlargs():
+    project_name = os.path.join("test_selfmadehydrodataset", "camelstlexp1")
+    DEVICE = 0
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "camels_us",
+            "source_path": os.path.join(
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
+            ),
+        },
+        source_region="US",
+        ctx=[DEVICE],
+        model_type="TransLearn",
+        model_name="KaiLSTM",
+        model_hyperparam={
+            "linear_size": len(var_c_target) + len(var_t_target),
+            "n_input_features": len(var_c_source) + len(var_t_source),
+            "n_output_features": 1,
+            "n_hidden_states": 256,
+        },
+        opt="Adadelta",
+        loss_func="RMSESum",
+        batch_size=5,
+        hindcast_length=0,
+        forecast_length=20,
+        rs=1234,
+        train_period=["2010-10-01", "2011-10-01"],
+        test_period=["2011-10-01", "2012-10-01"],
+        scaler="DapengScaler",
+        sampler="KuaiSampler",
+        dataset="StreamflowDataset",
+        weight_path=weight_path,
+        weight_path_add={
+            "freeze_params": ["lstm.b_hh", "lstm.b_ih", "lstm.w_hh", "lstm.w_ih"]
+        },
+        continue_train=True,
+        train_epoch=20,
+        te=20,
+        save_epoch=10,
+        var_t=var_t_target,
+        var_c=var_c_target,
+        var_out=["streamflow"],
+        gage_id=[
+            "01055000",
+            "01057000",
+            "01170100",
+        ],
     )

@@ -1,9 +1,9 @@
 """
-Author: Wenyu Ouyang
+Author: Xinzhuo Wu
 Date: 2024-05-22 09:36:49
-LastEditTime: 2024-05-27 15:47:53
+LastEditTime: 2024-11-05 11:37:48
 LastEditors: Wenyu Ouyang
-Description: 
+Description: evaluate with era5land
 FilePath: \torchhydro\experiments\evaluate_with_era5land.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
@@ -16,6 +16,7 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed
 from torchhydro.trainers.resulter import Resulter
+from torchhydro import SETTING
 
 logging.basicConfig(level=logging.INFO)
 
@@ -33,11 +34,10 @@ def get_config_data():
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source": "HydroMean",
-            "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "attributes": "basins-origin/attributes.nc",
+            "source_name": "selfmadehydrodataset",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {
+                "time_unit": ["3h"],
             },
         },
         ctx=[0],
@@ -47,12 +47,12 @@ def get_config_data():
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 56,
-            "prec_window": 1,
+            "hindcast_output_window": 1,
         },
         gage_id=gage_id,
         model_loader={"load_way": "best"},
         batch_size=1024,
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=56,
         min_time_unit="h",
         min_time_interval=3,
@@ -82,7 +82,7 @@ def get_config_data():
         ],
         var_out=["streamflow", "sm_surface"],
         dataset="Seq2SeqDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="DapengScaler",
         loss_func="MultiOutLoss",
         loss_param={
@@ -93,8 +93,7 @@ def get_config_data():
         },
         test_period=[("2015-06-01-01", "2016-05-31-01")],
         which_first_tensor="batch",
-        rolling=True,
-        long_seq_pred=False,
+        rolling=56,
         weight_path=os.path.join(train_path, "best_model.pth"),
         stat_dict_file=os.path.join(train_path, "dapengscaler_stat.json"),
         train_mode=False,

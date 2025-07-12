@@ -5,26 +5,27 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python
+  - python=3.11
+  - numpy
   - geopandas
   - scikit-learn
   - fsspec
   - intake
-  - pytorch
-  - torchvision
-  - torchaudio
-  - pytorch-cuda=11.8
-  - tensorboard
-  - shap
   - kaggle
   - pytest
   - black
   - flake8
   - pip
   - pip:
+    - torch
+    - torchvision
+    - torchaudio
+    - tensorboard
+    - shap
     - tbparse
     - setuptools
     - wheel
     - twine
     - bump2version
     - hydrodatasource
+    - pytest-mock

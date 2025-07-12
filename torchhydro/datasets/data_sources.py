@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-02 14:37:09
-LastEditTime: 2024-07-10 09:26:07
+LastEditTime: 2025-07-12 11:23:10
 LastEditors: Wenyu Ouyang
 Description: A module for different data sources
 FilePath: /torchhydro/torchhydro/datasets/data_sources.py
@@ -18,7 +18,12 @@ from tqdm import tqdm
 
 from hydroutils import hydro_time
 from hydrodataset import Camels
-from hydrodatasource.reader.data_source import SelfMadeHydroDataset, SelfMadeHydroDataset_PQ
+from hydrodataset.grdc_caravan import GrdcCaravan
+from hydrodatasource.reader.data_source import (
+    SelfMadeHydroDataset,
+    SelfMadeForecastDataset,
+)
+
 
 from torchhydro import CACHE_DIR, SETTING
 
@@ -720,8 +725,10 @@ class Smap4Camels(SupData4Camels):
 
 data_sources_dict = {
     "camels_us": Camels,
+    "grdc_caravan": GrdcCaravan,
     "selfmadehydrodataset": SelfMadeHydroDataset,
     "selfmadehydrodataset_pq": SelfMadeHydroDataset_PQ,
+    "selfmadeforecastdataset": SelfMadeForecastDataset,
     "usgs4camels": SupData4Camels,
     "modiset4camels": ModisEt4Camels,
     "nldas4camels": Nldas4Camels,

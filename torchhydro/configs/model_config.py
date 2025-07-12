@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2022-10-25 21:16:22
-LastEditTime: 2023-09-19 20:33:31
+LastEditTime: 2024-11-17 14:43:54
 LastEditors: Wenyu Ouyang
 Description: some basic config for hydrological models
-FilePath: /torchhydro/torchhydro/configs/model_config.py
+FilePath: \torchhydro\torchhydro\configs\model_config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
+
 from collections import OrderedDict
 
 # NOTE: Don't change the parameter settings
@@ -73,7 +74,6 @@ MODEL_PARAM_DICT = {
             "THETA",  # parameter of mizuRoute
             "CI",  # The recession constant of the lower interflow
             "CG",  # The recession constant of groundwater storage
-            "KERNEL",  # kernel size of mizuRoute unit hydrograph when using convolution method
         ],
         "param_range": OrderedDict(
             {
@@ -92,7 +92,6 @@ MODEL_PARAM_DICT = {
                 "THETA": [0.0, 6.5],
                 "CI": [0.0, 0.9],
                 "CG": [0.98, 0.998],
-                "KERNEL": [1, 15],
             }
         ),
     },
@@ -119,4 +118,55 @@ MODEL_PARAM_DICT = {
             }
         ),
     },
+    "hbv": {
+        "param_name": [
+            "BETA",  # parameter in soil routine
+            "FC",  # maximum soil moisture content
+            "K0",  # recession coefficient
+            "K1",  # recession coefficient
+            "K2",  # recession coefficient
+            "LP",  # limit for potential evapotranspiration
+            "PERC",  # percolation from upper to lower response box
+            "UZL",  # upper zone limit
+            "TT",  # temperature limit for snow/rain; distinguish rainfall from snowfall
+            "CFMAX",  # degree day factor; used for melting calculation
+            "CFR",  # Refreezing coefficient for water in the snowpack
+            "CWH",  # Liquid water holding capacity of the snowpack
+            "A",  # parameter of mizuRoute
+            "THETA",  # parameter of mizuRoute
+        ],
+        "param_range": OrderedDict(
+            {
+                "BETA": [1, 6],
+                "FC": [50, 1000],
+                "K0": [0.05, 0.9],
+                "K1": [0.01, 0.5],
+                "K2": [0.001, 0.2],
+                "LP": [0.2, 1],
+                "PERC": [0, 10],
+                "UZL": [0, 100],
+                "TT": [270.65, 275.65],  # default unit is Kelvin
+                "CFMAX": [0.5, 10],
+                "CFR": [0, 0.1],
+                "CWH": [0, 0.2],
+                "A": [0, 2.9],
+                "THETA": [0, 6.5],
+            }
+        ),
+    },
+}
+
+
+MODEL_PARAM_TEST_WAY = {
+    # 0. "train_final" -- use the final training period's parameter for each test period
+    "final_train_period": "train_final",
+    # 1. "final" -- use the final testing period's parameter for each test period
+    "final_period": "final",
+    # 2. "mean_time" -- Mean values of all training periods' parameters are used
+    "mean_all_period": "mean_time",
+    # 3. "mean_basin" -- Mean values of all basins' final training periods' parameters is used
+    "mean_all_basin": "mean_basin",
+    # 4. "var" -- use time series parameters and constant parameters in testing period
+    "time_varying": "var",
+    "time_scroll": "dynamic",
 }

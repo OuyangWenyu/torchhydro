@@ -1,8 +1,8 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:32:26
-LastEditTime: 2024-04-17 12:33:34
-LastEditors: Xinzhuo Wu
+LastEditTime: 2025-07-12 11:29:51
+LastEditors: Wenyu Ouyang
 Description:
 FilePath: /torchhydro/torchhydro/models/seq2seq.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
@@ -70,16 +70,20 @@ class Encoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.pre_fc = nn.Linear(input_dim, hidden_dim)
         self.pre_relu = nn.ReLU()
-        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=True)
+        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers)
         self.dropout = nn.Dropout(dropout)
         self.fc = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x):
-        x = self.pre_fc(x)
-        x = self.pre_relu(x)
-        outputs, (hidden, cell) = self.lstm(x)
-        outputs = self.dropout(outputs)
-        outputs = self.fc(outputs)
+        # a nonlinear layer to transform the input
+        x0 = self.pre_fc(x)
+        x1 = self.pre_relu(x0)
+        # the LSTM layer
+        outputs_, (hidden, cell) = self.lstm(x1)
+        # a dropout layer
+        dr_outputs = self.dropout(outputs_)
+        # final linear layer
+        outputs = self.fc(dr_outputs)
         return outputs, hidden, cell
 
 
@@ -89,17 +93,17 @@ class Decoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.pre_fc = nn.Linear(input_dim, hidden_dim)
         self.pre_relu = nn.ReLU()
-        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers, batch_first=True)
+        self.lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers)
         self.dropout = nn.Dropout(dropout)
         self.fc_out = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, input, hidden, cell):
-        x = self.pre_fc(input)
-        x = self.pre_relu(x)
-        output, (hidden, cell) = self.lstm(x, (hidden, cell))
-        output = self.dropout(output)
-        output = self.fc_out(output)
-        return output, hidden, cell
+        x0 = self.pre_fc(input)
+        x1 = self.pre_relu(x0)
+        output_, (hidden_, cell_) = self.lstm(x1, (hidden, cell))
+        output_dr = self.dropout(output_)
+        output = self.fc_out(output_dr)
+        return output, hidden_, cell_
 
 
 class StateTransferNetwork(nn.Module):
@@ -122,13 +126,34 @@ class GeneralSeq2Seq(nn.Module):
         output_size,
         hidden_size,
         forecast_length,
-        prec_window=0,
+        hindcast_output_window=0,
         teacher_forcing_ratio=0.5,
     ):
+        """General Seq2Seq model
+
+        Parameters
+        ----------
+        en_input_size : _type_
+            the size of the input of the encoder
+        de_input_size : _type_
+            the size of the input of the decoder
+        output_size : _type_
+            the size of the output, same for encoder and decoder
+        hidden_size : _type_
+            the size of the hidden state of LSTMs
+        forecast_length : _type_
+            the length of the forecast, i.e., the periods of decoder outputs
+        hindcast_output_window : int, optional
+            the encoder's final several outputs in the final output;
+            default is 0 which means no encoder output is included in the final output;
+        teacher_forcing_ratio : float, optional
+            the probability of using teacher forcing
+        """
         super(GeneralSeq2Seq, self).__init__()
         self.trg_len = forecast_length
-        self.prec_window = prec_window
+        self.hindcast_output_window = hindcast_output_window
         self.teacher_forcing_ratio = teacher_forcing_ratio
+        self.output_size = output_size
         self.encoder = Encoder(
             input_dim=en_input_size, hidden_dim=hidden_size, output_dim=output_size
         )
@@ -137,38 +162,57 @@ class GeneralSeq2Seq(nn.Module):
         )
         self.transfer = StateTransferNetwork(hidden_dim=hidden_size)
 
+    def _teacher_forcing_preparation(self, trgs):
+        # teacher forcing preparation
+        valid_mask = ~torch.isnan(trgs)
+        random_vals = torch.rand_like(valid_mask, dtype=torch.float)
+        return (random_vals < self.teacher_forcing_ratio) * valid_mask
+
     def forward(self, *src):
         if len(src) == 3:
-            src1, src2, trgs = src
+            encoder_input, decoder_input, trgs = src
         else:
-            src1, src2 = src
-            trgs = None
-        encoder_outputs, hidden, cell = self.encoder(src1)
-        hidden, cell = self.transfer(hidden, cell)
+            encoder_input, decoder_input = src
+            device = decoder_input.device
+            trgs = torch.full(
+                (
+                    self.hindcast_output_window + self.trg_len,  # seq
+                    decoder_input.shape[1],  # batch_size
+                    self.output_size,  # features
+                ),
+                float("nan"),
+            ).to(device)
+        trgs_q = trgs[:, :, :1]
+        trgs_s = trgs[:, :, 1:]
+        trgs = torch.cat((trgs_s, trgs_q), dim=2)  # sq
+        encoder_outputs, hidden_, cell_ = self.encoder(encoder_input)  # sq
+        hidden, cell = self.transfer(hidden_, cell_)
         outputs = []
-        current_input = encoder_outputs[:, -1, :].unsqueeze(1)
+        prev_output = encoder_outputs[-1, :, :].unsqueeze(0)  # sq
+        _, batch_size, _ = decoder_input.size()
 
+        outputs = torch.zeros(self.trg_len, batch_size, self.output_size).to(
+            decoder_input.device
+        )
+        use_teacher_forcing = self._teacher_forcing_preparation(trgs)
         for t in range(self.trg_len):
-            p = src2[:, t, :].unsqueeze(1)
-            current_input = torch.cat((current_input, p), dim=2)
+            pc = decoder_input[t : t + 1, :, :]  # sq
+            obs = trgs[self.hindcast_output_window + t, :, :].unsqueeze(0)  # sq
+            safe_obs = torch.where(torch.isnan(obs), torch.zeros_like(obs), obs)
+            prev_output = torch.where(  # sq
+                use_teacher_forcing[t : t + 1, :, :],
+                safe_obs,
+                prev_output,
+            )
+            current_input = torch.cat((pc, prev_output), dim=2)  # pcsq
             output, hidden, cell = self.decoder(current_input, hidden, cell)
-            outputs.append(output.squeeze(1))
-            if trgs is None or self.teacher_forcing_ratio <= 0:
-                current_input = output
-            else:
-                sm_trg = trgs[:, (self.prec_window + t), 1].unsqueeze(1).unsqueeze(1)
-                if not torch.any(torch.isnan(sm_trg)).item():
-                    use_teacher_forcing = random.random() < self.teacher_forcing_ratio
-                    str_trg = output[:, :, 0].unsqueeze(2)
-                    current_input = (
-                        torch.cat((str_trg, sm_trg), dim=2)
-                        if use_teacher_forcing
-                        else output)
-                else:
-                    current_input = output
-        outputs = torch.stack(outputs, dim=1)
-        prec_outputs = encoder_outputs[:, -self.prec_window, :].unsqueeze(1)
-        outputs = torch.cat((prec_outputs, outputs), dim=1)
+            outputs[t, :, :] = output.squeeze(0)  # sq
+        if self.hindcast_output_window > 0:
+            prec_outputs = encoder_outputs[-self.hindcast_output_window :, :, :]
+            outputs = torch.cat((prec_outputs, outputs), dim=0)
+        outputs_s = outputs[:, :, :1]
+        outputs_q = outputs[:, :, 1:]
+        outputs = torch.cat((outputs_q, outputs_s), dim=2)  # qs
         return outputs
 
 
@@ -234,8 +278,31 @@ class Transformer(nn.Module):
         nhead=8,
         num_layers=8,
         dropout=0.1,
-        prec_window=0,
+        hindcast_output_window=0,
     ):
+        """TODO: hindcast_output_window seems not used
+
+        Parameters
+        ----------
+        n_encoder_inputs : _type_
+            _description_
+        n_decoder_inputs : _type_
+            _description_
+        n_decoder_output : _type_
+            _description_
+        channels : int, optional
+            _description_, by default 256
+        num_embeddings : int, optional
+            _description_, by default 512
+        nhead : int, optional
+            _description_, by default 8
+        num_layers : int, optional
+            _description_, by default 8
+        dropout : float, optional
+            _description_, by default 0.1
+        hindcast_output_window : int, optional
+            _description_, by default 0
+        """
         super().__init__()
 
         self.input_pos_embedding = torch.nn.Embedding(num_embeddings, channels)

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-19 09:36:25
-LastEditTime: 2024-04-09 15:29:35
+LastEditTime: 2025-06-16 16:11:20
 LastEditors: Wenyu Ouyang
 Description: Some self-made LSTMs
 FilePath: \torchhydro\torchhydro\models\simple_lstm.py
@@ -10,10 +10,12 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 
 import math
 import torch as th
+import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch import Tensor as T
 from torch.nn import Parameter as P
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
 class SimpleLSTM(nn.Module):
@@ -23,7 +25,182 @@ class SimpleLSTM(nn.Module):
         self.lstm = nn.LSTM(
             hidden_size,
             hidden_size,
-            1,
+        )
+        self.dropout = nn.Dropout(p=dr)
+        self.linearOut = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x, **kwargs):
+        """
+        Forward pass of SimpleLSTM
+
+        Parameters:
+        -----------
+        x : torch.Tensor
+            Input tensor
+        **kwargs : dict
+            Optional keyword arguments:
+            - seq_lengths: sequence lengths for PackedSequence
+            - mask: mask tensor for manual masking (shape: [seq_len, batch_size, 1] or [batch_size, seq_len])
+            - use_manual_mask: bool, whether to prioritize manual masking over PackedSequence
+        """
+        x0 = F.relu(self.linearIn(x))
+
+        # Extract parameters from kwargs
+        seq_lengths = kwargs.get("seq_lengths", None)
+        mask = kwargs.get("mask", None)
+        use_manual_mask = kwargs.get("use_manual_mask", False)
+
+        # Determine processing method based on available parameters
+        if use_manual_mask and mask is not None:
+            # Use manual masking
+            out_lstm, (hn, cn) = self.lstm(x0)
+
+            # Apply mask to LSTM output
+            # Ensure mask has the correct shape for broadcasting
+            if mask.dim() == 2:  # [batch_size, seq_len]
+                # Convert to [seq_len, batch_size, 1] for seq_first format
+                mask = mask.transpose(0, 1).unsqueeze(-1)
+            elif mask.dim() == 3 and mask.size(-1) != 1:
+                # If mask is [seq_len, batch_size, features], take only the first feature
+                mask = mask[:, :, :1]
+
+            # Apply mask: set masked positions to zero
+            out_lstm = out_lstm * mask
+
+        elif seq_lengths is not None and not use_manual_mask:
+            # Use PackedSequence (original behavior)
+            packed_x = pack_padded_sequence(
+                x0, seq_lengths, batch_first=False, enforce_sorted=False
+            )
+            packed_out, (hn, cn) = self.lstm(packed_x)
+            out_lstm, _ = pad_packed_sequence(packed_out, batch_first=False)
+
+        else:
+            # Standard processing without masking
+            out_lstm, (hn, cn) = self.lstm(x0)
+
+            # Apply mask if provided (even without use_manual_mask flag)
+            if mask is not None:
+                if mask.dim() == 2:  # [batch_size, seq_len]
+                    mask = mask.transpose(0, 1).unsqueeze(-1)
+                elif mask.dim() == 3 and mask.size(-1) != 1:
+                    mask = mask[:, :, :1]
+                out_lstm = out_lstm * mask
+
+        out_lstm_dr = self.dropout(out_lstm)
+        return self.linearOut(out_lstm_dr)
+
+
+class HFLSTM(nn.Module):
+    def __init__(
+        self,
+        input_size,
+        output_size,
+        hidden_size,
+        dr=0.0,
+        teacher_forcing_ratio=0,
+        hindcast_with_output=True,
+    ):
+        """
+
+        Parameters
+        ----------
+        input_size : int
+            without streamflow
+        output_size : int
+            streamflow
+        hidden_size : int
+        dr : float, optional
+            dropout, by default 0.0
+        teacher_forcing_ratio : float, optional
+            by default 0
+        hindcast_with_output : bool, optional
+            whether to use the output of the model as input for the next time step, by default True
+        """
+        super(HFLSTM, self).__init__()
+        self.linearIn = nn.Linear(input_size, hidden_size)
+        self.lstm = nn.LSTM(
+            hidden_size,
+            hidden_size,
+        )
+        self.dropout = nn.Dropout(p=dr)
+        self.linearOut = nn.Linear(hidden_size, output_size)
+        self.teacher_forcing_ratio = teacher_forcing_ratio
+        self.hindcast_with_output = hindcast_with_output
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+
+    def _teacher_forcing_preparation(self, xq_hor):
+        # teacher forcing preparation
+        valid_mask = ~torch.isnan(xq_hor)
+        random_vals = torch.rand_like(valid_mask, dtype=torch.float)
+        return (random_vals < self.teacher_forcing_ratio) * valid_mask
+
+    def _rho_forward(self, x_rho):
+        x0_rho = F.relu(self.linearIn(x_rho))
+        out_lstm_rho, (hn_rho, cn_rho) = self.lstm(x0_rho)
+        out_lstm_rho_dr = self.dropout(out_lstm_rho)
+        out_lstm_rho_lnout = self.linearOut(out_lstm_rho_dr)
+        prev_output = out_lstm_rho_lnout[-1:, :, :]
+        return out_lstm_rho_lnout, hn_rho, cn_rho, prev_output
+
+    def forward(self, *x):
+        xfc_rho, xfc_hor, xq_rho, xq_hor = x
+
+        x_rho = torch.cat((xfc_rho, xq_rho), dim=-1)
+        hor_len, batch_size, _ = xfc_hor.size()
+
+        # hindcast-forecast, we do not have forecast-hindcast situation
+        # do rho forward first, prev_output is the last output of rho (seq_length = 1, batch_size, feature = output_size)
+        if self.hindcast_with_output:
+            _, h_n, c_n, prev_output = self._rho_forward(x_rho)
+            seq_len = hor_len
+        else:
+            # TODO: need more test
+            seq_len = xfc_rho.shape[0] + hor_len
+            xfc_hor = torch.cat((xfc_rho, xfc_hor), dim=0)
+            xq_hor = torch.cat((xq_rho, xq_hor), dim=0)
+            h_n = torch.randn(1, batch_size, self.hidden_size).to(xfc_rho.device) * 0.1
+            c_n = torch.randn(1, batch_size, self.hidden_size).to(xfc_rho.device) * 0.1
+            prev_output = (
+                torch.randn(1, batch_size, self.output_size).to(xfc_rho.device) * 0.1
+            )
+
+        use_teacher_forcing = self._teacher_forcing_preparation(xq_hor)
+
+        # do hor forward
+        outputs = torch.zeros(seq_len, batch_size, self.output_size).to(xfc_rho.device)
+        # TODO: too slow here when seq_len is large, need to optimize
+        for t in range(seq_len):
+            real_streamflow_input = xq_hor[t : t + 1, :, :]
+            prev_output = torch.where(
+                use_teacher_forcing[t : t + 1, :, :],
+                real_streamflow_input,
+                prev_output,
+            )
+            input_concat = torch.cat((xfc_hor[t : t + 1, :, :], prev_output), dim=-1)
+
+            # Pass through the initial linear layer
+            x0 = F.relu(self.linearIn(input_concat))
+
+            # LSTM step
+            out_lstm, (h_n, c_n) = self.lstm(x0, (h_n, c_n))
+
+            # Generate the current output
+            prev_output = self.linearOut(out_lstm)
+            outputs[t, :, :] = prev_output.squeeze(0)
+        # Return the outputs
+        return outputs[-hor_len:, :, :]
+
+
+class MultiLayerLSTM(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size, num_layers=1, dr=0.0):
+        super(MultiLayerLSTM, self).__init__()
+        self.linearIn = nn.Linear(input_size, hidden_size)
+        self.lstm = nn.LSTM(
+            hidden_size,
+            hidden_size,
+            num_layers,
             dropout=dr,
         )
         self.linearOut = nn.Linear(hidden_size, output_size)
@@ -32,6 +209,48 @@ class SimpleLSTM(nn.Module):
         x0 = F.relu(self.linearIn(x))
         out_lstm, (hn, cn) = self.lstm(x0)
         return self.linearOut(out_lstm)
+
+
+class LinearSimpleLSTMModel(SimpleLSTM):
+    """
+    This model is nonlinear layer + SimpleLSTM.
+    """
+
+    def __init__(self, linear_size, **kwargs):
+        """
+
+        Parameters
+        ----------
+        linear_size
+            the number of input features for the first input linear layer
+        """
+        super(LinearSimpleLSTMModel, self).__init__(**kwargs)
+        self.former_linear = nn.Linear(linear_size, kwargs["input_size"])
+
+    def forward(self, x):
+        x0 = F.relu(self.former_linear(x))
+        return super(LinearSimpleLSTMModel, self).forward(x0)
+
+
+class LinearMultiLayerLSTMModel(MultiLayerLSTM):
+    """
+    This model is nonlinear layer + MultiLayerLSTM.
+    """
+
+    def __init__(self, linear_size, **kwargs):
+        """
+
+        Parameters
+        ----------
+        linear_size
+            the number of input features for the first input linear layer
+        """
+        super(LinearMultiLayerLSTMModel, self).__init__(**kwargs)
+        self.former_linear = nn.Linear(linear_size, kwargs["input_size"])
+
+    def forward(self, x):
+        x0 = F.relu(self.former_linear(x))
+        return super(LinearMultiLayerLSTMModel, self).forward(x0)
 
 
 class SimpleLSTMForecast(SimpleLSTM):

@@ -33,13 +33,15 @@ def create_config():
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": {
                 "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[0, 1, 2],
         model_name="Seq2Seq",
@@ -48,13 +50,13 @@ def create_config():
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 3,
-            "prec_window": 1,
+            "hindcast_output_window": 1,
         },
         model_loader={"load_way": "best"},
         # gage_id=gage_id,
         gage_id=["21400800", "21401550"],
         batch_size=1024,
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=3,
         min_time_unit="h",
         min_time_interval=3,
@@ -81,7 +83,6 @@ def create_config():
         ],
         var_out=["streamflow", "sm_surface"],
         dataset="Seq2SeqDataset",
-        sampler="DistSampler",
         scaler="DapengScaler",
         train_epoch=2,
         save_epoch=1,
@@ -101,7 +102,6 @@ def create_config():
             "lr_factor": 0.96,
         },
         which_first_tensor="batch",
-        rolling=False,
         static=False,
         early_stopping=True,
         patience=8,

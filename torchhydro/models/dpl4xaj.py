@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-19 09:36:25
-LastEditTime: 2024-07-15 16:20:19
+LastEditTime: 2025-06-25 15:50:57
 LastEditors: Wenyu Ouyang
 Description: The method comes from this paper: https://doi.org/10.1038/s41467-021-26107-z It use Deep Learning (DL) methods to Learn the Parameters of physics-based models (PBM), which is called "differentiable parameter learning" (dPL).
-FilePath: /torchhydro/torchhydro/models/dpl4xaj.py
+FilePath: \torchhydro\torchhydro\models\dpl4xaj.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -864,6 +864,7 @@ class DplLstmXaj(nn.Module):
         param_test_way="final",
         source_book="HF",
         source_type="sources",
+        return_et=True,
     ):
         """
         Differential Parameter learning model: LSTM -> Param -> XAJ
@@ -891,6 +892,8 @@ class DplLstmXaj(nn.Module):
             1. "final" -- use the final period's parameter for each period
             2. "mean_time" -- Mean values of all periods' parameters is used
             3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
+        return_et
+            if True, return evapotranspiration
         """
         super(DplLstmXaj, self).__init__()
         self.dl_model = SimpleLSTM(n_input_features, n_output_features, n_hidden_states)
@@ -899,6 +902,7 @@ class DplLstmXaj(nn.Module):
         )
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
+        self.return_et = return_et
 
     def forward(self, x, z):
         """
@@ -920,7 +924,7 @@ class DplLstmXaj(nn.Module):
             one time forward result
         """
         q, e = lstm_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
-        return q
+        return torch.cat([q, e], dim=-1) if self.return_et else q
 
 
 class DplAnnXaj(nn.Module):
@@ -936,6 +940,7 @@ class DplAnnXaj(nn.Module):
         param_test_way="final",
         source_book="HF",
         source_type="sources",
+        return_et=True,
     ):
         """
         Differential Parameter learning model only with attributes as DL model's input: ANN -> Param -> Gr4j
@@ -963,6 +968,8 @@ class DplAnnXaj(nn.Module):
             1. "final" -- use the final period's parameter for each period
             2. "mean_time" -- Mean values of all periods' parameters is used
             3. "mean_basin" -- Mean values of all basins' final periods' parameters is used
+        return_et
+            if True, return evapotranspiration
         """
         super(DplAnnXaj, self).__init__()
         self.dl_model = SimpleAnn(
@@ -973,6 +980,7 @@ class DplAnnXaj(nn.Module):
         )
         self.param_func = param_limit_func
         self.param_test_way = param_test_way
+        self.return_et = return_et
 
     def forward(self, x, z):
         """
@@ -994,7 +1002,7 @@ class DplAnnXaj(nn.Module):
             one time forward result
         """
         q, e = ann_pbm(self.dl_model, self.pb_model, self.param_func, x, z)
-        return q
+        return torch.cat([q, e], dim=-1) if self.return_et else q
 
 
 def lstm_pbm(dl_model, pb_model, param_func, x, z):

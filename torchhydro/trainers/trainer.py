@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2024-05-23 15:21:17
+LastEditTime: 2025-07-12 11:36:50
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
-FilePath: \torchhydro\torchhydro\trainers\trainer.py
+FilePath: /torchhydro/torchhydro/trainers/trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -60,16 +60,20 @@ def train_and_evaluate(cfgs: Dict):
     set_random_seed(random_seed)
     resulter = Resulter(cfgs)
     deephydro = _get_deep_hydro(cfgs)
-    if cfgs["training_cfgs"]["train_mode"] and (
-        (
-            deephydro.weight_path is not None
-            and deephydro.cfgs["model_cfgs"]["continue_train"]
-        )
+    # if train_mode is False, we only evaluate the model
+    train_mode = deephydro.cfgs["training_cfgs"]["train_mode"]
+    # but if train_mode is True, we still need some conditions to train the model
+    continue_train = deephydro.cfgs["model_cfgs"]["continue_train"]
+    is_transfer_learning = deephydro.cfgs["model_cfgs"]["model_type"] == "TransLearn"
+    is_train = train_mode and (
+        (deephydro.weight_path is not None and (continue_train or is_transfer_learning))
         or (deephydro.weight_path is None)
-    ):
+    )
+    if is_train:
         deephydro.model_train()
     preds, obss = deephydro.model_evaluate()
-    # resulter.save_cfg(deephydro.cfgs)
+    resulter.save_cfg(deephydro.cfgs)
+    # TODO: If preds and obss are 4-dimensional, this will run but metrics calculation for valid and test are not supported
     resulter.save_result(preds, obss)
     resulter.eval_result(preds, obss)
 
@@ -100,15 +104,14 @@ def _update_cfg_with_1ensembleitem(cfg, key, value):
         new_cfg["data_cfgs"]["t_range_test"] = value[1]
     elif key == "batch_sizes":
         new_cfg["training_cfgs"]["batch_size"] = value
-        new_cfg["data_cfgs"]["batch_size"] = value
     elif key == "seeds":
         new_cfg["training_cfgs"]["random_seed"] = value
     elif key == "expdir":
-        project_dir = new_cfg["data_cfgs"]["test_path"]
+        project_dir = new_cfg["data_cfgs"]["case_dir"]
         project_path = Path(project_dir)
         subset = project_path.parent.name
         subexp = f"{project_path.name}_{value}"
-        new_cfg["data_cfgs"]["test_path"] = os.path.join(
+        new_cfg["data_cfgs"]["case_dir"] = os.path.join(
             project_path.parent.parent, subset, subexp
         )
     else:
