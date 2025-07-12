@@ -1,7 +1,7 @@
 """
 nothing but English.
 """
-import mpmath.libmp
+
 import numpy as np
 from typing import Optional
 import math
@@ -47,35 +47,6 @@ class Arch(object):
         self.t_critical_table = None  # critical table of t check statistic   Applied Time Series Analysis（4th edition） Yan Wang p228
         self.fi = None
         self.sigma = None
-
-
-    def cal_7_stat_inds(self, x):
-        """
-        Calculate seven statistics indices of a series: point number, mean value, standard deviation, min,
-        percentile 25 50 75 and max.
-
-        Parameters
-        ----------
-        x
-            input data
-
-        Returns
-        -------
-        list
-            [mean, std, min, p25, p50, p75, max]
-        """
-        num_point = x.shape[0]
-        mean = np.mean(x).astype(float)
-        std = np.std(x).astype(float)
-        min_ = np.min(x).astype(float)
-        p25 = np.percentile(x, 25).astype(float)
-        p50 = np.percentile(x, 50).astype(float)
-        p75 = np.percentile(x, 75).astype(float)
-        max_ = np.max(x).astype(float)
-
-        if std < 0.001:
-            std = 1
-        return [num_point, mean, std, min_, p25, p50, p75, max_]
 
     def cov(
         self,
@@ -405,18 +376,6 @@ class Arch(object):
                 return a, R_2, se_beta
 
         return a, R_2
-
-    def ar_maximum_likelihood_estimation(
-        self,
-    ):
-        """
-        Time Series Analysis  James D.Hamilton  chapter 5 p134
-        Returns
-        -------
-
-        """
-
-
 
     def adf_least_squares_estimation(
         self,
@@ -866,28 +825,6 @@ class Arch(object):
             b_white_noise = H1
 
         return b_white_noise
-
-    def white_noise_test_degree(
-        self,
-        x,
-        m_list,
-        significance_level,
-    ):
-        """
-        white noise test with multiple free degree.
-        Parameters
-        ----------
-        x
-        m_list: free degree list
-        significance_level
-
-        Returns
-        -------
-
-        """
-        n_degree = len(m_list)
-
-
 
     def arima(
         self,
@@ -1404,7 +1341,7 @@ class Arch(object):
         b_significant: be significant or not.
         """
         n_resudual = len(residual)
-        t_statistic = self.t_statistic(residual, phi, theta, se_beta)
+        t_statistic = self.t_statistic(phi, theta, se_beta)
         t_statistic = np.absolute(t_statistic)
         # significance_level_ = 1 - significance_level
         t_critical = self.get_t_critical(n_resudual-m, significance_level)
@@ -1431,7 +1368,7 @@ class Arch(object):
         theta: Optional[list] = None,
     ):
         """
-
+        arma model, single step.
         Parameters
         ----------
         x: time series.
@@ -1462,7 +1399,7 @@ class Arch(object):
         x_t_,
     ):
         """
-
+        reverse integrate, one degree, single step.
         Parameters
         ----------
         x_infer_t: infer item of arma model at t.
@@ -1483,7 +1420,7 @@ class Arch(object):
         x_t,
     ):
         """
-
+        reverse integrate, d degree, single step.
         Parameters
         ----------
         d
@@ -1678,7 +1615,7 @@ class Arch(object):
 
         Returns
         -------
-
+        bpLM:
         """
         bpLM = n * R_2
         return bpLM
@@ -2729,29 +2666,6 @@ class Arch(object):
 
         return dist
 
-    def gradient_theta(
-        self,
-        lambd,
-        theta0,
-        theta1,
-    ):
-        """
-        gradient
-        Time Series Analysis  James D.Hamilton P155
-        Parameters
-        ----------
-        lambd
-        theta0
-        theta1
-
-        Returns
-        -------
-
-        """
-        grad = -2 * lambd * (np.array(theta1) - np.array(theta0))
-
-        return grad
-
     def x_residual_via_parameters(
         self,
         x,
@@ -3521,9 +3435,6 @@ class Arch(object):
         # arima + arch
         y_arch = y_arima + mean_residual + epsilon
 
-        # smooth
-        # y_arch_s = self.moving_average_smoothing(5, y_arch)
-
         # NSE
         nse = self.nse(x, y_arch)
         # RMSE
@@ -3686,56 +3597,6 @@ class Arch(object):
 
         return L_theta
 
-    def H_gradient_thetai(
-        self,
-        x,
-        theta0,
-        d_theta,
-        i_theta,
-        p,
-        residual0_2: Optional = None,
-    ):
-        """
-
-        Parameters
-        ----------
-        x
-        theta0
-        d_theta
-        i_theta
-        p
-        q
-        residual0_2
-
-        Returns
-        -------
-
-        """
-        # theta1
-        theta_i = theta0[i_theta] + d_theta
-        theta1 = theta0[:]
-        theta1[i_theta] = theta_i
-
-        # likelihood of theta
-        alpha0 = theta0[p:]
-        if residual0_2 is None:
-            phi0 = theta0[:p]
-            residual0 = self.x_residual_via_parameters(x=x, phi=phi0)
-            residual0_2 = np.power(residual0, 2)
-        L0 = self.log_likelihood_gauss_vt(residual0_2, alpha0)
-
-        # likelihood of theta1
-        phi1 = theta1[:p]
-        alpha1 = theta1[p:]
-        residual1 = self.x_residual_via_parameters(x=x, phi=phi1)
-        residual1_2 = np.power(residual1, 2)
-        L1 = self.log_likelihood_gauss_vt(residual1_2, alpha1)
-
-        # gradient
-        grad = (L1 - L0) / d_theta
-
-        return grad
-
     def rmse(
         self,
         x,
@@ -3868,25 +3729,6 @@ class Arch(object):
 
         return lnLt
 
-    def ml_function(
-        self,
-        residual_2,
-        beta,
-        sigma,
-    ):
-        """
-        maximum likelihood function.  Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan p214
-        Parameters
-        ----------
-        residual_2
-        beta
-        sigma
-
-        Returns
-        -------
-
-        """
-
     def arch_one_degree_mle(
         self,
         residual_2,
@@ -3911,28 +3753,6 @@ class Arch(object):
         epsilon = epsilon * e
 
         return epsilon
-
-    def std_function(
-        self,
-        w,
-        e,
-        std,
-    ):
-        """std function"""
-        q = e.shape[0]
-        p = std.shape[0]
-        a = [0]*q
-        b = [0]*p
-        sum_e = 0
-        sum_std = 0
-        for i in range(q):
-            e_i = a[i] * pow(e[i], 2)
-            sum_e = sum_e + e_i
-        for i in range(p):
-            std_i = b[i] * pow(std[i], 2)
-            sum_std = sum_std + std_i
-        std_t = w + sum_e + sum_std
-        return std_t
 
     def garch_one_step(
         self,
