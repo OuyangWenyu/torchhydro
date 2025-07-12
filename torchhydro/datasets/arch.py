@@ -1064,7 +1064,6 @@ class Arch(object):
         phi: parameters of ar(p) model.
         theta: parameters of ma(q) model.
         se_beta:
-
         """
         if d > 0:
             # dx, mean_dx, tx = self.integration(x, d)
@@ -1101,8 +1100,8 @@ class Arch(object):
         Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan p131
         Parameters
         ----------
-        residual
-        m
+        residual: centered residual series of arima model.
+        m: free degree.
 
         Returns
         -------
@@ -1265,11 +1264,11 @@ class Arch(object):
         ----------
         phi: parameters of ar model.
         theta: parameters of ma model.
-        a_diagonal:
+        se_beta:
 
         Returns
         -------
-
+        t_statistic:
         """
         beta = phi + theta
         # m = len(beta)
@@ -1292,9 +1291,15 @@ class Arch(object):
     ):
         """
         Time Series Analysis  James D.Hamilton  p880 table B.4
+
+        Parameters
+        ----------
+        m: free degree.
+        significance_level: significance level.
+
         Returns
         -------
-
+        t_critical:
         """
         # table
         m_index = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
@@ -1387,13 +1392,16 @@ class Arch(object):
         Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge  p96-109
         Parameters
         ----------
-        phi
-        theta
-        se_beta
+        residual: centered residual of arima model.
+        phi: parameters of ar model.
+        theta: parameters of ma model.
+        se_beta:
+        m: free degree.
+        significance_level: significance level.
 
         Returns
         -------
-
+        b_significant: be significant or not.
         """
         n_resudual = len(residual)
         t_statistic = self.t_statistic(residual, phi, theta, se_beta)
@@ -1426,14 +1434,14 @@ class Arch(object):
 
         Parameters
         ----------
-        x
-        e
-        phi
-        theta
+        x: time series.
+        e: white noise series.
+        phi：parameters of ar model.
+        theta: paramters of ma model.
 
         Returns
         -------
-
+        x_infer: result of single step arma model.
         """
         if (phi is None) and (theta is None):
             raise ValueError('Either phi or theta must be provided.')
