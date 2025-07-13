@@ -1994,14 +1994,17 @@ def test_Omega():
 
 def test_arch_feasible_generalized_least_squares_estimation():
     arch = Arch()
-    q = 1
-    a, R_2, y = arch.arch_feasible_generalized_least_squares_estimation(y_residual_2_streamflow_1460, q, y_streamflow_1460_Omege, b_y=True)
+    residual_2 = y_residual_2_streamflow_395
+    Omege = y_streamflow_395_Omege
+    b_y = False
+    q = 4
+    a, R_2 = arch.arch_feasible_generalized_least_squares_estimation(residual_2, q, Omege)   # , y
     print("a")
     print(a)
     print("R_2")
     print(R_2)
-    print("y")
-    print(y)
+    # print("y")
+    # print(y)
 # a  y_residual_2_streamflow_395 q=3
 # [ 2.18960415  0.02024819 -0.0022809   0.01220647]
 # R_2
@@ -2020,16 +2023,24 @@ def test_arch_feasible_generalized_least_squares_estimation():
 # y
 # [778.08401028 778.08401028 779.30607192 ... 778.44414034 778.43795922
 #  778.45323335]
-
+# a  y_residual_2_streamflow_395 q=3
+# [ 2.18960415  0.02024819 -0.0022809   0.01220647]
+# R_2
+# 0.20152472141990246
+# a   y_residual_2_streamflow_395  q=4
+# [2.13812510e+00 1.74150336e-02 8.79121891e-04 7.03499591e-03
+#  5.84739033e-03]
+# R_2
+# 0.194291868669965
 
 def test_arch_constrained_ordinary_least_squares():
     arch = Arch()
-    q = 3
-    q_n = [1]  # [ 2.18960415  0.02024819 -0.0022809   0.01220647]  the second parameter is negative.
+    q = 4
+    q_n = [2, 3]  # [ 2.18960415  0.02024819 -0.0022809   0.01220647]  the second parameter is negative.
     residual_2 = y_residual_2_streamflow_395
     Omega = y_streamflow_395_Omege
-    residual_2 = y_residual_2_streamflow_1460
-    Omega = y_streamflow_1460_Omege
+    # residual_2 = y_residual_2_streamflow_1460
+    # Omega = y_streamflow_1460_Omege
     a, R_2 = arch.arch_constrained_ordinary_least_squares(residual_2, q, Omega, q_n=q_n, b_y=False)
     print("a")
     print(a)
@@ -2066,10 +2077,18 @@ def test_arch_constrained_ordinary_least_squares():
 # y
 # [996.50596352 996.50596352 996.50596352 ... 996.64746391 996.67910659
 #  996.62366969]
-# a
-# [7.01963967e+02 0.00000000e+00 5.24775189e-02 3.24733372e-02]
+# a  generalized_least_squares()  y_residual_2_streamflow_1460  q=3  q_n=2
+# [7.59918507e+02 3.04042231e-02 0.00000000e+00 4.70991700e-02]
 # R_2
-# 0.009773397543140126
+# 0.015063477236114566
+# a   y_residual_2_streamflow_395  q=3  q_n=2
+# [2.18518342 0.01851308 0.         0.01112357]
+# R_2
+# 0.19271578808251524
+# a    y_residual_2_streamflow_395  q=3  q_n=[2, 3]
+# [2.20308553 0.01903664 0.         0.01019919 0.        ]
+# R_2
+# 0.19985836190027448
 
 def test_initial_values():
     arch = Arch()

@@ -3,7 +3,7 @@ nothing but English.
 """
 
 import numpy as np
-from typing import Optional
+from typing import Optional, Union
 import math
 import time
 import copy
@@ -2237,11 +2237,11 @@ class Arch(object):
             xp_i.reverse()
             xp.append(xp_i)
 
-        a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
-
         if b_y:
+            a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
             return a, R_2, y
 
+        a, R_2 = self.generalized_least_squares(xp, xf, Omega_diagonal)
         return a, R_2
 
     def arch_constrained_ordinary_least_squares(
@@ -2249,7 +2249,7 @@ class Arch(object):
         residual_2,
         q,
         Omega,
-        q_n: list,
+        q_n: Union[list, np.ndarray],
         b_y: bool = False,
     ):
         """
@@ -2260,7 +2260,7 @@ class Arch(object):
         residual_2: square of centered residuals.
         q: degree / parameter number of arch model.
         Omega:
-        q_n: the index list of the constrained parameters, do not contain the constant item, e.g. phi = [ 2.18960415  0.02024819 -0.0022809   0.01220647], q_n = [1,].
+        q_n: the index list of the constrained parameters, contain the constant item, e.g. phi = [ 2.18960415  0.02024819 -0.0022809   0.01220647], q_n = [2,].
         b_y: bool, whether return y or not.
 
         Returns
@@ -2283,8 +2283,6 @@ class Arch(object):
 
         xp = np.array(xp)
         xp = np.delete(xp, q_n, axis=1)
-
-
 
         if b_y:
             a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)

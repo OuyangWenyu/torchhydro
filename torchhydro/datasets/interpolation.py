@@ -217,8 +217,6 @@ class Interpolation(object):
         if n_indices > 0:
             a2, R_22, y2 = self.arch.arch_constrained_ordinary_least_squares(residual_2, q, Omega, q_n=indices, b_y=True)
             theta0 = a2[:]
-        p = 2
-        q = 3
         b_arima = False
         theta1 = self.arch.gradient_ascent(x, theta0, p, q, b_arima)
 
