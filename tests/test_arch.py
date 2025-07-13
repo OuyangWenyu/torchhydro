@@ -2030,13 +2030,13 @@ def test_arch_constrained_ordinary_least_squares():
     Omega = y_streamflow_395_Omege
     residual_2 = y_residual_2_streamflow_1460
     Omega = y_streamflow_1460_Omege
-    a, R_2, y = arch.arch_constrained_ordinary_least_squares(residual_2, q, Omega, q_n=q_n, b_y=True)
+    a, R_2 = arch.arch_constrained_ordinary_least_squares(residual_2, q, Omega, q_n=q_n, b_y=False)
     print("a")
     print(a)
     print("R_2")
     print(R_2)
-    print("y")
-    print(y)
+    # print("y")
+    # print(y)
 # a  ordinary_least_squares()  y_residual_2_streamflow_395 q=3
 # [34.83797803  0.60908538  0.          0.16389898]
 # R_2
@@ -2066,6 +2066,10 @@ def test_arch_constrained_ordinary_least_squares():
 # y
 # [996.50596352 996.50596352 996.50596352 ... 996.64746391 996.67910659
 #  996.62366969]
+# a
+# [7.01963967e+02 0.00000000e+00 5.24775189e-02 3.24733372e-02]
+# R_2
+# 0.009773397543140126
 
 def test_initial_values():
     arch = Arch()

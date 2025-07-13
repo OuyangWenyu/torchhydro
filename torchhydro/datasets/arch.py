@@ -2282,14 +2282,17 @@ class Arch(object):
             xp.append(xp_i)
 
         xp = np.array(xp)
-        xp = np.delete(xp, q_n, axis=1)  # todo:
+        xp = np.delete(xp, q_n, axis=1)
 
-        a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
-        a = np.insert(a, q_n, 0)
+
 
         if b_y:
+            a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
+            a = np.insert(a, q_n, 0)
             return a, R_2, y
 
+        a, R_2 = self.generalized_least_squares(xp, xf, Omega_diagonal)
+        a = np.insert(a, q_n, 0)
         return a, R_2
 
 
