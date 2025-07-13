@@ -133,7 +133,9 @@ def test_test_arch():
     inter = Interpolation()
     x = camelsch_streamflow_8183
     phi = [1.30134078, -0.67576837, 0.26822102]
-    p = 3
+    q = 3
     significance_level = 0.05
     b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = inter.test_arch(x, phi, p, significance_level)
     print("b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = " + str([b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM]))
+# camelsch_streamflow_8183  q=3
+# b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM =  (True, False, True, True)
