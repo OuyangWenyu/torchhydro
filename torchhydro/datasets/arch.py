@@ -2290,9 +2290,11 @@ class Arch(object):
             return a, R_2, y
 
         a, R_2 = self.generalized_least_squares(xp, xf, Omega_diagonal)
-        a = np.insert(a, q_n, 0)
+        q_n = np.array(q_n)  # list->np.ndarray
+        n_q_n = q_n.size
+        for i in range(n_q_n):
+            a = np.insert(a, q_n[i], 0)
         return a, R_2
-
 
     def initial_values(
         self,

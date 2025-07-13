@@ -156,16 +156,19 @@ def test_arch_parameter():
     inter = Interpolation()
     x = camelsch_streamflow_8183
     phi = [1.30134078, -0.67576837, 0.26822102]
-    p = 3,
+    p = 3
     q = 4
-    a0, R_20, delta_20, a1, R_21, y1, theta1 = inter.arch_parameter(x, phi, p, q)
+    a0, R_20, delta_20, a1, R_21, y1, a2, R_22, y2, theta1 = inter.arch_parameter(x, phi, p, q)
     print("a0 = " + str(a0))
     print("R_20 = " + str(R_20))
     print("delta_20 = " + str(delta_20))
     print("a1 = " + str(a1))
     print("R_21 = " + str(R_21))
+    print("a2 = " + str(a2))
+    print("R_22 = " + str(R_22))
     print("theta1 = " + str(theta1))
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y1.txt', y1)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y2.txt', y2)
 # camelsch_streamflow_8183
 # a0 = [7.19334832e+03 3.41621327e-01]
 # R_20 = 0.11670513665147611
