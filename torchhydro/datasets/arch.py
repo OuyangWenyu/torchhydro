@@ -1948,6 +1948,7 @@ class Arch(object):
         significance_level,
     ):
         """
+        test the heteroscedasticity of residual.
         Applied Time Series Analysis（4th edition） Yan Wang p145-148
         Introductory Econometrics: A Modern Approach (6th edition) Jeffrey M. Wooldridge p216-219
 

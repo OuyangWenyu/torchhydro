@@ -109,3 +109,31 @@ def test_arma_parameters():
 # theta = []
 # R_2 = 0.7420380099133933
 # se_beta = [0.05097314149464376, 0.07408783460004402, 0.05097224111773126]
+# camelsch_streamflow_81  p=4 q=0
+# phi = [ 1.28817563 -0.77413387  0.5133167  -0.14537688]
+# theta = []
+# R_2 = 0.7601657853047998
+# se_beta = [0.05147396046129712, 0.07907659933663176, 0.07908462323509598, 0.051473988192846154]
+
+def test_test_model():
+    inter = Interpolation()
+    x = camelsch_streamflow_8183
+    phi = [1.30134078, -0.67576837, 0.26822102]
+    theta = []
+    se_beta = [0.030009693485665807, 0.04471833540272408, 0.030006814627895072]
+    m = 6
+    significance_level = 0.05
+    b_significant_arima, b_significant_para = inter.test_model(x, phi, theta, se_beta, m, significance_level)
+    print("b_significant_arima = " + str(b_significant_arima))
+    print("b_significant_para = " + str(b_significant_para))
+# b_significant_arima = False
+# b_significant_para = [True, True, True]
+
+def test_test_arch():
+    inter = Interpolation()
+    x = camelsch_streamflow_8183
+    phi = [1.30134078, -0.67576837, 0.26822102]
+    p = 3
+    significance_level = 0.05
+    b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = inter.test_arch(x, phi, p, significance_level)
+    print("b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = " + str([b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM]))

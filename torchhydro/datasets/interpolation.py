@@ -111,3 +111,54 @@ class Interpolation(object):
         phi, theta,R_2, se_beta = self.arch.arma_least_squares_estimation(x=x, p=p, q=q)
 
         return phi, theta, R_2, se_beta
+
+
+    def test_model(
+        self,
+        x,
+        phi,
+        theta,
+        se_beta,
+        m,
+        significance_level,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        p
+
+        Returns
+        -------
+
+        """
+        residual = self.arch.x_residual_via_parameters(x, phi)
+        b_significant_arima = self.arch.test_arima(residual, m, significance_level)
+        b_significant_para = self.arch.test_parameters(residual, phi, theta, se_beta, m, significance_level)
+
+        return b_significant_arima, b_significant_para
+
+    def test_arch(
+        self,
+        x,
+        phi,
+        q,
+        significance_level,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        phi
+
+        Returns
+        -------
+
+        """
+        residual = self.arch.x_residual_via_parameters(x, phi)
+        b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = self.arch.arch_test(residual, q, significance_level)
+
+        return b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM
+
