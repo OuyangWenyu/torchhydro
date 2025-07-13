@@ -205,7 +205,8 @@ class Interpolation(object):
 
         """
         residual = self.arch.x_residual_via_parameters(x, phi)
-        residual_2 = np.power(residual, 2)
+        mean_residual, residual_center = self.arch.residual_center(residual)
+        residual_2 = np.power(residual_center, 2)
         residual_2 = residual_2.tolist()
         a0, R_20, delta_20 = self.arch.arch_ordinary_least_squares_estimation(residual_2, 1)
         Omega = self.arch.Omega(residual_2, a0)
@@ -214,11 +215,14 @@ class Interpolation(object):
         indices = np.where(a1 < 0)
         indices = indices[0]
         n_indices = indices.size
+        a2 = None
+        R_22 = None
+        y2 = None
         if n_indices > 0:
             a2, R_22, y2 = self.arch.arch_constrained_ordinary_least_squares(residual_2, q, Omega, q_n=indices, b_y=True)
             theta0 = a2[:]
         theta0 = np.insert(theta0, 0, phi)
-        b_arima = False
+        b_arima = True
         theta1 = self.arch.gradient_ascent(x, theta0, p, q, b_arima)
 
         if n_indices > 0:
