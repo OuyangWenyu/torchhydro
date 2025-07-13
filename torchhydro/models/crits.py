@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-12 11:25:51
+LastEditTime: 2025-07-13 10:32:24
 LastEditors: Wenyu Ouyang
 Description: Loss functions
 FilePath: /torchhydro/torchhydro/models/crits.py
@@ -409,47 +409,6 @@ class RmseLoss(torch.nn.Module):
             t = t0[mask]
             t = torch.where(torch.isnan(t), torch.full_like(t, 0), t)
             temp = torch.sqrt(((p - t) ** 2).mean())
-            loss = loss + temp
-        return loss
-
-
-class RmseLossWeighted(torch.nn.Module):
-    def __init__(self):
-        """
-        RMSE loss which could ignore NaN values
-
-        Now we only support 3-d tensor and 1-d tensor
-        """
-        super(RmseLossWeighted, self).__init__()
-
-    def forward(self, output, target):
-        if target.dim() == 1:
-            mask = target == target
-            p = output[mask]
-            t = target[mask]
-            rmse = torch.sqrt(((p - t) ** 2).mean())
-            tplus = t[t > 0]
-            if (len(t) > 0) & (len(tplus) > 0):
-                maxk = min(t.max() // tplus.min(), len(t))
-                tw = max(torch.topk(t, int(len(t) // maxk))[0].mean(), 1)
-                return (rmse * tw).mean()
-            return rmse
-        ny = target.shape[2]
-        loss = 0
-        for k in range(ny):
-            p0 = output[:, :, k]
-            t0 = target[:, :, k]
-            mask = t0 == t0
-            p = p0[mask]
-            p = torch.where(torch.isnan(p), torch.full_like(p, 0), p)
-            t = t0[mask]
-            t = torch.where(torch.isnan(t), torch.full_like(t, 0), t)
-            temp = torch.sqrt(((p - t) ** 2).mean())
-            tplus = t[t > 0]
-            if (len(t) > 0) & (len(tplus) > 0):
-                maxk = min(t.max() // t.min(), len(t))
-                t = torch.topk(t, len(t) // maxk)[0].mean()
-                loss = loss + (temp * t).mean()
             loss = loss + temp
         return loss
 

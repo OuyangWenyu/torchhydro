@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:32:26
-LastEditTime: 2025-07-12 11:29:51
+LastEditTime: 2025-07-13 10:30:14
 LastEditors: Wenyu Ouyang
 Description:
 FilePath: /torchhydro/torchhydro/models/seq2seq.py
@@ -13,12 +13,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import LayerNorm
 import math
-import random
-import dgl
-from dgl.nn.pytorch.conv import gatv2conv
 
-# from torchhydro.models.fds import FDS
 from torchhydro.models.minlstm import MinLSTM
+
 
 class Attention(nn.Module):
     def __init__(self, hidden_dim):
@@ -372,7 +369,17 @@ class Transformer(nn.Module):
 
 
 class EncoderMinLSTMGNN(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, graph, seq_length, num_heads=4, pre_norm=False, upstream_cut=5):
+    def __init__(
+        self,
+        input_dim,
+        hidden_dim,
+        output_dim,
+        graph,
+        seq_length,
+        num_heads=4,
+        pre_norm=False,
+        upstream_cut=5,
+    ):
         super(EncoderMinLSTMGNN, self).__init__()
         self.pre_norm = pre_norm
         self.upstream_cut = upstream_cut
@@ -389,16 +396,28 @@ class EncoderMinLSTMGNN(nn.Module):
     def forward(self, x):
         if not self.pre_norm:
             # x = torch.log10(x+1)
-            x = torch.concat([x[:, :, 0].unsqueeze(-1), torch.log10(x[:, :, 1:]+1)], dim=-1)
+            x = torch.concat(
+                [x[:, :, 0].unsqueeze(-1), torch.log10(x[:, :, 1:] + 1)], dim=-1
+            )
         else:
-            x = torch.concat([x[:, :, :-self.upstream_cut], torch.log10(x[:, :, -self.upstream_cut:]+1)], dim=-1)
+            x = torch.concat(
+                [
+                    x[:, :, : -self.upstream_cut],
+                    torch.log10(x[:, :, -self.upstream_cut :] + 1),
+                ],
+                dim=-1,
+            )
         self.graph = self.graph.to(x.device)
         x = torch.where(x.isnan(), 0, x)
         xmax = x[x.isfinite()].max()
         x = torch.where(~x.isfinite(), xmax, x)
         gnn_outputs0 = self.gnn0(self.graph, feat=x)
-        gnn_outputs1 = F.silu(self.gnn1(self.graph, feat=gnn_outputs0.reshape(gnn_outputs0.shape[0], -1)))
-        gnn_outputs1 = gnn_outputs1.reshape(self.hidden_dim, self.seq_length, self.input_dim)
+        gnn_outputs1 = F.silu(
+            self.gnn1(self.graph, feat=gnn_outputs0.reshape(gnn_outputs0.shape[0], -1))
+        )
+        gnn_outputs1 = gnn_outputs1.reshape(
+            self.hidden_dim, self.seq_length, self.input_dim
+        )
         # PostNorm, https://kexue.fm/archives/9009
         gnn_outputs = torch.where(torch.isnan(gnn_outputs1), x, gnn_outputs1)
         gnn_outputs = x + gnn_outputs
@@ -427,7 +446,7 @@ class DecoderMinLSTMGNN(nn.Module):
         outputs = x + outputs
         outputs = F.silu(outputs)
         gnn_output = self.fc_out(self.ln1(outputs))
-        return gnn_output #, hiddens, cells
+        return gnn_output  # , hiddens, cells
 
 
 class Seq2Seq_Min_LSTM_GNN(nn.Module):
@@ -454,10 +473,18 @@ class Seq2Seq_Min_LSTM_GNN(nn.Module):
         self.graph = dgl.add_self_loop(graph)
         self.pre_norm = pre_norm
         self.output_size = output_size
-        self.encoder = EncoderMinLSTMGNN(input_dim=en_input_size, hidden_dim=hidden_size, output_dim=output_size,
-                                         graph=self.graph, seq_length=forecast_history, pre_norm=pre_norm, upstream_cut=upstream_cut)
+        self.encoder = EncoderMinLSTMGNN(
+            input_dim=en_input_size,
+            hidden_dim=hidden_size,
+            output_dim=output_size,
+            graph=self.graph,
+            seq_length=forecast_history,
+            pre_norm=pre_norm,
+            upstream_cut=upstream_cut,
+        )
         self.decoder = DecoderMinLSTMGNN(
-            input_dim=de_input_size, hidden_dim=hidden_size, output_dim=output_size)
+            input_dim=de_input_size, hidden_dim=hidden_size, output_dim=output_size
+        )
         # self.fds = FDS(en_input_size)
 
     def forward(self, *src):
@@ -465,25 +492,39 @@ class Seq2Seq_Min_LSTM_GNN(nn.Module):
             encoder_input, decoder_input, trgs = src
         else:
             encoder_input, decoder_input = src
-            trgs = torch.full((decoder_input.shape[0], self.prec_window + self.trg_len, self.output_size),
-                              float("nan"), device=decoder_input.device)
+            trgs = torch.full(
+                (
+                    decoder_input.shape[0],
+                    self.prec_window + self.trg_len,
+                    self.output_size,
+                ),
+                float("nan"),
+                device=decoder_input.device,
+            )
         # encoder_input = self.fds.smooth(features=encoder_input, labels=trgs, epoch=100)
         encoder_outputs = self.encoder(encoder_input)
         outputs = []
         current_input = encoder_outputs[:, -1, :].unsqueeze(1)
         for t in range(self.trg_len):
-            p = decoder_input[:, t, :].unsqueeze(1) if self.pre_norm else torch.log10(decoder_input[:, t, :].unsqueeze(1) + 1)
+            p = (
+                decoder_input[:, t, :].unsqueeze(1)
+                if self.pre_norm
+                else torch.log10(decoder_input[:, t, :].unsqueeze(1) + 1)
+            )
             current_input = torch.cat((current_input, p), dim=2)
             output = self.decoder(current_input)
             outputs.append(output.squeeze(1))
             trg = trgs[:, (self.prec_window + t), :].unsqueeze(1)
             valid_mask = ~torch.isnan(trg)
             random_vals = torch.rand_like(valid_mask, dtype=torch.float)
-            use_teacher_forcing = (random_vals < self.teacher_forcing_ratio) * valid_mask
+            use_teacher_forcing = (
+                random_vals < self.teacher_forcing_ratio
+            ) * valid_mask
             current_input = torch.where(
                 torch.isnan(trg),  # if trg is nan
                 output,  # then use output
-                trg * use_teacher_forcing + output * (~use_teacher_forcing))  # else calculate with teacher forcing
+                trg * use_teacher_forcing + output * (~use_teacher_forcing),
+            )  # else calculate with teacher forcing
         outputs = torch.stack(outputs, dim=1)
         prec_outputs = encoder_outputs[:, -self.prec_window, :].unsqueeze(1)
         outputs = torch.cat((prec_outputs, outputs), dim=1)

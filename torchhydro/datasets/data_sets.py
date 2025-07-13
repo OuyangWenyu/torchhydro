@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-07-12 11:20:33
+LastEditTime: 2025-07-13 10:28:21
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: /torchhydro/torchhydro/datasets/data_sets.py
@@ -37,7 +37,6 @@ from torchhydro.datasets.data_utils import (
     wrap_t_s_dict,
     warn_if_nan_pq,
 )
-from torchhydro.trainers.train_utils import total_fab
 
 LOGGER = logging.getLogger(__name__)
 
@@ -1777,9 +1776,9 @@ class GNNDataset(Seq2SeqDataset):
                             [station_df, up_str_df], how="horizontal"
                         )
                         total_df = pl.concat([total_df, station_df])
-            if total_fab.global_rank == 0:
-                total_df.write_parquet(tra_val_te_ds)
-                total_fab.barrier()
+            # if total_fab.global_rank == 0:
+            #     total_df.write_parquet(tra_val_te_ds)
+            # total_fab.barrier()
         total_df = total_df[total_df.columns[:save_cols]]
         return total_df
 

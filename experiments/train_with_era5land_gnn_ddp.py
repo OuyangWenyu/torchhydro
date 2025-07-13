@@ -1,20 +1,18 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-05-20 10:40:46
-LastEditTime: 2024-05-27 08:43:55
+LastEditTime: 2025-07-13 10:00:32
 LastEditors: Wenyu Ouyang
 Description:
-FilePath: \torchhydro\experiments\train_with_era5land.py
+FilePath: /torchhydro/experiments/train_with_era5land_gnn_ddp.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 import glob
 import logging
 import os
 
-import dgl
 
 from experiments.fabric_launcher_config import create_config_fabric
-from torchhydro.datasets.create_graph import get_upstream_graph
 from torchhydro.configs.config import cmd, update_cfg
 from torchhydro.trainers.train_utils import total_fab
 from torchhydro.trainers.trainer import train_and_evaluate

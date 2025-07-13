@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-12 11:33:21
+LastEditTime: 2025-07-13 10:33:39
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
 FilePath: /torchhydro/torchhydro/trainers/train_logger.py
@@ -16,7 +16,6 @@ from hydroutils import hydro_file
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from torchhydro.trainers.train_utils import total_fab
 
 from torchhydro.trainers.train_utils import get_lastest_logger_file_in_a_dir
 
@@ -31,11 +30,15 @@ def save_model(model, model_file):
 def save_model_params_log(params, params_log_path):
     time_stamp = datetime.now().strftime("%d_%B_%Y%I_%M%p")
     params_log_file = os.path.join(params_log_path, f"{time_stamp}.json")
-    if 'graph' in params['model_cfgs']['model_hyperparam'].keys():
-        params['model_cfgs']['model_hyperparam']['graph'] = str(params['model_cfgs']['model_hyperparam']['graph'])
-        device = params['model_cfgs']['model_hyperparam']['device']
+    if "graph" in params["model_cfgs"]["model_hyperparam"].keys():
+        params["model_cfgs"]["model_hyperparam"]["graph"] = str(
+            params["model_cfgs"]["model_hyperparam"]["graph"]
+        )
+        device = params["model_cfgs"]["model_hyperparam"]["device"]
         if not isinstance(device, int):
-            params['model_cfgs']['model_hyperparam']['device'] = params['model_cfgs']['model_hyperparam']['device'].index
+            params["model_cfgs"]["model_hyperparam"]["device"] = params["model_cfgs"][
+                "model_hyperparam"
+            ]["device"].index
     hydro_file.serialize_json(params, params_log_file)
 
 
@@ -163,12 +166,16 @@ class TrainLogger:
             return
         if (save_epoch > 0 and epoch % save_epoch == 0) or epoch == final_epoch:
             # save for save_epoch
-            if (self.model_cfgs['continue_train']) & (self.model_cfgs['weight_path'] is not None):
+            if (self.model_cfgs["continue_train"]) & (
+                self.model_cfgs["weight_path"] is not None
+            ):
                 # 假设预训练权重文件名为xxxEp{epoch}.pth
                 pre_model = self.model_cfgs["weight_path"]
-                past_epoch = int(pre_model.split('.')[0].split('Ep')[-1])
+                past_epoch = int(pre_model.split(".")[0].split("Ep")[-1])
                 epoch += past_epoch
-            model_file = os.path.join(self.training_save_dir, f"model_Ep{str(epoch)}.pth")
+            model_file = os.path.join(
+                self.training_save_dir, f"model_Ep{str(epoch)}.pth"
+            )
             save_model(model, model_file)
         if epoch == final_epoch:
             self._save_final_epoch(params, model)

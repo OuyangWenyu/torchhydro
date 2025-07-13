@@ -1,10 +1,10 @@
 <!--
  * @Author: Wenyu Ouyang
  * @Date: 2024-04-13 18:29:19
- * @LastEditTime: 2024-04-13 19:30:01
+ * @LastEditTime: 2025-07-13 10:24:29
  * @LastEditors: Wenyu Ouyang
  * @Description: 中文版本的README
- * @FilePath: \torchhydro\README.zh.md
+ * @FilePath: /torchhydro/README.zh.md
  * Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 -->
 # Torchhydro
@@ -32,11 +32,46 @@ pip install torchhydro
 # fork this repository to your GitHub account -- xxxx
 git clone git@github.com:xxxx/torchhydro.git
 cd torchhydro
-# 如果觉得慢，你可以用mamba安装
-# conda install mamba -c conda-forge
-# mamba env create -f env-dev.yml
-conda env create -f env-dev.yml
+```
+
+### 方式1：使用uv独立虚拟环境（推荐）
+
+```Shell
+# 如果尚未安装uv，先安装, 适用于linux和macos
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# 适用于windows
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex" 6
+# 安装uv
+pip install uv
+# 安装项目依赖
+# 创建并激活虚拟环境，安装依赖
+uv sync --dev
+# 激活虚拟环境
+source .venv/bin/activate  # Linux/Mac系统
+# 或者
+.venv\Scripts\activate     # Windows系统
+```
+
+### 方式2：使用uv配合conda环境
+
+```Shell
+# 创建conda环境（需要Python >=3.9）
+conda create -n torchhydro python=3.11
 conda activate torchhydro
+# 在conda环境中安装uv
+pip install uv
+# 将项目依赖安装到conda环境
+uv pip install -e .[dev]
+```
+
+**注意**：
+- 方式1会在`.venv/`文件夹中创建独立的虚拟环境
+- 方式2会直接在conda环境中安装包
+- 两种方式功能相同
+- 如果需要安装更多pytorch geometric的包，可以使用以下命令：
+```Shell
+uv pip install torch-scatter torch-sparse torch-cluster \
+    --find-links https://data.pyg.org/whl/torch-2.5.0+cu124.html
 ```
 
 ## 使用

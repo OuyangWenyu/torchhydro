@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-12 11:26:42
+LastEditTime: 2025-07-13 10:32:43
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: /torchhydro/torchhydro/models/model_dict_function.py
@@ -92,7 +92,7 @@ pytorch_model_dict = {
     "DataFusion": DataFusionModel,
     # Transformer
     "Transformer": Transformer,
-    "Seq2SeqMinGNN": Seq2Seq_Min_LSTM_GNN
+    "Seq2SeqMinGNN": Seq2Seq_Min_LSTM_GNN,
     "DplNnModuleXaj": DplLstmNnModuleXaj,
     "DplLstmHbv": DplLstmHbv,
     "DplAnnHbv": DplAnnHbv,
@@ -108,13 +108,11 @@ pytorch_criterion_dict = {
     "RMSE": RMSELoss,
     # xxxSum means that calculate the criterion for each "feature"(the final dim of output), then sum them up
     "RMSESum": RmseLoss,
-    "RMSEWeightedSum": RmseLossWeighted,
     "MultiOutLoss": MultiOutLoss,
     "UncertaintyWeights": UncertaintyWeights,
     "DynamicTaskPrior": DynamicTaskPrior,
     "MultiOutWaterBalanceLoss": MultiOutWaterBalanceLoss,
     "NSELoss": NSELoss,
-    "NSELoss1D": NSELoss1D,
     "MAPELoss": MAPELoss,
     "MASELoss": MASELoss,
     "MAELoss": MAELoss,

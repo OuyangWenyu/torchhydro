@@ -1,0 +1,154 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torchhydro"
+version = "0.0.9"
+description = "datasets, samplers, transforms, and pre-trained models for hydrology and water resources"
+authors = [{name = "Wenyu Ouyang", email = "wenyuouyang@outlook.com"}]
+license = {text = "BSD"}
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+keywords = ["torchhydro", "hydrology", "water resources", "deep learning"]
+
+# 基础依赖
+dependencies = [
+    "geopandas",
+    "scikit-learn",
+    "tbparse",
+    "fsspec",
+    "intake",
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "tensorboard",
+    "kaggle",
+    "pytest",
+    "hydrodatasource",
+    # PyTorch Geometric 包（核心包）
+    "torch-geometric",
+    # 注意：torch-scatter, torch-sparse, torch-cluster 可能需要从源码编译
+    # 如果遇到编译问题，可以只安装核心包或使用预编译版本
+    "cartopy>=0.23.0",
+    "rich>=14.0.0",
+    "boto3>=1.39.4",
+    "s3fs>=0.4.2",
+    "minio>=7.2.15",
+    "lightning>=2.5.2",
+    "shap>=0.48.0",
+]
+
+[project.optional-dependencies]
+# 开发依赖
+dev = [
+    "pytest-mock",
+    "setuptools",
+    "bump2version",
+    "wheel",
+    "watchdog",
+    "flake8",
+    "tox",
+    "coverage",
+    "Sphinx",
+    "twine",
+    "grip",
+    "pytest-runner",
+]
+
+# 测试依赖
+test = [
+    "pytest>=3",
+    "pytest-mock",
+    "coverage",
+]
+
+# 文档依赖
+docs = [
+    "Sphinx",
+    "grip",
+]
+
+# 构建依赖
+build = [
+    "setuptools",
+    "wheel",
+    "twine",
+    "bump2version",
+]
+
+[project.urls]
+Homepage = "https://github.com/OuyangWenyu/torchhydro"
+Repository = "https://github.com/OuyangWenyu/torchhydro"
+Documentation = "https://github.com/OuyangWenyu/torchhydro"
+Issues = "https://github.com/OuyangWenyu/torchhydro/issues"
+
+[project.scripts]
+torchhydro = "torchhydro.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["torchhydro", "torchhydro.*"]
+
+[tool.setuptools.package-data]
+torchhydro = ["*"]
+
+# pytest 配置
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+# black 代码格式化配置
+[tool.black]
+line-length = 88
+target-version = ['py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+# isort 导入排序配置
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["torchhydro"]
+
+# flake8 配置
+[tool.flake8]
+max-line-length = 88
+exclude = ["docs", ".git", "__pycache__", "build", "dist"]
+ignore = ["E203", "W503"]
+
+# mypy 类型检查配置
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true 

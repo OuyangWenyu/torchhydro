@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-02 14:37:09
-LastEditTime: 2025-07-12 11:23:10
+LastEditTime: 2025-07-13 10:15:17
 LastEditors: Wenyu Ouyang
 Description: A module for different data sources
 FilePath: /torchhydro/torchhydro/datasets/data_sources.py
@@ -727,7 +727,6 @@ data_sources_dict = {
     "camels_us": Camels,
     "grdc_caravan": GrdcCaravan,
     "selfmadehydrodataset": SelfMadeHydroDataset,
-    "selfmadehydrodataset_pq": SelfMadeHydroDataset_PQ,
     "selfmadeforecastdataset": SelfMadeForecastDataset,
     "usgs4camels": SupData4Camels,
     "modiset4camels": ModisEt4Camels,

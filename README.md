@@ -1,10 +1,10 @@
 <!--
  * @Author: Wenyu Ouyang
  * @Date: 2024-04-13 18:29:19
- * @LastEditTime: 2024-04-14 09:12:47
+ * @LastEditTime: 2025-07-13 10:23:38
  * @LastEditors: Wenyu Ouyang
  * @Description: English version of the README
- * @FilePath: \torchhydro\README.md
+ * @FilePath: /torchhydro/README.md
  * Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 -->
 # Torchhydro
@@ -34,11 +34,43 @@ If you want to participate in the development as a developer, you can install th
 # fork this repository to your GitHub account -- xxxx
 git clone git@github.com:xxxx/torchhydro.git
 cd torchhydro
-# If you find it slow, you can install with mamba
-# conda install mamba -c conda-forge
-# mamba env create -f env-dev.yml
-conda env create -f env-dev.yml
+```
+
+### Option 1: Using uv with standalone virtual environment (recommended)
+
+```Shell
+# Install uv if not already installed, for linux and macos
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# for windows, you can use the following command
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex" 6
+# Create and activate virtual environment, install dependencies
+uv sync --dev
+# Activate the virtual environment
+source .venv/bin/activate  # On Linux/Mac
+# or
+.venv\Scripts\activate     # On Windows
+```
+
+### Option 2: Using uv with conda environment
+
+```Shell
+# Create conda environment (requires Python >=3.9)
+conda create -n torchhydro python=3.11
 conda activate torchhydro
+# Install uv in conda environment
+pip install uv
+# Install project dependencies to conda environment
+uv pip install -e .[dev]
+```
+
+**Note**: 
+- Option 1 creates an isolated virtual environment in `.venv/` folder
+- Option 2 installs packages directly into your conda environment
+- Both methods provide the same functionality
+- For more pytorch geometric packages, you can use the following command:
+```Shell
+uv pip install torch-scatter torch-sparse torch-cluster \
+    --find-links https://data.pyg.org/whl/torch-2.5.0+cu124.html
 ```
 
 ## Usage

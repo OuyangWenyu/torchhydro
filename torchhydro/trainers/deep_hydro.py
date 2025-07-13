@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-07-12 11:31:35
+LastEditTime: 2025-07-13 10:36:28
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
@@ -18,7 +18,6 @@ from typing import Dict, Tuple
 import numpy as np
 import xarray as xr
 import torch
-from dgl.dataloading import GraphDataLoader, MultiLayerFullNeighborSampler
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
 # from lightning.fabric.wrappers import _FabricModule
 import torch.distributed as dist
@@ -43,7 +42,6 @@ from torchhydro.models.model_dict_function import (
 )
 from torchhydro.trainers.train_logger import TrainLogger
 from torchhydro.trainers.train_utils import (
-    total_fab,
     EarlyStopper,
     average_weights,
     evaluate_validation,
