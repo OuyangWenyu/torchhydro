@@ -1,20 +1,18 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:32:26
-LastEditTime: 2025-07-13 10:30:14
+LastEditTime: 2024-11-05 19:10:02
 LastEditors: Wenyu Ouyang
 Description:
-FilePath: /torchhydro/torchhydro/models/seq2seq.py
+FilePath: \torchhydro\torchhydro\models\seq2seq.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import LayerNorm
 import math
-
-from torchhydro.models.minlstm import MinLSTM
+import random
 
 
 class Attention(nn.Module):
@@ -232,6 +230,7 @@ class DataFusionModel(DataEnhancedModel):
     def __init__(self, input_dim, **kwargs):
         super(DataFusionModel, self).__init__(**kwargs)
         self.input_dim = input_dim
+
         self.fusion_layer = nn.Conv1d(
             in_channels=input_dim, out_channels=1, kernel_size=1
         )
@@ -366,166 +365,3 @@ class Transformer(nn.Module):
         src, trg = x
         src = self.encode_src(src)
         return self.decode_trg(trg=trg, memory=src)
-
-
-class EncoderMinLSTMGNN(nn.Module):
-    def __init__(
-        self,
-        input_dim,
-        hidden_dim,
-        output_dim,
-        graph,
-        seq_length,
-        num_heads=4,
-        pre_norm=False,
-        upstream_cut=5,
-    ):
-        super(EncoderMinLSTMGNN, self).__init__()
-        self.pre_norm = pre_norm
-        self.upstream_cut = upstream_cut
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-        self.output_dim = output_dim
-        self.seq_length = seq_length
-        self.ln0 = LayerNorm(input_dim)
-        self.graph = dgl.batch([graph] * seq_length)
-        self.gnn0 = gatv2conv.GATv2Conv(input_dim, input_dim, num_heads=num_heads)
-        self.gnn1 = gatv2conv.GATv2Conv(input_dim * num_heads, input_dim, num_heads=1)
-        self.fc = nn.Linear(input_dim, output_dim)
-
-    def forward(self, x):
-        if not self.pre_norm:
-            # x = torch.log10(x+1)
-            x = torch.concat(
-                [x[:, :, 0].unsqueeze(-1), torch.log10(x[:, :, 1:] + 1)], dim=-1
-            )
-        else:
-            x = torch.concat(
-                [
-                    x[:, :, : -self.upstream_cut],
-                    torch.log10(x[:, :, -self.upstream_cut :] + 1),
-                ],
-                dim=-1,
-            )
-        self.graph = self.graph.to(x.device)
-        x = torch.where(x.isnan(), 0, x)
-        xmax = x[x.isfinite()].max()
-        x = torch.where(~x.isfinite(), xmax, x)
-        gnn_outputs0 = self.gnn0(self.graph, feat=x)
-        gnn_outputs1 = F.silu(
-            self.gnn1(self.graph, feat=gnn_outputs0.reshape(gnn_outputs0.shape[0], -1))
-        )
-        gnn_outputs1 = gnn_outputs1.reshape(
-            self.hidden_dim, self.seq_length, self.input_dim
-        )
-        # PostNorm, https://kexue.fm/archives/9009
-        gnn_outputs = torch.where(torch.isnan(gnn_outputs1), x, gnn_outputs1)
-        gnn_outputs = x + gnn_outputs
-        gnn_outputs = F.silu(gnn_outputs)
-        # https://openaccess.thecvf.com/content_CVPR_2019/papers/Li_Understanding_the_Disharmony_Between_Dropout_and_Batch_Normalization_by_Variance_CVPR_2019_paper.pdf
-        # gnn_outputs = self.dropout(gnn_outputs)
-        gnn_outputs = self.fc(self.ln0(gnn_outputs))
-        return gnn_outputs
-
-
-class DecoderMinLSTMGNN(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim):
-        super(DecoderMinLSTMGNN, self).__init__()
-        self.hidden_dim = hidden_dim
-        self.lstm = MinLSTM(input_dim, input_dim)
-        self.lstm1 = MinLSTM(input_dim, input_dim)
-        # self.dropout = nn.Dropout(dropout)
-        self.ln1 = torch.nn.LayerNorm(input_dim)
-        self.fc_out = nn.Linear(input_dim, output_dim)
-
-    def forward(self, t_input):
-        x = torch.where(torch.isnan(t_input), 0, t_input)
-        # https://arxiv.org/abs/1506.02078
-        outputs = F.silu(self.lstm1(self.lstm(x)))
-        outputs = torch.where(torch.isnan(outputs), x, outputs)
-        outputs = x + outputs
-        outputs = F.silu(outputs)
-        gnn_output = self.fc_out(self.ln1(outputs))
-        return gnn_output  # , hiddens, cells
-
-
-class Seq2Seq_Min_LSTM_GNN(nn.Module):
-    def __init__(
-        self,
-        en_input_size,
-        de_input_size,
-        output_size,
-        hidden_size,
-        forecast_history,
-        forecast_length,
-        graph,
-        prec_window=0,
-        teacher_forcing_ratio=0,
-        pre_norm=False,
-        upstream_cut=5,
-    ):
-        # 考虑采取mixup和swish激活函数改善指标
-        super(Seq2Seq_Min_LSTM_GNN, self).__init__()
-        self.trg_len = forecast_length
-        self.prec_window = prec_window
-        self.teacher_forcing_ratio = teacher_forcing_ratio
-        self.forecast_history = forecast_history
-        self.graph = dgl.add_self_loop(graph)
-        self.pre_norm = pre_norm
-        self.output_size = output_size
-        self.encoder = EncoderMinLSTMGNN(
-            input_dim=en_input_size,
-            hidden_dim=hidden_size,
-            output_dim=output_size,
-            graph=self.graph,
-            seq_length=forecast_history,
-            pre_norm=pre_norm,
-            upstream_cut=upstream_cut,
-        )
-        self.decoder = DecoderMinLSTMGNN(
-            input_dim=de_input_size, hidden_dim=hidden_size, output_dim=output_size
-        )
-        # self.fds = FDS(en_input_size)
-
-    def forward(self, *src):
-        if len(src) == 3:
-            encoder_input, decoder_input, trgs = src
-        else:
-            encoder_input, decoder_input = src
-            trgs = torch.full(
-                (
-                    decoder_input.shape[0],
-                    self.prec_window + self.trg_len,
-                    self.output_size,
-                ),
-                float("nan"),
-                device=decoder_input.device,
-            )
-        # encoder_input = self.fds.smooth(features=encoder_input, labels=trgs, epoch=100)
-        encoder_outputs = self.encoder(encoder_input)
-        outputs = []
-        current_input = encoder_outputs[:, -1, :].unsqueeze(1)
-        for t in range(self.trg_len):
-            p = (
-                decoder_input[:, t, :].unsqueeze(1)
-                if self.pre_norm
-                else torch.log10(decoder_input[:, t, :].unsqueeze(1) + 1)
-            )
-            current_input = torch.cat((current_input, p), dim=2)
-            output = self.decoder(current_input)
-            outputs.append(output.squeeze(1))
-            trg = trgs[:, (self.prec_window + t), :].unsqueeze(1)
-            valid_mask = ~torch.isnan(trg)
-            random_vals = torch.rand_like(valid_mask, dtype=torch.float)
-            use_teacher_forcing = (
-                random_vals < self.teacher_forcing_ratio
-            ) * valid_mask
-            current_input = torch.where(
-                torch.isnan(trg),  # if trg is nan
-                output,  # then use output
-                trg * use_teacher_forcing + output * (~use_teacher_forcing),
-            )  # else calculate with teacher forcing
-        outputs = torch.stack(outputs, dim=1)
-        prec_outputs = encoder_outputs[:, -self.prec_window, :].unsqueeze(1)
-        outputs = torch.cat((prec_outputs, outputs), dim=1)
-        return outputs

@@ -1,10 +1,10 @@
 <!--
  * @Author: Wenyu Ouyang
  * @Date: 2024-04-13 18:29:19
- * @LastEditTime: 2025-07-13 10:23:38
+ * @LastEditTime: 2025-07-13 14:24:12
  * @LastEditors: Wenyu Ouyang
  * @Description: English version of the README
- * @FilePath: /torchhydro/README.md
+ * @FilePath: \torchhydro\README.md
  * Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 -->
 # Torchhydro
@@ -41,8 +41,12 @@ cd torchhydro
 ```Shell
 # Install uv if not already installed, for linux and macos
 curl -LsSf https://astral.sh/uv/install.sh | sh
-# for windows, you can use the following command
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex" 6
+# for windows, you can use the following command with admin privileges powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# if network is not good, you can use the following command
+pip install uv
+# check uv version
+uv --version
 # Create and activate virtual environment, install dependencies
 uv sync --dev
 # Activate the virtual environment

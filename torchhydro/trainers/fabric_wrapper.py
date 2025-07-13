@@ -1,19 +1,25 @@
 """
 Author: Wenyu Ouyang
-Date: 2025-01-13
+Date: 2023-07-25 16:47:19
+LastEditTime: 2025-06-17 10:39:32
+LastEditors: Wenyu Ouyang
 Description: Lightning Fabric wrapper for debugging and distributed training
-FilePath: /torchhydro/torchhydro/trainers/fabric_wrapper.py
+FilePath: \torchhydro\torchhydro\trainers\fabric_wrapper.py
+Copyright (c) 2025-2026 Wenyu Ouyang. All rights reserved.
 """
 
-import os
 import torch
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Tuple
+
+from torchhydro.models.model_utils import get_the_device
 
 
 class FabricWrapper:
     """
     A wrapper class that can switch between Lightning Fabric and normal PyTorch operations
     based on configuration settings.
+
+    TODO: the fabric wrapper is not fully used for parallel training yet
     """
 
     def __init__(self, use_fabric: bool = True, fabric_config: Optional[Dict] = None):
@@ -29,15 +35,15 @@ class FabricWrapper:
         """
         self.use_fabric = use_fabric
         self.fabric_config = fabric_config or {}
-        self._fabric = None
-        self._device = None
+        self._fabric: Optional[Any] = None
+        self._device: Optional[torch.device] = None
 
         if self.use_fabric:
             self._init_fabric()
         else:
             self._init_pytorch()
 
-    def _init_fabric(self):
+    def _init_fabric(self) -> None:
         """Initialize Lightning Fabric"""
         try:
             import lightning as L
@@ -61,47 +67,52 @@ class FabricWrapper:
             self.use_fabric = False
             self._init_pytorch()
 
-    def _init_pytorch(self):
+    def _init_pytorch(self) -> None:
         """Initialize normal PyTorch setup"""
-        self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device_num = self.fabric_config["devices"]
+        self._device = get_the_device(self.device_num)
         print(f"✅ Normal PyTorch initialized, using device: {self._device}")
 
-    def setup_module(self, model):
+    def setup_module(self, model: torch.nn.Module) -> torch.nn.Module:
         """Setup model for training"""
         if self.use_fabric:
             return self._fabric.setup_module(model)
         else:
             return model.to(self._device)
 
-    def setup_optimizers(self, optimizer):
+    def setup_optimizers(
+        self, optimizer: torch.optim.Optimizer
+    ) -> torch.optim.Optimizer:
         """Setup optimizer"""
         if self.use_fabric:
             return self._fabric.setup_optimizers(optimizer)
         else:
             return optimizer
 
-    def setup_dataloaders(self, *dataloaders):
+    def setup_dataloaders(
+        self, *dataloaders: torch.utils.data.DataLoader
+    ) -> Tuple[torch.utils.data.DataLoader, ...]:
         """Setup dataloaders"""
         if self.use_fabric:
             return self._fabric.setup_dataloaders(*dataloaders)
         else:
             return dataloaders
 
-    def save(self, path: str, state_dict: Dict[str, Any]):
+    def save(self, path: str, state_dict: Dict[str, Any]) -> None:
         """Save model state"""
         if self.use_fabric:
             self._fabric.save(path, state_dict)
         else:
             torch.save(state_dict, path)
 
-    def load(self, path: str, model: Optional[torch.nn.Module] = None):
+    def load(self, path: str, model: Optional[torch.nn.Module] = None) -> Any:
         """Load model state"""
         if self.use_fabric:
             return self._fabric.load(path, model)
         else:
             return torch.load(path, map_location=self._device)
 
-    def load_raw(self, path: str, model: torch.nn.Module):
+    def load_raw(self, path: str, model: torch.nn.Module) -> None:
         """Load raw model weights"""
         if self.use_fabric:
             checkpoint = self._fabric.load(path)
@@ -110,7 +121,7 @@ class FabricWrapper:
             checkpoint = torch.load(path, map_location=self._device)
             model.load_state_dict(checkpoint)
 
-    def launch(self, fn=None, *args, **kwargs):
+    def launch(self, fn: Optional[Any] = None, *args: Any, **kwargs: Any) -> Any:
         """Launch training function"""
         if self.use_fabric:
             if fn is None:
@@ -125,14 +136,19 @@ class FabricWrapper:
             else:
                 return None
 
-    def backward(self, loss):
+    def backward(self, loss: torch.Tensor) -> None:
         """Backward pass"""
         if self.use_fabric:
             self._fabric.backward(loss)
         else:
             loss.backward()
 
-    def clip_gradients(self, model, optimizer, max_norm: float = 1.0):
+    def clip_gradients(
+        self,
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        max_norm: float = 1.0,
+    ) -> None:
         """Clip gradients"""
         if self.use_fabric:
             self._fabric.clip_gradients(model, optimizer, max_norm=max_norm)
@@ -140,7 +156,7 @@ class FabricWrapper:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
 
     @property
-    def device(self):
+    def device(self) -> torch.device:
         """Get current device"""
         if self.use_fabric:
             return self._fabric.device
@@ -148,7 +164,7 @@ class FabricWrapper:
             return self._device
 
     @property
-    def local_rank(self):
+    def local_rank(self) -> int:
         """Get local rank"""
         if self.use_fabric:
             return self._fabric.local_rank
@@ -156,7 +172,7 @@ class FabricWrapper:
             return 0
 
     @property
-    def global_rank(self):
+    def global_rank(self) -> int:
         """Get global rank"""
         if self.use_fabric:
             return self._fabric.global_rank
@@ -164,21 +180,21 @@ class FabricWrapper:
             return 0
 
     @property
-    def world_size(self):
+    def world_size(self) -> int:
         """Get world size"""
         if self.use_fabric:
             return self._fabric.world_size
         else:
             return 1
 
-    def barrier(self):
+    def barrier(self) -> None:
         """Synchronization barrier"""
         if self.use_fabric:
             self._fabric.barrier()
         else:
             pass  # No barrier needed for single process
 
-    def print(self, *args, **kwargs):
+    def print(self, *args: Any, **kwargs: Any) -> None:
         """Print only on rank 0"""
         if self.use_fabric:
             self._fabric.print(*args, **kwargs)
@@ -201,24 +217,19 @@ def create_fabric_wrapper(training_cfgs: Dict) -> FabricWrapper:
         Initialized fabric wrapper
     """
     # Check if we should use fabric
-    use_fabric = training_cfgs.get("use_fabric", True)
-
-    # For debugging, disable fabric
-    if training_cfgs.get("debug_mode", False):
-        use_fabric = False
-        print("🐛 Debug mode enabled - disabling Lightning Fabric")
+    fabric_strategy = training_cfgs.get("fabric_strategy")
+    use_fabric = fabric_strategy is not None
 
     # Check if we have multiple devices
     devices = training_cfgs.get("device", [0])
-    if isinstance(devices, list) and len(devices) == 1:
-        # Single device, we might not need fabric
-        if not training_cfgs.get("force_fabric", False):
-            print("📱 Single device detected - you can disable Fabric for debugging")
+    if isinstance(devices, list) and len(devices) == 1 and use_fabric:
+        print("📱 Single device detected - we can disable Fabric")
+        use_fabric = False
 
     # Fabric configuration
     fabric_config = {
         "devices": devices if isinstance(devices, list) else [devices],
-        "strategy": training_cfgs.get("strategy", "auto"),
+        "strategy": fabric_strategy,
         "precision": training_cfgs.get("precision", "32-true"),
         "accelerator": training_cfgs.get("accelerator", "auto"),
     }

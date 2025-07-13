@@ -1,41 +1,35 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-07-13 10:28:21
+LastEditTime: 2025-07-13 15:44:28
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
-FilePath: /torchhydro/torchhydro/datasets/data_sets.py
+FilePath: \torchhydro\torchhydro\datasets\data_sets.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import logging
-import os.path
 import re
 import sys
-from datetime import datetime
-from datetime import timedelta
-from typing import Optional
-
-import networkx as nx
-import numpy as np
-import pandas as pd
 import torch
 import xarray as xr
-import polars as pl
-from hydrodatasource.reader.data_source import SelfMadeHydroDataset
-from hydrodatasource.utils.utils import streamflow_unit_conv
+import numpy as np
+import pandas as pd
+from datetime import datetime, timedelta
+from typing import Optional
 from torch.utils.data import Dataset
 from tqdm import tqdm
+from hydrodatasource.utils.utils import streamflow_unit_conv
 
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
+from tqdm import tqdm
 
 from torchhydro.datasets.data_utils import (
     set_unit_to_var,
     warn_if_nan,
     wrap_t_s_dict,
-    warn_if_nan_pq,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -116,43 +110,6 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
     else:
         raise NotImplementedError(f"fill_nan {fill_nan} not implemented")
     return da
-
-
-def _fill_gaps_pq(df: pl.DataFrame, fill_nan: Optional[str] = None) -> pl.DataFrame:
-    """Fill gaps in a DataArray"""
-    if fill_nan is None or df is None:
-        return df
-    # fill gaps
-    if fill_nan == "et_ssm_ignore":
-        all_non_nan_idx = []
-        for col in df.columns[:-2]:
-            non_nan_idx_tmp = np.where(~np.isnan(np.float32(df[col].to_numpy())))
-            all_non_nan_idx = all_non_nan_idx + non_nan_idx_tmp[0].tolist()
-        # some NaN data appear in different dates in different basins
-        non_nan_idx = np.unique(all_non_nan_idx).tolist()
-        df = df[non_nan_idx]
-    elif fill_nan == "mean":
-        # fill with mean
-        for var in df.columns:
-            var_data = df[var]  # select the data for the current variable
-            mean_val = var_data.mean()  # calculate the mean across all basins
-            if warn_if_nan(mean_val):
-                # when all value are NaN, mean_val will be NaN, we set mean_val to -1
-                mean_val = -1
-            filled_data = var_data.fill_nan(
-                mean_val
-            )  # fill NaN values with the calculated mean
-            df = df.with_columns(
-                filled_data.alias(var)
-            )  # update the original dataarray with the filled dat
-    elif fill_nan == "interpolate":
-        # fill interpolation
-        for col in df.columns:
-            inter_col = df[col].interpolate()
-            df = df.with_columns(inter_col.alias(col))
-    else:
-        raise NotImplementedError(f"fill_nan {fill_nan} not implemented")
-    return df
 
 
 def detect_date_format(date_str):
@@ -304,7 +261,7 @@ class BaseDataset(Dataset):
             earliest_date = earliest_date.strftime(date_format)
             latest_date = latest_date.strftime(date_format)
         else:
-            # trange_type_num = 1
+            trange_type_num = 1
             earliest_date = self.t_s_dict["t_final_range"][0]
             latest_date = self.t_s_dict["t_final_range"][1]
         min_time_unit = self.data_cfgs["min_time_unit"]

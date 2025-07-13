@@ -38,7 +38,7 @@ class LstmCellTied(nn.Module):
         mode="train",
         dr=0.5,
         dr_method="drX+drW+drC",
-        gpu=1
+        gpu=1,
     ):
         super(LstmCellTied, self).__init__()
 

@@ -62,7 +62,6 @@ class Resulter:
             raise ValueError("Invalid load_way")
         return epoch_name
 
-    '''
     def save_cfg(self, cfgs):
         # save the cfgs after training
         # update the cfgs with the latest one
@@ -80,7 +79,6 @@ class Resulter:
             # so here we still save params log if param file does not exist
             # no param file was saved yet, here we save data and params setting
             save_model_params_log(cfgs, self.result_dir)
-        '''
 
     def save_result(self, pred, obs):
         """
@@ -92,6 +90,10 @@ class Resulter:
             predictions
         obs
             observations
+        pred_name
+            the file name of predictions
+        obs_name
+            the file name of observations
 
         Returns
         -------
@@ -156,9 +158,9 @@ class Resulter:
             df.to_csv(output_file, index_label="basin_id")
 
         # Finally, try to explain model behaviour using shap
-        # is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
-        # if is_shap:
-            # shap_summary_plot(self.model, self.traindataset, self.testdataset)
+        is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
+        if is_shap:
+            shap_summary_plot(self.model, self.traindataset, self.testdataset)
             # deep_explain_model_summary_plot(self.model, test_data)
             # deep_explain_model_heatmap(self.model, test_data)
 

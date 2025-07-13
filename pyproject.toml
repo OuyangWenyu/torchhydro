@@ -30,9 +30,16 @@ dependencies = [
     "tbparse",
     "fsspec",
     "intake",
-    "torch",
-    "torchvision",
-    "torchaudio",
+    # PyTorch 依赖 - 根据平台选择CPU或GPU版本
+    "torch>=2.0.0,<3.0.0; sys_platform == 'darwin'",  # macOS CPU only
+    "torch>=2.0.0,<3.0.0; sys_platform == 'linux'",   # Linux GPU (CUDA)
+    "torch>=2.0.0,<3.0.0; sys_platform == 'win32'",   # Windows GPU (CUDA)
+    "torchvision>=0.15.0; sys_platform == 'darwin'",  # macOS CPU only
+    "torchvision>=0.15.0; sys_platform == 'linux'",   # Linux GPU (CUDA)
+    "torchvision>=0.15.0; sys_platform == 'win32'",   # Windows GPU (CUDA)
+    "torchaudio>=2.0.0; sys_platform == 'darwin'",    # macOS CPU only
+    "torchaudio>=2.0.0; sys_platform == 'linux'",     # Linux GPU (CUDA)
+    "torchaudio>=2.0.0; sys_platform == 'win32'",     # Windows GPU (CUDA)
     "tensorboard",
     "kaggle",
     "pytest",
@@ -97,6 +104,32 @@ Issues = "https://github.com/OuyangWenyu/torchhydro/issues"
 [project.scripts]
 torchhydro = "torchhydro.cli:main"
 
+# PyTorch 索引配置
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+# PyTorch 包源配置
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
+    { index = "pytorch-cu124", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
+    { index = "pytorch-cu124", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchaudio = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
+    { index = "pytorch-cu124", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
 [tool.setuptools.packages.find]
 include = ["torchhydro", "torchhydro.*"]
 
@@ -152,3 +185,8 @@ python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true 
+
+[dependency-groups]
+dev = [
+    "mypy>=1.16.1",
+]

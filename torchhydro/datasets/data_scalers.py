@@ -1,29 +1,23 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:17:44
-LastEditTime: 2025-07-12 11:13:30
+LastEditTime: 2025-06-25 16:48:42
 LastEditors: Wenyu Ouyang
 Description: normalize the data
-FilePath: /torchhydro/torchhydro/datasets/data_scalers.py
+FilePath: \torchhydro\torchhydro\datasets\data_scalers.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
-import polars as pl
+import copy
 import json
 import os
 import pickle as pkl
 import shutil
-from shutil import SameFileError
-
-import numpy as np
 from typing import Optional
 import pint_xarray  # noqa: F401
 import xarray as xr
-from hydroutils.hydro_stat import (
-    cal_stat_prcp_norm,
-    cal_stat_gamma,
-    cal_stat,
-)
+import numpy as np
+from shutil import SameFileError
 from sklearn.preprocessing import (
     StandardScaler,
     RobustScaler,
@@ -31,11 +25,18 @@ from sklearn.preprocessing import (
     MaxAbsScaler,
 )
 
+from hydroutils.hydro_stat import (
+    cal_stat_prcp_norm,
+    cal_stat_gamma,
+    cal_stat,
+    cal_4_stat_inds,
+)
+
 from torchhydro.datasets.data_utils import (
     _trans_norm,
     _prcp_norm,
     wrap_t_s_dict,
-    _trans_norm_xr,
+    unify_streamflow_unit,
 )
 
 SCALER_DICT = {
@@ -413,8 +414,8 @@ class DapengScaler(object):
                 else:
                     pred.loc[dict(variable=var)] = pred.sel(variable=var)
         # add attrs for units
-        # pred.attrs.update(self.data_target.attrs)
-        return pred  # .to_dataset(dim="variable")
+        pred.attrs.update(self.data_target.attrs)
+        return pred.to_dataset(dim="variable")
 
     def cal_stat_all(self, vars_data):
         """
@@ -477,15 +478,10 @@ class DapengScaler(object):
         for i in range(len(_vars)):
             var = _vars[i]
             if var in self.prcp_norm_cols:
-                var_arr = (
-                    fdata[var].to_numpy().reshape(len(self.t_s_dict["sites_id"]), -1)
-                )
-                out = out.with_columns(
-                    pl.Series(
-                        _prcp_norm(var_arr, self.mean_prcp, to_norm=True).flatten()
-                    )
-                    .cast(pl.Float32)
-                    .alias(var)
+                out.loc[dict(variable=var)] = _prcp_norm(
+                    data.sel(variable=var).to_numpy(),
+                    self.mean_prcp,
+                    to_norm=True,
                 )
             else:
                 out.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()

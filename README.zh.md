@@ -40,7 +40,11 @@ cd torchhydro
 # 如果尚未安装uv，先安装, 适用于linux和macos
 curl -LsSf https://astral.sh/uv/install.sh | sh
 # 适用于windows
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex" 6
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# 如果网络不好，可以使用以下命令
+pip install uv
+# 检查uv版本
+uv --version
 # 安装uv
 pip install uv
 # 安装项目依赖

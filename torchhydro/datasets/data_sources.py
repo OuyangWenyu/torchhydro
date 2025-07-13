@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-02 14:37:09
-LastEditTime: 2025-07-13 10:15:17
+LastEditTime: 2025-07-13 15:45:46
 LastEditors: Wenyu Ouyang
 Description: A module for different data sources
-FilePath: /torchhydro/torchhydro/datasets/data_sources.py
+FilePath: \torchhydro\torchhydro\datasets\data_sources.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 

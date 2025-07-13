@@ -1,23 +1,24 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2025-07-12 11:36:50
+LastEditTime: 2025-07-13 15:59:03
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
-FilePath: /torchhydro/torchhydro/trainers/trainer.py
+FilePath: \torchhydro\torchhydro\trainers\trainer.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
 import copy
-import os
-import random
 from datetime import datetime
+import os
 from pathlib import Path
-from typing import Dict
+import random
+
 import numpy as np
+from typing import Dict
 import pandas as pd
+from sklearn.model_selection import KFold, TimeSeriesSplit
 import torch
-from sklearn.model_selection import TimeSeriesSplit
 from torchhydro.trainers.deep_hydro import model_type_dict
 from torchhydro.trainers.resulter import Resulter
 

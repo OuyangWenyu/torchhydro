@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-07-13 11:11:08
+LastEditTime: 2025-07-13 15:56:15
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
-FilePath: /torchhydro/torchhydro/trainers/train_utils.py
+FilePath: \torchhydro\torchhydro\trainers\train_utils.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -12,15 +12,12 @@ import copy
 import fnmatch
 import itertools
 import os
-import lightning
-from tqdm.asyncio import tqdm
-
-from experiments.fabric_launcher_config import create_config_fabric
 import re
 import shutil
 from functools import reduce
 from pathlib import Path
 import pandas as pd
+from tqdm import tqdm
 import numpy as np
 import xarray as xr
 import torch
@@ -37,44 +34,6 @@ from hydroutils.hydro_file import (
 )
 from torchhydro.datasets.data_sets import FloodEventDataset
 from torchhydro.models.crits import FloodBaseLoss, GaussianLoss
-from torchhydro.trainers.fabric_wrapper import create_fabric_wrapper
-
-# Global fabric wrapper instance
-# This will be initialized based on configuration
-total_fab = None
-
-
-def initialize_fabric(training_cfgs: dict = None):
-    """
-    Initialize the global fabric wrapper.
-
-    Parameters
-    ----------
-    training_cfgs : dict, optional
-        Training configuration dictionary
-    """
-    global total_fab
-
-    if training_cfgs is None:
-        # Default configuration for debugging
-        training_cfgs = {
-            "debug_mode": False,
-            "use_fabric": True,
-            "device": [0],
-            "strategy": "auto",
-        }
-
-    total_fab = create_fabric_wrapper(training_cfgs)
-    return total_fab
-
-
-def get_fabric():
-    """Get the global fabric wrapper instance"""
-    global total_fab
-    if total_fab is None:
-        # Initialize with default debug configuration
-        total_fab = initialize_fabric({"debug_mode": True})
-    return total_fab
 
 
 def _rolling_preds_for_once_eval(
@@ -168,14 +127,20 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
     if type(xs) is list:
         xs = [
             (
-                data_tmp.permute([1, 0, 2])
+                data_tmp.permute([1, 0, 2]).to(device)
                 if seq_first and data_tmp.ndim == 3
-                else data_tmp
+                else data_tmp.to(device)
             )
             for data_tmp in xs
         ]
     else:
-        xs = [xs.permute([1, 0, 2]) if seq_first and xs.ndim == 3 else xs]
+        xs = [
+            (
+                xs.permute([1, 0, 2]).to(device)
+                if seq_first and xs.ndim == 3
+                else xs.to(device)
+            )
+        ]
 
     # Process target data
     if ys is not None:
@@ -263,7 +228,7 @@ class EarlyStopper(object):
         return True
 
     def save_model_checkpoint(self, model, save_dir):
-        get_fabric().save(os.path.join(save_dir, "best_model.pth"), model.state_dict())
+        torch.save(model.state_dict(), os.path.join(save_dir, "best_model.pth"))
 
 
 def calculate_and_record_metrics(
@@ -271,6 +236,7 @@ def calculate_and_record_metrics(
 ):
     fill_nan_value = fill_nan
     inds = stat_error(obs, pred, fill_nan_value)
+
     for evaluation_metric in evaluation_metrics:
         if horizon == 1:
             eval_log[f"{evaluation_metric} of {target_col}"] = inds[
@@ -1058,6 +1024,12 @@ def compute_loss(
     torch.Tensor
         the computed loss
     """
+    # a = np.sum(output.cpu().detach().numpy(),axis=1)/len(output)
+    # b=[]
+    # for i in a:
+    #     b.append([i.tolist()])
+    # output = torch.tensor(b, requires_grad=True).to(torch.device("cuda"))
+
     if isinstance(criterion, GaussianLoss):
         if len(output[0].shape) > 2:
             g_loss = GaussianLoss(output[0][:, :, 0], output[1][:, :, 0])
@@ -1200,6 +1172,7 @@ def torch_single_train(
     opt: optim.Optimizer,
     criterion,
     data_loader: DataLoader,
+    device=None,
     **kwargs,
 ):
     """
@@ -1215,6 +1188,8 @@ def torch_single_train(
         loss function
     data_loader
         object for loading data to the model
+    device
+        where we put the tensors and models
 
     Returns
     -------
@@ -1241,16 +1216,9 @@ def torch_single_train(
         # mask handling is already done inside model_infer function
         trg, output = model_infer(seq_first, device, model, batch, variable_length_cfgs)
         loss = compute_loss(trg, output, criterion, **kwargs)
-        if not isinstance(loss, torch.Tensor):
-            continue
-        if loss > 1000:
+        if loss > 100:
             print("Warning: high loss detected")
-            continue
         if torch.isnan(loss):
-            # total_fab.backward(loss)  # Back propagate to compute the current gradient
-            # params_list = [param for param in model.parameters()]
-            # if all(torch.isfinite(param.grad).all() for param in params_list if param.grad is not None):
-            # opt.step()  # Update network parameters based on gradients
             raise ValueError("nan loss detected")
             # continue
         loss.backward()  # Backpropagate to compute the current gradient
@@ -1274,6 +1242,7 @@ def compute_validation(
     model,
     criterion,
     data_loader: DataLoader,
+    device: torch.device = None,
     **kwargs,
 ):
     """
@@ -1287,6 +1256,8 @@ def compute_validation(
         torch.nn.modules.loss
     dataloader
         The data-loader of either validation or test-data
+    device
+        torch.device
 
     Returns
     -------

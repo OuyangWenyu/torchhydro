@@ -1,22 +1,21 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-13 10:32:24
+LastEditTime: 2025-07-13 16:36:07
 LastEditors: Wenyu Ouyang
 Description: Loss functions
-FilePath: /torchhydro/torchhydro/models/crits.py
+FilePath: \torchhydro\torchhydro\models\crits.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
 from typing import Union
 import torch
 from torch import distributions as tdist, Tensor
-import torch.nn.functional as F
 from torchhydro.models.model_utils import get_the_device
 from abc import ABC, abstractmethod
 
 
-def deal_gap_data(output, target, data_gap):
+def deal_gap_data(output, target, data_gap, device):
     """
     How to handle with gap data
 
@@ -36,6 +35,8 @@ def deal_gap_data(output, target, data_gap):
     data_gap
         data_gap=1: reduce is sum
         data_gap=2: reduce is mean
+    device
+        where to save the data
 
     Returns
     -------
@@ -60,14 +61,14 @@ def deal_gap_data(output, target, data_gap):
             target[:, j], fill_value=-1, dtype=torch.long
         )  # 将所有值初始化为 -1
         scatter_index[first_non_nan:] = cumsum_is_not_nan[first_non_nan:] - 1
-        # scatter_index = scatter_index.to(device=device)
+        scatter_index = scatter_index.to(device=device)
 
         # 创建掩码，只保留有效的索引
         valid_mask = scatter_index >= 0
 
         if data_gap == 1:
             seg = torch.zeros(
-                len(non_nan_idx), device=target.device, dtype=output.dtype
+                len(non_nan_idx), device=device, dtype=output.dtype
             ).scatter_add_(0, scatter_index[valid_mask], output[valid_mask, j])
             # for sum, better exclude final non-nan value as it didn't include all necessary periods
             seg_p_lst.append(seg[:-1])
@@ -75,14 +76,14 @@ def deal_gap_data(output, target, data_gap):
 
         elif data_gap == 2:
             counts = torch.zeros(
-                len(non_nan_idx), device=target.device, dtype=output.dtype
+                len(non_nan_idx), device=device, dtype=output.dtype
             ).scatter_add_(
                 0,
                 scatter_index[valid_mask],
                 torch.ones_like(output[valid_mask, j], dtype=output.dtype),
             )
             seg = torch.zeros(
-                len(non_nan_idx), device=target.device, dtype=output.dtype
+                len(non_nan_idx), device=device, dtype=output.dtype
             ).scatter_add_(0, scatter_index[valid_mask], output[valid_mask, j])
             seg = seg / counts.clamp(min=1)
             # for mean, we can include all periods
@@ -130,63 +131,36 @@ class SigmaLoss(torch.nn.Module):
 
 
 class NSELoss(torch.nn.Module):
+    # Same as Fredrick 2019
     def __init__(self):
         super(NSELoss, self).__init__()
 
     def forward(self, output, target):
-        # Change from Fredrick 2019. Apply to 2-dim tensor, however it's difficult to restore 1-dim tensor to 2-dim
-        tmean = target.sum(dim=0) / target.sum(dim=0).clamp(min=1)
-        SST = torch.sum((target - tmean.unsqueeze(0)) ** 2, dim=0)
-        SSRes = torch.sum((target - output) ** 2, dim=0)
-        loss = SSRes / ((torch.sqrt(SST) + 0.1) ** 2)
-        valid_samples = target.sum(dim=0)
-        valid_samples = valid_samples[valid_samples > 0]
-        loss = loss[valid_samples > 0].sum() / valid_samples.numel()
-        return loss
-
-
-class NSELoss1D(torch.nn.Module):
-    """Calculate (batch-wise) NSE Loss.
-
-    Each sample i is weighted by 1 / (std_i + eps)^2, where std_i is the standard deviation of the
-    discharge from the basin, to which the sample belongs.
-
-    Parameters:
-    -----------
-    eps : float
-        Constant, added to the weight for numerical stability and smoothing, default to 0.1
-    """
-
-    def __init__(self, eps: float = 0.1):
-        super(NSELoss1D, self).__init__()
-        self.eps = eps
-
-    def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor):
-        """Calculate the batch-wise NSE Loss function.
-
-        Parameters
-        ----------
-        y_pred : torch.Tensor
-            Tensor containing the network prediction.
-        y_true : torch.Tensor
-            Tensor containing the true discharge values
-
-        Returns
-        -------
-        torch.Tenor
-            The (batch-wise) NSE Loss
-        """
-        squared_error = (y_pred - y_true) ** 2
-        q_stds = torch.std(y_true)
-        weights = 1 / (q_stds + self.eps) ** 2
-        scaled_loss = weights * squared_error
-        return torch.mean(scaled_loss)
+        Ngage = target.shape[1]
+        losssum = 0
+        nsample = 0
+        for ii in range(Ngage):
+            t0 = target[:, ii, 0]
+            mask = t0 == t0
+            if len(mask[mask]) > 0:
+                p0 = output[:, ii, 0]
+                p = p0[mask]
+                t = t0[mask]
+                tmean = t.mean()
+                SST = torch.sum((t - tmean) ** 2)
+                SSRes = torch.sum((t - p) ** 2)
+                temp = SSRes / ((torch.sqrt(SST) + 0.1) ** 2)
+                # original NSE
+                # temp = SSRes / SST
+                losssum = losssum + temp
+                nsample = nsample + 1
+        return losssum / nsample
 
 
 class MASELoss(torch.nn.Module):
     def __init__(self, baseline_method):
         """
-        This implements the MASE loss function (e.g. MAE_MODEL/MAE_NAIVE)
+        This implements the MASE loss function (e.g. MAE_MODEL/MAE_NAIEVE)
         """
         super(MASELoss, self).__init__()
         self.method_dict = {
@@ -243,6 +217,7 @@ class RMSELoss(torch.nn.Module):
         diff = torch.sub(target, output)
         std_dev = torch.std(diff)
         var_penalty = self.variance_penalty * std_dev
+
         return torch.sqrt(self.mse(target, output)) + var_penalty
 
 
@@ -418,6 +393,7 @@ class MultiOutLoss(torch.nn.Module):
         self,
         loss_funcs: Union[torch.nn.Module, list],
         data_gap: list = None,
+        device: list = None,
         limit_part: list = None,
         item_weight: list = None,
     ):
@@ -437,6 +413,8 @@ class MultiOutLoss(torch.nn.Module):
             if 2, the first non-nan value means the average value of the following interval,
             for example, in [5, nan, nan, nan], 5 means all four data's mean value;
             default is [0, 2]
+        device
+            the number of device: -1 -> "cpu" or "cuda:x" (x is 0, 1 or ...)
         limit_part
             when transfer learning, we may ignore some part;
             the default is None, which means no ignorance;
@@ -449,14 +427,14 @@ class MultiOutLoss(torch.nn.Module):
         """
         if data_gap is None:
             data_gap = [0, 2]
-        # if device is None:
-        # device = [0]
+        if device is None:
+            device = [0]
         if item_weight is None:
             item_weight = [0.5, 0.5]
         super(MultiOutLoss, self).__init__()
         self.loss_funcs = loss_funcs
         self.data_gap = data_gap
-        # self.device = get_the_device(device)
+        self.device = get_the_device(device)
         self.limit_part = limit_part
         self.item_weight = item_weight
 
@@ -495,7 +473,7 @@ class MultiOutLoss(torch.nn.Module):
             p = p0[mask]
             t = t0[mask]
             if self.data_gap[k] > 0:
-                p, t = deal_gap_data(p0, t0, self.data_gap[k])
+                p, t = deal_gap_data(p0, t0, self.data_gap[k], self.device)
             if type(self.loss_funcs) is list:
                 temp = self.item_weight[k] * self.loss_funcs[k](p, t)
             else:
@@ -520,17 +498,17 @@ class UncertaintyWeights(torch.nn.Module):
         self,
         loss_funcs: Union[torch.nn.Module, list],
         data_gap: list = None,
-        # device: list = None,
+        device: list = None,
         limit_part: list = None,
     ):
         if data_gap is None:
             data_gap = [0, 2]
-        # if device is None:
-        # device = [0]
+        if device is None:
+            device = [0]
         super(UncertaintyWeights, self).__init__()
         self.loss_funcs = loss_funcs
         self.data_gap = data_gap
-        # self.device = get_the_device(device)
+        self.device = get_the_device(device)
         self.limit_part = limit_part
 
     def forward(self, output, target, log_vars):
@@ -563,7 +541,7 @@ class UncertaintyWeights(torch.nn.Module):
             p = p0[mask]
             t = t0[mask]
             if self.data_gap[k] > 0:
-                p, t = deal_gap_data(p0, t0, self.data_gap[k])
+                p, t = deal_gap_data(p0, t0, self.data_gap[k], self.device)
             if type(self.loss_funcs) is list:
                 temp = self.loss_funcs[k](p, t)
             else:
@@ -587,7 +565,7 @@ class DynamicTaskPrior(torch.nn.Module):
         self,
         loss_funcs: Union[torch.nn.Module, list],
         data_gap: list = None,
-        # device: list = None,
+        device: list = None,
         limit_part: list = None,
         gamma=2,
         alpha=0.5,
@@ -607,12 +585,12 @@ class DynamicTaskPrior(torch.nn.Module):
         """
         if data_gap is None:
             data_gap = [0, 2]
-        # if device is None:
-        # device = [0]
+        if device is None:
+            device = [0]
         super(DynamicTaskPrior, self).__init__()
         self.loss_funcs = loss_funcs
         self.data_gap = data_gap
-        # self.device = get_the_device(device)
+        self.device = get_the_device(device)
         self.limit_part = limit_part
         self.gamma = gamma
         self.alpha = alpha
@@ -637,7 +615,7 @@ class DynamicTaskPrior(torch.nn.Module):
         """
         n_out = target.shape[-1]
         loss = 0
-        kpis = torch.zeros(n_out, device=target.device)
+        kpis = torch.zeros(n_out).to(self.device)
         for k in range(n_out):
             if self.limit_part is not None and k in self.limit_part:
                 continue
@@ -647,7 +625,7 @@ class DynamicTaskPrior(torch.nn.Module):
             p = p0[mask]
             t = t0[mask]
             if self.data_gap[k] > 0:
-                p, t = deal_gap_data(p0, t0, self.data_gap[k])
+                p, t = deal_gap_data(p0, t0, self.data_gap[k], self.device)
             if type(self.loss_funcs) is list:
                 temp = self.loss_funcs[k](p, t)
             else:
@@ -667,49 +645,12 @@ class DynamicTaskPrior(torch.nn.Module):
         return loss, kpis.detach().clone()
 
 
-class RankSimLoss(torch.nn.Module):
-    # TODO: Combine it with FDS
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def forward(self, features, targets, lambda_val):
-        from ranking import TrueRanker, rank_normalised
-        import random
-
-        loss = 0
-        # Reduce ties and boost relative representation of infrequent labels by computing the
-        # regularizer over a subset of the batch in which each label appears at most once
-        batch_unique_targets = torch.unique(targets)
-        if len(batch_unique_targets) < len(targets):
-            sampled_indices = []
-            for target in batch_unique_targets:
-                sampled_indices.append(
-                    random.choice((targets == target).nonzero()[:, 0]).item()
-                )
-            x = features[sampled_indices]
-            y = targets[sampled_indices]
-        else:
-            x = features
-            y = targets
-        # Compute feature similarities
-        xxt = torch.matmul(
-            F.normalize(x.view(x.size(0), -1)),
-            F.normalize(x.view(x.size(0), -1)).permute(1, 0),
-        )
-        # Compute ranking loss
-        for i in range(len(y)):
-            label_ranks = rank_normalised(-torch.abs(y[i] - y).transpose(0, 1))
-            feature_ranks = TrueRanker.apply(xxt[i].unsqueeze(dim=0), lambda_val)
-            loss += F.mse_loss(feature_ranks, label_ranks)
-        return loss
-
-
 class MultiOutWaterBalanceLoss(torch.nn.Module):
     def __init__(
         self,
         loss_funcs: Union[torch.nn.Module, list],
         data_gap: list = None,
-        # device: list = None,
+        device: list = None,
         limit_part: list = None,
         item_weight: list = None,
         alpha=0.5,
@@ -740,6 +681,8 @@ class MultiOutWaterBalanceLoss(torch.nn.Module):
             if 2, the first non-nan value means the average value of the following interval,
             for example, in [5, nan, nan, nan], 5 means all four data's mean value;
             default is [0, 2]
+        device
+            the number of device: -1 -> "cpu" or "cuda:x" (x is 0, 1 or ...)
         limit_part
             when transfer learning, we may ignore some part;
             the default is None, which means no ignorance;
@@ -759,14 +702,14 @@ class MultiOutWaterBalanceLoss(torch.nn.Module):
         """
         if data_gap is None:
             data_gap = [0, 2]
-        # if device is None:
-        # device = [0]
+        if device is None:
+            device = [0]
         if item_weight is None:
             item_weight = [0.5, 0.5]
         super(MultiOutWaterBalanceLoss, self).__init__()
         self.loss_funcs = loss_funcs
         self.data_gap = data_gap
-        # self.device = get_the_device(device)
+        self.device = get_the_device(device)
         self.limit_part = limit_part
         self.item_weight = item_weight
         self.alpha = alpha
@@ -829,7 +772,7 @@ class MultiOutWaterBalanceLoss(torch.nn.Module):
             p = p0[mask]
             t = t0[mask]
             if self.data_gap[k] > 0:
-                p, t = deal_gap_data(p0, t0, self.data_gap[k])
+                p, t = deal_gap_data(p0, t0, self.data_gap[k], self.device)
             if type(self.loss_funcs) is list:
                 temp = self.item_weight[k] * self.loss_funcs[k](p, t)
             else:

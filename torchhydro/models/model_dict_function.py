@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-13 10:32:43
+LastEditTime: 2025-06-14 11:55:37
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
-FilePath: /torchhydro/torchhydro/models/model_dict_function.py
+FilePath: \torchhydro\torchhydro\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -32,7 +32,6 @@ from torchhydro.models.seq2seq import (
     DataEnhancedModel,
     DataFusionModel,
     Transformer,
-    Seq2Seq_Min_LSTM_GNN
 )
 from torch.optim import Adam, SGD, Adadelta
 from torchhydro.models.crits import (
@@ -92,7 +91,6 @@ pytorch_model_dict = {
     "DataFusion": DataFusionModel,
     # Transformer
     "Transformer": Transformer,
-    "Seq2SeqMinGNN": Seq2Seq_Min_LSTM_GNN,
     "DplNnModuleXaj": DplLstmNnModuleXaj,
     "DplLstmHbv": DplLstmHbv,
     "DplAnnHbv": DplAnnHbv,

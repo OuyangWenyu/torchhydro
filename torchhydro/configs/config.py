@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-12 11:07:25
+LastEditTime: 2025-07-13 16:34:23
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
-FilePath: /torchhydro/torchhydro/configs/config.py
+FilePath: \torchhydro\torchhydro\configs\config.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
@@ -13,6 +13,7 @@ import fnmatch
 import json
 import warnings
 import os
+from typing import Dict, List, Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -36,7 +37,7 @@ PET_ERA5LAND_NAME = "potential_evaporation"
 DATE_FORMATS = ["%Y-%m-%d-%H", "%Y-%m-%d"]  # 带小时的日期格式  # 不带小时的日期格式
 
 
-def default_config_file():
+def default_config_file() -> Dict[str, Any]:
     """
     Default config file for all models/data/training parameters in this repo
 
@@ -50,7 +51,7 @@ def default_config_file():
         "model_cfgs": {
             # model_type including normal deep learning (Normal), federated learning (FedLearn), transfer learing (TransLearn), multi-task learning (MTL), etc.
             "model_type": "Normal",
-            # supported models can be seen in hydroDL/model_dict_function.py
+            # supported models can be seen in torchhydro/models/model_dict_function.py
             "model_name": "LSTM",
             # the details of model parameters for the "model_name" model
             "model_hyperparam": {
@@ -66,8 +67,6 @@ def default_config_file():
                 "bias": True,
                 "batch_size": 100,
                 "dropout": 0.2,
-                "pre_norm": False,
-                "upstream_cut": 5,
             },
             "weight_path": None,
             "continue_train": True,
@@ -220,14 +219,14 @@ def default_config_file():
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
-            "network_shp": None,
-            "node_shp": None,
-            "basins_shp": None,
-            "pre_norm": False,
-            "upstream_cut": 5,
         },
         "training_cfgs": {
-            "strategy": "ddp",
+            # for distributed training, we use lightning fabric, it has some different strategies
+            # you can see the following link for more details:
+            # https://lightning.ai/docs/fabric/stable/api/fabric_args.html#strategy
+            # such as "dp", "ddp", "ddp_spawn", "ddp_find_unused_parameters_true", "xla", "deepspeed", "fsdp"
+            # here we use None as default, which means we don't use fabric
+            "fabric_strategy": None,
             "master_addr": "localhost",
             "port": "12335",
             # if train_mode is False, don't train and evaluate
@@ -383,90 +382,91 @@ def default_config_file():
 
 
 def cmd(
-    project_dir=None,
-    sub=None,
-    source_cfgs=None,
-    scaler=None,
-    scaler_params=None,
-    dataset=None,
-    model_loader=None,
-    variable_length_cfgs=None,
-    sampler=None,
-    fl_sample=None,
-    fl_num_users=None,
-    fl_local_ep=None,
-    fl_local_bs=None,
-    fl_frac=None,
-    master_addr=None,
-    port=None,
-    ctx=None,
-    rs=None,
-    gage_id_file=None,
-    gage_id=None,
-    train_period=None,
-    valid_period=None,
-    test_period=None,
-    opt=None,
-    lr_scheduler=None,
-    opt_param=None,
-    batch_size=None,
-    warmup_length=None,
+    project_dir: Optional[str] = None,
+    sub: Optional[str] = None,
+    source_cfgs: Optional[Dict[str, Any]] = None,
+    scaler: Optional[str] = None,
+    scaler_params: Optional[Dict[str, Any]] = None,
+    dataset: Optional[str] = None,
+    model_loader: Optional[int] = None,
+    variable_length_cfgs: Optional[Dict[str, Any]] = None,
+    sampler: Optional[str] = None,
+    fl_sample: Optional[str] = None,
+    fl_num_users: Optional[int] = None,
+    fl_local_ep: Optional[int] = None,
+    fl_local_bs: Optional[float] = None,
+    fl_frac: Optional[float] = None,
+    master_addr: Optional[List[str]] = None,
+    port: Optional[List[str]] = None,
+    ctx: Optional[List[str]] = None,
+    rs: Optional[int] = None,
+    gage_id_file: Optional[str] = None,
+    gage_id: Optional[List[str]] = None,
+    train_period: Optional[List[str]] = None,
+    valid_period: Optional[List[str]] = None,
+    test_period: Optional[List[str]] = None,
+    opt: Optional[str] = None,
+    lr_scheduler: Optional[Dict[str, Any]] = None,
+    opt_param: Optional[Dict[str, Any]] = None,
+    batch_size: Optional[int] = None,
+    warmup_length: Optional[int] = None,
     # forecast_history will be deprecated in the future
-    forecast_history=None,
-    hindcast_length=None,
-    forecast_length=None,
-    lead_time_type=None,
-    lead_time_start=None,
-    train_mode=None,
-    train_epoch=None,
-    save_epoch=None,
-    save_iter=None,
-    model_type=None,
-    model_name=None,
-    weight_path=None,
-    continue_train=None,
-    var_c=None,
-    c_rm_nan=None,
-    var_t=None,
-    t_rm_nan=None,
-    n_output=None,
-    loss_func=None,
-    model_hyperparam=None,
-    dropout=None,
-    weight_path_add=None,
-    var_t_type=None,
-    var_f=None,
-    f_rm_nan=None,
-    feature_mapping=None,
-    var_g=None,
-    var_out=None,
-    var_to_source_map=None,
-    out_rm_nan=None,
-    target_as_input=None,
-    constant_only=None,
-    gage_id_screen=None,
-    loss_param=None,
-    metrics=None,
-    fill_nan=None,
-    explainer=None,
-    rolling=None,
-    hrwin=None,
-    frwin=None,
-    calc_metrics=None,
-    start_epoch=None,
-    stat_dict_file=None,
-    num_workers=None,
-    pin_memory=None,
-    which_first_tensor=None,
-    ensemble=None,
-    ensemble_items=None,
-    early_stopping=None,
-    patience=None,
-    min_time_unit=None,
-    min_time_interval=None,
-    valid_batch_mode=None,
-    evaluator=None,
-):
+    forecast_history: Optional[int] = None,
+    hindcast_length: Optional[int] = None,
+    forecast_length: Optional[int] = None,
+    lead_time_type: Optional[str] = None,
+    lead_time_start: Optional[int] = None,
+    train_mode: Optional[int] = None,
+    train_epoch: Optional[int] = None,
+    save_epoch: Optional[int] = None,
+    save_iter: Optional[int] = None,
+    model_type: Optional[str] = None,
+    model_name: Optional[str] = None,
+    weight_path: Optional[str] = None,
+    continue_train: Optional[int] = None,
+    var_c: Optional[List[str]] = None,
+    c_rm_nan: Optional[int] = None,
+    var_t: Optional[List[str]] = None,
+    t_rm_nan: Optional[int] = None,
+    n_output: Optional[int] = None,
+    loss_func: Optional[str] = None,
+    model_hyperparam: Optional[Dict[str, Any]] = None,
+    dropout: Optional[float] = None,
+    weight_path_add: Optional[Dict[str, Any]] = None,
+    var_t_type: Optional[List[str]] = None,
+    var_f: Optional[Dict[str, Any]] = None,
+    f_rm_nan: Optional[int] = None,
+    feature_mapping: Optional[Dict[str, Any]] = None,
+    var_g: Optional[Dict[str, Any]] = None,
+    var_out: Optional[List[str]] = None,
+    var_to_source_map: Optional[Dict[str, Any]] = None,
+    out_rm_nan: Optional[int] = None,
+    target_as_input: Optional[int] = None,
+    constant_only: Optional[int] = None,
+    gage_id_screen: Optional[Dict[str, Any]] = None,
+    loss_param: Optional[Dict[str, Any]] = None,
+    metrics: Optional[List[str]] = None,
+    fill_nan: Optional[List[str]] = None,
+    explainer: Optional[List[str]] = None,
+    rolling: Optional[int] = None,
+    hrwin: Optional[int] = None,
+    frwin: Optional[int] = None,
+    calc_metrics: Optional[bool] = None,
+    start_epoch: Optional[int] = None,
+    stat_dict_file: Optional[str] = None,
+    num_workers: Optional[int] = None,
+    pin_memory: Optional[bool] = None,
+    which_first_tensor: Optional[str] = None,
+    ensemble: Optional[int] = None,
+    ensemble_items: Optional[Dict[str, Any]] = None,
+    early_stopping: Optional[bool] = None,
+    patience: Optional[int] = None,
+    min_time_unit: Optional[str] = None,
+    min_time_interval: Optional[int] = None,
+    valid_batch_mode: Optional[str] = None,
+    evaluator: Optional[Dict[str, Any]] = None,
+    fabric_strategy: Optional[str] = None,
+) -> argparse.Namespace:
     """input args from cmd"""
     parser = argparse.ArgumentParser(
         description="Train a Time-Series Deep Learning Model for Basins"
@@ -1020,13 +1020,20 @@ def cmd(
         default=evaluator,
         type=json.loads,
     )
+    parser.add_argument(
+        "--fabric_strategy",
+        dest="fabric_strategy",
+        help="fabric strategy",
+        default=fabric_strategy,
+        type=str,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
     return args
 
 
-def update_nested_dict(d, keys, value):
+def update_nested_dict(d: Dict[str, Any], keys: List[str], value: Any) -> None:
     """update nested dict
 
     Parameters
@@ -1044,7 +1051,7 @@ def update_nested_dict(d, keys, value):
         update_nested_dict(d[keys[0]], keys[1:], value)
 
 
-def update_cfg(cfg_file, new_args):
+def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
     """
     Update default config with new arguments
 
@@ -1081,13 +1088,6 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["dataset"] = new_args.dataset
     if new_args.sampler is not None:
         cfg_file["data_cfgs"]["sampler"] = new_args.sampler
-    if new_args.model_hyperparam is not None:
-        if new_args.model_hyperparam["pre_norm"] is not None:
-            cfg_file["data_cfgs"]["pre_norm"] = new_args.model_hyperparam["pre_norm"]
-        if new_args.model_hyperparam["upstream_cut"] is not None:
-            cfg_file["data_cfgs"]["upstream_cut"] = new_args.model_hyperparam[
-                "upstream_cut"
-            ]
     if new_args.fl_sample is not None:
         if new_args.fl_sample not in ["basin", "region"]:
             # basin means each client is a basin
@@ -1186,8 +1186,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["save_epoch"] = new_args.save_epoch
     if new_args.save_iter is not None:
         cfg_file["training_cfgs"]["save_iter"] = new_args.save_iter
-    if new_args.strategy is not None:
-        cfg_file["training_cfgs"]["strategy"] = new_args.strategy
+    if new_args.fabric_strategy is not None:
+        cfg_file["training_cfgs"]["fabric_strategy"] = new_args.fabric_strategy
     if new_args.model_type is not None:
         cfg_file["model_cfgs"]["model_type"] = new_args.model_type
     if new_args.model_name is not None:
@@ -1320,7 +1320,7 @@ def update_cfg(cfg_file, new_args):
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 
-def get_config_file(cfg_dir):
+def get_config_file(cfg_dir: str) -> Dict[str, Any]:
     json_files_lst = []
     json_files_ctime = []
     for file in os.listdir(cfg_dir):
