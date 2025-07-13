@@ -297,7 +297,7 @@ class Arch(object):
         if b_constant:
             xp_constant = np.ones(n_x-p)
             xp = np.array(xp)
-            xp = np.insert(xp, xp_constant, 0, axis=1)
+            xp = np.insert(xp, 0, xp_constant, axis=1)
 
         # matrix operations, calculate the coefficient matrix.
         a, R_2 = self.ordinary_least_squares(xp, xf)
@@ -2249,7 +2249,7 @@ class Arch(object):
         residual_2,
         q,
         Omega,
-        q_n,
+        q_n: list,
         b_y: bool = False,
     ):
         """
@@ -2260,7 +2260,7 @@ class Arch(object):
         residual_2: square of centered residuals.
         q: degree / parameter number of arch model.
         Omega:
-        q_n: the index of the constrained parameters.
+        q_n: the index list of the constrained parameters, do not contain the constant item, e.g. phi = [ 2.18960415  0.02024819 -0.0022809   0.01220647], q_n = [1,].
         b_y: bool, whether return y or not.
 
         Returns
@@ -2282,7 +2282,7 @@ class Arch(object):
             xp.append(xp_i)
 
         xp = np.array(xp)
-        xp = np.delete(xp, q_n, axis=1)
+        xp = np.delete(xp, q_n, axis=1)  # todo:
 
         a, R_2, y = self.generalized_least_squares(xp, xf, Omega_diagonal, b_y=b_y)
         a = np.insert(a, q_n, 0)

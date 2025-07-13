@@ -2025,7 +2025,7 @@ def test_arch_feasible_generalized_least_squares_estimation():
 def test_arch_constrained_ordinary_least_squares():
     arch = Arch()
     q = 3
-    q_n = 1  # [ 2.18960415  0.02024819 -0.0022809   0.01220647]  the second parameter is negative.
+    q_n = [1]  # [ 2.18960415  0.02024819 -0.0022809   0.01220647]  the second parameter is negative.
     residual_2 = y_residual_2_streamflow_395
     Omega = y_streamflow_395_Omege
     residual_2 = y_residual_2_streamflow_1460

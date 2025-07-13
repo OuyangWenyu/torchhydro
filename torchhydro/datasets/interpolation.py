@@ -71,7 +71,7 @@ class Interpolation(object):
 
         return b_
 
-    def degree(
+    def degree_ar(
         self,
         x,
     ):
@@ -161,4 +161,66 @@ class Interpolation(object):
         b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = self.arch.arch_test(residual, q, significance_level)
 
         return b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM
+
+    def degree_arch(
+        self,
+        x,
+        phi,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        phi
+
+        Returns
+        -------
+
+        """
+        residual = self.arch.x_residual_via_parameters(x, phi)
+        residual_2 = np.power(residual, 2)
+        acf = self.arch.autocorrelation_function(residual_2)
+        pacf = self.arch.partial_autocorrelation_function(residual_2)
+
+        return acf, pacf
+
+    def arch_parameter(
+        self,
+        x,
+        phi,
+        p,
+        q,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        phi
+        q
+
+        Returns
+        -------
+
+        """
+        residual = self.arch.x_residual_via_parameters(x, phi)
+        residual_2 = np.power(residual, 2)
+        residual_2 = residual_2.tolist()
+        a0, R_20, delta_20 = self.arch.arch_ordinary_least_squares_estimation(residual_2, 1)
+        Omega = self.arch.Omega(residual_2, a0)
+        a1, R_21, y1 = self.arch.arch_feasible_generalized_least_squares_estimation(residual_2, q, Omega, b_y=True)
+        theta0 = a1[:]
+        indices = np.where(a1 < 0)
+        indices = indices[0]
+        n_indices = indices.size
+        if n_indices > 0:
+            a2, R_22, y2 = self.arch.arch_constrained_ordinary_least_squares(residual_2, q, Omega, q_n=indices, b_y=True)
+            theta0 = a2[:]
+        p = 2
+        q = 3
+        b_arima = False
+        theta1 = self.arch.gradient_ascent(x, theta0, p, q, b_arima)
+
+        return a0, R_20, delta_20, a1, R_21, y1, theta1
 

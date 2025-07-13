@@ -62,9 +62,9 @@ def test_smooth_test():
 # acmelsch_streamflow_8183_d1
 # b_ = True
 
-def test_degree():
+def test_degree_ar():
     inter = Interpolation()
-    acf, pacf = inter.degree(camelsch_streamflow_81)
+    acf, pacf = inter.degree_ar(camelsch_streamflow_81)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\acf.txt', acf)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\pacf.txt', pacf)
     print("n_acf = " + str(len(acf)))
@@ -135,7 +135,41 @@ def test_test_arch():
     phi = [1.30134078, -0.67576837, 0.26822102]
     q = 3
     significance_level = 0.05
-    b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = inter.test_arch(x, phi, p, significance_level)
+    b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = inter.test_arch(x, phi, q, significance_level)
     print("b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = " + str([b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM]))
 # camelsch_streamflow_8183  q=3
-# b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM =  (True, False, True, True)
+# b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = [True, False, True, True]
+
+def test_degree_arch():
+    inter = Interpolation()
+    x = camelsch_streamflow_8183
+    phi = [1.30134078, -0.67576837, 0.26822102]
+    acf, pacf = inter.degree_arch(x, phi)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\acf.txt', acf)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\pacf.txt', pacf)
+    print("n_acf = " + str(len(acf)))
+    print("n_pacf = " + str(len(pacf)))
+# n_acf = 731
+# n_pacf = 731
+
+def test_arch_parameter():
+    inter = Interpolation()
+    x = camelsch_streamflow_8183
+    phi = [1.30134078, -0.67576837, 0.26822102]
+    p = 3,
+    q = 4
+    a0, R_20, delta_20, a1, R_21, y1, theta1 = inter.arch_parameter(x, phi, p, q)
+    print("a0 = " + str(a0))
+    print("R_20 = " + str(R_20))
+    print("delta_20 = " + str(delta_20))
+    print("a1 = " + str(a1))
+    print("R_21 = " + str(R_21))
+    print("theta1 = " + str(theta1))
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y1.txt', y1)
+# camelsch_streamflow_8183
+# a0 = [7.19334832e+03 3.41621327e-01]
+# R_20 = 0.11670513665147611
+# delta_20 = -2.300613862270624e-11
+# a1 = [ 7.83544295e+02  4.08663609e-02 -2.61010083e-03  2.04775580e-02
+#   5.91862621e-03]
+# R_21 = 0.15476001469339426
