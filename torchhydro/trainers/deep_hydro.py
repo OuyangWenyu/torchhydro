@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:15:48
-LastEditTime: 2025-07-13 10:36:28
+LastEditTime: 2025-07-13 11:12:24
 LastEditors: Wenyu Ouyang
 Description: HydroDL model class
 FilePath: /torchhydro/torchhydro/trainers/deep_hydro.py
@@ -19,6 +19,7 @@ import numpy as np
 import xarray as xr
 import torch
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
+
 # from lightning.fabric.wrappers import _FabricModule
 import torch.distributed as dist
 import torch.nn as nn
@@ -52,6 +53,8 @@ from torchhydro.trainers.train_utils import (
     calculate_and_record_metrics,
     get_preds_to_be_eval,
     varied_length_collate_fn,
+    initialize_fabric,
+    get_fabric,
 )
 
 
@@ -144,9 +147,10 @@ class DeepHydro(DeepHydroInterface):
             by default None
         """
         super().__init__(cfgs)
-        # total_fab.launch()
+        # Initialize fabric based on configuration
+        self.fabric = initialize_fabric(cfgs.get("training_cfgs", {}))
         self.pre_model = pre_model
-        self.model = total_fab.setup_module(self.load_model())
+        self.model = self.fabric.setup_module(self.load_model())
         if cfgs["training_cfgs"]["train_mode"]:
             self.traindataset = self.make_dataset("train")
             if cfgs["data_cfgs"]["t_range_valid"] is not None:
@@ -173,13 +177,15 @@ class DeepHydro(DeepHydroInterface):
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
         if model_name not in pytorch_model_dict:
-            raise NotImplementedError(f"Error the model {model_name} was not found in the model dict. Please add it.")
+            raise NotImplementedError(
+                f"Error the model {model_name} was not found in the model dict. Please add it."
+            )
         if self.pre_model is not None:
             model = self._load_pretrain_model()
         elif self.weight_path is not None:
             # load model from pth file (saved weights and biases)
             model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
-            total_fab.load_raw(self.weight_path, model)
+            self.fabric.load_raw(self.weight_path, model)
         else:
             model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
         return model
@@ -209,7 +215,8 @@ class DeepHydro(DeepHydroInterface):
             dataset = datasets_dict[dataset_name](self.cfgs, is_tra_val_te)
         else:
             raise NotImplementedError(
-                f"Error the dataset {str(dataset_name)} was not found in the dataset dict. Please add it.")
+                f"Error the dataset {str(dataset_name)} was not found in the dataset dict. Please add it."
+            )
         return dataset
 
     def model_train(self) -> None:
@@ -223,18 +230,25 @@ class DeepHydro(DeepHydroInterface):
         if training_cfgs["early_stopping"]:
             es = EarlyStopper(training_cfgs["patience"])
         criterion = self._get_loss_func(training_cfgs)
-        # model = total_fab.setup_module(self.load_model('train'))
-        opt = total_fab.setup_optimizers(self._get_optimizer(training_cfgs))
+        # model = self.fabric.setup_module(self.load_model('train'))
+        opt = self.fabric.setup_optimizers(self._get_optimizer(training_cfgs))
         scheduler = self._get_scheduler(training_cfgs, opt)
         max_epochs = training_cfgs["epochs"]
         start_epoch = training_cfgs["start_epoch"]
         # use PyTorch's DataLoader to load the data into batches in each epoch
-        data_loader, validation_data_loader = self._get_dataloader(training_cfgs, data_cfgs)
+        data_loader, validation_data_loader = self._get_dataloader(
+            training_cfgs, data_cfgs
+        )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
         for epoch in range(start_epoch, max_epochs + 1):
             with logger.log_epoch_train(epoch) as train_logs:
-                total_loss, n_iter_ep = torch_single_train(self.model, opt, criterion, data_loader,
-                                                           which_first_tensor=training_cfgs["which_first_tensor"])
+                total_loss, n_iter_ep = torch_single_train(
+                    self.model,
+                    opt,
+                    criterion,
+                    data_loader,
+                    which_first_tensor=training_cfgs["which_first_tensor"],
+                )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
             # self.pre_model = model
@@ -244,7 +258,8 @@ class DeepHydro(DeepHydroInterface):
             if data_cfgs["t_range_valid"] is not None:
                 with logger.log_epoch_valid(epoch) as valid_logs:
                     valid_loss, valid_metrics = self._1epoch_valid(
-                        training_cfgs, criterion, validation_data_loader, valid_logs)
+                        training_cfgs, criterion, validation_data_loader, valid_logs
+                    )
             self._scheduler_step(training_cfgs, scheduler, valid_loss)
             logger.save_session_param(
                 epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
@@ -344,7 +359,7 @@ class DeepHydro(DeepHydroInterface):
             eval_log, denormalized predictions and observations
         """
         # model = self.load_model(mode="infer")
-        # model = total_fab.setup_module(module=model)
+        # model = self.fabric.setup_module(module=model)
         preds_xr, obss_xr = self.inference()
         return preds_xr, obss_xr
 
@@ -390,7 +405,9 @@ class DeepHydro(DeepHydroInterface):
 
     def _get_optimizer(self, training_cfgs):
         params_in_opt = self.model.parameters()
-        return pytorch_opt_dict[training_cfgs["optimizer"]](params_in_opt, **training_cfgs["optim_params"])
+        return pytorch_opt_dict[training_cfgs["optimizer"]](
+            params_in_opt, **training_cfgs["optim_params"]
+        )
 
     def _get_loss_func(self, training_cfgs):
         criterion_init_params = {}
@@ -399,10 +416,14 @@ class DeepHydro(DeepHydroInterface):
             if loss_param is not None:
                 for key in loss_param.keys():
                     if key == "loss_funcs":
-                        criterion_init_params[key] = pytorch_criterion_dict[loss_param[key]]()
+                        criterion_init_params[key] = pytorch_criterion_dict[
+                            loss_param[key]
+                        ]()
                     else:
                         criterion_init_params[key] = loss_param[key]
-        return pytorch_criterion_dict[training_cfgs["criterion"]](**criterion_init_params)
+        return pytorch_criterion_dict[training_cfgs["criterion"]](
+            **criterion_init_params
+        )
 
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         if mode == "infer":
@@ -538,7 +559,7 @@ class FedLearnHydro(DeepHydro):
 
     def model_train(self) -> None:
         # BUILD MODEL
-        global_model = self.load_model('train')
+        global_model = self.load_model("train")
 
         # copy weights
         # global_weights = global_model.state_dict()
@@ -712,7 +733,7 @@ class TransLearnHydro(DeepHydro):
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
         model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
-        checkpoint = total_fab.load(weight_path)
+        checkpoint = self.fabric.load(weight_path)
         if "weight_path_add" in model_cfgs:
             if "excluded_layers" in model_cfgs["weight_path_add"]:
                 # delete some layers from source model if we don't need them
@@ -735,20 +756,27 @@ class MultiTaskHydro(DeepHydro):
         params_in_opt = self.model.parameters()
         if training_cfgs["criterion"] == "UncertaintyWeights":
             # log_var = torch.zeros((1,), requires_grad=True)
-            log_vars = [torch.zeros((1,), requires_grad=True, device=total_fab.local_rank)
-                for _ in range(training_cfgs["multi_targets"])]
+            log_vars = [
+                torch.zeros((1,), requires_grad=True, device=self.fabric.local_rank)
+                for _ in range(training_cfgs["multi_targets"])
+            ]
             params_in_opt = list(self.model.parameters()) + log_vars
-        return pytorch_opt_dict[training_cfgs["optimizer"]](params_in_opt, **training_cfgs["optim_params"])
+        return pytorch_opt_dict[training_cfgs["optimizer"]](
+            params_in_opt, **training_cfgs["optim_params"]
+        )
 
     def _get_loss_func(self, training_cfgs):
         if "criterion_params" in training_cfgs:
             loss_param = training_cfgs["criterion_params"]
             if loss_param is not None:
                 criterion_init_params = {
-                    key: (pytorch_criterion_dict[loss_param[key]]()
+                    key: (
+                        pytorch_criterion_dict[loss_param[key]]()
                         if key == "loss_funcs"
-                        else loss_param[key])
-                    for key in loss_param.keys()}
+                        else loss_param[key]
+                    )
+                    for key in loss_param.keys()
+                }
         if training_cfgs["criterion"] == "MultiOutWaterBalanceLoss":
             # TODO: hard code for streamflow and ET
             stat_dict = self.traindataset.target_scaler.stat_dict

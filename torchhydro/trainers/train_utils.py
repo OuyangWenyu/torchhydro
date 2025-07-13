@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-07-12 11:36:05
+LastEditTime: 2025-07-13 11:11:08
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: /torchhydro/torchhydro/trainers/train_utils.py
@@ -37,6 +37,44 @@ from hydroutils.hydro_file import (
 )
 from torchhydro.datasets.data_sets import FloodEventDataset
 from torchhydro.models.crits import FloodBaseLoss, GaussianLoss
+from torchhydro.trainers.fabric_wrapper import create_fabric_wrapper
+
+# Global fabric wrapper instance
+# This will be initialized based on configuration
+total_fab = None
+
+
+def initialize_fabric(training_cfgs: dict = None):
+    """
+    Initialize the global fabric wrapper.
+
+    Parameters
+    ----------
+    training_cfgs : dict, optional
+        Training configuration dictionary
+    """
+    global total_fab
+
+    if training_cfgs is None:
+        # Default configuration for debugging
+        training_cfgs = {
+            "debug_mode": False,
+            "use_fabric": True,
+            "device": [0],
+            "strategy": "auto",
+        }
+
+    total_fab = create_fabric_wrapper(training_cfgs)
+    return total_fab
+
+
+def get_fabric():
+    """Get the global fabric wrapper instance"""
+    global total_fab
+    if total_fab is None:
+        # Initialize with default debug configuration
+        total_fab = initialize_fabric({"debug_mode": True})
+    return total_fab
 
 
 def _rolling_preds_for_once_eval(
@@ -225,7 +263,7 @@ class EarlyStopper(object):
         return True
 
     def save_model_checkpoint(self, model, save_dir):
-        total_fab.save(os.path.join(save_dir, "best_model.pth"), model.state_dict())
+        get_fabric().save(os.path.join(save_dir, "best_model.pth"), model.state_dict())
 
 
 def calculate_and_record_metrics(
