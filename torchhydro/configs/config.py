@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-13 16:34:23
+LastEditTime: 2025-07-14 08:07:35
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -219,6 +219,14 @@ def default_config_file() -> Dict[str, Any]:
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
+            # station data configurations for GNN models
+            "station_cfgs": {
+                "station_cols": [],
+                "station_rm_nan": True,
+                "use_adjacency": True,
+                "station_time_units": ["1D"],
+                "station_scaler_type": "DapengScaler",
+            },
         },
         "training_cfgs": {
             # for distributed training, we use lightning fabric, it has some different strategies
@@ -466,6 +474,8 @@ def cmd(
     valid_batch_mode: Optional[str] = None,
     evaluator: Optional[Dict[str, Any]] = None,
     fabric_strategy: Optional[str] = None,
+    # station data configurations for GNN models
+    station_cfgs: Optional[Dict[str, Any]] = None,
 ) -> argparse.Namespace:
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -1027,6 +1037,14 @@ def cmd(
         default=fabric_strategy,
         type=str,
     )
+    # Station data configurations for GNN models
+    parser.add_argument(
+        "--station_cfgs",
+        dest="station_cfgs",
+        help="station data configurations for GNN models (as JSON)",
+        default=station_cfgs,
+        type=json.loads,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -1317,6 +1335,11 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
         cfg_file["training_cfgs"]["valid_batch_mode"] = new_args.valid_batch_mode
     if new_args.evaluator is not None:
         cfg_file["evaluation_cfgs"]["evaluator"] = new_args.evaluator
+
+    # Station data configurations for GNN models
+    if new_args.station_cfgs is not None:
+        cfg_file["data_cfgs"]["station_cfgs"] = new_args.station_cfgs
+
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 

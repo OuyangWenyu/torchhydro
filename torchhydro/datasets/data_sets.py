@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-07-13 15:44:28
+LastEditTime: 2025-07-13 17:59:58
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -1367,465 +1367,6 @@ class TransformerDataset(Seq2SeqDataset):
         ], torch.from_numpy(y).float()
 
 
-class GNNDataset(Seq2SeqDataset):
-    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
-        self.data_cfgs = data_cfgs
-        self.is_tra_val_te = is_tra_val_te
-        upstream_ds = self.get_upstream_ds()
-        # upstream_ds['basin_id'] = upstream_ds['basin_id'].astype(str).str.zfill(8)
-        self.x_up = upstream_ds
-        super(GNNDataset, self).__init__(data_cfgs, is_tra_val_te)
-
-    def __getitem__(self, item: int):
-        basin, idx = self.lookup_table[item]
-        rho, horizon = self.rho, self.horizon
-        prec = self.data_cfgs["prec_window"]
-        p = self.x[basin, idx + 1 : idx + rho + horizon + 1, 0]
-        s = self.x[basin, idx : idx + rho, 1:]
-        x = torch.concatenate([p[:rho].unsqueeze(1), s], dim=1)
-        stream_up = self.x_up[basin, idx : idx + rho, :]
-        c = self.c[basin, :]
-        c = torch.tensor(np.tile(c, (rho + horizon, 1)))
-        x = torch.concatenate((x, c[:rho], stream_up), dim=1)
-        p_rho = p[rho:].unsqueeze(1)
-        pad_p = (
-            torch.nn.functional.pad(
-                p_rho, (0, 0, 0, c[rho:].shape[0] - p_rho.shape[0]), "constant", 0
-            )
-            if p_rho.shape[0] < c[rho:].shape[0]
-            else p_rho
-        )
-        x_h = torch.concatenate((pad_p, c[rho:]), dim=1)
-        y = self.y[basin, idx + rho - prec + 1 : idx + rho + horizon + 1, :]
-        if y.shape[0] < horizon + prec:
-            y = torch.nn.functional.pad(
-                y, (0, 0, 0, horizon + prec - y.shape[0]), "constant", 0
-            )
-        result = (
-            ([x.float(), x_h.float(), y.float()], y.float())
-            if self.is_tra_val_te == "train"
-            else ([x.float(), x_h.float()], y.float())
-        )
-        return result
-
-    def __len__(self):
-        # 15118/train, 2626/test
-        return self.num_samples
-
-    @property
-    def data_source(self):
-        source_name = self.data_cfgs["source_cfgs"]["source_name"]
-        source_path = self.data_cfgs["source_cfgs"]["source_path"]
-        other_settings = self.data_cfgs["source_cfgs"].get("other_settings", {})
-        return data_sources_dict[source_name](source_path, **other_settings)
-
-    def _read_xyc(self):
-        y_origin = self._prepare_target()
-        x_origin = self._prepare_forcing()
-        x_origin = x_origin.with_columns(
-            pl.when(pl.col(pl.Float64) < 0)
-            .then(np.nan)
-            .otherwise(pl.col(pl.Float64))
-            .name.keep()
-        )
-        basin_sites = [
-            site_id
-            for site_id in self.t_s_dict["sites_id"]
-            if ((len(site_id.split("_")) == 2) & ("HML" not in site_id))
-        ]
-        station_sites = [
-            site_id
-            for site_id in self.t_s_dict["sites_id"]
-            if ((len(site_id.split("_")) == 3) | ("HML" in site_id))
-        ]
-        station_basins_df = self.data_cfgs["basins_stations_df"]
-        name_dict = {
-            site: station_basins_df[station_basins_df["station_id"] == site][
-                "basin_id"
-            ].values[0]
-            for site in station_sites
-        }
-        if self.data_cfgs["constant_cols"]:
-            data_attr_ds = self.data_source.read_attr_xrdataset(
-                basin_sites, self.data_cfgs["constant_cols"]
-            )
-            c_origin = self._trans2da_and_setunits(data_attr_ds)
-            zc_origin = xr.DataArray().assign_coords({"basin": None})
-            for name in name_dict.keys():
-                zone_attr_ds = self.data_source.read_attr_xrdataset(
-                    name_dict[name], self.data_cfgs["constant_cols"]
-                )
-                z_origin = self._trans2da_and_setunits(zone_attr_ds).assign_coords(
-                    basin=name
-                )
-                zc_origin = xr.concat([zc_origin, z_origin], dim="basin")
-            c_origin = xr.concat([c_origin, zc_origin.dropna(dim="basin")], dim="basin")
-        else:
-            c_origin = None
-        self.x_origin, self.y_origin, self.c_origin = x_origin, y_origin, c_origin
-
-    def _read_from_minio(self, var_lst):
-        gage_id_lst = self.t_s_dict["sites_id"]
-        basin_sites = [
-            site_id
-            for site_id in gage_id_lst
-            if ((len(site_id.split("_")) == 2) & ("HML" not in site_id))
-        ]
-        station_sites = [
-            site_id
-            for site_id in gage_id_lst
-            if ((len(site_id.split("_")) == 3) | ("HML" in site_id))
-        ]
-        t_range = self.t_s_dict["t_final_range"]
-        interval = self.data_cfgs["min_time_interval"]
-        time_unit = (
-            str(self.data_cfgs["min_time_interval"]) + self.data_cfgs["min_time_unit"]
-        )
-        subset_list = []
-        for start_date, end_date in t_range:
-            adjusted_end_date = (
-                datetime.strptime(end_date, "%Y-%m-%d-%H") + timedelta(hours=interval)
-            ).strftime("%Y-%m-%d-%H")
-            subset = self.data_source.read_ts_xrdataset(
-                basin_sites,
-                t_range=[start_date, adjusted_end_date],
-                var_lst=var_lst,
-                time_units=[time_unit],
-            )
-            zt_origin_path = os.path.join(
-                self.data_cfgs["validation_path"],
-                f"stations_weather_{len(var_lst)}.parquet",
-            )
-            if not os.path.exists(zt_origin_path):
-                station_basins_df = self.data_cfgs["basins_stations_df"]
-                name_dict = {
-                    site: station_basins_df[station_basins_df["station_id"] == site][
-                        "basin_id"
-                    ].values[0]
-                    for site in station_sites
-                }
-                zt_origin = pl.DataFrame()
-                # 291个站点，约45分钟生成zt_origin
-                for name in name_dict.keys():
-                    zone_ts_ds = self.data_source.read_ts_xrdataset(
-                        [name_dict[name]],
-                        t_range=[start_date, adjusted_end_date],
-                        var_lst=var_lst,
-                        time_units=[time_unit],
-                    )[time_unit]
-                    zone_ts_ds = zone_ts_ds.with_columns(
-                        pl.Series("basin_id", np.repeat(name, len(zone_ts_ds)))
-                    )
-                    zt_origin = zt_origin.vstack(zone_ts_ds)
-                zt_origin.write_parquet(zt_origin_path)
-            else:
-                zt_origin = pl.read_parquet(zt_origin_path)
-                tm_range = pd.date_range(start_date, adjusted_end_date, freq=time_unit)
-                zt_part = (
-                    zt_origin.group_by("basin_id", maintain_order=True)
-                    .agg(pl.all().slice(0, len(tm_range)))
-                    .explode(pl.exclude("basin_id"))
-                )
-                zt_origin = pl.concat(
-                    [zt_part[:, 1:-1], zt_part[["basin_id", "time"]]], how="horizontal"
-                )
-            zt_origin = zt_origin.with_columns(pl.col(pl.Float64).cast(pl.Float32))
-            subsets = pl.concat([subset[time_unit], zt_origin])
-            subset_list.append(subsets)
-        return pl.concat(subset_list)
-
-    def _normalize(self):
-        if self.data_cfgs["pre_norm"]:
-            scaler_hub = ScalerHub(
-                self.y_origin,
-                self.x_origin,
-                self.c_origin,
-                data_cfgs=self.data_cfgs,
-                is_tra_val_te=self.is_tra_val_te,
-                data_source=self.data_source,
-            )
-            self.target_scaler = scaler_hub.target_scaler
-            return scaler_hub.x, scaler_hub.y, scaler_hub.c.compute()
-        else:
-            return self.x_origin, self.y_origin, self.c_origin.compute()
-
-    def _kill_nan(self, x, y, c):
-        data_cfgs = self.data_cfgs
-        y_rm_nan = data_cfgs["target_rm_nan"]
-        x_rm_nan = data_cfgs["relevant_rm_nan"]
-        c_rm_nan = data_cfgs["constant_rm_nan"]
-        if x_rm_nan:
-            # As input, we cannot have NaN values
-            _fill_gaps_pq(x, fill_nan="interpolate")
-            warn_if_nan_pq(x)
-        if y_rm_nan:
-            _fill_gaps_pq(y, fill_nan="interpolate")
-            warn_if_nan_pq(y)
-        if c_rm_nan:
-            _fill_gaps_da(c, fill_nan="mean")
-            warn_if_nan(c)
-        warn_if_nan_pq(x, nan_mode="all")
-        warn_if_nan_pq(y, nan_mode="all")
-        warn_if_nan(c, nan_mode="all")
-        return x, y, c
-
-    def _trans2nparr(self):
-        """To make __getitem__ more efficient,
-        we transform x, y, c to numpy array with shape (nsample, nt, nvar)
-        """
-        station_len = len(self.x["basin_id"].unique())
-        x_truncated = (
-            self.x.group_by("basin_id", maintain_order=True)
-            .agg(pl.all().slice(0, len(self.x) // station_len))
-            .explode(pl.exclude("basin_id"))
-        )
-        y_trucnated = (
-            self.y.group_by("basin_id", maintain_order=True)
-            .agg(pl.all().slice(0, len(self.x) // station_len))
-            .explode(pl.exclude("basin_id"))
-        )
-        self.x = (
-            x_truncated[:, 1:-1]
-            .to_torch()
-            .reshape(station_len, len(self.x) // station_len, self.x.width - 2)
-        )
-        self.y = (
-            y_trucnated[:, 1:-1]
-            .to_torch()
-            .reshape(station_len, len(self.y) // station_len, self.y.width - 2)
-        )
-        basins_len = len(self.x_up["basin_id"].unique())
-        self.x_up = (
-            self.x_up[:, 2:]
-            .to_torch()
-            .reshape(basins_len, len(self.x_up) // basins_len, self.x_up.width - 2)
-        )
-        if self.c is not None and self.c.shape[-1] > 0:
-            self.c = self.c.transpose("basin", "variable").to_numpy()
-            self.c_origin = self.c_origin.transpose("basin", "variable").to_numpy()
-
-    def get_upstream_ds(self):
-        res_dir = self.data_cfgs["test_path"]
-        min_time_interval = self.data_cfgs["min_time_interval"]
-        obj_len = len(self.data_cfgs["object_ids"])
-        cut_len = self.data_cfgs["upstream_cut"]
-        tra_val_te_ds = os.path.join(
-            res_dir,
-            f"upstream_ds_{self.is_tra_val_te}_{obj_len}_{min_time_interval}h.parquet",
-        )
-        if os.path.exists(tra_val_te_ds):
-            total_df = pl.read_parquet(tra_val_te_ds)
-            save_cols = min(cut_len + 2, len(total_df.columns) - 2)
-        else:
-            nodes_df = self.data_cfgs["basins_stations_df"]
-            nodes_df["basin_id"] = nodes_df["basin_id"].astype(str).str.zfill(8)
-            nodes_df["node_id"] = nodes_df["node_id"].astype(str)
-            max_app_cols = int(nodes_df["upstream_len"].max()) - 1
-            save_cols = min(cut_len + 2, max_app_cols)
-            total_df = pl.DataFrame()
-            freq = f"{min_time_interval}h"
-            for node_name in np.unique(nodes_df["station_id"].to_numpy()):
-                station_df = pl.DataFrame()
-                # basin_id = nodes_df[nodes_df['station_id'] == node_name]['basin_id'].to_list()[0]
-                node_id = nodes_df["node_id"][
-                    nodes_df["station_id"] == node_name
-                ].to_list()[0]
-                up_set = nx.ancestors(self.data_cfgs["graph"], node_id)
-                if len(up_set) > 0:
-                    up_node_names = nodes_df["station_id"][
-                        nodes_df["node_id"].isin(up_set)
-                    ]
-                    # read_data_with_id放在if下方减少读盘次数
-                    # 上游站点最多的10701300站，在成图阶段上游有30个站，但是basin_stations里以其为下游的站却有34个，原因暂不明确
-                    # 与流域相交的站点，和上游能找到的站点数量不等，后者比前者少得多，可能是因为USGS的站点也有“三岔口问题”
-                    streamflow_dfs = [
-                        self.read_data_with_id(up_node_name)
-                        for up_node_name in up_node_names
-                    ]
-                    if len(streamflow_dfs) > max_app_cols:
-                        streamflow_dfs = streamflow_dfs[:max_app_cols]
-                    for date_tuple in self.data_cfgs[f"t_range_{self.is_tra_val_te}"]:
-                        date_times = pl.datetime_range(
-                            pd.to_datetime(date_tuple[0]),
-                            pd.to_datetime(date_tuple[1]),
-                            interval=freq,
-                            eager=True,
-                        )
-                        up_col_dict = {
-                            f"streamflow_up_{i}": np.zeros(
-                                len(date_times), dtype=np.float32
-                            )
-                            for i in range(max_app_cols)
-                        }
-                        up_str_df = pl.DataFrame(up_col_dict)
-                        for i in range(len(streamflow_dfs)):
-                            data_table = streamflow_dfs[i]
-                            # 有的time列是object，和datetime64[μs]不等，所以这里先转成datetime再比较
-                            if len(data_table) > 0:
-                                pl_times = pl.from_pandas(
-                                    pd.to_datetime(data_table["time"])
-                                ).cast(pl.Datetime)
-                                data_table = data_table.with_columns(
-                                    pl.Series(pl_times).alias("time")
-                                )
-                                # 存在这样的情况：2013年直接跳到2018年，导致时间轴上没有数据
-                                up_str_col = (
-                                    data_table.filter(
-                                        data_table["time"].is_in(date_times)
-                                    ).unique("time", keep="first", maintain_order=True)
-                                )["streamflow"]
-                                up_str_arr = np.float32(
-                                    up_str_col.fill_nan(0).to_numpy()
-                                )
-                                if len(up_str_arr) < len(date_times):
-                                    if len(up_str_arr) > 0:
-                                        up_str_arr = np.pad(
-                                            up_str_arr,
-                                            (0, len(date_times) - len(up_str_arr)),
-                                            "edge",
-                                        )
-                                    else:
-                                        up_str_arr = np.zeros(
-                                            len(date_times), dtype=np.float32
-                                        )
-                            else:
-                                up_str_arr = np.zeros(len(date_times), dtype=np.float32)
-                            up_str_df = up_str_df.with_columns(
-                                pl.Series(f"streamflow_up_{i}", up_str_arr)
-                            )
-                        station_df = station_df.with_columns(
-                            [
-                                pl.Series(
-                                    "basin_id", np.repeat(node_name, len(date_times))
-                                ),
-                                pl.Series("time", date_times),
-                            ]
-                        )
-                        station_df = pl.concat(
-                            [station_df, up_str_df], how="horizontal"
-                        )
-                        total_df = pl.concat([total_df, station_df])
-                else:
-                    for date_tuple in self.data_cfgs[f"t_range_{self.is_tra_val_te}"]:
-                        date_times = pl.datetime_range(
-                            pd.to_datetime(date_tuple[0]),
-                            pd.to_datetime(date_tuple[1]),
-                            interval=freq,
-                            eager=True,
-                        )
-                        up_str_df = pl.DataFrame(
-                            {
-                                f"streamflow_up_{i}": np.zeros(
-                                    len(date_times), dtype=np.float32
-                                )
-                                for i in range(max_app_cols)
-                            }
-                        )
-                        station_df = station_df.with_columns(
-                            [
-                                pl.Series(
-                                    "basin_id", np.repeat(node_name, len(date_times))
-                                ),
-                                pl.Series("time", date_times),
-                            ]
-                        )
-                        station_df = pl.concat(
-                            [station_df, up_str_df], how="horizontal"
-                        )
-                        total_df = pl.concat([total_df, station_df])
-            # if total_fab.global_rank == 0:
-            #     total_df.write_parquet(tra_val_te_ds)
-            # total_fab.barrier()
-        total_df = total_df[total_df.columns[:save_cols]]
-        return total_df
-
-    def read_data_with_id(self, node_name: str):
-        import geopandas as gpd
-
-        # node_name: IOWA, WY_DCP_XXXXX
-        # iowa流量站有653个，但是数据足够多的只有222个被整编到nc文件中
-        min_time_interval = self.data_cfgs["min_time_interval"]
-        if ("_" in node_name) & (len(node_name.split("_")) == 3):
-            iowa_stream_ds = pl.read_parquet("/ftproot/iowa_streamflow_stas.parquet")
-            if node_name in iowa_stream_ds["station"]:
-                node_df = iowa_stream_ds.filter(iowa_stream_ds["station"] == node_name)
-                node_df = node_df.rename({"utc_valid": "time"})
-                node_df = node_df[["time", "streamflow"]]
-                sta_basin_df = self.data_cfgs["basins_stations_df"]
-                sta_basin_df["basin_id"] = (
-                    sta_basin_df["basin_id"].astype(str).str.zfill(8)
-                )
-                basin_id = sta_basin_df[sta_basin_df["station_id"] == node_name][
-                    "basin_id"
-                ].to_list()[0]
-                area_gdf = gpd.read_file(self.data_cfgs["basins_shp"])
-                area = area_gdf[area_gdf["BASIN_ID"].str.contains(basin_id)][
-                    "AREA"
-                ].to_list()[0]
-                # GNNMultiTaskHydro.get_upstream_graph方法，如果遇到iowa的站必须除以流域面积做平均，否则误差会极大
-                # iowa流量站单位是KCFS(1000 ft3/s)，这里除以流域面积，并变成mm/h
-                node_df = node_df.with_columns(
-                    (
-                        pl.col("streamflow") / (35.31 * area) * 3600 * min_time_interval
-                    ).alias("streamflow")
-                )
-            else:
-                node_df = pl.DataFrame()
-        # node_name: songliao_21401550 or HML_XXXXX
-        elif ("_" in node_name) & (len(node_name.split("_")) == 2):
-            if "HML" not in node_name:
-                node_df = pl.read_csv(
-                    f"/ftproot/basins-interim/timeseries/1h/{node_name}.csv"
-                )[["time", "streamflow"]]
-            else:
-                hml_stream_ds = pl.read_parquet(f"/ftproot/hml_camels_stations.parquet")
-                if node_name.split("_")[-1] in hml_stream_ds["station"]:
-                    node_df = hml_stream_ds.filter(
-                        hml_stream_ds["station"] == node_name.split("_")[-1]
-                    )
-                    node_df = node_df.rename(
-                        {"valid[UTC]": "time", "Flow[kcfs]": "streamflow"}
-                    )
-                    node_df = node_df[["time", "streamflow"]]
-                    sta_basin_df = self.data_cfgs["basins_stations_df"]
-                    sta_basin_df["basin_id"] = (
-                        sta_basin_df["basin_id"].astype(str).str.zfill(8)
-                    )
-                    basin_id = sta_basin_df[sta_basin_df["station_id"] == node_name][
-                        "basin_id"
-                    ].to_list()[0]
-                    area_gdf = gpd.read_file(self.data_cfgs["basins_shp"])
-                    area = area_gdf[area_gdf["BASIN_ID"].str.contains(basin_id)][
-                        "AREA"
-                    ].to_list()[0]
-                    # GNNMultiTaskHydro.get_upstream_graph方法，如果遇到HML的站必须除以流域面积做平均，否则误差会极大
-                    # HML流量站单位是KCFS(1000 ft3/s)，这里除以流域面积，并变成mm/h
-                    node_df = node_df.with_columns(
-                        (
-                            pl.col("streamflow")
-                            / (35.31 * area)
-                            * 3600
-                            * min_time_interval
-                        ).alias("streamflow")
-                    )
-                else:
-                    node_df = pl.DataFrame()
-        # node_name: str(21401550)
-        elif "_" not in node_name:
-            csv_path = f"/ftproot/basins-interim/timeseries/1h/camels_{node_name}.csv"
-            node_csv_path = (
-                csv_path
-                if os.path.exists(csv_path)
-                else csv_path.replace("camels", "songliao")
-            )
-            node_df = pl.read_csv(node_csv_path)[["time", "streamflow"]]
-        else:
-            node_df = pl.DataFrame()
-        if "streamflow" in node_df.columns:
-            node_df = node_df.with_columns([pl.col("streamflow").cast(pl.Float32)])
-        return node_df
-
-
 class ForecastDataset(BaseDataset):
     def __init__(self, data_cfgs: dict, is_tra_val_te: str):
         super(ForecastDataset, self).__init__(data_cfgs, is_tra_val_te)
@@ -2453,3 +1994,384 @@ class FloodEventDplDataset(FloodEventDataset):
         y_train = torch.from_numpy(y_origin_with_mask).float()
 
         return (x_train, z_train), y_train
+
+
+class GNNDataset(FloodEventDataset):
+    """Dataset for Graph Neural Networks with station data support.
+
+    This dataset extends FloodEventDataset to support station-based data
+    including station timeseries and adjacency matrix information.
+    """
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        # Initialize station-related attributes
+        self.station_data = None
+        self.station_data_norm = None
+        self.station_data_origin = None
+        self.adjacency_matrices = None
+        self.station_ids_by_basin = None
+        self.station_scaler = None
+
+        # Station-specific configuration
+        self.station_cfgs = cfgs["data_cfgs"].get("station_cfgs", {})
+        self.station_cols = self.station_cfgs.get("station_cols", [])
+        self.station_rm_nan = self.station_cfgs.get("station_rm_nan", True)
+        self.use_adjacency = self.station_cfgs.get("use_adjacency", True)
+
+        super(GNNDataset, self).__init__(cfgs, is_tra_val_te)
+
+    def _read_xyc_specified_time(self, start_date, end_date):
+        """Read x, y, c data including station data from data source"""
+        # Get basic data from parent class
+        data_dict = super(GNNDataset, self)._read_xyc_specified_time(
+            start_date, end_date
+        )
+
+        # Read station data if station_cols is specified
+        if self.station_cols:
+            station_data = self._read_station_data(start_date, end_date)
+            data_dict["station_cols"] = station_data
+
+            # Read adjacency matrices if enabled
+            if self.use_adjacency:
+                adjacency_data = self._read_adjacency_data()
+                data_dict["adjacency_cols"] = adjacency_data
+
+        return data_dict
+
+    def _read_station_data(self, start_date, end_date):
+        """Read station timeseries data for all basins"""
+        station_data_dict = {}
+
+        # Get basin IDs
+        basin_ids = self.t_s_dict["sites_id"]
+
+        # Get time units for station data
+        time_units = self.station_cfgs.get("station_time_units", ["1D"])
+
+        for basin_id in basin_ids:
+            try:
+                # Get station IDs for this basin
+                station_ids = self.data_source.get_stations_by_basin(basin_id)
+
+                if not station_ids:
+                    # If no stations, create empty data structure
+                    station_data_dict[basin_id] = None
+                    continue
+
+                # Read station data from cache
+                station_data = self.data_source.read_station_ts_xrdataset(
+                    station_id_lst=station_ids,
+                    t_range=[start_date, end_date],
+                    var_lst=self.station_cols,
+                    time_units=time_units,
+                )
+
+                # Convert to DataArray and handle multiple time units
+                if station_data:
+                    # Use first time unit if multiple are available
+                    time_unit = list(station_data.keys())[0]
+                    station_ds = station_data[time_unit]
+
+                    if not station_ds.sizes:
+                        station_data_dict[basin_id] = None
+                    else:
+                        # Convert to DataArray
+                        station_da = station_ds.to_array(dim="variable")
+                        # Set units attribute
+                        units_dict = {
+                            var: station_ds[var].attrs.get("units", "unknown")
+                            for var in station_ds.variables
+                            if var in self.station_cols
+                        }
+                        station_da.attrs["units"] = units_dict
+                        station_data_dict[basin_id] = station_da
+                else:
+                    station_data_dict[basin_id] = None
+
+            except Exception as e:
+                LOGGER.warning(f"Failed to read station data for basin {basin_id}: {e}")
+                station_data_dict[basin_id] = None
+
+        return station_data_dict
+
+    def _read_adjacency_data(self):
+        """Read adjacency matrices for all basins"""
+        adjacency_dict = {}
+        basin_ids = self.t_s_dict["sites_id"]
+
+        for basin_id in basin_ids:
+            try:
+                # Read adjacency matrix for this basin
+                adjacency_df = self.data_source.read_basin_adjacency(basin_id)
+
+                if not adjacency_df.empty:
+                    # Convert to numpy array
+                    adjacency_matrix = adjacency_df.values
+                    adjacency_dict[basin_id] = adjacency_matrix
+                else:
+                    adjacency_dict[basin_id] = None
+
+            except Exception as e:
+                LOGGER.warning(
+                    f"Failed to read adjacency data for basin {basin_id}: {e}"
+                )
+                adjacency_dict[basin_id] = None
+
+        return adjacency_dict
+
+    def _normalize(self, origin_data):
+        """Normalize data including station data"""
+        # Get basic normalization from parent class
+        scaler_hub = ScalerHub(
+            origin_data,
+            data_cfgs=self.data_cfgs,
+            is_tra_val_te=self.is_tra_val_te,
+            data_source=self.data_source,
+        )
+        self.target_scaler = scaler_hub.target_scaler
+        norm_data = scaler_hub.norm_data
+
+        # Normalize station data separately
+        if "station_cols" in origin_data and origin_data["station_cols"]:
+            norm_data["station_cols"] = self._normalize_station_data(
+                origin_data["station_cols"]
+            )
+
+        # Adjacency matrices don't need normalization
+        if "adjacency_cols" in origin_data:
+            norm_data["adjacency_cols"] = origin_data["adjacency_cols"]
+
+        return norm_data
+
+    def _normalize_station_data(self, station_data_dict):
+        """Normalize station data using specified scaler"""
+        if not station_data_dict:
+            return station_data_dict
+
+        # Get scaler type from config
+        scaler_type = self.station_cfgs.get("station_scaler_type", "DapengScaler")
+
+        # Collect all non-None station data for fitting scaler
+        all_station_data = []
+        basin_to_data_map = {}
+
+        for basin_id, station_data in station_data_dict.items():
+            if station_data is not None:
+                basin_to_data_map[basin_id] = station_data
+                # Reshape to (n_samples, n_features) for scaler
+                data_2d = station_data.values.reshape(-1, station_data.shape[-1])
+                all_station_data.append(data_2d)
+
+        if not all_station_data:
+            return station_data_dict
+
+        # Concatenate all station data
+        combined_data = np.concatenate(all_station_data, axis=0)
+
+        # Remove NaN values for scaler fitting
+        valid_mask = ~np.isnan(combined_data).any(axis=1)
+        if not np.any(valid_mask):
+            LOGGER.warning("All station data contains NaN, skipping normalization")
+            return station_data_dict
+
+        clean_data = combined_data[valid_mask]
+
+        # Initialize scaler based on type
+        if scaler_type == "DapengScaler":
+            from torchhydro.datasets.data_scalers import DapengScaler
+
+            self.station_scaler = DapengScaler(
+                feature_range=self.data_cfgs.get("station_scaler_params", {}).get(
+                    "feature_range", [0, 1]
+                )
+            )
+        elif scaler_type == "SklearnScaler":
+            from torchhydro.datasets.data_scalers import SklearnScaler
+
+            scaler_name = self.data_cfgs.get("station_scaler_params", {}).get(
+                "scaler_name", "StandardScaler"
+            )
+            self.station_scaler = SklearnScaler(scaler_name=scaler_name)
+        else:
+            raise ValueError(f"Unknown station scaler type: {scaler_type}")
+
+        # Fit scaler only on training data
+        if self.is_tra_val_te == "train":
+            self.station_scaler.fit(clean_data)
+
+        # Apply normalization to each basin's station data
+        normalized_station_data = {}
+        for basin_id, station_data in basin_to_data_map.items():
+            original_shape = station_data.shape
+            data_2d = station_data.values.reshape(-1, original_shape[-1])
+
+            # Apply normalization
+            try:
+                normalized_2d = self.station_scaler.transform(data_2d)
+                normalized_data = normalized_2d.reshape(original_shape)
+
+                # Create new DataArray with normalized data
+                normalized_da = xr.DataArray(
+                    normalized_data,
+                    dims=station_data.dims,
+                    coords=station_data.coords,
+                    attrs=station_data.attrs,
+                )
+                normalized_station_data[basin_id] = normalized_da
+            except Exception as e:
+                LOGGER.warning(
+                    f"Failed to normalize station data for basin {basin_id}: {e}"
+                )
+                normalized_station_data[basin_id] = station_data
+
+        # Add None entries for basins without station data
+        for basin_id in station_data_dict:
+            if basin_id not in normalized_station_data:
+                normalized_station_data[basin_id] = None
+
+        return normalized_station_data
+
+    def _kill_nan(self, origin_data, norm_data):
+        """Handle NaN values including station data"""
+        # Get basic NaN handling from parent class
+        origins_wonan, norms_wonan = super(GNNDataset, self)._kill_nan(
+            origin_data, norm_data
+        )
+
+        # Handle station data NaN values
+        if "station_cols" in origin_data and origin_data["station_cols"]:
+            origin_station_wonan = self._kill_station_nan(origin_data["station_cols"])
+            norm_station_wonan = self._kill_station_nan(norm_data["station_cols"])
+
+            origins_wonan["station_cols"] = origin_station_wonan
+            norms_wonan["station_cols"] = norm_station_wonan
+
+        # Adjacency matrices don't need NaN handling
+        if "adjacency_cols" in origin_data:
+            origins_wonan["adjacency_cols"] = origin_data["adjacency_cols"]
+            norms_wonan["adjacency_cols"] = norm_data["adjacency_cols"]
+
+        return origins_wonan, norms_wonan
+
+    def _kill_station_nan(self, station_data_dict):
+        """Remove NaN values from station data"""
+        if not station_data_dict:
+            return station_data_dict
+
+        processed_station_data = {}
+
+        for basin_id, station_data in station_data_dict.items():
+            if station_data is None:
+                processed_station_data[basin_id] = None
+                continue
+
+            if self.station_rm_nan:
+                # Apply interpolation to fill NaN values
+                filled_data = _fill_gaps_da(station_data, fill_nan="interpolate")
+                processed_station_data[basin_id] = filled_data
+            else:
+                processed_station_data[basin_id] = station_data
+
+        return processed_station_data
+
+    def _trans2nparr(self, origin_data, norm_data):
+        """Transform data to numpy arrays including station data"""
+        # Call parent method for basic data
+        super(GNNDataset, self)._trans2nparr(origin_data, norm_data)
+
+        # Handle station data
+        if "station_cols" in origin_data and origin_data["station_cols"]:
+            self.station_data_origin = self._station_dict_to_array(
+                origin_data["station_cols"]
+            )
+            self.station_data = self._station_dict_to_array(norm_data["station_cols"])
+
+        # Handle adjacency matrices
+        if "adjacency_cols" in origin_data and origin_data["adjacency_cols"]:
+            self.adjacency_matrices = origin_data["adjacency_cols"]
+
+    def _station_dict_to_array(self, station_data_dict):
+        """Convert station data dict to numpy array for efficient access"""
+        if not station_data_dict:
+            return None
+
+        # Create a mapping from basin_id to basin_index
+        basin_ids = self.t_s_dict["sites_id"]
+        basin_to_idx = {basin_id: idx for idx, basin_id in enumerate(basin_ids)}
+
+        # Initialize array structure
+        # We'll create a list of arrays, one for each basin
+        station_arrays = []
+
+        for basin_id in basin_ids:
+            station_data = station_data_dict.get(basin_id)
+            if station_data is None:
+                # Create empty array for basins without station data
+                station_arrays.append(None)
+            else:
+                # Convert DataArray to numpy array
+                # Expected shape: (n_stations, n_time, n_variables)
+                array_data = station_data.values.transpose(
+                    1, 0, 2
+                )  # station, time, variable
+                station_arrays.append(array_data)
+
+        return station_arrays
+
+    def get_station_data(self, basin_idx, time_idx):
+        """Get station data for a specific basin and time range"""
+        if self.station_data is None or basin_idx >= len(self.station_data):
+            return None
+
+        station_data = self.station_data[basin_idx]
+        if station_data is None:
+            return None
+
+        # Return station data for the specified time range
+        return station_data[:, time_idx, :]
+
+    def get_adjacency_matrix(self, basin_idx):
+        """Get adjacency matrix for a specific basin"""
+        if self.adjacency_matrices is None:
+            return None
+
+        basin_id = self.t_s_dict["sites_id"][basin_idx]
+        return self.adjacency_matrices.get(basin_id)
+
+    def __getitem__(self, item: int):
+        """Get one sample from the dataset
+
+        Returns
+        -------
+        tuple
+            Input and output data for GNN model
+        """
+        # TODO: Implement based on specific GNN model requirements
+        # This is a placeholder that can be customized based on your GNN architecture
+
+        # Get basic data from parent class
+        x, y = super(GNNDataset, self).__getitem__(item)
+
+        # Get station data and adjacency matrix if available
+        basin, idx, _ = self.lookup_table[item]
+
+        # Get station data for this time window
+        station_data = self.get_station_data(basin, slice(idx, idx + self.rho))
+
+        # Get adjacency matrix
+        adj_matrix = self.get_adjacency_matrix(basin)
+
+        # Return data structure suitable for GNN
+        # You can customize this based on your specific GNN model requirements
+        return {
+            "x": x,  # Basic input features
+            "y": y,  # Target output
+            "station_data": station_data,  # Station time series data
+            "adj_matrix": adj_matrix,  # Adjacency matrix
+            "basin_idx": basin,  # Basin index
+            "time_idx": idx,  # Time index
+        }
+
+    def __len__(self):
+        return self.num_samples
