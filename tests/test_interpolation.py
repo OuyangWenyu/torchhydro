@@ -216,12 +216,12 @@ def test_lose_index():
     print("index = " + str(index))
 # index = [10 17 23 29 36 37 39 54 76 91]
 
-def test_genetate_lose_time_series():
+def test_genetate_lose_time_series_single():
     inter = Interpolation()
     x = camelsch_streamflow_90
     range = 90
     n = 9
-    lose_x = inter.genetate_lose_time_series(x, n)
+    lose_x = inter.genetate_lose_time_series_single(x, n)
     print("lose_x")
     print(lose_x)
 # lose_x
@@ -243,3 +243,11 @@ def test_genetate_lose_time_series():
 #   212.2058323   147.2268456   109.5460962    94.85519481           nan
 #   125.8614722   231.0638644   494.0521874   651.8381183   688.3534837
 #   660.3842677   360.2449152   223.1180643   232.4058217   255.9960191 ]
+
+def test_genetate_lose_time_series():
+    inter = Interpolation()
+    x = camelsch_streamflow_90   # todo: 2d
+    n = 10
+    lose_x = inter.genetate_lose_time_series(x, n)
+    print("lose_x")
+    print(lose_x)

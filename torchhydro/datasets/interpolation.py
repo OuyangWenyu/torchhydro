@@ -323,7 +323,7 @@ class Interpolation(object):
 
         return index
 
-    def genetate_lose_time_series(
+    def genetate_lose_time_series_single(
         self,
         x,
         n,
@@ -347,3 +347,27 @@ class Interpolation(object):
 
         return lose_x
 
+    def genetate_lose_time_series(
+        self,
+        x: np.ndarray,
+        n,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        n
+
+        Returns
+        -------
+
+        """
+        n_x = x.shape[0]
+        n_xi = x.shape[1]
+
+        lose_x = np.zeros((n_x, n_xi))
+        for i in range(n_x):
+            lose_x[i, :] = self.genetate_lose_time_series_single(x[i, :], n)
+
+        return lose_x
