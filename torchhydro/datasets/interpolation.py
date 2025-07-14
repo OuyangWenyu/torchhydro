@@ -230,3 +230,40 @@ class Interpolation(object):
 
         return a0, R_20, delta_20, a1, R_21, y1, theta1
 
+    def arch_model(
+        self,
+        x,
+        theta,
+        p,
+        q,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        theta
+        p
+        q
+
+        Returns
+        -------
+
+        """
+        residual = self.arch.x_residual_via_parameters(x, theta)
+        mean_residual, residual_center = self.arch.residual_center(residual)
+        residual_2 = np.power(residual_center, 2)
+        (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse, rmse,
+         max_abs_error) = self.arch.arima_arch(x, theta, p, q)
+
+        return (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse,
+                rmse, max_abs_error)
+
+    def deletion_ratio(self):
+        """Zhenghe Li P16"""
+        r0 = [0, 0.01]  # slight
+        r1 = [0.01, 0.1]  # dram
+        r2 = [0.1, 0.2]  # jot
+        r3 = [0.2, 0.35]  # moderate  __
+        r4 = [0.35, 0.45]  # stack
+        r5 = [0.45, 0.99]  # serious

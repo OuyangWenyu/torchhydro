@@ -1,7 +1,7 @@
 
 import numpy as np
 
-from hydrodataset import CamelsCh
+from hydrodataset import CamelsCh, Camels
 from test_arch_data import camelsch_streamflow_8487, camelsch_streamflow_8183, camelsch_streamflow_8183_d1, camelsch_streamflow_81
 from torchhydro.datasets.interpolation import Interpolation
 
