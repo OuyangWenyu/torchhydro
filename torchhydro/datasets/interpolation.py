@@ -1,6 +1,8 @@
 """ """
 
 import numpy as np
+import random
+import time
 
 from torchhydro.datasets.arch import Arch
 
@@ -264,10 +266,58 @@ class Interpolation(object):
                 rmse, max_abs_error)
 
     def deletion_ratio(self):
-        """Zhenghe Li P16"""
+        """
+        Zhenghe Li P16
+        Missing At Non-Random, MANR.
+        Missing Completely At Random, MCAR.
+        Missing Random, MAR.
+
+        Returns
+        -------
+
+        """
         r0 = [0, 0.01]  # slight
         r1 = [0.01, 0.1]  # dram
         r2 = [0.1, 0.2]  # jot
         r3 = [0.2, 0.35]  # moderate  __
         r4 = [0.35, 0.45]  # stack
         r5 = [0.45, 0.99]  # serious
+
+    def cal_lose_ratio(
+        self,
+        x,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        x = np.array(x)
+        indeces = np.where(x == -100)
+        n_indeces = indeces[0].size
+
+        lose_ratio = n_indeces / n_x
+
+        return lose_ratio
+
+    def lose_index(
+        self,
+        range,
+        n,
+    ):
+        """
+
+        Returns
+        -------
+
+        """
+        random.seed(time.time()+1)
+        index = np.random.normal(loc=0, scale=1, size=n)
+
+        return index

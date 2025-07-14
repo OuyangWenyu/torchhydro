@@ -200,3 +200,17 @@ def test_arch_model():
     (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse,
      rmse, max_abs_error) = inter.arch_model(x, theta, p ,q)
 
+
+def test_cal_lose_ratio():
+    inter = Interpolation()
+    x = camelsch_streamflow_8487
+    lose_ratio = inter.cal_lose_ratio(x)
+    print("lose_ratio = " + str(lose_ratio))
+# lose_ratio = 0.05270362765229295
+
+def test_lose_index():
+    inter = Interpolation()
+    range = 1460
+    n = 30
+    lose_ratio = inter.lose_index(range, n)
+    print("lose_ratio = " + str(lose_ratio))
