@@ -2,7 +2,7 @@
 import numpy as np
 
 from hydrodataset import CamelsCh, Camels
-from test_arch_data import camelsch_streamflow_8487, camelsch_streamflow_8183, camelsch_streamflow_8183_d1, camelsch_streamflow_81
+from test_arch_data import camelsch_streamflow_8487, camelsch_streamflow_8183, camelsch_streamflow_8183_d1, camelsch_streamflow_81, camelsch_streamflow_90
 from torchhydro.datasets.interpolation import Interpolation
 
 
@@ -214,4 +214,32 @@ def test_lose_index():
     n = 10
     index = inter.lose_index(range, n)
     print("index = " + str(index))
-# index = [52 74 85 87 18 90 39 20 52 78]
+# index = [10 17 23 29 36 37 39 54 76 91]
+
+def test_genetate_lose_time_series():
+    inter = Interpolation()
+    x = camelsch_streamflow_90
+    range = 90
+    n = 9
+    lose_x = inter.genetate_lose_time_series(x, n)
+    print("lose_x")
+    print(lose_x)
+# lose_x
+# [          nan   52.40696541   57.42164809  531.7682515  1083.277402
+#   629.0248436   237.4205044   146.0614616   107.0034402    89.55799481
+#    78.04541345   69.53457877           nan   63.7782881    51.80661608
+#    56.68004009   67.30975477   68.12199211   67.94541877   75.39681345
+#    74.09017078   70.84122144   67.66290144   68.15730677   64.44926677
+#    58.97549342           nan   52.90137075   51.02969341   50.00556808
+#    45.3087174    41.45941873   37.61012006   35.59718406   81.29436279
+#   133.0656642    99.30484282   95.24365615           nan  130.0286029
+#   145.7436296   135.5730055   114.0663735    98.13945882           nan
+#    82.70694946   75.85590412   69.07548811   63.0366801    57.52759209
+#    52.08913341   46.68598941   42.2363414    38.13984006   33.19578672
+#    29.48774671   26.66257337   25.88565071   24.68495204   29.66432005
+#    45.90906674   69.64052277   79.98772012   70.27618678           nan
+#   129.7814002   234.4187577   524.1402835   534.2755928   492.9221181
+#   856.804444             nan           nan 1020.45261     313.2057792
+#   212.2058323   147.2268456   109.5460962    94.85519481           nan
+#   125.8614722   231.0638644   494.0521874   651.8381183   688.3534837
+#   660.3842677   360.2449152   223.1180643   232.4058217   255.9960191 ]

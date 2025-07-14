@@ -322,3 +322,28 @@ class Interpolation(object):
         index = np.sort(index)
 
         return index
+
+    def genetate_lose_time_series(
+        self,
+        x,
+        n,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        n
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        x = np.array(x)
+        lose_index = self.lose_index(n_x, n)
+        lose_x = x[:]
+        lose_x[lose_index] = "NaN"
+
+        return lose_x
+
