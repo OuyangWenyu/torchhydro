@@ -210,7 +210,8 @@ def test_cal_lose_ratio():
 
 def test_lose_index():
     inter = Interpolation()
-    range = 1460
-    n = 30
-    lose_ratio = inter.lose_index(range, n)
-    print("lose_ratio = " + str(lose_ratio))
+    range = 100
+    n = 10
+    index = inter.lose_index(range, n)
+    print("index = " + str(index))
+# index = [52 74 85 87 18 90 39 20 52 78]

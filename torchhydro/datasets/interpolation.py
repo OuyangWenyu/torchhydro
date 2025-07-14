@@ -318,6 +318,7 @@ class Interpolation(object):
 
         """
         random.seed(time.time()+1)
-        index = np.random.normal(loc=0, scale=1, size=n)
+        index = np.random.randint(low=0, high=range+1, size=n, dtype=int)
+        index = np.sort(index)
 
         return index
