@@ -250,6 +250,10 @@ class Interpolation(object):
         -------
 
         """
+        n_theta = len(theta)
+        if n_theta != p+q+1:
+            raise ValueError("the length of theta need to be equal to p+q+1.")
+
         residual = self.arch.x_residual_via_parameters(x, theta)
         mean_residual, residual_center = self.arch.residual_center(residual)
         residual_2 = np.power(residual_center, 2)

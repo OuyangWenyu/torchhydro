@@ -188,3 +188,15 @@ def test_arch_parameter():
 # R_22 = 0.1638094288492594
 # theta1 = [ 1.30134078e+00 -6.75768370e-01  2.68221020e-01  8.68204977e+02
 #   3.41215781e-02  0.00000000e+00  2.05339673e-02  6.24759671e-03]
+
+
+def test_arch_model():
+    inter = Interpolation()
+    x = camelsch_streamflow_8183
+    phi = [1.30134078, -0.67576837, 0.26822102]
+    theta = [8.68204977e+02, 3.41215781e-02, 0.00000000e+00, 2.05339673e-02, 6.24759671e-03]
+    p = 3
+    q = 4
+    (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse,
+     rmse, max_abs_error) = inter.arch_model(x, theta, p ,q)
+
