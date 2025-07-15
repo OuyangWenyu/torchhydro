@@ -410,14 +410,15 @@ class Interpolation(object):
         -------
 
         """
-        n_x = x.shape[0]
+        # n_x = x.shape[0]
+        n_x = len(x)
         m = n_x - n
         d1 = x[:m]
         d2 = x[n:]
         d = np.array(d1) - np.array(d2)
         d_2 = np.power(d, 2)
         rho = np.sum(d_2)
-        rho = 6 * rho / (m * (m * m -1))
+        rho = 6 * rho / (m * (m * m - 1))
         rho = 1 - rho
 
         return rho

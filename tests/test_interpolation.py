@@ -275,10 +275,17 @@ def test_genetate_lose_time_series():
 #    125.8614722   231.0638644   494.0521874   651.8381183   688.3534837
 #             nan  360.2449152   223.1180643   232.4058217            nan]]
 
+def test_mse():
+    inter = Interpolation()
+    x = camelsch_streamflow_90
+    y = camelsch_streamflow_90
+    mse = inter.mse(x, y)
+    print("mse = " + str(mse))
+
 def test_correlation_coefficient_spearman():
     inter = Interpolation()
-    x = camelsch_streamflow_8183
-    n = 30
+    x = camelsch_streamflow_90
+    n = 10
     rho = inter.correlation_coefficient_spearman(x, n)
     print("rho = " + str(rho))
-
+# rho = -156.33450020041516
