@@ -101,6 +101,7 @@ class Interpolation(object):
         if phi is not None:
             y = self.arch.arima(x=x, phi=phi, p=len(phi))
             x = np.array(x) - y
+            x = np.power(x, 2)
         acf = self.arch.autocorrelation_function(x)
         pacf = self.arch.partial_autocorrelation_function(x)
 
@@ -129,7 +130,7 @@ class Interpolation(object):
         return phi, theta, R_2, se_beta
 
 
-    def test_model(
+    def test_arima_model(
         self,
         x,
         phi,
@@ -155,28 +156,6 @@ class Interpolation(object):
 
         return b_significant_arima, b_significant_para
 
-    def test_arch(
-        self,
-        x,
-        phi,
-        q,
-        significance_level,
-    ):
-        """
-
-        Parameters
-        ----------
-        x
-        phi
-
-        Returns
-        -------
-
-        """
-        residual = self.arch.x_residual_via_parameters(x, phi)
-        b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = self.arch.arch_test(residual, q, significance_level)
-
-        return b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM
 
     def degree_arch(
         self,
@@ -200,6 +179,29 @@ class Interpolation(object):
         pacf = self.arch.partial_autocorrelation_function(residual_2)
 
         return acf, pacf
+
+    def test_arch(
+        self,
+        x,
+        phi,
+        q,
+        significance_level,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        phi
+
+        Returns
+        -------
+
+        """
+        residual = self.arch.x_residual_via_parameters(x, phi)
+        b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = self.arch.arch_test(residual, q, significance_level)
+
+        return b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM
 
     def arch_parameter(
         self,
@@ -252,6 +254,10 @@ class Interpolation(object):
         theta,
         p,
         q,
+        nse,
+        rmse,
+        max_error,
+        max_loop,
     ):
         """
 
@@ -273,11 +279,9 @@ class Interpolation(object):
         residual = self.arch.x_residual_via_parameters(x, theta)
         mean_residual, residual_center = self.arch.residual_center(residual)
         residual_2 = np.power(residual_center, 2)
-        (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse, rmse,
-         max_abs_error) = self.arch.arima_arch(x, theta, p, q)
+        result = self.arch.arima_arch_model(x, theta, p, q, nse, rmse, max_error, max_loop)
 
-        return (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse,
-                rmse, max_abs_error)
+        return result
 
     def deletion_ratio(self):
         """
