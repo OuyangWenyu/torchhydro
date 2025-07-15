@@ -86,6 +86,7 @@ class Interpolation(object):
     def degree_ar(
         self,
         x,
+        phi = None,
     ):
         """
 
@@ -97,6 +98,9 @@ class Interpolation(object):
         -------
 
         """
+        if phi is not None:
+            y = self.arch.arima(x=x, phi=phi, p=len(phi))
+            x = np.array(x) - y
         acf = self.arch.autocorrelation_function(x)
         pacf = self.arch.partial_autocorrelation_function(x)
 
