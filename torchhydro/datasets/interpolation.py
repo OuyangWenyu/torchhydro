@@ -371,3 +371,68 @@ class Interpolation(object):
             lose_x[i, :] = self.genetate_lose_time_series_single(x[i, :], n)
 
         return lose_x
+
+    def mse(
+        self,
+        x,
+        y,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        y
+
+        Returns
+        -------
+
+        """
+        error = np.array(y) - np.array(x)
+        error_2 = np.power(error, 2)
+        mse = np.mean(error_2)
+
+        return mse
+
+    def correlation_coefficient_spearman(
+        self,
+        x,
+        n,
+    ):
+        """
+        Zhenghe Li P30
+        Parameters
+        ----------
+        x
+        n
+
+        Returns
+        -------
+
+        """
+        n_x = x.shape[0]
+        m = n_x - n
+        d1 = x[:m]
+        d2 = x[n:]
+        d = np.array(d1) - np.array(d2)
+        d_2 = np.power(d, 2)
+        rho = np.sum(d_2)
+        rho = 6 * rho / (m * (m * m -1))
+        rho = 1 - rho
+
+        return rho
+
+    def f_t(
+        self,
+        T,
+    ):
+        """
+
+        Parameters
+        ----------
+        T
+
+        Returns
+        -------
+
+        """
