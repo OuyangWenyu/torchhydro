@@ -4,6 +4,8 @@ import numpy as np
 import random
 import time
 
+from hydrodataset import CamelsCh, Camels
+
 from torchhydro.datasets.arch import Arch
 
 class Interpolation(object):
@@ -15,8 +17,22 @@ class Interpolation(object):
         self.arch = Arch()
         self.x = None
         self.y = None
+        self.datasource = CamelsCh()
+        self.basin = ["5011",]  # ["01013500",]
+        self.time_range = ["1984-01-01", "1987-12-31"]  # ["1980-01-01", "2014-12-31"]
+        self.var_list = ["streamflow"]
 
 
+
+    def read_data(self, path):
+        data = self.datasource.read_ts_xrdataset(
+            self.basin,
+            self.time_range,
+            self.var_list,
+        )
+        data1 = data.streamflow.to_dataframe()
+        data1 = data1.values[:, 0]
+        self.x = data1
 
     def cal_7_stat_inds(self, x):
         """
@@ -45,12 +61,6 @@ class Interpolation(object):
         if std < 0.001:
             std = 1
         return [num_point, mean, std, min_, p25, p50, p75, max_]
-
-    def read_data(self, path):
-
-        x = np.load(path)
-
-        return
 
     def smooth_test(
         self,
@@ -423,7 +433,7 @@ class Interpolation(object):
 
         return rho
 
-    def f_t(
+    def fourier_series(
         self,
         T,
     ):
@@ -437,3 +447,5 @@ class Interpolation(object):
         -------
 
         """
+
+

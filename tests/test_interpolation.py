@@ -56,6 +56,12 @@ def test_readdata():
 # CamelsCh  5011  ["1984-01-01", "1987-12-31"]
 # 1461
 
+def test_read_data():
+    inter = Interpolation()
+    inter.read_data(camelsch_streamflow_8183_d1)
+    n_x = inter.x.size
+    print(n_x)
+
 def test_smooth_test():
     inter = Interpolation()
     b_ = inter.smooth_test(camelsch_streamflow_8183_d1)
@@ -278,9 +284,10 @@ def test_genetate_lose_time_series():
 def test_mse():
     inter = Interpolation()
     x = camelsch_streamflow_90
-    y = camelsch_streamflow_90
+    y = camelsch_streamflow_8487[:90]
     mse = inter.mse(x, y)
     print("mse = " + str(mse))
+# mse = 162924.84484475685
 
 def test_correlation_coefficient_spearman():
     inter = Interpolation()
