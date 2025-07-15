@@ -59,10 +59,11 @@ def test_readdata():
 
 def test_read_data():
     inter = Interpolation()
-    inter.read_data(camelsch_streamflow_8183_d1)
+    inter.read_data()
     n_x = inter.x.size
     print("n_x = " + str(n_x))
 # n_x = 1461
+# n_x = 12784
 
 def test_smooth_test():
     inter = Interpolation()

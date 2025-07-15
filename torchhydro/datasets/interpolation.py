@@ -17,22 +17,22 @@ class Interpolation(object):
         self.arch = Arch()
         self.x = None
         self.y = None
-        self.datasource = CamelsCh()
-        self.basin = ["5011",]  # ["01013500",]
-        self.time_range = ["1984-01-01", "1987-12-31"]  # ["1980-01-01", "2014-12-31"]
-        self.var_list = ["streamflow"]
+        self.datasource = Camels()
+        self.gage_id = ["05087500",]     #["5011",]  # ["01013500",]
+        self.time_range = ["1980-01-01", "2014-12-31"]      #["1984-01-01", "1987-12-31"]  # ["1980-01-01", "2014-12-31"]
+        self.var_list = ["streamflow",]
 
 
 
-    def read_data(self, path):
+    def read_data(self):
         data = self.datasource.read_ts_xrdataset(
-            self.basin,
+            self.gage_id,
             self.time_range,
             self.var_list,
         )
-        data1 = data.streamflow.to_dataframe()
-        data1 = data1.values[:, 0]
-        self.x = data1
+        data = data.streamflow.to_dataframe()
+        data = data.values
+        self.x = data
 
     def cal_7_stat_inds(self, x):
         """
