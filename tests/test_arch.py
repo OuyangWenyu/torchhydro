@@ -223,6 +223,29 @@ def test_partial_autocorrelation_function_streamflow():
 #  -0.00606696 -0.00870686 -0.0085929  -0.00935203 -0.00885177 -0.00871088
 #  -0.00762783 -0.00628375 -0.00953454 -0.01308311 -0.01263496]
 
+def test_aic_degree():
+    arch = Arch()
+    x = y_streamflow_395
+    L = 5
+    b_aic = True
+    degree, aic_min, phi_min, R_2_min, aic = arch.aic_degree(x, L, b_aic)
+    print("degree = " + str(degree))
+    print("aic_min = " + str(aic_min))
+    print("phi_min = " + str(phi_min))
+    print("R_2_min = " + str(R_2_min))
+    print("aic = " + str(aic))
+# degree = 5
+# aic_min = 1619.9015440611763
+# phi_min = [ 2.52396938 -2.53018686  1.50711054 -0.74307103  0.24149585]
+# R_2_min = 0.9953131373811855
+# aic = [2269.1780347  1771.30067553 1637.72938042 1634.15829436 1619.90154406]
+
+def test_aic_cdegree():
+    arch = Arch()
+    x = y_streamflow_395
+    L = 5
+    b_aic = True
+
 def test_ar_least_squares_estimation():
     y_42 = [1, 1.1, 1.21, 1.331, 1.4641, 1.61051, 1.771561, 1.9487171, 2.14358881, 2.357947691, 2.59374246,
             2.853116706, 3.138428377, 3.452271214, 3.797498336, 4.177248169, 4.594972986, 5.054470285, 5.559917313,

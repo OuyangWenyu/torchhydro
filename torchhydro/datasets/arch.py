@@ -283,14 +283,14 @@ class Arch(object):
 
         """
         aic = N * np.log(delta_2) + 2 * (k + 1)
-        return aic
 
+        return aic
 
     def aic_degree(
         self,
-        delta_2,
+        x,
         L,
-        N,
+        b_aic,
     ):
         """
         Akaike information criterion.
@@ -308,15 +308,24 @@ class Arch(object):
         -------
 
         """
+        n_x = len(x)
+        delta_2, phi, R_2 = self.aic_delta_2(x, L)
         aic = []
         for i in range(L):
-            aic_i = self.aic_degree_single(delta_2[i], N, i)
+            aic_i = self.aic_degree_single(delta_2[i], n_x, i+1)
             aic.append(aic_i)
         aic = np.array(aic)
         i_min = np.argmin(aic)
         aic_min = aic[i_min]
+        phi_min = phi[i_min]
+        R_2_min = R_2[i_min]
 
-        return aic_min
+        degree = i_min + 1
+
+        if b_aic:
+            return degree, aic_min, phi_min, R_2_min, aic
+
+        return degree, aic_min, phi_min, R_2_min
 
     def aic_delta_2(
         self,
@@ -333,15 +342,19 @@ class Arch(object):
         -------
 
         """
-        delta_2 = None
+        delta_2 = []
         phi = []
         R_2 = []
-        for i in range(1, L):
-            a_i, R_2_i = self.ar_least_squares_estimation(x, i)
+        for i in range(L):
+            a_i, R_2_i = self.ar_least_squares_estimation(x=x, p=i+1)
+            residual_i = self.x_residual_via_parameters(x, a_i)
+            residual_2_i = np.power(residual_i, 2)
+            delta_2_i = np.mean(residual_2_i)
+            delta_2.append(delta_2_i)
             phi.append(a_i)
             R_2.append(R_2_i)
 
-        return delta_2
+        return delta_2, phi, R_2
 
     def sbc_degree(
         self,
@@ -369,9 +382,11 @@ class Arch(object):
         i_min = np.argmin(sbc)
         sbc_min = sbc[i_min]
 
-        return sbc_min
+        degree = i_min + 1
 
-    def aic_c_degree(
+        return degree, sbc_min
+
+    def aic_c_degree_single(
         self,
         aic,
         N,
@@ -391,7 +406,40 @@ class Arch(object):
 
         """
         aic_c = aic + 2 * (k + 1) * (k + 2) / (N - k - 2)
+
         return aic_c
+
+    def aic_c_degree(
+        self,
+        aic,
+        N,
+        L,
+    ):
+        """
+        Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan   P92
+        used in k/N < 10%
+        Parameters
+        ----------
+        aic
+        N
+        L
+        k
+
+        Returns
+        -------
+
+        """
+        aic_c = []
+        for i in range(L):
+            aic_c_i = self.aic_c_degree_single(aic[i], N, i+1)
+            aic_c.append(aic_c_i)
+        aic_c = np.array(aic_c)
+        i_min = np.argmin(aic_c)
+        aic_min = aic_c[i_min]
+
+        degree = i_min + 1
+
+        return degree, aic_min
 
     def bic_degree(
         self,
