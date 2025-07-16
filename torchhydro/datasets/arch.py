@@ -263,6 +263,61 @@ class Arch(object):
 
         return pacf
 
+    def aic_degree(
+        self,
+        delta_2,
+        L,
+        N,
+    ):
+        """
+        stochastic process  p204
+        Parameters
+        ----------
+        delta_2
+        L
+        N
+
+        Returns
+        -------
+
+        """
+        aic = []
+        for i in range(L):
+            aic_i = np.log(delta_2[i]) + 2 * i / N
+            aic.append(aic_i)
+        aic = np.array(aic)
+        i_min = np.argmin(aic)
+        aic_min = aic[i_min]
+
+        return aic_min
+
+    def aic_delta_2(
+        self,
+        x,
+        L,
+    ):
+        """
+
+        Parameters
+        ----------
+        L
+
+        Returns
+        -------
+
+        """
+        delta_2 = None
+        phi = []
+        R_2 = []
+        for i in range(1, L):
+            a_i, R_2_i = self.ar_least_squares_estimation(x, i)
+            phi.append(a_i)
+            R_2.append(R_2_i)
+
+        return delta_2
+
+
+
     def ar_least_squares_estimation(
         self,
         x,
