@@ -264,6 +264,28 @@ class Arch(object):
 
         return pacf
 
+    def aic_degree_single(
+        self,
+        delta_2,
+        N,
+        k,
+    ):
+        """
+
+        Parameters
+        ----------
+        delta_2
+        N
+        k
+
+        Returns
+        -------
+
+        """
+        aic = N * np.log(delta_2) + 2 * (k + 1)
+        return aic
+
+
     def aic_degree(
         self,
         delta_2,
@@ -274,6 +296,8 @@ class Arch(object):
         Akaike information criterion.
         stochastic process  p204
         Applied Time Series Analysis（4th edition） Yan Wang P82
+        Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc.   P153
+        Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan   P92
         Parameters
         ----------
         delta_2
@@ -286,7 +310,7 @@ class Arch(object):
         """
         aic = []
         for i in range(L):
-            aic_i = N * np.log(delta_2[i]) + 2 * (i + 1)
+            aic_i = self.aic_degree_single(delta_2[i], N, i)
             aic.append(aic_i)
         aic = np.array(aic)
         i_min = np.argmin(aic)
@@ -346,6 +370,29 @@ class Arch(object):
         sbc_min = sbc[i_min]
 
         return sbc_min
+
+    def aic_c_degree(
+        self,
+        aic,
+        N,
+        k,
+    ):
+        """
+        Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan   P92
+        used in k/N < 10%
+        Parameters
+        ----------
+        aic
+        N
+        k
+
+        Returns
+        -------
+
+        """
+        aic_c = aic + 2 * (k + 1) * (k + 2) / (N - k - 2)
+        return aic_c
+
 
     def ar_least_squares_estimation(
         self,
