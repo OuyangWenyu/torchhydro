@@ -235,6 +235,7 @@ class Arch(object):
         """
         partial auto-correlation function, pacf.
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p52
+        Applied Time Series Analysis（4th edition） Yan Wang P67  # todo:
         Parameters
         ----------
         x: time series.
@@ -270,7 +271,9 @@ class Arch(object):
         N,
     ):
         """
+        Akaike information criterion.
         stochastic process  p204
+        Applied Time Series Analysis（4th edition） Yan Wang P82
         Parameters
         ----------
         delta_2
@@ -283,7 +286,7 @@ class Arch(object):
         """
         aic = []
         for i in range(L):
-            aic_i = np.log(delta_2[i]) + 2 * i / N
+            aic_i = N * np.log(delta_2[i]) + 2 * (i + 1)
             aic.append(aic_i)
         aic = np.array(aic)
         i_min = np.argmin(aic)
@@ -316,7 +319,33 @@ class Arch(object):
 
         return delta_2
 
+    def sbc_degree(
+        self,
+        delta_2,
+        L,
+        N,
+    ):
+        """
+        Applied Time Series Analysis（4th edition） Yan Wang P83
+        Parameters
+        ----------
+        delta_2
+        L
+        N
 
+        Returns
+        -------
+
+        """
+        sbc = []
+        for i in range(L):
+            sbc_i = N * np.log(delta_2[i]) + np.log(N) * (i + 1)
+            sbc.append(sbc_i)
+        sbc = np.array(sbc)
+        i_min = np.argmin(sbc)
+        sbc_min = sbc[i_min]
+
+        return sbc_min
 
     def ar_least_squares_estimation(
         self,
