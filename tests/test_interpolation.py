@@ -79,7 +79,7 @@ def test_smooth_test():
 def test_degree_ar():
     inter = Interpolation()
     phi = [1.85816724, -0.86378065]
-    acf, pacf = inter.degree_ar(camelsus_streamflow_05087500_365, phi)
+    acf, pacf = inter.degree_ar(camelsus_streamflow_05087500_365)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\acf.txt', acf)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\pacf.txt', pacf)
     print("n_acf = " + str(len(acf)))
@@ -106,9 +106,7 @@ def test_arma_parameters():
     p = 2
     q = 0
     phi, theta, R_2, se_beta = inter.arima_parameter(x, p, q)
-    residual, y_t = inter.arch.x_residual_via_parameters(x, phi, b_y=True)
-    mean_residual, residual_center = inter.arch.residual_center(residual)
-    # residual_2 = np.power(residual_center, 2)
+    residual, y_t, mean_residual, residual_center, residual_center_2 = inter.arch.x_residual_via_parameters(x, phi, b_y=True, b_center=True)
     print("phi = " + str(phi))
     print("theta = " + str(theta))
     print("R_2 = " + str(R_2))

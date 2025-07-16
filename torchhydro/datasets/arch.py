@@ -3281,7 +3281,7 @@ class Arch(object):
 
         return st
 
-    def s_theat(
+    def gradient_s(
         self,
         x,
         theta,
@@ -3320,29 +3320,6 @@ class Arch(object):
             s_i = self.st_theta(residual_i, residual_2_i, x_i, h_i, alpha, p, q)
             s.append(s_i)
 
-        return s
-
-    def gradient_s(
-        self,
-        x,
-        theta,
-        p,
-        q,
-    ):
-        """
-
-        Parameters
-        ----------
-        x: time series
-        theta: parameters
-        p: degree / parameter number of ar model.
-        q: degree / parameter number of arch model.
-
-        Returns
-        -------
-        gradient of parameters.
-        """
-        s = self.s_theat(x, theta, p, q)
         s = np.array(s)
         gradient = np.sum(s, axis=0)
 
