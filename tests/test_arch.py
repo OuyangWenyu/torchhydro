@@ -2656,7 +2656,7 @@ def test_arima_arch_model():
     theta = phi_1460 + alpha_1460
     nse = 0.92
     rmse = 130
-    max_error = 2400
+    max_error = 3000
     max_loop =1000
     result = arch.arima_arch_model(x, theta, p, q, nse, rmse, max_error, max_loop)
     if result["y_arch"] is not None:

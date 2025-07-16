@@ -2677,6 +2677,8 @@ class Arch(object):
         self,
         x,
         phi,
+        b_y: bool = False,
+        b_center: bool = False,
     ):
         """
         residual via parameters.
@@ -2691,9 +2693,18 @@ class Arch(object):
         """
         p = len(phi)
         y_t = self.arima(x=x, phi=phi, p=p)
-        x_residual = np.array(x) - np.array(y_t)
+        residual = np.array(x) - np.array(y_t)
+        if b_center:
+            mean_residual = np.mean(residual)
+            residual_center = np.array(residual) - mean_residual
+            residual_center_2 = np.power(residual_center, 2)
+            if b_y:
+                return residual, y_t, mean_residual, residual_center, residual_center_2
+            return residual, mean_residual, residual_center, residual_center_2
 
-        return x_residual
+        if b_y:
+            return residual, y_t
+        return residual
 
     def gradient_thetai(
         self,
@@ -2702,7 +2713,7 @@ class Arch(object):
         d_theta,
         i_theta,
         p,
-        residual0_2: Optional = None,
+        residual_center0_2: Optional = None,
     ):
         """
         gradient of single parameter.
@@ -2724,22 +2735,20 @@ class Arch(object):
         theta1[i_theta] = theta_i
 
         # likelihood of theta
-        if residual0_2 is None:
+        if residual_center0_2 is None:
             phi0 = theta0[:p]
-            residual0 = self.x_residual_via_parameters(x=x, phi=phi0)
-            residual0_2 = np.power(residual0, 2)
+            residual, mean_residual, residual_center, residual_center0_2 = self.x_residual_via_parameters(x=x, phi=phi0, b_center=True)
         alpha0 = theta0[p:]
-        L0 = self.log_likelihood_gauss_vt(residual0_2, alpha0)
+        L0 = self.log_likelihood_gauss_vt(residual_center0_2, alpha0)
 
         # likelihood of theta1
         if i_theta < p:
             phi1 = theta1[:p]
-            residual1 = self.x_residual_via_parameters(x=x, phi=phi1)
-            residual1_2 = np.power(residual1, 2)
+            residual, mean_residual, residual_center, residual1_center_2 = self.x_residual_via_parameters(x=x, phi=phi1)
         else:
-            residual1_2 = residual0_2
+            residual1_center_2 = residual_center0_2
         alpha1 = theta1[p:]
-        L1 = self.log_likelihood_gauss_vt(residual1_2, alpha1)
+        L1 = self.log_likelihood_gauss_vt(residual1_center_2, alpha1)
 
         # gradient
         grad_ = L1 - L0
@@ -2872,13 +2881,11 @@ class Arch(object):
                     theta1_i[p:] = alpha_i[:].copy()
                 if b_arima:
                     phi_i = theta1_i[:p]
-                    residual_i = self.x_residual_via_parameters(x, phi_i)
-                    mean_residual_i, residual_center_i = self.residual_center(residual_i)
-                    residual_2_i = np.power(residual_center_i, 2)
+                    residual_i, mean_residual_i, residual_center_i, residual_center_2_i = self.x_residual_via_parameters(x, phi_i, b_center=True)
                     mean_residual1.append(mean_residual_i)
                 else:
-                    residual_2_i = residual_2
-                L_theta_i = self.log_likelihood_gauss_vt(residual_2_i, alpha_i)
+                    residual_center_2_i = residual_2
+                L_theta_i = self.log_likelihood_gauss_vt(residual_center_2_i, alpha_i)
                 alpha0_0 = theta1_i[p]
                 alphaq_0 = theta1_i[p + q]
                 L_theta.append(L_theta_i)
@@ -2988,13 +2995,11 @@ class Arch(object):
                     theta1_j[p:] = alpha1_j[:].copy()
                 if b_arima:
                     phi1_j = theta1_j[:p]
-                    residual_j = self.x_residual_via_parameters(x, phi1_j)
-                    mean_residual_j, residual_center_j = self.residual_center(residual_j)
-                    residual_2_j = np.power(residual_center_j, 2)
+                    residual_j, mean_residual_j, residual_center_j, residual_center_2_j = self.x_residual_via_parameters(x, phi1_j, b_center=True)
                     mean_residual1_i.append(mean_residual_j)
                 else:
-                    residual_2_j = residual_2
-                L_theta_i_j = self.log_likelihood_gauss_vt(residual_2_j, alpha1_j)
+                    residual_center_2_j = residual_2
+                L_theta_i_j = self.log_likelihood_gauss_vt(residual_center_2_j, alpha1_j)
                 theta_i_j0 = theta1_j[ii]
                 L_theta_i.append(L_theta_i_j)
                 theta1_i.append(theta1_j[:])
@@ -3060,26 +3065,22 @@ class Arch(object):
         theta0 = theta[:].copy()
         gradient = None
         gradient_ = None
-        residual0_2 = None
+        residual_center0_2 = None
         mean_residual0 = None
         b_constrained = False
         if not b_arima:
             phi = theta0[:p]
-            residual0 = self.x_residual_via_parameters(x, phi)
-            mean_residual0, residual0_center = self.residual_center(residual0)
-            residual0_2 = np.power(residual0_center, 2)
+            residual0, mean_residual0, residual_center0, residual_center0_2 = self.x_residual_via_parameters(x, phi, b_center=True)
         while True:
             if b_arima:
                 phi = theta0[:p]
-                residual0 = self.x_residual_via_parameters(x, phi)
-                mean_residual0, residual0_center = self.residual_center(residual0)
-                residual0_2 = np.power(residual0_center, 2)
+                residual0, mean_residual0, residual_center0, residual_center0_2 = self.x_residual_via_parameters(x, phi, b_center=True)
             if iloop == 0:
                 gradient = self.gradient_s(x, theta0, p, q)
                 gradient_ = gradient[:].copy()
                 if not b_arima:
                     gradient_[:p] = 0
-            theta1, likelihood_theta_1_0, L_theta, mean_residual = self.grid_search(residual0_2, mean_residual0, theta0, gradient_, p, q, x=x, b_arima=b_arima, b_constrained=b_constrained)
+            theta1, likelihood_theta_1_0, L_theta, mean_residual = self.grid_search(residual_center0_2, mean_residual0, theta0, gradient_, p, q, x=x, b_arima=b_arima, b_constrained=b_constrained)
 
             distance_theta_1_0 = self.distance_theta_0_1(theta0, theta1)
             if likelihood_theta_1_0 > 0:
@@ -3303,16 +3304,15 @@ class Arch(object):
         n_x = len(x)
         phi = theta[:p]
         alpha = theta[p:]
-        residual = self.x_residual_via_parameters(x, phi)
-        residual_2 = np.power(residual, 2)
-        h = self.delta_2(residual_2, alpha)
+        residual, mean_residual, residual_center, residual_center_2 = self.x_residual_via_parameters(x, phi, b_center=True)
+        h = self.delta_2(residual_center_2, alpha)
 
         s = []
         start = p + q
         for i in range(start, n_x-1):
-            residual_i = residual[i-q:i+1]
+            residual_i = residual_center[i-q:i+1]
             residual_i = residual_i[::-1]
-            residual_2_i = residual_2[i-q:i+1]
+            residual_2_i = residual_center_2[i-q:i+1]
             residual_2_i = residual_2_i[::-1]
             x_i = x[i-p-q:i]
             x_i.reverse()

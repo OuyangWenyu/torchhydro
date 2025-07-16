@@ -150,9 +150,9 @@ class Interpolation(object):
         -------
 
         """
-        residual = self.arch.x_residual_via_parameters(x, phi)
-        b_significant_arima = self.arch.test_arima(residual, m, significance_level)
-        b_significant_para = self.arch.test_parameters(residual, phi, theta, se_beta, m, significance_level)
+        residual, mean_residual, residual_center, residual_center_2 = self.arch.x_residual_via_parameters(x, phi, b_center=True)
+        b_significant_arima = self.arch.test_arima(residual_center, m, significance_level)
+        b_significant_para = self.arch.test_parameters(residual_center, phi, theta, se_beta, m, significance_level)
 
         return b_significant_arima, b_significant_para
 
@@ -173,10 +173,9 @@ class Interpolation(object):
         -------
 
         """
-        residual = self.arch.x_residual_via_parameters(x, phi)
-        residual_2 = np.power(residual, 2)
-        acf = self.arch.autocorrelation_function(residual_2)
-        pacf = self.arch.partial_autocorrelation_function(residual_2)
+        residual, mean_residual, residual_center, residual_center_2 = self.arch.x_residual_via_parameters(x, phi, b_center=True)
+        acf = self.arch.autocorrelation_function(residual_center_2)
+        pacf = self.arch.partial_autocorrelation_function(residual_center_2)
 
         return acf, pacf
 
@@ -198,8 +197,8 @@ class Interpolation(object):
         -------
 
         """
-        residual = self.arch.x_residual_via_parameters(x, phi)
-        b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = self.arch.arch_test(residual, q, significance_level)
+        residual, mean_residual, residual_center, residual_center_2 = self.arch.x_residual_via_parameters(x, phi, b_center=True)
+        b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = self.arch.arch_test(residual_center, q, significance_level)
 
         return b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM
 
@@ -222,13 +221,11 @@ class Interpolation(object):
         -------
 
         """
-        residual = self.arch.x_residual_via_parameters(x, phi)
-        mean_residual, residual_center = self.arch.residual_center(residual)
-        residual_2 = np.power(residual_center, 2)
-        residual_2 = residual_2.tolist()
-        a0, R_20, delta_20 = self.arch.arch_ordinary_least_squares_estimation(residual_2, 1)
-        Omega = self.arch.Omega(residual_2, a0)
-        a1, R_21, y1 = self.arch.arch_feasible_generalized_least_squares_estimation(residual_2, q, Omega, b_y=True)
+        residual, mean_residual, residual_center, residual_center_2 = self.arch.x_residual_via_parameters(x, phi, b_center=True)
+        residual_center_2 = residual_center_2.tolist()
+        a0, R_20, delta_20 = self.arch.arch_ordinary_least_squares_estimation(residual_center_2, 1)
+        Omega = self.arch.Omega(residual_center_2, a0)
+        a1, R_21, y1 = self.arch.arch_feasible_generalized_least_squares_estimation(residual_center_2, q, Omega, b_y=True)
         theta0 = a1[:]
         indices = np.where(a1 < 0)
         indices = indices[0]
@@ -237,7 +234,7 @@ class Interpolation(object):
         R_22 = None
         y2 = None
         if n_indices > 0:
-            a2, R_22, y2 = self.arch.arch_constrained_ordinary_least_squares(residual_2, q, Omega, q_n=indices, b_y=True)
+            a2, R_22, y2 = self.arch.arch_constrained_ordinary_least_squares(residual_center_2, q, Omega, q_n=indices, b_y=True)
             theta0 = a2[:]
         theta0 = np.insert(theta0, 0, phi)
         b_arima = True
@@ -276,9 +273,7 @@ class Interpolation(object):
         if n_theta != p+q+1:
             raise ValueError("the length of theta need to be equal to p+q+1.")
 
-        residual = self.arch.x_residual_via_parameters(x, theta)
-        mean_residual, residual_center = self.arch.residual_center(residual)
-        residual_2 = np.power(residual_center, 2)
+        residual, mean_residual, residual_center, residual_center_2 = self.arch.x_residual_via_parameters(x, theta, b_center=True)
         result = self.arch.arima_arch_model(x, theta, p, q, nse, rmse, max_error, max_loop)
 
         return result

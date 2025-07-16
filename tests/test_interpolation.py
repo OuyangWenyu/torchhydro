@@ -106,10 +106,17 @@ def test_arma_parameters():
     p = 2
     q = 0
     phi, theta, R_2, se_beta = inter.arima_parameter(x, p, q)
+    residual, y_t = inter.arch.x_residual_via_parameters(x, phi, b_y=True)
+    mean_residual, residual_center = inter.arch.residual_center(residual)
+    # residual_2 = np.power(residual_center, 2)
     print("phi = " + str(phi))
     print("theta = " + str(theta))
     print("R_2 = " + str(R_2))
     print("se_beta = " + str(se_beta))
+    print("mean_residual = " + str(mean_residual))
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y_t.txt', y_t)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual.txt', residual)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual_center.txt', residual_center)
 # camelsch_streamflow_8183  p=3 q=0
 # phi = [ 1.30134078 -0.67576837  0.26822102]
 # theta = []
@@ -135,11 +142,12 @@ def test_arma_parameters():
 # theta = []
 # R_2 = 0.7601657853047998
 # se_beta = [0.05147396046129712, 0.07907659933663176, 0.07908462323509598, 0.051473988192846154]
-# camelsus_streamflow_05087500_365
+# camelsus_streamflow_05087500_365  p=2
 # phi = [ 1.85816724 -0.86378065]
 # theta = []
 # R_2 = 0.9972033775619407
 # se_beta = [0.02650141929080101, 0.02650152518211935]
+# mean_residual = 5.350273893593821
 
 def test_test_arima_model():
     inter = Interpolation()
