@@ -393,6 +393,28 @@ class Arch(object):
         aic_c = aic + 2 * (k + 1) * (k + 2) / (N - k - 2)
         return aic_c
 
+    def bic_degree(
+        self,
+        delta_2,
+        N,
+        k,
+    ):
+        """
+        Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan   P92
+        Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc.   P153
+        Parameters
+        ----------
+        N
+        k
+
+        Returns
+        -------
+
+        """
+        bic = np.log(delta_2) + k * np.log(N) / N
+
+        return bic
+
 
     def ar_least_squares_estimation(
         self,
