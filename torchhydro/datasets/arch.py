@@ -320,12 +320,12 @@ class Arch(object):
         phi_min = phi[i_min]
         R_2_min = R_2[i_min]
 
-        degree = i_min + 1
+        degree_aic = i_min + 1
 
         if b_aic:
-            return degree, aic_min, phi_min, R_2_min, aic
+            return degree_aic, aic_min, phi_min, R_2_min, aic, delta_2, phi, R_2
 
-        return degree, aic_min, phi_min, R_2_min
+        return degree_aic, aic_min, phi_min, R_2_min
 
     def aic_delta_2(
         self,
@@ -356,14 +356,17 @@ class Arch(object):
 
         return delta_2, phi, R_2
 
-    def sbc_degree(
+    def bic_degree(
         self,
         delta_2,
-        L,
         N,
+        L,
+        b_bic: bool = False,
     ):
         """
         Applied Time Series Analysis（4th edition） Yan Wang P83
+        Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan   P92
+        Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc.   P153
         Parameters
         ----------
         delta_2
@@ -374,17 +377,20 @@ class Arch(object):
         -------
 
         """
-        sbc = []
+        bic = []
         for i in range(L):
-            sbc_i = N * np.log(delta_2[i]) + np.log(N) * (i + 1)
-            sbc.append(sbc_i)
-        sbc = np.array(sbc)
-        i_min = np.argmin(sbc)
-        sbc_min = sbc[i_min]
+            bic_i = N * np.log(delta_2[i]) + np.log(N) * (i + 1)
+            bic.append(bic_i)
+        bic = np.array(bic)
+        i_min = np.argmin(bic)
+        bic_min = bic[i_min]
 
-        degree = i_min + 1
+        degree_bic = i_min + 1
 
-        return degree, sbc_min
+        if b_bic:
+            return degree_bic, bic_min, bic
+
+        return degree_bic, bic_min
 
     def aic_c_degree_single(
         self,
@@ -414,6 +420,7 @@ class Arch(object):
         aic,
         N,
         L,
+        b_aic_c: bool = True,
     ):
         """
         Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan   P92
@@ -435,33 +442,38 @@ class Arch(object):
             aic_c.append(aic_c_i)
         aic_c = np.array(aic_c)
         i_min = np.argmin(aic_c)
-        aic_min = aic_c[i_min]
+        aic_c_min = aic_c[i_min]
 
-        degree = i_min + 1
+        degree_aic_c = i_min + 1
 
-        return degree, aic_min
+        if b_aic_c:
+            return degree_aic_c, aic_c_min, aic_c
 
-    def bic_degree(
+        return degree_aic_c, aic_c_min
+
+    def arma_degree(
         self,
-        delta_2,
-        N,
-        k,
+        x,
+        L,
     ):
         """
-        Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan   P92
-        Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc.   P153
+
         Parameters
         ----------
-        N
-        k
+        x
+        L
 
         Returns
         -------
 
         """
-        bic = np.log(delta_2) + k * np.log(N) / N
+        n_x = len(x)
+        degree_aic, aic_min, phi_min, R_2_min, aic, delta_2, phi, R_2 = self.aic_degree(x, L, b_aic=True)
+        degree_bic, bic_min, bic = self.bic_degree(delta_2, n_x, L, b_bic=True)
+        degree_aic_c, aic_c_min, aic_c = self.aic_c_degree(aic, n_x, L, b_aic_c=True)
 
-        return bic
+        return degree_aic, aic_min, phi_min, R_2_min, degree_bic, bic_min, degree_aic_c, aic_c_min
+
 
 
     def ar_least_squares_estimation(
