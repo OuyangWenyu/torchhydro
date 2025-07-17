@@ -18,14 +18,17 @@ class Interpolation(object):
         self.x = None
         self.x_dnan = None
         self.y = None
+        self.n_x = None
+        self.t_length = None
         self.datasource = Camels()
-        self.gage_id = ["01013500", "01022500", "01030500"]  #["05087500",]     #["5011",]  # ["01013500",]
+        self.gage_id = ["01013500", "01022500", "01030500", "01187300"]  #["05087500",]     #["5011",]  # ["01013500",]
         self.time_range = ["1980-01-01", "2014-12-31"]      #["1984-01-01", "1987-12-31"]  # ["1980-01-01", "2014-12-31"]
         self.var_list = ["streamflow",]
 
         self.x = self.read_data()
-
-
+        self.n_x = self.x.shape[0]
+        self.t_length = self.x.shape[1]
+        self.x_dnan = self.delete_nan()
 
     def read_data(self):
         data = self.datasource.read_ts_xrdataset(
@@ -46,9 +49,46 @@ class Interpolation(object):
             x_i = x_i[~np.isnan(x_i)]
             x_dnan.append(x_i)
 
-        self.x = x_dnan
-
         return x_dnan
+
+    def deletion_ratio(self):
+        """
+        Zhenghe Li P16
+        Missing At Non-Random, MANR.
+        Missing Completely At Random, MCAR.
+        Missing Random, MAR.
+
+        Returns
+        -------
+
+        """
+        r0 = [0, 0.01]  # slight
+        r1 = [0.01, 0.1]  # dram
+        r2 = [0.1, 0.2]  # jot
+        r3 = [0.2, 0.35]  # moderate  __
+        r4 = [0.35, 0.45]  # stack
+        r5 = [0.45, 0.99]  # serious
+
+    def cal_lose_ratio(
+        self,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+
+        """
+        lose_ratio = []
+        for i in range(self.n_x):
+            n_x_i = self.x_dnan[i].shape[0]
+            lose_ratio_i = 1 - n_x_i / self.t_length
+            lose_ratio.append(lose_ratio_i)
+
+        return lose_ratio
 
     def cal_7_stat_inds(self, x):
         """
@@ -95,7 +135,7 @@ class Interpolation(object):
         n_gage = len(self.gage_id)
         stat_inds = []
         for i in range(n_gage):
-            x_i = self.x[i]
+            x_i = self.x_dnan[i]
             stat_inds_i = self.cal_7_stat_inds(x_i)
             stat_inds.append(stat_inds_i)
 
@@ -340,46 +380,7 @@ class Interpolation(object):
 
         return result
 
-    def deletion_ratio(self):
-        """
-        Zhenghe Li P16
-        Missing At Non-Random, MANR.
-        Missing Completely At Random, MCAR.
-        Missing Random, MAR.
 
-        Returns
-        -------
-
-        """
-        r0 = [0, 0.01]  # slight
-        r1 = [0.01, 0.1]  # dram
-        r2 = [0.1, 0.2]  # jot
-        r3 = [0.2, 0.35]  # moderate  __
-        r4 = [0.35, 0.45]  # stack
-        r5 = [0.45, 0.99]  # serious
-
-    def cal_lose_ratio(
-        self,
-        x,
-    ):
-        """
-
-        Parameters
-        ----------
-        x
-
-        Returns
-        -------
-
-        """
-        n_x = len(x)
-        x = np.array(x)
-        indeces = np.where(x == -100)
-        n_indeces = indeces[0].size
-
-        lose_ratio = n_indeces / n_x
-
-        return lose_ratio
 
     def lose_index(
         self,

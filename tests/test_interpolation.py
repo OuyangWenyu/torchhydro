@@ -53,10 +53,17 @@ def test_delete_nan():
     print("n_x_dnan = ", n_x_dnan)
     for i in range(n_x_dnan):
         print("x_dnan[" + str(i) + "] = ", x_dnan[i].shape)
-# n_x_dnan =  3
+# n_x_dnan =  4
 # x_dnan[0] =  (12692,)
 # x_dnan[1] =  (12692,)
 # x_dnan[2] =  (12692,)
+# x_dnan[3] =  (12235,)
+
+def test_cal_lose_ratio():
+    inter = Interpolation()
+    lose_ratio = inter.cal_lose_ratio()
+    print("lose_ratio = " + str(lose_ratio))
+# lose_ratio = [0.007196495619524401, 0.007196495619524401, 0.007196495619524401, 0.04294430538172711]
 
 def test_cal_7_stat_inds():
     inter = Interpolation()
@@ -73,7 +80,11 @@ def test_statistics_indices():
     stat_inds = inter.statistics_indices()
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\stat_inds.txt', stat_inds)
     print("stat_inds = " + str(stat_inds.shape))
-# stat_inds = (3, 8)
+# stat_inds = (4, 8)
+# 12692 	1545.27 	1795.16 	42.00 	480.00 	868.00 	1820.00 	17900.00
+# 12692 	508.64 	591.30 	12.00 	157.00 	314.00 	630.00 	6790.00
+# 12692 	2751.96 	3456.10 	32.00 	603.00 	1420.00 	3440.00 	25900.00
+# 12235 	43.44 	81.88 	0.19 	7.90 	21.00 	47.00 	2350.00
 
 def test_readdata():
     camelsdata = Camelsdata()
@@ -352,13 +363,6 @@ def test_arch_model():
 # NSE = 0.9972691656187858
 # RMSE = 53.84731740143714
 # max_abs_error = 387.33503445110455
-
-def test_cal_lose_ratio():
-    inter = Interpolation()
-    x = camelsch_streamflow_8487
-    lose_ratio = inter.cal_lose_ratio(x)
-    print("lose_ratio = " + str(lose_ratio))
-# lose_ratio = 0.05270362765229295
 
 def test_lose_index():
     inter = Interpolation()
