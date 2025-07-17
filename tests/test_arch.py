@@ -2781,20 +2781,6 @@ def test_arima_arch_1460():
 # RMSE = 140.57077368034888
 # max_abs_error = 3171.637157356575
 
-def test_residual_center():
-    arch = Arch()
-    residual = y_residual_streamflow_1460
-    mean_residual, residual_center = arch.residual_center(residual)
-    print("residual_center")
-    print(residual_center)
-    print("mean_residual")
-    print(mean_residual)
-# residual_center
-# [-13.74331171 -13.74331171 -13.74331171 ... -11.46391171 -11.86391171
-#  -11.84331171]
-# mean_residual
-# 13.743311712328769
-
 def test_arima_arch_model():
     arch = Arch()
     x = y_streamflow_1460

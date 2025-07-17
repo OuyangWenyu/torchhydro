@@ -358,7 +358,7 @@ class Arch(object):
         """
         bic = []
         for i in range(L):
-            bic_i =  - np.log(delta_2[i]) + np.log(N) * (i + 1)   # -2 *   # todo;
+            bic_i = -np.log(delta_2[i]) + np.log(N) * (i + 1)   # -2 *   # todo:
             bic.append(bic_i)
         bic = np.array(bic)
         i_min = np.argmin(bic)
@@ -370,29 +370,6 @@ class Arch(object):
             return degree_bic, bic_min, bic
 
         return degree_bic, bic_min
-
-    def aic_c_degree_single(
-        self,
-        aic,
-        N,
-        k,
-    ):
-        """
-        Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan   P92
-        used in k/N < 10%
-        Parameters
-        ----------
-        aic
-        N
-        k
-
-        Returns
-        -------
-
-        """
-        aic_c = aic + 2 * (k + 1) * (k + 2) / (N - k - 2)
-
-        return aic_c
 
     def aic_c_degree(
         self,
@@ -417,7 +394,7 @@ class Arch(object):
         """
         aic_c = []
         for i in range(L):
-            aic_c_i = self.aic_c_degree_single(aic[i], N, i+1)
+            aic_c_i = aic[i] + 2 * (i+1 + 1) * (i+1 + 2) / (N - i+1 - 2)
             aic_c.append(aic_c_i)
         aic_c = np.array(aic_c)
         i_min = np.argmin(aic_c)
@@ -3353,26 +3330,6 @@ class Arch(object):
                 b_sort = True
                 break
         return b_sort
-
-    def residual_center(
-        self,
-        residual,
-    ):
-        """
-        center the residual series.
-        Parameters
-        ----------
-        residual: residual series.
-
-        Returns
-        -------
-        mean_residual: mean value of residuals.
-        residual_center: the centered residual series.
-        """
-        mean_residual = np.mean(residual)
-        residual_center = np.array(residual) - mean_residual
-
-        return mean_residual, residual_center
 
     def multi_gradient_ascent(
         self,

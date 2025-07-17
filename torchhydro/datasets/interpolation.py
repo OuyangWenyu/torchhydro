@@ -49,7 +49,8 @@ class Interpolation(object):
         list
             [mean, std, min, p25, p50, p75, max]
         """
-        num_point = x.shape[0]
+        # num_point = x.shape[0]
+        num_point = len(x)
         mean = np.mean(x).astype(float)
         std = np.std(x).astype(float)
         min_ = np.min(x).astype(float)

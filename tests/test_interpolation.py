@@ -46,6 +46,16 @@ class Camelsdata(object):
         data_ = data1.tolist()  # + data2.tolist() + data3.tolist() + data4.tolist()
         self.streamflow = data_  # + data_
 
+def test_cal_7_stat_inds():
+    inter = Interpolation()
+    x = camelsus_streamflow_01013500_80
+    statistics_indices = inter.cal_7_stat_inds(x)
+    print("[num_point, mean, std, min_, p25, p50, p75, max_]")
+    print(statistics_indices)
+# camelsus_streamflow_01013500_80
+# [num_point, mean, std, min_, p25, p50, p75, max_]
+# [364, 959.434065934066, 1030.4250102247397, 195.0, 439.75, 579.5, 922.0, 5560.0]
+
 def test_readdata():
     camelsdata = Camelsdata()
     x = camelsdata.streamflow
