@@ -2840,17 +2840,6 @@ def test_arima_arch_model():
 # RMSE = 125.41696918041434
 # max_abs_error = 2293.1312354338224
 
-def test_residual_sign():
-    arch = Arch()
-    residual = y_residual_streamflow_1460
-    mean_residual, residual_center = arch.residual_center(residual)
-    residual_sign = arch.residual_sign(residual_center)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\residual_sign.txt', residual_sign)
-    print("residual_sign")
-    print(residual_sign)
-# residual_sign
-# [-1. -1. -1. ... -1. -1. -1.]
-
 def test_log_likelihood_gamma():
     arch = Arch()
     x = y_streamflow_395

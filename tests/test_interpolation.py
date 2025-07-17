@@ -46,6 +46,18 @@ class Camelsdata(object):
         data_ = data1.tolist()  # + data2.tolist() + data3.tolist() + data4.tolist()
         self.streamflow = data_  # + data_
 
+def test_delete_nan():
+    inter = Interpolation()
+    x_dnan = inter.delete_nan()
+    n_x_dnan = len(x_dnan)
+    print("n_x_dnan = ", n_x_dnan)
+    for i in range(n_x_dnan):
+        print("x_dnan[" + str(i) + "] = ", x_dnan[i].shape)
+# n_x_dnan =  3
+# x_dnan[0] =  (12692,)
+# x_dnan[1] =  (12692,)
+# x_dnan[2] =  (12692,)
+
 def test_cal_7_stat_inds():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_80

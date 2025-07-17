@@ -16,6 +16,7 @@ class Interpolation(object):
     def __init__(self):
         self.arch = Arch()
         self.x = None
+        self.x_dnan = None
         self.y = None
         self.datasource = Camels()
         self.gage_id = ["01013500", "01022500", "01030500"]  #["05087500",]     #["5011",]  # ["01013500",]
@@ -35,6 +36,19 @@ class Interpolation(object):
         data = data.streamflow.values
 
         return data
+
+    def delete_nan(self):
+        """ Delete NaN values"""
+        n_x = self.x.shape[0]
+        x_dnan = []
+        for i in range(n_x):
+            x_i = self.x[i]
+            x_i = x_i[~np.isnan(x_i)]
+            x_dnan.append(x_i)
+
+        self.x = x_dnan
+
+        return x_dnan
 
     def cal_7_stat_inds(self, x):
         """
