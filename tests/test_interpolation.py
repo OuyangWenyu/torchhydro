@@ -56,6 +56,13 @@ def test_cal_7_stat_inds():
 # [num_point, mean, std, min_, p25, p50, p75, max_]
 # [364, 959.434065934066, 1030.4250102247397, 195.0, 439.75, 579.5, 922.0, 5560.0]
 
+def test_statistics_indices():
+    inter = Interpolation()
+    stat_inds = inter.statistics_indices()
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\stat_inds.txt', stat_inds)
+    print("stat_inds = " + str(stat_inds.shape))
+
+
 def test_readdata():
     camelsdata = Camelsdata()
     x = camelsdata.streamflow

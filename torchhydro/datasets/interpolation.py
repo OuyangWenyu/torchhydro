@@ -63,6 +63,31 @@ class Interpolation(object):
             std = 1
         return [num_point, mean, std, min_, p25, p50, p75, max_]
 
+    def statistics_indices(
+        self,
+    ):
+        """
+
+        Parameters
+        ----------
+        gage_id
+
+        Returns
+        -------
+
+        """
+        n_gage = len(self.gage_id)
+        stat_inds = []
+        for i in range(n_gage):
+            x_i = self.x[i]
+            stat_inds_i = self.cal_7_stat_inds(x_i)
+            stat_inds.append(stat_inds_i)
+
+        stat_inds = np.array(stat_inds)
+
+        return stat_inds
+
+
     def smooth_test(
         self,
         x,
