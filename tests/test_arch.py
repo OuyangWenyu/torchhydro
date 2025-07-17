@@ -329,6 +329,15 @@ def test_arma_degree():
     print("bic_min = " + str(bic_min))
     print("degree_aic_c = " + str(degree_aic_c))
     print("aic_c_min = " + str(aic_c_min))
+# y_streamflow_395  L = 5
+# degree_aic = 5
+# aic_min = 1619.9015440611763
+# phi_min = [ 2.52396938 -2.53018686  1.50711054 -0.74307103  0.24149585]
+# R_2_min = 0.9953131373811855
+# degree_bic = 5
+# bic_min = 1637.795972885682
+# degree_aic_c = 5
+# aic_c_min = 1620.118038906537
 
 def test_ar_least_squares_estimation():
     y_42 = [1, 1.1, 1.21, 1.331, 1.4641, 1.61051, 1.771561, 1.9487171, 2.14358881, 2.357947691, 2.59374246,
