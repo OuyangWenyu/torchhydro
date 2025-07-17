@@ -358,7 +358,7 @@ class Arch(object):
         """
         bic = []
         for i in range(L):
-            bic_i = -2 * np.log(delta_2[i]) + np.log(N) * (i + 1)
+            bic_i =  - np.log(delta_2[i]) + np.log(N) * (i + 1)   # -2 *   # todo;
             bic.append(bic_i)
         bic = np.array(bic)
         i_min = np.argmin(bic)
