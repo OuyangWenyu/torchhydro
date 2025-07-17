@@ -107,6 +107,26 @@ class Interpolation(object):
 
         return acf, pacf
 
+    def model_degree(
+        self,
+        x,
+        L,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        L
+
+        Returns
+        -------
+
+        """
+        degree_aic, aic_min, phi_min, R_2_min, degree_bic, bic_min, degree_aic_c, aic_c_min = self.arch.arma_degree(x, L)
+
+        return degree_aic, aic_min, phi_min, R_2_min, degree_bic, bic_min, degree_aic_c, aic_c_min
+
     def arima_parameter(
         self,
         x,

@@ -264,28 +264,6 @@ class Arch(object):
 
         return pacf
 
-    def aic_degree_single(
-        self,
-        delta_2,
-        N,
-        k,
-    ):
-        """
-
-        Parameters
-        ----------
-        delta_2
-        N
-        k
-
-        Returns
-        -------
-
-        """
-        aic = N * np.log(delta_2) + 2 * (k + 1)
-
-        return aic
-
     def aic_degree(
         self,
         x,
@@ -308,11 +286,10 @@ class Arch(object):
         -------
 
         """
-        n_x = len(x)
         delta_2, phi, R_2 = self.aic_delta_2(x, L)
         aic = []
         for i in range(L):
-            aic_i = self.aic_degree_single(delta_2[i], n_x, i+1)
+            aic_i = -2 * np.log(delta_2[i]) + 2 * (i + 1 + 1)
             aic.append(aic_i)
         aic = np.array(aic)
         i_min = np.argmin(aic)
@@ -333,6 +310,7 @@ class Arch(object):
         L,
     ):
         """
+        Time Series Analysis  James D.Hamilton  p144
 
         Parameters
         ----------
@@ -364,8 +342,9 @@ class Arch(object):
         b_bic: bool = False,
     ):
         """
-        Applied Time Series Analysis（4th edition） Yan Wang P83
+        Bayesian information criterion, BIC.
         Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan   P92
+        Applied Time Series Analysis（4th edition） Yan Wang P83
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc.   P153
         Parameters
         ----------
@@ -379,7 +358,7 @@ class Arch(object):
         """
         bic = []
         for i in range(L):
-            bic_i = N * np.log(delta_2[i]) + np.log(N) * (i + 1)
+            bic_i = -2 * np.log(delta_2[i]) + np.log(N) * (i + 1)
             bic.append(bic_i)
         bic = np.array(bic)
         i_min = np.argmin(bic)
@@ -473,8 +452,6 @@ class Arch(object):
         degree_aic_c, aic_c_min, aic_c = self.aic_c_degree(aic, n_x, L, b_aic_c=True)
 
         return degree_aic, aic_min, phi_min, R_2_min, degree_bic, bic_min, degree_aic_c, aic_c_min
-
-
 
     def ar_least_squares_estimation(
         self,
