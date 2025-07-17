@@ -61,7 +61,7 @@ def test_statistics_indices():
     stat_inds = inter.statistics_indices()
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\stat_inds.txt', stat_inds)
     print("stat_inds = " + str(stat_inds.shape))
-
+# stat_inds = (3, 8)
 
 def test_readdata():
     camelsdata = Camelsdata()

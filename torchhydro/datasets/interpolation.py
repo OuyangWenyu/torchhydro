@@ -18,9 +18,11 @@ class Interpolation(object):
         self.x = None
         self.y = None
         self.datasource = Camels()
-        self.gage_id = ["05087500",]     #["5011",]  # ["01013500",]
+        self.gage_id = ["01013500", "01022500", "01030500"]  #["05087500",]     #["5011",]  # ["01013500",]
         self.time_range = ["1980-01-01", "2014-12-31"]      #["1984-01-01", "1987-12-31"]  # ["1980-01-01", "2014-12-31"]
         self.var_list = ["streamflow",]
+
+        self.x = self.read_data()
 
 
 
@@ -30,9 +32,9 @@ class Interpolation(object):
             self.time_range,
             self.var_list,
         )
-        data = data.streamflow.to_dataframe()
-        data = data.values
-        self.x = data
+        data = data.streamflow.values
+
+        return data
 
     def cal_7_stat_inds(self, x):
         """
