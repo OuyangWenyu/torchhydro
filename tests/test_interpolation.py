@@ -62,8 +62,15 @@ def test_delete_nan():
 def test_cal_lose_ratio():
     inter = Interpolation()
     lose_ratio = inter.cal_lose_ratio()
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\lose_ratio.txt', lose_ratio)
     print("lose_ratio = " + str(lose_ratio))
+# self.gage_id = ["01013500", "01022500", "01030500", "01187300"]
 # lose_ratio = [0.007196495619524401, 0.007196495619524401, 0.007196495619524401, 0.04294430538172711]
+# self.gage_id = self.datasource.gage
+# lose_ratio = [0.007196495619524401, 0.007196495619524401, 0.007196495619524401, 0.007196495619524401,
+#               0.0, 0.0, 0.0, 0.0, 0.0, 0.006492490613266622, 0.003832916145181442, 0.04294430538172711,
+#               0.04294430538172711, 0.03574780976220271, 0.0032853566958698233, 0.00563204005006257,
+#               0.0023466833541927468, 0.0033635794743429592, 0.0066489361702127825
 
 def test_cal_7_stat_inds():
     inter = Interpolation()
@@ -85,6 +92,12 @@ def test_statistics_indices():
 # 12692 	508.64 	591.30 	12.00 	157.00 	314.00 	630.00 	6790.00
 # 12692 	2751.96 	3456.10 	32.00 	603.00 	1420.00 	3440.00 	25900.00
 # 12235 	43.44 	81.88 	0.19 	7.90 	21.00 	47.00 	2350.00
+# stat_inds = (671, 8)
+# gage	num_point	mean	std	min_	p25	p50	p75	max_
+# "01013500"	12692 	1545.273 	1795.160 	42.000 	480.000 	868.000 	1820.000 	17900.000
+# "01022500"	12692 	508.640 	591.296 	12.000 	157.000 	314.000 	630.000 	6790.000
+# "01030500"	12692 	2751.956 	3456.101 	32.000 	603.000 	1420.000 	3440.000 	25900.000
+# "01031500"	12692 	632.019 	1057.706 	6.200 	130.000 	276.000 	679.000 	31700.000
 
 def test_readdata():
     camelsdata = Camelsdata()
@@ -158,16 +171,6 @@ def test_arma_parameters():
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y_t.txt', y_t)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual.txt', residual)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual_center.txt', residual_center)
-# camelsch_streamflow_8183  p=3 q=0
-# phi = [ 1.30134078 -0.67576837  0.26822102]
-# theta = []
-# R_2 = 0.7602774658956198
-# se_beta = [0.030009693485665807, 0.04471833540272408, 0.030006814627895072]
-# camelsch_streamflow_8183  p=4 q=0
-# phi = [ 1.32965079 -0.7478719   0.40758963 -0.10746793]
-# theta = []
-# R_2 = 0.7685028215408174
-# se_beta = [0.030322822779558105, 0.04826339272938611, 0.04826404860790467, 0.030321046375571228]
 # camelsch_streamflow_8183_d1  p=3 q=0
 # phi = [ 0.39064336 -0.35918506  0.04628432]
 # theta = []
@@ -263,13 +266,6 @@ def test_arch_parameter():
     print("theta1 = " + str(theta1))
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y1.txt', y1)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y2.txt', y2)
-# camelsch_streamflow_8183  phi=[1.30134078, -0.67576837, 0.26822102]
-# a0 = [7.19334832e+03 3.41621327e-01]
-# R_20 = 0.11670513665147611
-# delta_20 = -2.300613862270624e-11
-# a1 = [ 7.83544295e+02  4.08663609e-02 -2.61010083e-03  2.04775580e-02
-#   5.91862621e-03]
-# R_21 = 0.15476001469339426
 # camelsch_streamflow_8183  p=3 q=4
 # a0 = [6.93353764e+03 3.50556876e-01]
 # R_20 = 0.12289020305449845

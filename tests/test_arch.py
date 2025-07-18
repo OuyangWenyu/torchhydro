@@ -2809,12 +2809,6 @@ def test_arima_arch_model():
         print("NSE = " + str(result["nse"]))
         print("RMSE = " + str(result["rmse"]))
         print("max_abs_error = " + str(result["max_abs_error"]))
-# e16    nse = 0.9  rmse = 150  max_error = 3500
-# n_loop = 2
-# mean_residual = 13.743311710946587
-# NSE = 0.9260735121197543
-# RMSE = 138.5660943671867
-# max_abs_error = 3276.9402565046903
 # e17    nse = 0.92  rmse = 130  max_error = 3200
 # n_loop = 104
 # mean_residual = 13.743311710946587
