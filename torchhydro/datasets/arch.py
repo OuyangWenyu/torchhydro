@@ -593,7 +593,7 @@ class Arch(object):
                     xi_A = np.delete(A, i, axis=1)
                     _, xi_R_2 = self.ordinary_least_squares(xi_A, x_i)
                     se_beta[i] = std_e / (np.sqrt(n_y) * std_xi * np.sqrt(1 - xi_R_2))  # standard error of a[0]
-                return a, R_2, se_beta
+                return a, R_2, se_beta   # todo: p=1
 
         return a, R_2
 

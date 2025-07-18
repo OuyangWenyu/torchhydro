@@ -6,7 +6,7 @@ from test_arch_data import (
     camelsch_streamflow_8487, camelsch_streamflow_8183, camelsch_streamflow_8183_d1,
     camelsch_streamflow_81, camelsch_streamflow_90, camelsch_streamflow_30_3,
     camelsus_streamflow_r516, camelsus_streamflow_01013500_80,
-    camelsus_streamflow_01013500_8081, camelsus_streamflow_01013500_8081_d1,
+    camelsus_streamflow_01013500_8081, camelsus_streamflow_01013500_8081_d1, camelsus_streamflow_01013500_8081_d2,
 )
 from torchhydro.datasets.interpolation import Interpolation
 
@@ -121,7 +121,7 @@ def test_read_data():
 
 def test_smooth_test():
     inter = Interpolation()
-    b_ = inter.smooth_test(camelsus_streamflow_01013500_8081_d1)
+    b_ = inter.smooth_test(camelsus_streamflow_01013500_8081_d2)
     print("b_ = " + str(b_))
 # camelsch_streamflow_8183
 # b_ = True
@@ -133,11 +133,13 @@ def test_smooth_test():
 # b_ = False
 # camelsus_streamflow_01013500_8081_d1
 # b_ = True
+# camelsus_streamflow_01013500_8081_d2
+# b_ = True
 
 def test_degree_ar():
     inter = Interpolation()
     phi = [1.85816724, -0.86378065]
-    acf, pacf = inter.degree_ar(camelsus_streamflow_01013500_8081_d1)
+    acf, pacf = inter.degree_ar(camelsus_streamflow_01013500_8081_d2)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\acf.txt', acf)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\pacf.txt', pacf)
     print("n_acf = " + str(len(acf)))
@@ -163,11 +165,14 @@ def test_degree_ar():
 # camelsus_streamflow_01013500_8081_d1
 # n_acf = 487
 # n_pacf = 487
+# camelsus_streamflow_01013500_8081_d2
+# n_acf = 487
+# n_pacf = 487
 
 def test_arma_parameters():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081_d1
-    p = 2
+    p = 1
     q = 0
     phi, theta, R_2, se_beta = inter.arima_parameter(x, p, q)
     residual, y_t, mean_residual, residual_center, residual_center_2 = inter.arch.x_residual_via_parameters(x, phi, b_y=True, b_center=True)
@@ -272,7 +277,8 @@ def test_degree_arch():
 # n_acf = 488
 # n_pacf = 488
 # camelsus_streamflow_01013500_8081_d1
-
+# n_acf = 487
+# n_pacf = 487
 
 def test_test_arch():
     inter = Interpolation()
@@ -280,6 +286,7 @@ def test_test_arch():
     x = camelsus_streamflow_01013500_8081_d1
     phi = [1.85816724, -0.86378065]
     phi = [0.40816167, -2.1158528]
+    phi = [0.65009565, 0.04819934]
     q = 4
     q = 2
     significance_level = 0.05
@@ -290,6 +297,8 @@ def test_test_arch():
 # camelsus_streamflow_01013500_80  q=4
 # b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = [True, False, True, True]
 # camelsus_streamflow_01013500_8081  q=2
+# b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = [True, False, True, True]
+# camelsus_streamflow_01013500_8081_d1  q=2
 # b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = [True, False, True, True]
 
 def test_arch_parameter():
@@ -302,7 +311,7 @@ def test_arch_parameter():
     phi = [0.40816167, -2.1158528]
     phi = [0.65009565, 0.04819934]
     p = 2
-    q = 4
+    q = 2
     a0, R_20, delta_20, a1, R_21, y1, a2, R_22, y2, theta1 = inter.arch_parameter(x, phi, p, q)
     print("a0 = " + str(a0))
     print("R_20 = " + str(R_20))
