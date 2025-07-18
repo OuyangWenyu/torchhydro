@@ -121,7 +121,8 @@ def test_read_data():
 
 def test_smooth_test():
     inter = Interpolation()
-    b_ = inter.smooth_test(camelsus_streamflow_01013500_8081_d2)
+    x = inter.x_dnan
+    b_ = inter.smooth_test(x)
     print("b_ = " + str(b_))
 # camelsch_streamflow_8183
 # b_ = True
@@ -138,8 +139,9 @@ def test_smooth_test():
 
 def test_degree_ar():
     inter = Interpolation()
+    x = inter.x_dnan
     phi = [1.85816724, -0.86378065]
-    acf, pacf = inter.degree_ar(camelsus_streamflow_01013500_8081_d2)
+    acf, pacf = inter.degree_ar(x)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\acf.txt', acf)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\pacf.txt', pacf)
     print("n_acf = " + str(len(acf)))
@@ -172,6 +174,7 @@ def test_degree_ar():
 def test_arma_parameters():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081_d1
+    x = inter.x_dnan
     p = 1
     q = 0
     phi, theta, R_2, se_beta = inter.arima_parameter(x, p, q)
@@ -184,16 +187,6 @@ def test_arma_parameters():
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y_t.txt', y_t)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual.txt', residual)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual_center.txt', residual_center)
-# camelsch_streamflow_8183_d1  p=3 q=0
-# phi = [ 0.39064336 -0.35918506  0.04628432]
-# theta = []
-# R_2 = 0.19022723687736434
-# se_beta = [0.02997564497817271, 0.03032822813836525, 0.029976815826624433]
-# camelsch_streamflow_81  p=3 q=0
-# phi = [ 1.2410429  -0.6771721   0.33453013]
-# theta = []
-# R_2 = 0.7420380099133933
-# se_beta = [0.05097314149464376, 0.07408783460004402, 0.05097224111773126]
 # camelsch_streamflow_81  p=4 q=0
 # phi = [ 1.28817563 -0.77413387  0.5133167  -0.14537688]
 # theta = []
@@ -228,6 +221,7 @@ def test_test_arima_model():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081
     x = camelsus_streamflow_01013500_8081_d1
+    x = inter.x_dnan
     phi = [1.85816724, -0.86378065]
     theta = []
     se_beta = [0.02650141929080101, 0.02650152518211935]
@@ -259,6 +253,7 @@ def test_degree_arch():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081
     x = camelsus_streamflow_01013500_8081_d1
+    x = inter.x_dnan
     phi = [1.85816724, -0.86378065]
     phi = [0.40816167, -2.1158528]
     phi = [0.65009565, 0.04819934]
@@ -267,9 +262,6 @@ def test_degree_arch():
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\pacf.txt', pacf)
     print("n_acf = " + str(len(acf)))
     print("n_pacf = " + str(len(pacf)))
-# camelsch_streamflow_8183
-# n_acf = 731
-# n_pacf = 731
 # camelsus_streamflow_01013500_80
 # n_acf = 243
 # n_pacf = 243
@@ -284,6 +276,7 @@ def test_test_arch():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081
     x = camelsus_streamflow_01013500_8081_d1
+    x = inter.x_dnan
     phi = [1.85816724, -0.86378065]
     phi = [0.40816167, -2.1158528]
     phi = [0.65009565, 0.04819934]
@@ -306,6 +299,7 @@ def test_arch_parameter():
     x = camelsch_streamflow_8183
     x = camelsus_streamflow_01013500_8081
     x = camelsus_streamflow_01013500_8081_d1
+    x = inter.x_dnan
     phi = [1.30134078, -0.67576837, 0.26822102]
     phi = [1.85816724, -0.86378065]
     phi = [0.40816167, -2.1158528]
@@ -359,6 +353,7 @@ def test_arch_model():
     inter = Interpolation()
     x = camelsch_streamflow_8183
     x = camelsus_streamflow_01013500_80
+    x = inter.x_dnan
     phi = [1.30134078, -0.67576837, 0.26822102]
     theta = [8.68204977e+02, 3.41215781e-02, 0.00000000e+00, 2.05339673e-02, 6.24759671e-03]
     phi = [1.85816724, -0.86378065]
@@ -386,12 +381,6 @@ def test_arch_model():
         print("NSE = " + str(result["nse"]))
         print("RMSE = " + str(result["rmse"]))
         print("max_abs_error = " + str(result["max_abs_error"]))
-# camelsus_streamflow_05087500_365      nse=0.92  rmse=130  max_error=2400  max_loop=1000
-# n_loop = 1
-# mean_residual = 5.350272800384656
-# NSE = 0.9968168638393194
-# RMSE = 58.1358463480375
-# max_abs_error = 464.1961097563326
 # camelsus_streamflow_05087500_365      nse=0.98  rmse=55  max_error=400  max_loop=1000
 # n_loop = 14
 # mean_residual = 5.350272800384656

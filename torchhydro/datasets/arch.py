@@ -3011,7 +3011,7 @@ class Arch(object):
 
         gradient = np.zeros(n_theta)
         for i in i_theta:
-            gradient[i] = self.gradient_thetai(x, theta, d_theta, i, p, residual0_2=residual0_2)
+            gradient[i] = self.gradient_thetai(x, theta, d_theta, i, p, residual_center0_2=residual0_2)
 
         return gradient
 
