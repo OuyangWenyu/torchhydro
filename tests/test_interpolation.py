@@ -228,6 +228,7 @@ def test_degree_arch():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081
     phi = [1.85816724, -0.86378065]
+    phi = [0.40816167, -2.1158528]
     acf, pacf = inter.degree_arch(x, phi)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\acf.txt', acf)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\pacf.txt', pacf)
@@ -239,12 +240,17 @@ def test_degree_arch():
 # camelsus_streamflow_01013500_80
 # n_acf = 243
 # n_pacf = 243
+# camelsus_streamflow_01013500_8081
+# n_acf = 488
+# n_pacf = 488
 
 def test_test_arch():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081
     phi = [1.85816724, -0.86378065]
+    phi = [0.40816167, -2.1158528]
     q = 4
+    q = 2
     significance_level = 0.05
     b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = inter.test_arch(x, phi, q, significance_level)
     print("b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = " + str([b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM]))
@@ -259,6 +265,7 @@ def test_arch_parameter():
     x = camelsus_streamflow_01013500_8081
     phi = [1.30134078, -0.67576837, 0.26822102]
     phi = [1.85816724, -0.86378065]
+    phi = [0.40816167, -2.1158528]
     p = 2
     q = 4
     a0, R_20, delta_20, a1, R_21, y1, a2, R_22, y2, theta1 = inter.arch_parameter(x, phi, p, q)

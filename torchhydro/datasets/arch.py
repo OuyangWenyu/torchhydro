@@ -235,7 +235,7 @@ class Arch(object):
         """
         partial auto-correlation function, pacf.
         Time series Analysis: Forecasting and Control, 5th Edition, George E.P.Box etc. p52
-        Applied Time Series Analysis（4th edition） Yan Wang P67  # todo:
+        Applied Time Series Analysis（4th edition） Yan Wang P67
         Parameters
         ----------
         x: time series.
@@ -263,6 +263,59 @@ class Arch(object):
             pacf[i] = self.partial_autocorrelation_coefficient(r_i)
 
         return pacf
+
+    def var_p_acc_pacc(
+        self,
+        n_x,
+        cc_2,
+    ):
+        """
+        Applied Time Series Analysis（4th edition） Yan Wang P67
+        p>j
+        Parameters
+        ----------
+        n_x
+        cc_2
+
+        Returns
+        -------
+
+        """
+        var_p = (1 + 2 * np.sum(cc_2)) / n_x
+
+        return var_p
+
+    def c(
+        self,
+        n_x,
+        cc,
+    ):
+        """
+        Applied Time Series Analysis（4th edition） Yan Wang P67
+        Parameters
+        ----------
+        n_x
+        acf
+
+        Returns
+        -------
+
+        """
+        cc = cc[1:]
+        cc_2 = np.power(cc, 2)
+        n_cc = cc_2.shape[0]
+        var_rho = []
+        for i in range(1, n_cc):
+            acf_2_i = cc_2[:i]
+            var_i = self.var_p_acc_pacc(n_x, acf_2_i)
+            var_rho.append(var_i)
+
+        std_rho = np.sqrt(var_rho)
+        std_rho_2 = 2 * std_rho
+        std_rho_2_range = -std_rho_2
+        std_rho_2_range = np.stack([std_rho_2_range, std_rho_2], axis=0)
+
+        return std_rho_2_range
 
     def aic_degree(
         self,
