@@ -197,7 +197,7 @@ def test_arma_parameters():
 # theta = []
 # R_2 = 0.9403979532213149
 # se_beta = [1.27045545049684, 1.2701498610924138]
-# mean_residual = 3923.2654513088487
+# mean_residual = 3923.2654513088487  # todo:
 
 
 def test_test_arima_model():
@@ -222,7 +222,7 @@ def test_test_arima_model():
 # b_significant_para = [True, True]
 # camelsus_streamflow_01013500_8081
 # b_significant_arima = False
-# b_significant_para = [False, True]
+# b_significant_para = [False, True]  # todo:
 
 def test_degree_arch():
     inter = Interpolation()
@@ -257,6 +257,8 @@ def test_test_arch():
 # camelsch_streamflow_8183  q=3
 # b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = [True, False, True, True]
 # camelsus_streamflow_01013500_80  q=4
+# b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = [True, False, True, True]
+# camelsus_streamflow_01013500_8081  q=2
 # b_arch_Q, b_arch_LM, b_arch_F, b_arch_bpLM = [True, False, True, True]
 
 def test_arch_parameter():
