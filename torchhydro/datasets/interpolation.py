@@ -26,6 +26,7 @@ class Interpolation(object):
         self.n_gage = self.datasource.n_gage
         self.time_range = ["1980-01-01", "2014-12-31"]      #["1984-01-01", "1987-12-31"]  # ["1980-01-01", "2014-12-31"]
         self.var_list = ["streamflow",]
+        # self.var_list = self.datasource.get_relevant_cols()
 
         self.x = self.read_data()
         self.n_x = self.x.shape[0]

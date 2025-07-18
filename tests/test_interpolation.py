@@ -206,6 +206,9 @@ def test_test_arima_model():
     phi = [1.85816724, -0.86378065]
     theta = []
     se_beta = [0.02650141929080101, 0.02650152518211935]
+    phi = [0.40816167, -2.1158528]
+    theta = []
+    se_beta = [1.27045545049684, 1.2701498610924138]
     m = 6
     significance_level = 0.05
     b_significant_arima, b_significant_para = inter.test_arima_model(x, phi, theta, se_beta, m, significance_level)
@@ -217,6 +220,9 @@ def test_test_arima_model():
 # camelsus_streamflow_01013500_80
 # b_significant_arima = False
 # b_significant_para = [True, True]
+# camelsus_streamflow_01013500_8081
+# b_significant_arima = False
+# b_significant_para = [False, True]
 
 def test_degree_arch():
     inter = Interpolation()
@@ -266,18 +272,6 @@ def test_arch_parameter():
     print("theta1 = " + str(theta1))
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y1.txt', y1)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y2.txt', y2)
-# camelsch_streamflow_8183  p=3 q=4
-# a0 = [6.93353764e+03 3.50556876e-01]
-# R_20 = 0.12289020305449845
-# delta_20 = 0.21365016209392332
-# a1 = [ 8.71910230e+02  3.81756924e-02 -5.53395332e-03  2.21789260e-02
-#   6.50269592e-03]
-# R_21 = 0.1605177614336352
-# a2 = [8.68204977e+02 3.41215781e-02 0.00000000e+00 2.05339673e-02
-#  6.24759671e-03]
-# R_22 = 0.1638094288492594
-# theta1 = [ 1.30134078e+00 -6.75768370e-01  2.68221020e-01  8.68204977e+02
-#   3.41215781e-02  0.00000000e+00  2.05339673e-02  6.24759671e-03]
 # camelsus_streamflow_01013500_80  phi=[1.85816724, -0.86378065]
 # ----------iloop = 0----------
 # [ 1.85816724e+00 -8.63780650e-01  2.61970529e+02  1.08103901e+00
