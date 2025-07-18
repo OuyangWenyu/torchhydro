@@ -215,7 +215,7 @@ def test_arma_parameters():
 # phi = [0.6830197]
 # theta = []
 # R_2 = 0.4665011262554114
-# se_beta = [nan]    # todo:
+# se_beta = [0.027052426340113594]
 # mean_residual = 0.22545816760535747
 # camelsus_streamflow_01013500_8081_d1 p=2
 # phi = [0.65009565 0.04819934]
