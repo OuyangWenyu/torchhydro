@@ -1803,14 +1803,18 @@ class Arch(object):
                 g_i = G[:i]
                 phi_i = phi_[:i]
                 G[i] = np.matmul(g_i,phi_i)
-            g_i = G[i-p:i]
-            G[i] = np.matmul(g_i,phi_)
+            else:
+                g_i = G[i-p:i]
+                g_i.reverse()
+                G[i] = np.matmul(g_i,phi_)
 
         var_ar = [0] * l
+        G_ = np.power(G, 2)
+        var_e = np.power(std_e, 2)
         for i in range(l):
-            g_i = G[:i]
+            g_i = G_[:i+1]
             g_i = np.sum(g_i)
-            var_ar[i] = g_i * std_e
+            var_ar[i] = g_i * var_e
 
         confidence_range_95 = []
         for i in range(l):
@@ -1818,7 +1822,7 @@ class Arch(object):
             range_i_u = x_infer[i] + 1.96 * np.sqrt(var_ar[i])
             confidence_range_95.append([range_i_d, range_i_u])
 
-        return var_ar, confidence_range_95
+        return G, var_ar, confidence_range_95
 
     def LM_statistic(
         self,

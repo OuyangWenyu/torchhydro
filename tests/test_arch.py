@@ -1919,10 +1919,14 @@ def test_var_infer_l_ar():
     phi =[0.6, 0.3]
     l = 3
     p = 2
-    std_e = 36
-    var_ar, confidence_range_95 = arch.var_infer_l_ar(x_infer, phi, l, p, std_e)
+    std_e = 6
+    G, var_ar, confidence_range_95 = arch.var_infer_l_ar(x_infer, phi, l, p, std_e)
+    print("G = ", G)
     print("var_ar = ", var_ar)
     print("confidence_range_95 = ", confidence_range_95)
+# G =  [1, 0.6, 0.6599999999999999]
+# var_ar =  [36.0, 48.959999999999994, 64.6416]
+# confidence_range_95 =  [[85.36, 108.88000000000001], [83.71760114332386, 111.14639885667614], [81.83680000000001, 113.3536]]
 
 def test_LM_statistic():
     y_residual = [0, 0, -7.00148942, 2.81307703, -0.86616938, 2.35613508, -1.19714684, 0.4232423, -0.4589695,
