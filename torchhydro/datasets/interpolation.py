@@ -178,7 +178,6 @@ class Interpolation(object):
 
         return stat_inds
 
-
     def lose_index(
         self,
         range,
@@ -195,6 +194,61 @@ class Interpolation(object):
         index = np.sort(index)
 
         return index
+
+    def lose_series(
+        self,
+        x,
+        n_x,
+        ratio,
+    ):
+        """
+
+        Parameters
+        ----------
+        n_x
+        ratio
+
+        Returns
+        -------
+
+        """
+        lose_size = ratio * n_x
+        lose_index = self.lose_index(n_x, lose_size)
+
+        lose_x = x
+        lose_x[lose_index] = np.NaN
+
+        return lose_x
+
+    def lose_set(
+        self,
+        x_set,
+        ratio_list,
+    ):
+        """
+
+        Parameters
+        ----------
+        x_set
+        ratio_list: [0.05, 0.1, 0.15, 0.25, 0.3, 0.35]
+
+        Returns
+        -------
+
+        """
+        n_x = x_set.shape[0]
+        n_xi = x_set.shape[1]
+
+        lose_set_x = []
+        for i in range(n_x):
+            x_i = x_set[i]
+            lose_x_i = self.lose_series(x_i, n_xi, ratio_list[i])
+            lose_set_x.append(lose_x_i)
+
+        lose_set_x = np.array(lose_set_x)
+
+        return lose_set_x
+
 
     def smooth_test(
         self,

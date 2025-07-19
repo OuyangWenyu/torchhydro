@@ -1775,6 +1775,51 @@ class Arch(object):
 
         return x_infer
 
+    def var_infer_l_ar(
+        self,
+        x_infer,
+        phi,
+        l,
+        p,
+        std_e,
+    ):
+        """
+        Applied Time Series Analysis（4th edition） Yan Wang p87
+        Parameters
+        ----------
+        phi
+        l
+
+        Returns
+        -------
+
+        """
+        G = [0] * l
+        phi_ = np.transpose(phi)
+        for i in range(l):
+            if i == 0:
+                G[i] = 1
+            elif i < p:
+                g_i = G[:i]
+                phi_i = phi_[:i]
+                G[i] = np.matmul(g_i,phi_i)
+            g_i = G[i-p:i]
+            G[i] = np.matmul(g_i,phi_)
+
+        var_ar = [0] * l
+        for i in range(l):
+            g_i = G[:i]
+            g_i = np.sum(g_i)
+            var_ar[i] = g_i * std_e
+
+        confidence_range_95 = []
+        for i in range(l):
+            range_i_d = x_infer[i] - 1.96 * np.sqrt(var_ar[i])
+            range_i_u = x_infer[i] + 1.96 * np.sqrt(var_ar[i])
+            confidence_range_95.append([range_i_d, range_i_u])
+
+        return var_ar, confidence_range_95
+
     def LM_statistic(
         self,
         residual_2,
