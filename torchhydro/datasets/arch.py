@@ -1775,6 +1775,44 @@ class Arch(object):
 
         return x_infer
 
+    def ar_infer(
+        self,
+        x,
+        phi,
+        l,
+        p,
+        b_constant: bool = False,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        phi
+        l
+        p
+
+        Returns
+        -------
+
+        """
+        phi_ = np.transpose(phi)
+        x_infer = [0]*l
+        for i in range(l):
+            if i == 0:
+                x_i = x[:]
+            elif i < p:
+                x_i = x[i:]
+                x_i = x_i + x_infer[:i]
+            else:
+                x_i = x_infer[i-p:i]
+            if b_constant:
+                x_i.append(1)
+            x_i.reverse()
+            x_infer[i] = np.matmul(x_i, phi_)
+
+        return x_infer
+
     def var_infer_l_ar(
         self,
         x_infer,
@@ -1824,6 +1862,53 @@ class Arch(object):
 
         return G, var_ar, confidence_range_95
 
+    def ma_infer(
+        self,
+        x,
+        e,
+        theta,
+        l,
+        q,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        e
+        theta
+        l
+        q
+
+        Returns
+        -------
+
+        """
+        theta_ = np.transpose(theta)
+        x_infer = [0]*l
+        for i in range(l):
+            if i == 0:
+                e_i = e[:-1]
+                e_t_i = e[-1]
+            elif i < q:
+                e_i = e[i:]
+                x_i_d = x_infer[:i-2]
+                x_i_u = x_infer[1:i-1]
+                e_x_i = x_i_u - x_i_d
+                e_i = e_i + e_x_i
+                e_t_i = x_infer[i-1] - x_infer[i-2]
+            else:
+                x_i_d = x_infer[i-1-q:i-1]
+                x_i_u = x_infer[i-q:i]
+                e_i = x_i_u - x_i_d
+                e_t_i = x_infer[i-1] - x_infer[i-2]
+            e_i.reverse()
+            x_infer[i] = e_t_i - np.matmul(e_i, theta_)
+
+        return x_infer
+
+
+
     def var_infer_l_ma(
         self,
         x_infer,
@@ -1846,11 +1931,6 @@ class Arch(object):
         -------
 
         """
-        n_x_infer = len(x_infer)
-        e = [0] * (n_x_infer - 1)
-        for i in range(n_x_infer-1):
-            e[i] = x_infer[i+1] - x_infer[i]
-
         var_ma = [0] * l
         theta_ = np.power(theta, 2)
         for i in range(l):
