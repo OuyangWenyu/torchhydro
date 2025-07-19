@@ -87,12 +87,43 @@ class Interpolation(object):
 
         """
         lose_ratio = []
+        intact_series = []
+        slight_lose = []
+        dram_lose = []
+        jot_lose = []
+        moderate_lose = []
+        stack_lose = []
+        serious_lose = []
         for i in range(self.n_x):
             n_x_i = self.x_dnan[i].shape[0]
             lose_ratio_i = 1 - n_x_i / self.t_length
             lose_ratio.append(lose_ratio_i)
+            if lose_ratio_i == 0.0:
+                intact_series.append(i)
+            elif lose_ratio_i < 0.01:
+                slight_lose.append(i)
+            elif (lose_ratio_i >= 0.01) and (lose_ratio_i < 0.1):
+                dram_lose.append(i)
+            elif (lose_ratio_i >= 0.1) and (lose_ratio_i < 0.2):
+                jot_lose.append(i)
+            elif (lose_ratio_i >= 0.2) and (lose_ratio_i < 0.35):
+                moderate_lose.append(i)
+            elif (lose_ratio_i >= 0.35) and (lose_ratio_i < 0.45):
+                stack_lose.append(i)
+            elif (lose_ratio_i >= 0.45):
+                serious_lose.append(i)
 
-        return lose_ratio
+        lose_type = {
+            "intact_series": intact_series,
+            "slight_lose": slight_lose,
+            "dram_lose": dram_lose,
+            "jot_lose": jot_lose,
+            "moderate_lose": moderate_lose,
+            "stack_lose": stack_lose,
+            "serious_lose": serious_lose,
+        }
+
+        return lose_ratio, lose_type
 
     def cal_7_stat_inds(self, x):
         """
@@ -147,6 +178,23 @@ class Interpolation(object):
 
         return stat_inds
 
+
+    def lose_index(
+        self,
+        range,
+        n,
+    ):
+        """
+
+        Returns
+        -------
+
+        """
+        random.seed(time.time()+1)
+        index = np.random.randint(low=0, high=range, size=n, dtype=int)
+        index = np.sort(index)
+
+        return index
 
     def smooth_test(
         self,
@@ -386,22 +434,6 @@ class Interpolation(object):
 
 
 
-    def lose_index(
-        self,
-        range,
-        n,
-    ):
-        """
-
-        Returns
-        -------
-
-        """
-        random.seed(time.time()+1)
-        index = np.random.randint(low=0, high=range, size=n, dtype=int)
-        index = np.sort(index)
-
-        return index
 
     def genetate_lose_time_series_single(
         self,

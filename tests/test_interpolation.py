@@ -62,9 +62,11 @@ def test_delete_nan():
 
 def test_cal_lose_ratio():
     inter = Interpolation()
-    lose_ratio = inter.cal_lose_ratio()
+    lose_ratio, lose_type = inter.cal_lose_ratio()
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\lose_ratio.txt', lose_ratio)
+    # np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\lose_type.txt', lose_type)
     print("lose_ratio = " + str(lose_ratio))
+    print("lose_type = " + str(lose_type))
 # self.gage_id = ["01013500", "01022500", "01030500", "01187300"]
 # lose_ratio = [0.007196495619524401, 0.007196495619524401, 0.007196495619524401, 0.04294430538172711]
 # self.gage_id = self.datasource.gage
@@ -121,7 +123,7 @@ def test_read_data():
 
 def test_smooth_test():
     inter = Interpolation()
-    x = inter.x_dnan
+    x = inter.x_dnan[0]
     b_ = inter.smooth_test(x)
     print("b_ = " + str(b_))
 # camelsch_streamflow_8183
@@ -136,10 +138,12 @@ def test_smooth_test():
 # b_ = True
 # camelsus_streamflow_01013500_8081_d2
 # b_ = True
+# inter.x_dnan[0]
+# b_ = True
 
 def test_degree_ar():
     inter = Interpolation()
-    x = inter.x_dnan
+    x = inter.x_dnan[0]
     phi = [1.85816724, -0.86378065]
     acf, pacf = inter.degree_ar(x)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\acf.txt', acf)
@@ -174,7 +178,7 @@ def test_degree_ar():
 def test_arma_parameters():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081_d1
-    x = inter.x_dnan
+    x = inter.x_dnan[0]
     p = 1
     q = 0
     phi, theta, R_2, se_beta = inter.arima_parameter(x, p, q)
@@ -221,7 +225,7 @@ def test_test_arima_model():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081
     x = camelsus_streamflow_01013500_8081_d1
-    x = inter.x_dnan
+    x = inter.x_dnan[0]
     phi = [1.85816724, -0.86378065]
     theta = []
     se_beta = [0.02650141929080101, 0.02650152518211935]
@@ -253,7 +257,7 @@ def test_degree_arch():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081
     x = camelsus_streamflow_01013500_8081_d1
-    x = inter.x_dnan
+    x = inter.x_dnan[0]
     phi = [1.85816724, -0.86378065]
     phi = [0.40816167, -2.1158528]
     phi = [0.65009565, 0.04819934]
@@ -276,7 +280,7 @@ def test_test_arch():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081
     x = camelsus_streamflow_01013500_8081_d1
-    x = inter.x_dnan
+    x = inter.x_dnan[0]
     phi = [1.85816724, -0.86378065]
     phi = [0.40816167, -2.1158528]
     phi = [0.65009565, 0.04819934]
@@ -299,7 +303,7 @@ def test_arch_parameter():
     x = camelsch_streamflow_8183
     x = camelsus_streamflow_01013500_8081
     x = camelsus_streamflow_01013500_8081_d1
-    x = inter.x_dnan
+    x = inter.x_dnan[0]
     phi = [1.30134078, -0.67576837, 0.26822102]
     phi = [1.85816724, -0.86378065]
     phi = [0.40816167, -2.1158528]

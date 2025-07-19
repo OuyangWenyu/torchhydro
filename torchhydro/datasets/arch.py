@@ -285,7 +285,7 @@ class Arch(object):
 
         return var_p
 
-    def c(
+    def std_2_range_acc_pacc(
         self,
         n_x,
         cc,
@@ -3808,44 +3808,6 @@ class Arch(object):
         nse = 1 - so / om
 
         return nse
-
-    def moving_average_smoothing(
-        self,
-        width,
-        x,
-    ):
-        """
-        moving average smoothing
-        Parameters
-        ----------
-        width: int, window width.
-        x: series need to smoothing.
-        negative: bool, positive or negative.
-        Returns
-        -------
-        result, the smoothed series by moving average filter.
-        """
-        length = len(x)
-        k = int(width/2)
-        result = [0]*length
-        for i in range(length):
-            # start
-            if i < k:
-                xx = x[:i+k+1]
-                n_xx = i+k+1
-            # end
-            elif i > (length-1) - k:
-                xx = x[i-k:]
-                n_xx = length - i + k
-            # middle
-            else:
-                xx = x[i-k:i+k+1]
-                n_xx = width
-            x_i = np.sum(xx)/n_xx
-            result[i] = x_i
-
-        return result
-
 
     def mL_estimation(
         self,
