@@ -900,8 +900,8 @@ class Arch(object):
         ar: the single step auto-regression result.
         """
         # ar
-        xt = np.transpose(x)
-        ar = np.matmul(phi, xt)
+        phi_t = np.transpose(phi)
+        ar = np.matmul(x, phi_t)
 
         return ar
 
@@ -923,9 +923,9 @@ class Arch(object):
         """
         # MA
         et = e[1:]
-        et = np.transpose(et)
+        theta_t = np.transpose(theta)
         ma0 = e[0]
-        ma = np.matmul(theta, et)
+        ma = np.matmul(et, theta_t)
         ma = ma0 - ma
 
         return ma
@@ -1907,8 +1907,6 @@ class Arch(object):
 
         return x_infer
 
-
-
     def var_infer_l_ma(
         self,
         x_infer,
@@ -1950,6 +1948,86 @@ class Arch(object):
             confidence_range_95.append([range_i_d, range_i_u])
 
         return var_ma, confidence_range_95
+
+    def arma_infer(
+        self,
+        x,
+        e,
+        var_e,
+        phi,
+        theta,
+        p,
+        q,
+        l,
+    ):
+        """
+        Applied Time Series Analysis（4th edition） Yan Wang p90
+        Parameters
+        ----------
+        x
+        e
+        var_e
+        p
+        q
+        l
+
+        Returns
+        -------
+
+        """
+        x_infer = [0] * l
+        min_pq = min(p, q)
+        max_pq = max(p, q)
+        for i in range(l):
+            if i == 0:
+                x_i = x[:]
+                x_i.reverse()
+                e_i = e[:]
+                e_i.append(0)
+                e_i.reverse()
+                x_infer[i] = self.ar_one_step(x_i, phi) + self.ma_one_step(e_i, theta)
+            elif i < min_pq:
+                x_i = x[i:]
+                x_i = x_i + x_infer[:i]
+                x_i.reserves()
+                e_i = e[i:]
+                e_i.append(0)
+                e_i.reverse()
+                zero_i = [0] * i
+                e_i = e_i + zero_i
+                x_infer[i] = self.ar_one_step(x_i, phi) + self.ma_one_step(e_i, theta)
+            else:
+                x_i = x_infer[i-p:i]
+                x_i.reverse()
+                x_infer[i] = self.ar_one_step(x_i, phi)
+
+
+        return x_infer
+
+    def var_infer_l_arma(
+        self,
+        phi,
+        theta,
+        var_e,
+        p,
+        q,
+        l,
+    ):
+        """
+
+        Parameters
+        ----------
+        phi
+        theta
+        var_e
+        p
+        q
+        l
+
+        Returns
+        -------
+
+        """
 
 
     def LM_statistic(
