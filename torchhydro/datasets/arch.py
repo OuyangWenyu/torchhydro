@@ -1824,6 +1824,54 @@ class Arch(object):
 
         return G, var_ar, confidence_range_95
 
+    def var_infer_l_ma(
+        self,
+        x_infer,
+        theta,
+        l,
+        q,
+        var_e,
+    ):
+        """
+
+        Parameters
+        ----------
+        x_infer
+        theta
+        l
+        q
+        var_e
+
+        Returns
+        -------
+
+        """
+        n_x_infer = len(x_infer)
+        e = [0] * (n_x_infer - 1)
+        for i in range(n_x_infer-1):
+            e[i] = x_infer[i+1] - x_infer[i]
+
+        var_ma = [0] * l
+        theta_ = np.power(theta, 2)
+        for i in range(l):
+            if i == 0:
+                theta_i = 0
+            elif i < q:
+                theta_i = theta_[:i]
+                theta_i = np.sum(theta_i)
+            else:
+                theta_i = np.sum(theta_)
+            var_ma[i] = (1 + theta_i) * var_e
+
+        confidence_range_95 = []
+        for i in range(l):
+            range_i_d = x_infer[i] - 1.96 * np.sqrt(var_ma[i])
+            range_i_u = x_infer[i] + 1.96 * np.sqrt(var_ma[i])
+            confidence_range_95.append([range_i_d, range_i_u])
+
+        return var_ma, confidence_range_95
+
+
     def LM_statistic(
         self,
         residual_2,
