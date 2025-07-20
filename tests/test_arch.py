@@ -1916,12 +1916,13 @@ def test_arima_infer():
 def test_ar_infer():
     arch = Arch()
     x = [96, 97.2]
-    phi =[0.6, 0.3]
+    phi =[10, 0.6, 0.3]
     l = 3
     p = 2
     b_constant = True
     x_infer = arch.ar_infer(x, phi, l, p, b_constant)
     print("x_infer = ", x_infer)
+# x_infer =  [97.11999999999999, 97.43199999999999, 97.59519999999998]
 
 def test_var_infer_l_ar():
     arch = Arch()
@@ -1946,6 +1947,7 @@ def test_ma_infer():
     q = 3
     x_infer = arch.ma_infer(e, theta, l, q)
     print("x_infer = ", x_infer)
+
 
 def test_var_infer_l_ma():
     arch = Arch()

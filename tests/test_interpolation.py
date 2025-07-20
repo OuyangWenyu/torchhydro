@@ -216,7 +216,8 @@ def test_degree_ar():
 # n_acf = 487
 # n_pacf = 487
 # inter.x_dnan[0]  camelsus_streamflow_01013500
-
+n_acf = 501
+n_pacf = 501
 
 def test_arma_parameters():
     inter = Interpolation()
