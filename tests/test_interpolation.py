@@ -216,14 +216,14 @@ def test_degree_ar():
 # n_acf = 487
 # n_pacf = 487
 # inter.x_dnan[0]  camelsus_streamflow_01013500
-n_acf = 501
-n_pacf = 501
+# n_acf = 501
+# n_pacf = 501
 
 def test_arma_parameters():
     inter = Interpolation()
     x = camelsus_streamflow_01013500_8081_d1
-    x = inter.x_dnan[0]
-    p = 1
+    x = (inter.x_dnan[0]).tolist()
+    p = 2
     q = 0
     phi, theta, R_2, se_beta = inter.arima_parameter(x, p, q)
     residual, y_t, mean_residual, residual_center, residual_center_2 = inter.arch.x_residual_via_parameters(x, phi, b_y=True, b_center=True)
@@ -265,7 +265,11 @@ def test_arma_parameters():
 # se_beta = [0.037019421068768536, 0.03702018474274401]
 # mean_residual = 0.21947227756428117
 # inter.x_dnan[0]  camelsus_streamflow_01013500
-
+# phi = [ 1.6654097 -0.6711734]
+# theta = []
+# R_2 = 0.99345536607176
+# se_beta = [0.006584719668673316, 0.0065848039599755775]
+# mean_residual = 8.896472090844359
 
 
 def test_test_arima_model():

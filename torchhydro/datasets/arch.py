@@ -912,6 +912,7 @@ class Arch(object):
         self,
         e,
         theta_t,
+        center: float = None,
     ):
         """
         MA model, single step.
@@ -929,6 +930,9 @@ class Arch(object):
         ma0 = e[0]
         ma = np.matmul(et, theta_t)
         ma = ma0 - ma
+
+        if center is not None:
+            ma = center + ma
 
         return ma
 
@@ -1874,7 +1878,7 @@ class Arch(object):
         theta,
         l,
         q,
-        b_constant: bool = False
+        center: float = None,
     ):
         """
 
@@ -1905,7 +1909,7 @@ class Arch(object):
             e_i.append(0)
             e_i.reverse()
             try:
-                x_infer[i] = self.ma_one_step(e_i, theta_t)
+                x_infer[i] = self.ma_one_step(e_i, theta_t, center)
             except ValueError:
                 raise ValueError("matmul: Input operand 1 has a mismatch in its core dimension 0, with gufunc signature (n?,k),(k,m?)->(n?,m?) (size 3 is different from 2)")
 

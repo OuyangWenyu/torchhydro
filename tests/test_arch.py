@@ -1943,11 +1943,12 @@ def test_ma_infer():
     arch = Arch()
     e = [-6, 8, -4]
     theta = [0.8, -0.6, 0.2]
+    center = 100
     l = 5
     q = 3
-    x_infer = arch.ma_infer(e, theta, l, q)
+    x_infer = arch.ma_infer(e, theta, l, q, center)
     print("x_infer = ", x_infer)
-# x_infer =  [9.2, -4.0, 0.8, 0.0, 0.0]
+# x_infer =  [109.2, 96.0, 100.8, 100.0, 100.0]
 
 def test_var_infer_l_ma():
     arch = Arch()
