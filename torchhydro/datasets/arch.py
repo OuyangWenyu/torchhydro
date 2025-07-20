@@ -2041,20 +2041,20 @@ class Arch(object):
                 g_i.reverse()
                 G[i] = np.matmul(g_i,phi_)
 
-        var_ar = [0] * l
+        var_arma = [0] * l
         G_ = np.power(G, 2)
         for i in range(l):
             g_i = G_[:i+1]
             g_i = np.sum(g_i)
-            var_ar[i] = g_i * var_e
+            var_arma[i] = g_i * var_e
 
         confidence_range_95 = []
         for i in range(l):
-            range_i_d = x_infer[i] - 1.96 * np.sqrt(var_ar[i])
-            range_i_u = x_infer[i] + 1.96 * np.sqrt(var_ar[i])
+            range_i_d = x_infer[i] - 1.96 * np.sqrt(var_arma[i])
+            range_i_u = x_infer[i] + 1.96 * np.sqrt(var_arma[i])
             confidence_range_95.append([range_i_d, range_i_u])
 
-        return G, var_ar, confidence_range_95
+        return G, var_arma, confidence_range_95
 
     def LM_statistic(
         self,

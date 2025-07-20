@@ -1977,12 +1977,15 @@ def test_arma_infer():
 def test_var_infer_l_arma():
     arch = Arch()
     x_infer = [109.2, 96, 100.8, 100, 100]
+    phi = [0.6, 0.3]
     theta = [0.8, -0.6, 0.2]
-    l = 5
-    q = 3
     var_e = 25
-    var_ma, confidence_range_95 = arch.var_infer_l_arma(x_infer, theta, l, q, var_e)
-    print("var_ma = ", var_ma)
+    p = 2
+    q = 3
+    l = 5
+    G, var_arma, confidence_range_95 = arch.var_infer_l_arma(x_infer, phi, theta, var_e, p, q, l)
+    print("G = ", G)
+    print("var_arma = ", var_arma)
     print("confidence_range_95 = ", confidence_range_95)
 
 def test_LM_statistic():
