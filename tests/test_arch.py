@@ -1947,7 +1947,7 @@ def test_ma_infer():
     q = 3
     x_infer = arch.ma_infer(e, theta, l, q)
     print("x_infer = ", x_infer)
-
+# x_infer =  [9.2, -4.0, 0.8, 0.0, 0.0]
 
 def test_var_infer_l_ma():
     arch = Arch()

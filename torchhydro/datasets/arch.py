@@ -890,21 +890,20 @@ class Arch(object):
     def ar_one_step(
         self,
         x,
-        phi,
+        phi_t,
     ):
         """
         AR model, single step.
         Parameters
         ----------
         x: time series
-        phi: parameters of AR(p) model
+        phi: parameters of AR(p) model, transposed.
 
         Returns
         -------
         ar: the single step auto-regression result.
         """
         # ar
-        phi_t = np.transpose(phi)
         ar = np.matmul(x, phi_t)
 
         return ar
@@ -912,14 +911,14 @@ class Arch(object):
     def ma_one_step(
         self,
         e,
-        theta,
+        theta_t,
     ):
         """
         MA model, single step.
         Parameters
         ----------
         e: time series
-        theta: parameters of MA(p) model
+        theta_t: parameters of MA(p) model, transposed.
 
         Returns
         -------
@@ -927,7 +926,6 @@ class Arch(object):
         """
         # MA
         et = e[1:]
-        theta_t = np.transpose(theta)
         ma0 = e[0]
         ma = np.matmul(et, theta_t)
         ma = ma0 - ma
@@ -969,6 +967,8 @@ class Arch(object):
         if q > 0:
             if (e is None) or (theta is None):
                 raise ValueError("e and theta must be provided both.")
+        phi_t = np.transpose(phi)
+        theta_t = np.transpose(theta)
 
         n_x = len(x)
         y = np.zeros(n_x)
@@ -981,7 +981,7 @@ class Arch(object):
                 if b_constant:
                     x_i.append(1)  # constant item
                 x_i.reverse()
-                ar[i-start] = self.ar_one_step(x_i, phi)
+                ar[i-start] = self.ar_one_step(x_i, phi_t)
             y[start:] = ar[:]
         if q > 0:
             # y[:start] = y[:start]  # + e[:start]
@@ -989,7 +989,7 @@ class Arch(object):
             for i in range(start, n_x):
                 e_i = e[i-q:i+1]
                 e_i.reverse()
-                ma[i-start] = self.ma_one_step(e_i, theta)
+                ma[i-start] = self.ma_one_step(e_i, theta_t)
             y[start:] = y[start:] + ma[:]
 
         return y
@@ -1612,13 +1612,15 @@ class Arch(object):
         """
         if (phi is None) and (theta is None):
             raise ValueError('Either phi or theta must be provided.')
+        phi_t = np.transpose(phi)
+        theta_t = np.transpose(theta)
 
         x_infer = 0
         if phi is not None:
-            ar = self.ar_one_step(x, phi)
+            ar = self.ar_one_step(x, phi_t)
             x_infer = ar
         if theta is not None:
-            ma = self.ma_one_step(e, theta)
+            ma = self.ma_one_step(e, theta_t)
             x_infer = x_infer + ma
 
         return x_infer
@@ -1800,7 +1802,7 @@ class Arch(object):
         -------
 
         """
-        phi_ = np.transpose(phi)
+        phi_t = np.transpose(phi)
         x_infer = [0]*l
         for i in range(l):
             if i == 0:
@@ -1813,7 +1815,7 @@ class Arch(object):
             if b_constant:
                 x_i.append(1)
             x_i.reverse()
-            x_infer[i] = np.matmul(x_i, phi_)
+            x_infer[i] = self.ar_one_step(x_i, phi_t)
 
         return x_infer
 
@@ -1872,6 +1874,7 @@ class Arch(object):
         theta,
         l,
         q,
+        b_constant: bool = False
     ):
         """
 
@@ -1887,26 +1890,24 @@ class Arch(object):
         -------
 
         """
-        theta_ = np.transpose(theta)
+        theta_t = np.transpose(theta)
         x_infer = [0]*l
         for i in range(l):
             if i == 0:
-                e_i = e[:-1]
-                e_t_i = e[-1]
+                e_i = e[:]
             elif i < q:
                 e_i = e[i:]
-                x_i_d = x_infer[:i-2]
-                x_i_u = x_infer[1:i-1]
-                e_x_i = x_i_u - x_i_d
-                e_i = e_i + e_x_i
-                e_t_i = x_infer[i-1] - x_infer[i-2]
+                zero_i = [0] * i
+                e_i = e_i + zero_i
             else:
-                x_i_d = x_infer[i-1-q:i-1]
-                x_i_u = x_infer[i-q:i]
-                e_i = x_i_u - x_i_d
-                e_t_i = x_infer[i-1] - x_infer[i-2]
+                zero_i = [0] * q
+                e_i = zero_i
+            e_i.append(0)
             e_i.reverse()
-            x_infer[i] = e_t_i - np.matmul(e_i, theta_)
+            try:
+                x_infer[i] = self.ma_one_step(e_i, theta_t)
+            except ValueError:
+                raise ValueError("matmul: Input operand 1 has a mismatch in its core dimension 0, with gufunc signature (n?,k),(k,m?)->(n?,m?) (size 3 is different from 2)")
 
         return x_infer
 
@@ -1977,6 +1978,8 @@ class Arch(object):
         -------
 
         """
+        phi_t = np.transpose(phi)
+        theta_t = np.transpose(theta)
         x_infer = [0] * l
         min_pq = min(p, q)
         max_pq = max(p, q)
@@ -1987,7 +1990,7 @@ class Arch(object):
                 e_i = e[:]
                 e_i.append(0)
                 e_i.reverse()
-                x_infer[i] = self.ar_one_step(x_i, phi) + self.ma_one_step(e_i, theta)
+                x_infer[i] = self.ar_one_step(x_i, phi_t) + self.ma_one_step(e_i, theta_t)
             elif i < min_pq:
                 x_i = x[i:]
                 x_i = x_i + x_infer[:i]
@@ -1997,11 +2000,11 @@ class Arch(object):
                 e_i.reverse()
                 zero_i = [0] * i
                 e_i = e_i + zero_i
-                x_infer[i] = self.ar_one_step(x_i, phi) + self.ma_one_step(e_i, theta)
+                x_infer[i] = self.ar_one_step(x_i, phi_t) + self.ma_one_step(e_i, theta_t)
             else:
                 x_i = x_infer[i-p:i]
                 x_i.reverse()
-                x_infer[i] = self.ar_one_step(x_i, phi)
+                x_infer[i] = self.ar_one_step(x_i, phi_t)
 
 
         return x_infer
@@ -2088,6 +2091,8 @@ class Arch(object):
         -------
 
         """
+        phi_t = np.transpose(phi)
+        theta_t = np.transpose(theta)
         x_infer = [0] * l
         min_pq = min(p, q)
         max_pq = max(p, q)
@@ -2098,7 +2103,7 @@ class Arch(object):
                 e_i = e[:]
                 e_i.append(0)
                 e_i.reverse()
-                x_infer[i] = self.ar_one_step(x_i, phi) + self.ma_one_step(e_i, theta)
+                x_infer[i] = self.ar_one_step(x_i, phi_t) + self.ma_one_step(e_i, theta_t)
             elif i < min_pq:
                 if p > q:
                     x_i = x[i:]
@@ -2109,11 +2114,11 @@ class Arch(object):
                     e_i.reverse()
                     zero_i = [0] * i
                     e_i = e_i + zero_i
-                x_infer[i] = self.ar_one_step(x_i, phi) + self.ma_one_step(e_i, theta)
+                x_infer[i] = self.ar_one_step(x_i, phi_t) + self.ma_one_step(e_i, theta_t)
             else:
                 x_i = x_infer[i-p:i]
                 x_i.reverse()
-                x_infer[i] = self.ar_one_step(x_i, phi)
+                x_infer[i] = self.ar_one_step(x_i, phi_t)
 
         return x_infer
 
