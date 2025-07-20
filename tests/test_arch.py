@@ -1913,10 +1913,20 @@ def test_arima_infer():
 # [46.652627192999994, 42.60714355396138, 38.41274374902763, 34.89369075281492, 32.17085740345077, 29.94992722295506,
 #  27.906073792332272, 25.884995513871274, 23.897125949780055, 22.017315385116646]
 
+def test_ar_infer():
+    arch = Arch()
+    x = [96, 97.2]
+    phi =[0.6, 0.3]
+    l = 3
+    p = 2
+    b_constant = True
+    x_infer = arch.ar_infer(x, phi, l, p, b_constant)
+    print("x_infer = ", x_infer)
+
 def test_var_infer_l_ar():
     arch = Arch()
     x_infer = [97.12, 97.432, 97.5952]
-    phi =[0.6, 0.3]
+    phi = [0.6, 0.3]
     l = 3
     p = 2
     std_e = 6
@@ -1927,6 +1937,15 @@ def test_var_infer_l_ar():
 # G =  [1, 0.6, 0.6599999999999999]
 # var_ar =  [36.0, 48.959999999999994, 64.6416]
 # confidence_range_95 =  [[85.36, 108.88000000000001], [83.71760114332386, 111.14639885667614], [81.83680000000001, 113.3536]]
+
+def test_ma_infer():
+    arch = Arch()
+    e = [-6, 8, -4]
+    theta = [0.8, -0.6, 0.2]
+    l = 5
+    q = 3
+    x_infer = arch.ma_infer(e, theta, l, q)
+    print("x_infer = ", x_infer)
 
 def test_var_infer_l_ma():
     arch = Arch()
@@ -1942,6 +1961,29 @@ def test_var_infer_l_ma():
 # confidence_range_95 =  [[99.4, 119.0], [83.44987649463161, 108.55012350536839],
 #                         [86.94070708874366, 114.65929291125633], [86.00280028005601, 113.99719971994399],
 #                         [86.00280028005601, 113.99719971994399]]
+
+def test_arma_infer():
+    arch = Arch()
+    x = [96, 97.2]
+    e = [-6, 8, -4]
+    phi = [0.6, 0.3]
+    theta = [0.8, -0.6, 0.2]
+    p = 2
+    q = 3
+    l = 5
+    x_infer = arch.arma_infer(x, e, phi, theta, p, q, l)
+    print("x_infer = ", x_infer)
+
+def test_var_infer_l_arma():
+    arch = Arch()
+    x_infer = [109.2, 96, 100.8, 100, 100]
+    theta = [0.8, -0.6, 0.2]
+    l = 5
+    q = 3
+    var_e = 25
+    var_ma, confidence_range_95 = arch.var_infer_l_arma(x_infer, theta, l, q, var_e)
+    print("var_ma = ", var_ma)
+    print("confidence_range_95 = ", confidence_range_95)
 
 def test_LM_statistic():
     y_residual = [0, 0, -7.00148942, 2.81307703, -0.86616938, 2.35613508, -1.19714684, 0.4232423, -0.4589695,
