@@ -181,6 +181,8 @@ class Arch(object):
                 m = int(n_x / 1.5)
                 if m < 10:
                     m = n_x - 10
+            if m > 500:
+                m = 500
         p = list(range(0, m+1))
         mean_x = np.mean(x)
         var_x = self.cov(x, mean_x=mean_x)
@@ -253,6 +255,8 @@ class Arch(object):
                 m = int(n_x / 1.5)
                 if m < 10:
                     m = n_x - 10
+            if m > 500:
+                m = 500
             k = m  # the max degree of pacf
         r_k = self.autocorrelation_function(x)
 
