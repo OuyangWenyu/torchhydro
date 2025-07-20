@@ -1988,6 +1988,31 @@ def test_var_infer_l_arma():
     print("var_arma = ", var_arma)
     print("confidence_range_95 = ", confidence_range_95)
 
+def test_arima_infer_():
+    arch = Arch()
+    x = [4.5, 5.3]
+    e = [0.8]
+    phi = [1.8, -0.8]
+    theta = [-0.6]
+    p = 2
+    q = 1
+    l = 3
+    x_infer = arch.arima_infer_(x, e, phi, theta, p, q, l)
+    print("x_infer = ", x_infer)
+
+def test_var_infer_l_arima():
+    arch = Arch()
+    x_infer = [5.46, 5.59, 5.69]
+    phi = [1.8, -0.8]
+    theta = [-0.6]
+    var_e = 1
+    p = 2
+    q = 1
+    l = 3
+    var_arima, confidence_range_95 = arch.var_infer_l_arima(x_infer, phi, theta, var_e, p, q, l)
+    print("var_arima = ", var_arima)
+    print("confidence_range_95 = ", confidence_range_95)
+
 def test_LM_statistic():
     y_residual = [0, 0, -7.00148942, 2.81307703, -0.86616938, 2.35613508, -1.19714684, 0.4232423, -0.4589695,
                   0.54786256, -1.83051924, 1.84837348, 0.76232344, 0.96888897, -1.44205859, 1.03469247,

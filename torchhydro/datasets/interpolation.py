@@ -21,10 +21,10 @@ class Interpolation(object):
         self.n_x = None
         self.t_length = None
         self.datasource = Camels()
-        # self.gage_id = ["01013500",]
+        self.gage_id = ["01013500",]
         # self.gage_id = ["01013500", "01022500", "01030500", "01187300"]  #["05087500",]     #["5011",]  # ["01013500",]
-        self.gage_id = self.datasource.gage
-        self.n_gage = self.datasource.n_gage
+        # self.gage_id = self.datasource.gage
+        # self.n_gage = self.datasource.n_gage
         self.time_range = ["1980-01-01", "2014-12-31"]      #["1984-01-01", "1987-12-31"]  # ["1980-01-01", "2014-12-31"]
         self.var_list = ["streamflow",]
         # self.var_list = self.datasource.get_relevant_cols()

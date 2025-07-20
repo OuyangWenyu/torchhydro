@@ -179,7 +179,7 @@ def test_smooth_test():
 # b_ = True
 # camelsus_streamflow_01013500_8081_d2
 # b_ = True
-# inter.x_dnan[0]
+# inter.x_dnan[0]  camelsus_streamflow_01013500
 # b_ = True
 
 def test_degree_ar():
@@ -215,6 +215,8 @@ def test_degree_ar():
 # camelsus_streamflow_01013500_8081_d2
 # n_acf = 487
 # n_pacf = 487
+# inter.x_dnan[0]  camelsus_streamflow_01013500
+
 
 def test_arma_parameters():
     inter = Interpolation()
@@ -261,6 +263,9 @@ def test_arma_parameters():
 # R_2 = 0.4677339258460142
 # se_beta = [0.037019421068768536, 0.03702018474274401]
 # mean_residual = 0.21947227756428117
+# inter.x_dnan[0]  camelsus_streamflow_01013500
+
+
 
 def test_test_arima_model():
     inter = Interpolation()

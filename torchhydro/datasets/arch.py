@@ -2056,6 +2056,112 @@ class Arch(object):
 
         return G, var_arma, confidence_range_95
 
+    def arima_infer_(
+        self,
+        x,
+        e,
+        phi,
+        theta,
+        p,
+        q,
+        l,
+    ):
+        """
+        Applied Time Series Analysis（4th edition） Yan Wang p116
+        Time Series Analysis with Applications in R (second edition) Jonathan D.Cryer, Kung-Sil Chan p138
+
+        Parameters
+        ----------
+        x
+        e
+        phi
+        theta
+        p
+        q
+        l
+
+        Returns
+        -------
+
+        """
+        x_infer = [0] * l
+        min_pq = min(p, q)
+        max_pq = max(p, q)
+        for i in range(l):
+            if i == 0:
+                x_i = x[:]
+                x_i.reverse()
+                e_i = e[:]
+                e_i.append(0)
+                e_i.reverse()
+                x_infer[i] = self.ar_one_step(x_i, phi) + self.ma_one_step(e_i, theta)
+            elif i < min_pq:
+                if p > q:
+                    x_i = x[i:]
+                    x_i = x_i + x_infer[:i]
+                    x_i.reserves()
+                    e_i = e[i:]
+                    e_i.append(0)
+                    e_i.reverse()
+                    zero_i = [0] * i
+                    e_i = e_i + zero_i
+                x_infer[i] = self.ar_one_step(x_i, phi) + self.ma_one_step(e_i, theta)
+            else:
+                x_i = x_infer[i-p:i]
+                x_i.reverse()
+                x_infer[i] = self.ar_one_step(x_i, phi)
+
+        return x_infer
+
+    def var_infer_l_arima(
+        self,
+        x_infer,
+        phi,
+        theta,
+        var_e,
+        p,
+        q,
+        l,
+    ):
+        """
+        Applied Time Series Analysis（4th edition） Yan Wang p116
+        Parameters
+        ----------
+        phi
+        theta
+        var_e
+        p
+        q
+        l
+
+        Returns
+        -------
+
+        """
+        psi = [0] * l
+        psi[0] = 1
+        phi_ = np.transpose(phi)
+        for i in range(1, l):
+            psi_i = psi[:i]
+            psi_i.reverse()
+            if i < q:
+                theta_i = theta[i-1]
+            else:
+                theta_i = 0
+            psi[i] = np.matmul(psi_i, phi_) - theta_i
+
+        var_arima = [0] * l
+        confidence_range_95 = []
+        for i in range(l):
+            psi_i = psi[:i+1]
+            psi_i = np.sum(psi_i)
+            var_arima[i] = psi_i * var_e
+            range_i_d = x_infer[i] - 1.96 * np.sqrt(var_arima[i])
+            range_i_u = x_infer[i] + 1.96 * np.sqrt(var_arima[i])
+            confidence_range_95.append([range_i_d, range_i_u])
+
+        return var_arima, confidence_range_95
+
     def LM_statistic(
         self,
         residual_2,
