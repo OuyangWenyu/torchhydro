@@ -1746,12 +1746,6 @@ def test_test_arima():
     b_significant = arch.test_arima(y_residual_streamflow_1460, m, p)
     print("b_significant")
     print(b_significant)
-# b_significant
-# False
-# b_significant  m=1
-# True
-# b_significant  m=2
-# False
 # b_significant  m=6 y_residual_arima_p1d2q1
 # True
 # b_significant  y_residual_arma_3_p3d0q3
@@ -1835,12 +1829,6 @@ def test_test_parameters():
     b_significant = arch.test_parameters(y_residual_streamflow_1460, phi, theta, se_beta, m, significance_level)
     print("b_significant")
     print(b_significant)
-# b_significant  m=6
-# [True, False]
-# b_significant  m=12
-# [True, False]
-# b_significant  m=18
-# [True, False]
 # b_significant  m=6 y_residual_arma_3_p3d0q3
 # [True, True, True, True, True, True]
 # b_significant  m=6 y_residual_arma_3_p3d0q3_100
@@ -2982,14 +2970,6 @@ def test_arima_arch_1460():
     print("NSE = " + str(nse))
     print("RMSE = " + str(rmse))
     print("max_abs_error = " + str(max_abs_error))
-# y_t
-# [232.07313035 160.43569425 162.24667303 ...  16.13071354  66.09205889
-#   24.38924423]
-# mean_residual
-# 13.743311710946587
-# epsilon
-# [ 50.72981864 -19.10761746 -16.49663868 ... -45.73323852   4.22810684
-#  -36.75406303]
 # e11
 # mean_residual = 13.743311710946587
 # rmse = 22544.377726316325
