@@ -499,6 +499,7 @@ def test_lose_series():
     lose_x = inter.lose_series(x, n_x, ratio)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\lose_x.txt', lose_x)
     print("lose_x = " + str(len(lose_x)))
+# lose_x = 12692
 
 def test_lose_set():
     inter = Interpolation()
@@ -507,6 +508,7 @@ def test_lose_set():
     lose_set_x = inter.lose_set(x, ratio_list)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\lose_set_x.txt', lose_set_x)
     print("lose_set_x = " + str(len(lose_set_x)))
+
 
 def test_genetate_lose_time_series_single():
     inter = Interpolation()

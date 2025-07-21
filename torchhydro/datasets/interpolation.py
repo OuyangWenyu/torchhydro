@@ -54,6 +54,7 @@ class Interpolation(object):
             x_i = x_i[~np.isnan(x_i)]
             x_dnan.append(x_i)
 
+        x_dnan = np.array(x_dnan)
         return x_dnan
 
     def deletion_ratio(self):
@@ -213,11 +214,12 @@ class Interpolation(object):
         -------
 
         """
-        lose_size = ratio * n_x
+        lose_size = int(ratio * n_x)
         lose_index = self.lose_index(n_x, lose_size)
 
         lose_x = x
-        lose_x[lose_index] = np.NaN
+        lose_x = np.array(lose_x)
+        lose_x[lose_index] = -100
 
         return lose_x
 
