@@ -3791,6 +3791,26 @@ class Arch(object):
                 break
         return b_sort
 
+    def residual_center(
+        self,
+        residual,
+    ):
+        """
+        center the residual series.
+        Parameters
+        ----------
+        residual: residual series.
+
+        Returns
+        -------
+        mean_residual: mean value of residuals.
+        residual_center: the centered residual series.
+        """
+        mean_residual = np.mean(residual)
+        residual_center = np.array(residual) - mean_residual
+
+        return mean_residual, residual_center
+
     def multi_gradient_ascent(
         self,
         x,

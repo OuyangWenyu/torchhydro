@@ -517,6 +517,7 @@ def test_arch_interpolate():
      nse, rmse, max_abs_error) = inter.arch_interpolate(x, theta, p ,q)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y_arch.txt', y_arch)
     print("length of y_arch = " + str(len(y_arch)))
+# length of y_arch = 364
 
 def test_interpolate():
     inter = Interpolation()
