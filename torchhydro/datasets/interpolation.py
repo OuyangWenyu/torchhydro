@@ -34,7 +34,7 @@ class Interpolation(object):
         self.n_x = self.x.shape[0]
         self.t_length = self.x.shape[1]
         self.x_dnan = self.delete_nan()
-        self.x_lose = self.lose_set(self.x_dnan)
+        # self.x_lose = self.lose_set(self.x_dnan)
 
     def read_data(self):
         data = self.datasource.read_ts_xrdataset(
@@ -705,6 +705,34 @@ class Interpolation(object):
             subseries.append(subseries_i)
 
         return subseries
+
+    def interpolate_ar(
+        self,
+        x_subseries,
+        phi,
+        p,
+        l
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        phi
+        p
+
+        Returns
+        -------
+
+        """
+        # n_x = x_subseries.shape[0]
+        n_x = len(x_subseries)
+
+        for i in range(n_x):
+            x_infer_i = self.arch.ar_infer(x_subseries[i][:p], phi, l, p, b_constant=False)
+            x_subseries[i][p:] = x_infer_i[:]
+
+        return x_subseries
 
 
 
