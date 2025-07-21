@@ -34,6 +34,7 @@ class Interpolation(object):
         self.n_x = self.x.shape[0]
         self.t_length = self.x.shape[1]
         self.x_dnan = self.delete_nan()
+        self.x_lose = self.lose_set(self.x_dnan)
 
     def read_data(self):
         data = self.datasource.read_ts_xrdataset(
@@ -226,7 +227,7 @@ class Interpolation(object):
     def lose_set(
         self,
         x_set,
-        ratio_list,
+        ratio_list: list = None,
     ):
         """
 
@@ -239,14 +240,17 @@ class Interpolation(object):
         -------
 
         """
-        # ratio_list = [0.05, 0.1, 0.15, 0.25, 0.3, 0.35]
+        if ratio_list is None:
+            ratio_list = [0.05, 0.1, 0.15, 0.25, 0.3, 0.35]
         n_ratio_list = len(ratio_list)
-        n_x = x_set.shape[0]
-        n_xi = x_set.shape[1]
+        # n_x = x_set.shape[0]
+        # n_xi = x_set.shape[1]
+        n_x = 1
+        n_xi = len(x_set)
 
         lose_set_x = [[]] * n_x
         for i in range(n_x):
-            x_i = x_set[i]
+            x_i = x_set  # [i]
             for j in range(n_ratio_list):
                 lose_x_ij = self.lose_series(x_i, n_xi, ratio_list[j])
                 lose_set_x[i].append(lose_x_ij[:])
@@ -517,11 +521,42 @@ class Interpolation(object):
 
         (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse, rmse,
          max_abs_error) = self.arch.arima_arch(x, theta, p, q)
+        # todo: mse
 
         return (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_,
                 nse, rmse, max_abs_error)
 
+    def interpolate(
+        self,
+        x_lose_set,
+        theta,
+        p,
+        q,
+    ):
+        """
 
+        Parameters
+        ----------
+        x_lose_set
+        theta
+        p
+        q
+
+        Returns
+        -------
+
+        """
+        n_x = x_lose_set.shape[0]
+        n_xi = x_lose_set.shape[1]
+
+        x_inter_set = []
+        for i in range(n_x):
+            x_i = x_lose_set[i]
+            (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_,
+             nse, rmse, max_abs_error) = self.arch_interpolate(x_i, theta, p, q)
+            x_inter_set.append(y_arch[:])
+
+        return x_inter_set
 
     def genetate_lose_time_series_single(
         self,

@@ -167,9 +167,9 @@ def test_smooth_test():
     x = inter.x_dnan[0]
     b_ = inter.smooth_test(x)
     print("b_ = " + str(b_))
-# camelsch_streamflow_8183
+# camelsch_streamflow_8081
 # b_ = True
-# acmelsch_streamflow_8183_d1
+# acmelsch_streamflow_8081_d1
 # b_ = True
 # camelsus_streamflow_01013500_80
 # b_ = False
@@ -191,13 +191,13 @@ def test_degree_ar():
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\pacf.txt', pacf)
     print("n_acf = " + str(len(acf)))
     print("n_pacf = " + str(len(pacf)))
-# camelsch_streamflow_8183
+# camelsch_streamflow_8081
 # n_acf = 731
 # n_pacf = 731
-# camelsch_streamflow_8183d1
+# camelsch_streamflow_8081d1
 # n_acf = 731
 # n_pacf = 731
-# camelsch_streamflow_81
+# camelsch_streamflow_80
 # n_acf = 244
 # n_pacf = 244
 # camelsus_streamflow_01013500_80
@@ -235,11 +235,6 @@ def test_arma_parameters():
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y_t.txt', y_t)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual.txt', residual)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual_center.txt', residual_center)
-# camelsch_streamflow_81  p=4 q=0
-# phi = [ 1.28817563 -0.77413387  0.5133167  -0.14537688]
-# theta = []
-# R_2 = 0.7601657853047998
-# se_beta = [0.05147396046129712, 0.07907659933663176, 0.07908462323509598, 0.051473988192846154]
 # camelsus_streamflow_01013500_80  p=2
 # phi = [ 1.85816724 -0.86378065]
 # theta = []
@@ -294,7 +289,7 @@ def test_test_arima_model():
     b_significant_arima, b_significant_para = inter.test_arima_model(x, phi, theta, se_beta, m, significance_level)
     print("b_significant_arima = " + str(b_significant_arima))
     print("b_significant_para = " + str(b_significant_para))
-# camelsch_streamflow_8183
+# camelsch_streamflow_8081
 # b_significant_arima = False
 # b_significant_para = [True, True, True]
 # camelsus_streamflow_01013500_80
@@ -470,8 +465,6 @@ def test_arch_model():
         print("NSE = " + str(result["nse"]))
         print("RMSE = " + str(result["rmse"]))
         print("max_abs_error = " + str(result["max_abs_error"]))
-# camelsus_streamflow_05087500_365      nse=0.98  rmse=55  max_error=400  max_loop=1000
-# n_loop = 14
 # mean_residual = 5.350272800384656
 # NSE = 0.997154207837962
 # RMSE = 54.96901827148393
@@ -503,12 +496,37 @@ def test_lose_series():
 
 def test_lose_set():
     inter = Interpolation()
-    x =inter.x_dnan
+    x = inter.x_dnan
+    x = camelsus_streamflow_01013500_80
     ratio_list = [0.05, 0.1, 0.15, 0.25, 0.3, 0.35]
     lose_set_x = inter.lose_set(x, ratio_list)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\lose_set_x.txt', lose_set_x)
-    print("lose_set_x = " + str(len(lose_set_x)))
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\lose_set_x.txt', lose_set_x[0])
+    print("length of lose_set_x = " + str(len(lose_set_x[0])))
+# x = inter.x_dnan
+# length of lose_set_x = 6
+# x = camelsus_streamflow_01013500_80
+# length of lose_set_x = 6
 
+def test_arch_interpolate():
+    inter = Interpolation()
+    x = camelsus_streamflow_01013500_80
+    theta = [1.85816724e+00, -8.63780650e-01, 3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
+    p = 2
+    q = 4
+    (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_,
+     nse, rmse, max_abs_error) = inter.arch_interpolate(x, theta, p ,q)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y_arch.txt', y_arch)
+    print("length of y_arch = " + str(len(y_arch)))
+
+def test_interpolate():
+    inter = Interpolation()
+    x = inter.x_lose
+    theta = [1.85816724e+00, -8.63780650e-01, 3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
+    p = 2
+    q = 4
+    x_inter_set = inter.interpolate(x, theta, p, q)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_inter_set.txt', x_inter_set)
+    print("length of lose_set_x = " + str(len(x_inter_set)))
 
 def test_genetate_lose_time_series_single():
     inter = Interpolation()
