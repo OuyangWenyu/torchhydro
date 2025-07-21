@@ -3716,13 +3716,12 @@ class Arch(object):
 
             if (iloop % node_loop) == 0:
                 print("----------iloop = " + str(iloop) + "----------", flush=True)
-                print(theta1, flush=True)
+                print("theta1 = " + str(theta1))
                 print("gradient = " + str(gradient))
                 print("L_theta = " + str(L_theta))
                 print("distance_grad_0 = " + str(distance_grad_0), flush=True)
                 print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0), flush=True)
                 print("distance_theta_1_0 = " + str(distance_theta_1_0), flush=True)
-                print(f"theta1 = " + str(theta1))
 
             if ((distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0)
                 or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
@@ -3767,6 +3766,11 @@ class Arch(object):
                     gradient_[:p] = 0
                 theta0 = theta1[:].copy()
                 b_constrained = True
+                print("----------b_constrained----------", flush=True)
+                print("iloop = " + str(iloop))
+                print("alpha1 = " + str(alpha1))
+                print("theta1 = " + str(theta1))
+                print("gradient = " + str(gradient))
 
             iloop = iloop + 1
 

@@ -17,6 +17,7 @@ class Interpolation(object):
         self.arch = Arch()
         self.x = None
         self.x_dnan = None
+        self.x_lose = None
         self.y = None
         self.n_x = None
         self.t_length = None
@@ -236,14 +237,17 @@ class Interpolation(object):
         -------
 
         """
+        # ratio_list = [0.05, 0.1, 0.15, 0.25, 0.3, 0.35]
+        n_ratio_list = len(ratio_list)
         n_x = x_set.shape[0]
         n_xi = x_set.shape[1]
 
-        lose_set_x = []
+        lose_set_x = [[]] * n_x
         for i in range(n_x):
             x_i = x_set[i]
-            lose_x_i = self.lose_series(x_i, n_xi, ratio_list[i])
-            lose_set_x.append(lose_x_i)
+            for j in range(n_ratio_list):
+                lose_x_ij = self.lose_series(x_i, n_xi, ratio_list[j])
+                lose_set_x[i].append(lose_x_ij[:])
 
         lose_set_x = np.array(lose_set_x)
 
@@ -486,6 +490,34 @@ class Interpolation(object):
 
         return result
 
+    def arch_interpolate(
+        self,
+        x,
+        theta,
+        p,
+        q,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        theta
+        p
+        q
+
+        Returns
+        -------
+
+        """
+        phi = theta[:p]
+        alpha = theta[p:]
+
+        (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse, rmse,
+         max_abs_error) = self.arch.arima_arch(x, theta, p, q)
+
+        return (y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_,
+                nse, rmse, max_abs_error)
 
 
 

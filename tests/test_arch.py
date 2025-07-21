@@ -2824,24 +2824,6 @@ def test_multi_gradient_ascent():
 #         0.00000000e+00,  1.44689296e+04]), array([ 1.86818005e+00, -8.71949490e-01,  1.21672379e+03,  1.00605286e+03,
 #         0.00000000e+00,  1.23177205e+04])]
 
-def test_H_gradient_thetai():
-    arch = Arch()
-    x = y_streamflow_395
-    p = 2
-    q = 3
-    phi = [1.86818005, -0.87194949]
-    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
-    theta = phi + alpha
-    d_theta = 0.000001
-    i_theta = 0
-    grad, residual0, residual1 = arch.H_gradient_thetai(x, theta, d_theta, i_theta, p, q)
-    print("grad")
-    print(grad)
-    print("residual0")
-    print(residual0)
-    print("residual1")
-    print(residual1)
-
 def test_st_theta():
     arch = Arch()
     p = 2
@@ -2867,22 +2849,6 @@ def test_st_theta():
 # st  alpha = [35.19315819, 0.9220255,  0., 3.8679039]
 # [-6.57425924e+00 -6.58397153e+00 -1.35432676e-02 -1.04667789e-03
 #  -5.23967354e-03 -5.23967354e-03]
-
-def test_s_theat():
-    arch = Arch()
-    p = 2
-    q = 3
-    phi = [1.86818005, -0.87194949]
-    alpha = [2.18518342, 0.01851308, 0., 0.01112357]
-    alpha = [35.19315819, 0.9220255, 0., 3.8679039]
-    theta = phi + alpha
-    x = y_streamflow_395
-    s = arch.s_theat(x, theta, p, q)
-    print("s")
-    print(s)
-# s
-# [array([-8.99407769e+00, -9.10577053e+00, -1.15044046e-02, -4.45026328e-03,
-#        -2.00306136e-02, -2.23712432e-02]), array([-1.21414204e+01, -1.21896126e+01, -1.18030917e-02, -1.18030917e-02,
 
 def test_gradient_s():
     arch = Arch()

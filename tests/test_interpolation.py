@@ -491,6 +491,23 @@ def test_lose_index():
     print("index = " + str(index))
 # index = [10 17 23 29 36 37 39 54 76 91]
 
+def test_lose_series():
+    inter = Interpolation()
+    x =(inter.x_dnan[0]).tolist()
+    n_x = len(x)
+    ratio = 0.15
+    lose_x = inter.lose_series(x, n_x, ratio)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\lose_x.txt', lose_x)
+    print("lose_x = " + str(len(lose_x)))
+
+def test_lose_set():
+    inter = Interpolation()
+    x =inter.x_dnan
+    ratio_list = [0.05, 0.1, 0.15, 0.25, 0.3, 0.35]
+    lose_set_x = inter.lose_set(x, ratio_list)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\lose_set_x.txt', lose_set_x)
+    print("lose_set_x = " + str(len(lose_set_x)))
+
 def test_genetate_lose_time_series_single():
     inter = Interpolation()
     x = camelsch_streamflow_90
