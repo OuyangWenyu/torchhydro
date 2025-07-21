@@ -704,7 +704,33 @@ class Interpolation(object):
             subseries_i = x[nan_i-p:nan_i+1]
             subseries.append(subseries_i)
 
-        return subseries
+        return subseries, indices
+
+    def recover_series(
+        self,
+        x,
+        # subseries,
+        indices,
+        interpolate_value,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        subseries
+        indices
+
+        Returns
+        -------
+
+        """
+        x_interpolated = np.array(x)
+
+        x_interpolated[indices] = np.array(interpolate_value)
+
+        return x_interpolated
+
 
     def interpolate_ar(
         self,
@@ -726,13 +752,16 @@ class Interpolation(object):
 
         """
         # n_x = x_subseries.shape[0]
-        n_x = len(x_subseries)
+        n_x_subseries = len(x_subseries)
 
-        for i in range(n_x):
+        interpolate_value = [0]*n_x_subseries
+        for i in range(n_x_subseries):
             x_infer_i = self.arch.ar_infer(x_subseries[i][:p], phi, l, p, b_constant=False)
             x_subseries[i][p:] = x_infer_i[:]
+            interpolate_value[i] = x_infer_i[0]
 
-        return x_subseries
+        return x_subseries, interpolate_value
+
 
 
 
