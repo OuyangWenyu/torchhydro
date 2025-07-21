@@ -7,6 +7,7 @@ from test_arch_data import (
     camelsch_streamflow_81, camelsch_streamflow_90, camelsch_streamflow_30_3,
     camelsus_streamflow_r516, camelsus_streamflow_01013500_80,
     camelsus_streamflow_01013500_8081, camelsus_streamflow_01013500_8081_d1, camelsus_streamflow_01013500_8081_d2,
+    camelsus_streamflow_01013500_80_nan,
 )
 from torchhydro.datasets.interpolation import Interpolation
 
@@ -600,3 +601,30 @@ def test_correlation_coefficient_spearman():
     rho = inter.correlation_coefficient_spearman(x, n)
     print("rho = " + str(rho))
 # rho = -156.33450020041516
+
+def test_split_series_via_nan():
+    inter = Interpolation()
+    x = camelsus_streamflow_01013500_80_nan
+    p = 2
+    subseries = inter.split_series_via_nan(x, p)
+    print("subseries")
+    print(subseries)
+# subseries
+# [array([ 525,  525, -100]),
+#  array([ 455,  445, -100]),
+#  array([ 390,  380, -100]),
+#  array([ 280,  275, -100]),
+#  array([4630, 4470, -100]),
+#  array([1940, 1820, -100]),
+#  array([ 613,  599, -100]),
+#  array([ 581,  571, -100]),
+#  array([ 306,  295, -100]),
+#  array([ 201,  206, -100]),
+#  array([ 480,  525, -100]),
+#  array([ 523,  509, -100]),
+#  array([1060, 1060, -100]),
+#  array([ 982,  955, -100]),
+#  array([ 854,  833, -100]),
+#  array([ 921,  909, -100]),
+#  array([ 711,  709, -100]),
+#  array([ 952,  948, -100])]

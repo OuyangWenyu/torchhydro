@@ -674,3 +674,37 @@ class Interpolation(object):
         """
 
 
+    def split_series_via_nan(
+        self,
+        x,
+        p,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        p,
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+
+        x = np.array(x)
+
+        indices = np.where(x == -100)
+        indices = indices[0]
+        n_indices = indices.size
+
+        subseries = []
+        for i in range(n_indices):
+            nan_i = indices[i]
+            subseries_i = x[nan_i-p:nan_i+1]
+            subseries.append(subseries_i)
+
+        return subseries
+
+
+
