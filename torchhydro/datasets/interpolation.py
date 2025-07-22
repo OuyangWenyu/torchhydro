@@ -674,7 +674,7 @@ class Interpolation(object):
         """
 
 
-    def split_series_via_nan(
+    def split_series_via_nan_single_step(
         self,
         x,
         p,
@@ -708,7 +708,8 @@ class Interpolation(object):
 
     def recover_series(
         self,
-        x,
+        x_original,
+        x_nan,
         # subseries,
         indices,
         interpolate_value,
@@ -725,19 +726,63 @@ class Interpolation(object):
         -------
 
         """
-        x_interpolated = np.array(x)
+        x_interpolated = np.array(x_nan)
 
         x_interpolated[indices] = np.array(interpolate_value)
 
-        return x_interpolated
+        rmse = self.arch.rmse(x_original, x_nan)
 
+        return x_interpolated, rmse
 
-    def interpolate_ar(
+    def split_series_via_nan_mul_step(
+        self,
+        x,
+        p,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        p
+
+        Returns
+        -------
+
+        """
+        x = np.array(x)
+
+        indices = np.where(x == -100)
+        indices = indices[0]
+        n_indices = indices.size
+
+        x = x.tolist()
+        indices = indices.tolist()
+        indices_group = []
+        group_size = 0
+        for i in range(n_indices-1):
+            group_size = group_size +1
+            if indices[i]+1 != indices[i+1]:
+                group = indices[i+1-group_size:i+1]
+                indices_group.append(group[:])
+                group_size = 0
+
+        n_group = len(indices_group)
+        subseries = []
+        for i in range(n_group):
+            nan_i = indices_group[i][0]
+            length_i = len(indices_group[i])
+            subseries_i = x[nan_i-p:nan_i+length_i]
+            subseries.append(subseries_i[:])
+
+        return subseries, indices_group
+
+    def interpolate_ar_single_step(
         self,
         x_subseries,
         phi,
         p,
-        l
+        l: int = 1,
     ):
         """
 
@@ -762,6 +807,32 @@ class Interpolation(object):
 
         return x_subseries, interpolate_value
 
+    def interpolate_ar_mul_step(
+        self,
+        x_subseries,
+        phi,
+        p,
+    ):
+        """
 
+        Parameters
+        ----------
+        x_subseries
+        phi
+        p
+        l
 
+        Returns
+        -------
 
+        """
+        n_x_subseries = len(x_subseries)
+
+        interpolate_value = [0]*n_x_subseries
+        for i in range(n_x_subseries):
+            l_i = x_subseries[i].size - p
+            x_infer_i = self.arch.ar_infer(x_subseries[i][:p], phi, l_i, p, b_constant=False)
+            x_subseries[i][p:] = x_infer_i[:]
+            interpolate_value[i] = x_infer_i
+
+        return x_subseries, interpolate_value
