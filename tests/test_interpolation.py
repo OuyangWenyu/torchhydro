@@ -764,3 +764,24 @@ def test_interpolate_ar_reverse_single_step():
 #     subseries = [[-100, 605, 585], [-100, 555, 540]]  ratio=0.1
 # x_subseries =  [[624.222341864222, 605, 585], [568.7587678654297, 555, 540]]
 # interpolate_value =  [624.222341864222, 568.7587678654297]
+#     subseries = [[-100, 545, 550], [-100, 425, 415]]  ratio=0.05
+# x_subseries =  [[535.669727956976, 545, 550], [433.81508604065164, 425, 415]]
+# interpolate_value =  [535.669727956976, 433.81508604065164]
+
+def test_interpolate_ar_series_forward():
+    inter = Interpolation()
+    x_nan = camelsus_streamflow_01013500_80_005nan
+    phi = [1.85816724, -0.86378065]
+    p = 2
+    x_infer_forward = inter.interpolate_ar_series_forward(x_nan, phi, p)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_infer_forward.txt', x_infer_forward)
+    print("x_infer_forward = ", x_infer_forward)
+
+def test_interpolate_ar_series_backward():
+    inter = Interpolation()
+    x_nan = camelsus_streamflow_01013500_80_005nan
+    phi = [1.85816724, -0.86378065]
+    p = 2
+    x_infer_backward = inter.interpolate_ar_series_backward(x_nan, phi, p)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_infer_backward.txt', x_infer_backward)
+    print("x_infer_backward = ", x_infer_backward)

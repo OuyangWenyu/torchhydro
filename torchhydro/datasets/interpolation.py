@@ -896,3 +896,62 @@ class Interpolation(object):
             interpolate_value[i] = x_infer_i[0]
 
         return x_subseries, interpolate_value
+
+    def interpolate_ar_series_forward(
+        self,
+        x,
+        phi,
+        p,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        phi
+        p
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+        x = np.array(x)
+
+        l = 1
+        x_infer_forward = x[:]
+        for i in range(n_x):
+            if x_infer_forward[i] == -100:
+                x_i = self.arch.infer_ar(x[i-p:i], phi, l, p, b_constant=False)
+                x_infer_forward[i] = x_i[0]
+
+        return x_infer_forward
+
+    def interpolate_ar_series_backward(
+        self,
+        x,
+        phi,
+        p,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        phi
+        p
+
+        Returns
+        -------
+
+        """
+        n_x = len(x)
+
+        l = 1
+        x_infer_backward = x[:]
+        for i in range(n_x-1, -1, -1):
+            if x_infer_backward[i] == -100:
+                x_i = self.arch.infer_ar_reverse(x[i+1:i+1+p], phi, l, p, b_constant=False)
+                x_infer_backward[i] = x_i[0]
+
+        return x_infer_backward
