@@ -1897,10 +1897,15 @@ class Arch(object):
         phi_1 = phi[-1]
         if b_constant:
             n_phi_r = p + 1
+            phi_r_0 = phi[0]
+            start = 1
         else:
             n_phi_r = p
+            phi_r_0 = []
+            start = 0
         phi_r = [1] * n_phi_r
-        phi_r[1:] = (-np.array(phi[:-1])).tolist()
+        phi_r = phi_r_0 + phi_r
+        phi_r[1:] = (-np.array(phi[start:-1])).tolist()
         phi_r_t = np.transpose(phi_r)
 
         x_infer = [0]*l
@@ -1911,7 +1916,7 @@ class Arch(object):
                 x_i = x_infer[-i:]
                 x_i = x_i + x[:-i]
             else:
-                x_i = x_infer[-i-p:-i]
+                x_i = x_infer[-i:-i+p]
             if b_constant:
                 x_i.append(1)
             x_i.reverse()
