@@ -747,8 +747,20 @@ def test_interpolate_ar_reverse_single_step():
     inter = Interpolation()
     phi = [1.85816724, -0.86378065]
     subseries = [[-100, 530, 525], [-100, 505, 495]]
+    subseries = [[-100, 527.68, 522.71], [-100, 507.79, 493.53]]
+    subseries = [[-100, 605, 585], [-100, 555, 540]]
+    subseries = [[-100, 545, 550], [-100, 425, 415]]
     p = 2
     l = 1
     x_subseries, interpolate_value = inter.interpolate_ar_reverse_single_step(subseries, phi, p)
     print("x_subseries = ", x_subseries)
     print("interpolate_value = ", interpolate_value)
+#     subseries = [[-100, 530, 525], [-100, 505, 495]]   ratio=0.35
+# x_subseries =  [[532.3442209547064, 530, 525], [513.2951938666374, 505, 495]]
+# interpolate_value =  [532.3442209547064, 513.2951938666374]
+#     subseries = [[-100, 527.68, 522.71], [-100, 507.79, 493.53]]   y_arima
+# x_subseries =  [[530.0045667881075, 527.68, 522.71], [520.9988702567024, 507.79, 493.53]]
+# interpolate_value =  [530.0045667881075, 520.9988702567024]
+#     subseries = [[-100, 605, 585], [-100, 555, 540]]  ratio=0.1
+# x_subseries =  [[624.222341864222, 605, 585], [568.7587678654297, 555, 540]]
+# interpolate_value =  [624.222341864222, 568.7587678654297]

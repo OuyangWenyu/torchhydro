@@ -1932,15 +1932,16 @@ def test_infer_ar_reverse():
     x = [96, 97.2, 97.11999999999999, ]
     x = [97.43199999999999, 97.59519999999998]
     # x = [530, 525]
-    # x = [525, 520]
+    x = [525, 520]
     phi =[10, 0.6, 0.3]
-    # phi = [1.85816724, -0.86378065]
-    l = 3
+    phi = [1.85816724, -0.86378065]
+    l = 1
     p = 2
-    b_constant = True
+    b_constant = False
     x_infer = arch.infer_ar_reverse(x, phi, l, p, b_constant)
     print("x_infer = ", x_infer)
 # x_infer =  [527.3767142155823]
+# x_infer =  [95.9999999999998, 97.20000000000005, 97.11999999999996]
 
 def test_ma_infer():
     arch = Arch()

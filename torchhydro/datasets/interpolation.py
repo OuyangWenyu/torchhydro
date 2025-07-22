@@ -892,7 +892,7 @@ class Interpolation(object):
         interpolate_value = [0]*n_x_subseries
         for i in range(n_x_subseries):
             x_infer_i = self.arch.infer_ar_reverse(x_subseries[i][-p:], phi, l, p, b_constant=False)
-            x_subseries[i][-p:] = x_infer_i[:]
+            x_subseries[i][:-p] = x_infer_i[:]
             interpolate_value[i] = x_infer_i[0]
 
         return x_subseries, interpolate_value
