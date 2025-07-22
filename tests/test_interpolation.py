@@ -742,3 +742,13 @@ def test_interpolate_ar_mul_step():
 #                 [505, 495, 483.58355555], [575, 465, 367.37389285, 280.9841302751402]]
 # interpolate_value =  [[553.84364655], [522.0529597499999], [527.6779223999999, 518.3911809249421], [483.58355555],
 #                       [367.37389285, 280.9841302751402]]
+
+def test_interpolate_ar_reverse_single_step():
+    inter = Interpolation()
+    phi = [1.85816724, -0.86378065]
+    subseries = [[-100, 530, 525], [-100, 505, 495]]
+    p = 2
+    l = 1
+    x_subseries, interpolate_value = inter.interpolate_ar_reverse_single_step(subseries, phi, p)
+    print("x_subseries = ", x_subseries)
+    print("interpolate_value = ", interpolate_value)

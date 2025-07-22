@@ -777,6 +777,37 @@ class Interpolation(object):
 
         return subseries, indices_group
 
+    def split_series_via_nan_reverse_single_step(
+        self,
+        x,
+        p,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        p
+
+        Returns
+        -------
+
+        """
+        x = np.array(x)
+
+        indices = np.where(x == -100)
+        indices = indices[0]
+        n_indices = indices.size
+
+        x = x.tolist()
+        indices = indices.tolist()
+        indices_group = []
+        group_size = 0
+        for i in range(n_indices):
+            group_size = group_size +1
+
+
+
     def interpolate_ar_single_step(
         self,
         x_subseries,
@@ -801,7 +832,7 @@ class Interpolation(object):
 
         interpolate_value = [0]*n_x_subseries
         for i in range(n_x_subseries):
-            x_infer_i = self.arch.ar_infer(x_subseries[i][:p], phi, l, p, b_constant=False)
+            x_infer_i = self.arch.infer_ar(x_subseries[i][:p], phi, l, p, b_constant=False)
             x_subseries[i][p:] = x_infer_i[:]
             interpolate_value[i] = x_infer_i[0]
 
@@ -831,8 +862,37 @@ class Interpolation(object):
         interpolate_value = [0]*n_x_subseries
         for i in range(n_x_subseries):
             l_i = len(x_subseries[i]) - p
-            x_infer_i = self.arch.ar_infer(x_subseries[i][:p], phi, l_i, p, b_constant=False)
+            x_infer_i = self.arch.infer_ar(x_subseries[i][:p], phi, l_i, p, b_constant=False)
             x_subseries[i][p:] = x_infer_i[:]
             interpolate_value[i] = x_infer_i
+
+        return x_subseries, interpolate_value
+
+    def interpolate_ar_reverse_single_step(
+        self,
+        x_subseries,
+        phi,
+        p,
+        l: int = 1,
+    ):
+        """
+
+        Parameters
+        ----------
+        x_subseries
+        phi
+        p
+
+        Returns
+        -------
+
+        """
+        n_x_subseries = len(x_subseries)
+
+        interpolate_value = [0]*n_x_subseries
+        for i in range(n_x_subseries):
+            x_infer_i = self.arch.infer_ar_reverse(x_subseries[i][-p:], phi, l, p, b_constant=False)
+            x_subseries[i][-p:] = x_infer_i[:]
+            interpolate_value[i] = x_infer_i[0]
 
         return x_subseries, interpolate_value

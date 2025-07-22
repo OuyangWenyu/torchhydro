@@ -1785,7 +1785,7 @@ class Arch(object):
 
         return x_infer
 
-    def ar_infer(
+    def infer_ar(
         self,
         x,
         phi,
@@ -1871,6 +1871,54 @@ class Arch(object):
             confidence_range_95.append([range_i_d, range_i_u])
 
         return G, var_ar, confidence_range_95
+
+    def infer_ar_reverse(
+        self,
+        x,
+        phi,
+        l,
+        p,
+        b_constant: bool = False,
+    ):
+        """
+
+        Parameters
+        ----------
+        x
+        phi
+        l
+        p
+        b_constant
+
+        Returns
+        -------
+
+        """
+        phi_1 = phi[-1]
+        if b_constant:
+            n_phi_r = p + 1
+        else:
+            n_phi_r = p
+        phi_r = [1] * n_phi_r
+        phi_r[1:] = (-np.array(phi[:-1])).tolist()
+        phi_r_t = np.transpose(phi_r)
+
+        x_infer = [0]*l
+        for i in range(l):
+            if i == 0:
+                x_i = x[:]
+            elif i < p:
+                x_i = x_infer[-i:]
+                x_i = x_i + x[:-i]
+            else:
+                x_i = x_infer[-i-p:-i]
+            if b_constant:
+                x_i.append(1)
+            x_i.reverse()
+            x_infer_i = self.ar_one_step(x_i, phi_r_t)
+            x_infer[-(i + 1)] = x_infer_i / phi_1
+
+        return x_infer
 
     def ma_infer(
         self,

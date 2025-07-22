@@ -1901,14 +1901,14 @@ def test_arima_infer():
 # [46.652627192999994, 42.60714355396138, 38.41274374902763, 34.89369075281492, 32.17085740345077, 29.94992722295506,
 #  27.906073792332272, 25.884995513871274, 23.897125949780055, 22.017315385116646]
 
-def test_ar_infer():
+def test_infer_ar():
     arch = Arch()
     x = [96, 97.2]
     phi =[10, 0.6, 0.3]
     l = 3
     p = 2
     b_constant = True
-    x_infer = arch.ar_infer(x, phi, l, p, b_constant)
+    x_infer = arch.infer_ar(x, phi, l, p, b_constant)
     print("x_infer = ", x_infer)
 # x_infer =  [97.11999999999999, 97.43199999999999, 97.59519999999998]
 
@@ -1926,6 +1926,21 @@ def test_var_infer_l_ar():
 # G =  [1, 0.6, 0.6599999999999999]
 # var_ar =  [36.0, 48.959999999999994, 64.6416]
 # confidence_range_95 =  [[85.36, 108.88000000000001], [83.71760114332386, 111.14639885667614], [81.83680000000001, 113.3536]]
+
+def test_infer_ar_reverse():
+    arch = Arch()
+    x = [96, 97.2, 97.11999999999999, ]
+    x = [97.43199999999999, 97.59519999999998]
+    # x = [530, 525]
+    # x = [525, 520]
+    phi =[10, 0.6, 0.3]
+    # phi = [1.85816724, -0.86378065]
+    l = 3
+    p = 2
+    b_constant = True
+    x_infer = arch.infer_ar_reverse(x, phi, l, p, b_constant)
+    print("x_infer = ", x_infer)
+# x_infer =  [527.3767142155823]
 
 def test_ma_infer():
     arch = Arch()
