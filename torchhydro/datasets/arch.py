@@ -4232,6 +4232,7 @@ class Arch(object):
         self,
         x,
         y,
+        b_max_abs_error = False,
     ):
         """
         RMSE
@@ -4249,10 +4250,13 @@ class Arch(object):
         mse = np.mean(error_2)
         rmse = np.sqrt(mse)
 
-        max_abs_error = np.absolute(error)
-        max_abs_error = np.max(max_abs_error)
+        if b_max_abs_error:
+            max_abs_error = np.absolute(error)
+            max_abs_error = np.max(max_abs_error)
 
-        return rmse, max_abs_error
+            return rmse, max_abs_error
+
+        return rmse
 
     def nse(
         self,

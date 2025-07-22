@@ -1,5 +1,6 @@
 """ """
 
+from typing import Optional
 import numpy as np
 import random
 import time
@@ -916,13 +917,12 @@ class Interpolation(object):
 
         """
         n_x = len(x)
-        x = np.array(x)
 
         l = 1
         x_infer_forward = x[:]
         for i in range(n_x):
             if x_infer_forward[i] == -100:
-                x_i = self.arch.infer_ar(x[i-p:i], phi, l, p, b_constant=False)
+                x_i = self.arch.infer_ar(x_infer_forward[i-p:i], phi, l, p, b_constant=False)
                 x_infer_forward[i] = x_i[0]
 
         return x_infer_forward
@@ -951,7 +951,40 @@ class Interpolation(object):
         x_infer_backward = x[:]
         for i in range(n_x-1, -1, -1):
             if x_infer_backward[i] == -100:
-                x_i = self.arch.infer_ar_reverse(x[i+1:i+1+p], phi, l, p, b_constant=False)
+                x_i = self.arch.infer_ar_reverse(x_infer_backward[i+1:i+1+p], phi, l, p, b_constant=False)
                 x_infer_backward[i] = x_i[0]
 
         return x_infer_backward
+
+    def interpolate_ar_series(
+        self,
+        x_nan,
+        phi,
+        p,
+        x_original: Optional = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        x_original
+        x_nan
+        phi
+        p
+
+        Returns
+        -------
+
+        """
+        x_infer_forward = self.interpolate_ar_series_forward(x_nan, phi, p)
+        x_infer_backward = self.interpolate_ar_series_backward(x_nan, phi, p)
+        x_infer = (np.array(x_infer_forward) + np.array(x_infer_backward)) / 2
+
+        if x_original is not None:
+            rmse_forward = self.arch.rmse(x_original, x_infer_forward, b_max_abs_error=True)
+            rmse_backward = self.arch.rmse(x_original, x_infer_backward, b_max_abs_error=True)
+            rmse_infer = self.arch.rmse(x_original, x_infer, b_max_abs_error=True)
+
+            return x_infer_forward, x_infer_backward, x_infer, rmse_forward, rmse_backward, rmse_infer
+
+        return x_infer_forward, x_infer_backward, x_infer
