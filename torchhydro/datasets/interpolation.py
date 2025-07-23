@@ -938,11 +938,16 @@ class Interpolation(object):
                         l_nan = l_nan + 1
                         continue
                 else:
-                    x_i = self.arch.infer_ar(x_infer_forward[i-p:i], phi, p, l, b_constant=False)
+                    x_ = x_infer_forward[i-p:i]
+                    if -100 not in x_:
+                        x_i = self.arch.infer_ar(x_, phi, p, l, b_constant=False)
+                    else:
+                        l_nan = l_nan + 1
+                        continue
                 x_infer_forward[i] = x_i[0]
-                if l_nan > 0:
-                    i = i - 1
-                    l_nan = 0
+
+        if l_nan > 0:
+            x_infer_forward = self.interpolate_ar_series_backward(x_infer_forward, phi, p)
 
         return x_infer_forward
 
