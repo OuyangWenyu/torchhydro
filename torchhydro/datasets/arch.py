@@ -1792,7 +1792,7 @@ class Arch(object):
         p,
         l,
         b_constant: bool = False,
-        index_p: Optional = 1,
+        index_p: Optional = None,
     ):
         """
 
@@ -1803,13 +1803,29 @@ class Arch(object):
         l
         p
         index_p: the index need to infer, eg, x(t) = phi_1 * x(t-1) + phi_2 * x(t-2) + ... + phi_p * x(t-p)
-        and x(t-2) is unknown, index_p = 2-1 = 1. default 1 means the last one, p-1.
+        and x(t-2) is unknown, index_p = 2-1 = 1. default None means inferring x(t).
 
         Returns
         -------
 
         """
         phi_t = np.transpose(phi)
+        # strat problem  i<p
+        phi_1 = None
+        if index_p is not None:
+            if b_constant:
+                i_phi_1 = index_p + 1
+                n_phi_r = p + 1
+            else:
+                i_phi_1 = index_p
+                n_phi_r = p
+            phi_1 = phi[i_phi_1]
+            phi_r = [1] * n_phi_r
+            phi_ = np.array(phi[:])
+            phi_ = np.delete(phi_, i_phi_1)
+            phi_r[1:] = (-phi_).tolist()
+            phi_t = np.transpose(phi_r)
+
         x_infer = [0]*l
         for i in range(l):
             if i == 0:
@@ -1822,7 +1838,11 @@ class Arch(object):
             if b_constant:
                 x_i.append(1)
             x_i.reverse()
-            x_infer[i] = self.ar_one_step(x_i, phi_t)
+            x_infer_i = self.ar_one_step(x_i, phi_t)
+            if index_p is not None:
+                x_infer[i] = x_infer_i / phi_1
+            else:
+                x_infer[i] = x_infer_i
 
         return x_infer
 
@@ -1900,14 +1920,16 @@ class Arch(object):
         -------
 
         """
-        phi_1 = phi[index_p]
         if b_constant:
+            i_phi_1 = index_p + 1
             n_phi_r = p + 1
         else:
+            i_phi_1 = index_p
             n_phi_r = p
+        phi_1 = phi[i_phi_1]
         phi_r = [1] * n_phi_r
         phi_ = np.array(phi[:])
-        phi_ = np.delete(phi_, index_p)
+        phi_ = np.delete(phi_, i_phi_1)
         phi_r[1:] = (-phi_).tolist()
         phi_r_t = np.transpose(phi_r)
 

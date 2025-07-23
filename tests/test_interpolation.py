@@ -841,8 +841,8 @@ def test_interpolate_ar_series():
     x_nan = camelsus_streamflow_01013500_80_01nan
     x_nan = camelsus_streamflow_01013500_80_015nan
     x_nan = camelsus_streamflow_01013500_80_025nan
-    x_nan = camelsus_streamflow_01013500_80_030nan
-    x_nan = camelsus_streamflow_01013500_80_035nan
+    # x_nan = camelsus_streamflow_01013500_80_030nan
+    # x_nan = camelsus_streamflow_01013500_80_035nan
     phi = [1.85816724, -0.86378065]
     p = 2
     x_infer_forward, x_infer_backward, x_infer, rmse_forward, rmse_backward, rmse_infer = inter.interpolate_ar_series(x_nan, phi, p, x_original)
@@ -868,3 +868,11 @@ def test_interpolate_ar_series():
 # rmse_forward =  (36.04573933602913, 381.681654473643)
 # rmse_backward =  (139.61103502362778, 1544.873026262635)
 # rmse_infer =  (64.14869901319953, 736.9065903897481)
+# x_nan = camelsus_streamflow_01013500_80_035nan
+# rmse_forward =  (37.59175068867898, 354.51980880000065)
+# rmse_backward =  (44.65296791860337, 454.0456309768416)
+# rmse_infer =  (34.15959675201914, 313.38677028892744)
+# x_nan = camelsus_streamflow_01013500_80_025nan  add 625,620.
+# rmse_forward =  (29.611969943773968, 316.3039648909446)
+# rmse_backward =  (93.98032008006976, 1028.063477806188)
+# rmse_infer =  (53.297214328820075, 513.7514154491387)

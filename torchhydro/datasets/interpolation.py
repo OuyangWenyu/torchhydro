@@ -920,17 +920,23 @@ class Interpolation(object):
 
         l = 1
         x_infer_forward = x[:]
+        l_nan = 0
         for i in range(n_x):
             if x_infer_forward[i] == -100:
-                if ((n_x - 1) - i) < p:
-                    index_p = (n_x - 1) - i - 1
-                    x_1 = x_infer_forward[i + 1:]
-                    x_2 = x_infer_forward[i - (p - (n_x - 1 - i)):i]
-                    x_ = x_2 + x_1
-                    x_i = self.arch.infer_ar(x_, phi, p, l, b_constant=False, )
+                if i < p:
+                    x_2 = x_infer_forward[i + 1:i + 1 + (p - i)]
+                    if -100 not in x_2:
+                        index_p = p - 1 - i
+                        x_1 = x_infer_forward[:i]
+                        x_ = x_1 + x_2
+                        x_i = self.arch.infer_ar(x_, phi, p, l, b_constant=False, index_p=index_p)
+                    else:
+                        l_nan = l_nan + 1
+                        continue
                 else:
                     x_i = self.arch.infer_ar(x_infer_forward[i-p:i], phi, p, l, b_constant=False)
                 x_infer_forward[i] = x_i[0]
+                l_nan = 0
 
         return x_infer_forward
 
