@@ -3805,6 +3805,7 @@ class Arch(object):
                 or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
                 if iloop >= max_loop:
                     print("----------end----------", flush=True)
+                    print("theta1 = " + str(theta1))
                     print("gradient = " + str(gradient))
                     print("L_theta = " + str(L_theta))
                     print("distance_grad_0 = " + str(distance_grad_0))
@@ -3841,6 +3842,7 @@ class Arch(object):
                         theta1[p+1:] = alpha1[:].copy()
                     else:
                         print("----------end----------", flush=True)
+                        print("theta1 = " + str(theta1))
                         print("gradient = " + str(gradient))
                         print("L_theta = " + str(L_theta))
                         print("distance_grad_0 = " + str(distance_grad_0))
