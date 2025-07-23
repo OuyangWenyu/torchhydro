@@ -4218,6 +4218,32 @@ class Arch(object):
 
         return result
 
+    def infer_arch(
+        self,
+        residual_2,
+        alpha,
+        q,
+        e
+    ):
+        """
+        ARCH Models for Financial Applicatios   Evdokia Xekalaki, Stavros Degiannakis  p144
+        Parameters
+        ----------
+        residual_2
+        alpha
+        q
+
+        Returns
+        -------
+
+        """
+        delta_2 = self.delta_2(residual_2, alpha)
+        delta = np.sqrt(delta_2)
+        epsilon = delta * e
+
+        return epsilon
+
+
     def log_likelihood_gamma(
         self,
         v,

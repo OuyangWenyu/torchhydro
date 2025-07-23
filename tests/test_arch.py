@@ -3001,6 +3001,15 @@ def test_arima_arch_model():
 # RMSE = 125.41696918041434
 # max_abs_error = 2293.1312354338224
 
+def test_infer_arch():
+    arch = Arch()
+    residual_2 = []
+    alpha = [27.58876158046549, 0.41743525552577315, 0.0, 0.24797631]
+    q = 3
+    e = []
+    epsilon = arch.infer_arch(residual_2, alpha, q, e)
+    print("epsilon = ", epsilon)
+
 def test_log_likelihood_gamma():
     arch = Arch()
     x = y_streamflow_395
