@@ -1789,9 +1789,10 @@ class Arch(object):
         self,
         x,
         phi,
-        l,
         p,
+        l,
         b_constant: bool = False,
+        index_p: Optional = 1,
     ):
         """
 
@@ -1801,6 +1802,8 @@ class Arch(object):
         phi
         l
         p
+        index_p: the index need to infer, eg, x(t) = phi_1 * x(t-1) + phi_2 * x(t-2) + ... + phi_p * x(t-p)
+        and x(t-2) is unknown, index_p = 2-1 = 1. default 1 means the last one, p-1.
 
         Returns
         -------
@@ -1876,9 +1879,10 @@ class Arch(object):
         self,
         x,
         phi,
-        l,
         p,
+        l,
         b_constant: bool = False,
+        index_p: Optional = -1,
     ):
         """
 
@@ -1889,18 +1893,22 @@ class Arch(object):
         l
         p
         b_constant
+        index_p: the index need to reversely infer, eg, x(t) = phi_1 * x(t-1) + phi_2 * x(t-2) + ... + phi_p * x(t-p)
+        and x(t-2) is unknown, index_p = 2-1 = 1. default -1 means the last one, p-1.
 
         Returns
         -------
 
         """
-        phi_1 = phi[-1]
+        phi_1 = phi[index_p]
         if b_constant:
             n_phi_r = p + 1
         else:
             n_phi_r = p
         phi_r = [1] * n_phi_r
-        phi_r[1:] = (-np.array(phi[:-1])).tolist()
+        phi_ = np.array(phi[:])
+        phi_ = np.delete(phi_, index_p)
+        phi_r[1:] = (-phi_).tolist()
         phi_r_t = np.transpose(phi_r)
 
         x_infer = [0]*l
@@ -3773,33 +3781,7 @@ class Arch(object):
 
             if ((distance_grad_0 <= e_distance_grad_0) or (likelihood_theta_1_0 < e_likelihood_theta_1_0)
                 or (distance_theta_1_0 <= e_distance_theta_1_0) or (iloop >= max_loop)):
-                alpha1 = theta1[p+1:].copy()
-                alpha1 = np.array(alpha1)
-                indices1 = np.where(alpha1 >= 1)
-                indices1 = indices1[0]
-                n_indices1 = indices1.size
-                sum_alpha1 = np.sum(alpha1)
-                indices2 = np.where(alpha1 > 0)
-                indices2_ = alpha1[np.where(alpha1 > 0)]
-                indices2 = indices2[0]
-                n_indices2 = indices2.size
-                b_sorted = True
-                if n_indices1 > 1:
-                    b_sorted = self.b_sort(indices2_)
-                if n_indices1 > 0:
-                    alpha1_ = np.where(alpha1 >= 1, alpha1/(alpha1+1), alpha1)
-                    theta1[p+1:] = alpha1_[:].copy()
-                elif sum_alpha1 >= 1:
-                    alpha1_ = alpha1 / (sum_alpha1 + 0.2)
-                    theta1[p+1:] = alpha1_[:].copy()
-                elif not b_sorted:
-                    if n_indices2 > 1:
-                        indices2_ = np.sort(indices2_, )
-                        indices2_ = indices2_[::-1]
-                        for i in range(n_indices2):
-                            alpha1[indices2[i]] = indices2_[i]
-                    theta1[p+1:] = alpha1[:].copy()
-                else:
+                if iloop >= max_loop:
                     print("----------end----------", flush=True)
                     print("gradient = " + str(gradient))
                     print("L_theta = " + str(L_theta))
@@ -3808,17 +3790,53 @@ class Arch(object):
                     print("distance_theta_1_0 = " + str(distance_theta_1_0))
                     print("iloop = " + str(iloop))
                     break
-                gradient = self.gradient_s(x, theta1, p, q)
-                gradient_ = gradient[:].copy()
-                if not b_arima:
-                    gradient_[:p] = 0
-                theta0 = theta1[:].copy()
-                b_constrained = True
-                print("----------b_constrained----------", flush=True)
-                print("iloop = " + str(iloop))
-                print("alpha1 = " + str(alpha1))
-                print("theta1 = " + str(theta1))
-                print("gradient = " + str(gradient))
+                else:
+                    alpha1 = theta1[p+1:].copy()
+                    alpha1 = np.array(alpha1)
+                    indices1 = np.where(alpha1 >= 1)
+                    indices1 = indices1[0]
+                    n_indices1 = indices1.size
+                    sum_alpha1 = np.sum(alpha1)
+                    indices2 = np.where(alpha1 > 0)
+                    indices2_ = alpha1[np.where(alpha1 > 0)]
+                    indices2 = indices2[0]
+                    n_indices2 = indices2.size
+                    b_sorted = True
+                    if n_indices1 > 1:
+                        b_sorted = self.b_sort(indices2_)
+                    if n_indices1 > 0:
+                        alpha1_ = np.where(alpha1 >= 1, alpha1/(alpha1+1), alpha1)
+                        theta1[p+1:] = alpha1_[:].copy()
+                    elif sum_alpha1 >= 1:
+                        alpha1_ = alpha1 / (sum_alpha1 + 0.2)
+                        theta1[p+1:] = alpha1_[:].copy()
+                    elif not b_sorted:
+                        if n_indices2 > 1:
+                            indices2_ = np.sort(indices2_, )
+                            indices2_ = indices2_[::-1]
+                            for i in range(n_indices2):
+                                alpha1[indices2[i]] = indices2_[i]
+                        theta1[p+1:] = alpha1[:].copy()
+                    else:
+                        print("----------end----------", flush=True)
+                        print("gradient = " + str(gradient))
+                        print("L_theta = " + str(L_theta))
+                        print("distance_grad_0 = " + str(distance_grad_0))
+                        print("likelihood_theta_1_0 = " + str(likelihood_theta_1_0))
+                        print("distance_theta_1_0 = " + str(distance_theta_1_0))
+                        print("iloop = " + str(iloop))
+                        break
+                    gradient = self.gradient_s(x, theta1, p, q)
+                    gradient_ = gradient[:].copy()
+                    if not b_arima:
+                        gradient_[:p] = 0
+                    theta0 = theta1[:].copy()
+                    b_constrained = True
+                    print("----------b_constrained----------", flush=True)
+                    print("iloop = " + str(iloop))
+                    print("alpha1 = " + str(alpha1))
+                    print("theta1 = " + str(theta1))
+                    print("gradient = " + str(gradient))
 
             iloop = iloop + 1
 
@@ -4097,7 +4115,7 @@ class Arch(object):
         # NSE
         nse = self.nse(x, y_arch)
         # RMSE
-        rmse, max_abs_error = self.rmse(x, y_arch)
+        rmse, max_abs_error = self.rmse(x, y_arch, b_max_abs_error=True)
 
         return y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse, rmse, max_abs_error
 

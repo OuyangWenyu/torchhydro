@@ -1908,7 +1908,7 @@ def test_infer_ar():
     l = 3
     p = 2
     b_constant = True
-    x_infer = arch.infer_ar(x, phi, l, p, b_constant)
+    x_infer = arch.infer_ar(x, phi, p, l, b_constant)
     print("x_infer = ", x_infer)
 # x_infer =  [97.11999999999999, 97.43199999999999, 97.59519999999998]
 
@@ -1938,7 +1938,7 @@ def test_infer_ar_reverse():
     l = 1
     p = 2
     b_constant = False
-    x_infer = arch.infer_ar_reverse(x, phi, l, p, b_constant)
+    x_infer = arch.infer_ar_reverse(x, phi, p, l, b_constant)
     print("x_infer = ", x_infer)
 # x_infer =  [527.3767142155823]
 # x_infer =  [95.9999999999998, 97.20000000000005, 97.11999999999996]

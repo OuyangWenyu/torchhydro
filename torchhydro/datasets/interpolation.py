@@ -833,7 +833,7 @@ class Interpolation(object):
 
         interpolate_value = [0]*n_x_subseries
         for i in range(n_x_subseries):
-            x_infer_i = self.arch.infer_ar(x_subseries[i][:p], phi, l, p, b_constant=False)
+            x_infer_i = self.arch.infer_ar(x_subseries[i][:p], phi, p, l, b_constant=False)
             x_subseries[i][p:] = x_infer_i[:]
             interpolate_value[i] = x_infer_i[0]
 
@@ -863,7 +863,7 @@ class Interpolation(object):
         interpolate_value = [0]*n_x_subseries
         for i in range(n_x_subseries):
             l_i = len(x_subseries[i]) - p
-            x_infer_i = self.arch.infer_ar(x_subseries[i][:p], phi, l_i, p, b_constant=False)
+            x_infer_i = self.arch.infer_ar(x_subseries[i][:p], phi, p, l_i, b_constant=False)
             x_subseries[i][p:] = x_infer_i[:]
             interpolate_value[i] = x_infer_i
 
@@ -892,7 +892,7 @@ class Interpolation(object):
 
         interpolate_value = [0]*n_x_subseries
         for i in range(n_x_subseries):
-            x_infer_i = self.arch.infer_ar_reverse(x_subseries[i][-p:], phi, l, p, b_constant=False)
+            x_infer_i = self.arch.infer_ar_reverse(x_subseries[i][-p:], phi, p, l, b_constant=False)
             x_subseries[i][:-p] = x_infer_i[:]
             interpolate_value[i] = x_infer_i[0]
 
@@ -922,7 +922,14 @@ class Interpolation(object):
         x_infer_forward = x[:]
         for i in range(n_x):
             if x_infer_forward[i] == -100:
-                x_i = self.arch.infer_ar(x_infer_forward[i-p:i], phi, l, p, b_constant=False)
+                if ((n_x - 1) - i) < p:
+                    index_p = (n_x - 1) - i - 1
+                    x_1 = x_infer_forward[i + 1:]
+                    x_2 = x_infer_forward[i - (p - (n_x - 1 - i)):i]
+                    x_ = x_2 + x_1
+                    x_i = self.arch.infer_ar(x_, phi, p, l, b_constant=False, )
+                else:
+                    x_i = self.arch.infer_ar(x_infer_forward[i-p:i], phi, p, l, b_constant=False)
                 x_infer_forward[i] = x_i[0]
 
         return x_infer_forward
@@ -951,7 +958,14 @@ class Interpolation(object):
         x_infer_backward = x[:]
         for i in range(n_x-1, -1, -1):
             if x_infer_backward[i] == -100:
-                x_i = self.arch.infer_ar_reverse(x_infer_backward[i+1:i+1+p], phi, l, p, b_constant=False)
+                if ((n_x - 1) - i) < p:
+                    index_p = (n_x - 1) - i -1
+                    x_1 = x_infer_backward[i + 1:]
+                    x_2 = x_infer_backward[i-(p-(n_x-1-i)):i]
+                    x_ = x_2 + x_1
+                    x_i = self.arch.infer_ar_reverse(x_, phi, p, l, b_constant=False, index_p=index_p)
+                else:
+                    x_i = self.arch.infer_ar_reverse(x_infer_backward[i+1:i+1+p], phi, p, l, b_constant=False)
                 x_infer_backward[i] = x_i[0]
 
         return x_infer_backward

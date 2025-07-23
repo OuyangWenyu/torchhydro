@@ -7,7 +7,8 @@ from test_arch_data import (
     camelsch_streamflow_81, camelsch_streamflow_90, camelsch_streamflow_30_3,
     camelsus_streamflow_r516, camelsus_streamflow_01013500_80,
     camelsus_streamflow_01013500_8081, camelsus_streamflow_01013500_8081_d1, camelsus_streamflow_01013500_8081_d2,
-    camelsus_streamflow_01013500_80_005nan, camelsus_streamflow_01013500_80_01nan, camelsus_streamflow_01013500_80_035nan
+    camelsus_streamflow_01013500_80_005nan, camelsus_streamflow_01013500_80_01nan, camelsus_streamflow_01013500_80_015nan,
+    camelsus_streamflow_01013500_80_035nan
 )
 from torchhydro.datasets.interpolation import Interpolation
 
@@ -838,6 +839,7 @@ def test_interpolate_ar_series():
     x_original = camelsus_streamflow_01013500_80
     x_nan = camelsus_streamflow_01013500_80_005nan
     x_nan = camelsus_streamflow_01013500_80_01nan
+    x_nan = camelsus_streamflow_01013500_80_015nan
     phi = [1.85816724, -0.86378065]
     p = 2
     x_infer_forward, x_infer_backward, x_infer, rmse_forward, rmse_backward, rmse_infer = inter.interpolate_ar_series(x_nan, phi, p, x_original)
@@ -855,3 +857,7 @@ def test_interpolate_ar_series():
 # rmse_forward =  (26.888780035509026, 364.2955839458182)
 # rmse_backward =  (15.334708419179199, 234.18865437654767)
 # rmse_infer =  (16.86079176313648, 193.97831520817726)
+# x_nan = camelsus_streamflow_01013500_80_015nan
+# rmse_forward =  (24.827410637549402, 358.82187209999984)
+# rmse_backward =  (32.79717114852104, 519.9613853355011)
+# rmse_infer =  (24.277901768557253, 439.39162871775034)
