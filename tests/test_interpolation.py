@@ -898,3 +898,15 @@ def test_interpolate_ar_series_residual():
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual_center_2.txt', residual_center_2)
     print("mean_residual = ", mean_residual)
 # mean_residual =  5.348338061245576
+
+def test_interpolat_arch():
+    inter = Interpolation()
+    x_original = camelsus_streamflow_01013500_80
+    x_nan = camelsus_streamflow_01013500_80_005nan
+    e = []
+    theta = [1.85816724e+00, -8.63780650e-01, 3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
+    p = 2
+    q = 4
+    x_interpolated, epsilon = inter.interpolat_arch(x_nan, e, theta, p, q, x_original)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated.txt', x_interpolated)
+    print("epsilon", epsilon)

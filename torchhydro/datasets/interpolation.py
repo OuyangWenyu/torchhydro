@@ -1060,7 +1060,7 @@ class Interpolation(object):
         x_infer_forward, x_infer_backward, x_infer, rmse_forward, rmse_backward, rmse_infer = self.interpolate_ar_series(x_nan, phi, p, x_original)
         residual, y_t, mean_residual, residual_center, residual_center_2 = self.arch.x_residual_via_parameters(x_infer, phi, b_y=True, b_center=True)
 
-        return residual, y_t, mean_residual, residual_center, residual_center_2
+        return residual, y_t, mean_residual, residual_center, residual_center_2, x_infer
 
     def interpolat_arch(
         self,
@@ -1087,11 +1087,18 @@ class Interpolation(object):
         phi = theta[:p]
         alpha = theta[p:]
 
-        residual, y_t, mean_residual, residual_center, residual_center_2 = self.interpolate_ar_series_residual(x_nan, phi, p, x_original)
+        residual, y_t, mean_residual, residual_center, residual_center_2, x_infer = self.interpolate_ar_series_residual(x_nan, phi, p, x_original)
 
+        epsilon = []
+        nan_i = []
         for i in range(n_x):
             if x_nan[i] == -100:
                 residual_2_i = residual_center_2[i-q:i]
-                epsilon_i = self.arch.infer_arch(residual_2_i, phi, e)
+                epsilon_i = self.arch.infer_arch(residual_2_i, alpha, q, e)
+                epsilon.append(epsilon_i[0])
+                nan_i.append(i)
 
-        return residual_center_2
+        x_interpolated = np.array(x_infer)
+        x_interpolated[nan_i] = x_interpolated[nan_i] + np.array(epsilon)
+
+        return x_interpolated, epsilon
