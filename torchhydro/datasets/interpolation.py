@@ -1175,7 +1175,7 @@ class Interpolation(object):
         for i in range(n_x):
             if x_nan[i] == -100:
                 residual_2_i = residual_center_2[i-q:i]
-                epsilon_i = self.arch.infer_arch(residual_2_i, alpha, q, e)
+                epsilon_i = self.arch.infer_arch_one_step(residual_2_i, alpha, q, e)
                 epsilon.append(epsilon_i[0])
                 nan_i.append(i)
 

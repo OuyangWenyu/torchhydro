@@ -464,6 +464,40 @@ class Arch(object):
 
         return degree_aic_c, aic_c_min
 
+    def hqic_degree(
+        self,
+        delta_2,
+        N,
+        L,
+        b_hqic: bool = False,
+    ):
+        """
+        Hannan-Quinn information criterion, HQIC.
+        Parameters
+        ----------
+        x
+        L
+
+        Returns
+        -------
+
+        """
+        hqic = []
+        for i in range(L):
+            hqic_i = -np.log(delta_2[i]) + np.log(np.log(N)) * (i + 1)   # -2 *   # todo:
+            hqic.append(hqic_i)
+        hqic = np.array(hqic)
+        i_min = np.argmin(hqic)
+        hqic_min = hqic[i_min]
+
+        degree_hqic = i_min + 1
+
+        if b_hqic:
+            return degree_hqic, hqic_min, hqic
+
+        return degree_hqic, hqic_min
+
+
     def arma_degree(
         self,
         x,
