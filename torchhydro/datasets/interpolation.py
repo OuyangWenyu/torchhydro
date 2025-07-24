@@ -1105,6 +1105,7 @@ class Interpolation(object):
         theta,
         p,
         q,
+        mean_residual,
         x_original: Optional = None,
     ):
         """
@@ -1127,15 +1128,14 @@ class Interpolation(object):
         alpha = theta[p:]
 
         x_infer_forward, x_infer_backward, x_infer, rmse_forward, rmse_backward, rmse_infer = self.interpolate_ar_series(x_nan, phi, p, x_original)
-        residual, y_t, mean_residual, residual_center, residual_center_2 = self.arch.x_residual_via_parameters(x_original, phi, p)
 
         epsilon = []
         nan_i = []
         for i in range(n_x):
             if x_nan[i] == -100:
                 residual_2_i = self.residual_for_arch(x_nan, phi, p, q=q, index_nan=i, mean_residual=mean_residual)
-                epsilon_i = self.arch.infer_arch(residual_2_i, alpha, q, e)
-                epsilon.append(epsilon_i[0])
+                epsilon_i = self.arch.infer_arch_one_step(residual_2_i, alpha, q, e[i])
+                epsilon.append(epsilon_i)
                 nan_i.append(i)
 
         x_interpolated = np.array(x_infer)

@@ -2997,16 +2997,17 @@ def test_arima_arch_model():
 # RMSE = 125.41696918041434
 # max_abs_error = 2293.1312354338224
 
-def test_infer_arch():
+def test_infer_arch_one_step():
     arch = Arch()
     # camelsus_streamflow_01013500_80  i=15
     residual_2 = [9.340741818, 9.51309017, 47.4390774, 45.18711657]
     alpha = [3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
     q = 4
     e = [0.03, -0.32, 0.86, -0.09]
-    epsilon = arch.infer_arch(residual_2, alpha, q, e)
+    e = -0.09
+    epsilon = arch.infer_arch_one_step(residual_2, alpha, q, e)
     print("epsilon = ", epsilon)
-
+# epsilon =  -1.6989452119441433
 
 def test_log_likelihood_gamma():
     arch = Arch()

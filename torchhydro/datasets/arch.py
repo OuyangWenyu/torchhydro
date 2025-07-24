@@ -4218,7 +4218,7 @@ class Arch(object):
 
         return result
 
-    def infer_arch(
+    def infer_arch_one_step(
         self,
         residual_2,
         alpha,
@@ -4237,7 +4237,9 @@ class Arch(object):
         -------
 
         """
-        delta_2 = self.delta_2(residual_2, alpha)
+        residual_2 = np.append(residual_2, 1)
+        residual_2 = residual_2[::-1]
+        delta_2 = self.delta_2_one_step(residual_2, alpha)
         delta = np.sqrt(delta_2)
         epsilon = delta * e
 

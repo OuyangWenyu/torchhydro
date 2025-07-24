@@ -8,7 +8,8 @@ from test_arch_data import (
     camelsus_streamflow_r516, camelsus_streamflow_01013500_80,
     camelsus_streamflow_01013500_8081, camelsus_streamflow_01013500_8081_d1, camelsus_streamflow_01013500_8081_d2,
     camelsus_streamflow_01013500_80_005nan, camelsus_streamflow_01013500_80_01nan, camelsus_streamflow_01013500_80_015nan,
-    camelsus_streamflow_01013500_80_025nan, camelsus_streamflow_01013500_80_030nan, camelsus_streamflow_01013500_80_035nan
+    camelsus_streamflow_01013500_80_025nan, camelsus_streamflow_01013500_80_030nan, camelsus_streamflow_01013500_80_035nan,
+    e_01013500_80,
 )
 from torchhydro.datasets.interpolation import Interpolation
 
@@ -916,13 +917,19 @@ def test_interpolat_arch_single_step():
     inter = Interpolation()
     x_original = camelsus_streamflow_01013500_80
     x_nan = camelsus_streamflow_01013500_80_005nan
-    e = []  # todo:
+    e = e_01013500_80
     theta = [1.85816724e+00, -8.63780650e-01, 3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
     p = 2
     q = 4
-    x_interpolated, epsilon = inter.interpolat_arch_single_step(x_nan, e, theta, p, q, x_original)
-    print("x_interpolated = ", x_interpolated)
+    mean_residual = 5.350272800384656
+    x_interpolated, epsilon = inter.interpolat_arch_single_step(x_nan, e, theta, p, q, mean_residual, x_original)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated.txt', x_interpolated)
     print("epsilon", epsilon)
+# epsilon [-1.7077067256307739, -68.57097349269718, 15.491102495032449, 1.8671569165405904, -2.041285302604978,
+# -8.95687602522637, 24.42886150860708, -21.34102435042942, -2.6496437636908596, 8.649453196647936, -37.56983753635273,
+# -529.1618099943597, 11.339433480015623, 63.058511946802675, 39.92314597090154, 308.2649433793956,
+# -5.6630605567057835, -41.968257481555256]
+
 
 def test_interpolat_arch():
     inter = Interpolation()
