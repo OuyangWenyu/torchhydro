@@ -484,7 +484,7 @@ class Arch(object):
         """
         hqic = []
         for i in range(L):
-            hqic_i = -np.log(delta_2[i]) + np.log(np.log(N)) * (i + 1)   # -2 *   # todo:
+            hqic_i = -np.log(delta_2[i]) + np.log(np.log(N)) * (i + 1)
             hqic.append(hqic_i)
         hqic = np.array(hqic)
         i_min = np.argmin(hqic)
