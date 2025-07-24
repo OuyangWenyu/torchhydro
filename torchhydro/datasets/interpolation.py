@@ -1062,6 +1062,86 @@ class Interpolation(object):
 
         return residual, y_t, mean_residual, residual_center, residual_center_2, x_infer
 
+    def residual_for_arch(
+        self,
+        x_nan,
+        phi,
+        p,
+        q,
+        index_nan,
+        mean_residual,
+    ):
+        """
+
+        Parameters
+        ----------
+        x_nan
+        phi
+        p
+        q
+
+        Returns
+        -------
+
+        """
+        x_0 = x_nan[index_nan-q-p:index_nan-1]
+        x_1 = x_nan[index_nan-q:index_nan]  # cal
+        x_2 = []
+        for i in range(q):
+            x_i = x_0[i:i+p]
+            x_ = self.arch.ar_one_step(x_i, phi)
+            x_2.append(x_)
+
+        residual = np.array(x_1) - np.array(x_2)
+        residual_center = residual - mean_residual
+        residual_center_2 = np.power(residual_center, 2)
+
+        return residual_center_2
+
+    def interpolat_arch_single_step(
+        self,
+        x_nan,
+        e,
+        theta,
+        p,
+        q,
+        x_original: Optional = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        x_nan
+        e
+        theta
+        p
+        q
+        x_original
+
+        Returns
+        -------
+
+        """
+        n_x = len(x_nan)
+        phi = theta[:p]
+        alpha = theta[p:]
+
+        residual, y_t, mean_residual, residual_center, residual_center_2, x_infer = self.arch.x_residual_via_parameters(x_original, phi, p)
+
+        epsilon = []
+        nan_i = []
+        for i in range(n_x):
+            if x_nan[i] == -100:
+                residual_2_i = self.residual_for_arch(x_nan, phi, p, q=q, index_nan=i, mean_residual=mean_residual)
+                epsilon_i = self.arch.infer_arch(residual_2_i, alpha, q, e)
+                epsilon.append(epsilon_i[0])
+                nan_i.append(i)
+
+        x_interpolated = np.array(x_infer)
+        x_interpolated[nan_i] = x_interpolated[nan_i] + np.array(epsilon)
+
+        return x_interpolated, epsilon
+
     def interpolat_arch(
         self,
         x_nan,
