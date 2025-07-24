@@ -884,3 +884,17 @@ def test_interpolate_ar_series():
 # rmse_forward =  (29.721721196002687, 316.3039648909446)
 # rmse_backward =  (94.01495896533861, 1028.063477806188)
 # rmse_infer =  (53.35827023165319, 513.7514154491387)
+
+def test_interpolate_ar_series_residual():
+    inter = Interpolation()
+    x_original = camelsus_streamflow_01013500_80
+    x_nan = camelsus_streamflow_01013500_80_005nan
+    phi = [1.85816724, -0.86378065]
+    p = 2
+    residual, y_t, mean_residual, residual_center, residual_center_2 = inter.interpolate_ar_series_residual(x_nan, phi, p, x_original)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual.txt', residual)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y_t.txt', y_t)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual_center.txt', residual_center)
+    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual_center_2.txt', residual_center_2)
+    print("mean_residual = ", mean_residual)
+# mean_residual =  5.348338061245576

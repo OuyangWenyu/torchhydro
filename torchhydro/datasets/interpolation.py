@@ -1027,6 +1027,7 @@ class Interpolation(object):
         x_infer_forward = self.interpolate_ar_series_forward(x_nan, phi, p)
         x_infer_backward = self.interpolate_ar_series_backward(x_nan, phi, p)
         x_infer = (np.array(x_infer_forward) + np.array(x_infer_backward)) / 2
+        x_infer = x_infer.tolist()
 
         if x_original is not None:
             rmse_forward = self.arch.rmse(x_original, x_infer_forward, b_max_abs_error=True)
@@ -1036,3 +1037,61 @@ class Interpolation(object):
             return x_infer_forward, x_infer_backward, x_infer, rmse_forward, rmse_backward, rmse_infer
 
         return x_infer_forward, x_infer_backward, x_infer
+
+    def interpolate_ar_series_residual(
+        self,
+        x_nan,
+        phi,
+        p,
+        x_original: Optional = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        x_infer
+        phi
+        p
+
+        Returns
+        -------
+
+        """
+        x_infer_forward, x_infer_backward, x_infer, rmse_forward, rmse_backward, rmse_infer = self.interpolate_ar_series(x_nan, phi, p, x_original)
+        residual, y_t, mean_residual, residual_center, residual_center_2 = self.arch.x_residual_via_parameters(x_infer, phi, b_y=True, b_center=True)
+
+        return residual, y_t, mean_residual, residual_center, residual_center_2
+
+    def interpolat_arch(
+        self,
+        x_nan,
+        e,
+        theta,
+        p,
+        q,
+        x_original: Optional = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        residual_2
+        alpha
+        q
+
+        Returns
+        -------
+
+        """
+        n_x = len(x_nan)
+        phi = theta[:p]
+        alpha = theta[p:]
+
+        residual, y_t, mean_residual, residual_center, residual_center_2 = self.interpolate_ar_series_residual(x_nan, phi, p, x_original)
+
+        for i in range(n_x):
+            if x_nan[i] == -100:
+                residual_2_i = residual_center_2[i-q:i]
+                epsilon_i = self.arch.infer_arch(residual_2_i, phi, e)
+
+        return residual_center_2
