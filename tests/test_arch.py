@@ -2999,12 +2999,14 @@ def test_arima_arch_model():
 
 def test_infer_arch():
     arch = Arch()
-    residual_2 = []
-    alpha = [27.58876158046549, 0.41743525552577315, 0.0, 0.24797631]
-    q = 3
-    e = []
+    # camelsus_streamflow_01013500_80  i=15
+    residual_2 = [9.340741818, 9.51309017, 47.4390774, 45.18711657]
+    alpha = [3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
+    q = 4
+    e = [0.03, -0.32, 0.86, -0.09]
     epsilon = arch.infer_arch(residual_2, alpha, q, e)
     print("epsilon = ", epsilon)
+
 
 def test_log_likelihood_gamma():
     arch = Arch()

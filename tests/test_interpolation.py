@@ -906,7 +906,7 @@ def test_residual_for_arch():
     p = 2
     q = 4
     index_nan = 15
-    mean_residual = 5.348338061245576
+    mean_residual = 5.350272800384656
     residual_center_2 = inter.residual_for_arch(x_nan, phi, p, q, index_nan, mean_residual)
     print("residual_center_2 = ", residual_center_2)
 # y =  [535.         530.         522.70598945 517.7340565  512.76212355]
@@ -916,7 +916,7 @@ def test_interpolat_arch_single_step():
     inter = Interpolation()
     x_original = camelsus_streamflow_01013500_80
     x_nan = camelsus_streamflow_01013500_80_005nan
-    e = []
+    e = []  # todo:
     theta = [1.85816724e+00, -8.63780650e-01, 3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
     p = 2
     q = 4

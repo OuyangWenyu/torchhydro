@@ -1108,7 +1108,7 @@ class Interpolation(object):
         x_original: Optional = None,
     ):
         """
-
+        Applied Time Series Analysis（4th edition） Yan Wang p89
         Parameters
         ----------
         x_nan
@@ -1126,7 +1126,8 @@ class Interpolation(object):
         phi = theta[:p]
         alpha = theta[p:]
 
-        residual, y_t, mean_residual, residual_center, residual_center_2, x_infer = self.arch.x_residual_via_parameters(x_original, phi, p)
+        x_infer_forward, x_infer_backward, x_infer, rmse_forward, rmse_backward, rmse_infer = self.interpolate_ar_series(x_nan, phi, p, x_original)
+        residual, y_t, mean_residual, residual_center, residual_center_2 = self.arch.x_residual_via_parameters(x_original, phi, p)
 
         epsilon = []
         nan_i = []
