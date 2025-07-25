@@ -2985,7 +2985,7 @@ def test_arima_arch_model():
         np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta_2.txt', result["delta_2"])
         np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\delta.txt', result["delta"])
         np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\epsilon.txt', result["epsilon"])
-        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e_.txt', result["e"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e.txt', result["e"])
         print("n_loop = " + str(result["i_loop"]))
         print("mean_residual = " + str(result["mean_residual"]))
         print("NSE = " + str(result["nse"]))

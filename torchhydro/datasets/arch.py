@@ -4247,7 +4247,7 @@ class Arch(object):
         while True:
             i_loop = i_loop + 1
             (y_arch_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,
-             delta_i, epsilon_i, e_ii, nse_i, rmse_i, max_abs_error_i) = self.arima_arch(x, theta, p, q)
+             delta_i, epsilon_i, e_i, nse_i, rmse_i, max_abs_error_i) = self.arima_arch(x, theta, p, q)
             if nse_i >= nse:
                 if rmse_i <= rmse:
                     if max_abs_error_i <= max_error:
@@ -4261,7 +4261,7 @@ class Arch(object):
                         result["delta_2"] = delta_2_i
                         result["delta"] = delta_i
                         result["epsilon"] = epsilon_i
-                        result["e"] = e_ii
+                        result["e"] = e_i
                         result["nse"] = nse_i
                         result["rmse"] = rmse_i
                         result["max_abs_error"] = max_abs_error_i

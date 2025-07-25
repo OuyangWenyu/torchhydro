@@ -930,30 +930,32 @@ def test_interpolate_arch():
 def test_interpolate_arch_model():
     inter = Interpolation()
     x_original = camelsus_streamflow_01013500_80
-    x_nan = camelsus_streamflow_01013500_80_005nan
+    # x_nan = camelsus_streamflow_01013500_80_005nan
     # x_nan = camelsus_streamflow_01013500_80_01nan
     # x_nan = camelsus_streamflow_01013500_80_015nan
     # x_nan = camelsus_streamflow_01013500_80_025nan
     # x_nan = camelsus_streamflow_01013500_80_030nan
-    # x_nan = camelsus_streamflow_01013500_80_035nan
+    x_nan = camelsus_streamflow_01013500_80_035nan
     theta = [1.85816724e+00, -8.63780650e-01, 3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
     p = 2
     q = 4
     mean_residual = 5.350272800384656
     nse = 0.96
-    rmse = 5
-    max_error = 55
+    rmse = 35
+    max_error = 250
     max_loop = 3000
     result = inter.interpolate_arch_model(x_nan, theta, p, q, mean_residual, nse, rmse, max_error, max_loop, x_original)
-    # x_interpolated, epsilon, e, nse, rmse, max_abs_error
+    # x_interpolated_ar, x_interpolated, epsilon, e, nse, rmse, max_abs_error
     if result["x_interpolated"] is not None:
-        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\x_interpolated.txt', result["x_interpolated"])
-        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\epsilon.txt', result["epsilon"])
-        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e.txt', result["e"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated_ar.txt', result["x_interpolated_ar"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated.txt', result["x_interpolated"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\epsilon.txt', result["epsilon"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\e.txt', result["e"])
         print("n_loop = " + str(result["i_loop"]))
         print("NSE = " + str(result["nse"]))
         print("RMSE = " + str(result["rmse"]))
         print("max_abs_error = " + str(result["max_abs_error"]))
+# x_nan = camelsus_streamflow_01013500_80_005nan
 # n_loop = 1
 # NSE = 0.9999149139118393
 # RMSE = 9.504858808079241
@@ -968,3 +970,68 @@ def test_interpolate_arch_model():
 # NSE = 0.9999799574075087
 # RMSE = 4.6131049962316295
 # max_abs_error = 39.68649999866386
+# x_nan = camelsus_streamflow_01013500_80_015nan
+# e0 nse=0.92 rmse=25 max_error=450 max_loop=3000
+# n_loop = 2
+# NSE = 0.9994137689283079
+# RMSE = 24.948865856031865
+# max_abs_error = 268.6459812543419
+# e1 nse=0.96 rmse=20 max_error=250 max_loop=3000
+# n_loop = 38
+# NSE = 0.9998405028491549
+# RMSE = 13.013462231748022
+# max_abs_error = 94.40341191604409
+# e2 nse=0.96 rmse=15 max_error=100 max_loop=3000
+# n_loop = 249
+# NSE = 0.9998253820948303
+# RMSE = 13.616352257134706
+# max_abs_error = 98.60792922769133
+# x_nan = camelsus_streamflow_01013500_80_035nan
+# e0 nse=0.96 rmse=35 max_error=320 max_loop=3000
+# n_loop = 48
+# NSE = 0.9988620753798418
+# RMSE = 34.75946938671989
+# max_abs_error = 289.79785405632083
+# e1 nse=0.96 rmse=35 max_error=320 max_loop=3000
+# n_loop = 31
+# NSE = 0.9991299842215099
+# RMSE = 30.39344688733817
+# max_abs_error = 249.16493569145513
+# e2 nse=0.96 rmse=35 max_error=320 max_loop=3000
+# n_loop = 429
+# NSE = 0.9988970662793493
+# RMSE = 34.22087411462162
+# max_abs_error = 209.82292325646443
+# e3 nse=0.96 rmse=35 max_error=250 max_loop=3000
+# n_loop = 76
+# NSE = 0.9990815744296837
+# RMSE = 31.227583229873932
+# max_abs_error = 211.7235038126836
+
+def test_interpolate_arch_model_():
+    inter = Interpolation()
+    x_original = camelsus_streamflow_01013500_80
+    # x_nan = camelsus_streamflow_01013500_80_005nan
+    # x_nan = camelsus_streamflow_01013500_80_01nan
+    # x_nan = camelsus_streamflow_01013500_80_015nan
+    # x_nan = camelsus_streamflow_01013500_80_025nan
+    # x_nan = camelsus_streamflow_01013500_80_030nan
+    x_nan = camelsus_streamflow_01013500_80_035nan
+    theta = [1.85816724e+00, -8.63780650e-01, 3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
+    p = 2
+    q = 4
+    mean_residual = 5.350272800384656
+    nse = 0.96
+    rmse = 30
+    max_error = 240
+    max_loop = 3000
+    result = inter.interpolate_arch_model_(x_nan, theta, p, q, nse, rmse, max_error, max_loop, x_original)
+    # x_interpolated_ar, x_interpolated, epsilon, e, nse, rmse, max_abs_error
+    if result["x_interpolated"] is not None:
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated_ar.txt', result["x_interpolated_ar"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated.txt', result["x_interpolated"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\epsilon.txt', result["epsilon"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\e.txt', result["e"])
+        print("NSE = " + str(result["nse"]))
+        print("RMSE = " + str(result["rmse"]))
+        print("max_abs_error = " + str(result["max_abs_error"]))

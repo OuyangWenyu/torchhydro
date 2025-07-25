@@ -1064,7 +1064,8 @@ class Interpolation(object):
 
     def residual_for_arch(
         self,
-        x_nan,
+        x_0,
+        x_1,
         phi,
         p,
         q,
@@ -1084,8 +1085,6 @@ class Interpolation(object):
         -------
 
         """
-        x_0 = x_nan[index_nan-q-p:index_nan-1]
-        x_1 = x_nan[index_nan-q:index_nan]  # cal
         x_2 = []
         for i in range(q):
             x_i = x_0[i:i+p]
@@ -1133,7 +1132,9 @@ class Interpolation(object):
 
         epsilon = []
         for i in indices_nan:
-            residual_2_i = self.residual_for_arch(x_interpolated, phi, p, q=q, index_nan=i, mean_residual=mean_residual)
+            x_0 = x_interpolated[i - q - p:i - 1]
+            x_1 = x_interpolated[i - q:i]  # cal
+            residual_2_i = self.residual_for_arch(x_0, x_1, phi, p, q=q, index_nan=i, mean_residual=mean_residual)
             epsilon_i = self.arch.infer_arch_one_step(residual_2_i, alpha, q, e[i])
             epsilon.append(epsilon_i)
             x_interpolated[i] = x_interpolated[i] + np.array(epsilon_i)
@@ -1181,6 +1182,10 @@ class Interpolation(object):
         alpha = theta[p:]
 
         x_infer_forward, x_infer_backward, x_infer, rmse_forward, rmse_backward, rmse_infer = self.interpolate_ar_series(x_nan, phi, p, x_original)
+        rmse_interpolated = [np.sum(rmse_forward), np.sum(rmse_backward), np.sum(rmse_infer)]
+        i_min = np.argmin(rmse_interpolated)
+        x_interpolated = [x_infer_forward, x_infer_backward, x_infer]
+        x_interpolated_ar = x_interpolated[i_min]
 
         x_nan = np.array(x_nan)
         indices = np.where(x_nan == -100)
@@ -1188,6 +1193,7 @@ class Interpolation(object):
 
         result = {
             "i_loop": 0,
+            "x_interpolated_ar": None,
             "x_interpolated": None,
             "epsilon": None,
             "e": None,
@@ -1199,11 +1205,12 @@ class Interpolation(object):
         i_loop = 0
         while True:
             i_loop = i_loop + 1
-            x_interpolated_i, epsilon_i, e_i, nse_i, rmse_i, max_abs_error_i = self.interpolate_arch(x_infer, indices_nan, phi, alpha,p, q, n_x, mean_residual, x_original)
+            x_interpolated_i, epsilon_i, e_i, nse_i, rmse_i, max_abs_error_i = self.interpolate_arch(x_interpolated_ar, indices_nan, phi, alpha,p, q, n_x, mean_residual, x_original)
             if nse_i >= nse:
                 if rmse_i <= rmse:
                     if max_abs_error_i <= max_error:
                         result["i_loop"] = i_loop
+                        result["x_interpolated_ar"] = x_interpolated_ar
                         result["x_interpolated"] = x_interpolated_i
                         result["epsilon"] = epsilon_i
                         result["e"] = e_i
@@ -1217,3 +1224,118 @@ class Interpolation(object):
                 break
 
         return result
+
+    def interpolate_arch_(
+        self,
+        x_infer,
+        e,
+        indices_nan,
+        phi,
+        alpha,
+        p,
+        q,
+        mean_residual,
+        x_original: Optional = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        x_nan
+        theta
+        p
+        q
+        mean_residual
+        x_original
+
+        Returns
+        -------
+
+        """
+        x_interpolated = x_infer[:]
+
+        epsilon = []
+        for i in indices_nan:
+            x_0 = x_interpolated[i - q - p:i - 1]
+            x_1 = x_interpolated[i - q:i]
+            residual_2_i = self.residual_for_arch(x_0, x_1, phi, p, q=q, index_nan=i, mean_residual=mean_residual)
+            epsilon_i = self.arch.infer_arch_one_step(residual_2_i, alpha, q, e[i])
+            epsilon.append(epsilon_i)
+            x_interpolated[i] = x_interpolated[i] + np.array(epsilon_i)
+
+        if x_original is not None:
+            # NSE
+            nse = self.arch.nse(x_original, x_interpolated)
+            # RMSE
+            rmse, max_abs_error = self.arch.rmse(x_original, x_interpolated, b_max_abs_error=True)
+
+            return x_interpolated, epsilon, e, nse, rmse, max_abs_error
+
+        return x_interpolated, epsilon
+
+    def interpolate_arch_model_(
+        self,
+        x_nan,
+        theta,
+        p,
+        q,
+        nse,
+        rmse,
+        max_error,
+        max_loop,
+        x_original: Optional = None,
+    ):
+        """
+        Applied Time Series Analysis（4th edition） Yan Wang p89
+        Parameters
+        ----------
+        x_nan
+        e
+        theta
+        p
+        q
+        x_original
+
+        Returns
+        -------
+
+        """
+        phi = theta[:p]
+        alpha = theta[p:]
+
+        x_infer_forward, x_infer_backward, x_infer, rmse_forward, rmse_backward, rmse_infer = self.interpolate_ar_series(x_nan, phi, p, x_original)
+        rmse_interpolated = [np.sum(rmse_forward), np.sum(rmse_backward), np.sum(rmse_infer)]
+        i_min = np.argmin(rmse_interpolated)
+        x_interpolated = [x_infer_forward, x_infer_backward, x_infer]
+        x_interpolated_ar = x_interpolated[i_min]
+
+        x_nan = np.array(x_nan)
+        indices = np.where(x_nan == -100)
+        indices_nan = indices[0]
+
+        result_interpolated = {
+            "x_interpolated_ar": None,
+            "x_interpolated": None,
+            "epsilon": None,
+            "e": None,
+            "nse": None,
+            "rmse": None,
+            "max_abs_error": None,
+        }
+
+        result_arch = self.arch.arima_arch_model(x_interpolated_ar, theta, p, q, nse, rmse, max_error, max_loop)
+        if result_arch["e"] is None:
+            e = result_arch["e"]
+            mean_residual = result_arch["mean_residual"]
+            x_interpolated, epsilon, e, nse, rmse, max_abs_error = self.interpolate_arch_(x_interpolated_ar, e, indices_nan, phi, alpha, p, q, mean_residual, x_original)
+            result_interpolated["x_interpolated_ar"] = x_interpolated_ar
+            result_interpolated["x_interpolated"] = x_interpolated
+            result_interpolated["epsilon"] = epsilon
+            result_interpolated["e"] = e
+            result_interpolated["nse"] = nse
+            result_interpolated["rmse"] = rmse
+            result_interpolated["max_abs_error"] = max_abs_error
+        else:
+            print("Please fine-tune the parameters.")
+
+        return result_interpolated
