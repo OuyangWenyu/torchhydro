@@ -931,7 +931,7 @@ def test_interpolate_arch_model():
     inter = Interpolation()
     x_original = camelsus_streamflow_01013500_80
     # x_nan = camelsus_streamflow_01013500_80_005nan
-    # x_nan = camelsus_streamflow_01013500_80_01nan
+    x_nan = camelsus_streamflow_01013500_80_01nan
     # x_nan = camelsus_streamflow_01013500_80_015nan
     # x_nan = camelsus_streamflow_01013500_80_025nan
     # x_nan = camelsus_streamflow_01013500_80_030nan
@@ -942,7 +942,7 @@ def test_interpolate_arch_model():
     mean_residual = 5.350272800384656
     nse = 0.96
     rmse = 35
-    max_error = 250
+    max_error = 230
     max_loop = 3000
     result = inter.interpolate_arch_model(x_nan, theta, p, q, mean_residual, nse, rmse, max_error, max_loop, x_original)
     # x_interpolated_ar, x_interpolated, epsilon, e, nse, rmse, max_abs_error
@@ -970,6 +970,17 @@ def test_interpolate_arch_model():
 # NSE = 0.9999799574075087
 # RMSE = 4.6131049962316295
 # max_abs_error = 39.68649999866386
+# x_nan = camelsus_streamflow_01013500_80_01nan
+# e0 nse=0.96 rmse=35 max_error=250 max_loop=3000
+# n_loop = 7
+# NSE = 0.9989413459602164
+# RMSE = 33.52690167529902
+# max_abs_error = 236.10167038613838
+# e1 nse=0.96 rmse=33 max_error=230 max_loop=3000
+# n_loop = 276
+# NSE = 0.9988571687395947
+# RMSE = 34.83432880704952
+# max_abs_error = 225.8640925111457
 # x_nan = camelsus_streamflow_01013500_80_015nan
 # e0 nse=0.92 rmse=25 max_error=450 max_loop=3000
 # n_loop = 2

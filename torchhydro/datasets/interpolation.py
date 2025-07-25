@@ -1132,10 +1132,12 @@ class Interpolation(object):
 
         epsilon = []
         for i in indices_nan:
+            if i < (p+q):
+                continue
             x_0 = x_interpolated[i - q - p:i - 1]
             x_1 = x_interpolated[i - q:i]  # cal
             residual_2_i = self.residual_for_arch(x_0, x_1, phi, p, q=q, index_nan=i, mean_residual=mean_residual)
-            epsilon_i = self.arch.infer_arch_one_step(residual_2_i, alpha, q, e[i])
+            epsilon_i = self.arch.infer_arch_one_step(residual_2_i, alpha, e[i])
             epsilon.append(epsilon_i)
             x_interpolated[i] = x_interpolated[i] + np.array(epsilon_i)
 
@@ -1256,10 +1258,12 @@ class Interpolation(object):
 
         epsilon = []
         for i in indices_nan:
+            if i < (p+q):
+                continue
             x_0 = x_interpolated[i - q - p:i - 1]
             x_1 = x_interpolated[i - q:i]
             residual_2_i = self.residual_for_arch(x_0, x_1, phi, p, q=q, index_nan=i, mean_residual=mean_residual)
-            epsilon_i = self.arch.infer_arch_one_step(residual_2_i, alpha, q, e[i])
+            epsilon_i = self.arch.infer_arch_one_step(residual_2_i, alpha, e[i])
             epsilon.append(epsilon_i)
             x_interpolated[i] = x_interpolated[i] + np.array(epsilon_i)
 

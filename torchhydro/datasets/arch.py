@@ -4279,7 +4279,6 @@ class Arch(object):
         self,
         residual_2,
         alpha,
-        q,
         e
     ):
         """
@@ -4301,7 +4300,6 @@ class Arch(object):
         epsilon = delta * e
 
         return epsilon
-
 
     def log_likelihood_gamma(
         self,
