@@ -935,14 +935,14 @@ def test_interpolate_arch_model():
     # x_nan = camelsus_streamflow_01013500_80_015nan
     # x_nan = camelsus_streamflow_01013500_80_025nan
     # x_nan = camelsus_streamflow_01013500_80_030nan
-    x_nan = camelsus_streamflow_01013500_80_035nan
+    # x_nan = camelsus_streamflow_01013500_80_035nan
     theta = [1.85816724e+00, -8.63780650e-01, 3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
     p = 2
     q = 4
     mean_residual = 5.350272800384656
     nse = 0.96
-    rmse = 35
-    max_error = 230
+    rmse = 34
+    max_error = 210
     max_loop = 3000
     result = inter.interpolate_arch_model(x_nan, theta, p, q, mean_residual, nse, rmse, max_error, max_loop, x_original)
     # x_interpolated_ar, x_interpolated, epsilon, e, nse, rmse, max_abs_error
@@ -976,11 +976,36 @@ def test_interpolate_arch_model():
 # NSE = 0.9989413459602164
 # RMSE = 33.52690167529902
 # max_abs_error = 236.10167038613838
-# e1 nse=0.96 rmse=33 max_error=230 max_loop=3000
+# e1 nse=0.96 rmse=35 max_error=230 max_loop=3000
 # n_loop = 276
 # NSE = 0.9988571687395947
 # RMSE = 34.83432880704952
 # max_abs_error = 225.8640925111457
+# e2 nse=0.96 rmse=35 max_error=230 max_loop=3000
+# n_loop = 288
+# NSE = 0.9988762607146878
+# RMSE = 34.54213467906209
+# max_abs_error = 216.04733804734155
+# e3 nse=0.96 rmse=35 max_error=220 max_loop=3000
+# n_loop = 2924
+# NSE = 0.9989335394581306
+# RMSE = 33.65028811429777
+# max_abs_error = 218.01999529598743
+# e4 nse=0.96 rmse=34 max_error=220 max_loop=3000
+# n_loop = 1633
+# NSE = 0.998940846380861
+# RMSE = 33.53481142284712
+# max_abs_error = 207.24219619899685
+# e4 nse=0.96 rmse=34 max_error=210 max_loop=3000
+# n_loop = 351
+# NSE = 0.9989334002795875
+# RMSE = 33.652483809823075
+# max_abs_error = 204.95312541351302
+# e5 nse=0.96 rmse=34 max_error=210 max_loop=3000
+# n_loop = 11
+# NSE = 0.9997447392745393
+# RMSE = 16.46297773465088
+# max_abs_error = 190.8857434921356
 # x_nan = camelsus_streamflow_01013500_80_015nan
 # e0 nse=0.92 rmse=25 max_error=450 max_loop=3000
 # n_loop = 2
@@ -997,6 +1022,43 @@ def test_interpolate_arch_model():
 # NSE = 0.9998253820948303
 # RMSE = 13.616352257134706
 # max_abs_error = 98.60792922769133
+# x_nan = camelsus_streamflow_01013500_80_025nan
+# e0 nse=0.96 rmse=35 max_error=350 max_loop=3000
+# n_loop = 501
+# NSE = 0.998861794752845
+# RMSE = 34.76375519090003
+# max_abs_error = 235.27742637907676
+# e1 nse=0.96 rmse=35 max_error=235 max_loop=3000
+# n_loop = 37
+# NSE = 0.998879054008455
+# RMSE = 34.49917704434029
+# max_abs_error = 225.73004126571152
+# e2 nse=0.96 rmse=35 max_error=225 max_loop=3000
+# n_loop = 317
+# NSE = 0.9990906226949604
+# RMSE = 31.073376484788863
+# max_abs_error = 207.350506983635
+# e3 nse=0.96 rmse=33 max_error=220 max_loop=3000
+# n_loop = 2503
+# NSE = 0.9989756757013794
+# RMSE = 32.97882124838355
+# max_abs_error = 206.72672283029237
+# e4 nse=0.96 rmse=33 max_error=210 max_loop=3000
+# n_loop = 2939
+# NSE = 0.9991230630499848
+# RMSE = 30.514100764173474
+# max_abs_error = 205.11615348550754
+# x_nan = camelsus_streamflow_01013500_80_030nan
+# e0 nse=0.96 rmse=35 max_error=350 max_loop=3000
+# n_loop = 277
+# NSE = 0.9992656333892701
+# RMSE = 27.923692868429004
+# max_abs_error = 234.40930423421378
+# e1 nse=0.96 rmse=30 max_error=250 max_loop=3000
+# n_loop = 505
+# NSE = 0.9992025814741002
+# RMSE = 29.097759619653342
+# max_abs_error = 194.31779879924898
 # x_nan = camelsus_streamflow_01013500_80_035nan
 # e0 nse=0.96 rmse=35 max_error=320 max_loop=3000
 # n_loop = 48
