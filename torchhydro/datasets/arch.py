@@ -4239,7 +4239,7 @@ class Arch(object):
             "delta_2": None,
             "delta": None,
             "epsilon": None,
-            "e_": None,
+            "e": None,
             "nse": None,
             "rmse": None,
             "max_abs_error": None,

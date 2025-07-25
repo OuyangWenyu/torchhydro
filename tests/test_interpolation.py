@@ -1011,19 +1011,19 @@ def test_interpolate_arch_model():
 def test_interpolate_arch_model_():
     inter = Interpolation()
     x_original = camelsus_streamflow_01013500_80
-    # x_nan = camelsus_streamflow_01013500_80_005nan
+    x_nan = camelsus_streamflow_01013500_80_005nan
     # x_nan = camelsus_streamflow_01013500_80_01nan
     # x_nan = camelsus_streamflow_01013500_80_015nan
     # x_nan = camelsus_streamflow_01013500_80_025nan
     # x_nan = camelsus_streamflow_01013500_80_030nan
-    x_nan = camelsus_streamflow_01013500_80_035nan
+    # x_nan = camelsus_streamflow_01013500_80_035nan
     theta = [1.85816724e+00, -8.63780650e-01, 3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
     p = 2
     q = 4
     mean_residual = 5.350272800384656
     nse = 0.96
-    rmse = 30
-    max_error = 240
+    rmse = 60
+    max_error = 350
     max_loop = 3000
     result_arch, result_interpolated = inter.interpolate_arch_model_(x_nan, theta, p, q, nse, rmse, max_error, max_loop, x_original)
     if result_arch["y_arch"] is not None:
@@ -1050,3 +1050,76 @@ def test_interpolate_arch_model_():
         print("NSE_interpolated = " + str(result_interpolated["nse"]))
         print("RMSE_interpolated = " + str(result_interpolated["rmse"]))
         print("max_abs_error_interpolated = " + str(result_interpolated["max_abs_error"]))
+# x_nan = camelsus_streamflow_01013500_80_005nan
+# e0 nse=0.96 rmse=100 max_error=500 max_loop=3000
+# n_loop_arch = 1
+# mean_residual_arch = 5.348338061245576
+# NSE_arch = 0.996296688859486
+# RMSE_arch = 63.076406633353905
+# max_abs_error_arch = 422.1720639908772
+# NSE_interpolated = 0.999644739277563
+# RMSE_interpolated = 19.421822850875078
+# max_abs_error_interpolated = 331.79156850791924
+# e1 nse=0.96 rmse=100 max_error=500 max_loop=3000
+# n_loop_arch = 1
+# mean_residual_arch = 5.348338061245576
+# NSE_arch = 0.9970960643936727
+# RMSE_arch = 55.855421615318456
+# max_abs_error_arch = 450.9454050488116
+# NSE_interpolated = 0.9998600302606823
+# RMSE_interpolated = 12.190835417656928
+# max_abs_error_interpolated = 200.1238261295896
+# e2 nse=0.96 rmse=60 max_error=350 max_loop=3000
+# n_loop_arch = 17
+# mean_residual_arch = 5.348338061245576
+# NSE_arch = 0.9974686725454015
+# RMSE_arch = 52.14900279827845
+# max_abs_error_arch = 348.3890526906198
+# NSE_interpolated = 0.9999288719351255
+# RMSE_interpolated = 8.690342397886111
+# max_abs_error_interpolated = 91.91660625932008
+# e3 nse=0.96 rmse=50 max_error=330 max_loop=3000
+# n_loop_arch = 479
+# mean_residual_arch = 5.348338061245576
+# NSE_arch = 0.9978839848513783
+# RMSE_arch = 47.67944919718735
+# max_abs_error_arch = 275.6895733676529
+# NSE_interpolated = 0.9999084561152658
+# RMSE_interpolated = 9.858958994221648
+# max_abs_error_interpolated = 92.11234757622378
+# e4 nse=0.96 rmse=50 max_error=330 max_loop=3000
+# n_loop_arch = 285
+# mean_residual_arch = 5.348338061245576
+# NSE_arch = 0.9979446376171421
+# RMSE_arch = 46.991146954777115
+# max_abs_error_arch = 277.5432383355171
+# NSE_interpolated = 0.9997925255851353
+# RMSE_interpolated = 14.842213191671744
+# max_abs_error_interpolated = 130.729278299322
+# e5 nse=0.96 rmse=50 max_error=280 max_loop=3000
+# n_loop_arch = 2880
+# mean_residual_arch = 5.348338061245576
+# NSE_arch = 0.9979066194092374
+# RMSE_arch = 47.42375518837534
+# max_abs_error_arch = 267.58685929874355
+# NSE_interpolated = 0.9998986075767466
+# RMSE_interpolated = 10.375741484183191
+# max_abs_error_interpolated = 140.740161300183
+# e6 nse=0.96 rmse=50 max_error=270 max_loop=3000
+# n_loop_arch = 446
+# mean_residual_arch = 5.348338061245576
+# NSE_arch = 0.9980241388286094
+# RMSE_arch = 46.07337820084073
+# max_abs_error_arch = 265.0156330479376
+# NSE_interpolated = 0.9998771039560382
+# RMSE_interpolated = 11.423135879138458
+# max_abs_error_interpolated = 123.79255222635402
+# e7 nse=0.96 rmse=46 max_error=265 max_loop=3000
+# n_loop_arch = 104
+# mean_residual_arch = 5.348338061245576
+# NSE_arch = 0.997337437707914
+# RMSE_arch = 53.48373545614522
+# max_abs_error_arch = 325.628756458942
+# NSE_interpolated = 0.9999410921731966
+# RMSE_interpolated = 7.90865975621777
+# max_abs_error_interpolated = 81.13278812993985

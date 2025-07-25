@@ -1324,7 +1324,7 @@ class Interpolation(object):
         }
 
         result_arch = self.arch.arima_arch_model(x_interpolated_ar, theta, p, q, nse, rmse, max_error, max_loop, indices_nan)
-        if result_arch["e"] is None:
+        if result_arch["e"] is not None:
             e = result_arch["e"]
             mean_residual = result_arch["mean_residual"]
             x_interpolated, epsilon, e, nse, rmse, max_abs_error = self.interpolate_arch_(x_interpolated_ar, e, indices_nan, phi, alpha, p, q, mean_residual, x_original)
