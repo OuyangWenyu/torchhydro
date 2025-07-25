@@ -4153,7 +4153,8 @@ class Arch(object):
         x,
         theta,
         p,
-        q
+        q,
+        indices_nan: Optional = None,
     ):
         """
         arima-arch model
@@ -4192,9 +4193,9 @@ class Arch(object):
         y_arch = y_arima + mean_residual + epsilon
 
         # NSE
-        nse = self.nse(x, y_arch)
+        nse = self.nse(x, y_arch, indices_nan)
         # RMSE
-        rmse, max_abs_error = self.rmse(x, y_arch, b_max_abs_error=True)
+        rmse, max_abs_error = self.rmse(x, y_arch, b_max_abs_error=True, indices_nan=indices_nan)
 
         return y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e, nse, rmse, max_abs_error
 
@@ -4208,6 +4209,7 @@ class Arch(object):
         rmse,
         max_error,
         max_loop,
+        indices_nan: Optional = None,
     ):
         """
 
@@ -4247,7 +4249,7 @@ class Arch(object):
         while True:
             i_loop = i_loop + 1
             (y_arch_i, y_arima_i, residual_i, mean_residual_i, residual_center_i, residual_2_i, delta_2_i,
-             delta_i, epsilon_i, e_i, nse_i, rmse_i, max_abs_error_i) = self.arima_arch(x, theta, p, q)
+             delta_i, epsilon_i, e_i, nse_i, rmse_i, max_abs_error_i) = self.arima_arch(x, theta, p, q, indices_nan)
             if nse_i >= nse:
                 if rmse_i <= rmse:
                     if max_abs_error_i <= max_error:
@@ -4358,6 +4360,7 @@ class Arch(object):
         x,
         y,
         b_max_abs_error = False,
+        indices_nan: Optional = None,
     ):
         """
         RMSE
@@ -4370,6 +4373,10 @@ class Arch(object):
         -------
 
         """
+        if indices_nan is not None:
+            x = np.delete(x, indices_nan)
+            y = np.delete(y, indices_nan)
+
         error = np.array(x) - np.array(y)
         error_2 = np.power(error, 2)
         mse = np.mean(error_2)
@@ -4387,6 +4394,7 @@ class Arch(object):
         self,
         x,
         y,
+        indices_nan: Optional = None
     ):
         """
         NSE
@@ -4399,6 +4407,9 @@ class Arch(object):
         -------
 
         """
+        if indices_nan is not None:
+            x = np.delete(x, indices_nan)
+            y = np.delete(y, indices_nan)
         mean_x = np.mean(x)
         so = np.array(y) - np.array(x)
         so = np.power(so, 2)

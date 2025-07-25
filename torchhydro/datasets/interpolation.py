@@ -1323,7 +1323,7 @@ class Interpolation(object):
             "max_abs_error": None,
         }
 
-        result_arch = self.arch.arima_arch_model(x_interpolated_ar, theta, p, q, nse, rmse, max_error, max_loop)
+        result_arch = self.arch.arima_arch_model(x_interpolated_ar, theta, p, q, nse, rmse, max_error, max_loop, indices_nan)
         if result_arch["e"] is None:
             e = result_arch["e"]
             mean_residual = result_arch["mean_residual"]
@@ -1338,4 +1338,4 @@ class Interpolation(object):
         else:
             print("Please fine-tune the parameters.")
 
-        return result_interpolated
+        return result_arch, result_interpolated

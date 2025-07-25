@@ -1025,13 +1025,28 @@ def test_interpolate_arch_model_():
     rmse = 30
     max_error = 240
     max_loop = 3000
-    result = inter.interpolate_arch_model_(x_nan, theta, p, q, nse, rmse, max_error, max_loop, x_original)
+    result_arch, result_interpolated = inter.interpolate_arch_model_(x_nan, theta, p, q, nse, rmse, max_error, max_loop, x_original)
+    if result_arch["y_arch"] is not None:
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y_arch.txt', result_arch["y_arch"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\y_arima.txt', result_arch["y_arima"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual.txt', result_arch["residual"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual_center.txt', result_arch["residual_center"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\residual_2.txt', result_arch["residual_2"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\delta_2.txt', result_arch["delta_2"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\delta.txt', result_arch["delta"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\epsilon.txt', result_arch["epsilon"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\e.txt', result_arch["e"])
+        print("n_loop_arch = " + str(result_arch["i_loop"]))
+        print("mean_residual_arch = " + str(result_arch["mean_residual"]))
+        print("NSE_arch = " + str(result_arch["nse"]))
+        print("RMSE_arch = " + str(result_arch["rmse"]))
+        print("max_abs_error_arch = " + str(result_arch["max_abs_error"]))
     # x_interpolated_ar, x_interpolated, epsilon, e, nse, rmse, max_abs_error
-    if result["x_interpolated"] is not None:
-        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated_ar.txt', result["x_interpolated_ar"])
-        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated.txt', result["x_interpolated"])
-        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\epsilon.txt', result["epsilon"])
-        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\e.txt', result["e"])
-        print("NSE = " + str(result["nse"]))
-        print("RMSE = " + str(result["rmse"]))
-        print("max_abs_error = " + str(result["max_abs_error"]))
+    if result_interpolated["x_interpolated"] is not None:
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated_ar.txt', result_interpolated["x_interpolated_ar"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated.txt', result_interpolated["x_interpolated"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\epsilon.txt', result_interpolated["epsilon"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\e.txt', result_interpolated["e"])
+        print("NSE_interpolated = " + str(result_interpolated["nse"]))
+        print("RMSE_interpolated = " + str(result_interpolated["rmse"]))
+        print("max_abs_error_interpolated = " + str(result_interpolated["max_abs_error"]))
