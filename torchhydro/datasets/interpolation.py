@@ -1098,14 +1098,67 @@ class Interpolation(object):
 
         return residual_center_2
 
-    def interpolat_arch_single_step(
+    def interpolate_arch(
+        self,
+        x_infer,
+        indices_nan,
+        phi,
+        alpha,
+        p,
+        q,
+        n_x,
+        mean_residual,
+        x_original: Optional = None,
+    ):
+        """
+
+        Parameters
+        ----------
+        x_nan
+        theta
+        p
+        q
+        mean_residual
+        x_original
+
+        Returns
+        -------
+
+        """
+        x_interpolated = x_infer[:]
+
+        # white noise
+        limit_range = 2.4
+        e = self.arch.white_noise(n_x, limit_range)
+
+        epsilon = []
+        for i in indices_nan:
+            residual_2_i = self.residual_for_arch(x_interpolated, phi, p, q=q, index_nan=i, mean_residual=mean_residual)
+            epsilon_i = self.arch.infer_arch_one_step(residual_2_i, alpha, q, e[i])
+            epsilon.append(epsilon_i)
+            x_interpolated[i] = x_interpolated[i] + np.array(epsilon_i)
+
+        if x_original is not None:
+            # NSE
+            nse = self.arch.nse(x_original, x_interpolated)
+            # RMSE
+            rmse, max_abs_error = self.arch.rmse(x_original, x_interpolated, b_max_abs_error=True)
+
+            return x_interpolated, epsilon, e, nse, rmse, max_abs_error
+
+        return x_interpolated, epsilon
+
+    def interpolate_arch_model(
         self,
         x_nan,
-        e,
         theta,
         p,
         q,
         mean_residual,
+        nse,
+        rmse,
+        max_error,
+        max_loop,
         x_original: Optional = None,
     ):
         """
@@ -1129,57 +1182,38 @@ class Interpolation(object):
 
         x_infer_forward, x_infer_backward, x_infer, rmse_forward, rmse_backward, rmse_infer = self.interpolate_ar_series(x_nan, phi, p, x_original)
 
-        epsilon = []
-        nan_i = []
-        for i in range(n_x):
-            if x_nan[i] == -100:
-                residual_2_i = self.residual_for_arch(x_nan, phi, p, q=q, index_nan=i, mean_residual=mean_residual)
-                epsilon_i = self.arch.infer_arch_one_step(residual_2_i, alpha, q, e[i])
-                epsilon.append(epsilon_i)
-                nan_i.append(i)
+        x_nan = np.array(x_nan)
+        indices = np.where(x_nan == -100)
+        indices_nan = indices[0]
 
-        x_interpolated = np.array(x_infer)
-        x_interpolated[nan_i] = x_interpolated[nan_i] + np.array(epsilon)
+        result = {
+            "i_loop": 0,
+            "x_interpolated": None,
+            "epsilon": None,
+            "e": None,
+            "nse": None,
+            "rmse": None,
+            "max_abs_error": None,
+        }
 
-        return x_interpolated, epsilon
+        i_loop = 0
+        while True:
+            i_loop = i_loop + 1
+            x_interpolated_i, epsilon_i, e_i, nse_i, rmse_i, max_abs_error_i = self.interpolate_arch(x_infer, indices_nan, phi, alpha,p, q, n_x, mean_residual, x_original)
+            if nse_i >= nse:
+                if rmse_i <= rmse:
+                    if max_abs_error_i <= max_error:
+                        result["i_loop"] = i_loop
+                        result["x_interpolated"] = x_interpolated_i
+                        result["epsilon"] = epsilon_i
+                        result["e"] = e_i
+                        result["nse"] = nse_i
+                        result["rmse"] = rmse_i
+                        result["max_abs_error"] = max_abs_error_i
+                        break
 
-    def interpolat_arch(
-        self,
-        x_nan,
-        e,
-        theta,
-        p,
-        q,
-        x_original: Optional = None,
-    ):
-        """
+            if i_loop > max_loop:
+                print("i_loop=" + str(i_loop) + " > max_loop=" + str(max_loop) + ", Please fine-tune the parameters.")
+                break
 
-        Parameters
-        ----------
-        residual_2
-        alpha
-        q
-
-        Returns
-        -------
-
-        """
-        n_x = len(x_nan)
-        phi = theta[:p]
-        alpha = theta[p:]
-
-        residual, y_t, mean_residual, residual_center, residual_center_2, x_infer = self.interpolate_ar_series_residual(x_nan, phi, p, x_original)
-
-        epsilon = []
-        nan_i = []
-        for i in range(n_x):
-            if x_nan[i] == -100:
-                residual_2_i = residual_center_2[i-q:i]
-                epsilon_i = self.arch.infer_arch_one_step(residual_2_i, alpha, q, e)
-                epsilon.append(epsilon_i[0])
-                nan_i.append(i)
-
-        x_interpolated = np.array(x_infer)
-        x_interpolated[nan_i] = x_interpolated[nan_i] + np.array(epsilon)
-
-        return x_interpolated, epsilon
+        return result

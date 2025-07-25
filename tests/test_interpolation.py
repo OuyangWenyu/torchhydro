@@ -194,9 +194,6 @@ def test_degree_ar():
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\pacf.txt', pacf)
     print("n_acf = " + str(len(acf)))
     print("n_pacf = " + str(len(pacf)))
-# camelsch_streamflow_8081
-# n_acf = 731
-# n_pacf = 731
 # camelsch_streamflow_8081d1
 # n_acf = 731
 # n_pacf = 731
@@ -913,7 +910,7 @@ def test_residual_for_arch():
 # y =  [535.         530.         522.70598945 517.7340565  512.76212355]
 # residual_center_2 =  [277.69112769 278.62733785  45.1611023   47.46573921]
 
-def test_interpolat_arch_single_step():
+def test_interpolate_arch():
     inter = Interpolation()
     x_original = camelsus_streamflow_01013500_80
     x_nan = camelsus_streamflow_01013500_80_005nan
@@ -922,7 +919,7 @@ def test_interpolat_arch_single_step():
     p = 2
     q = 4
     mean_residual = 5.350272800384656
-    x_interpolated, epsilon = inter.interpolat_arch_single_step(x_nan, e, theta, p, q, mean_residual, x_original)
+    x_interpolated, epsilon = inter.interpolat_arch(x_nan, e, theta, p, q, mean_residual, x_original)
     np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated.txt', x_interpolated)
     print("epsilon", epsilon)
 # epsilon [-1.7077067256307739, -68.57097349269718, 15.491102495032449, 1.8671569165405904, -2.041285302604978,
@@ -930,15 +927,29 @@ def test_interpolat_arch_single_step():
 # -529.1618099943597, 11.339433480015623, 63.058511946802675, 39.92314597090154, 308.2649433793956,
 # -5.6630605567057835, -41.968257481555256]
 
-
-def test_interpolat_arch():
+def test_interpolate_arch_model():
     inter = Interpolation()
     x_original = camelsus_streamflow_01013500_80
     x_nan = camelsus_streamflow_01013500_80_005nan
-    e = []
     theta = [1.85816724e+00, -8.63780650e-01, 3.17744057e+02, 2.78526653e-01, 5.45285923e-01, 4.38002156e-03, 1.15738438e-02]
     p = 2
     q = 4
-    x_interpolated, epsilon = inter.interpolat_arch(x_nan, e, theta, p, q, x_original)
-    np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\interpolation\x_interpolated.txt', x_interpolated)
-    print("epsilon", epsilon)
+    mean_residual = 5.350272800384656
+    nse = 0.96
+    rmse = 5
+    max_error = 70
+    max_loop =1000
+    result = inter.interpolate_arch_model(x_nan, theta, p, q, mean_residual, nse, rmse, max_error, max_loop, x_original)
+    # x_interpolated, epsilon, e, nse, rmse, max_abs_error
+    if result["x_interpolated"] is not None:
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\x_interpolated.txt', result["x_interpolated"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\epsilon.txt', result["epsilon"])
+        np.savetxt(r'D:\minio\waterism\datasets-origin\camels\camels_ystl\arch\e.txt', result["e"])
+        print("n_loop = " + str(result["i_loop"]))
+        print("NSE = " + str(result["nse"]))
+        print("RMSE = " + str(result["rmse"]))
+        print("max_abs_error = " + str(result["max_abs_error"]))
+# n_loop = 1
+# NSE = 0.9999149139118393
+# RMSE = 9.504858808079241
+# max_abs_error = 105.2991599963666

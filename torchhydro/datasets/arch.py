@@ -4122,6 +4122,32 @@ class Arch(object):
 
         return epsilon, delta_2, delta
 
+    def white_noise(
+        self,
+        n,
+        limit_range
+    ):
+        """
+
+        Parameters
+        ----------
+        n
+        limit_range
+
+        Returns
+        -------
+
+        """
+        random.seed(time.time()+1)
+        e = np.random.normal(loc=0, scale=1, size=n)
+        e_max = np.max(e)
+        e_min = np.min(e)
+        e_range = e_max - e_min
+        e_ = e / e_range * limit_range
+
+        return e_
+
+
     def arima_arch(
         self,
         x,
@@ -4156,16 +4182,11 @@ class Arch(object):
         residual_2 = np.power(residual_center, 2)
 
         # white noise
-        random.seed(time.time()+1)
-        e = np.random.normal(loc=0, scale=1, size=n_x)
-        e_max = np.max(e)
-        e_min = np.min(e)
-        e_range = e_max - e_min
-        range = 2.4
-        e_ = e / e_range * range
+        limit_range = 2.4
+        e = self.white_noise(n_x, limit_range=limit_range)
 
         # arch
-        epsilon, delta_2, delta = self.arch(residual_2, e_, alpha)
+        epsilon, delta_2, delta = self.arch(residual_2, e, alpha)
 
         # arima + arch
         y_arch = y_arima + mean_residual + epsilon
@@ -4175,7 +4196,7 @@ class Arch(object):
         # RMSE
         rmse, max_abs_error = self.rmse(x, y_arch, b_max_abs_error=True)
 
-        return y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e_, nse, rmse, max_abs_error
+        return y_arch, y_arima, residual, mean_residual, residual_center, residual_2, delta_2, delta, epsilon, e, nse, rmse, max_abs_error
 
     def arima_arch_model(
         self,
