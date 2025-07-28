@@ -196,7 +196,14 @@ class BaseDataset(Dataset):
     def data_source(self):
         source_name = self.data_cfgs["source_cfgs"]["source_name"]
         source_path = self.data_cfgs["source_cfgs"]["source_path"]
-        other_settings = self.data_cfgs["source_cfgs"].get("other_settings", {})
+        
+        # 传递除了 source_name 和 source_path 之外的所有参数
+        # other_settings = self.data_cfgs["source_cfgs"].get("other_settings", {})
+        other_settings = {}
+        for key, value in self.data_cfgs["source_cfgs"].items():
+            if key not in ["source_name", "source_path"]:
+                other_settings[key] = value
+        
         return data_sources_dict[source_name](source_path, **other_settings)
 
     @property
@@ -336,7 +343,9 @@ class BaseDataset(Dataset):
         origin_data = self._read_xyc()
         # normalization
         norm_data = self._normalize(origin_data)
+        # 启用 NaN 处理以确保数据清洁
         origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
+        # origin_data_wonan, norm_data_wonan = origin_data, norm_data  # 备用：跳过 NaN 处理
         self._trans2nparr(origin_data_wonan, norm_data_wonan)
         self._create_lookup_table()
 
@@ -368,10 +377,14 @@ class BaseDataset(Dataset):
             elif key == "global_cols":
                 self.g_origin = origin_arr
                 self.g = norm_arr
+            elif key == "station_cols":
+                # GNN特有的站点数据
+                self.station_cols_origin = origin_arr
+                self.station_cols = norm_arr
             else:
                 raise ValueError(
                     f"Unknown data type {key} in origin_data, "
-                    "it should be one of relevant_cols, target_cols, constant_cols"
+                    "it should be one of relevant_cols, target_cols, constant_cols, forecast_cols, global_cols, station_cols"
                 )
 
     def _normalize(
@@ -766,10 +779,13 @@ class BaseDataset(Dataset):
                 kill_way = "lead_step"
             elif key == "global_cols":
                 rm_nan = data_cfgs["global_rm_nan"]
+            elif key == "station_cols":
+                rm_nan = data_cfgs.get("station_rm_nan", True)  # 默认为 True
+                LOGGER.info(f"Station data NaN removal setting: {rm_nan}")
             else:
                 raise ValueError(
                     f"Unknown data type {key} in origin_data, "
-                    "it should be one of relevant_cols, target_cols, constant_cols, forecast_cols and global_cols"
+                    "it should be one of relevant_cols, target_cols, constant_cols, forecast_cols, global_cols and station_cols"
                 )
 
             if rm_nan:
@@ -1997,381 +2013,653 @@ class FloodEventDplDataset(FloodEventDataset):
 
 
 class GNNDataset(FloodEventDataset):
-    """Dataset for Graph Neural Networks with station data support.
-
-    This dataset extends FloodEventDataset to support station-based data
-    including station timeseries and adjacency matrix information.
+    """Optimized GNN Dataset for hydrological Graph Neural Network tasks.
+    
+    This dataset extends FloodEventDataset to support Graph Neural Networks by:
+    1. Integrating station data via StationHydroDataset
+    2. Processing adjacency matrices with flexible edge weight and attribute handling
+    3. Merging basin-level features (xc) with station-level features (sxc) per node
+    4. Returning GNN-ready format: (sxc, y, edge_index, edge_attr)
+    
+    Key Features:
+    - Leverages BaseDataset's universal normalization and NaN handling for station data
+    - Supports flexible edge weight selection (specify column or default to binary)
+    - Always constructs edge_index and edge_attr for each basin
+    - Merges basin and station features to create comprehensive node representations
+    
+    Configuration keys in data_cfgs.gnn_cfgs:
+    - station_cols: List of station variable names to load
+    - station_rm_nan: Whether to remove/interpolate NaN values (default: True)
+    - station_scaler_type: Scaler type for station data normalization
+    - use_adjacency: Whether to load adjacency matrices (default: True)  
+    - adjacency_src_col: Source node column name (default: "ID")
+    - adjacency_dst_col: Destination node column name (default: "NEXTDOWNID")
+    - adjacency_edge_attr_cols: Columns for edge attributes (default: ["dist_hdn", "elev_diff", "strm_slope"])
+    - adjacency_weight_col: Column to use as edge weights (default: None for binary weights)
+    - return_edge_weight: Whether to return edge_weight instead of edge_attr (default: False)
+    
+    Returns:
+    --------
+    sxc : torch.Tensor
+        Station features merged with basin features [num_stations, seq_length, feature_dim]
+    y : torch.Tensor
+        Target values (unchanged from parent) [seq_length, output_dim]
+    edge_index : torch.Tensor
+        Edge connectivity [2, num_edges]
+    edge_attr : torch.Tensor
+        Edge attributes [num_edges, edge_attr_dim]
     """
 
     def __init__(self, cfgs: dict, is_tra_val_te: str):
-        # Initialize station-related attributes
-        self.station_data = None
-        self.station_data_norm = None
-        self.station_data_origin = None
-        self.adjacency_matrices = None
-        self.station_ids_by_basin = None
-        self.station_scaler = None
-
-        # Station-specific configuration
-        self.station_cfgs = cfgs["data_cfgs"].get("station_cfgs", {})
-        self.station_cols = self.station_cfgs.get("station_cols", [])
-        self.station_rm_nan = self.station_cfgs.get("station_rm_nan", True)
-        self.use_adjacency = self.station_cfgs.get("use_adjacency", True)
-
+        # Extract and extend configuration for station data
+        self._extend_data_cfgs_for_stations(cfgs)
+        
+        # Store GNN-specific settings
+        self.gnn_cfgs = cfgs["data_cfgs"].get("gnn_cfgs", {})
+        
+        # Initialize parent (this will call BaseDataset._load_data() automatically)
         super(GNNDataset, self).__init__(cfgs, is_tra_val_te)
+        
+        # Load adjacency data after main data processing
+        self.adjacency_data = self._load_adjacency_data()
 
-    def _read_xyc_specified_time(self, start_date, end_date):
-        """Read x, y, c data including station data from data source"""
-        # Get basic data from parent class
-        data_dict = super(GNNDataset, self)._read_xyc_specified_time(
-            start_date, end_date
-        )
+    def _extend_data_cfgs_for_stations(self, cfgs):
+        """Extend data configuration to include station data as a standard data type
+        
+        This allows BaseDataset to handle station data using its universal processing pipeline.
+        """
+        data_cfgs = cfgs["data_cfgs"]
+        gnn_cfgs = data_cfgs.get("gnn_cfgs", {})
+        
+        # Add station_cols to data configuration if specified（这个不见得非得有gnn_cfgs,正常应该是data_cfgs里面继续扩充的）
+        if gnn_cfgs.get("station_cols"):
+            data_cfgs["station_cols"] = gnn_cfgs["station_cols"]
+            # Add station data processing settings to leverage BaseDataset pipeline
+            data_cfgs["station_rm_nan"] = gnn_cfgs.get("station_rm_nan", True)
 
-        # Read station data if station_cols is specified
-        if self.station_cols:
-            station_data = self._read_station_data(start_date, end_date)
+    def _read_xyc(self):
+        """Read X, Y, C data including station data using unified approach
+        
+        This is the ONLY method we need to override from BaseDataset.
+        All other processing (normalization, NaN handling, array conversion) 
+        is handled automatically by BaseDataset's pipeline.
+        """
+        # Read standard basin data using parent's logic
+        data_dict = super(GNNDataset, self)._read_xyc()
+        
+        # Add station data if configured  
+        if self.data_cfgs.get("station_cols"):
+            station_data = self._read_all_station_data()
             data_dict["station_cols"] = station_data
-
-            # Read adjacency matrices if enabled
-            if self.use_adjacency:
-                adjacency_data = self._read_adjacency_data()
-                data_dict["adjacency_cols"] = adjacency_data
-
+        
         return data_dict
 
-    def _read_station_data(self, start_date, end_date):
-        """Read station timeseries data for all basins"""
-        station_data_dict = {}
-
-        # Get basin IDs
-        basin_ids = self.t_s_dict["sites_id"]
-
-        # Get time units for station data
-        time_units = self.station_cfgs.get("station_time_units", ["1D"])
-
-        for basin_id in basin_ids:
-            try:
-                # Get station IDs for this basin
-                station_ids = self.data_source.get_stations_by_basin(basin_id)
-
-                if not station_ids:
-                    # If no stations, create empty data structure
-                    station_data_dict[basin_id] = None
-                    continue
-
-                # Read station data from cache
-                station_data = self.data_source.read_station_ts_xrdataset(
-                    station_id_lst=station_ids,
-                    t_range=[start_date, end_date],
-                    var_lst=self.station_cols,
-                    time_units=time_units,
-                )
-
-                # Convert to DataArray and handle multiple time units
-                if station_data:
-                    # Use first time unit if multiple are available
-                    time_unit = list(station_data.keys())[0]
-                    station_ds = station_data[time_unit]
-
-                    if not station_ds.sizes:
-                        station_data_dict[basin_id] = None
-                    else:
-                        # Convert to DataArray
-                        station_da = station_ds.to_array(dim="variable")
-                        # Set units attribute
-                        units_dict = {
-                            var: station_ds[var].attrs.get("units", "unknown")
-                            for var in station_ds.variables
-                            if var in self.station_cols
-                        }
-                        station_da.attrs["units"] = units_dict
-                        station_data_dict[basin_id] = station_da
-                else:
-                    station_data_dict[basin_id] = None
-
-            except Exception as e:
-                LOGGER.warning(f"Failed to read station data for basin {basin_id}: {e}")
-                station_data_dict[basin_id] = None
-
-        return station_data_dict
-
-    def _read_adjacency_data(self):
-        """Read adjacency matrices for all basins"""
-        adjacency_dict = {}
-        basin_ids = self.t_s_dict["sites_id"]
-
-        for basin_id in basin_ids:
-            try:
-                # Read adjacency matrix for this basin
-                adjacency_df = self.data_source.read_basin_adjacency(basin_id)
-
-                if not adjacency_df.empty:
-                    # Convert to numpy array
-                    adjacency_matrix = adjacency_df.values
-                    adjacency_dict[basin_id] = adjacency_matrix
-                else:
-                    adjacency_dict[basin_id] = None
-
-            except Exception as e:
-                LOGGER.warning(
-                    f"Failed to read adjacency data for basin {basin_id}: {e}"
-                )
-                adjacency_dict[basin_id] = None
-
-        return adjacency_dict
-
-    def _normalize(self, origin_data):
-        """Normalize data including station data"""
-        # Get basic normalization from parent class
-        scaler_hub = ScalerHub(
-            origin_data,
-            data_cfgs=self.data_cfgs,
-            is_tra_val_te=self.is_tra_val_te,
-            data_source=self.data_source,
-        )
-        self.target_scaler = scaler_hub.target_scaler
-        norm_data = scaler_hub.norm_data
-
-        # Normalize station data separately
-        if "station_cols" in origin_data and origin_data["station_cols"]:
-            norm_data["station_cols"] = self._normalize_station_data(
-                origin_data["station_cols"]
-            )
-
-        # Adjacency matrices don't need normalization
-        if "adjacency_cols" in origin_data:
-            norm_data["adjacency_cols"] = origin_data["adjacency_cols"]
-
-        return norm_data
-
-    def _normalize_station_data(self, station_data_dict):
-        """Normalize station data using specified scaler"""
-        if not station_data_dict:
-            return station_data_dict
-
-        # Get scaler type from config
-        scaler_type = self.station_cfgs.get("station_scaler_type", "DapengScaler")
-
-        # Collect all non-None station data for fitting scaler
+    def _read_all_station_data(self):
+        """Read station data for all basins using StationHydroDataset
+        
+        Creates xr.DataArray with the same structure as other data types
+        so that BaseDataset can process it using the universal pipeline.
+        """
+        if not hasattr(self.data_source, 'get_stations_by_basin'):
+            LOGGER.warning("Data source does not support station data, skipping station data reading")
+            return None
+            
+        # Convert basin IDs from "songliao_21100150" to "21100150" for StationHydroDataset
+        basin_ids_with_prefix = self.t_s_dict["sites_id"]
+        basin_ids = self._convert_basin_to_station_ids(basin_ids_with_prefix)
+        t_range = self.t_s_dict["t_final_range"]
+        
+        # Collect station data for all basins
         all_station_data = []
-        basin_to_data_map = {}
-
-        for basin_id, station_data in station_data_dict.items():
-            if station_data is not None:
-                basin_to_data_map[basin_id] = station_data
-                # Reshape to (n_samples, n_features) for scaler
-                data_2d = station_data.values.reshape(-1, station_data.shape[-1])
-                all_station_data.append(data_2d)
-
-        if not all_station_data:
-            return station_data_dict
-
-        # Concatenate all station data
-        combined_data = np.concatenate(all_station_data, axis=0)
-
-        # Remove NaN values for scaler fitting
-        valid_mask = ~np.isnan(combined_data).any(axis=1)
-        if not np.any(valid_mask):
-            LOGGER.warning("All station data contains NaN, skipping normalization")
-            return station_data_dict
-
-        clean_data = combined_data[valid_mask]
-
-        # Initialize scaler based on type
-        if scaler_type == "DapengScaler":
-            from torchhydro.datasets.data_scalers import DapengScaler
-
-            self.station_scaler = DapengScaler(
-                feature_range=self.data_cfgs.get("station_scaler_params", {}).get(
-                    "feature_range", [0, 1]
-                )
-            )
-        elif scaler_type == "SklearnScaler":
-            from torchhydro.datasets.data_scalers import SklearnScaler
-
-            scaler_name = self.data_cfgs.get("station_scaler_params", {}).get(
-                "scaler_name", "StandardScaler"
-            )
-            self.station_scaler = SklearnScaler(scaler_name=scaler_name)
-        else:
-            raise ValueError(f"Unknown station scaler type: {scaler_type}")
-
-        # Fit scaler only on training data
-        if self.is_tra_val_te == "train":
-            self.station_scaler.fit(clean_data)
-
-        # Apply normalization to each basin's station data
-        normalized_station_data = {}
-        for basin_id, station_data in basin_to_data_map.items():
-            original_shape = station_data.shape
-            data_2d = station_data.values.reshape(-1, original_shape[-1])
-
-            # Apply normalization
-            try:
-                normalized_2d = self.station_scaler.transform(data_2d)
-                normalized_data = normalized_2d.reshape(original_shape)
-
-                # Create new DataArray with normalized data
-                normalized_da = xr.DataArray(
-                    normalized_data,
-                    dims=station_data.dims,
-                    coords=station_data.coords,
-                    attrs=station_data.attrs,
-                )
-                normalized_station_data[basin_id] = normalized_da
-            except Exception as e:
-                LOGGER.warning(
-                    f"Failed to normalize station data for basin {basin_id}: {e}"
-                )
-                normalized_station_data[basin_id] = station_data
-
-        # Add None entries for basins without station data
-        for basin_id in station_data_dict:
-            if basin_id not in normalized_station_data:
-                normalized_station_data[basin_id] = None
-
-        return normalized_station_data
-
-    def _kill_nan(self, origin_data, norm_data):
-        """Handle NaN values including station data"""
-        # Get basic NaN handling from parent class
-        origins_wonan, norms_wonan = super(GNNDataset, self)._kill_nan(
-            origin_data, norm_data
-        )
-
-        # Handle station data NaN values
-        if "station_cols" in origin_data and origin_data["station_cols"]:
-            origin_station_wonan = self._kill_station_nan(origin_data["station_cols"])
-            norm_station_wonan = self._kill_station_nan(norm_data["station_cols"])
-
-            origins_wonan["station_cols"] = origin_station_wonan
-            norms_wonan["station_cols"] = norm_station_wonan
-
-        # Adjacency matrices don't need NaN handling
-        if "adjacency_cols" in origin_data:
-            origins_wonan["adjacency_cols"] = origin_data["adjacency_cols"]
-            norms_wonan["adjacency_cols"] = norm_data["adjacency_cols"]
-
-        return origins_wonan, norms_wonan
-
-    def _kill_station_nan(self, station_data_dict):
-        """Remove NaN values from station data"""
-        if not station_data_dict:
-            return station_data_dict
-
-        processed_station_data = {}
-
-        for basin_id, station_data in station_data_dict.items():
-            if station_data is None:
-                processed_station_data[basin_id] = None
-                continue
-
-            if self.station_rm_nan:
-                # Apply interpolation to fill NaN values
-                filled_data = _fill_gaps_da(station_data, fill_nan="interpolate")
-                processed_station_data[basin_id] = filled_data
-            else:
-                processed_station_data[basin_id] = station_data
-
-        return processed_station_data
-
-    def _trans2nparr(self, origin_data, norm_data):
-        """Transform data to numpy arrays including station data"""
-        # Call parent method for basic data
-        super(GNNDataset, self)._trans2nparr(origin_data, norm_data)
-
-        # Handle station data
-        if "station_cols" in origin_data and origin_data["station_cols"]:
-            self.station_data_origin = self._station_dict_to_array(
-                origin_data["station_cols"]
-            )
-            self.station_data = self._station_dict_to_array(norm_data["station_cols"])
-
-        # Handle adjacency matrices
-        if "adjacency_cols" in origin_data and origin_data["adjacency_cols"]:
-            self.adjacency_matrices = origin_data["adjacency_cols"]
-
-    def _station_dict_to_array(self, station_data_dict):
-        """Convert station data dict to numpy array for efficient access"""
-        if not station_data_dict:
-            return None
-
-        # Create a mapping from basin_id to basin_index
-        basin_ids = self.t_s_dict["sites_id"]
-        basin_to_idx = {basin_id: idx for idx, basin_id in enumerate(basin_ids)}
-
-        # Initialize array structure
-        # We'll create a list of arrays, one for each basin
-        station_arrays = []
-
+        
         for basin_id in basin_ids:
-            station_data = station_data_dict.get(basin_id)
-            if station_data is None:
-                # Create empty array for basins without station data
-                station_arrays.append(None)
+            basin_station_data = self._read_basin_station_data(basin_id, t_range)
+            all_station_data.append(basin_station_data)
+        
+        # Combine into unified xr.DataArray structure
+        if all_station_data and any(data is not None for data in all_station_data):
+            combined_station_data = self._combine_station_data_arrays(
+                all_station_data, basin_ids
+            )
+            return combined_station_data
+        else:
+            return None
+
+    def _read_basin_station_data(self, basin_id, t_range):
+        """Read station data for a single basin"""
+        try:
+            # Get stations for this basin
+            station_ids = self.data_source.get_stations_by_basin(basin_id)
+            
+            if not station_ids:
+                return None
+                
+            # Read station time series data
+            station_data = self.data_source.read_station_ts_xrdataset(
+                station_id_lst=station_ids,
+                t_range=t_range,
+                var_lst=self.data_cfgs["station_cols"],
+                time_units=self.gnn_cfgs.get("station_time_units", ["1D"])
+            )
+            
+            return self._process_station_xr_data(station_data)
+            
+        except Exception as e:
+            LOGGER.warning(f"Could not read station data for basin {basin_id}: {e}")
+            return None
+
+    def _process_station_xr_data(self, station_data):
+        """Process xarray station data into standard format"""
+        if not station_data:
+            return None
+            
+        # Handle multiple time units
+        if isinstance(station_data, dict):
+            # Use first available time unit
+            time_unit = list(station_data.keys())[0]
+            station_ds = station_data[time_unit]
+        else:
+            station_ds = station_data
+            
+        if not station_ds or not station_ds.sizes:
+            return None
+            
+        # Convert to DataArray with standard format
+        if isinstance(station_ds, xr.Dataset):
+            station_da = station_ds.to_array(dim="variable")
+            # Transpose to [time, station, variable]
+            station_da = station_da.transpose("time", "station", "variable")
+        else:
+            station_da = station_ds
+            
+        return station_da
+
+    def _combine_station_data_arrays(self, station_data_list, basin_ids):
+        """Combine station data from all basins into a unified structure
+        
+        Creates an xr.DataArray with dimensions [basin, time, station, variable]
+        similar to how other data types are structured in BaseDataset.
+        """
+        # Find common time dimension and data structure
+        valid_data = [data for data in station_data_list if data is not None]
+        if not valid_data:
+            return None
+            
+        # Use time dimension from first valid dataset
+        common_time = valid_data[0].coords["time"]
+        
+        # Find maximum number of stations and variables across all basins
+        max_stations = max(data.sizes.get("station", 0) for data in valid_data)
+        max_variables = max(data.sizes.get("variable", 0) for data in valid_data)
+        
+        # Create unified data array
+        n_basins = len(basin_ids)
+        n_time = len(common_time)
+        
+        # Initialize with NaN (BaseDataset will handle NaN processing)
+        unified_data = np.full(
+            (n_basins, n_time, max_stations, max_variables), 
+            np.nan, 
+            dtype=np.float32
+        )
+        
+        # Fill with actual data
+        for i, (basin_id, station_data) in enumerate(zip(basin_ids, station_data_list)):
+            if station_data is not None:
+                # Align time dimension
+                try:
+                    aligned_data = station_data.reindex(time=common_time, method="nearest")
+                    data_array = aligned_data.values
+                    
+                    # Insert into unified array
+                    n_stations_basin = data_array.shape[1]
+                    n_vars_basin = data_array.shape[2]
+                    unified_data[i, :, :n_stations_basin, :n_vars_basin] = data_array
+                except Exception as e:
+                    LOGGER.warning(f"Failed to align station data for basin {basin_id}: {e}")
+                    continue
+        
+        # Create xr.DataArray with proper coordinates
+        station_coords = [f"station_{j}" for j in range(max_stations)]
+        variable_coords = self.data_cfgs["station_cols"][:max_variables]
+        
+        station_da = xr.DataArray(
+            unified_data,
+            dims=["basin", "time", "station", "variable"],
+            coords={
+                "basin": basin_ids,
+                "time": common_time,
+                "station": station_coords,
+                "variable": variable_coords,
+            }
+        )
+        
+        return station_da
+
+    def _load_adjacency_data(self):
+        """Load and process adjacency data from .nc files
+        
+        Returns
+        -------
+        dict
+            Dictionary containing edge_index, edge_attr for each basin
+        """
+        if not self.gnn_cfgs.get("use_adjacency", True):
+            return None
+            
+        if not hasattr(self.data_source, 'read_adjacency_xrdataset'):
+            LOGGER.warning("Data source does not support adjacency data")
+            return None
+            
+        adjacency_data = {}
+        #basin_ids = self.t_s_dict["sites_id"]
+        # Convert basin IDs from "songliao_21100150" to "21100150" for StationHydroDataset
+        basin_ids_with_prefix = self.t_s_dict["sites_id"]
+        basin_ids = self._convert_basin_to_station_ids(basin_ids_with_prefix)        
+        
+        for basin_id in basin_ids:
+            try:
+                # Read adjacency data from .nc file
+                adj_df = self.data_source.read_adjacency_xrdataset(basin_id)
+                
+                if adj_df is None:
+                    LOGGER.warning(f"No adjacency data for basin {basin_id}, using self-loops")
+                    adjacency_data[basin_id] = self._create_self_loop_adjacency(basin_id)
+                else:
+                    # Let _process_adjacency_dataframe handle the format checking and processing
+                    adjacency_data[basin_id] = self._process_adjacency_dataframe(adj_df, basin_id)
+                
+            except Exception as e:
+                LOGGER.warning(f"Failed to load adjacency data for basin {basin_id}: {e}")
+                adjacency_data[basin_id] = self._create_self_loop_adjacency(basin_id)
+                
+        return adjacency_data
+
+    def _process_adjacency_dataframe(self, adj_df, basin_id):
+        """Process adjacency DataFrame into edge_index and edge_attr tensors
+        
+        Standard GNN processing: extract edges and their attributes from DataFrame or xarray Dataset.
+        
+        Parameters
+        ----------
+        adj_df : pd.DataFrame or xr.Dataset
+            Adjacency DataFrame/Dataset with columns like ID, NEXTDOWNID, dist_hdn, elev_diff, strm_slope
+        basin_id : str
+            Basin identifier
+        
+        Returns
+        -------
+        dict
+            Dictionary containing edge_index, edge_attr, edge_weight, num_nodes
+        """
+        import torch
+        import pandas as pd
+        import xarray as xr
+        import numpy as np
+        
+        # Convert xarray Dataset to pandas DataFrame if needed
+        if isinstance(adj_df, xr.Dataset):
+            try:
+                # Convert xarray Dataset to pandas DataFrame
+                adj_df = adj_df.to_dataframe().reset_index()
+                LOGGER.info(f"Basin {basin_id}: Converted xarray Dataset to DataFrame with shape {adj_df.shape}")
+                LOGGER.info(f"Basin {basin_id}: DataFrame columns = {list(adj_df.columns)}")
+            except Exception as e:
+                LOGGER.error(f"Basin {basin_id}: Failed to convert xarray Dataset to DataFrame: {e}")
+                return self._create_self_loop_adjacency(basin_id)
+        
+        # Configuration (simplified)
+        src_col = self.gnn_cfgs.get("adjacency_src_col", "ID")
+        dst_col = self.gnn_cfgs.get("adjacency_dst_col", "NEXTDOWNID")
+        edge_attr_cols = self.gnn_cfgs.get("adjacency_edge_attr_cols", ["dist_hdn", "elev_diff", "strm_slope"])
+        weight_col = self.gnn_cfgs.get("adjacency_weight_col", None)  # 新增：指定权重列
+         # Check if required columns exist
+        if src_col not in adj_df.columns:
+            LOGGER.warning(f"Basin {basin_id}: Source column '{src_col}' not found in adjacency data. Available columns: {list(adj_df.columns)}")
+            return self._create_self_loop_adjacency(basin_id)
+
+        if dst_col not in adj_df.columns:
+            LOGGER.warning(f"Basin {basin_id}: Destination column '{dst_col}' not found in adjacency data. Available columns: {list(adj_df.columns)}")
+            return self._create_self_loop_adjacency(basin_id)
+        
+        # Clean and convert numeric columns to proper dtypes in batch
+        # Handle string "nan" values that may come from NetCDF files
+        numeric_cols = [col for col in edge_attr_cols + ([weight_col] if weight_col else []) if col in adj_df.columns]
+        if numeric_cols:
+            # Batch replace string "nan" with actual NaN and convert to numeric
+            adj_df[numeric_cols] = adj_df[numeric_cols].replace(['nan', 'NaN', 'NAN'], np.nan)
+            adj_df[numeric_cols] = adj_df[numeric_cols].apply(pd.to_numeric, errors='coerce')
+            LOGGER.debug(f"Basin {basin_id}: Converted {len(numeric_cols)} numeric columns in batch")
+        
+        # Create comprehensive node mapping including all stations in the basin
+        # First get all nodes that appear in adjacency matrix (connected nodes)
+        connected_nodes = set(adj_df[src_col].dropna()) | set(adj_df[dst_col].dropna())
+        
+        # Then get all stations in this basin (including isolated nodes)
+        try:
+            if hasattr(self.data_source, 'get_stations_by_basin'):
+                all_basin_stations = self.data_source.get_stations_by_basin(basin_id)
+                if all_basin_stations:
+                    # Convert station IDs to strings to match adjacency data format
+                    all_basin_nodes = set(str(station_id) for station_id in all_basin_stations)
+                    # Combine connected nodes with all basin nodes
+                    all_nodes = connected_nodes | all_basin_nodes
+                    isolated_nodes = all_basin_nodes - connected_nodes
+                    if isolated_nodes:
+                        LOGGER.info(f"Basin {basin_id}: Found {len(isolated_nodes)} isolated nodes: {isolated_nodes}")
+                else:
+                    all_nodes = connected_nodes
             else:
-                # Convert DataArray to numpy array
-                # Expected shape: (n_stations, n_time, n_variables)
-                array_data = station_data.values.transpose(
-                    1, 0, 2
-                )  # station, time, variable
-                station_arrays.append(array_data)
+                # Fallback to only connected nodes if station data unavailable
+                all_nodes = connected_nodes
+        except Exception as e:
+            LOGGER.warning(f"Basin {basin_id}: Failed to get all basin stations: {e}, using connected nodes only")
+            all_nodes = connected_nodes
+        
+        if len(all_nodes) == 0:
+            LOGGER.warning(f"Basin {basin_id}: No valid nodes found")
+            return self._create_self_loop_adjacency(basin_id)
+            
+        node_to_idx = {node: idx for idx, node in enumerate(sorted(all_nodes))}
+        LOGGER.info(f"Basin {basin_id}: Found {len(all_nodes)} total nodes ({len(connected_nodes)} connected, {len(all_nodes) - len(connected_nodes)} isolated)")
+        
+        # Extract edges and attributes using vectorized operations
+        # First process edges from adjacency matrix
+        valid_rows = adj_df.dropna(subset=[src_col, dst_col])
+        edges_from_adj = []
+        edge_attrs_from_adj = []
+        edge_weights_from_adj = []
+        
+        if len(valid_rows) > 0:
+            # Vectorized edge creation from adjacency matrix
+            src_nodes = valid_rows[src_col].map(node_to_idx).values
+            dst_nodes = valid_rows[dst_col].map(node_to_idx).values
+            edges_from_adj = np.column_stack([src_nodes, dst_nodes])
+            
+            # Vectorized edge attributes extraction
+            edge_attrs_list = []
+            for col in edge_attr_cols:
+                if col in valid_rows.columns:
+                    attrs = valid_rows[col].fillna(0.0).values
+                else:
+                    attrs = np.zeros(len(valid_rows))
+                edge_attrs_list.append(attrs)
+            edge_attrs_from_adj = np.column_stack(edge_attrs_list) if edge_attrs_list else np.zeros((len(valid_rows), len(edge_attr_cols)))
+            
+            # Vectorized edge weights extraction
+            if weight_col and weight_col in valid_rows.columns:
+                edge_weights_from_adj = valid_rows[weight_col].fillna(1.0).values
+            else:
+                edge_weights_from_adj = np.ones(len(valid_rows))
+        
+        # Add self-loops for isolated nodes (nodes not in adjacency matrix)
+        isolated_nodes = all_nodes - connected_nodes
+        edges_from_isolated = []
+        edge_attrs_from_isolated = []
+        edge_weights_from_isolated = []
+        
+        if isolated_nodes:
+            # Create self-loops for isolated nodes
+            isolated_indices = [node_to_idx[node] for node in isolated_nodes]
+            edges_from_isolated = np.column_stack([isolated_indices, isolated_indices])
+            edge_attrs_from_isolated = np.zeros((len(isolated_nodes), len(edge_attr_cols)))
+            edge_weights_from_isolated = np.ones(len(isolated_nodes))
+        
+        # Combine edges from adjacency matrix and self-loops for isolated nodes
+        if len(edges_from_adj) > 0 and len(edges_from_isolated) > 0:
+            all_edges = np.vstack([edges_from_adj, edges_from_isolated])
+            all_edge_attrs = np.vstack([edge_attrs_from_adj, edge_attrs_from_isolated])
+            all_edge_weights = np.concatenate([edge_weights_from_adj, edge_weights_from_isolated])
+        elif len(edges_from_adj) > 0:
+            all_edges = edges_from_adj
+            all_edge_attrs = edge_attrs_from_adj
+            all_edge_weights = edge_weights_from_adj
+        elif len(edges_from_isolated) > 0:
+            all_edges = edges_from_isolated
+            all_edge_attrs = edge_attrs_from_isolated
+            all_edge_weights = edge_weights_from_isolated
+        else:
+            # Fallback: create self-loops for all nodes
+            LOGGER.warning(f"Basin {basin_id}: No edges found, creating self-loops for all nodes")
+            n_nodes = len(all_nodes)
+            node_indices = list(range(n_nodes))
+            all_edges = np.column_stack([node_indices, node_indices])
+            all_edge_attrs = np.zeros((n_nodes, len(edge_attr_cols)))
+            all_edge_weights = np.ones(n_nodes)
+        
+        # Convert to tensors
+        edge_index = torch.tensor(all_edges.T, dtype=torch.long).contiguous()
+        edge_attr = torch.tensor(all_edge_attrs, dtype=torch.float) if all_edge_attrs is not None else None
+        edge_weight = torch.tensor(all_edge_weights, dtype=torch.float)
+        
+        return {
+            "edge_index": edge_index,
+            "edge_attr": edge_attr,
+            "edge_weight": edge_weight,  # 新增：单独的边权重张量
+            "num_nodes": len(all_nodes),
+            "node_to_idx": node_to_idx,
+            "weight_col": weight_col  # 记录使用的权重列
+        }
 
-        return station_arrays
+    def _create_self_loop_adjacency(self, basin_id):
+        """Create self-loop adjacency as fallback"""
+        import torch
+        
+        try:
+            # Try to get station count for this basin
+            if hasattr(self.data_source, 'get_stations_by_basin'):
+                station_ids = self.data_source.get_stations_by_basin(basin_id)
+                n_nodes = len(station_ids) if station_ids else 1
+            else:
+                n_nodes = 1
+        except Exception:
+            n_nodes = 1
+        
+        # Create self-loops: edge_index = [[0,1,2,...], [0,1,2,...]]
+        edge_index = torch.arange(n_nodes).repeat(2, 1)
+        
+        # Create default edge attributes
+        edge_attr_cols = self.gnn_cfgs.get("adjacency_edge_attr_cols", ["dist_hdn", "elev_diff", "strm_slope"])
+        if edge_attr_cols:
+            edge_attr = torch.zeros((n_nodes, len(edge_attr_cols)), dtype=torch.float)
+        else:
+            edge_attr = None
+        
+        # Create default edge weights (1.0 for self-loops)
+        edge_weight = torch.ones(n_nodes, dtype=torch.float)
+        
+        return {
+            "edge_index": edge_index,
+            "edge_attr": edge_attr,
+            "edge_weight": edge_weight,  # 新增：边权重
+            "num_nodes": n_nodes,
+            "node_to_idx": {i: i for i in range(n_nodes)},
+            "weight_col": None  # 自环情况下没有指定权重列
+        }
 
-    def get_station_data(self, basin_idx, time_idx):
-        """Get station data for a specific basin and time range"""
-        if self.station_data is None or basin_idx >= len(self.station_data):
+    # GNN-specific utility methods
+    def get_station_data(self, basin_idx):
+        """Get station data for a specific basin
+        
+        Since station data is now processed by BaseDataset pipeline,
+        it's available as self.station_cols (converted to numpy array).
+        """
+        if hasattr(self, 'station_cols') and self.station_cols is not None:
+            return self.station_cols[basin_idx]
+        return None
+
+    def get_adjacency_data(self, basin_idx):
+        """Get adjacency data for a specific basin
+        
+        Returns
+        -------
+        dict or None
+            Dictionary containing edge_index, edge_attr, edge_weight, etc. or None
+        """
+        if self.adjacency_data is None:
             return None
+            
+        # Get the specific basin ID for this basin index
+        basin_id_with_prefix = self.t_s_dict["sites_id"][basin_idx]
+        # Convert single basin ID to station ID (without prefix)
+        basin_id = self._convert_basin_to_station_ids([basin_id_with_prefix])[0]
+        return self.adjacency_data.get(basin_id)
+    
+    def get_edge_weight(self, basin_idx):
+        """Get edge weights for a specific basin
+        
+        Parameters
+        ----------
+        basin_idx : int
+            Basin index
+            
+        Returns
+        -------
+        torch.Tensor or None
+            Edge weights tensor [num_edges] or None
+        """
+        adjacency_data = self.get_adjacency_data(basin_idx)
+        if adjacency_data is not None:
+            return adjacency_data.get("edge_weight")
+        return None
 
-        station_data = self.station_data[basin_idx]
-        if station_data is None:
-            return None
-
-        # Return station data for the specified time range
-        return station_data[:, time_idx, :]
-
-    def get_adjacency_matrix(self, basin_idx):
-        """Get adjacency matrix for a specific basin"""
-        if self.adjacency_matrices is None:
-            return None
-
-        basin_id = self.t_s_dict["sites_id"][basin_idx]
-        return self.adjacency_matrices.get(basin_id)
+    def _convert_basin_to_station_ids(self, basin_ids):
+        """Convert basin IDs (with prefix) to station IDs (without prefix) for StationHydroDataset
+        
+        Parameters
+        ----------
+        basin_ids : list
+            List of basin IDs with prefix (e.g., ["songliao_21100150"])
+        
+        Returns
+        -------
+        list
+            List of station IDs without prefix (e.g., ["21100150"])
+        """
+        station_ids = []
+        for basin_id in basin_ids:
+            # Remove common prefixes
+            if "_" in basin_id:
+                # Extract the part after the last underscore
+                station_id = basin_id.split("_")[-1]
+            else:
+                # If no underscore, use the original ID
+                station_id = basin_id
+            station_ids.append(station_id)
+        return station_ids
+    
+    def _convert_station_to_basin_ids(self, station_ids, prefix="songliao"):
+        """Convert station IDs (without prefix) to basin IDs (with prefix) for consistency
+        
+        Parameters
+        ----------
+        station_ids : list
+            List of station IDs without prefix (e.g., ["21100150"])
+        prefix : str
+            Prefix to add (default: "songliao")
+        
+        Returns
+        -------
+        list
+            List of basin IDs with prefix (e.g., ["songliao_21100150"])
+        """
+        basin_ids = []
+        for station_id in station_ids:
+            basin_id = f"{prefix}_{station_id}"
+            basin_ids.append(basin_id)
+        return basin_ids
 
     def __getitem__(self, item: int):
-        """Get one sample from the dataset
-
+        """Get one sample with GNN-specific data format: sxc, y, edge_index, edge_attr
+        
+        This method merges basin-level features (xc) into each station node's features (sxc),
+        so each node's input includes both station and basin attributes.
+        
         Returns
         -------
         tuple
-            Input and output data for GNN model
+            (sxc, y, edge_index, edge_attr) where:
+            - sxc: Station features merged with basin features [num_stations, seq_length, feature_dim]
+            - y: Target values (unchanged from parent) [seq_length, output_dim]  
+            - edge_index: Edge connectivity [2, num_edges]
+            - edge_attr: Edge attributes [num_edges, edge_attr_dim]
         """
-        # TODO: Implement based on specific GNN model requirements
-        # This is a placeholder that can be customized based on your GNN architecture
+        import torch
+        import numpy as np
+        
+        # Get basic sample from parent (includes flood mask if FloodEventDataset)
+        basic_sample = super(GNNDataset, self).__getitem__(item)
+        
+        # Extract x, y from parent's output
+        if isinstance(basic_sample, tuple):
+            x, y = basic_sample  # x: [seq_length, x_feature_dim], y: [seq_length, y_feature_dim]
+        elif isinstance(basic_sample, dict):
+            x = basic_sample.get("x") 
+            y = basic_sample.get("y")
+        else:
+            raise ValueError(f"Unexpected basic_sample format: {type(basic_sample)}")
+        
+        # Get sample metadata
+        basin, time_idx, actual_length = self.lookup_table[item]
+        
+        # Get station data for current basin and time window
+        station_data = self.get_station_data(basin)  # [time, station, variable]
+        adjacency_data = self.get_adjacency_data(basin)
+        
+        # Extract station data for the time window
+        if station_data is not None:
+            seq_end = time_idx + actual_length
+            sxc_raw = station_data[time_idx:seq_end]  # [seq_length, num_stations, station_feature_dim]
+        else:
+            # If no station data, create dummy station data
+            LOGGER.warning(f"No station data for basin {basin}, using single dummy station")
+            dummy_station_features = 1  # Number of dummy features
+            sxc_raw = np.zeros((actual_length, 1, dummy_station_features))  # [seq_length, 1, 1]
+        
+        # Get basin-level features (xc) for merging
+        # x contains basin-level features, we need to replicate it for each station
+        if x is not None and x.ndim >= 2:
+            xc = x  # [seq_length, basin_feature_dim]
+            basin_feature_dim = xc.shape[-1]
+            seq_length, num_stations, station_feature_dim = sxc_raw.shape
+            
+            # Replicate basin features for each station and concatenate with station features
+            # xc expanded: [seq_length, 1, basin_feature_dim] -> [seq_length, num_stations, basin_feature_dim]
+            xc_expanded = np.tile(xc[:, np.newaxis, :], (1, num_stations, 1))
+            
+            # Concatenate station features with basin features
+            # sxc_temp: [seq_length, num_stations, station_feature_dim + basin_feature_dim]
+            sxc_temp = np.concatenate([sxc_raw, xc_expanded], axis=-1)
+            
+            # Transpose to get desired shape: [num_stations, seq_length, feature_dim]
+            sxc = sxc_temp.transpose(1, 0, 2)
+        else:
+            # If no basin features, use only station features and transpose
+            # sxc: [num_stations, seq_length, station_feature_dim]
+            sxc = sxc_raw.transpose(1, 0, 2)
+        
+        # Process adjacency data (simplified GNN approach)
+        if adjacency_data is not None:
+            edge_index = adjacency_data["edge_index"]  # [2, num_edges]  
+            edge_attr = adjacency_data["edge_attr"]    # [num_edges, edge_attr_dim] or None
+            edge_weight = adjacency_data.get("edge_weight")  # [num_edges] - 边权重
+        else:
+            # Default: self-loops for each station
+            num_stations = sxc.shape[0]  # Now sxc is [num_stations, seq_length, feature_dim]
+            edge_index = torch.arange(num_stations).repeat(2, 1)
+            edge_attr = None
+            edge_weight = torch.ones(num_stations, dtype=torch.float)  # 默认权重为1
+        
+        # Ensure edge_attr has proper shape
+        if edge_attr is None:
+            num_edges = edge_index.shape[1]
+            edge_attr_dim = len(self.gnn_cfgs.get("adjacency_edge_attr_cols", ["dist_hdn", "elev_diff", "strm_slope"]))
+            edge_attr = torch.zeros((num_edges, edge_attr_dim), dtype=torch.float)
+        
+        # Convert to tensors if needed
+        if not isinstance(sxc, torch.Tensor):
+            sxc = torch.tensor(sxc, dtype=torch.float)
+        if not isinstance(y, torch.Tensor):
+            y = torch.tensor(y, dtype=torch.float)
+        return sxc, y, edge_index, edge_weight # edge_attr
 
-        # Get basic data from parent class
-        x, y = super(GNNDataset, self).__getitem__(item)
-
-        # Get station data and adjacency matrix if available
-        basin, idx, _ = self.lookup_table[item]
-
-        # Get station data for this time window
-        station_data = self.get_station_data(basin, slice(idx, idx + self.rho))
-
-        # Get adjacency matrix
-        adj_matrix = self.get_adjacency_matrix(basin)
-
-        # Return data structure suitable for GNN
-        # You can customize this based on your specific GNN model requirements
-        return {
-            "x": x,  # Basic input features
-            "y": y,  # Target output
-            "station_data": station_data,  # Station time series data
-            "adj_matrix": adj_matrix,  # Adjacency matrix
-            "basin_idx": basin,  # Basin index
-            "time_idx": idx,  # Time index
-        }
-
-    def __len__(self):
-        return self.num_samples
