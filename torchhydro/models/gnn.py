@@ -43,52 +43,87 @@ class GNNBaseModel(Module, ABC):
 
         self.edge_weights = edge_weights
         self.edge_orientation = edge_orientation
+        # 设置自环填充值，优先使用预设的edge_weights，如果没有则在forward中动态设置
         if self.edge_weights is not None:
             self.loop_fill_value: Union[float, str] = (
                 1.0 if (self.edge_weights == 0).all() else "mean"
             )
+        else:
+            # 如果没有预设权重，使用默认值，在forward中可能会根据输入的edge_weight调整
+            self.loop_fill_value: Union[float, str] = "mean"
 
     def forward(
-        self, x: torch.Tensor, edge_index: torch.Tensor, evo_tracking: bool = False
+        self, x: torch.Tensor, edge_index: torch.Tensor, edge_weight: torch.Tensor = None, evo_tracking: bool = False
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, List[torch.Tensor]]]:
-        # x的形状: [batch_size * num_nodes, window_size, num_features]
-        # 从edge_index推断batch_size和num_nodes
-        if self.edge_weights is not None:
-            # num_graphs就是batch_size
-            num_graphs = edge_index.size(1) // len(self.edge_weights)
-            batch_size = num_graphs
+        # x的形状: [batch_size, num_nodes, window_size, num_features]
+        batch_size, num_nodes, window_size, num_features = x.shape
+        
+        # 重塑x为GNN期望的格式: [batch_size * num_nodes, window_size * num_features]
+        x = x.view(batch_size * num_nodes, window_size * num_features)
+
+        # 处理edge_index和edge_weight
+        # edge_index形状: [2, num_edges] 或者 [batch_size, 2, num_edges]
+        # edge_weight形状: [batch_size, num_edges] 或者 [num_edges]
+        
+        if edge_index.dim() == 3:
+            # 如果是batch格式: [batch_size, 2, num_edges]
+            # 需要为每个batch创建偏移的节点索引
+            
+            # 创建节点偏移量
+            node_offsets = torch.arange(batch_size, device=edge_index.device) * num_nodes
+            node_offsets = node_offsets.view(-1, 1, 1)  # [batch_size, 1, 1]
+            
+            # 添加偏移量到edge_index
+            edge_index_offset = edge_index + node_offsets  # [batch_size, 2, num_edges]
+            
+            # 重塑为 [2, batch_size * num_edges]
+            edge_index = edge_index_offset.transpose(0, 1).contiguous().view(2, -1)
         else:
-            # 如果没有edge_weights，从x的第一维推断
-            # 假设所有图都有相同的节点数
-            batch_size = 1  # 需要根据实际情况调整
+            # 如果已经是标准格式: [2, num_edges]，需要复制到所有batch
+            if batch_size > 1:
+                # 为每个batch创建偏移的edge_index
+                edge_indices = []
+                for b in range(batch_size):
+                    offset = b * num_nodes
+                    edge_indices.append(edge_index + offset)
+                edge_index = torch.cat(edge_indices, dim=1)
 
-        # 计算每个图的节点数
-        num_nodes = x.size(0) // batch_size
+        edge_index = edge_index.to(x.device)
 
-        x = x.flatten(1)  # 展平时间和特征维度: [batch_size * num_nodes, features]
-
-        if self.edge_weights is not None:
-            edge_weights = torch.cat(batch_size * [self.edge_weights], dim=0).to(
-                x.device
-            )
-            edge_weights = edge_weights.abs()
+        # 处理edge_weight
+        if edge_weight is not None:
+            if edge_weight.dim() == 2:
+                # edge_weight形状: [batch_size, num_edges]
+                edge_weights = edge_weight.view(-1).abs().to(x.device)
+            else:
+                # edge_weight形状: [num_edges]，需要复制到所有batch
+                edge_weights = edge_weight.repeat(batch_size).abs().to(x.device)
+            # 动态设置自环填充值
+            loop_fill_value = 1.0 if (edge_weights == 0).all() else "mean"
+        elif self.edge_weights is not None:
+            # 如果没有输入edge_weight但模型有预设的edge_weights，使用预设值
+            edge_weights = self.edge_weights.repeat(batch_size).abs().to(x.device)
+            loop_fill_value = self.loop_fill_value
         else:
-            edge_weights = torch.zeros(edge_index.size(1)).to(x.device)
+            # 如果都没有，创建单位权重
+            num_edges_total = edge_index.size(-1)
+            edge_weights = torch.ones(num_edges_total, device=x.device)
+            loop_fill_value = 1.0
 
+        # 处理边的方向
         if self.edge_orientation is not None:
             if self.edge_orientation == "upstream":
-                edge_index = edge_index[[1, 0]].to(x.device)
+                edge_index = edge_index[[1, 0]]  # 交换源和目标节点
             elif self.edge_orientation == "bidirectional":
-                edge_index = torch.cat([edge_index, edge_index[[1, 0]]], dim=1).to(
-                    x.device
-                )
-                edge_weights = torch.cat(2 * [edge_weights], dim=0).to(x.device)
+                edge_index = torch.cat([edge_index, edge_index[[1, 0]]], dim=1)
+                edge_weights = torch.cat([edge_weights, edge_weights], dim=0)
             elif self.edge_orientation != "downstream":
                 raise ValueError("unknown edge direction", self.edge_orientation)
-        if self.edge_weights is not None:
-            edge_index, edge_weights = add_self_loops(
-                edge_index, edge_weights, fill_value=self.loop_fill_value
-            )
+        
+        # 添加自环
+        edge_index, edge_weights = add_self_loops(
+            edge_index, edge_weights, fill_value=loop_fill_value, num_nodes=batch_size * num_nodes
+        )
 
         x_0 = self.encoder(x)
         evolution: Optional[List[torch.Tensor]] = (
@@ -107,23 +142,27 @@ class GNNBaseModel(Module, ABC):
             if evo_tracking:
                 evolution.append(x.detach())
 
-            # 重新整形: [batch_size, num_nodes, hidden_channels]
-            x = x.view(batch_size, num_nodes, -1)
+            # 重新整形为: [batch_size, num_nodes, output_size]
+            x = x.view(batch_size, num_nodes, self.output_size)
 
             # 动态创建聚合层（如果还没创建）
             if self.aggregation_layer is None:
-                input_dim = num_nodes * x.size(-1)  # num_nodes * hidden_channels
+                input_dim = num_nodes * self.output_size  # num_nodes * output_size
                 self.aggregation_layer = Linear(
                     input_dim, self.output_size, weight_initializer="kaiming_uniform"
                 ).to(x.device)
 
-            # 展平所有节点的特征: [batch_size, num_nodes * hidden_channels]
+            # 展平所有节点的特征: [batch_size, num_nodes * output_size]
             x_flat = x.view(batch_size, -1)
 
             # 聚合到根节点输出: [batch_size, output_size]
             x = self.aggregation_layer(x_flat)
+            
             if evo_tracking:
                 return x, evolution
+        else:
+            # 如果没有根节点聚合，重新整形为: [batch_size, num_nodes, output_size]
+            x = x.view(batch_size, num_nodes, self.output_size)
 
         return (x, evolution) if evo_tracking else x
 
@@ -184,8 +223,8 @@ class GCN(GNNBaseModel):
         hidden_channels: int,
         num_hidden: int,
         param_sharing: bool,
-        edge_orientation: Optional[str],
-        edge_weights: Optional[torch.Tensor],
+        edge_orientation: Optional[str] = None,
+        edge_weights: Optional[torch.Tensor] = None,  # 保持向后兼容
         output_size: int = 1,
         root_gauge_idx: Optional[int] = None,
     ) -> None:
@@ -199,7 +238,7 @@ class GCN(GNNBaseModel):
             param_sharing,
             layer_gen,
             edge_orientation,
-            edge_weights,
+            edge_weights,  # 可以为None，将通过forward参数传入
             output_size,
             root_gauge_idx,
         )
@@ -222,8 +261,8 @@ class ResGCN(GCN):
         hidden_channels: int,
         num_hidden: int,
         param_sharing: bool,
-        edge_orientation: Optional[str],
-        edge_weights: Optional[torch.Tensor],
+        edge_orientation: Optional[str] = None,
+        edge_weights: Optional[torch.Tensor] = None,  # 保持向后兼容
         output_size: int = 1,
         root_gauge_idx: Optional[int] = None,
     ) -> None:
@@ -256,8 +295,8 @@ class GCNII(GNNBaseModel):
         hidden_channels: int,
         num_hidden: int,
         param_sharing: bool,
-        edge_orientation: Optional[str],
-        edge_weights: Optional[torch.Tensor],
+        edge_orientation: Optional[str] = None,
+        edge_weights: Optional[torch.Tensor] = None,  # 保持向后兼容
         output_size: int = 1,
         root_gauge_idx: Optional[int] = None,
     ) -> None:
@@ -294,8 +333,8 @@ class ResGAT(GNNBaseModel):
         hidden_channels: int,
         num_hidden: int,
         param_sharing: bool,
-        edge_orientation: Optional[str],
-        edge_weights: Optional[torch.Tensor],
+        edge_orientation: Optional[str] = None,
+        edge_weights: Optional[torch.Tensor] = None,  # 保持向后兼容
         output_size: int = 1,
         root_gauge_idx: Optional[int] = None,
     ) -> None:
