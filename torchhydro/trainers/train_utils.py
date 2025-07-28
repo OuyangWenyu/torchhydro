@@ -120,9 +120,16 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
         first is the observed data, second is the predicted data;
         both tensors are batch first
     """
-    xs, ys, xs_mask, ys_mask, xs_lens, ys_lens = get_masked_tensors(
-        variable_length_cfgs, batch, seq_first
-    )
+    result = get_masked_tensors(variable_length_cfgs, batch, seq_first)
+    
+    # Handle both standard (6 values) and GNN (8 values) returns
+    if len(result) == 8:
+        # GNN format: xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens
+        xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens = result
+    else:
+        # Standard format: xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
+        xs, ys, xs_mask, ys_mask, xs_lens, ys_lens = result
+        edge_index = edge_weight = None
     # Process input data
     if type(xs) is list:
         xs = [
@@ -150,15 +157,30 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
             else ys.to(device)
         )
 
+    # Process edge data for GNN models
+    if edge_index is not None and edge_weight is not None:
+        edge_index = edge_index.to(device)
+        edge_weight = edge_weight.to(device)
+
     # Process masks if available
     if xs_mask is not None and ys_mask is not None:
         xs_mask = xs_mask.to(device)
         ys_mask = ys_mask.to(device)
         # Use mask-aware inference with xs masks and lengths
-        output = model(*xs, mask=xs_mask, seq_lengths=xs_lens)
+        if edge_index is not None and edge_weight is not None:
+            # GNN model with masks
+            output = model(*xs, edge_index=edge_index, edge_weight=edge_weight, mask=xs_mask, seq_lengths=xs_lens)
+        else:
+            # Non-GNN model with masks
+            output = model(*xs, mask=xs_mask, seq_lengths=xs_lens)
     else:
         # Standard inference
-        output = model(*xs)
+        if edge_index is not None and edge_weight is not None:
+            # GNN model without masks
+            output = model(*xs, edge_index=edge_index)
+        else:
+            # Non-GNN model without masks
+            output = model(*xs)
 
     if type(output) is tuple:
         # Convention: y_p must be the first output of model
@@ -1133,21 +1155,37 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
     Returns
     -------
     tuple
-        (xs, ys, xs_mask, ys_mask, xs_lens, ys_lens)
+        For standard datasets: (xs, ys, xs_mask, ys_mask, xs_lens, ys_lens)
+        For GNN datasets: (xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens)
     """
     xs_mask = None
     ys_mask = None
     xs_lens = None
     ys_lens = None
+    edge_index = None
+    edge_weight = None
 
     if variable_length_cfgs is None:
-        xs, ys = batch
-        return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
+        # Check if this is a GNN batch (length > 2 means xs, ys, edge_index, edge_weight)
+        if len(batch) > 2:
+            # GNN batch: xs, ys, edge_index, edge_weight
+            xs, ys, edge_index, edge_weight = batch[0], batch[1], batch[2], batch[3]
+            return xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens
+        else:
+            # Standard batch: xs, ys
+            xs, ys = batch[0], batch[1]
+            return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 
     if variable_length_cfgs.get("use_variable_length", False):
         # When using variable length training, batch comes from varied_length_collate_fn
         # which returns [xs_pad, ys_pad, xs_lens, ys_lens, xs_mask, ys_mask]
-        xs, ys, xs_lens, ys_lens, xs_mask_bool, ys_mask_bool = batch
+        if len(batch) >= 6:
+            xs, ys, xs_lens, ys_lens, xs_mask_bool, ys_mask_bool = batch[:6]
+        else:
+            # Fallback: treat as regular batch with first two elements
+            xs, ys = batch[0], batch[1]
+            xs_lens = ys_lens = xs_mask_bool = ys_mask_bool = None
+            
         if xs_mask_bool is None and ys_mask_bool is None:
             # sometime even you choose to use variable length training, the batch data may still be fixed length
             # so we need to return the batch data directly
@@ -1161,10 +1199,19 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
             xs_mask = xs_mask.transpose(0, 1)  # [seq, batch, 1]
             ys_mask = ys_mask.transpose(0, 1)  # [seq, batch, 1]
     else:
-        # Standard fixed-length training
-        xs, ys = batch
+        # Check if this is a GNN batch (length > 2 means xs, ys, edge_index, edge_weight)
+        if len(batch) > 2:
+            # GNN batch: xs, ys, edge_index, edge_weight
+            xs, ys, edge_index, edge_weight = batch[0], batch[1], batch[2], batch[3]
+        else:
+            # Standard batch: xs, ys
+            xs, ys = batch[0], batch[1]
 
-    return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
+    # Return appropriate format based on whether it's GNN or standard
+    if edge_index is not None and edge_weight is not None:
+        return xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens
+    else:
+        return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 
 
 def torch_single_train(
