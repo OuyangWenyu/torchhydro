@@ -22,6 +22,7 @@ from hydrodataset.grdc_caravan import GrdcCaravan
 from hydrodatasource.reader.data_source import (
     SelfMadeHydroDataset,
     SelfMadeForecastDataset,
+    StationHydroDataset
 )
 
 
@@ -722,6 +723,7 @@ class Smap4Camels(SupData4Camels):
             out[ind2, k] = data_temp[ind].values[ind1]
         return out
 
+# 更新data_sources_dict以使用修正的版本
 
 data_sources_dict = {
     "camels_us": Camels,
@@ -732,4 +734,5 @@ data_sources_dict = {
     "modiset4camels": ModisEt4Camels,
     "nldas4camels": Nldas4Camels,
     "smap4camels": Smap4Camels,
+    "stationhydrodataset": StationHydroDataset
 }
