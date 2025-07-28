@@ -220,13 +220,20 @@ def default_config_file() -> Dict[str, Any]:
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
             # station data configurations for GNN models
-            "station_cfgs": {
-                "station_cols": [],
-                "station_rm_nan": True,
-                "use_adjacency": True,
-                "station_time_units": ["1D"],
-                "station_scaler_type": "DapengScaler",
-            },
+            "gnn_cfgs": {
+            # 站点数据配置 - 使用3h数据中实际存在的变量
+            "station_cols": ["DRP"],  # TM=温度, 从站点数据中选择变量
+            "station_rm_nan": True,
+            "station_time_units": ["3h"],
+            "station_scaler_type": "DapengScaler",            
+            # 邻接矩阵配置
+            "use_adjacency": True,
+            "adjacency_src_col": "ID",
+            "adjacency_dst_col": "NEXTDOWNID", 
+            "adjacency_edge_attr_cols": ["dist_hdn", "elev_diff", "strm_slope"],
+            "adjacency_weight_col": None,  # 不使用权重，返回边属性
+            "return_edge_weight": False,
+            }  
         },
         "training_cfgs": {
             # for distributed training, we use lightning fabric, it has some different strategies
