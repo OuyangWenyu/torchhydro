@@ -13,6 +13,7 @@ import logging
 
 from torchhydro.configs.config import default_config_file, cmd, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
+from torchhydro import SETTING
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -27,69 +28,67 @@ def create_simple_gnn_config():
     config_data = default_config_file()
 
     # 设置实验目录
-    project_name = os.path.join("gnn_experiment", "simple_test")
+    project_name = os.path.join("gnn_experiment", "songliao_3h_test")
 
-    # 示例站点ID列表（你可以根据你的数据修改这些）
+    # 使用有有效数据的流域ID（基于3h数据）
     example_gage_ids = [
-        "01013500",  # 示例站点ID
-        "01022500",
-        "01030500",
-        "01031500",
-        "01047000",
+        "songliao_21100150",  # 这个流域在2015年有完整的inflow数据
     ]
 
     # 配置训练参数
     args = cmd(
         sub=project_name,
-        # 数据源配置
+        # 数据源配置 - 使用正确的松辽流域数据路径
         source_cfgs={
-            "source_name": "selfmadehydrodataset",
-            "source_path": "/ftproot/basins-interim/",
+            "source_name": "stationhydrodataset",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "time_unit": ["3h"],  # 使用列表格式指定3h分辨率
+            "offset_to_utc": False,  # 禁用UTC偏移，使用原始时间
         },
         # 站点配置
         gage_id=example_gage_ids,  # 指定训练站点
         # 模型配置
         model_name="GCN",  # 使用GCN模型
         model_hyperparam={
-            "in_channels": 5,  # 输入特征数（与var_t长度对应）
+            "in_channels": 60,  # 输入特征数
             "hidden_channels": 64,  # 隐藏层大小
             "num_hidden": 2,  # 隐藏层数
             "param_sharing": True,  # 参数共享
             "edge_orientation": "downstream",  # 边的方向
             "edge_weights": None,  # 边权重
-            "output_size": 1,  # 输出维度
-            "root_gauge_idx": None,  # 根节点索引
+            "output_size": 1,  # 输出维度（inflow + flood_event）
+            "root_gauge_idx": 1,  # 根节点索引
         },
         # 数据配置
         dataset="GNNDataset",  # 使用GNNDataset
         scaler="DapengScaler",  # 数据标准化
-        batch_size=len(example_gage_ids),  # 批量大小设为站点数
-        hindcast_length=168,  # 7天 * 24小时
-        forecast_length=24,  # 预测1天
-        # 时间配置
+        batch_size=3,  # 批量大小设为站点数
+        hindcast_length=5,  # 进一步缩短历史长度
+        forecast_length=1,  # 预测1步
+        # 时间配置 - 使用3小时分辨率
         min_time_unit="h",
-        min_time_interval=1,
-        # 变量配置
+        min_time_interval=3,
+        # 变量配置 - 使用3h数据中确实存在的变量
         var_t=[
             "total_precipitation_hourly",
-            "temperature_2m",
-            "dewpoint_temperature_2m",
-            "surface_net_solar_radiation",
-            "sm_surface",
+            "temperature_2m", 
+            "u_component_of_wind_10m",
+            "surface_pressure"
         ],
         var_c=[
             "area",
-            "ele_mt_smn",
+            "ele_mt_smn", 
             "slp_dg_sav",
             "for_pc_sse",
             "run_mm_syr",
         ],
-        var_out=["streamflow"],
-        # 训练配置
-        train_epoch=10,
-        save_epoch=2,
-        train_period=[("2020-01-01-00", "2022-12-31-23")],
-        test_period=[("2023-01-01-00", "2023-12-31-23")],
+        var_out=["inflow", "flood_event"],  # 必须包含flood_event
+        
+        # 训练配置 - 使用已验证有效的1960年8月数据段
+        train_epoch=2,  # 减少epoch数便于测试
+        save_epoch=1,
+        train_period=["1995-07-01", "1995-07-31"],  # 使用数据最完整的时间段
+        test_period=["1995-08-01", "1995-08-15"],   # 对应的测试时段
         # 优化器配置
         opt="Adam",
         lr_scheduler={
