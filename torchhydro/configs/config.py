@@ -381,7 +381,7 @@ def default_config_file() -> Dict[str, Any]:
             # 1 means we chose the first result of each sample which will be used in hindcast-forecast model inference
             # 3rd -- rolling: we perform evaluation for each sample of each basin,
             # stride means we will perform evaluation for each sample after stride periods
-            "evaluator": {
+           "evaluator": {
                 "eval_way": "once",
                 "stride": 0,
             },

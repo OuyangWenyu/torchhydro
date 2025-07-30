@@ -32,7 +32,13 @@ def create_simple_gnn_config():
 
     # 使用有有效数据的流域ID（基于3h数据）
     example_gage_ids = [
-        "songliao_21100150",  # 这个流域在2015年有完整的inflow数据
+        "songliao_20800900",
+        "songliao_20810200",
+        "songliao_21100150",
+        "songliao_21110150",
+        #"songliao_21113800",
+        "songliao_21401050",
+        "songliao_21401550"
     ]
 
     # 配置训练参数
@@ -43,27 +49,28 @@ def create_simple_gnn_config():
             "source_name": "stationhydrodataset",
             "source_path": SETTING["local_data_path"]["datasets-interim"],
             "time_unit": ["3h"],  # 使用列表格式指定3h分辨率
-            "offset_to_utc": False,  # 禁用UTC偏移，使用原始时间
+            # 移除offset_to_utc，让数据源使用原始时间
         },
         # 站点配置
         gage_id=example_gage_ids,  # 指定训练站点
         # 模型配置
         model_name="GCN",  # 使用GCN模型
         model_hyperparam={
-            "in_channels": 60,  # 输入特征数
+            "in_channels": 210,  # 输入特征数（与var_t长度对应）
             "hidden_channels": 64,  # 隐藏层大小
             "num_hidden": 2,  # 隐藏层数
             "param_sharing": True,  # 参数共享
             "edge_orientation": "downstream",  # 边的方向
-            "edge_weights": None,  # 边权重
+            #"edge_weights": None,  # 边权重
             "output_size": 1,  # 输出维度（inflow + flood_event）
             "root_gauge_idx": 1,  # 根节点索引
         },
         # 数据配置
         dataset="GNNDataset",  # 使用GNNDataset
         scaler="DapengScaler",  # 数据标准化
-        batch_size=3,  # 批量大小设为站点数
-        hindcast_length=5,  # 进一步缩短历史长度
+        batch_size=2,  # 批量大小设为站点数
+        warmup_length=20,
+        hindcast_length=0,  # 30步历史数据（约4天）
         forecast_length=1,  # 预测1步
         # 时间配置 - 使用3小时分辨率
         min_time_unit="h",
@@ -84,11 +91,16 @@ def create_simple_gnn_config():
         ],
         var_out=["inflow", "flood_event"],  # 必须包含flood_event
         
-        # 训练配置 - 使用已验证有效的1960年8月数据段
-        train_epoch=2,  # 减少epoch数便于测试
+        # 训练配置 - 使用有有效数据的时间段
+        train_epoch=1,
         save_epoch=1,
-        train_period=["1995-07-01", "1995-07-31"],  # 使用数据最完整的时间段
-        test_period=["1995-08-01", "1995-08-15"],   # 对应的测试时段
+        train_period=["1995-06-01", "1995-08-31"],  # 使用有完整inflow数据的时段
+        test_period=["1995-06-01", "1996-09-21"],   # 测试时段
+        rolling=-1,  # 不使用滚动窗口
+        model_loader={"load_way": "latest"},
+        evaluator={"eval_way": "floodevent"},
+        which_first_tensor="batch",
+
         # 优化器配置
         opt="Adam",
         lr_scheduler={
@@ -96,10 +108,16 @@ def create_simple_gnn_config():
             "lr_factor": 0.9,
         },
         # 损失函数
-        loss_func="RMSE",
+        loss_func="FloodLoss",
+        loss_param={
+            "loss_func": "MSELoss",
+            "flood_weight": 2.0,
+            "flood_strategy": "weight",
+            "device": [0],
+        },
         # 其他配置
-        num_workers=4,
-        pin_memory=True,
+        # num_workers=4,
+        # pin_memory=True,
         early_stopping=True,
         patience=5,
         calc_metrics=True,

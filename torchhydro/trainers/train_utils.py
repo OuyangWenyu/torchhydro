@@ -121,16 +121,22 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
         both tensors are batch first
     """
     result = get_masked_tensors(variable_length_cfgs, batch, seq_first)
-    
-    # Handle both standard (6 values) and GNN (8 values) returns
-    if len(result) == 8:
+
+    # Handle different return formats from get_masked_tensors
+    # GNN with batch_vector: 9 elements
+    if len(result) == 9:
+        # xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens
+        xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens = result
+    elif len(result) == 8:
         # GNN format: xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens
         xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens = result
+        batch_vector = None
     else:
         # Standard format: xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
         xs, ys, xs_mask, ys_mask, xs_lens, ys_lens = result
-        edge_index = edge_weight = None
-    # Process input data
+        edge_index = edge_weight = batch_vector = None
+    # === 输入数据预处理 ===
+    # 支持list和单tensor两种输入，自动转到device，seq_first控制维度顺序
     if type(xs) is list:
         xs = [
             (
@@ -161,6 +167,8 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
     if edge_index is not None and edge_weight is not None:
         edge_index = edge_index.to(device)
         edge_weight = edge_weight.to(device)
+        if batch_vector is not None:
+            batch_vector = batch_vector.to(device)
 
     # Process masks if available
     if xs_mask is not None and ys_mask is not None:
@@ -168,16 +176,16 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
         ys_mask = ys_mask.to(device)
         # Use mask-aware inference with xs masks and lengths
         if edge_index is not None and edge_weight is not None:
-            # GNN model with masks
-            output = model(*xs, edge_index=edge_index, edge_weight=edge_weight, mask=xs_mask, seq_lengths=xs_lens)
+            # batch_vector模式（变节点数batch）
+            output = model(*xs, edge_index=edge_index, edge_weight=edge_weight, batch_vector=batch_vector, mask=xs_mask, seq_lengths=xs_lens)
         else:
             # Non-GNN model with masks
             output = model(*xs, mask=xs_mask, seq_lengths=xs_lens)
     else:
-        # Standard inference
+        # 2. 标准推理（无mask）
         if edge_index is not None and edge_weight is not None:
-            # GNN model without masks
-            output = model(*xs, edge_index=edge_index)
+            # GNN模型，始终传递 batch_vector
+            output = model(*xs, edge_index=edge_index, edge_weight=edge_weight, batch_vector=batch_vector)
         else:
             # Non-GNN model without masks
             output = model(*xs)
@@ -1140,6 +1148,80 @@ def varied_length_collate_fn(batch):
     ]
 
 
+def gnn_collate_fn(batch):
+    """
+    Custom collate function for GNN datasets that handles variable-sized graphs
+    
+    Each sample in batch is a tuple: (sxc, y, edge_index, edge_weight)
+    where:
+    - sxc: [num_stations_i, seq_length, feature_dim] (variable num_stations)  
+    - y: [forecast_length, output_dim]
+    - edge_index: [2, num_edges_i] (variable num_edges)
+    - edge_weight: [num_edges_i] (variable num_edges)
+    
+    Returns:
+    --------
+    list
+        [batched_sxc, batched_y, batched_edge_index, batched_edge_weight]
+        where batched_sxc has shape [batch_size, max_num_nodes, seq_length, feature_dim]
+    """
+    import torch
+    
+    if len(batch) == 0:
+        return []
+    
+    # Unpack the batch
+    sxc_list, y_list, edge_index_list, edge_weight_list = zip(*batch)
+
+    # Batch the target values (y) - these should have the same shape
+    batched_y = torch.stack(y_list, dim=0)  # [batch_size, forecast_length, output_dim]
+
+    # Find the maximum number of nodes in this batch
+    max_num_nodes = max(sxc.shape[0] for sxc in sxc_list)
+
+    # Get dimensions
+    batch_size = len(sxc_list)
+    seq_length = sxc_list[0].shape[1]
+    feature_dim = sxc_list[0].shape[2]
+
+    # Create padded tensor for node features
+    batched_sxc = torch.zeros(batch_size, max_num_nodes, seq_length, feature_dim)
+
+    # Create batched edge indices and weights
+    # For each graph in the batch, we need to offset node indices
+    batched_edge_index = []
+    batched_edge_weight = []
+    batch_vector = []
+    node_offset = 0
+    for i, (sxc, edge_index, edge_weight) in enumerate(zip(sxc_list, edge_index_list, edge_weight_list)):
+        num_nodes = sxc.shape[0]
+        # Fill the padded tensor with actual node features
+        batched_sxc[i, :num_nodes] = sxc
+        # For edge indices, we need to offset by node_offset to make them unique across batch
+        if edge_index.numel() > 0:
+            if edge_index.max() >= num_nodes:
+                print(f"Warning: Graph {i} has edge indices {edge_index.max().item()} >= num_nodes {num_nodes}")
+                valid_mask = (edge_index[0] < num_nodes) & (edge_index[1] < num_nodes)
+                edge_index = edge_index[:, valid_mask]
+                edge_weight = edge_weight[valid_mask]
+            if edge_index.numel() > 0:
+                offset_edge_index = edge_index + node_offset
+                batched_edge_index.append(offset_edge_index)
+                batched_edge_weight.append(edge_weight)
+        # batch_vector: for each node in this graph, assign batch index i
+        batch_vector.append(torch.full((num_nodes,), i, dtype=torch.long))
+        node_offset += num_nodes
+    # Concatenate edge indices and weights if they exist
+    if batched_edge_index:
+        batched_edge_index = torch.cat(batched_edge_index, dim=1)  # [2, total_edges]
+        batched_edge_weight = torch.cat(batched_edge_weight, dim=0)  # [total_edges]
+    else:
+        batched_edge_index = torch.empty((2, 0), dtype=torch.long)
+        batched_edge_weight = torch.empty(0)
+    batch_vector = torch.cat(batch_vector, dim=0)  # [total_nodes]
+    return [batched_sxc, batched_y, batched_edge_index, batched_edge_weight, batch_vector]
+
+
 def get_masked_tensors(variable_length_cfgs, batch, seq_first):
     """Get the mask for the data
 
@@ -1157,6 +1239,7 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
     tuple
         For standard datasets: (xs, ys, xs_mask, ys_mask, xs_lens, ys_lens)
         For GNN datasets: (xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens)
+        For GNN with batch vector: (xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens)
     """
     xs_mask = None
     ys_mask = None
@@ -1166,13 +1249,17 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
     edge_weight = None
 
     if variable_length_cfgs is None:
-        # Check if this is a GNN batch (length > 2 means xs, ys, edge_index, edge_weight)
-        if len(batch) > 2:
-            # GNN batch: xs, ys, edge_index, edge_weight
-            xs, ys, edge_index, edge_weight = batch[0], batch[1], batch[2], batch[3]
+        # Check batch length to determine format
+        if len(batch) == 5:
+            # GNN batch with batch_vector: [sxc, y, edge_index, edge_weight, batch_vector]
+            xs, ys, edge_index, edge_weight, batch_vector = batch
+            return xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens
+        elif len(batch) == 4:
+            # GNN batch: [sxc, y, edge_index, edge_weight]
+            xs, ys, edge_index, edge_weight = batch
             return xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens
         else:
-            # Standard batch: xs, ys
+            # Standard batch: [xs, ys]
             xs, ys = batch[0], batch[1]
             return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 
@@ -1199,17 +1286,20 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
             xs_mask = xs_mask.transpose(0, 1)  # [seq, batch, 1]
             ys_mask = ys_mask.transpose(0, 1)  # [seq, batch, 1]
     else:
-        # Check if this is a GNN batch (length > 2 means xs, ys, edge_index, edge_weight)
-        if len(batch) > 2:
-            # GNN batch: xs, ys, edge_index, edge_weight
-            xs, ys, edge_index, edge_weight = batch[0], batch[1], batch[2], batch[3]
+        # Check batch length to determine format
+        if len(batch) == 5:
+            # GNN batch with batch_vector: [sxc, y, edge_index, edge_weight, batch_vector]
+            xs, ys, edge_index, edge_weight, batch_vector = batch
+        elif len(batch) == 4:
+            # GNN batch: [sxc, y, edge_index, edge_weight]
+            xs, ys, edge_index, edge_weight = batch
         else:
-            # Standard batch: xs, ys
+            # Standard batch: [xs, ys]
             xs, ys = batch[0], batch[1]
 
-    # Return appropriate format based on whether it's GNN or standard
+    # Return appropriate format based on what we have
     if edge_index is not None and edge_weight is not None:
-        return xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens
+        return xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens
     else:
         return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 

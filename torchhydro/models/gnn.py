@@ -53,118 +53,114 @@ class GNNBaseModel(Module, ABC):
             self.loop_fill_value: Union[float, str] = "mean"
 
     def forward(
-        self, x: torch.Tensor, edge_index: torch.Tensor, edge_weight: torch.Tensor = None, evo_tracking: bool = False
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_weight: torch.Tensor,
+        batch_vector: Optional[torch.Tensor] = None,
+        evo_tracking: bool = False,
+        **kwargs,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, List[torch.Tensor]]]:
-        # x的形状: [batch_size, num_nodes, window_size, num_features]
-        batch_size, num_nodes, window_size, num_features = x.shape
-        
-        # 重塑x为GNN期望的格式: [batch_size * num_nodes, window_size * num_features]
-        x = x.view(batch_size * num_nodes, window_size * num_features)
+        """
+        通用GNN前向传播，兼容两种输入模式：
+        1. batch_vector模式（变节点数batch，PyG风格，适合大规模异构图/多流域拼接）
+        2. 传统batch维度模式（[batch, num_nodes, ...]，适合定长节点数）
 
-        # 处理edge_index和edge_weight
-        # edge_index形状: [2, num_edges] 或者 [batch_size, 2, num_edges]
-        # edge_weight形状: [batch_size, num_edges] 或者 [num_edges]
-        
-        if edge_index.dim() == 3:
-            # 如果是batch格式: [batch_size, 2, num_edges]
-            # 需要为每个batch创建偏移的节点索引
-            
-            # 创建节点偏移量
-            node_offsets = torch.arange(batch_size, device=edge_index.device) * num_nodes
-            node_offsets = node_offsets.view(-1, 1, 1)  # [batch_size, 1, 1]
-            
-            # 添加偏移量到edge_index
-            edge_index_offset = edge_index + node_offsets  # [batch_size, 2, num_edges]
-            
-            # 重塑为 [2, batch_size * num_edges]
-            edge_index = edge_index_offset.transpose(0, 1).contiguous().view(2, -1)
-        else:
-            # 如果已经是标准格式: [2, num_edges]，需要复制到所有batch
-            if batch_size > 1:
-                # 为每个batch创建偏移的edge_index
-                edge_indices = []
-                for b in range(batch_size):
-                    offset = b * num_nodes
-                    edge_indices.append(edge_index + offset)
-                edge_index = torch.cat(edge_indices, dim=1)
-
-        edge_index = edge_index.to(x.device)
-
-        # 处理edge_weight
-        if edge_weight is not None:
-            if edge_weight.dim() == 2:
-                # edge_weight形状: [batch_size, num_edges]
-                edge_weights = edge_weight.view(-1).abs().to(x.device)
+        参数:
+            x: 节点特征张量，shape见上
+            edge_index: 边索引，PyG格式
+            edge_weight: 边权重，若为None则自动补1
+            batch_vector: 节点到batch的映射（如有）
+            evo_tracking: 是否记录每层输出
+        返回:
+            预测结果，或(预测, 演化序列)
+        """
+        # 保险：所有输入 tensor 强制同步到 encoder.device，防止 device 不一致
+        device = self.encoder.weight.device
+        x = x.to(device)
+        edge_index = edge_index.to(device)
+        edge_weight = edge_weight.to(device)
+        if batch_vector is not None:
+            batch_vector = batch_vector.to(device)
+        if batch_vector is not None:
+            # 支持 x 为 [batch, num_nodes, window_size, num_features] 或 [total_nodes, window_size, num_features]
+            if x.dim() == 4:
+                x = x.view(-1, x.size(2), x.size(3))
+            elif x.dim() != 3:
+                raise ValueError(f"Unsupported x shape for GNN batch_vector mode: {x.shape}")
+            x = x.view(x.size(0), -1)
+            x_0 = self.encoder(x)
+            evolution = [x_0.detach()] if evo_tracking else None
+            x = x_0
+            for layer in self.layers:
+                x = self.apply_layer(layer, x, x_0, edge_index, edge_weight)
+                if evo_tracking:
+                    evolution.append(x.detach())
+            x = self.decoder(x)
+            if self.root_gauge_idx is not None:
+                if evo_tracking:
+                    evolution.append(x.detach())
+                batch_size = batch_vector.max().item() + 1
+                # PyTorch原生实现batch mean聚合
+                out_sum = torch.zeros(batch_size, x.size(-1), device=x.device)
+                out_sum = out_sum.index_add(0, batch_vector, x)
+                count = torch.zeros(batch_size, device=x.device)
+                count = count.index_add(0, batch_vector, torch.ones_like(batch_vector, dtype=x.dtype))
+                count = count.clamp_min(1).unsqueeze(-1)
+                x = out_sum / count
+                # 保证输出 shape 为 [batch, time, feature]，即 [batch, output_size, 1]（如果 output_size=时间步，特征数=1）
+                if x.dim() == 2:
+                    x = x.unsqueeze(-1)
+                if evo_tracking:
+                    return x, evolution
             else:
-                # edge_weight形状: [num_edges]，需要复制到所有batch
-                edge_weights = edge_weight.repeat(batch_size).abs().to(x.device)
-            # 动态设置自环填充值
-            loop_fill_value = 1.0 if (edge_weights == 0).all() else "mean"
-        elif self.edge_weights is not None:
-            # 如果没有输入edge_weight但模型有预设的edge_weights，使用预设值
-            edge_weights = self.edge_weights.repeat(batch_size).abs().to(x.device)
-            loop_fill_value = self.loop_fill_value
+                # 保证输出 shape 为 [node, time, feature]，即 [N, output_size, 1]
+                if x.dim() == 2:
+                    x = x.unsqueeze(-1)
+            return (x, evolution) if evo_tracking else x
         else:
-            # 如果都没有，创建单位权重
-            num_edges_total = edge_index.size(-1)
-            edge_weights = torch.ones(num_edges_total, device=x.device)
-            loop_fill_value = 1.0
-
-        # 处理边的方向
-        if self.edge_orientation is not None:
-            if self.edge_orientation == "upstream":
-                edge_index = edge_index[[1, 0]]  # 交换源和目标节点
-            elif self.edge_orientation == "bidirectional":
-                edge_index = torch.cat([edge_index, edge_index[[1, 0]]], dim=1)
-                edge_weights = torch.cat([edge_weights, edge_weights], dim=0)
-            elif self.edge_orientation != "downstream":
-                raise ValueError("unknown edge direction", self.edge_orientation)
-        
-        # 添加自环
-        edge_index, edge_weights = add_self_loops(
-            edge_index, edge_weights, fill_value=loop_fill_value, num_nodes=batch_size * num_nodes
-        )
-
-        x_0 = self.encoder(x)
-        evolution: Optional[List[torch.Tensor]] = (
-            [x_0.detach()] if evo_tracking else None
-        )
-
-        x = x_0
-        for layer in self.layers:
-            x = self.apply_layer(layer, x, x_0, edge_index, edge_weights)
-            if evo_tracking:
-                evolution.append(x.detach())
-        x = self.decoder(x)
-
-        # 如果指定了根节点，进行聚合操作
-        if self.root_gauge_idx is not None:
-            if evo_tracking:
-                evolution.append(x.detach())
-
-            # 重新整形为: [batch_size, num_nodes, output_size]
-            x = x.view(batch_size, num_nodes, self.output_size)
-
-            # 动态创建聚合层（如果还没创建）
-            if self.aggregation_layer is None:
-                input_dim = num_nodes * self.output_size  # num_nodes * output_size
-                self.aggregation_layer = Linear(
-                    input_dim, self.output_size, weight_initializer="kaiming_uniform"
-                ).to(x.device)
-
-            # 展平所有节点的特征: [batch_size, num_nodes * output_size]
-            x_flat = x.view(batch_size, -1)
-
-            # 聚合到根节点输出: [batch_size, output_size]
-            x = self.aggregation_layer(x_flat)
-            
-            if evo_tracking:
-                return x, evolution
-        else:
-            # 如果没有根节点聚合，重新整形为: [batch_size, num_nodes, output_size]
-            x = x.view(batch_size, num_nodes, self.output_size)
-
-        return (x, evolution) if evo_tracking else x
+            # 标准 batch 模式，要求 edge_weight 必须输入，和 edge_index 一致
+            batch_size, num_nodes, window_size, num_features = x.shape
+            x = x.view(batch_size * num_nodes, window_size * num_features)
+            # edge_index: [2, num_edges] 或 [batch, 2, num_edges]
+            if edge_index.dim() == 3:
+                node_offsets = torch.arange(batch_size, device=edge_index.device) * num_nodes
+                node_offsets = node_offsets.view(-1, 1, 1)
+                edge_index_offset = edge_index + node_offsets
+                edge_index = edge_index_offset.transpose(0, 1).contiguous().view(2, -1)
+            else:
+                if batch_size > 1:
+                    edge_indices = []
+                    for b in range(batch_size):
+                        offset = b * num_nodes
+                        edge_indices.append(edge_index + offset)
+                    edge_index = torch.cat(edge_indices, dim=1)
+            # 添加自环（如有需要，可在数据集预处理）
+            # edge_index, edge_weight = add_self_loops(edge_index, edge_weight, num_nodes=batch_size * num_nodes)
+            x_0 = self.encoder(x)
+            evolution: Optional[List[torch.Tensor]] = [x_0.detach()] if evo_tracking else None
+            x = x_0
+            for layer in self.layers:
+                x = self.apply_layer(layer, x, x_0, edge_index, edge_weight)
+                if evo_tracking:
+                    evolution.append(x.detach())
+            x = self.decoder(x)
+            if self.root_gauge_idx is not None:
+                if evo_tracking:
+                    evolution.append(x.detach())
+                x = x.view(batch_size, num_nodes, self.output_size)
+                if self.aggregation_layer is None:
+                    input_dim = num_nodes * self.output_size
+                    self.aggregation_layer = Linear(
+                        input_dim, self.output_size, weight_initializer="kaiming_uniform"
+                    ).to(x.device)
+                x_flat = x.view(batch_size, -1)
+                x = self.aggregation_layer(x_flat)
+                if evo_tracking:
+                    return x, evolution
+            else:
+                x = x.view(batch_size, num_nodes, self.output_size)
+            return (x, evolution) if evo_tracking else x
 
     @abstractmethod
     def apply_layer(

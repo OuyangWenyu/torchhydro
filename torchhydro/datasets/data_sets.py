@@ -25,6 +25,8 @@ from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
 from tqdm import tqdm
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 from torchhydro.datasets.data_utils import (
     set_unit_to_var,
@@ -70,9 +72,49 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
                 filled_data  # update the original dataarray with the filled data
             )
     elif fill_nan == "interpolate":
-        # fill interpolation
-        for i in range(da.shape[0]):
-            da[i] = da[i].interpolate_na(dim="time", fill_value="extrapolate")
+        # Check if this is a station-based DataArray (has 'station' dimension)
+        if 'station' in da.dims:
+            # Create a copy of the DataArray to modify
+            result_da = da.copy(deep=True)
+            
+            # Handle station data: interpolate along time for each basin and each station
+            for i in range(da.shape[0]):  # For each basin
+                # Get the number of stations for this basin
+                n_stations = da[i].shape[1] if da[i].ndim > 1 else 1
+                
+                # For each station, interpolate along time dimension
+                for s in range(n_stations):
+                    # Get data for this station
+                    station_data = da[i, :, s, :]
+                    
+                    # Check if the entire station has all NaN values
+                    if np.isnan(station_data.values).all():
+                        # If all values are NaN, fill with 0 or a small value
+                        # This prevents the training from crashing
+                        result_da[i, :, s, :] = 0.0
+                        # print(f"Warning: Station {s} in basin {i} has all NaN values, filled with 0.0")
+                    else:
+                        # Try to interpolate along time for this station
+                        try:
+                            filled_station_data = station_data.interpolate_na(
+                                dim="time", fill_value="extrapolate"
+                            )
+                            result_da[i, :, s, :] = filled_station_data
+                        except Exception as e:
+                            # If interpolation fails, use forward fill + backward fill
+                            print(f"Warning: Interpolation failed for station {s} in basin {i}: {e}")
+                            filled_data = station_data.fillna(method='ffill').fillna(method='bfill')
+                            if np.isnan(filled_data.values).any():
+                                # If still has NaN after forward/backward fill, use 0
+                                filled_data = filled_data.fillna(0.0)
+                            result_da[i, :, s, :] = filled_data
+            
+            # Return the modified copy
+            return result_da
+        else:
+            # Original behavior for non-station data: interpolate along time for each basin
+            for i in range(da.shape[0]):
+                da[i] = da[i].interpolate_na(dim="time", fill_value="extrapolate")
     elif fill_nan == "lead_step":
         # for forecast data, we use interpolation to fill NaN values for lead step small than the maximum lead step of each forecast performing
         for i in tqdm(range(da.shape[0]), desc="Processing basins", unit="basin"):
@@ -170,10 +212,11 @@ class BaseDataset(Dataset):
         self.warmup_length = self.training_cfgs["warmup_length"]
         self.horizon = self.training_cfgs["forecast_length"]
         valid_batch_mode = self.training_cfgs["valid_batch_mode"]
+        force_is_new_batch_way=self.evaluation_cfgs.get("force_is_new_batch_way", None)
         # train + valid with valid_mode is train means we will use the same batch data for train and valid
         self.is_new_batch_way = (
             is_tra_val_te != "valid" or valid_batch_mode != "train"
-        ) and is_tra_val_te != "train"
+        ) and is_tra_val_te != "train" and force_is_new_batch_way
         rolling = self.evaluation_cfgs.get("rolling", 0)
         if self.evaluation_cfgs["hrwin"] is None:
             hrwin = self.rho
@@ -780,8 +823,7 @@ class BaseDataset(Dataset):
             elif key == "global_cols":
                 rm_nan = data_cfgs["global_rm_nan"]
             elif key == "station_cols":
-                rm_nan = data_cfgs.get("station_rm_nan", True)  # 默认为 True
-                LOGGER.info(f"Station data NaN removal setting: {rm_nan}")
+                rm_nan = data_cfgs.get("station_rm_nan")
             else:
                 raise ValueError(
                     f"Unknown data type {key} in origin_data, "
@@ -2302,8 +2344,8 @@ class GNNDataset(FloodEventDataset):
             try:
                 # Convert xarray Dataset to pandas DataFrame
                 adj_df = adj_df.to_dataframe().reset_index()
-                LOGGER.info(f"Basin {basin_id}: Converted xarray Dataset to DataFrame with shape {adj_df.shape}")
-                LOGGER.info(f"Basin {basin_id}: DataFrame columns = {list(adj_df.columns)}")
+                #LOGGER.info(f"Basin {basin_id}: Converted xarray Dataset to DataFrame with shape {adj_df.shape}")
+                #LOGGER.info(f"Basin {basin_id}: DataFrame columns = {list(adj_df.columns)}")
             except Exception as e:
                 LOGGER.error(f"Basin {basin_id}: Failed to convert xarray Dataset to DataFrame: {e}")
                 return self._create_self_loop_adjacency(basin_id)
@@ -2420,7 +2462,7 @@ class GNNDataset(FloodEventDataset):
             all_edge_weights = edge_weights_from_isolated
         else:
             # Fallback: create self-loops for all nodes
-            LOGGER.warning(f"Basin {basin_id}: No edges found, creating self-loops for all nodes")
+            #LOGGER.warning(f"Basin {basin_id}: No edges found, creating self-loops for all nodes")
             n_nodes = len(all_nodes)
             node_indices = list(range(n_nodes))
             all_edges = np.column_stack([node_indices, node_indices])
@@ -2580,7 +2622,7 @@ class GNNDataset(FloodEventDataset):
         tuple
             (sxc, y, edge_index, edge_attr) where:
             - sxc: Station features merged with basin features [num_stations, seq_length, feature_dim]
-            - y: Target values (unchanged from parent) [seq_length, output_dim]  
+            - y: Target values for prediction [forecast_length, output_dim]  
             - edge_index: Edge connectivity [2, num_edges]
             - edge_attr: Edge attributes [num_edges, edge_attr_dim]
         """
@@ -2592,7 +2634,7 @@ class GNNDataset(FloodEventDataset):
         
         # Extract x, y from parent's output
         if isinstance(basic_sample, tuple):
-            x, y = basic_sample  # x: [seq_length, x_feature_dim], y: [seq_length, y_feature_dim]
+            x, y = basic_sample  # x: [seq_length, x_feature_dim], y_full: [full_length, y_feature_dim]
         elif isinstance(basic_sample, dict):
             x = basic_sample.get("x") 
             y = basic_sample.get("y")
@@ -2602,12 +2644,17 @@ class GNNDataset(FloodEventDataset):
         # Get sample metadata
         basin, time_idx, actual_length = self.lookup_table[item]
         
+        # For GNN prediction, we only need the forecast part of y as target
+        # The structure should be: warmup + hindcast (rho) + forecast (horizon)
+        # We only predict the forecast (horizon) part
+               
         # Get station data for current basin and time window
         station_data = self.get_station_data(basin)  # [time, station, variable]
         adjacency_data = self.get_adjacency_data(basin)
         
-        # Extract station data for the time window
+        # Extract station data for the time window (input sequence)
         if station_data is not None:
+            # For station data, we need the input sequence (not just forecast part)
             seq_end = time_idx + actual_length
             sxc_raw = station_data[time_idx:seq_end]  # [seq_length, num_stations, station_feature_dim]
         else:
@@ -2638,11 +2685,32 @@ class GNNDataset(FloodEventDataset):
             # sxc: [num_stations, seq_length, station_feature_dim]
             sxc = sxc_raw.transpose(1, 0, 2)
         
-        # Process adjacency data (simplified GNN approach)
+        # Process adjacency data (GNN edge orientation handled here)
+        # Edge orientation logic: support 'upstream', 'downstream', 'bidirectional' (default: downstream)
+        edge_orientation = self.gnn_cfgs.get('edge_orientation', 'downstream')
         if adjacency_data is not None:
-            edge_index = adjacency_data["edge_index"]  # [2, num_edges]  
+            edge_index = adjacency_data["edge_index"]  # [2, num_edges]
             edge_attr = adjacency_data["edge_attr"]    # [num_edges, edge_attr_dim] or None
-            edge_weight = adjacency_data.get("edge_weight")  # [num_edges] - 边权重
+            edge_weight = adjacency_data.get("edge_weight")  # [num_edges]
+            # If edge_weight is None, fill with ones (all edges weight=1)
+            if edge_weight is None:
+                num_edges = edge_index.shape[1]
+                edge_weight = torch.ones(num_edges, dtype=torch.float)
+
+            # Edge orientation handling
+            if edge_orientation == 'downstream':
+                # Reverse all edges: swap source and target
+                edge_index = edge_index[[1, 0], :]
+            elif edge_orientation == 'bidirectional':
+                # Add reversed edges to make bidirectional
+                edge_index_rev = edge_index[[1, 0], :]
+                edge_index = torch.cat([edge_index, edge_index_rev], dim=1)
+                if edge_attr is not None:
+                    edge_attr = torch.cat([edge_attr, edge_attr], dim=0)
+                if edge_weight is not None:
+                    edge_weight = torch.cat([edge_weight, edge_weight], dim=0)
+            # else: downstream (default), do nothing
+
         else:
             # Default: self-loops for each station
             num_stations = sxc.shape[0]  # Now sxc is [num_stations, seq_length, feature_dim]
@@ -2661,5 +2729,6 @@ class GNNDataset(FloodEventDataset):
             sxc = torch.tensor(sxc, dtype=torch.float)
         if not isinstance(y, torch.Tensor):
             y = torch.tensor(y, dtype=torch.float)
+            
         return sxc, y, edge_index, edge_weight # edge_attr
 

@@ -45,6 +45,7 @@ from torchhydro.trainers.train_utils import (
     torch_single_train,
     get_preds_to_be_eval,
     varied_length_collate_fn,
+    gnn_collate_fn,
 )
 from torchhydro.trainers.fabric_wrapper import create_fabric_wrapper
 
@@ -429,6 +430,10 @@ class DeepHydro(DeepHydroInterface):
 
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         if mode == "infer":
+            _collate_fn = None
+            # Use GNN collate function for GNN datasets in inference mode
+            if hasattr(self.testdataset, '__class__') and 'GNN' in self.testdataset.__class__.__name__:
+                _collate_fn = gnn_collate_fn
             return DataLoader(
                 self.testdataset,
                 batch_size=training_cfgs["batch_size"],
@@ -438,6 +443,7 @@ class DeepHydro(DeepHydroInterface):
                 drop_last=False,
                 timeout=0,
                 worker_init_fn=None,
+                collate_fn=_collate_fn,
             )
         worker_num = 0
         pin_memory = False
@@ -451,6 +457,9 @@ class DeepHydro(DeepHydroInterface):
         _collate_fn = None
         if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
             _collate_fn = varied_length_collate_fn
+        # Use GNN collate function for GNN datasets
+        elif hasattr(self.traindataset, '__class__') and 'GNN' in self.traindataset.__class__.__name__:
+            _collate_fn = gnn_collate_fn
         data_loader = DataLoader(
             self.traindataset,
             batch_size=training_cfgs["batch_size"],
@@ -462,6 +471,13 @@ class DeepHydro(DeepHydroInterface):
             collate_fn=_collate_fn,
         )
         if data_cfgs["t_range_valid"] is not None:
+            # Use the same collate function for validation dataset
+            _val_collate_fn = None
+            if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
+                _val_collate_fn = varied_length_collate_fn
+            elif hasattr(self.validdataset, '__class__') and 'GNN' in self.validdataset.__class__.__name__:
+                _val_collate_fn = gnn_collate_fn
+                
             validation_data_loader = DataLoader(
                 self.validdataset,
                 batch_size=training_cfgs["batch_size"],
@@ -469,6 +485,7 @@ class DeepHydro(DeepHydroInterface):
                 num_workers=worker_num,
                 pin_memory=pin_memory,
                 timeout=0,
+                collate_fn=_val_collate_fn,
             )
             return data_loader, validation_data_loader
 
