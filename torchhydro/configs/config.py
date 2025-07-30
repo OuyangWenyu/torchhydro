@@ -358,6 +358,7 @@ def default_config_file() -> Dict[str, Any]:
             # "model_loader": {"load_way": "latest"},
             # "model_loader": {"load_way": "pth", "pth_path": "path/to/weights"},
             "metrics": ["NSE", "RMSE", "R2", "KGE", "FHV", "FLV"],
+            "force_is_new_batch_way": None, #主要用于在测试集（保持训练和测试的batch设置方式保持一致）
             "fill_nan": "no",
             "explainer": None,
             # rolling is stride, 0 means each period has only one prediction.
