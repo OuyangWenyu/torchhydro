@@ -220,7 +220,7 @@ def default_config_file() -> Dict[str, Any]:
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
             # station data configurations for GNN models
-            "gnn_cfgs": {
+            "station_cfgs": {
             # 站点数据配置 - 使用3h数据中实际存在的变量
             "station_cols": ["DRP"],  # TM=温度, 从站点数据中选择变量
             "station_rm_nan": True,

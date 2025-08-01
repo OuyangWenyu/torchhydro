@@ -2097,7 +2097,7 @@ class GNNDataset(FloodEventDataset):
         self._extend_data_cfgs_for_stations(cfgs)
         
         # Store GNN-specific settings
-        self.gnn_cfgs = cfgs["data_cfgs"].get("gnn_cfgs", {})
+        self.gnn_cfgs = cfgs["data_cfgs"].get("station_cfgs", {})
         
         # Initialize parent (this will call BaseDataset._load_data() automatically)
         super(GNNDataset, self).__init__(cfgs, is_tra_val_te)
@@ -2111,7 +2111,7 @@ class GNNDataset(FloodEventDataset):
         This allows BaseDataset to handle station data using its universal processing pipeline.
         """
         data_cfgs = cfgs["data_cfgs"]
-        gnn_cfgs = data_cfgs.get("gnn_cfgs", {})
+        gnn_cfgs = data_cfgs.get("station_cfgs", {})
         
         # Add station_cols to data configuration if specified（这个不见得非得有gnn_cfgs,正常应该是data_cfgs里面继续扩充的）
         if gnn_cfgs.get("station_cols"):

@@ -41,63 +41,74 @@ def create_simple_gnn_config():
         "songliao_21401550"
     ]
 
-    # 配置训练参数
+    # ==== 智能推断 in_channels 和 output_size ====
+    hindcast_length = 20
+    forecast_length = 2
+    var_t = [
+        "total_precipitation_hourly",
+        "temperature_2m",
+        "u_component_of_wind_10m",
+        "surface_pressure"
+    ]
+    var_c = [
+        "area",
+        "ele_mt_smn",
+        "slp_dg_sav",
+        "for_pc_sse",
+        "run_mm_syr",
+    ]
+    # 站点变量（如有 GNN 站点特征）
+    station_cols = ["DRP"]  # 如有多个，补全即可
+    feature_num = len(var_t) + len(var_c) + len(station_cols)
+    in_channels = (hindcast_length + forecast_length) * feature_num
+    output_size = hindcast_length+forecast_length  # flood_event 只预测未来1步
+
     args = cmd(
         sub=project_name,
         # 数据源配置 - 使用正确的松辽流域数据路径
         source_cfgs={
             "source_name": "stationhydrodataset",
             "source_path": SETTING["local_data_path"]["datasets-interim"],
-            "time_unit": ["3h"],  # 使用列表格式指定3h分辨率
-            # 移除offset_to_utc，让数据源使用原始时间
+            "time_unit": ["3h"],
         },
+        # station_cfgs={
+        #     "station_cols": station_cols,  # 站点只有降雨数据目前,
+        #     },
         # 站点配置
         gage_id=example_gage_ids,  # 指定训练站点
         # 模型配置
         model_name="GCN",  # 使用GCN模型
         model_hyperparam={
-            "in_channels": 210,  # 输入特征数（与var_t长度对应）
-            "hidden_channels": 64,  # 隐藏层大小
-            "num_hidden": 2,  # 隐藏层数
-            "param_sharing": True,  # 参数共享
-            "edge_orientation": "downstream",  # 边的方向
-            #"edge_weights": None,  # 边权重
-            "output_size": 1,  # 输出维度（inflow + flood_event）
-            "root_gauge_idx": 1,  # 根节点索引
+            "in_channels": in_channels,
+            "hidden_channels": 64,
+            "num_hidden": 2,
+            "param_sharing": True,
+            "edge_orientation": "downstream",
+            "output_size": output_size,
+            "root_gauge_idx": 1,
         },
-        # 数据配置
-        dataset="GNNDataset",  # 使用GNNDataset
-        scaler="DapengScaler",  # 数据标准化
-        batch_size=2,  # 批量大小设为站点数
-        warmup_length=20,
-        hindcast_length=0,  # 30步历史数据（约4天）
-        forecast_length=1,  # 预测1步
-        # 时间配置 - 使用3小时分辨率
+        dataset="GNNDataset",
+        scaler="DapengScaler",
+        batch_size=2,
+        warmup_length=0,
+        hindcast_length=hindcast_length,
+        forecast_length=forecast_length,
+        # station_cols 不是 cmd 的参数，直接通过 gnn_cfgs 传递
+        # gnn_cfgs={
+        #     # 站点数据配置 - 使用3h数据中实际存在的变量
+        #     "station_cols": station_cols  # 站点只有降雨数据目前
+        # },
         min_time_unit="h",
         min_time_interval=3,
-        # 变量配置 - 使用3h数据中确实存在的变量
-        var_t=[
-            "total_precipitation_hourly",
-            "temperature_2m", 
-            "u_component_of_wind_10m",
-            "surface_pressure"
-        ],
-        var_c=[
-            "area",
-            "ele_mt_smn", 
-            "slp_dg_sav",
-            "for_pc_sse",
-            "run_mm_syr",
-        ],
-        var_out=["inflow", "flood_event"],  # 必须包含flood_event
-        
-        # 训练配置 - 使用有有效数据的时间段
-        train_epoch=1,
-        save_epoch=1,
-        train_period=["1995-06-01", "1995-08-31"],  # 使用有完整inflow数据的时段
-        test_period=["1995-06-01", "1996-09-21"],   # 测试时段
+        var_t=var_t,
+        var_c=var_c,
+        var_out=["inflow", "flood_event"],
+        train_epoch=10,
+        save_epoch=10,
+        train_period=["1995-06-01-02", "1995-08-31-02"],  # 使用有完整inflow数据的时段
+        test_period=["1995-06-01-02", "1996-06-01-02"],   # 测试时段
         rolling=-1,  # 不使用滚动窗口
-        model_loader={"load_way": "latest"},
+        model_loader={"load_way": "specified", "test_epoch": 10},
         evaluator={"eval_way": "floodevent"},
         which_first_tensor="batch",
 
