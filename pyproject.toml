@@ -136,6 +136,10 @@ include = ["torchhydro", "torchhydro.*"]
 [tool.setuptools.package-data]
 torchhydro = ["*"]
 
+# Wheel 构建配置
+[tool.setuptools]
+zip-safe = false
+
 # pytest 配置
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -143,6 +147,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "--strict-markers"
+collect_ignore = []  # 之前setup.py已删除，保留配置项以备将来使用
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
@@ -185,6 +190,22 @@ python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true 
+
+# bump2version 配置 (版本管理)
+[tool.bumpversion]
+current_version = "0.0.9"
+commit = true
+tag = true
+
+[[tool.bumpversion.files]]
+filename = "torchhydro/__init__.py"
+search = "__version__ = \"{current_version}\""
+replace = "__version__ = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = "version = \"{current_version}\""
+replace = "version = \"{new_version}\""
 
 [dependency-groups]
 dev = [
