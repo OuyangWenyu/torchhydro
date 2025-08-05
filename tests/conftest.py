@@ -955,52 +955,72 @@ def selfmadehydrodataset_dpl4xaj_args():
 
 
 @pytest.fixture()
-def selfmadehydrodataset_tlargs():
-    project_name = os.path.join("test_selfmadehydrodataset", "camelstlexp1")
-    DEVICE = 0
+def flood_event_datasource_args():
+    """Configuration for FloodEventDatasource with enhanced data support"""
+    project_name = os.path.join("test_flood_event_datasource", "exp1")
+    data_dir = SETTING["local_data_path"]["datasets-interim"]
+    source_path = os.path.join(data_dir, "songliaorrevent")
+    DEVICE = -1
     return cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_us",
-            "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
-            ),
+            "source_name": "floodeventdatasource",
+            "source_path": source_path,
+            "other_settings": {
+                "time_unit": ["3h"],
+                "dataset_name": "songliaorrevents",
+                "net_rain_key": "net_rain",
+                "obs_flow_key": "inflow",
+                "delta_t_hours": 3.0,
+            },
         },
-        source_region="US",
         ctx=[DEVICE],
-        model_type="TransLearn",
-        model_name="KaiLSTM",
+        model_name="SimpleLSTM",
         model_hyperparam={
-            "linear_size": len(var_c_target) + len(var_t_target),
-            "n_input_features": len(var_c_source) + len(var_t_source),
-            "n_output_features": 1,
-            "n_hidden_states": 256,
+            "input_size": 1,
+            "output_size": 1,
+            "hidden_size": 16,
         },
-        opt="Adadelta",
-        loss_func="RMSESum",
-        batch_size=5,
+        gage_id=["songliao_21401550"],
+        batch_size=8,
         hindcast_length=0,
         forecast_length=20,
-        rs=1234,
-        train_period=["2010-10-01", "2011-10-01"],
-        test_period=["2011-10-01", "2012-10-01"],
+        frwin=20,
+        min_time_unit="h",
+        min_time_interval="3",
+        var_t=["net_rain"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        dataset="FloodEventDataset",
         scaler="DapengScaler",
-        sampler="KuaiSampler",
-        dataset="StreamflowDataset",
-        weight_path=weight_path,
-        weight_path_add={
-            "freeze_params": ["lstm.b_hh", "lstm.b_ih", "lstm.w_hh", "lstm.w_ih"]
+        variable_length_cfgs={
+            "use_variable_length": True,
+            "variable_length_type": "dynamic",
+            "fixed_lengths": None,
+            "pad_strategy": "Pad",
         },
-        continue_train=True,
-        train_epoch=20,
-        te=20,
-        save_epoch=10,
-        var_t=var_t_target,
-        var_c=var_c_target,
-        var_out=["streamflow"],
-        gage_id=[
-            "01055000",
-            "01057000",
-            "01170100",
-        ],
+        train_epoch=2,
+        save_epoch=1,
+        model_loader={"load_way": "specified", "test_epoch": 2},
+        train_period=["1980-01-01", "2010-12-31"],
+        valid_period=["2011-01-01", "2015-12-31"],
+        test_period=["2016-01-01", "2020-12-31"],
+        loss_func="FloodLoss",
+        loss_param={
+            "loss_func": "MSELoss",
+            "flood_weight": 2.0,
+            "flood_strategy": "weight",
+            "device": [DEVICE],
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.0001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},
     )

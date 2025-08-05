@@ -24,6 +24,7 @@ from hydrodatasource.reader.data_source import (
     SelfMadeForecastDataset,
     StationHydroDataset
 )
+from hydrodatasource.reader.floodevent import FloodEventDatasource
 
 
 from torchhydro import CACHE_DIR, SETTING
@@ -730,6 +731,7 @@ data_sources_dict = {
     "grdc_caravan": GrdcCaravan,
     "selfmadehydrodataset": SelfMadeHydroDataset,
     "selfmadeforecastdataset": SelfMadeForecastDataset,
+    "floodeventdatasource": FloodEventDatasource,
     "usgs4camels": SupData4Camels,
     "modiset4camels": ModisEt4Camels,
     "nldas4camels": Nldas4Camels,
