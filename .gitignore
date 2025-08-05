@@ -137,3 +137,7 @@ mlruns/
 results/
 data/
 scripts/
+
+# Claude
+CLAUDE.md
+.claude/

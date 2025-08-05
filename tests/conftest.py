@@ -952,3 +952,75 @@ def selfmadehydrodataset_dpl4xaj_args():
         rolling=-1,
         evaluator={"eval_way": "floodevent"},
     )
+
+
+@pytest.fixture()
+def flood_event_datasource_args():
+    """Configuration for FloodEventDatasource with enhanced data support"""
+    project_name = os.path.join("test_flood_event_datasource", "exp1")
+    data_dir = SETTING["local_data_path"]["datasets-interim"]
+    source_path = os.path.join(data_dir, "songliaorrevent")
+    DEVICE = -1
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "floodeventdatasource",
+            "source_path": source_path,
+            "other_settings": {
+                "time_unit": ["3h"],
+                "dataset_name": "songliaorrevents",
+                "net_rain_key": "net_rain",
+                "obs_flow_key": "inflow",
+                "delta_t_hours": 3.0,
+            },
+        },
+        ctx=[DEVICE],
+        model_name="SimpleLSTM",
+        model_hyperparam={
+            "input_size": 1,
+            "output_size": 1,
+            "hidden_size": 16,
+        },
+        gage_id=["songliao_21401550"],
+        batch_size=8,
+        hindcast_length=0,
+        forecast_length=20,
+        frwin=20,
+        min_time_unit="h",
+        min_time_interval="3",
+        var_t=["net_rain"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        dataset="FloodEventDataset",
+        scaler="DapengScaler",
+        variable_length_cfgs={
+            "use_variable_length": True,
+            "variable_length_type": "dynamic",
+            "fixed_lengths": None,
+            "pad_strategy": "Pad",
+        },
+        train_epoch=2,
+        save_epoch=1,
+        model_loader={"load_way": "specified", "test_epoch": 2},
+        train_period=["1980-01-01", "2010-12-31"],
+        valid_period=["2011-01-01", "2015-12-31"],
+        test_period=["2016-01-01", "2020-12-31"],
+        loss_func="FloodLoss",
+        loss_param={
+            "loss_func": "MSELoss",
+            "flood_weight": 2.0,
+            "flood_strategy": "weight",
+            "device": [DEVICE],
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.0001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},
+    )
