@@ -107,9 +107,15 @@ def create_simple_gnn_config():
         save_epoch=10,
         train_period=["1995-06-01-02", "1995-08-31-02"],  # 使用有完整inflow数据的时段
         test_period=["1995-06-01-02", "1996-06-01-02"],   # 测试时段
-        rolling=-1,  # 不使用滚动窗口
+        # TODO: 测试rolling=1是否可行，之前加 force_is_new_batch_way 的方式不合理，
+        # 会把原来的代码逻辑损坏，所以这里改为rolling=1，但是需要测试下在FloodEvent数据下是否可行
+        # 并且注意，下面hrwin和frwin的设置需要与rolling=1保持一致
+        rolling=1,  # 使用滑动窗口，与训练模式类似
         model_loader={"load_way": "specified", "test_epoch": 10},
         evaluator={"eval_way": "floodevent"},
+        # 设置评估窗口与训练窗口保持一致
+        hrwin=hindcast_length,  # 与训练时的hindcast_length保持一致
+        frwin=forecast_length,  # 与训练时的forecast_length保持一致
         which_first_tensor="batch",
 
         # 优化器配置

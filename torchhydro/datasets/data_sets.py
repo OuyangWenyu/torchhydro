@@ -212,11 +212,10 @@ class BaseDataset(Dataset):
         self.warmup_length = self.training_cfgs["warmup_length"]
         self.horizon = self.training_cfgs["forecast_length"]
         valid_batch_mode = self.training_cfgs["valid_batch_mode"]
-        force_is_new_batch_way=self.evaluation_cfgs.get("force_is_new_batch_way", None)
         # train + valid with valid_mode is train means we will use the same batch data for train and valid
         self.is_new_batch_way = (
             is_tra_val_te != "valid" or valid_batch_mode != "train"
-        ) and is_tra_val_te != "train" and force_is_new_batch_way
+        ) and is_tra_val_te != "train"
         rolling = self.evaluation_cfgs.get("rolling", 0)
         if self.evaluation_cfgs["hrwin"] is None:
             hrwin = self.rho

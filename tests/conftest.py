@@ -1,5 +1,6 @@
 import os
 import pytest
+from typing import List, Dict, Any, Optional
 
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
@@ -8,7 +9,7 @@ import pandas as pd
 
 
 @pytest.fixture(scope="session", autouse=True)
-def configure_logging():
+def configure_logging() -> None:
     """Configure the logger"""
     logging.basicConfig(level=logging.INFO)
     for logger_name in logging.root.manager.loggerDict:
@@ -17,19 +18,19 @@ def configure_logging():
 
 
 @pytest.fixture(scope="session")
-def basin4test():
+def basin4test() -> List[str]:
     """Read the basin ID list, only choose final 5 basins as test data"""
     show = pd.read_csv("data/basin_id(46+1).csv", dtype={"id": str})
     return show["id"].values.tolist()[-5:]
 
 
 @pytest.fixture()
-def config_data():
+def config_data() -> Dict[str, Any]:
     return default_config_file()
 
 
 @pytest.fixture()
-def args():
+def args() -> Any:
     project_name = os.path.join("test_camels", "exp1")
     data_dir = SETTING["local_data_path"]["datasets-origin"]
     source_path = os.path.join(data_dir, "camels", "camels_us")
@@ -84,7 +85,7 @@ def args():
 
 
 @pytest.fixture()
-def mtl_args():
+def mtl_args() -> Any:
     project_name = os.path.join("test_camels", "expmtl001")
     data_origin_dir = SETTING["local_data_path"]["datasets-origin"]
     data_interim_dir = SETTING["local_data_path"]["datasets-interim"]
@@ -186,7 +187,7 @@ def mtl_args():
 
 
 @pytest.fixture()
-def s2s_args(basin4test):
+def s2s_args(basin4test: List[str]) -> Any:
     project_name = os.path.join("test_seq2seq", "gpmsmapexp1")
     return cmd(
         sub=project_name,
@@ -276,7 +277,7 @@ def s2s_args(basin4test):
 
 
 @pytest.fixture()
-def trans_args(basin4test):
+def trans_args(basin4test: List[str]) -> Any:
     project_name = os.path.join("test_trans", "gpmsmapexp1")
     return cmd(
         sub=project_name,
@@ -362,7 +363,7 @@ def trans_args(basin4test):
 
 
 @pytest.fixture()
-def dpl_args():
+def dpl_args() -> Any:
     project_name = os.path.join("test_camels", "expdpl001")
     data_origin_dir = SETTING["local_data_path"]["datasets-origin"]
     train_period = ["1985-10-01", "1986-04-01"]
@@ -458,7 +459,7 @@ def dpl_args():
 
 
 @pytest.fixture()
-def seq2seq_config():
+def seq2seq_config() -> Dict[str, Any]:
     project_name = os.path.join("train_with_gpm", "ex_test")
     config_data = default_config_file()
     args = cmd(
@@ -482,8 +483,7 @@ def seq2seq_config():
             "teacher_forcing_ratio": 0.5,
         },
         model_loader={"load_way": "best"},
-        gage_id=gage_id,
-        # gage_id=["21400800", "21401550", "21401300", "21401900"],
+        gage_id=["21400800", "21401550", "21401300", "21401900"],
         batch_size=128,
         hindcast_length=240,
         forecast_length=56,
@@ -550,7 +550,7 @@ def seq2seq_config():
 
 
 @pytest.fixture()
-def dpl4hbv_selfmadehydrodataset_args():
+def dpl4hbv_selfmadehydrodataset_args() -> Any:
     project_name = os.path.join("test", "expdpl4hbv")
     train_period = ["2014-10-01", "2018-10-01"]
     valid_period = ["2017-10-01", "2021-10-01"]
@@ -660,7 +660,7 @@ def dpl4hbv_selfmadehydrodataset_args():
 
 
 @pytest.fixture()
-def dpl4xaj_selfmadehydrodataset_args():
+def dpl4xaj_selfmadehydrodataset_args() -> Any:
     project_name = os.path.join("test_camels", "expdpl61561201")
     train_period = ["2014-10-01", "2018-10-01"]
     valid_period = ["2017-10-01", "2021-10-01"]
@@ -787,7 +787,7 @@ def dpl4xaj_selfmadehydrodataset_args():
 
 
 @pytest.fixture()
-def selfmadehydrodataset_args():
+def selfmadehydrodataset_args() -> Any:
     project_name = os.path.join("test_selfmadehydrodataset", "exp1")
     data_dir = SETTING["local_data_path"]["datasets-interim"]
     source_path = os.path.join(data_dir, "songliaorrevent")
@@ -863,7 +863,7 @@ def selfmadehydrodataset_args():
 
 
 @pytest.fixture()
-def selfmadehydrodataset_dpl4xaj_args():
+def selfmadehydrodataset_dpl4xaj_args() -> Any:
     project_name = os.path.join("test_selfmadehydrodataset", "dpl4xajexp1")
     data_dir = SETTING["local_data_path"]["datasets-interim"]
     source_path = os.path.join(data_dir, "songliaorrevent")
@@ -955,7 +955,7 @@ def selfmadehydrodataset_dpl4xaj_args():
 
 
 @pytest.fixture()
-def flood_event_datasource_args():
+def flood_event_datasource_args() -> Any:
     """Configuration for FloodEventDatasource with enhanced data support"""
     project_name = os.path.join("test_flood_event_datasource", "exp1")
     data_dir = SETTING["local_data_path"]["datasets-interim"]
