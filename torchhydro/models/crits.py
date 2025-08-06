@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-06-25 12:07:22
+LastEditTime: 2025-07-13 16:36:07
 LastEditors: Wenyu Ouyang
 Description: Loss functions
 FilePath: \torchhydro\torchhydro\models\crits.py

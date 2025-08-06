@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-17 12:55:24
-LastEditTime: 2024-11-05 11:40:28
+LastEditTime: 2025-07-12 11:00:09
 LastEditors: Wenyu Ouyang
 Description:
-FilePath: \torchhydro\experiments\train_with_era5land.py
+FilePath: /torchhydro/experiments/train_with_era5land.py
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -129,7 +129,6 @@ def config():
 
     # 更新默认配置
     update_cfg(config_data, args)
-
     return config_data
 
 

@@ -1,5 +1,6 @@
 import os
 import pytest
+from typing import List, Dict, Any, Optional
 
 from torchhydro.configs.config import cmd
 from tests.test_seq2seq import gage_id
@@ -10,7 +11,7 @@ import pandas as pd
 
 
 @pytest.fixture(scope="session", autouse=True)
-def configure_logging():
+def configure_logging() -> None:
     """Configure the logger"""
     logging.basicConfig(level=logging.INFO)
     for logger_name in logging.root.manager.loggerDict:
@@ -19,19 +20,19 @@ def configure_logging():
 
 
 @pytest.fixture(scope="session")
-def basin4test():
+def basin4test() -> List[str]:
     """Read the basin ID list, only choose final 5 basins as test data"""
     show = pd.read_csv("data/basin_id(46+1).csv", dtype={"id": str})
     return show["id"].values.tolist()[-5:]
 
 
 @pytest.fixture()
-def config_data():
+def config_data() -> Dict[str, Any]:
     return default_config_file()
 
 
 @pytest.fixture()
-def args():
+def args() -> Any:
     project_name = os.path.join("test_camels", "exp1")
     data_dir = SETTING["local_data_path"]["datasets-origin"]
     source_path = os.path.join(data_dir, "camels", "camels_us")
@@ -86,7 +87,7 @@ def args():
 
 
 @pytest.fixture()
-def mtl_args():
+def mtl_args() -> Any:
     project_name = os.path.join("test_camels", "expmtl001")
     data_origin_dir = SETTING["local_data_path"]["datasets-origin"]
     data_interim_dir = SETTING["local_data_path"]["datasets-interim"]
@@ -188,7 +189,7 @@ def mtl_args():
 
 
 @pytest.fixture()
-def s2s_args(basin4test):
+def s2s_args(basin4test: List[str]) -> Any:
     project_name = os.path.join("test_seq2seq", "gpmsmapexp1")
     return cmd(
         sub=project_name,
@@ -278,7 +279,7 @@ def s2s_args(basin4test):
 
 
 @pytest.fixture()
-def trans_args(basin4test):
+def trans_args(basin4test: List[str]) -> Any:
     project_name = os.path.join("test_trans", "gpmsmapexp1")
     return cmd(
         sub=project_name,
@@ -364,7 +365,7 @@ def trans_args(basin4test):
 
 
 @pytest.fixture()
-def dpl_args():
+def dpl_args() -> Any:
     project_name = os.path.join("test_camels", "expdpl001")
     data_origin_dir = SETTING["local_data_path"]["datasets-origin"]
     train_period = ["1985-10-01", "1986-04-01"]
@@ -460,7 +461,7 @@ def dpl_args():
 
 
 @pytest.fixture()
-def seq2seq_config():
+def seq2seq_config() -> Dict[str, Any]:
     project_name = os.path.join("train_with_gpm", "ex_test")
     config_data = default_config_file()
     args = cmd(
@@ -484,7 +485,6 @@ def seq2seq_config():
             "teacher_forcing_ratio": 0.5,
         },
         model_loader={"load_way": "best"},
-        # gage_id=gage_id,
         gage_id=["21400800", "21401550", "21401300", "21401900"],
         batch_size=128,
         hindcast_length=240,
@@ -552,7 +552,7 @@ def seq2seq_config():
 
 
 @pytest.fixture()
-def dpl4hbv_selfmadehydrodataset_args():
+def dpl4hbv_selfmadehydrodataset_args() -> Any:
     project_name = os.path.join("test", "expdpl4hbv")
     train_period = ["2014-10-01", "2018-10-01"]
     valid_period = ["2017-10-01", "2021-10-01"]
@@ -662,7 +662,7 @@ def dpl4hbv_selfmadehydrodataset_args():
 
 
 @pytest.fixture()
-def dpl4xaj_selfmadehydrodataset_args():
+def dpl4xaj_selfmadehydrodataset_args() -> Any:
     project_name = os.path.join("test_camels", "expdpl61561201")
     train_period = ["2014-10-01", "2018-10-01"]
     valid_period = ["2017-10-01", "2021-10-01"]
@@ -884,7 +884,7 @@ def BALSTM_config():
 
 
 @pytest.fixture()
-def selfmadehydrodataset_args():
+def selfmadehydrodataset_args() -> Any:
     project_name = os.path.join("test_selfmadehydrodataset", "exp1")
     data_dir = SETTING["local_data_path"]["datasets-interim"]
     source_path = os.path.join(data_dir, "songliaorrevent")
@@ -960,7 +960,7 @@ def selfmadehydrodataset_args():
 
 
 @pytest.fixture()
-def selfmadehydrodataset_dpl4xaj_args():
+def selfmadehydrodataset_dpl4xaj_args() -> Any:
     project_name = os.path.join("test_selfmadehydrodataset", "dpl4xajexp1")
     data_dir = SETTING["local_data_path"]["datasets-interim"]
     source_path = os.path.join(data_dir, "songliaorrevent")
@@ -1038,6 +1038,78 @@ def selfmadehydrodataset_dpl4xaj_args():
         loss_func="HybridFloodloss",
         loss_param={
             "mae_weight": 0.5,
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.0001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},
+    )
+
+
+@pytest.fixture()
+def flood_event_datasource_args() -> Any:
+    """Configuration for FloodEventDatasource with enhanced data support"""
+    project_name = os.path.join("test_flood_event_datasource", "exp1")
+    data_dir = SETTING["local_data_path"]["datasets-interim"]
+    source_path = os.path.join(data_dir, "songliaorrevent")
+    DEVICE = -1
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "floodeventdatasource",
+            "source_path": source_path,
+            "other_settings": {
+                "time_unit": ["3h"],
+                "dataset_name": "songliaorrevents",
+                "net_rain_key": "net_rain",
+                "obs_flow_key": "inflow",
+                "delta_t_hours": 3.0,
+            },
+        },
+        ctx=[DEVICE],
+        model_name="SimpleLSTM",
+        model_hyperparam={
+            "input_size": 1,
+            "output_size": 1,
+            "hidden_size": 16,
+        },
+        gage_id=["songliao_21401550"],
+        batch_size=8,
+        hindcast_length=0,
+        forecast_length=20,
+        frwin=20,
+        min_time_unit="h",
+        min_time_interval="3",
+        var_t=["net_rain"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        dataset="FloodEventDataset",
+        scaler="DapengScaler",
+        variable_length_cfgs={
+            "use_variable_length": True,
+            "variable_length_type": "dynamic",
+            "fixed_lengths": None,
+            "pad_strategy": "Pad",
+        },
+        train_epoch=2,
+        save_epoch=1,
+        model_loader={"load_way": "specified", "test_epoch": 2},
+        train_period=["1980-01-01", "2010-12-31"],
+        valid_period=["2011-01-01", "2015-12-31"],
+        test_period=["2016-01-01", "2020-12-31"],
+        loss_func="FloodLoss",
+        loss_param={
+            "loss_func": "MSELoss",
+            "flood_weight": 2.0,
+            "flood_strategy": "weight",
+            "device": [DEVICE],
         },
         opt="Adam",
         lr_scheduler={

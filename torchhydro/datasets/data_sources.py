@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-02 14:37:09
-LastEditTime: 2025-07-01 08:50:49
+LastEditTime: 2025-08-06 14:50:57
 LastEditors: Wenyu Ouyang
 Description: A module for different data sources
 FilePath: \torchhydro\torchhydro\datasets\data_sources.py
@@ -23,7 +23,9 @@ from hydrodatasource.reader.data_source import (
     SelfMadeHydroDataset,
     SelfMadeForecastDataset,
     LongTermDataset,
+    StationHydroDataset
 )
+from hydrodatasource.reader.floodevent import FloodEventDatasource
 
 
 from torchhydro import CACHE_DIR, SETTING
@@ -723,15 +725,21 @@ class Smap4Camels(SupData4Camels):
             out[ind2, k] = data_temp[ind].values[ind1]
         return out
 
+# 更新data_sources_dict以使用修正的版本
 
 data_sources_dict = {
     "camels_us": Camels,
     "grdc_caravan": GrdcCaravan,
     "selfmadehydrodataset": SelfMadeHydroDataset,
     "selfmadeforecastdataset": SelfMadeForecastDataset,
+    "floodeventdatasource": FloodEventDatasource,
     "usgs4camels": SupData4Camels,
     "modiset4camels": ModisEt4Camels,
     "nldas4camels": Nldas4Camels,
     "smap4camels": Smap4Camels,
+<<<<<<< HEAD
     "longtermdataset": LongTermDataset,
+=======
+    "stationhydrodataset": StationHydroDataset
+>>>>>>> dev
 }

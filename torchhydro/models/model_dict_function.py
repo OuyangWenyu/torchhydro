@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-01 09:33:29
+LastEditTime: 2025-08-06 14:53:50
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \torchhydro\torchhydro\models\model_dict_function.py
@@ -33,6 +33,14 @@ from torchhydro.models.seq2seq import (
     DataFusionModel,
     Transformer,
 )
+from torchhydro.models.gnn import (
+    GNNBaseModel,
+    GNNMLP,
+    GCN,
+    ResGCN,
+    GCNII,
+    ResGAT,
+)
 from torch.optim import Adam, SGD, Adadelta
 from torchhydro.models.crits import (
     RMSELoss,
@@ -54,7 +62,6 @@ from torchhydro.models.crits import (
 from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
 from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
-from torchhydro.models.dpl4hbv import DplLstmHbv, DplAnnHbv
 from torchhydro.models.dpl4gr4j import DplLstmGr4j, DplAnnGr4j
 from torchhydro.models.balstm_model import BALSTM, VanillaLSTM, SimpleBALSTM
 from torchhydro.models.ed_balstm import SimpleBALSTM_EncDec
@@ -99,11 +106,13 @@ pytorch_model_dict = {
     "Attn_SimpleBALSTM_EncDec": Attn_SimpleBALSTM_EncDec,
     # Transformer
     "Transformer": Transformer,
-    "DplNnModuleXaj": DplLstmNnModuleXaj,
-    "DplLstmHbv": DplLstmHbv,
-    "DplAnnHbv": DplAnnHbv,
-    "DplLstmGr4j": DplLstmGr4j,
-    "DplAnnGr4j": DplAnnGr4j,
+    # GNN models
+    "GNNBaseModel": GNNBaseModel,
+    "GNNMLP": GNNMLP,
+    "GCN": GCN,
+    "ResGCN": ResGCN,
+    "GCNII": GCNII,
+    "ResGAT": ResGAT,
 }
 
 pytorch_criterion_dict = {

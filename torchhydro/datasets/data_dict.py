@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-01 08:42:52
+LastEditTime: 2025-08-06 14:50:57
 LastEditors: Wenyu Ouyang
 Description: A dict used for data source and data loader
 FilePath: \torchhydro\torchhydro\datasets\data_dict.py
@@ -22,6 +22,7 @@ from torchhydro.datasets.data_sets import (
     TransformerDataset,
     BALSTMDataset,
     EncDecBALSTMDataset,
+    GNNDataset,
     FloodEventDataset,
 )
 
@@ -34,6 +35,7 @@ datasets_dict = {
     "DplDataset": DplDataset,
     "FlexDataset": FlexibleDataset,
     "Seq2SeqDataset": Seq2SeqDataset,
+    "GNNDataset": GNNDataset,
     "SeqForecastDataset": SeqForecastDataset,
     "BALSTMDataset": BALSTMDataset,
     "EncDecBALSTMDataset": EncDecBALSTMDataset,

@@ -18,32 +18,46 @@ jobs:
             matrix:
                 config:
                     - { os: ubuntu-latest, py: "3.10" }
+                    - { os: ubuntu-latest, py: "3.11" }
+                    - { os: ubuntu-latest, py: "3.12" }
 
         env:
             SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
         steps:
             - name: CHECKOUT CODE
-              uses: actions/checkout@v2
-            - name: SETUP PYTHON
-              uses: actions/setup-python@v1
+              uses: actions/checkout@v4
+            
+            - name: SETUP UV
+              uses: astral-sh/setup-uv@v3
               with:
-                  python-version: ${{ matrix.config.py }}
+                  enable-cache: true
+                  cache-dependency-glob: "uv.lock"
+            
+            - name: SETUP PYTHON
+              run: uv python install ${{ matrix.config.py }}
+            
             - name: Install dependencies
               run: |
-                  python -m pip install --upgrade pip
-                  pip install --user --no-cache-dir Cython
-                  pip install --user -r requirements.txt
-                  pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-            - name: Add project root to PYTHONPATH
-              run: echo "PYTHONPATH=${PYTHONPATH}$(pwd)" >> $GITHUB_ENV
+                  # 安装项目依赖（包括 torch 等）
+                  uv sync --extra dev
+                  
+                  # 针对 PyTorch Geometric 编译问题的解决方案
+                  uv remove torch-scatter torch-sparse torch-cluster || true
+                  uv add torch-geometric
+                  
+                  # 如果需要完整的 PyG 功能，可以尝试预编译包
+                  # uv pip install torch-scatter torch-sparse torch-cluster \
+                  #   --find-links https://data.pyg.org/whl/torch-2.5.0+cu124.html
+            
             - name: Download Camels data
               run: |
-                kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/ --unzip
-                kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/ --unzip
+                  uv run kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/ --unzip
+                  uv run kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/ --unzip
               env:
                   KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
                   KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+            
             - name: PKG-TEST
               run: |
-                  pytest tests/test_train_camels_lstm.py
-                  pytest tests/test_evaluate_model.py
+                  uv run pytest tests/test_train_camels_lstm.py
+                  uv run pytest tests/test_evaluate_model.py 
