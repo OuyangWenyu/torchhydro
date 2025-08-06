@@ -993,7 +993,7 @@ def flood_event_datasource_args() -> Any:
         var_c=["None"],
         c_rm_nan=False,
         var_out=["inflow", "flood_event"],
-        dataset="FloodEventDataset",
+        dataset="AugmentedFloodEventDataset",
         scaler="DapengScaler",
         variable_length_cfgs={
             "use_variable_length": True,
@@ -1004,7 +1004,7 @@ def flood_event_datasource_args() -> Any:
         train_epoch=2,
         save_epoch=1,
         model_loader={"load_way": "specified", "test_epoch": 2},
-        train_period=["1980-01-01", "2010-12-31"],
+        train_period=[["1980-01-01", "2010-12-31"], ["2026-01-01", "2050-12-31"]],
         valid_period=["2011-01-01", "2015-12-31"],
         test_period=["2016-01-01", "2020-12-31"],
         loss_func="FloodLoss",

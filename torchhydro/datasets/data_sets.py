@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-07-13 17:59:58
+LastEditTime: 2025-08-06 17:28:19
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -708,10 +708,72 @@ class BaseDataset(Dataset):
             the dim must be (basin, time, variable) for 3-d xr array;
             the dim must be (basin, variable) for 2-d xr array;
         """
-        # x
-        start_date = self.t_s_dict["t_final_range"][0]
-        end_date = self.t_s_dict["t_final_range"][1]
+        # Check if we have multiple time periods (for multi-period training)
+        t_range = self.t_s_dict["t_final_range"]
+
+        # Check if first element is a list/tuple (indicating multiple periods)
+        if isinstance(t_range[0], (list, tuple)):
+            # Validate multi-period format
+            self._validate_multi_period_format(t_range)
+
+            # Multiple periods case - can be any number of periods
+            all_data = None
+            for start_date, end_date in t_range:
+                period_data = self._read_xyc_period(start_date, end_date)
+                if all_data is None:
+                    all_data = period_data
+                else:
+                    # Concatenate along time dimension
+                    for key in period_data:
+                        all_data[key] = xr.concat(
+                            [all_data[key], period_data[key]], dim="time"
+                        )
+            return all_data
+        else:
+            # Single period case (existing behavior)
+            start_date = t_range[0]
+            end_date = t_range[1]
+            return self._read_xyc_period(start_date, end_date)
+
+    def _read_xyc_period(self, start_date, end_date):
+        """Template method for reading x, y, c data for a specific time period
+
+        This method can be overridden by subclasses to customize how data is read
+        for each time period while keeping the multi-period handling logic in the parent class.
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+
+        Returns
+        -------
+        dict
+            Dictionary containing relevant_cols, target_cols, and constant_cols data
+        """
+        # Default implementation: delegate to the original method
         return self._read_xyc_specified_time(start_date, end_date)
+
+    def _validate_multi_period_format(self, t_range):
+        """Validate format of multi-period time ranges
+
+        Parameters
+        ----------
+        t_range : list
+            List of time periods, where each period should be [start_date, end_date]
+
+        Raises
+        ------
+        ValueError
+            If any period doesn't have exactly 2 elements (start_date, end_date)
+        """
+        for i, period in enumerate(t_range):
+            if not isinstance(period, (list, tuple)) or len(period) != 2:
+                raise ValueError(
+                    f"Period {i} must be a list/tuple with exactly 2 elements (start_date, end_date), got: {period}"
+                )
 
     def _rm_timeunit_key(self, ds_):
         """this means the data source return a dict with key as time_unit
@@ -1301,26 +1363,55 @@ class Seq2SeqDataset(BaseDataset):
     def __init__(self, cfgs: dict, is_tra_val_te: str):
         super(Seq2SeqDataset, self).__init__(cfgs, is_tra_val_te)
 
-    def _read_xyc(self):
-        """
-        NOTE: the lookup table is same as BaseDataset,
-        but the data retrieved from datasource should has one more period,
-        because we include the concepts of start and end moment of the period
+    def _read_xyc_period(self, start_date, end_date):
+        """Override template method to adjust start date for Seq2Seq requirements
+
+        NOTE: Seq2SeqDataset needs one more time period at the beginning
+        because it includes the concepts of start and end moment of the period.
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
 
         Returns
         -------
-        tuple[xr.Dataset, xr.Dataset, xr.Dataset]
-            x, y, c data
+        dict
+            Dictionary containing relevant_cols, target_cols, and constant_cols data
         """
-        start_date = self.t_s_dict["t_final_range"][0]
-        end_date = self.t_s_dict["t_final_range"][1]
         interval = self.data_cfgs["min_time_interval"]
         time_unit = self.data_cfgs["min_time_unit"]
 
+        # Adjust start date by subtracting one interval
+        adjusted_start_date = self._adjust_start_date_by_interval(
+            start_date, interval, time_unit
+        )
+
+        return self._read_xyc_specified_time(adjusted_start_date, end_date)
+
+    def _adjust_start_date_by_interval(self, start_date, interval, time_unit):
+        """Adjust start date by subtracting specified interval
+
+        Parameters
+        ----------
+        start_date : str
+            Original start date string
+        interval : int
+            Time interval to subtract
+        time_unit : str
+            Time unit ('h' for hours, 'D' for days)
+
+        Returns
+        -------
+        str
+            Adjusted start date string
+        """
         # Determine the date format
         date_format = detect_date_format(start_date)
 
-        # Adjust the end date based on the time unit
+        # Adjust the start date based on the time unit
         start_date_dt = datetime.strptime(start_date, date_format)
         if time_unit == "h":
             adjusted_start_date = (start_date_dt - timedelta(hours=interval)).strftime(
@@ -1332,7 +1423,8 @@ class Seq2SeqDataset(BaseDataset):
             )
         else:
             raise ValueError(f"Unsupported time unit: {time_unit}")
-        return self._read_xyc_specified_time(adjusted_start_date, end_date)
+
+        return adjusted_start_date
 
     def _selected_time_points_for_denorm(self):
         # because we have time start and end for each period, similar reason to why we need to override _read_xyc
@@ -1456,10 +1548,11 @@ class HFDataset(BaseDataset):
     def streamflow_input_name(self):
         return self.data_cfgs["relevant_cols"][-1]
 
-    def _read_xyc_specified_time(self, start_date, end_date):
-        """Read x, y, c data from data source with specified time range
-        We set this function as sometimes we need adjust the time range for some specific dataset,
-        such as seq2seq dataset (it needs one more period for the end of the time range)
+    def _read_xyc_period(self, start_date, end_date):
+        """Override template method to handle HFDataset's specific time adjustment needs
+
+        HFDataset needs to adjust forcing data time range (extend backward) while keeping
+        target data time range unchanged for high-frequency forecasting scenarios.
 
         Parameters
         ----------
@@ -1467,57 +1560,63 @@ class HFDataset(BaseDataset):
             start time
         end_date : str
             end time
+
+        Returns
+        -------
+        dict
+            Dictionary containing relevant_cols, target_cols, and constant_cols data
         """
+        # Calculate adjusted start date for forcing data
         date_format = detect_date_format(start_date)
         time_unit = self.data_cfgs["min_time_unit"]
         start_date_dt = datetime.strptime(start_date, date_format)
+
         if time_unit == "h":
             adjusted_start_date = (start_date_dt - timedelta(hours=1)).strftime(
                 date_format
             )
-            adjusted_start_date_y = (
-                start_date_dt
-                + timedelta(hours=self.horizon * self.data_cfgs["min_time_interval"])
-            ).strftime(date_format)
         elif time_unit == "D":
             adjusted_start_date = (
                 start_date_dt - timedelta(days=self.data_cfgs["min_time_interval"])
             ).strftime(date_format)
-            adjusted_start_date_y = (
-                start_date_dt
-                + timedelta(days=self.horizon * self.data_cfgs["min_time_interval"])
-            ).strftime(date_format)
         else:
             raise ValueError(f"Unsupported time unit: {time_unit}")
+
+        # Read forcing data with adjusted start date
         data_forcing_ds_ = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             [adjusted_start_date, end_date],
             self.data_cfgs["relevant_cols"],
         )
-        # y
+
+        # Read target data with original time range
         data_output_ds_ = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             [start_date, end_date],
             self.data_cfgs["target_cols"],
         )
-        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
-            # this means the data source return a dict with key as time_unit
-            # in this BaseDataset, we only support unified time range for all basins, so we chose the first key
-            # TODO: maybe this could be refactored better
-            data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
-            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
+
+        # Handle dict format data sources (time_unit as key)
+        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
+        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
+
+        # Process unit conversion
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
             data_forcing_ds_, data_output_ds_
         )
-        # c
+
+        # Read attribute data
         data_attr_ds = self.data_source.read_attr_xrdataset(
             self.t_s_dict["sites_id"],
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
+
+        # Convert to DataArray with units
         x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, data_attr_ds
         )
+
         return {
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
             "target_cols": y_origin.transpose("basin", "time", "variable"),
@@ -2176,7 +2275,7 @@ class GNNDataset(FloodEventDataset):
             return None
 
     def _read_basin_station_data(self, basin_id, t_range):
-        """Read station data for a single basin"""
+        """Read station data for a single basin, supporting multi-period case"""
         try:
             # Get stations for this basin
             station_ids = self.data_source.get_stations_by_basin(basin_id)
@@ -2184,13 +2283,42 @@ class GNNDataset(FloodEventDataset):
             if not station_ids:
                 return None
 
-            # Read station time series data
-            station_data = self.data_source.read_station_ts_xrdataset(
-                station_id_lst=station_ids,
-                t_range=t_range,
-                var_lst=self.data_cfgs["station_cols"],
-                time_units=self.gnn_cfgs.get("station_time_units", ["1D"]),
-            )
+            # Handle multi-period case
+            if isinstance(t_range[0], (list, tuple)):
+                # Validate that each period has exactly 2 elements (start and end date)
+                for i, period in enumerate(t_range):
+                    if not isinstance(period, (list, tuple)) or len(period) != 2:
+                        raise ValueError(
+                            f"Period {i} must be a list/tuple with exactly 2 elements (start_date, end_date), got: {period}"
+                        )
+
+                # Multi-period case - read and concatenate data
+                all_station_data = None
+
+                for start_date, end_date in t_range:
+                    period_station_data = self.data_source.read_station_ts_xrdataset(
+                        station_id_lst=station_ids,
+                        t_range=[start_date, end_date],
+                        var_lst=self.data_cfgs["station_cols"],
+                        time_units=self.gnn_cfgs.get("station_time_units", ["1D"]),
+                    )
+
+                    if all_station_data is None:
+                        all_station_data = period_station_data
+                    else:
+                        all_station_data = xr.concat(
+                            [all_station_data, period_station_data], dim="time"
+                        )
+
+                station_data = all_station_data
+            else:
+                # Single period case (existing behavior)
+                station_data = self.data_source.read_station_ts_xrdataset(
+                    station_id_lst=station_ids,
+                    t_range=t_range,
+                    var_lst=self.data_cfgs["station_cols"],
+                    time_units=self.gnn_cfgs.get("station_time_units", ["1D"]),
+                )
 
             return self._process_station_xr_data(station_data)
 
@@ -2805,3 +2933,166 @@ class GNNDataset(FloodEventDataset):
             y = torch.tensor(y, dtype=torch.float)
 
         return sxc, y, edge_index, edge_weight  # edge_attr
+
+
+class AugmentedFloodEventDataset(FloodEventDataset):
+    """Dataset class for augmented flood event data with discontinuous time ranges.
+
+    This dataset is designed to handle flood event data that includes augmented
+    (generated) future data alongside historical data, where time ranges may be
+    discontinuous (e.g., historical data 1990-2010, then augmented data 2026+).
+
+    It connects to hydrodatasource.reader.floodevent.FloodEventDatasource
+    and uses the read_ts_xrdataset_augmented method to read augmented data.
+    """
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        """Initialize AugmentedFloodEventDataset
+
+        Parameters
+        ----------
+        cfgs : dict
+            Configuration dictionary containing data_cfgs, training_cfgs, evaluation_cfgs
+        is_tra_val_te : str
+            One of 'train', 'valid', or 'test'
+        """
+        super(AugmentedFloodEventDataset, self).__init__(cfgs, is_tra_val_te)
+
+        if not hasattr(self.data_source, "read_ts_xrdataset_augmented"):
+            raise ValueError(
+                "Data source must support read_ts_xrdataset_augmented method"
+            )
+
+    def _read_xyc_period(self, start_date, end_date):
+        """Override template method to read augmented flood event data for a specific period
+
+        This method leverages the parent class's multi-period handling while using
+        augmented data reading methods for generated future data.
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+
+        Returns
+        -------
+        dict
+            Dictionary containing relevant_cols, target_cols, and constant_cols data
+        """
+        return self._read_xyc_specified_time_augmented(start_date, end_date)
+
+    def _read_xyc_specified_time_augmented(self, start_date, end_date):
+        """Read x, y, c data from augmented data source with specified time range
+
+        This method uses the read_ts_xrdataset_augmented method from FloodEventDatasource
+        to read augmented flood event data, which may include future generated data.
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+
+        Returns
+        -------
+        dict
+            Dictionary containing relevant_cols, target_cols, and constant_cols data
+        """
+
+        try:
+            # Read forcing data using augmented method
+            data_forcing_ds_ = self.data_source.read_ts_xrdataset_augmented(
+                self.t_s_dict["sites_id"],
+                [start_date, end_date],
+                self.data_cfgs["relevant_cols"],
+            )
+
+            # Read target data using augmented method
+            data_output_ds_ = self.data_source.read_ts_xrdataset_augmented(
+                self.t_s_dict["sites_id"],
+                [start_date, end_date],
+                self.data_cfgs["target_cols"],
+            )
+
+        except AttributeError:
+            # Fallback to parent's standard method if augmented method not available
+            LOGGER.warning(
+                "read_ts_xrdataset_augmented not available, falling back to standard method"
+            )
+            data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+                self.t_s_dict["sites_id"],
+                [start_date, end_date],
+                self.data_cfgs["relevant_cols"],
+            )
+            data_output_ds_ = self.data_source.read_ts_xrdataset(
+                self.t_s_dict["sites_id"],
+                [start_date, end_date],
+                self.data_cfgs["target_cols"],
+            )
+
+        # Process data similar to parent class
+        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
+        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
+        )
+
+        # Read constant/attribute data (same as parent class)
+        data_attr_ds = self.data_source.read_attr_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.data_cfgs["constant_cols"],
+            all_number=True,
+        )
+
+        # Convert to DataArray with units
+        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
+            data_forcing_ds, data_output_ds, data_attr_ds
+        )
+
+        # TODO: Implement discontinuous time handling
+        # This would involve:
+        # 1. Creating a continuous time index for the full range
+        # 2. Reindexing the data to fill gaps with NaN
+        # 3. Ensuring proper alignment across all variables
+
+        return {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": (
+                c_origin.transpose("basin", "variable")
+                if c_origin is not None
+                else None
+            ),
+        }
+
+    def _handle_discontinuous_time_ranges(self, data_dict, start_date, end_date):
+        """Handle discontinuous time ranges by filling gaps with NaN values
+
+        TODO: This method needs to be implemented to handle cases where
+        training data covers 1990-2010, augmented data starts from 2026+,
+        and test data covers 2011-2025.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Dictionary containing xarray data
+        start_date : str
+            Overall start date
+        end_date : str
+            Overall end date
+
+        Returns
+        -------
+        dict
+            Dictionary with continuous time index and NaN-filled gaps
+        """
+        # TODO: Implementation needed
+        # 1. Create continuous time index from start_date to end_date
+        # 2. Reindex all data arrays to this continuous timeline
+        # 3. Fill missing periods with NaN values
+        # 4. Maintain proper coordinate structure
+
+        pass
