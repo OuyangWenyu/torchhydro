@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-08-06 17:28:19
+LastEditTime: 2025-08-06 18:17:30
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -2984,10 +2984,11 @@ class AugmentedFloodEventDataset(FloodEventDataset):
         return self._read_xyc_specified_time_augmented(start_date, end_date)
 
     def _read_xyc_specified_time_augmented(self, start_date, end_date):
-        """Read x, y, c data from augmented data source with specified time range
+        """Read x, y, c data from both historical and augmented data sources
 
-        This method uses the read_ts_xrdataset_augmented method from FloodEventDatasource
-        to read augmented flood event data, which may include future generated data.
+        This method reads both historical observed data (using read_ts_xrdataset)
+        and augmented future data (using read_ts_xrdataset_augmented), then
+        concatenates them along the time dimension to provide a complete dataset.
 
         Parameters
         ----------
@@ -3002,42 +3003,61 @@ class AugmentedFloodEventDataset(FloodEventDataset):
             Dictionary containing relevant_cols, target_cols, and constant_cols data
         """
 
+        # Read historical observed data using standard method
         try:
-            # Read forcing data using augmented method
-            data_forcing_ds_ = self.data_source.read_ts_xrdataset_augmented(
+            data_forcing_hist_ = self.data_source.read_ts_xrdataset(
                 self.t_s_dict["sites_id"],
                 [start_date, end_date],
                 self.data_cfgs["relevant_cols"],
             )
-
-            # Read target data using augmented method
-            data_output_ds_ = self.data_source.read_ts_xrdataset_augmented(
+            data_output_hist_ = self.data_source.read_ts_xrdataset(
                 self.t_s_dict["sites_id"],
                 [start_date, end_date],
                 self.data_cfgs["target_cols"],
             )
 
-        except AttributeError:
-            # Fallback to parent's standard method if augmented method not available
-            LOGGER.warning(
-                "read_ts_xrdataset_augmented not available, falling back to standard method"
-            )
-            data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            # Process historical data
+            data_forcing_hist_ = self._rm_timeunit_key(data_forcing_hist_)
+            data_output_hist_ = self._rm_timeunit_key(data_output_hist_)
+
+        except Exception as e:
+            LOGGER.warning(f"Failed to read historical data: {e}")
+            data_forcing_hist_ = None
+            data_output_hist_ = None
+
+        # Read augmented data using augmented method
+        try:
+            data_forcing_aug_ = self.data_source.read_ts_xrdataset_augmented(
                 self.t_s_dict["sites_id"],
                 [start_date, end_date],
                 self.data_cfgs["relevant_cols"],
             )
-            data_output_ds_ = self.data_source.read_ts_xrdataset(
+            data_output_aug_ = self.data_source.read_ts_xrdataset_augmented(
                 self.t_s_dict["sites_id"],
                 [start_date, end_date],
                 self.data_cfgs["target_cols"],
             )
 
-        # Process data similar to parent class
-        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
-        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
+            # Process augmented data
+            data_forcing_aug_ = self._rm_timeunit_key(data_forcing_aug_)
+            data_output_aug_ = self._rm_timeunit_key(data_output_aug_)
+
+        except Exception as e:
+            LOGGER.warning(f"Failed to read augmented data: {e}")
+            data_forcing_aug_ = None
+            data_output_aug_ = None
+
+        # Combine historical and augmented data
+        data_forcing_ds = self._combine_historical_and_augmented_data(
+            data_forcing_hist_, data_forcing_aug_, "forcing"
+        )
+        data_output_ds = self._combine_historical_and_augmented_data(
+            data_output_hist_, data_output_aug_, "target"
+        )
+
+        # Check and process combined data
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
-            data_forcing_ds_, data_output_ds_
+            data_forcing_ds, data_output_ds
         )
 
         # Read constant/attribute data (same as parent class)
@@ -3052,12 +3072,6 @@ class AugmentedFloodEventDataset(FloodEventDataset):
             data_forcing_ds, data_output_ds, data_attr_ds
         )
 
-        # TODO: Implement discontinuous time handling
-        # This would involve:
-        # 1. Creating a continuous time index for the full range
-        # 2. Reindexing the data to fill gaps with NaN
-        # 3. Ensuring proper alignment across all variables
-
         return {
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
             "target_cols": y_origin.transpose("basin", "time", "variable"),
@@ -3068,31 +3082,187 @@ class AugmentedFloodEventDataset(FloodEventDataset):
             ),
         }
 
+    def _combine_historical_and_augmented_data(self, hist_data, aug_data, data_type):
+        """Combine historical observed data and augmented generated data
+
+        This method concatenates historical and augmented data along the time dimension,
+        handling cases where data may be discontinuous or overlapping.
+
+        Parameters
+        ----------
+        hist_data : xr.Dataset or None
+            Historical observed data
+        aug_data : xr.Dataset or None
+            Augmented generated data
+        data_type : str
+            Type of data ("forcing" or "target") for logging purposes
+
+        Returns
+        -------
+        xr.Dataset
+            Combined dataset with historical and augmented data concatenated
+        """
+        import xarray as xr
+
+        # Handle cases where one or both data sources are None
+        if hist_data is None and aug_data is None:
+            raise ValueError(f"Both historical and augmented {data_type} data are None")
+        elif hist_data is None:
+            LOGGER.info(
+                f"No historical {data_type} data found, using only augmented data"
+            )
+            return aug_data
+        elif aug_data is None:
+            LOGGER.info(
+                f"No augmented {data_type} data found, using only historical data"
+            )
+            return hist_data
+
+        # Both datasets exist - need to combine them
+        try:
+            # Check if there's time overlap between datasets
+            hist_times = hist_data.time.values if "time" in hist_data.dims else []
+            aug_times = aug_data.time.values if "time" in aug_data.dims else []
+
+            if len(hist_times) == 0:
+                LOGGER.info(
+                    f"Historical {data_type} data has no time dimension, using only augmented data"
+                )
+                return aug_data
+            elif len(aug_times) == 0:
+                LOGGER.info(
+                    f"Augmented {data_type} data has no time dimension, using only historical data"
+                )
+                return hist_data
+
+            # Find overlap period
+            hist_start, hist_end = hist_times[0], hist_times[-1]
+            aug_start, aug_end = aug_times[0], aug_times[-1]
+
+            # Check for overlap
+            if hist_end < aug_start:
+                # No overlap - historical data ends before augmented data starts
+                LOGGER.info(
+                    f"No temporal overlap for {data_type} data, concatenating sequentially"
+                )
+                combined_data = xr.concat([hist_data, aug_data], dim="time")
+            elif aug_end < hist_start:
+                # No overlap - augmented data ends before historical data starts
+                LOGGER.info(
+                    f"Augmented {data_type} data precedes historical data, concatenating"
+                )
+                combined_data = xr.concat([aug_data, hist_data], dim="time")
+            else:
+                # There is overlap - need to handle carefully
+                LOGGER.info(
+                    f"Temporal overlap detected for {data_type} data, "
+                    f"merging with priority to historical data"
+                )
+
+                # Create time index for the full range
+                all_times = sorted(set(list(hist_times) + list(aug_times)))
+
+                # Reindex both datasets to the full time range
+                hist_reindexed = hist_data.reindex(time=all_times, method=None)
+                aug_reindexed = aug_data.reindex(time=all_times, method=None)
+
+                # Combine: use historical data where available, fill with augmented data
+                combined_data = hist_reindexed.where(
+                    ~hist_reindexed.isnull(), aug_reindexed
+                )
+
+            # Sort by time to ensure proper ordering
+            combined_data = combined_data.sortby("time")
+
+            LOGGER.info(
+                f"Successfully combined {data_type} data: "
+                f"historical shape {hist_data.dims if hasattr(hist_data, 'dims') else 'N/A'}, "
+                f"augmented shape {aug_data.dims if hasattr(aug_data, 'dims') else 'N/A'}, "
+                f"combined shape {combined_data.dims}"
+            )
+
+            return combined_data
+
+        except Exception as e:
+            LOGGER.error(f"Failed to combine {data_type} data: {e}")
+            # Fallback: prefer historical data if combination fails
+            LOGGER.warning(f"Falling back to historical {data_type} data only")
+            return hist_data
+
     def _handle_discontinuous_time_ranges(self, data_dict, start_date, end_date):
         """Handle discontinuous time ranges by filling gaps with NaN values
 
-        TODO: This method needs to be implemented to handle cases where
-        training data covers 1990-2010, augmented data starts from 2026+,
-        and test data covers 2011-2025.
+        This method creates a continuous time index and fills missing periods
+        with NaN values, handling cases such as training data covers 1990-2010,
+        augmented data starts from 2026+, and test data covers 2011-2025.
 
         Parameters
         ----------
         data_dict : dict
-            Dictionary containing xarray data
+            Dictionary containing xarray data with keys 'relevant_cols',
+            'target_cols', 'constant_cols'
         start_date : str
-            Overall start date
+            Overall start date for the continuous timeline
         end_date : str
-            Overall end date
+            Overall end date for the continuous timeline
 
         Returns
         -------
         dict
             Dictionary with continuous time index and NaN-filled gaps
         """
-        # TODO: Implementation needed
-        # 1. Create continuous time index from start_date to end_date
-        # 2. Reindex all data arrays to this continuous timeline
-        # 3. Fill missing periods with NaN values
-        # 4. Maintain proper coordinate structure
+        # Create continuous daily time index from start_date to end_date
+        try:
+            continuous_time = pd.date_range(start=start_date, end=end_date, freq="D")
+        except Exception as e:
+            LOGGER.warning(f"Failed to create continuous time index: {e}")
+            return data_dict
 
-        pass
+        # Process each data type (relevant_cols, target_cols)
+        processed_dict = {}
+
+        for data_key in ["relevant_cols", "target_cols"]:
+            if data_key in data_dict and data_dict[data_key] is not None:
+                original_data = data_dict[data_key]
+
+                try:
+                    # Check if data has time dimension
+                    if "time" not in original_data.dims:
+                        LOGGER.warning(
+                            f"{data_key} has no time dimension, skipping time alignment"
+                        )
+                        processed_dict[data_key] = original_data
+                        continue
+
+                    # Reindex to continuous time, filling gaps with NaN
+                    aligned_data = original_data.reindex(
+                        time=continuous_time,
+                        method=None,  # No interpolation, fill with NaN
+                        fill_value=float("nan"),
+                    )
+
+                    processed_dict[data_key] = aligned_data
+
+                    # Log information about the alignment
+                    original_time_points = len(original_data.time)
+                    aligned_time_points = len(aligned_data.time)
+                    nan_points = aligned_data.isnull().sum().sum().values
+
+                    LOGGER.info(
+                        f"{data_key}: aligned from {original_time_points} to "
+                        f"{aligned_time_points} time points, with {nan_points} "
+                        f"NaN values for discontinuous periods"
+                    )
+
+                except Exception as e:
+                    LOGGER.error(
+                        f"Failed to align {data_key} to continuous timeline: {e}"
+                    )
+                    processed_dict[data_key] = original_data
+            else:
+                processed_dict[data_key] = data_dict.get(data_key)
+
+        # Constant cols don't need time alignment
+        processed_dict["constant_cols"] = data_dict.get("constant_cols")
+
+        return processed_dict

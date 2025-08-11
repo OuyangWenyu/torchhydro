@@ -988,7 +988,7 @@ def flood_event_datasource_args() -> Any:
         frwin=20,
         min_time_unit="h",
         min_time_interval="3",
-        var_t=["net_rain"],
+        var_t=["rain"],
         t_rm_nan=False,
         var_c=["None"],
         c_rm_nan=False,
