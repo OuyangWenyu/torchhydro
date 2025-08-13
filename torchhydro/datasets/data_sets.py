@@ -828,6 +828,7 @@ class BaseDataset(Dataset):
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
+        print(type(data_attr_ds))
         x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, data_attr_ds
         )
@@ -3266,3 +3267,69 @@ class AugmentedFloodEventDataset(FloodEventDataset):
         processed_dict["constant_cols"] = data_dict.get("constant_cols")
 
         return processed_dict
+
+
+class AEFDataset(BaseDataset):
+    def _read_xyc_specified_time(self, start_date, end_date):
+        """Read x, y, c data from data source with specified time range
+        We set this function as sometimes we need adjust the time range for some specific dataset,
+        such as seq2seq dataset (it needs one more period for the end of the time range)
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+        """
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["relevant_cols"],
+        )
+        # y
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["target_cols"],
+        )
+        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
+        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
+        )
+        # c
+        csv_path = r'D:\work\torchhydro\data\basin_average_embeddings.csv'
+        df_embeddings = pd.read_csv(csv_path)
+        df_embeddings['hru_id'] = df_embeddings['hru_id'].astype(int).astype(str).str.lstrip('0')
+        target_ids = [site_id.lstrip('0') for site_id in self.t_s_dict["sites_id"]]
+        df_filtered = df_embeddings[df_embeddings['hru_id'].isin(target_ids)]
+        df_filtered = df_filtered.set_index('hru_id').reindex(target_ids).reset_index()
+        if len(df_filtered) != len(target_ids):
+            print("Warning: Not all basin IDs from self.t_s_dict['sites_id'] were found in the CSV.")
+        df_with_index = df_filtered.set_index('hru_id')
+        embeddings_data = df_with_index.values
+        c_data_vars = {
+            col: (('basin'), embeddings_data[:, i])
+            for i, col in enumerate([f'A{j:02d}' for j in range(64)])
+        }
+
+        c_origin = xr.Dataset(
+            c_data_vars,
+            coords={'basin': self.t_s_dict["sites_id"]}
+        )
+        df = c_origin.to_dataframe()
+        print(c_origin)
+        print(df.head())
+        x_origin, y_origin, c_origin_with_unit = self._to_dataarray_with_unit(
+            data_forcing_ds, data_output_ds, c_origin
+        )
+        return {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": (
+                c_origin_with_unit.transpose("basin", "variable")
+                if c_origin_with_unit is not None
+                else None
+            ),
+        }
