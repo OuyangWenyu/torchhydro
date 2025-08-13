@@ -363,7 +363,7 @@ class DeepHydro(DeepHydroInterface):
         tuple[dict, np.array, np.array]
             eval_log, denormalized predictions and observations
         """
-        self.model = self.load_model(mode="infer")
+        self.model = self.load_model(mode="infer").to(self.device)
         preds_xr, obss_xr = self.inference()
         return preds_xr, obss_xr
 
@@ -477,7 +477,7 @@ class DeepHydro(DeepHydroInterface):
                 _val_collate_fn = varied_length_collate_fn
             elif hasattr(self.validdataset, '__class__') and 'GNN' in self.validdataset.__class__.__name__:
                 _val_collate_fn = gnn_collate_fn
-                
+
             validation_data_loader = DataLoader(
                 self.validdataset,
                 batch_size=training_cfgs["batch_size"],
