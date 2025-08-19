@@ -100,10 +100,8 @@ class Resulter:
         None
         """
         save_dir = self.result_dir
-        #flow_pred_file = os.path.join(save_dir, self.pred_name)
-        flow_pred_file = r"D:\work\torchhydro\experiments\results\camels\simplelstm_DapengScaler_128_0.4_ens_01\epochbest_model.pthflow_pred"
-        #flow_obs_file = os.path.join(save_dir, self.obs_name)
-        flow_obs_file = r"D:\work\torchhydro\experiments\results\camels\simplelstm_DapengScaler_128_0.4_ens_01\epochbest_model.pthflow_obs"
+        flow_pred_file = os.path.join(save_dir, self.pred_name)
+        flow_obs_file = os.path.join(save_dir, self.obs_name)
         max_len = max(len(basin) for basin in pred.basin.values)
         encoding = {"basin": {"dtype": f"U{max_len}"}}
         pred.to_netcdf(flow_pred_file + ".nc", encoding=encoding)
