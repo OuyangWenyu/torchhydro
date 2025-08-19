@@ -1,0 +1,44 @@
+base_cfgs:
+  device: -1
+  seq_first: True
+  batch_size: 24
+  variable_length_cfgs:
+    use_variable_length: True
+    variable_length_type: dynamic
+    fixed_lengths: null
+    pad_strategy: Pad
+
+model_cfgs:
+  model_name: SimpleLSTM
+  weight_path: /path/to/weights.pth
+  model_hyperparam:
+    input_size: 2
+    output_size: 1
+    hidden_size: 128
+
+data_cfgs:
+  source_cfgs:
+    source_name: SimpleDataset
+    source_path: /path/to/data
+    other_settings: {}
+  target_cols: ["streamflow"]
+  relevant_cols: ["precipitation"]
+  target_as_input: False
+  constant_only: False
+  object_ids: ["songliao_20800900"]
+  t_range_test: ["2020-01-01", "2020-12-31"]
+  min_time_unit: h
+  min_time_interval: 3
+  stat_dict_file: /path/to/stat_dict.json
+
+training_cfgs:
+  rho: 0
+  horizon: 30
+  warmup_length: 0
+  valid_batch_mode: train
+
+evaluation_cfgs:
+  rolling: 1
+  frwin: 30
+  hrwin: 0
+
