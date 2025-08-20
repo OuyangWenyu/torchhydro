@@ -7,3 +7,7 @@ def test_simulate_lstmfloodevents():
         config = yaml.safe_load(f)
     tester = UnifiedTester(config)
     obs_xr, pred_xr = tester.simulate()
+
+
+if __name__ == "__main__":
+    test_simulate_lstmfloodevents()

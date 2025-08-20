@@ -29,7 +29,7 @@ class UnifiedDataLoader:
             raise NotImplementedError(
                 f"Unsupported dataset: {self.cfgs['data_cfgs']['dataset']}"
             )
-        self.dataset = datasets_dict[self.cfgs["data_cfgs"]["dataset_name"]](
+        self.dataset = datasets_dict[self.cfgs["data_cfgs"]["dataset"]](
             self.cfgs, "test"
         )
 

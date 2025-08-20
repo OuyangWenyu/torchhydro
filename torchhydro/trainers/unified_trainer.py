@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List
 
 import numpy as np
@@ -19,39 +20,48 @@ class UnifiedSimulator:
         self.model_cfgs = model_cfgs
         self.base_cfgs = base_cfgs
         self.model = self._load_model()
-        self.model.eval()
 
     def _load_model(self):
         weight_path = self.model_cfgs["weight_path"]
         model_name = self.model_cfgs["model_name"]
         model = pytorch_model_dict[model_name](**self.model_cfgs["model_hyperparam"])
-        device_map = "cpu" if self.base_cfgs["device"] == -1 else f"cuda:{self.base_cfgs["device"]}"
+        device_map = (
+            "cpu"
+            if self.base_cfgs["device"] == -1
+            else f"cuda:{self.base_cfgs['device']}"
+        )
         checkpoint = torch.load(weight_path, map_location=device_map)
         model.load_state_dict(checkpoint)
+        model = model.to(device_map)
+        model.eval()
+        self.device = torch.device(device_map)
         print("Weights sucessfully loaded")
         return model
 
     def simulate(self, inputs):
-        inputs = torch.from_numpy(inputs).float().to(self.model.device)
         seq_first = self.base_cfgs["seq_first"]
-        device = self.model.device
+        device = self.device
         model = self.model
         variable_length_cfgs = self.base_cfgs["variable_length_cfgs"]
         with torch.no_grad():
-            targets, outputs = model_infer(seq_first, device, model, inputs, variable_length_cfgs)
+            targets, outputs = model_infer(
+                seq_first, device, model, inputs, variable_length_cfgs
+            )
         return targets, outputs
-    
+
+
 class UnifiedTester:
     """
     Unified testing interface for different data sources and models.
     Similar with UnifiedModelSetup in Hydromodel
     """
+
     def __init__(self, cfgs):
         self.cfgs = cfgs
+        case_dir = self.cfgs["data_cfgs"]["case_dir"]
+        os.makedirs(case_dir, exist_ok=True)
         self.data_loader = UnifiedDataLoader(cfgs)
-        self.simulator = UnifiedSimulator(
-            cfgs["model_cfgs"], cfgs["base_cfgs"]
-        )
+        self.simulator = UnifiedSimulator(cfgs["model_cfgs"], cfgs["base_cfgs"])
 
     def simulate(self):
         """infer using trained model and unnormalized results"""
@@ -69,7 +79,7 @@ class UnifiedTester:
                 obss.append(ys.cpu())
                 if i % 100 == 0:
                     torch.cuda.empty_cache()
-            pred = torch.cat(test_preds, dim=0).numpy()  
+            pred = torch.cat(test_preds, dim=0).numpy()
             obs = torch.cat(obss, dim=0).numpy()
         if pred.ndim == 2:
             # TODO: check
