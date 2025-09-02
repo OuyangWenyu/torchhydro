@@ -16,6 +16,8 @@ import numpy as np
 from torchhydro.configs.config import default_config_file, update_cfg
 from torchhydro.datasets.data_sources import data_sources_dict
 from torchhydro.trainers.deep_hydro import DeepHydro
+from torchhydro.configs.config import update_cfg
+from torchhydro.trainers.trainer import train_and_evaluate
 
 
 def test_flood_event_datasource_in_dict():
@@ -259,3 +261,8 @@ def test_data_source_description(flood_event_datasource_args):
     # Test that data source has expected attributes
     assert hasattr(data_source, "dataset_name")
     assert data_source.dataset_name == "songliaorrevents"
+
+def test_train_evaluate(flood_event_datasource_args):
+    config = default_config_file()
+    update_cfg(config, flood_event_datasource_args)
+    train_and_evaluate(config)

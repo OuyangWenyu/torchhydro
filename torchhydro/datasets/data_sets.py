@@ -3022,7 +3022,7 @@ class AugmentedFloodEventDataset(FloodEventDataset):
             data_output_hist_ = self._rm_timeunit_key(data_output_hist_)
 
         except Exception as e:
-            LOGGER.warning(f"Failed to read historical data: {e}")
+            LOGGER.info(f"无法读取历史数据，可能是时间范围不在历史数据中: {e}")
             data_forcing_hist_ = None
             data_output_hist_ = None
 
@@ -3044,7 +3044,7 @@ class AugmentedFloodEventDataset(FloodEventDataset):
             data_output_aug_ = self._rm_timeunit_key(data_output_aug_)
 
         except Exception as e:
-            LOGGER.warning(f"Failed to read augmented data: {e}")
+            LOGGER.info(f"无法读取增强数据，可能是时间范围不在增强数据中: {e}")
             data_forcing_aug_ = None
             data_output_aug_ = None
 
