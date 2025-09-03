@@ -957,7 +957,7 @@ def selfmadehydrodataset_dpl4xaj_args() -> Any:
 @pytest.fixture()
 def flood_event_datasource_args() -> Any:
     """Configuration for FloodEventDatasource with enhanced data support"""
-    project_name = os.path.join("test_flood_event_datasource", "exp1")
+    project_name = os.path.join("test_flood_event_datasource", "exp4")
     data_dir = SETTING["local_data_path"]["datasets-interim"]
     source_path = os.path.join(data_dir, "songliaorrevent")
     DEVICE = -1
@@ -1004,9 +1004,12 @@ def flood_event_datasource_args() -> Any:
         train_epoch=2,
         save_epoch=1,
         model_loader={"load_way": "specified", "test_epoch": 2},
-        train_period=[["1980-01-01", "2010-12-31"], ["2026-07-01", "2194-09-31"]],
-        valid_period=["2011-01-01", "2015-12-31"],
-        test_period=["2016-01-01", "2020-12-31"],
+        train_period=[
+            ["1980-01-01-02", "2019-12-30-23"],
+            ["2026-07-01-02", "2262-12-30-23"],
+        ],
+        valid_period=["2020-01-01-02", "2024-12-30-23"],
+        test_period=["2020-01-01-02", "2024-12-30-23"],
         loss_func="FloodLoss",
         loss_param={
             "loss_func": "MSELoss",

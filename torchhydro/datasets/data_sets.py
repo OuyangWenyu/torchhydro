@@ -160,12 +160,39 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
 
 
 def detect_date_format(date_str):
+    """
+    检测日期格式，支持单个字符串或字符串列表
+
+    Parameters
+    ----------
+    date_str : str or list
+        日期字符串或日期字符串列表
+
+    Returns
+    -------
+    str
+        检测到的日期格式
+    """
+    # 如果输入是列表，使用第一个元素
+    if isinstance(date_str, (list, tuple)):
+        if not date_str:  # 如果列表为空
+            raise ValueError("Empty date list")
+        date_str = date_str[0]  # 使用第一个日期字符串
+
+    # 确保输入是字符串
+    if not isinstance(date_str, str):
+        raise ValueError(
+            f"Date must be string or list of strings, got {type(date_str)}"
+        )
+
+    # 尝试不同的日期格式
     for date_format in DATE_FORMATS:
         try:
             datetime.strptime(date_str, date_format)
             return date_format
         except ValueError:
             continue
+
     raise ValueError(f"Unknown date format: {date_str}")
 
 
@@ -322,11 +349,47 @@ class BaseDataset(Dataset):
             latest_date = self.t_s_dict["t_final_range"][1]
         min_time_unit = self.data_cfgs["min_time_unit"]
         min_time_interval = self.data_cfgs["min_time_interval"]
-        time_step = f"{min_time_interval}{min_time_unit}"
-        s_date = pd.to_datetime(earliest_date)
-        e_date = pd.to_datetime(latest_date)
-        time_series = pd.date_range(start=s_date, end=e_date, freq=time_step)
-        return len(time_series)
+
+        # 计算时间步长（以小时为单位）
+        unit_to_hours = {
+            "h": 1,
+            "H": 1,
+            "d": 24,
+            "D": 24,
+            "m": 1 / 60,
+            "M": 1 / 60,
+            "s": 1 / 3600,
+            "S": 1 / 3600,
+        }
+        hours_per_step = min_time_interval * unit_to_hours.get(min_time_unit, 1)
+
+        # 解析时间字符串
+        date_format = detect_date_format(
+            earliest_date[0]
+            if isinstance(earliest_date, (list, tuple))
+            else earliest_date
+        )
+
+        # 获取开始和结束时间
+        if isinstance(earliest_date, (list, tuple)):
+            s_date = datetime.strptime(
+                earliest_date[0], date_format
+            )  # 使用第一个元素作为开始时间
+        else:
+            s_date = datetime.strptime(earliest_date, date_format)
+
+        if isinstance(latest_date, (list, tuple)):
+            e_date = datetime.strptime(
+                latest_date[-1], date_format
+            )  # 使用最后一个元素作为结束时间
+        else:
+            e_date = datetime.strptime(latest_date, date_format)
+
+        # 计算总小时数
+        total_hours = (e_date - s_date).total_seconds() / 3600
+
+        # 计算时间步数
+        return int(total_hours / hours_per_step) + 1
 
     @property
     def basins(self):
@@ -491,14 +554,25 @@ class BaseDataset(Dataset):
         target_data = target_scaler.data_target
         # the units are dimensionless for pure DL models
         units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
-        if target_scaler.pbm_norm:
-            units = {**units, **target_data.attrs["units"]}
         # mainly to get information about the time points of norm_data
         selected_time_points = self._selected_time_points_for_denorm()
         selected_data = target_data.sel(time=selected_time_points)
 
+        # 处理三维数据 (basin, time, variable)
+        if norm_data.ndim == 3:
+            coords = {
+                "basin": selected_data.coords["basin"],
+                "time": selected_data.coords["time"],
+                "variable": selected_data.coords["variable"],
+            }
+            dims = ["basin", "time", "variable"]
+            if norm_data.shape[1] != len(selected_data.coords["time"]):
+                norm_data_3d = norm_data[:, selected_time_points, :]
+            else:
+                norm_data_3d = norm_data
+
         # 处理四维数据
-        if norm_data.ndim == 4:
+        elif norm_data.ndim == 4:
             # Check if the data is organized by basins
             if self.evaluation_cfgs["evaluator"]["recover_mode"] == "bybasins":
                 # Shape: (basin_num, i_e_time_length, forecast_length, nf)
@@ -725,9 +799,18 @@ class BaseDataset(Dataset):
                 else:
                     # Concatenate along time dimension
                     for key in period_data:
-                        all_data[key] = xr.concat(
-                            [all_data[key], period_data[key]], dim="time"
-                        )
+                        # 确保两个数据集的时间维度都是字符串类型
+                        if all_data[key] is not None and period_data[key] is not None:
+                            if not isinstance(all_data[key].time.values[0], str):
+                                all_data[key]["time"] = all_data[key].time.astype(str)
+                            if not isinstance(period_data[key].time.values[0], str):
+                                period_data[key]["time"] = period_data[key].time.astype(
+                                    str
+                                )
+
+                            all_data[key] = xr.concat(
+                                [all_data[key], period_data[key]], dim="time"
+                            )
             return all_data
         else:
             # Single period case (existing behavior)
@@ -3005,16 +3088,19 @@ class AugmentedFloodEventDataset(FloodEventDataset):
         """
 
         # Read historical observed data using standard method
+        relevant_cols = self.data_cfgs.get("relevant_cols", ["rain"])
+        target_cols = self.data_cfgs.get("target_cols", ["inflow", "flood_event"])
+
         try:
             data_forcing_hist_ = self.data_source.read_ts_xrdataset(
                 self.t_s_dict["sites_id"],
                 [start_date, end_date],
-                self.data_cfgs["relevant_cols"],
+                relevant_cols,
             )
             data_output_hist_ = self.data_source.read_ts_xrdataset(
                 self.t_s_dict["sites_id"],
                 [start_date, end_date],
-                self.data_cfgs["target_cols"],
+                target_cols,
             )
 
             # Process historical data
@@ -3031,12 +3117,12 @@ class AugmentedFloodEventDataset(FloodEventDataset):
             data_forcing_aug_ = self.data_source.read_ts_xrdataset_augmented(
                 self.t_s_dict["sites_id"],
                 [start_date, end_date],
-                self.data_cfgs["relevant_cols"],
+                relevant_cols,
             )
             data_output_aug_ = self.data_source.read_ts_xrdataset_augmented(
                 self.t_s_dict["sites_id"],
                 [start_date, end_date],
-                self.data_cfgs["target_cols"],
+                target_cols,
             )
 
             # Process augmented data
@@ -3299,25 +3385,26 @@ class AEFDataset(BaseDataset):
             data_forcing_ds_, data_output_ds_
         )
         # c
-        csv_path = r'D:\work\torchhydro\data\basin_average_embeddings.csv'
+        csv_path = r"D:\work\torchhydro\data\basin_average_embeddings.csv"
         df_embeddings = pd.read_csv(csv_path)
-        df_embeddings['hru_id'] = df_embeddings['hru_id'].astype(int).astype(str).str.lstrip('0')
-        target_ids = [site_id.lstrip('0') for site_id in self.t_s_dict["sites_id"]]
-        df_filtered = df_embeddings[df_embeddings['hru_id'].isin(target_ids)]
-        df_filtered = df_filtered.set_index('hru_id').reindex(target_ids).reset_index()
+        df_embeddings["hru_id"] = (
+            df_embeddings["hru_id"].astype(int).astype(str).str.lstrip("0")
+        )
+        target_ids = [site_id.lstrip("0") for site_id in self.t_s_dict["sites_id"]]
+        df_filtered = df_embeddings[df_embeddings["hru_id"].isin(target_ids)]
+        df_filtered = df_filtered.set_index("hru_id").reindex(target_ids).reset_index()
         if len(df_filtered) != len(target_ids):
-            print("Warning: Not all basin IDs from self.t_s_dict['sites_id'] were found in the CSV.")
-        df_with_index = df_filtered.set_index('hru_id')
+            print(
+                "Warning: Not all basin IDs from self.t_s_dict['sites_id'] were found in the CSV."
+            )
+        df_with_index = df_filtered.set_index("hru_id")
         embeddings_data = df_with_index.values
         c_data_vars = {
-            col: (('basin'), embeddings_data[:, i])
-            for i, col in enumerate([f'A{j:02d}' for j in range(64)])
+            col: (("basin"), embeddings_data[:, i])
+            for i, col in enumerate([f"A{j:02d}" for j in range(64)])
         }
 
-        c_origin = xr.Dataset(
-            c_data_vars,
-            coords={'basin': self.t_s_dict["sites_id"]}
-        )
+        c_origin = xr.Dataset(c_data_vars, coords={"basin": self.t_s_dict["sites_id"]})
         df = c_origin.to_dataframe()
         print(c_origin)
         print(df.head())

@@ -428,12 +428,59 @@ class DeepHydro(DeepHydroInterface):
             **criterion_init_params
         )
 
+    def _flood_event_collate_fn(self, batch):
+        """自定义的洪水事件 collate 函数，确保所有样本长度一致"""
+
+        # 找到这个批次中最长的序列长度
+        max_len = max(tensor_data[0].shape[0] for tensor_data in batch)
+        
+        # 调整所有样本到相同长度
+        processed_batch = []
+        for tensor_data in batch:
+            # 获取x和y（假设tensor_data[0]是x，tensor_data[1]是y）
+            x = tensor_data[0]
+            y = tensor_data[1] if len(tensor_data) > 1 else None
+            
+            current_len = x.shape[0]
+            if current_len < max_len:
+                # 使用最后一个值填充x
+                padding_x = x[-1:].repeat(max_len - current_len, 1)
+                padded_x = torch.cat([x, padding_x], dim=0)
+                
+                # 如果有y，也进行填充
+                if y is not None:
+                    padding_y = y[-1:].repeat(max_len - current_len, 1)
+                    padded_y = torch.cat([y, padding_y], dim=0)
+                else:
+                    padded_y = None
+            else:
+                # 如果更长则截断
+                padded_x = x[:max_len]
+                padded_y = y[:max_len] if y is not None else None
+            
+            if padded_y is not None:
+                processed_batch.append((padded_x, padded_y))
+            else:
+                processed_batch.append(padded_x)
+        
+        # 根据数据结构返回堆叠后的结果
+        if len(processed_batch) > 0 and isinstance(processed_batch[0], tuple):
+            return (
+                torch.stack([x for x, _ in processed_batch], 0),
+                torch.stack([y for _, y in processed_batch], 0)
+            )
+        else:
+            return torch.stack(processed_batch, 0)
+
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         if mode == "infer":
             _collate_fn = None
             # Use GNN collate function for GNN datasets in inference mode
             if hasattr(self.testdataset, '__class__') and 'GNN' in self.testdataset.__class__.__name__:
                 _collate_fn = gnn_collate_fn
+            # 使用自定义的 collate 函数处理 FloodEventDataset
+            elif hasattr(self.testdataset, '__class__') and 'FloodEvent' in self.testdataset.__class__.__name__:
+                _collate_fn = self._flood_event_collate_fn
             return DataLoader(
                 self.testdataset,
                 batch_size=training_cfgs["batch_size"],
