@@ -4,9 +4,9 @@ from collections import OrderedDict
 
 from hydroutils import find_flood_event_segments_as_tuples
 from joblib.testing import param
-
 from hydromodel.models.model_dict import MODEL_DICT
 from hydromodel.core.basin import Basin
+from torchhydro.models.registry import register_model
 
 
 ModelResult = np.ndarray | tuple[Any, ...]
@@ -86,6 +86,8 @@ def get_model_output_names(model_name, return_state=False):
         model_name, ["output_0", "output_1", "output_2"]
     )  # fallback names
 
+
+@register_model("traditional")
 class TraditionalModel:
     """
     传统水文模型接口

@@ -1,14 +1,20 @@
-from typing import Dict, Any
-from traditional_model import TraditionalModel
-
+from typing import Dict, Any, Type
+from torchhydro.models.traditional_model import TraditionalModel
+from torchhydro.models.registry import MODEL_REGISTRY
 # We need to handle the case where torch is not installed
 try:
-    from hydromodel.core.torch_model import PytorchModel
+    from torch_model import PytorchModel
 
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
 
+def register_model(name: str):
+    """装饰器：把模型类注册到 MODEL_REGISTRY"""
+    def decorator(cls):
+        MODEL_REGISTRY[name] = cls
+        return cls
+    return decorator
 
 def model_factory(model_config: Dict[str, Any], basin_config: Any = None) -> Any:
     """
@@ -22,17 +28,11 @@ def model_factory(model_config: Dict[str, Any], basin_config: Any = None) -> Any
     Returns:
         An instance of a model wrapper (e.g., TraditionalModel, PytorchModel).
     """
-    model_type = model_config.get("type")  # Default to traditional for backward compatibility
+    model_type = model_config.get("type", "traditional") # Default to traditional for backward compatibility
 
-    if model_type == "pytorch":
-        if not TORCH_AVAILABLE:
-            raise ImportError("PyTorch is not installed. Please install it to use PyTorch models.")
-        # Note: The PytorchModel class needs to be defined and accessible.
-        # This assumes it's in the specified path.
-        return PytorchModel(model_config, basin_config)
+    if model_type not in MODEL_REGISTRY:
+        raise ValueError(f"Unknown model type: {model_type}. "
+                         f"Available models: {list(MODEL_REGISTRY.keys())}")
 
-    elif model_type == "traditional":
-        return TraditionalModel(model_config, basin_config)
-
-    else:
-        raise ValueError(f"Unknown model type: {model_type}")
+    model_class = MODEL_REGISTRY[model_type]
+    return model_class(model_config, basin_config)
