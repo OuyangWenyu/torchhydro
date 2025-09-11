@@ -9,12 +9,6 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
 
-def register_model(name: str):
-    """装饰器：把模型类注册到 MODEL_REGISTRY"""
-    def decorator(cls):
-        MODEL_REGISTRY[name] = cls
-        return cls
-    return decorator
 
 def model_factory(model_config: Dict[str, Any], basin_config: Any = None) -> Any:
     """

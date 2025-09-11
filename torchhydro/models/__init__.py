@@ -3,7 +3,9 @@ Author: Wenyu Ouyang
 Date: 2023-07-11 17:39:09
 LastEditTime: 2023-07-11 20:40:37
 LastEditors: Wenyu Ouyang
-Description: 
+Description:
 FilePath: \HydroTL\hydrotl\models\__init__.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+from .traditional_model import TraditionalModel
+from .torch_model import PytorchModel

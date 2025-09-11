@@ -1,6 +1,7 @@
 import numpy as np
 from typing import Dict, Any, Optional
-from model_factory import register_model
+from torchhydro.models.registry import register_model
+from torchhydro.models.simple_lstm import SimpleLSTM
 
 try:
     import torch
@@ -31,8 +32,6 @@ class PytorchModel:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self._load_model(self.model_path)
-        self.model.to(self.device)
-        self.model.eval()
 
     def _load_model(self, model_path: str) -> torch.nn.Module:
         """
@@ -47,12 +46,28 @@ class PytorchModel:
         try:
             # Load the model. The file should contain the model state_dict or the whole model.
             # For simplicity, we assume the whole model is saved.
-            model = torch.load(model_path, map_location=self.device)
-            if isinstance(model, dict):
-                # If it's a state dict, we need to know the model architecture
-                # The user stated "do not need to pay attention to the specific structure of the model"
-                # So we assume the user saves the whole model
-                raise ValueError("Loading a model from a state_dict is not supported without knowing the model architecture.")
+            model_params = self.model_config.get("model_params", {})
+            input_size = model_params.get("input_size")
+            hidden_size = model_params.get("hidden_size")
+            output_size = model_params.get("out_size")
+            dropout = model_params.get("dropout", 0.0)
+
+            if input_size is None or hidden_size is None or output_size is None:
+                raise ValueError(
+                    "'model_params' must contain 'input_size', 'hidden_size', 'output_size'"
+                )
+
+            model = SimpleLSTM(
+                input_size=input_size,
+                hidden_size=hidden_size,
+                output_size=output_size,
+                dr=dropout
+            ).to(self.device)
+
+            state_dict = torch.load(model_path, map_location=self.device)
+            model.load_state_dict(state_dict)
+            model.eval()
+
             return model
         except Exception as e:
             raise IOError(f"Error loading PyTorch model from {model_path}: {e}")
