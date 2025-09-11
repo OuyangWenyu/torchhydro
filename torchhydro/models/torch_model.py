@@ -49,7 +49,7 @@ class PytorchModel:
             model_params = self.model_config.get("model_params", {})
             input_size = model_params.get("input_size")
             hidden_size = model_params.get("hidden_size")
-            output_size = model_params.get("out_size")
+            output_size = model_params.get("output_size")
             dropout = model_params.get("dropout", 0.0)
 
             if input_size is None or hidden_size is None or output_size is None:
@@ -98,16 +98,17 @@ class PytorchModel:
             Dict[str, Any]: A dictionary containing the simulation results.
         """
         with torch.no_grad():
-            # Convert numpy array to torch tensor
-            input_tensor = torch.from_numpy(inputs).float().to(self.device)
+            time_steps, n_basins, n_features = inputs.shape
 
-            # Assume the model returns a tensor of shape [time, basin, 1]
-            qsim_tensor = self.model(input_tensor)
+            input_tensor = torch.from_numpy(inputs).float().to(self.device)   # torch tensor: [time, basin, features]
 
-            # Convert the output tensor back to a numpy array
-            qsim = qsim_tensor.cpu().numpy()
+            y_seq = self.model(input_tensor)  # (time, basin, output_size)
+
+            # 转成 numpy
+            qsim = y_seq.cpu().numpy()
 
         return {
-            "qsim": qsim,
+            "qsim": qsim,  # shape: (time_steps, n_basins, output_size)
             "qobs": qobs,
         }
+
