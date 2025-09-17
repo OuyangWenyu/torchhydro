@@ -513,6 +513,43 @@ def get_preds_to_be_eval(
         preds_xr = valte_dataset.denormalize(pred)
         obss_xr = valte_dataset.denormalize(obs)
 
+    def _align_and_order(_obs, _pred):
+        # 对齐到公共 (basin,time,variable) 的交集，避免 outer 引入 NaN
+        _obs, _pred = xr.align(_obs, _pred, join="inner")
+        # time 维为空（无交集）时直接抛错，避免进入 nanmean
+        if _obs.sizes.get("time", 0) == 0:
+            raise ValueError(
+                "No overlapping timestamps between observations and predictions "
+                f"(obs.time len={_obs.sizes.get('time',0)}, pred.time len={_pred.sizes.get('time',0)})."
+            )
+        # 按时间排序（保险）
+        if "time" in _obs.dims:
+            _obs = _obs.sortby("time")
+        if "time" in _pred.dims:
+            _pred = _pred.sortby("time")
+        # 规范维度顺序（若存在）
+        wanted = [d for d in ("basin", "time", "variable") if d in _obs.dims]
+        _obs = _obs.transpose(*wanted, missing_dims="ignore")
+        _pred = _pred.transpose(*wanted, missing_dims="ignore")
+        return _obs, _pred
+
+    # 单对象 vs 列表分别处理
+    if preds_xr is not None and obss_xr is not None:
+        obss_xr, preds_xr = _align_and_order(obss_xr, preds_xr)
+        return obss_xr, preds_xr
+
+    elif preds_xr_list is not None and obss_xr_list is not None:
+        obss_aligned, preds_aligned = [], []
+        for _o, _p in zip(obss_xr_list, preds_xr_list):
+            _o2, _p2 = _align_and_order(_o, _p)
+            obss_aligned.append(_o2)
+            preds_aligned.append(_p2)
+        return obss_aligned, preds_aligned
+
+    else:
+        # 理论不应走到这
+        raise RuntimeError("Failed to build preds_xr / obss_xr for evaluation.")
+
     return obss_xr, preds_xr
 
 

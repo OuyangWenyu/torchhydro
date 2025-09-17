@@ -13,12 +13,11 @@ import os.path
 import pandas as pd
 
 import sys
-#sys.path.append(r"C:\Users\Pengfei Qu\Desktop\torchhydro")
 from pathlib import Path
 from hydrodatasource.reader.data_source import SelfMadeHydroDataset
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-from hydrodataset.camels import Camels
+from hydrodataset.camelshourly import CamelsHourly
 #from hydrodataset.camels_aef import CamelsAef
 
 # Get the project directory of the py file
@@ -26,17 +25,18 @@ from hydrodataset.camels import Camels
 # import the module using a relative path
 sys.path.append(os.path.dirname(Path(os.path.abspath(__file__)).parent))
 
-hru_delete = "02"
+hru_delete = "01"
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-camels_dir = os.path.join("/Users/cylenlc", "data", "camels_us")
-camels = Camels(camels_dir)
+camels_dir = os.path.join("/Users/cylenlc/data/camels_hourly")
+camels = CamelsHourly(camels_dir)
 # gage_id = camels.read_site_info()["gauge_id"].values.tolist()
-gage_id = ['14301000']
+gage_id = ['01022500', '01031500']
+
 gage_id = sorted([x for x in gage_id])
 
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"
@@ -64,17 +64,29 @@ def config():
         #project_dir="D:\\torchhydro\\text2attr",
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_us",
+            "source_name": "camels_hourly",
             "source_path": camels_dir,
             "other_settings": {"download": False, "region": "US"},
         },
-        ctx=[1],
-        model_name="SimpleLSTM",
+        ctx=[0],
+        model_name="MTSLSTM",
         model_hyperparam={
-            "input_size": 24,
+            "input_sizes": 28,  # 只给一个数即可（会扩展成两频：周/日）
+            "hidden_sizes": [64, 64],
             "output_size": 1,
-            "hidden_size": 128,
-            "dr": 0.4,
+            "shared_mtslstm": False,
+            "transfer": "linear",
+            "dropout": 0.1,
+            "return_all": False,
+
+            # 关键：自动构造低频 + 切片传递
+            "auto_build_lowfreq": True,
+            "build_factor": 7,  # 7天一周
+            "agg_reduce": "mean",  # 或 "sum"；也可给 per_feature_aggs
+            # "per_feature_aggs": ["sum","mean",...],  # 长度==28（可选）
+            "truncate_incomplete": True,
+            "slice_transfer": True,
+            "slice_use_ceil": True,
         },
         model_loader={"load_way": "best"},
         # gage_id=gage_id[5000:5009],
@@ -88,7 +100,19 @@ def config():
         forecast_length=365,
         min_time_unit="D",
         min_time_interval=1,
-        var_t=["prcp", "dayl", "srad", "tmax", "tmin", "vp", "PET"],
+        var_t=[
+                "convective_fraction",
+                "longwave_radiation",
+                "potential_energy",
+                "potential_evaporation",
+                "pressure",
+                "shortwave_radiation",
+                "specific_humidity",
+                "temperature",
+                "total_precipitation",
+                "wind_u",
+                "wind_v",
+            ],
         scaler_params={
             "prcp_norm_cols": [
                 # "streamflow_input",
@@ -118,13 +142,13 @@ def config():
         ],
         # scaler="DapengScaler",
         scaler=scaler,
-        var_out=["streamflow"],
-        dataset="StreamflowDataset",
+        var_out=["qobs_mm_per_hour"],
+        dataset="CamelsHourlyDataset",
         train_epoch=20,
         save_epoch=1,
-        train_period=["1980-01-01", "2004-12-31"],
-        valid_period=["2005-01-01", "2009-12-31"],
-        test_period=["2010-01-01", "2014-12-31"],
+        train_period=["1990-01-01", "1991-12-31"],
+        valid_period=["1990-01-01", "1991-12-31"],
+        test_period=["1990-01-01", "1991-12-31"],
         # train_period=["1980-01-01", "1981-12-31"],
         # valid_period=["2010-01-01", "2013-12-31"],
         # test_period=["2014-01-01", "2015-12-31"],

@@ -173,6 +173,8 @@ def _trans_norm(
     out = xr.full_like(x, np.nan)
     for item in var_lst:
         stat = stat_dict[item]
+        arr = x.sel(variable=item).to_numpy()
+        print(f"[DEBUG] {item}: mean={stat[2]}, std={stat[3]}, arr_sample={arr[:10]}")
         if to_norm:
             out.loc[dict(variable=item)] = (
                 (np.log10(np.sqrt(np.abs(x.sel(variable=item))) + 0.1) - stat[2])
