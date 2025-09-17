@@ -23,7 +23,8 @@ from torchhydro.datasets.data_sets import (
     GNNDataset,
     FloodEventDataset,
     AugmentedFloodEventDataset,
-    AEFDataset
+    AEFDataset,
+    CamelsHourlyDataset
 )
 
 
@@ -43,4 +44,5 @@ datasets_dict = {
     "FloodEventDplDataset": FloodEventDplDataset,
     "AugmentedFloodEventDataset": AugmentedFloodEventDataset,
     "AlphaEarthDataset": AEFDataset,
+    "CamelsHourlyDataset": CamelsHourlyDataset,
 }

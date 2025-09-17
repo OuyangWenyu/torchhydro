@@ -560,16 +560,48 @@ class BaseDataset(Dataset):
 
         # 处理三维数据 (basin, time, variable)
         if norm_data.ndim == 3:
+            # 全局（或子集后）的时间轴（注意：可能远大于当前窗口 T）
+            all_times = selected_data.coords["time"].values  # numpy datetime64[ns] 数组
+            T = norm_data.shape[1]
+
+            # 将 selected_time_points 统一成 numpy 数组
+            if isinstance(selected_time_points, xr.DataArray):
+                sel_vals = selected_time_points.values
+            else:
+                sel_vals = np.asarray(selected_time_points)
+
+            # 计算相对 all_times 的位置索引 pos
+            sel_vals = np.asarray(sel_vals)
+            if np.issubdtype(sel_vals.dtype, np.datetime64):
+                if pd is not None:
+                    pos = pd.Index(all_times).get_indexer(sel_vals).astype(np.int64)
+                else:
+                    # 兜底：二分查找
+                    pos = np.searchsorted(all_times, sel_vals).astype(np.int64)
+                    ok = (pos >= 0) & (pos < len(all_times)) & (all_times[pos] == sel_vals)
+                    if not np.all(ok):
+                        miss = int((~ok).sum())
+                        raise KeyError(f"{miss} datetimes not found in selected_data time axis.")
+            elif sel_vals.dtype.kind in ("i", "b"):
+                pos = sel_vals.astype(np.int64).reshape(-1)
+            else:
+                # 其它类型强转为整数索引
+                pos = sel_vals.astype(np.int64).reshape(-1)
+
+            # 对齐长度到当前窗口 T（默认右对齐；如需左对齐改为 pos[:T]）
+            if pos.size < T:
+                raise ValueError(f"Selected time points ({pos.size}) shorter than current window length ({T}).")
+            pos_T = pos[-T:]
+            time_coords = all_times[pos_T]  # 长度 == T 的时间坐标
+
+            # norm_data 本身就是 (B, T, nf)，不再用 datetime 去索引它
+            norm_data_3d = norm_data
             coords = {
                 "basin": selected_data.coords["basin"],
-                "time": selected_data.coords["time"],
+                "time": time_coords,
                 "variable": selected_data.coords["variable"],
             }
             dims = ["basin", "time", "variable"]
-            if norm_data.shape[1] != len(selected_data.coords["time"]):
-                norm_data_3d = norm_data[:, selected_time_points, :]
-            else:
-                norm_data_3d = norm_data
 
         # 处理四维数据
         elif norm_data.ndim == 4:
@@ -911,7 +943,7 @@ class BaseDataset(Dataset):
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
-        print(type(data_attr_ds))
+
         x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, data_attr_ds
         )
@@ -3417,6 +3449,61 @@ class AEFDataset(BaseDataset):
             "constant_cols": (
                 c_origin_with_unit.transpose("basin", "variable")
                 if c_origin_with_unit is not None
+                else None
+            ),
+        }
+
+
+class CamelsHourlyDataset(BaseDataset):
+    """Dataset for CAMELS-US hourly data, keeping BaseDataset style"""
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        super().__init__(cfgs, is_tra_val_te)
+
+    def _read_xyc_specified_time(self, start_date, end_date):
+        """Read forcings (X), streamflow (Y), attributes (C)."""
+
+        # forcings (X)
+        data_forcing_ds_ = self.data_source.read_relevant_cols(
+            gage_id_lst=self.data_cfgs["object_ids"],
+            t_range=[start_date, end_date],
+            var_lst=self.data_cfgs["relevant_cols"]
+        )
+
+        # target (Y)
+        data_output_ds_ = self.data_source.read_target_cols(
+            gage_id_lst=self.data_cfgs["object_ids"],
+            t_range=[start_date, end_date],
+            target_cols=self.data_cfgs["target_cols"]
+        )
+
+        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
+        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
+        )
+
+        # c
+        data_attr_ds = self.data_source.read_attr_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.data_cfgs["constant_cols"],
+            all_number=True,
+        )
+        # unify format
+        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
+        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
+
+        # 转成 DataArray
+        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
+            data_forcing_ds, data_output_ds, data_attr_ds
+        )
+
+        return {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": (
+                c_origin.transpose("basin", "variable")
+                if c_origin is not None
                 else None
             ),
         }

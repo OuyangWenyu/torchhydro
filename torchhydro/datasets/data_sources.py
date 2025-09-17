@@ -17,7 +17,7 @@ import pint_xarray  # noqa but it is used in the code
 from tqdm import tqdm
 
 from hydroutils import hydro_time
-from hydrodataset import Camels
+from hydrodataset import Camels, CamelsHourly
 from hydrodataset.grdc_caravan import GrdcCaravan
 from hydrodatasource.reader.data_source import (
     SelfMadeHydroDataset,
@@ -736,5 +736,6 @@ data_sources_dict = {
     "modiset4camels": ModisEt4Camels,
     "nldas4camels": Nldas4Camels,
     "smap4camels": Smap4Camels,
-    "stationhydrodataset": StationHydroDataset
+    "stationhydrodataset": StationHydroDataset,
+    "camels_hourly": CamelsHourly,
 }
