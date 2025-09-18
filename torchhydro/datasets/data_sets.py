@@ -3463,37 +3463,57 @@ class CamelsHourlyDataset(BaseDataset):
     def _read_xyc_specified_time(self, start_date, end_date):
         """Read forcings (X), streamflow (Y), attributes (C)."""
 
-        # forcings (X)
+        # 1) 读取原始数据
         data_forcing_ds_ = self.data_source.read_relevant_cols(
             gage_id_lst=self.data_cfgs["object_ids"],
             t_range=[start_date, end_date],
             var_lst=self.data_cfgs["relevant_cols"]
         )
-
-        # target (Y)
         data_output_ds_ = self.data_source.read_target_cols(
             gage_id_lst=self.data_cfgs["object_ids"],
             t_range=[start_date, end_date],
             target_cols=self.data_cfgs["target_cols"]
         )
 
+        # 2) 去掉 timeunit 的坐标键（保持你原逻辑）
         data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
         data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
+
+        # 3) 统一单位/坐标（保持你原逻辑）
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
             data_forcing_ds_, data_output_ds_
         )
 
-        # c
+        # 4) 构造【完整小时时间轴】并对齐 reindex（关键！）
+        #    取配置里的最小时间粒度和步长（H / 1），拼 pandas 频率字符串
+        #    注意：这里示例使用 self.data_cfgs，如果你的 BaseDataset 把它存在 t_s_dict，请改成相应字段
+        freq = f'{self.data_cfgs.get("min_time_interval", 1)}' \
+               f'{self.data_cfgs.get("min_time_unit", "h").upper()}'
+        full_time = pd.date_range(
+            start=pd.to_datetime(start_date),
+            end=pd.to_datetime(end_date),
+            freq=freq,
+            inclusive="both",  # 保持两端都包含
+        )
+
+        # 统一对齐 ‘time’ 维度，缺的小时补 NaN
+        # （X/Y 都 reindex，保证每个流域每个变量在同一根时间轴上）
+        data_forcing_ds = data_forcing_ds.reindex(time=full_time)
+        data_output_ds = data_output_ds.reindex(time=full_time)
+
+        # 5) 静态属性不需要 reindex
         data_attr_ds = self.data_source.read_attr_xrdataset(
             self.t_s_dict["sites_id"],
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
-        # unify format
-        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
-        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
 
-        # 转成 DataArray
+        # 6) （可选）对 X 做合理填充，对 Y 保留 NaN 便于损失/评估时掩码
+        # 例：降水缺测→0，温度/湿度→前向填充/插值；按你的业务自行选择
+        # data_forcing_ds = data_forcing_ds.fillna(0)   # 或者更细化到各变量
+        # data_output_ds  保持 NaN，torchhydro 的评估/损失一般会自动忽略 NaN
+
+        # 7) 转 DataArray（保持你原逻辑）
         x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, data_attr_ds
         )
@@ -3502,8 +3522,7 @@ class CamelsHourlyDataset(BaseDataset):
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
             "target_cols": y_origin.transpose("basin", "time", "variable"),
             "constant_cols": (
-                c_origin.transpose("basin", "variable")
-                if c_origin is not None
-                else None
+                c_origin.transpose("basin", "variable") if c_origin is not None else None
             ),
         }
+

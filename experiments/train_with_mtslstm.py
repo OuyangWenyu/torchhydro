@@ -34,7 +34,7 @@ for logger_name in logging.root.manager.loggerDict:
 
 camels_dir = os.path.join("/Users/cylenlc/data/camels_hourly")
 camels = CamelsHourly(camels_dir)
-gage_id = ['01022500']
+gage_id = ['01022500', '01031500']
 
 gage_id = sorted([x for x in gage_id])
 
@@ -87,7 +87,7 @@ def config():
         },
         model_loader={"load_way": "best"},
         gage_id=gage_id,
-        batch_size=1,
+        batch_size=256,
         rs=seeds,
         ensemble=ens,
         ensemble_items={"seeds": seeds},
