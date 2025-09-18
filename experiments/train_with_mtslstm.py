@@ -23,7 +23,7 @@ gage_id = sorted(gage_id)
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"
 
 # ---- 频率设计：周(0) / 日(1) / 时(2=最高频=原始输入) ----
-# 我们用 14 天窗口训练：T_hour = 14*24, T_day = 14, T_week = 2
+# 用 14 天窗口训练：T_hour = 14*24, T_day = 14, T_week = 2
 FACS = [7, 24]               # 低->中×7，中->高×24
 SEQ_LENS = [2, 14, 14*24]    # [周步数, 日步数, 小时步数]
 
@@ -58,7 +58,7 @@ bucket_map_dyn = {
     "shortwave_radiation": 1,
     "specific_humidity": 2,
     "temperature": 2,
-    "total_precipitation": 2,     # 降水保留在小时，往下聚合用 sum
+    "total_precipitation": 2,
     "wind_u": 2,
     "wind_v": 2,
 }

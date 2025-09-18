@@ -17,7 +17,7 @@ class MTSLSTM(nn.Module):
             output_size=1,
             feature_buckets=[2,2,1,0,...],          # D 维，每个特征的目标/原生频率：0=低(周)、1=中(日)、2=高(时)
             frequency_factors=[7, 24],               # 低->中×7，中->高×24
-            seq_lengths=[T_low, T_mid, T_high],      # NH 风格切片用
+            seq_lengths=[T_low, T_mid, T_high],      # 切片用
             per_feature_aggs_map=[...],              # 长度 D，"mean"/"sum"（可省）
             down_aggregate_all_to_each_branch=True,  # 分支 f 包含 bucket>=f 的特征并下采样聚合
             ...
@@ -29,11 +29,6 @@ class MTSLSTM(nn.Module):
         # 你自己准备好每个分支的输入 xs=(x_low, x_mid, x_high)
         y = model(*xs)
         # 或仅传一个日频张量，配合 auto_build_lowfreq=True 自动构造低频（仅两频）
-
-    仅做“向下聚合”，不做上采样：
-        - 低频分支不会看到更低频（bucket<f）的特征（避免上采样）
-        - 高频分支不会看到更低频特征（同理）
-        - 若 down_aggregate_all_to_each_branch=True，则高频特征可出现在低频分支（通过聚合）
     """
 
     def __init__(
