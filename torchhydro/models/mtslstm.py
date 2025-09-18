@@ -84,6 +84,7 @@ class MTSLSTM(nn.Module):
         self.feature_buckets = list(feature_buckets) if feature_buckets is not None else None
         self.per_feature_aggs_map = list(per_feature_aggs_map) if per_feature_aggs_map is not None else None
         self.down_agg_all = down_aggregate_all_to_each_branch
+        self.auto_build_lowfreq = auto_build_lowfreq
 
         # 若使用 feature_buckets，则按“只向下聚合”的规则预计算每个分支的输入维度
         if self.feature_buckets is not None:
