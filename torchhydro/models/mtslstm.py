@@ -1,4 +1,5 @@
 # torchhydro/models/mts_lstm.py
+import warnings
 from typing import List, Union, Optional, Dict, Literal
 import torch
 import torch.nn as nn
@@ -70,7 +71,10 @@ class MTSLSTM(nn.Module):
         # 切片传递
         slice_transfer: bool = True,
         slice_use_ceil: bool = True,
+        seq_lengths: Optional[List[int]] = None,         # 每个频率的配置序列长度（按低→高）
+        frequency_factors: Optional[List[int]] = None,   # 相邻频率倍数，长度 nf-1
     ):
+
         super().__init__()
         # 规范 input_sizes
         if isinstance(input_sizes, int):
@@ -168,7 +172,67 @@ class MTSLSTM(nn.Module):
 
         self.dropout = nn.Dropout(p=dropout)
 
+        # ---------- NH 风格的切片步长（固定分界点） ----------
+        self.seq_lengths = list(seq_lengths) if (seq_lengths is not None) else None
+        if self.seq_lengths is not None:
+            assert len(self.seq_lengths) == self.nf, "seq_lengths 长度必须等于频率数 nf"
+
+        # frequency_factors：若两频 + auto_build_lowfreq，则默认用 build_factor
+        if frequency_factors is not None:
+            assert len(frequency_factors) == self.nf - 1, "frequency_factors 长度必须为 nf-1"
+            self.frequency_factors = list(map(int, frequency_factors))
+        elif self.auto_build_lowfreq and self.nf == 2:
+            self.frequency_factors = [int(self.build_factor)]
+        else:
+            self.frequency_factors = None
+
+        # 预计算 slice_timestep；若信息不足，留空，forward 会回退到启发式并发出 warning
+        self.slice_timesteps: Optional[List[int]] = None
+        if self.seq_lengths is not None and self.frequency_factors is not None:
+            self.slice_timesteps = []
+            for i in range(self.nf - 1):
+                fac = int(self.frequency_factors[i])
+                assert fac >= 1, "frequency_factors 中的倍数必须 >=1"
+                # NH 用 int( next_len / factor )，相当于对正数做 floor
+                next_len = int(self.seq_lengths[i + 1])
+                st = int(next_len / fac)
+                # 可选：强约束 next_len 必须是 fac 的整数倍
+                # if next_len % fac != 0:
+                #     raise ValueError("相邻频率的 seq_length 与 frequency_factor 不整除，和 NH 假设不符。")
+                self.slice_timesteps.append(max(0, st))
+
+        self._warned_slice_fallback = False  # 控制只告警一次
+
+
     # ---------- 工具方法 ----------
+
+    def _get_slice_len_low(self, i: int, T_low: int, T_high: int) -> int:
+        """返回低频 i 在与 i+1 的分界点 slice 长度（NH 固定法优先）。
+        会 clamp 到 [0, T_low] 防止越界；若缺配置信息则回退到启发式（并告警一次）。
+        """
+        if self.slice_timesteps is not None:
+            return max(0, min(self.slice_timesteps[i], T_low))
+
+        # 启发式回退（保留你的旧逻辑），并给出一次性 warning
+        if (not self._warned_slice_fallback) and self.slice_transfer:
+            warnings.warn(
+                "[MTSLSTM] 未提供 seq_lengths/frequency_factors，切片位置采用启发式估计（ceil/floor），"
+                "这与 NeuralHydrology 的固定切片定义不完全一致。建议提供这两个超参以完全对齐。",
+                RuntimeWarning
+            )
+            self._warned_slice_fallback = True
+
+        # 原先的估算：factor 取 build_factor（两频自动构造时），否则取长度比值
+        factor = self.build_factor if (len(self.base_input_sizes) == 2 and self.auto_build_lowfreq) else max(
+            int(round(T_high / max(1, T_low))), 1
+        )
+        if self.slice_use_ceil:
+            slice_len_low = int((T_high + factor - 1) // factor)  # ceil
+        else:
+            slice_len_low = int(T_high // factor)                 # floor
+        return max(0, min(slice_len_low, T_low))
+
+
     def _append_one_hot(self, x: torch.Tensor, freq_idx: int) -> torch.Tensor:
         T, B, _ = x.shape
         oh = x.new_zeros((T, B, self.nf))
@@ -238,7 +302,7 @@ class MTSLSTM(nn.Module):
         if return_all is None:
             return_all = self.return_all_default
 
-        # 只传了日频？
+        # 只传了日频
         if len(xs) == 1 and self.auto_build_lowfreq:
             x_day = xs[0]
             assert x_day.dim() == 3, "输入必须是 (time,batch,features)"
@@ -280,16 +344,12 @@ class MTSLSTM(nn.Module):
             # 不是最高频，并且启用切片传递：按“slice/factor”切
             if (i < self.nf - 1) and self.slice_transfer:
                 # 根据 “下一频率长度 / 因子” 估算需要在低频末尾保留多少步
+                T_low = x_i.shape[0]
                 T_high = xs[i + 1].shape[0]
                 factor = self.build_factor if (len(xs) == 2 and self.auto_build_lowfreq) else max(
                     int(round(T_high / max(1, x_i.shape[0]))), 1
                 )
-                # 若已知严格因子，可改为：factor = 显式配置（例如多级因子列表）
-                if self.slice_use_ceil:
-                    slice_len_low = int((T_high + factor - 1) // factor)
-                else:
-                    slice_len_low = int(T_high // factor)
-                slice_len_low = max(0, min(slice_len_low, x_i.shape[0]))
+                slice_len_low = self._get_slice_len_low(i, T_low=T_low, T_high=T_high)
 
                 if slice_len_low == 0:
                     # 没有需要切片的长度，整段跑 + 迁移
