@@ -98,17 +98,28 @@ def create_4d_gnn_config(test_mode="normal", model_name="BasicGCN"):
         },
         "SpatioTemporalFloodNet3D_LSTM_only": {
             "model_name": "SpatioTemporalFloodNet3D",  # 使用3D时空洪水网络
-            "experiment_dir": "3d_gnn_experiment_lstm_only",
+            "experiment_dir": "3d_lstm_only",
             "description": "LSTM-only基线 - 无图网络，仅LSTM时序建模+平均池化",
             "use_gnn": False,  # 关键参数：禁用GNN
+            "use_lstm": True,  # 关键参数：启用LSTM
+            "hidden_channels": 16,  # 减小隐藏维度，防止过拟合
+            "dropout": 0.2,  # 增加dropout，防止过拟合
+        },
+        "SpatioTemporalFloodNet3D_GNN_only": {
+            "model_name": "SpatioTemporalFloodNet3D",  # 使用3D时空洪水网络
+            "experiment_dir": "3d_gnn_only",
+            "description": "GNN-only基线 - 无时序网络，仅GNN空间建模+平均池化",
+            "use_gnn": True,   # 关键参数：启用GNN
+            "use_lstm": False, # 关键参数：禁用LSTM
             "hidden_channels": 16,  # 减小隐藏维度，防止过拟合
             "dropout": 0.2,  # 增加dropout，防止过拟合
         },
         "SpatioTemporalFloodNet3D_LSTM_GNN": {
             "model_name": "SpatioTemporalFloodNet3D",  # 使用3D时空洪水网络
-            "experiment_dir": "3d_gnn_experiment_lstm_gnn",
+            "experiment_dir": "3d_lstm_gnn",
             "description": "LSTM+GNN完整版 - LSTM时序建模+GNN空间交互+多种聚合",
             "use_gnn": True,   # 关键参数：启用GNN
+            "use_lstm": True,  # 关键参数：启用LSTM
             "hidden_channels": 16,  # 减小隐藏维度，防止过拟合
             "dropout": 0.2,  # 增加dropout，防止过拟合
         },
@@ -242,8 +253,9 @@ def create_4d_gnn_config(test_mode="normal", model_name="BasicGCN"):
             "gnn_type": "gcn2",              # GNN类型 (3D模型使用)
             "aggregate_to_graph": True,     # True=图级输出(流域级径流), False=节点级输出
             
-            # ==== LSTM-only vs LSTM+GNN 对比参数 ====
+            # ==== LSTM-only vs GNN-only vs LSTM+GNN 对比参数 ====
             "use_gnn": current_config.get("use_gnn", True),  # 是否使用GNN，默认True
+            "use_lstm": current_config.get("use_lstm", True), # 是否使用LSTM，默认True
             
             # # ==== 🔧 时间映射对比参数 ====  
             # "use_time_mlp": current_config.get("use_time_mlp", True),  # 是否使用MLP时间映射，默认True
@@ -259,7 +271,7 @@ def create_4d_gnn_config(test_mode="normal", model_name="BasicGCN"):
         var_t=var_t, var_c=var_c, var_out=["inflow", "flood_event"],
         train_mode=True,  # 训练模式 - 修复：改为True以启用训练
         
-        train_epoch=30, save_epoch=5,   # 减少epoch，防止过拟合
+        train_epoch=40, save_epoch=1,   # 减少epoch，防止过拟合
         # train_period=["1980-01-01-02", "2016-12-31-23"],
         # #valid_period=["1980-01-01-02", "2019-12-31-23"],
         # valid_period=["2017-01-01-02", "2019-12-31-23"],
@@ -272,7 +284,7 @@ def create_4d_gnn_config(test_mode="normal", model_name="BasicGCN"):
         test_period=["2019-01-01-02", "2024-12-31-23"],        
         
         rolling=-1,  # 不使用滚动窗口
-        model_loader={"load_way": "latest"},  # 对应训练epoch
+        model_loader={"load_way": "best"},  # 对应训练epoch
         evaluator={"eval_way": "floodevent"}, which_first_tensor="batch",
         # 优化器配置 - 数值稳定的设置
         opt="Adam",
@@ -291,11 +303,11 @@ def create_4d_gnn_config(test_mode="normal", model_name="BasicGCN"):
         },
         # 其他配置
         num_workers=4,
-        # pin_memory=True,
-        # early_stopping=True,
-        # patience=5,
-        # calc_metrics=True,
-        # continue_train=False,
+        pin_memory=True,
+        early_stopping=True,
+        patience=5,
+        calc_metrics=True,
+        continue_train=False,
     )
 
     # 更新配置
@@ -342,13 +354,13 @@ def main():
         # 验证模型名称
         valid_models = ["BasicGCN", "STGCN", "ASTGCN", "GraphWaveNet", "SpatioTemporalFloodNet", "FloodGCN4D", 
                        "FloodGCN3D", "MeanAggregationFloodNet", "AttentionAggregationFloodNet", "MultiScaleAggregationFloodNet",
-                          "SpatioTemporalFloodNet3D_LSTM_only", "SpatioTemporalFloodNet3D_LSTM_GNN",
+                          "SpatioTemporalFloodNet3D_LSTM_only", "SpatioTemporalFloodNet3D_GNN_only", "SpatioTemporalFloodNet3D_LSTM_GNN",
                             "SpatioTemporalFloodNet3D_MLP_Time",
                        "SpatioTemporalFloodNet3D_Truncate_Time", "SpatialFirstTemporalFloodNet3D"]
         
         # 特殊处理对比实验命令
         if model_name.lower() == "compare_lstm_gnn":
-            print("🔬 开始 LSTM-only vs LSTM+GNN 对比实验")
+            print("🔬 开始 LSTM-only vs GNN-only vs LSTM+GNN 三元对比实验")
             print("="*60)
             
             # 首先运行LSTM-only基线
@@ -360,36 +372,46 @@ def main():
             except Exception as e:
                 print(f"❌ LSTM-only基线训练失败: {e}")
             
-            # 然后运行LSTM+GNN完整版
+            # 然后运行GNN-only基线
             try:
-                print("\n📊 步骤2: 训练LSTM+GNN完整模型")
+                print("\n📊 步骤2: 训练GNN-only基线模型")
+                print("-"*40)
+                train_4d_gnn_model(test_mode="normal", model_name="SpatioTemporalFloodNet3D_GNN_only")
+                print("✅ GNN-only基线训练完成")
+            except Exception as e:
+                print(f"❌ GNN-only基线训练失败: {e}")
+            
+            # 最后运行LSTM+GNN完整版
+            try:
+                print("\n📊 步骤3: 训练LSTM+GNN完整模型")
                 print("-"*40)
                 train_4d_gnn_model(test_mode="normal", model_name="SpatioTemporalFloodNet3D_LSTM_GNN")
                 print("✅ LSTM+GNN完整版训练完成")
             except Exception as e:
                 print(f"❌ LSTM+GNN完整版训练失败: {e}")
             
-            print("\n🎯 LSTM-only vs LSTM+GNN 对比实验完成！")
+            print("\n🎯 LSTM-only vs GNN-only vs LSTM+GNN 三元对比实验完成！")
             print("📂 结果保存在以下目录：")
             print("   - LSTM-only基线: results/3d_gnn_experiment_lstm_only/")
+            print("   - GNN-only基线: results/3d_gnn_experiment_gnn_only/")
             print("   - LSTM+GNN完整版: results/3d_gnn_experiment_lstm_gnn/")
-            print("💡 请对比两个模型的训练/验证损失，分析图网络空间特性提取的有效性")
+            print("💡 请对比三个模型的训练/验证损失，分析时序和空间特性提取的相对重要性")
             return
         
         # 🚀 新增：三种架构全面对比实验
         elif model_name.lower() == "compare_three_architectures":
-            print("🚀 开始三种时空架构全面对比实验")
+            print("🚀 开始三种核心架构全面对比实验")
             print("="*70)
             print("📋 对比架构:")
             print("   1. LSTM-only基线: 仅LSTM时序建模+平均池化")
-            print("   2. Time→Space: LSTM时序建模→GNN空间交互")  
-            print("   3. Space→Time: GNN空间交互→Transformer时序建模")
+            print("   2. GNN-only基线: 仅GNN空间建模+平均池化")
+            print("   3. LSTM+GNN完整版: LSTM时序建模+GNN空间交互")
             print("="*70)
             
             architectures = [
                 ("SpatioTemporalFloodNet3D_LSTM_only", "🔷 LSTM-only基线"),
-                ("SpatioTemporalFloodNet3D_LSTM_GNN", "🔶 Time→Space (LSTM→GNN)"),
-                ("SpatialFirstTemporalFloodNet3D", "🔺 Space→Time (GNN→Transformer)"),
+                ("SpatioTemporalFloodNet3D_GNN_only", "🔶 GNN-only基线"),
+                ("SpatioTemporalFloodNet3D_LSTM_GNN", "🔺 LSTM+GNN完整版"),
             ]
             
             results_summary = []
@@ -406,7 +428,7 @@ def main():
                     results_summary.append((description, f"❌ 失败: {e}"))
                     continue
             
-            print(f"\n🎉 三种时空架构对比实验完成！")
+            print(f"\n🎉 三种核心架构对比实验完成！")
             print("="*70)
             print("📊 实验结果总结:")
             for desc, status in results_summary:
@@ -414,14 +436,14 @@ def main():
             
             print("\n📂 结果保存目录:")
             print("   1. LSTM-only基线: results/3d_gnn_experiment_lstm_only/")
-            print("   2. Time→Space: results/3d_gnn_experiment_lstm_gnn/")
-            print("   3. Space→Time: results/3d_gnn_experiment_spatial_first_transformer/")
+            print("   2. GNN-only基线: results/3d_gnn_experiment_gnn_only/")
+            print("   3. LSTM+GNN完整版: results/3d_gnn_experiment_lstm_gnn/")
             
             print("\n💡 分析建议:")
             print("   - 对比训练/验证损失收敛情况")
             print("   - 分析测试集泛化能力")
-            print("   - 关注Space→Time架构是否有更好的空间学习能力")
-            print("   - 评估Transformer vs LSTM的时序建模效果")
+            print("   - 评估时序建模 vs 空间建模的相对重要性")
+            print("   - 验证LSTM+GNN组合是否能够取长补短")
             return
         
         if model_name in valid_models:
@@ -455,27 +477,27 @@ def main():
             print("或使用 'all' 来测试所有模型")
             print("或使用 'compare_lstm_gnn' 来进行LSTM-only vs LSTM+GNN对比实验")
     else:
-        # 默认运行三种架构全面对比实验
-        print("📋 未指定参数，运行默认的三种架构全面对比实验...")
-        print("🚀 这将训练并对比三种时空建模架构的性能")
+        # 默认运行三种核心架构全面对比实验
+        print("📋 未指定参数，运行默认的三种核心架构全面对比实验...")
+        print("🚀 这将训练并对比三种核心建模架构的性能")
         
         # 运行三种架构对比 - 直接调用而不是递归
         model_name = "compare_three_architectures"
         test_mode = "normal"
         
         # 执行三种架构对比实验
-        print("🚀 开始三种时空架构全面对比实验")
+        print("🚀 开始三种核心架构全面对比实验")
         print("="*70)
         print("📋 对比架构:")
         print("   1. LSTM-only基线: 仅LSTM时序建模+平均池化")
-        print("   2. Time→Space: LSTM时序建模→GNN空间交互")  
-        print("   3. Space→Time: GNN空间交互→Transformer时序建模")
+        print("   2. GNN-only基线: 仅GNN空间建模+平均池化")
+        print("   3. LSTM+GNN完整版: LSTM时序建模+GNN空间交互")
         print("="*70)
         
         architectures = [
             ("SpatioTemporalFloodNet3D_LSTM_only", "🔷 LSTM-only基线"),
-            ("SpatioTemporalFloodNet3D_LSTM_GNN", "🔶 Time→Space (LSTM→GNN)"),
-            ("SpatialFirstTemporalFloodNet3D", "🔺 Space→Time (GNN→Transformer)"),
+            ("SpatioTemporalFloodNet3D_GNN_only", "🔶 GNN-only基线"),
+            ("SpatioTemporalFloodNet3D_LSTM_GNN", "🔺 LSTM+GNN完整版"),
         ]
         
         results_summary = []
@@ -492,7 +514,7 @@ def main():
                 results_summary.append((description, f"❌ 失败: {e}"))
                 continue
         
-        print(f"\n🎉 三种时空架构对比实验完成！")
+        print(f"\n🎉 三种核心架构对比实验完成！")
         print("="*70)
         print("📊 实验结果总结:")
         for desc, status in results_summary:
@@ -500,14 +522,14 @@ def main():
         
         print("\n📂 结果保存目录:")
         print("   1. LSTM-only基线: results/3d_gnn_experiment_lstm_only/")
-        print("   2. Time→Space: results/3d_gnn_experiment_lstm_gnn/")
-        print("   3. Space→Time: results/3d_gnn_experiment_spatial_first_transformer/")
+        print("   2. GNN-only基线: results/3d_gnn_experiment_gnn_only/")
+        print("   3. LSTM+GNN完整版: results/3d_gnn_experiment_lstm_gnn/")
         
         print("\n💡 分析建议:")
         print("   - 对比训练/验证损失收敛情况")
         print("   - 分析测试集泛化能力")
-        print("   - 关注Space→Time架构是否有更好的空间学习能力")
-        print("   - 评估Transformer vs LSTM的时序建模效果")
+        print("   - 评估时序建模 vs 空间建模的相对重要性")
+        print("   - 验证LSTM+GNN组合是否能够取长补短")
 
 
 if __name__ == "__main__":
@@ -530,9 +552,10 @@ if __name__ == "__main__":
        python train_with_gnn_3h_events_run_regional_loss_test.py compare_three_architectures normal  # 三种架构对比
        python train_with_gnn_3h_events_run_regional_loss_test.py SpatialFirstTemporalFloodNet3D normal  # 新架构：先空间后时间+Transformer
        
-    3. LSTM-only vs LSTM+GNN 对比实验：
-       python train_with_gnn_3h_events_run_regional_loss_test.py compare_lstm_gnn normal  # 自动运行对比实验
+    3. LSTM-only vs GNN-only vs LSTM+GNN 三元对比实验：
+       python train_with_gnn_3h_events_run_regional_loss_test.py compare_lstm_gnn normal  # 自动运行三元对比实验
        python train_with_gnn_3h_events_run_regional_loss_test.py SpatioTemporalFloodNet3D_LSTM_only normal  # 仅LSTM基线
+       python train_with_gnn_3h_events_run_regional_loss_test.py SpatioTemporalFloodNet3D_GNN_only normal   # 仅GNN基线
        python train_with_gnn_3h_events_run_regional_loss_test.py SpatioTemporalFloodNet3D_LSTM_GNN normal   # LSTM+GNN完整版
        
     4. 所有模型对比测试：
@@ -559,10 +582,10 @@ if __name__ == "__main__":
     - MultiScaleAggregationFloodNet: 多尺度聚合版本的3D洪水预测GCN，综合多种统计信息
     - 🚀 SpatialFirstTemporalFloodNet3D: 先空间后时间+Transformer架构，防过拟合优化版
 
-    🔬 三种时空建模架构对比：
-    1. LSTM-only: 纯时序建模，无空间交互，作为基线对照
-    2. Time→Space: 先LSTM时序建模，再GNN空间交互（传统方法）
-    3. Space→Time: 先GNN空间交互，再Transformer时序建模（新方法）
+    🔬 三种核心建模架构对比：
+    1. LSTM-only: 纯时序建模，无空间交互，作为时序基线对照
+    2. GNN-only: 纯空间建模，无时序交互，作为空间基线对照
+    3. LSTM+GNN: 时序+空间联合建模，验证组合效果
 
     
     测试模式说明：
@@ -583,13 +606,14 @@ if __name__ == "__main__":
     - AttentionAggregationFloodNet: results/3d_gnn_experiment_attention_aggregation/
     - MultiScaleAggregationFloodNet: results/3d_gnn_experiment_multiscale_aggregation/
     
-    � 三种架构对比实验结果目录（最新推荐）：
+    � 三种核心架构对比实验结果目录（最新推荐）：
     - LSTM-only基线: results/3d_gnn_experiment_lstm_only/
-    - Time→Space: results/3d_gnn_experiment_lstm_gnn/
-    - Space→Time+Transformer: results/3d_gnn_experiment_spatial_first_transformer/
+    - GNN-only基线: results/3d_gnn_experiment_gnn_only/
+    - LSTM+GNN完整版: results/3d_gnn_experiment_lstm_gnn/
     
     🔬 对比实验结果目录：
     - LSTM-only基线: results/3d_gnn_experiment_lstm_only/
+    - GNN-only基线: results/3d_gnn_experiment_gnn_only/
     - LSTM+GNN完整版: results/3d_gnn_experiment_lstm_gnn/
     
     核心特性：

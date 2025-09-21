@@ -62,16 +62,37 @@ plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams['figure.figsize'] = (12, 8)
 plt.rcParams['font.size'] = 10
 
-def load_normal_comparison_data(base_dir, epoch=30, songliao_data_path="/mnt/data/ClassC/songliaorrevent"):
+def load_normal_comparison_data(base_dir, epoch="30", songliao_data_path="/mnt/data/ClassC/songliaorrevent"):
     """Load normal mode comparison data with optional songliao data"""
     base_dir = Path(base_dir)
     
-    # Define file paths with dynamic epoch number
+    data_dir = base_dir / "songliao_3h_test_normal"
+
+    # Prefer exact filenames when possible, but allow flexible epoch strings
+    obs_path = data_dir / f"epoch{epoch}flow_obs.nc"
+    pred_path = data_dir / f"epoch{epoch}flow_pred.nc"
+
     files = {
-        'obs': base_dir / "songliao_3h_test_normal" / f"epoch{epoch}flow_obs.nc",
-        'normal': base_dir / "songliao_3h_test_normal" / f"epoch{epoch}flow_pred.nc"
+        'obs': obs_path,
+        'normal': pred_path
     }
-    
+
+    # If exact files are missing, try to find files that contain the epoch string
+    for name, path in list(files.items()):
+        if not path.exists():
+            try:
+                if name == 'obs':
+                    matches = list(data_dir.glob(f"*{epoch}*flow_obs*.nc"))
+                else:
+                    matches = list(data_dir.glob(f"*{epoch}*flow_pred*.nc"))
+                if not matches:
+                    # Fallback to any file containing the epoch substring
+                    matches = list(data_dir.glob(f"*{epoch}*.nc"))
+                if matches:
+                    files[name] = matches[0]
+            except Exception:
+                pass
+     
     # Check if files exist
     missing_files = []
     existing_files = []
@@ -417,11 +438,18 @@ def plot_normal_comparison_period_with_rainfall(obs_flow, pred_flow, period, bas
     
     return metrics
 
-def plot_normal_comparison(data, save_dir, epoch=30, songliao_data_path="/mnt/data/ClassC/songliaorrevent"):
+def plot_normal_comparison(data, save_dir, epoch="30", songliao_data_path="/mnt/data/ClassC/songliaorrevent"):
     """Plot normal mode comparison analysis with denormalized data and rainfall"""
     
     save_dir = Path(save_dir)
-    plots_dir = save_dir / "normal_comparison_plots"
+    # Sanitize epoch string for use in folder names (remove extensions like .pth)
+    try:
+        epoch_folder = Path(str(epoch)).stem
+    except Exception:
+        epoch_folder = str(epoch)
+
+    # Create an epoch-specific subfolder under the existing songliao_3h_test_normal directory
+    plots_dir = save_dir / f"epoch{epoch_folder}" / "normal_comparison_plots"
     plots_dir.mkdir(exist_ok=True, parents=True)
     
     # Extract data
@@ -671,10 +699,10 @@ def main():
     
     # 参数解析
     parser = argparse.ArgumentParser(description='Normal mode comparison analysis with flood events')
-    parser.add_argument('--base_dir', '-d', default='/home/lizilin/code/torchhydro/results/3d_gnn_experiment_lstm_gnn/',
+    parser.add_argument('--base_dir', '-d', default='/home/lizilin/code/torchhydro/results/3d_gnn_only/',
                         help='Base directory containing model results')
-    parser.add_argument('--epoch', '-e', type=int, default=30,
-                        help='Epoch number to analyze (default: 30)')
+    parser.add_argument('--epoch', '-e', type=str, default='40',
+                        help='Epoch identifier to analyze (string allowed, e.g. "40" or "best_model.pth")')
     parser.add_argument('--songliao_path', '-s', default='/mnt/data/ClassC/songliaorrevent',
                         help='Path to Songliao dataset')
     
@@ -692,6 +720,8 @@ def main():
         return
     
     # Generate plots
+    # Use the standard songliao_3h_test_normal folder and let the plotting function
+    # create an epoch subfolder inside it (epoch{epoch}/normal_comparison_plots)
     save_dir = Path(args.base_dir) / "songliao_3h_test_normal"
     plot_normal_comparison(data, save_dir, epoch=args.epoch, songliao_data_path=args.songliao_path)
 
