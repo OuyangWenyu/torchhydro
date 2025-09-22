@@ -97,7 +97,7 @@ def _rolling_preds_for_once_eval(
     return the_array_.reshape(ngrid, recover_len, nf)
 
 
-def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
+def model_infer(seq_first, device, model, batch, variable_length_cfgs=None, return_key=None):
     """
     Unified model inference function with variable length support
 
@@ -113,96 +113,76 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
         batch data from collate_fn or dataset
     variable_length_cfgs : dict, optional
         variable length configuration containing mask settings
-
-    Returns
-    -------
-    tuple[torch.Tensor, torch.Tensor]
-        first is the observed data, second is the predicted data;
-        both tensors are batch first
+    return_key : str, optional
+        when model returns a dict, choose which key (e.g., "f2") to return.
+        if None, defaults to the last frequency (max key).
     """
     result = get_masked_tensors(variable_length_cfgs, batch, seq_first)
 
-    # Handle different return formats from get_masked_tensors
-    # GNN with batch_vector: 9 elements
+    # --- unpack inputs ---
     if len(result) == 9:
-        # xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens
         xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens = result
     elif len(result) == 8:
-        # GNN format: xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens
         xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens = result
         batch_vector = None
     else:
-        # Standard format: xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
         xs, ys, xs_mask, ys_mask, xs_lens, ys_lens = result
         edge_index = edge_weight = batch_vector = None
-    # === 输入数据预处理 ===
-    # 支持list和单tensor两种输入，自动转到device，seq_first控制维度顺序
-    if type(xs) is list:
-        xs = [
-            (
-                data_tmp.permute([1, 0, 2]).to(device)
-                if seq_first and data_tmp.ndim == 3
-                else data_tmp.to(device)
-            )
-            for data_tmp in xs
-        ]
+
+    # --- move xs to device ---
+    if isinstance(xs, list):
+        xs = [(x.permute(1, 0, 2).to(device) if seq_first and x.ndim == 3 else x.to(device)) for x in xs]
     else:
-        xs = [
-            (
-                xs.permute([1, 0, 2]).to(device)
-                if seq_first and xs.ndim == 3
-                else xs.to(device)
-            )
-        ]
+        xs = [(xs.permute(1, 0, 2).to(device) if seq_first and xs.ndim == 3 else xs.to(device))]
 
-    # Process target data
+    # --- move ys to device ---
     if ys is not None:
-        ys = (
-            ys.permute([1, 0, 2]).to(device)
-            if seq_first and ys.ndim == 3
-            else ys.to(device)
-        )
+        ys = (ys.permute(1, 0, 2).to(device) if seq_first and ys.ndim == 3 else ys.to(device))
 
-    # Process edge data for GNN models
-    if edge_index is not None and edge_weight is not None:
+    # --- move graph data ---
+    if edge_index is not None:
         edge_index = edge_index.to(device)
+    if edge_weight is not None:
         edge_weight = edge_weight.to(device)
-        if batch_vector is not None:
-            batch_vector = batch_vector.to(device)
+    if batch_vector is not None:
+        batch_vector = batch_vector.to(device)
 
-    # Process masks if available
+    # --- forward ---
     if xs_mask is not None and ys_mask is not None:
-        xs_mask = xs_mask.to(device)
-        ys_mask = ys_mask.to(device)
-        # Use mask-aware inference with xs masks and lengths
         if edge_index is not None and edge_weight is not None:
-            # batch_vector模式（变节点数batch）
-            output = model(*xs, edge_index=edge_index, edge_weight=edge_weight, batch_vector=batch_vector, mask=xs_mask, seq_lengths=xs_lens)
+            output = model(*xs, edge_index=edge_index, edge_weight=edge_weight,
+                           batch_vector=batch_vector, mask=xs_mask, seq_lengths=xs_lens)
         else:
-            # Non-GNN model with masks
             output = model(*xs, mask=xs_mask, seq_lengths=xs_lens)
     else:
-        # 2. 标准推理（无mask）
         if edge_index is not None and edge_weight is not None:
-            # GNN模型，始终传递 batch_vector
             output = model(*xs, edge_index=edge_index, edge_weight=edge_weight, batch_vector=batch_vector)
         else:
-            # Non-GNN model without masks
             output = model(*xs)
 
-    if type(output) is tuple:
-        # Convention: y_p must be the first output of model
+    # --- handle model outputs ---
+    if isinstance(output, tuple):
         output = output[0]
+
+    if isinstance(output, dict):
+        # 默认取最高频的输出
+        if return_key is None:
+            return_key = sorted(output.keys())[-1]   # e.g., "f2"
+        if return_key not in output:
+            raise KeyError(f"Model returned keys {list(output.keys())}, but return_key='{return_key}' not found")
+        output = output[return_key]
 
     if ys_mask is not None:
         ys = ys.masked_fill(ys_mask == 0, torch.nan)
 
+    # --- seq_first transpose back ---
     if seq_first:
         output = output.transpose(0, 1)
         if ys is not None:
             ys = ys.transpose(0, 1)
 
     return ys, output
+
 
 
 class EarlyStopper(object):
