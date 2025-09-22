@@ -383,8 +383,20 @@ class DeepHydro(DeepHydroInterface):
             for i, batch in enumerate(
                 tqdm(test_dataloader, desc="Model inference", unit="batch")
             ):
-                ys, pred = model_infer(seq_first, self.device, self.model, batch)
-                print(batch[1][0])
+                ys, pred = model_infer(
+                    seq_first,
+                    self.device,
+                    self.model,
+                    batch,
+                    variable_length_cfgs=None,
+                    return_key=(
+                        self.cfgs.get("evaluation_cfgs", {})
+                        .get("evaluator", {})
+                        .get("return_key", None)
+                    )
+
+                )
+
                 test_preds.append(pred.cpu())
                 obss.append(ys.cpu())
                 if i % 100 == 0:

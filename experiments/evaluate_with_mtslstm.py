@@ -25,7 +25,7 @@ for logger_name in logging.root.manager.loggerDict:
 # ====== 数据集与流域 ======
 camels_dir = "/Users/cylenlc/data/camels_hourly"
 camels = CamelsHourly(camels_dir)
-gage_id = ["01022500", "01031500"]
+gage_id = ["01054200"]
 gage_id = sorted(gage_id)
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"
 
@@ -126,7 +126,7 @@ def config():
             "shared_mtslstm": False,
             "transfer": "linear",
             "dropout": 0.1,
-            "return_all": False,
+            "return_all": True,
 
             # 关键：走新路径，不用 auto_build_lowfreq
             "auto_build_lowfreq": False,
@@ -189,10 +189,13 @@ def config():
         model_type="Normal",
 
         valid_batch_mode="test",
-        evaluator={"eval_way": "once", "stride": 0},
         dataset="CamelsHourlyDataset"
     )
-
+    setattr(args, "evaluator", {
+        "eval_way": "once",
+        "stride": 0,
+        "return_key": "f2"
+    })
     update_cfg(cfg, args)
     return cfg
 
