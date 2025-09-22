@@ -126,10 +126,10 @@ def config():
             "shared_mtslstm": False,
             "transfer": "linear",
             "dropout": 0.1,
-            "return_all": True,
+            "return_all": False,
 
             # 关键：走新路径，不用 auto_build_lowfreq
-            "auto_build_lowfreq": False,
+            # "auto_build_lowfreq": False,
 
             # 与训练一致的多频设置
             "feature_buckets": feature_buckets,
@@ -142,9 +142,9 @@ def config():
             "slice_use_ceil": True,
 
             # 以下兼容旧路径的冗余项，不影响新路径
-            "build_factor": 24,
-            "agg_reduce": "mean",
-            "truncate_incomplete": True,
+            # "build_factor": 24,
+            # "agg_reduce": "mean",
+            # "truncate_incomplete": True,
         },
 
         # —— 指定加载权重 —— #
@@ -173,8 +173,8 @@ def config():
 
         scaler=scaler,
         scaler_params={
-            "prcp_norm_cols": ["streamflow"],
-            "gamma_norm_cols": ["prcp", "PET"],
+            "prcp_norm_cols": ["qobs_mm_per_hour"],
+            "gamma_norm_cols": [],
             "pbm_norm": False,
         },
 
