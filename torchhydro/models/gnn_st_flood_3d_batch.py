@@ -17,9 +17,14 @@ class SpatioTemporalFloodNet3D(Module):
     主要改进：
     1. 移除输出层Softplus激活，直接线性输出
     2. 支持时间维度MLP映射（use_time_mlp=True）或简单截断（use_time_mlp=False）
-    3. 支持LSTM-only模式（use_gnn=False）与LSTM+GNN模式对比
+    3. 支持三种模式对比：
+       - LSTM-only模式（use_lstm=True, use_gnn=False）：仅时序建模
+       - GNN-only模式（use_lstm=False, use_gnn=True）：仅空间建模
+       - LSTM+GNN模式（use_lstm=True, use_gnn=True）：时序+空间联合建模
     
     Args:
+        use_lstm (bool): 是否使用LSTM时序建模，默认True
+        use_gnn (bool): 是否使用GNN空间建模，默认True
         use_time_mlp (bool): 是否使用时间维度MLP映射而非简单截断，默认True
         其他参数保持不变...
     """
@@ -39,6 +44,7 @@ class SpatioTemporalFloodNet3D(Module):
         dropout: float = 0.1,
         param_sharing: bool = False,
         use_gnn: bool = True,  # 🔧 新增：是否使用GNN，False时仅用LSTM
+        use_lstm: bool = True, # 🔧 新增：是否使用LSTM，False时仅用GNN
         **kwargs,  # 接受额外的参数以提高兼容性
     ) -> None:
         super().__init__()
@@ -53,36 +59,51 @@ class SpatioTemporalFloodNet3D(Module):
         self.gnn_type = gnn_type
         self.aggregation_type = aggregation
         self.use_gnn = use_gnn  # 存储use_gnn参数
+        self.use_lstm = use_lstm  # 存储use_lstm参数
+        
+        # 验证参数组合的合理性
+        if not use_gnn and not use_lstm:
+            raise ValueError("At least one of use_gnn or use_lstm must be True")
         
         # === 借鉴gnn copy 4.py的统一隐藏层维度设计 ===
         self.unified_hidden_size = hidden_channels
         self.num_gnn_layers = num_hidden 
         
         # === 强化时序建模（借鉴SimpleLSTM架构）===
-        self.temporal_input_size = in_channels  # 使用in_channels
-        self.temporal_hidden_size = self.unified_hidden_size
-        
-        # 简化架构：输入投影 + LSTM + Dropout（移除冗余的输出投影）
-        self.temporal_input_projection = nn.Linear(self.temporal_input_size, self.temporal_hidden_size)
-        self.temporal_lstm = nn.LSTM(
-            input_size=self.temporal_hidden_size,
-            hidden_size=self.temporal_hidden_size,
-            #dropout=dropout if dropout > 0 else 0.0,
-            batch_first=False,  # [T, N, F]
-        )
-        self.temporal_dropout = nn.Dropout(p=dropout)
+        if self.use_lstm:
+            self.temporal_input_size = in_channels  # 使用in_channels
+            self.temporal_hidden_size = self.unified_hidden_size
+            
+            # 简化架构：输入投影 + LSTM + Dropout（移除冗余的输出投影）
+            self.temporal_input_projection = nn.Linear(self.temporal_input_size, self.temporal_hidden_size)
+            self.temporal_lstm = nn.LSTM(
+                input_size=self.temporal_hidden_size,
+                hidden_size=self.temporal_hidden_size,
+                #dropout=dropout if dropout > 0 else 0.0,
+                batch_first=False,  # [T, N, F]
+            )
+            self.temporal_dropout = nn.Dropout(p=dropout)
         
         # === 轻量空间建模 ===
-        self.spatial_hidden = self.unified_hidden_size*4
-        
-        # 空间特征投影 - 确保维度匹配
-        self.spatial_input_projection = nn.Linear(self.temporal_hidden_size, self.spatial_hidden)
-        
-        # GNN层
-        self.layers = self._create_gnn_layers(gnn_type, param_sharing)
-        
-        # 可选的dropout
-        self.dropout = nn.Dropout(dropout) if dropout > 0 else None
+        if self.use_gnn:
+            # 如果使用LSTM，空间建模接收LSTM输出；否则直接处理原始输入
+            spatial_input_size = self.temporal_hidden_size if self.use_lstm else in_channels
+            self.spatial_hidden = self.unified_hidden_size * 4
+            
+            # 空间特征投影 - 确保维度匹配
+            self.spatial_input_projection = nn.Linear(spatial_input_size, self.spatial_hidden)
+            
+            # GNN层
+            self.layers = self._create_gnn_layers(gnn_type, param_sharing)
+            
+            # 可选的dropout
+            self.dropout = nn.Dropout(dropout) if dropout > 0 else None
+        else:
+            # GNN-only模式：直接处理原始输入
+            self.spatial_hidden = self.unified_hidden_size * 4
+            self.spatial_input_projection = nn.Linear(in_channels, self.spatial_hidden)
+            self.layers = self._create_gnn_layers(gnn_type, param_sharing)
+            self.dropout = nn.Dropout(dropout) if dropout > 0 else None
         
         # === 图级聚合策略（借鉴gnn_st_flood_simple.py）===
         if aggregation == "attention":
@@ -98,30 +119,33 @@ class SpatioTemporalFloodNet3D(Module):
         # 图级特征处理
         self.graph_aggregation = nn.Linear(self.graph_feature_dim, self.spatial_hidden)
         
-        # 移除时序输出处理 - 保持时序一一对应，最后直接截取
-        # if output_time != seq_len:
-        #     self.time_proj = nn.AdaptiveAvgPool1d(output_time)
-        # else:
-        #     self.time_proj = nn.Identity()
-        
         # === 最终输出投影：移除激活函数，直接线性降维 ===
-        self.output_projection = nn.Sequential(
-            nn.Linear(self.spatial_hidden, self.spatial_hidden // 2),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(self.spatial_hidden // 2, output_size)  # 移除Softplus激活
-        )
-        # self.output_projection =  nn.Linear(self.spatial_hidden, output_size)  # 直接线性降维
-
+        if self.use_gnn:
+            # LSTM+GNN或GNN-only模式：从空间特征预测
+            self.output_projection = nn.Sequential(
+                nn.Linear(self.spatial_hidden, self.spatial_hidden // 2),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(self.spatial_hidden // 2, output_size)  # 移除Softplus激活
+            )
+        
         # LSTM-only模式的输出投影层（直接从LSTM隐藏特征）
-        if not use_gnn:
+        if self.use_lstm and not self.use_gnn:
             self.output_projection_lstm_only = nn.Sequential(
                 nn.Linear(self.temporal_hidden_size, self.temporal_hidden_size // 2),
                 nn.ReLU(),
                 nn.Dropout(dropout),
                 nn.Linear(self.temporal_hidden_size // 2, output_size)  # 移除Softplus激活
             )
-            #self.output_projection_lstm_only = nn.Linear(self.spatial_hidden, output_size)            
+        
+        # GNN-only模式的输出投影层（直接从GNN隐藏特征）
+        if self.use_gnn and not self.use_lstm:
+            self.output_projection_gnn_only = nn.Sequential(
+                nn.Linear(self.spatial_hidden, self.spatial_hidden // 2),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(self.spatial_hidden // 2, output_size)  # 移除Softplus激活
+            )            
         
         # === 时间维度处理方案（替代简单截断）===
         # 支持多种时间映射方案
@@ -240,12 +264,18 @@ class SpatioTemporalFloodNet3D(Module):
         # 处理边权重和边方向
         edge_index, edge_weight = self._process_edges(edge_index, edge_weight, device)
         
-        # === 步骤1：强化时序特征提取（使用LSTM，保留所有时间步）===
-        # x_temporal: [N, T, Ht]
-        x_temporal = self._extract_temporal_features_with_lstm(x)
-        N, T, Ht = x_temporal.shape
+        # === 步骤1：时序特征提取（如果启用LSTM）===
+        if self.use_lstm:
+            # 强化时序特征提取（使用LSTM，保留所有时间步）
+            x_temporal = self._extract_temporal_features_with_lstm(x)
+            N, T, Ht = x_temporal.shape
+        else:
+            # GNN-only模式：跳过LSTM，直接使用原始输入
+            x_temporal = x  # [N, T, num_features]
+            N, T, num_features = x_temporal.shape
         
-        if not self.use_gnn:
+        # === 处理不同模式 ===
+        if not self.use_gnn and self.use_lstm:
             # LSTM-only模式：跳过GNN，直接进行平均池化聚合
             batch_size = int(batch_vector.max().item()) + 1
             
@@ -272,7 +302,50 @@ class SpatioTemporalFloodNet3D(Module):
             output = self.output_projection_lstm_only(x_graph)
             return output
         
-        # LSTM+GNN模式：继续原有的GNN处理流程
+        elif self.use_gnn and not self.use_lstm:
+            # GNN-only模式：跳过LSTM，直接进行GNN空间建模
+            # === 步骤2：空间特征投影（对每个时间步）===
+            x_proj = self.spatial_input_projection(x_temporal)  # [N, T, Hs]
+            x_proj = F.relu(x_proj)
+            if self.dropout is not None:
+                x_proj = self.dropout(x_proj)
+            
+            # === 步骤3：轻量GNN空间建模（逐时间步应用相同图结构）===
+            E = edge_index.size(1)
+            offsets = (torch.arange(T, device=device) * N).view(1, T, 1)  # [1, T, 1]
+            ei_tiled = edge_index.unsqueeze(1).expand(2, T, E) + offsets  # [2, T, E]
+            edge_index_tiled = ei_tiled.reshape(2, T * E)                  # [2, T*E]
+            edge_weight_tiled = edge_weight.repeat(T)                      # [T*E]
+
+            # 将节点特征堆叠为 [T*N, Hs]，时间块连续，以匹配edge_index_tiled的偏移策略
+            x_big = x_proj.permute(1, 0, 2).contiguous().view(T * N, -1)   # [T*N, Hs]
+            x0_big = x_big.clone()
+            for layer in self.layers:
+                x_big = self._apply_layer(layer, x_big, edge_index_tiled, edge_weight_tiled, x0_big)
+                x_big = F.relu(x_big)
+                if self.dropout is not None:
+                    x_big = self.dropout(x_big)
+            # 还原为 [N, T, Hs]
+            x_spatial = x_big.view(T, N, -1).permute(1, 0, 2).contiguous()
+            
+            # === 步骤4：图级聚合（对每个时间步进行节点到图的聚合）===
+            batch_size = int(batch_vector.max().item()) + 1
+            x_graph = self._aggregate_nodes_to_graph(x_spatial, batch_vector, batch_size)  # [B, T, H]
+            
+            # === 步骤5：时间维度处理（简单截断，因为没有LSTM的时序建模）===
+            B, T = x_graph.shape[:2]
+            if self.output_time <= T:
+                x_graph = x_graph[:, -self.output_time:, :]
+            else:
+                pad_length = self.output_time - T
+                padding = torch.zeros(B, pad_length, x_graph.size(-1), device=x_graph.device, dtype=x_graph.dtype)
+                x_graph = torch.cat([padding, x_graph], dim=1)
+            
+            # 最终输出预测（直接从GNN隐藏特征预测）
+            output = self.output_projection_gnn_only(x_graph)
+            return output
+        
+        # LSTM+GNN模式：继续原有的完整处理流程
         
         # === 步骤2：空间特征投影（对每个时间步）===
         # 线性层可以直接处理3D张量，对最后一维进行变换
