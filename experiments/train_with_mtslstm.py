@@ -105,9 +105,9 @@ def config():
             "shared_mtslstm": False,
             "transfer": "linear",
             "dropout": 0.1,
-            "return_all": False,
+            "return_all": True,
 
-            "auto_build_lowfreq": False,
+            # "auto_build_lowfreq": False,
 
             "feature_buckets": feature_buckets,      # 长度 = len(var_t)
             "per_feature_aggs_map": per_feature_aggs_map,
@@ -118,9 +118,9 @@ def config():
             "slice_transfer": True,
             "slice_use_ceil": True,  # 只要提供了 seq_lengths/factors，内部就用固定切片，不再依赖 ceil/floor
             # 下面几个是聚合时的冗余参数（仅在 fallback 或你强制用旧路径时有用）
-            "build_factor": 24,
-            "agg_reduce": "mean",
-            "truncate_incomplete": True,
+            # "build_factor": 24,
+            # "agg_reduce": "mean",
+            # "truncate_incomplete": True,
         },
 
         # ----------------- 训练设置 -----------------
@@ -155,13 +155,13 @@ def config():
 
         scaler=scaler,
         scaler_params={
-            "prcp_norm_cols": ["streamflow"],
-            "gamma_norm_cols": ["prcp", "PET"],
+            "prcp_norm_cols": ["qobs_mm_per_hour"],
+            "gamma_norm_cols": [],
             "pbm_norm": False,
         },
 
         # 训练/验证/测试时间
-        train_epoch=20,
+        train_epoch=2,
         save_epoch=1,
         train_period=["1990-01-01", "1991-12-31"],
         valid_period=["1990-01-01", "1991-12-31"],
