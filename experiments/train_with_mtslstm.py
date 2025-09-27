@@ -95,7 +95,6 @@ def config():
         ctx=[0],
         model_name="MTSLSTM",
 
-        # ----------------- 关键：模型超参 -----------------
         model_hyperparam={
             # 不再需要手写 input_sizes；让模型从 feature_buckets 内部推导各分支维度
             # "input_sizes": 省略/None,

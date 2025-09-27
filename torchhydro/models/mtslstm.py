@@ -1,5 +1,6 @@
 # torchhydro/models/mts_lstm.py
 import warnings
+import os
 from typing import List, Union, Optional, Dict, Literal
 import torch
 import torch.nn as nn
@@ -59,9 +60,11 @@ class MTSLSTM(nn.Module):
         feature_buckets: Optional[List[int]] = None,     # 长度 D，每个特征的原生/目标频率：0=低、...、nf-1=高(小时)
         per_feature_aggs_map: Optional[List[Literal["mean","sum"]]] = None,  # 长度 D
         down_aggregate_all_to_each_branch: bool = True,  # 分支 f 包含 bucket>=f 的特征并聚合；bucket<f 的丢弃
+        pretrained_day_path: Optional[str] = None
     ):
         super().__init__()
 
+        self.pretrained_day_path = pretrained_day_path
         # ------- 频率个数 nf -------
         # 若给了 feature_buckets，则 nf 由其最大值+1 推断（否则由 input_sizes/list 长度推断）
         if feature_buckets is not None:
@@ -210,6 +213,67 @@ class MTSLSTM(nn.Module):
 
         # 标记：是否走“从小时统一聚合”的路径（根据 feature_buckets）
         self.use_hourly_unified = (self.feature_buckets is not None)
+
+        # ------- 预训练权重加载（仅日尺度分支 f1） -------
+        if self.pretrained_day_path is not None:
+            if not os.path.isfile(self.pretrained_day_path):
+                warnings.warn(f"[MTSLSTM] 预训练文件不存在：{self.pretrained_day_path}")
+            elif self.shared:
+                warnings.warn("[MTSLSTM] shared_mtslstm=True 时只有一套共享 LSTM，跳过日尺度专用预训练加载。")
+            elif self.nf < 2:
+                warnings.warn("[MTSLSTM] 频率数 < 2，没有日尺度分支，跳过预训练加载。")
+            else:
+                try:
+                    state = torch.load(self.pretrained_day_path, map_location="cpu")
+                    # 兼容常见封装
+                    if isinstance(state, dict):
+                        if "state_dict" in state: state = state["state_dict"]
+                        elif "model" in state:    state = state["model"]
+
+                    day_lstm = self.lstms[1]
+                    day_head = self.heads[1]
+                    lstm_state = day_lstm.state_dict()
+                    head_state = day_head.state_dict()
+
+                    matched = skipped = shape_mismatch = 0
+
+                    def try_load(prefix, target_state):
+                        nonlocal matched, skipped, shape_mismatch
+                        for k_pre, v in state.items():
+                            if not k_pre.startswith(prefix):
+                                continue
+                            k = k_pre[len(prefix):]  # 去掉前缀
+                            if k in target_state:
+                                if target_state[k].shape == v.shape:
+                                    target_state[k].copy_(v)
+                                    matched += 1
+                                else:
+                                    shape_mismatch += 1
+                            else:
+                                skipped += 1
+
+                    # 情形 A：ckpt 键带前缀
+                    try_load("lstms.1.", lstm_state)
+                    try_load("heads.1.", head_state)
+
+                    # 情形 B：ckpt 不带前缀（直接是子模块 state_dict）
+                    if matched == 0:  # A 没匹配上再试 B
+                        for k, v in state.items():
+                            if k in lstm_state and lstm_state[k].shape == v.shape:
+                                lstm_state[k].copy_(v); matched += 1
+                            elif k in head_state and head_state[k].shape == v.shape:
+                                head_state[k].copy_(v); matched += 1
+                            else:
+                                # 非本分支的键或形状不符
+                                shape_mismatch += 1
+
+                    day_lstm.load_state_dict(lstm_state)
+                    day_head.load_state_dict(head_state)
+                    print(f"[MTSLSTM] 日尺度预训练加载完成：matched={matched}, "
+                          f"shape_mismatch={shape_mismatch}, skipped={skipped}")
+
+                except Exception as e:
+                    warnings.warn(f"[MTSLSTM] 加载日尺度预训练模型失败：{e}")
 
     # ----------------- 工具 -----------------
     def _append_one_hot(self, x: torch.Tensor, freq_idx: int) -> torch.Tensor:
