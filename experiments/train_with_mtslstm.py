@@ -16,6 +16,9 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
+# === 1) 放在文件顶部或 config() 之前：指定预训练权重路径 ===
+PRETRAIN_DAY_PTH = "/Users/cylenlc/work/torchhydro/experiments/pretrain/day_branch_pretrain.pth"
+
 camels_dir = "/Users/cylenlc/data/camels_hourly"
 camels = CamelsHourly(camels_dir)
 gage_id = ['01022500', '01031500']
@@ -98,7 +101,7 @@ def config():
         model_hyperparam={
             # 不再需要手写 input_sizes；让模型从 feature_buckets 内部推导各分支维度
             # "input_sizes": 省略/None,
-
+            "pretrained_day_path": PRETRAIN_DAY_PTH,
             "hidden_sizes": [64, 64, 64],
             "output_size": 1,
             "shared_mtslstm": False,

@@ -1,4 +1,4 @@
-'''import torch
+import torch
 from torchhydro.models.mtslstm import MTSLSTM
 
 
@@ -53,9 +53,9 @@ day_state = {k: v for k, v in full_state.items() if k.startswith("lstms.1") or k
 # ==== 保存文件 ====
 torch.save(day_state, "pretrained_day_f1.pth")
 print("预训练日尺度模型已保存到 pretrained_day_f1.pth")
-'''
 
-import torch
+
+'''import torch
 from torchhydro.models.mtslstm import MTSLSTM
 
 
@@ -114,4 +114,4 @@ model2 = MTSLSTM(
 )
 after = model2.lstms[1].weight_ih_l0.sum().item()
 
-print("changed? ->", before != after)  # True 表示加载生效
+print("changed? ->", before != after)  # True 表示加载生效'''
