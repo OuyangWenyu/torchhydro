@@ -62,37 +62,16 @@ plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams['figure.figsize'] = (12, 8)
 plt.rcParams['font.size'] = 10
 
-def load_normal_comparison_data(base_dir, epoch="30", songliao_data_path="/mnt/data/ClassC/songliaorrevent"):
+def load_normal_comparison_data(base_dir, epoch=30, songliao_data_path="/mnt/data/ClassC/songliaorrevent"):
     """Load normal mode comparison data with optional songliao data"""
     base_dir = Path(base_dir)
     
-    data_dir = base_dir / "songliao_3h_test_normal"
-
-    # Prefer exact filenames when possible, but allow flexible epoch strings
-    obs_path = data_dir / f"epoch{epoch}flow_obs.nc"
-    pred_path = data_dir / f"epoch{epoch}flow_pred.nc"
-
+    # Define file paths with dynamic epoch number
     files = {
-        'obs': obs_path,
-        'normal': pred_path
+        'obs': base_dir / "songliao_3h_test_normal" / f"epoch{epoch}flow_obs.nc",
+        'normal': base_dir / "songliao_3h_test_normal" / f"epoch{epoch}flow_pred.nc"
     }
-
-    # If exact files are missing, try to find files that contain the epoch string
-    for name, path in list(files.items()):
-        if not path.exists():
-            try:
-                if name == 'obs':
-                    matches = list(data_dir.glob(f"*{epoch}*flow_obs*.nc"))
-                else:
-                    matches = list(data_dir.glob(f"*{epoch}*flow_pred*.nc"))
-                if not matches:
-                    # Fallback to any file containing the epoch substring
-                    matches = list(data_dir.glob(f"*{epoch}*.nc"))
-                if matches:
-                    files[name] = matches[0]
-            except Exception:
-                pass
-     
+    
     # Check if files exist
     missing_files = []
     existing_files = []
@@ -366,9 +345,7 @@ def plot_normal_comparison_period_with_rainfall(obs_flow, pred_flow, period, bas
                 ylabel=ylabel,
                 prcp_ylabel=prcp_ylabel,
                 leg_lst=leg_list,
-                linewidth=2,
-                color_list=color_list,
-                linestyle_list=linestyle_list,
+                linewidth=2
             )
         except Exception as e:
             print(f"hydroutils plotting failed, using custom plotting: {e}")
@@ -438,18 +415,11 @@ def plot_normal_comparison_period_with_rainfall(obs_flow, pred_flow, period, bas
     
     return metrics
 
-def plot_normal_comparison(data, save_dir, epoch="30", songliao_data_path="/mnt/data/ClassC/songliaorrevent"):
+def plot_normal_comparison(data, save_dir, epoch=30, songliao_data_path="/mnt/data/ClassC/songliaorrevent"):
     """Plot normal mode comparison analysis with denormalized data and rainfall"""
     
     save_dir = Path(save_dir)
-    # Sanitize epoch string for use in folder names (remove extensions like .pth)
-    try:
-        epoch_folder = Path(str(epoch)).stem
-    except Exception:
-        epoch_folder = str(epoch)
-
-    # Create an epoch-specific subfolder under the existing songliao_3h_test_normal directory
-    plots_dir = save_dir / f"epoch{epoch_folder}" / "normal_comparison_plots"
+    plots_dir = save_dir / "normal_comparison_plots"
     plots_dir.mkdir(exist_ok=True, parents=True)
     
     # Extract data
@@ -492,6 +462,23 @@ def plot_normal_comparison(data, save_dir, epoch="30", songliao_data_path="/mnt/
         first_var = list(pred_data.keys())[0]
         pred_flow = pred_data[first_var]
         print(f"Using first available variable for predictions: {first_var}")
+    
+    # --- 低方差诊断：若预测低方差，警告并列出可用变量 ---
+    try:
+        overall_std = float(np.nanstd(pred_flow))
+        print(f"Prediction flow overall std: {overall_std:.6f}")
+        if overall_std < 1e-6:
+            print("WARNING: Prediction series has extremely low variance (near-constant).\n"
+                  "This often means the wrong variable was selected or denormalization failed.")
+            print(f"Available variables in pred data: {list(pred_data.keys())}")
+            # 尝试更多常见变量名
+            alt_names = ['pred', 'yhat', 'flow_pred', 'qsim', 'q_pred']
+            for alt in alt_names:
+                if alt in pred_data:
+                    alt_std = float(np.nanstd(pred_data[alt]))
+                    print(f"Candidate '{alt}' std: {alt_std:.6f}")
+    except Exception as e:
+        print(f"Std diagnostic failed: {e}")
     
     # 检查数据形状
     print(f"Obs flow shape: {obs_flow.shape}")
@@ -544,6 +531,10 @@ def plot_normal_comparison(data, save_dir, epoch="30", songliao_data_path="/mnt/
     print(f"Final data range:")
     print(f"  Obs data range: {np.nanmin(obs_flow):.3f} - {np.nanmax(obs_flow):.3f} {flow_unit}")
     print(f"  Pred data range: {np.nanmin(pred_flow):.3f} - {np.nanmax(pred_flow):.3f} {flow_unit}")
+    # 若预测范围极小，再次提示
+    if np.nanstd(pred_flow) < 1e-6:
+        print("WARNING: Pred data nearly constant after unit conversion.\n"
+              "Please check: (1) variable name, (2) denormalization/saving pipeline, (3) epoch & directory.")
     
     print(f"Processing normal mode comparison for {len(basin_names)} basins:")
     for i, name in enumerate(basin_names):
@@ -699,10 +690,10 @@ def main():
     
     # 参数解析
     parser = argparse.ArgumentParser(description='Normal mode comparison analysis with flood events')
-    parser.add_argument('--base_dir', '-d', default='/home/lizilin/code/torchhydro/results/3d_gnn_only/',
+    parser.add_argument('--base_dir', '-d', default='/home/loujinghe/user/torchhydro/results/4d_gnn_experiment_stgcn',
                         help='Base directory containing model results')
-    parser.add_argument('--epoch', '-e', type=str, default='40',
-                        help='Epoch identifier to analyze (string allowed, e.g. "40" or "best_model.pth")')
+    parser.add_argument('--epoch', '-e', type=int, default=60,
+                        help='Epoch number to analyze (default: 60)')
     parser.add_argument('--songliao_path', '-s', default='/mnt/data/ClassC/songliaorrevent',
                         help='Path to Songliao dataset')
     
@@ -719,9 +710,25 @@ def main():
         print("ERROR: Failed to load required data files")
         return
     
+    # 额外：打印各流域预测序列方差，快速发现“恒值预测”
+    try:
+        pred_vars = data['normal']
+        candidates = ['inflow', 'flow', 'streamflow', 'discharge', 'qsim', 'pred', 'yhat', 'flow_pred', 'q_pred']
+        chosen = None
+        for name in candidates:
+            if name in pred_vars:
+                chosen = name
+                break
+        if chosen is None and len(pred_vars) > 0:
+            chosen = list(pred_vars.keys())[0]
+        if chosen is not None:
+            arr = np.asarray(pred_vars[chosen])
+            std_per_basin = np.nanstd(arr, axis=1)
+            print("Pred std per basin (first 10):", np.round(std_per_basin[:10], 6))
+    except Exception as e:
+        print(f"Variance-by-basin diagnostic failed: {e}")
+
     # Generate plots
-    # Use the standard songliao_3h_test_normal folder and let the plotting function
-    # create an epoch subfolder inside it (epoch{epoch}/normal_comparison_plots)
     save_dir = Path(args.base_dir) / "songliao_3h_test_normal"
     plot_normal_comparison(data, save_dir, epoch=args.epoch, songliao_data_path=args.songliao_path)
 
