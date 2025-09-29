@@ -64,10 +64,11 @@ def config():
             "songliao_21401550",
         ],
         batch_size=8,
-        hindcast_length=0,
-        forecast_length=160,
+        #warmup_length=90,
+        hindcast_length=90,
+        forecast_length=24,
         # for flood event dataset, we need to set the forecast length for testing
-        frwin=160,
+        frwin=24,
         min_time_unit="h",
         min_time_interval="3",
         var_t=["rain"],
@@ -89,13 +90,14 @@ def config():
             # Pad strategy: "Pad" or "multi_table" (multi_table not fully tested yet)
             "pad_strategy": "Pad",
         },
-        train_mode=False,  # 设置为False，只测试不训练
+        train_mode=True,  # 设置为False，只测试不训练
         train_epoch=60,
-        save_epoch=1,
+        save_epoch=5,
         model_loader={"load_way": "specified", "test_epoch": 60},
-        train_period=["1980-01-01-02", "2012-12-31-23"],
-        valid_period=["2013-01-01-02", "2019-12-31-23"],
-        test_period=["2020-01-01-02", "2024-12-30-23"],
+        train_period=["1980-01-01-02", "2018-12-31-23"],
+        valid_period=["2019-01-01-02", "2024-12-31-23"],
+        test_period=["2019-01-01-02", "2024-12-31-23"],
+        #test_period=["2020-01-01-02", "2024-12-30-23"],
         # loss_func="RMSESum",
         loss_func="FloodLoss",
         loss_param={

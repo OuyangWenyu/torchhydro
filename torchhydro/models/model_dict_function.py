@@ -41,26 +41,15 @@ from torchhydro.models.gnn import (
     GCNII,
     ResGAT,
 )
-from torchhydro.models.gnn_st_flood import (
-    STGCN,
-    GraphWaveNet,
-    CrossModalGNN
-)
-from torchhydro.models.gnn_st_flood_simple import (
-    SpatioTemporalFloodNet, 
-)
-from torchhydro.models.gnn_st_flood_4d_batch import (
-    SpatioTemporalFloodNet4D,
-    GCN4DFloodNet,
-    GAT4DFloodNet,
-    GCNII4DFloodNet,
-    MLP4DFloodNet,
-)
 from torchhydro.models.gnn_st_flood_3d_batch import (
     SpatioTemporalFloodNet3D,
     MeanAggregationFloodNet,
     AttentionAggregationFloodNet,
     MultiScaleAggregationFloodNet,
+)
+from torchhydro.models.STGCN import (
+    STGCN,
+    STGCNModel,
 )
 from torch.optim import Adam, SGD, Adadelta
 from torchhydro.models.crits import (
@@ -127,23 +116,14 @@ pytorch_model_dict = {
     "GCNII": GCNII,
     "ResGAT": ResGAT,
     # Spatio-temporal GNN models
-    "GraphWaveNet": GraphWaveNet,
-    "STGCN": STGCN,
-    "CrossModalGNN": CrossModalGNN,
-    "SpatioTemporalFloodNet": SpatioTemporalFloodNet,
-    # 4D Batch Flood Models (based on gnn copy 4.py architecture)
-    "SpatioTemporalFloodNet4D": SpatioTemporalFloodNet4D,
-    "GCN4DFloodNet": GCN4DFloodNet,
-    "GAT4DFloodNet": GAT4DFloodNet,
-    "GCNII4DFloodNet": GCNII4DFloodNet,
-    "MLP4DFloodNet": MLP4DFloodNet,
-    "FloodGCN4D": GCN4DFloodNet,  # Alias for easier access
     # 3D Batch Flood Models (with different aggregation strategies)
     "SpatioTemporalFloodNet3D": SpatioTemporalFloodNet3D,
     "MeanAggregationFloodNet": MeanAggregationFloodNet,
     "AttentionAggregationFloodNet": AttentionAggregationFloodNet,
     "MultiScaleAggregationFloodNet": MultiScaleAggregationFloodNet,
     "FloodGCN3D": SpatioTemporalFloodNet3D,  # Alias for easier access
+    # Standard STGCN implementation
+    "STGCN": STGCNModel,  # Standard Spatio-Temporal Graph Convolutional Network
     #"ASTGCN": ASTGCN,
 }
 
