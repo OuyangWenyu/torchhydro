@@ -206,6 +206,8 @@ def create_4d_gnn_config(test_mode="normal", model_name="BasicGCN"):
     # 目录规则: results/<base_dir>/songliao_3h_test_normal/dapengscaler_stat.json
     reuse_stat_file = False
     stat_dict_file_path = None
+    # 默认模型加载策略；normal 训练时使用 latest，敏感性评估时改为 pth
+    model_loader_cfg = {"load_way": "latest"}
     # 注意：此处的 train_mode 由下面 cmd 参数决定，这里根据我们即将传入的值进行判断
     intended_train_mode = False  # 当前脚本设置为测试模式
     if not intended_train_mode and test_mode != "normal":
@@ -215,6 +217,41 @@ def create_4d_gnn_config(test_mode="normal", model_name="BasicGCN"):
             stat_dict_file_path = candidate_stat
             reuse_stat_file = True
             print(f"🔁 发现基线统计文件，将复用: {candidate_stat}")
+            # === 追加：尝试复用 normal 训练得到的模型权重 ===
+            baseline_weight = None
+            if os.path.isdir(baseline_case_dir):
+                try:
+                    # 优先按常见 epoch 列表回溯查找（最高优先级靠前）
+                    preferred_epochs = [60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5]
+                    for ep in preferred_epochs:
+                        cand = os.path.join(baseline_case_dir, f"model_Ep{ep}.pth")
+                        if os.path.isfile(cand):
+                            baseline_weight = cand
+                            break
+                    # 若上面未找到，按 model_Ep*.pth 解析最大 epoch
+                    if baseline_weight is None:
+                        from glob import glob
+                        import re
+                        ep_files = glob(os.path.join(baseline_case_dir, "model_Ep*.pth"))
+                        if ep_files:
+                            def _ep_num(fp):
+                                m = re.search(r"model_Ep(\d+)\.pth", fp)
+                                return int(m.group(1)) if m else -1
+                            ep_files.sort(key=_ep_num)
+                            baseline_weight = ep_files[-1]
+                    # 再退一步：时间戳 *_model.pth （如 29_September_xxx_model.pth）
+                    if baseline_weight is None:
+                        ts_files = [f for f in os.listdir(baseline_case_dir) if f.endswith("_model.pth")]
+                        if ts_files:
+                            ts_files.sort(key=lambda f: os.path.getctime(os.path.join(baseline_case_dir, f)))
+                            baseline_weight = os.path.join(baseline_case_dir, ts_files[-1])
+                except Exception as _e:  # noqa: F841
+                    baseline_weight = None
+            if baseline_weight and os.path.isfile(baseline_weight):
+                model_loader_cfg = {"load_way": "pth", "pth_path": baseline_weight}
+                print(f"🔗 将复用 normal 训练权重进行敏感性评估: {baseline_weight}")
+            else:
+                print("⚠️ 未找到可复用的 normal 权重文件，将继续尝试 'latest'，若 sim 目录无权重会失败。")
         else:
             print("⚠️ 未找到基线 normal 统计文件: "
                   f"{candidate_stat}\n   -> 请先运行 normal 训练 (train_mode=True, test_mode=normal) 以生成统计文件，"
@@ -331,8 +368,10 @@ def create_4d_gnn_config(test_mode="normal", model_name="BasicGCN"):
         warmup_length=warmup_length, hindcast_length=hindcast_length, forecast_length=forecast_length,
         min_time_unit="h", min_time_interval=3,
         var_t=var_t, var_c=var_c, var_out=["inflow", "flood_event"],
-        # train_mode=True,  # 训练模式
-        train_mode=False,  # 测试模式：仅评估，不重新训练
+
+        train_mode=True,  # 训练模式
+        # train_mode=False,  # 测试模式：仅评估，不重新训练
+
         stat_dict_file=stat_dict_file_path,
         
         train_epoch=60,  # 延长训练以提高拟合
@@ -349,7 +388,9 @@ def create_4d_gnn_config(test_mode="normal", model_name="BasicGCN"):
         test_period=["2020-01-01-02", "2024-12-31-23"],        
         
         rolling=-1,  # 不使用滚动窗口
-        model_loader={"load_way": "latest"},  # 对应训练epoch
+
+        model_loader=model_loader_cfg,  # 根据是否是敏感性评估动态决定加载策略
+        
         evaluator={"eval_way": "floodevent"}, which_first_tensor="batch",
         # 优化器配置 - 防止过拟合的设置
         opt="Adam",
@@ -414,8 +455,8 @@ def main():
     """主函数，支持多种运行模式"""
     
     # 代码内设置参数 - 无需命令行传参
-    model_name = "STGCN"  
-    test_mode = "sim1"  # 默认正常测试模式
+    model_name = "FloodGCN3D"  
+    test_mode = "normal"  # 默认正常测试模式
     
     # 检查命令行参数（保留兼容性，但优先使用代码内设置）
     if len(sys.argv) > 1:

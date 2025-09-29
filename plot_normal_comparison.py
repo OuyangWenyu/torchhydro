@@ -62,35 +62,53 @@ plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams['figure.figsize'] = (12, 8)
 plt.rcParams['font.size'] = 10
 
-def load_normal_comparison_data(base_dir, epoch=30, songliao_data_path="/mnt/data/ClassC/songliaorrevent"):
-    """Load normal mode comparison data with optional songliao data"""
+def load_normal_comparison_data(base_dir, epoch=30, songliao_data_path="/mnt/data/ClassC/songliaorrevent", mode="normal"):
+    """通用模式结果加载 (normal / sim1 / sim2 / sim3)
+
+    兼容两类文件命名：
+    1) 标准: epoch60flow_obs.nc / epoch60flow_pred.nc
+    2) 推理保存拼接: epochmodel_Ep60.pthflow_obs.nc / epochmodel_Ep60.pthflow_pred.nc
+    若指定 epoch 文件缺失，自动在目录内搜索最新的 *flow_obs.nc / *flow_pred.nc
+    """
     base_dir = Path(base_dir)
-    
-    # Define file paths with dynamic epoch number
+    case_dir = base_dir / f"songliao_3h_test_{mode}"
+    if not case_dir.exists():
+        raise FileNotFoundError(f"结果目录不存在: {case_dir}")
+
+    # 首选标准命名
+    candidate_obs = case_dir / f"epoch{epoch}flow_obs.nc"
+    candidate_pred = case_dir / f"epoch{epoch}flow_pred.nc"
+
+    # 兼容拼接命名 (例如 epochmodel_Ep60.pthflow_obs.nc)
+    if not candidate_obs.exists():
+        alt_pattern = f"*Ep{epoch}*.nc"
+        matches = list(case_dir.glob(alt_pattern))
+        for m in matches:
+            if "flow_obs.nc" in m.name:
+                candidate_obs = m
+            if "flow_pred.nc" in m.name:
+                candidate_pred = m
+
+    # 若仍不存在，回退到目录下搜索任意最新 obs/pred 文件
+    if not candidate_obs.exists() or not candidate_pred.exists():
+        print("⚠️ 指定 epoch 文件未找到，回退到目录内自动检索 *flow_obs.nc / *flow_pred.nc")
+        all_obs = sorted(case_dir.glob("*flow_obs.nc"), key=lambda p: p.stat().st_mtime)
+        all_pred = sorted(case_dir.glob("*flow_pred.nc"), key=lambda p: p.stat().st_mtime)
+        if all_obs:
+            candidate_obs = all_obs[-1]
+        if all_pred:
+            candidate_pred = all_pred[-1]
+
     files = {
-        'obs': base_dir / "songliao_3h_test_normal" / f"epoch{epoch}flow_obs.nc",
-        'normal': base_dir / "songliao_3h_test_normal" / f"epoch{epoch}flow_pred.nc"
+        'obs': candidate_obs,
+        'pred': candidate_pred,
     }
-    
-    # Check if files exist
-    missing_files = []
-    existing_files = []
-    for name, path in files.items():
-        if not path.exists():
-            missing_files.append(f"{name}: {path}")
-        else:
-            existing_files.append(f"{name}: {path}")
-    
-    print("File status:")
-    for file in existing_files:
-        print(f"  ✓ {file}")
-    
-    if missing_files:
-        print("Missing files:")
-        for file in missing_files:
-            print(f"  ✗ {file}")
-    
-    # Load data
+
+    print(f"📂 加载模式: {mode}")
+    print("文件状态：")
+    for k, v in files.items():
+        print(f"  {k}: {'存在' if v.exists() else '缺失'} -> {v}")
+
     data = {}
     for name, path in files.items():
         if path.exists():
@@ -99,18 +117,18 @@ def load_normal_comparison_data(base_dir, epoch=30, songliao_data_path="/mnt/dat
             if data[name] is None:
                 print(f"Failed to load {name} data")
             else:
-                # Print data structure for debugging
                 print(f"  {name} variables: {list(data[name].keys())}")
                 for var_name, var_data in data[name].items():
                     if hasattr(var_data, 'shape'):
                         print(f"    {var_name}: shape {var_data.shape}")
         else:
-            print(f"Skipping missing file: {name}")
             data[name] = None
-    
-    # 设置松辽数据集路径
+
+    # 兼容旧代码键名 'normal'
+    if 'pred' in data:
+        data['normal'] = data['pred']
     data['songliao_data_path'] = songliao_data_path
-    
+    data['mode'] = mode
     return data
 
 def plot_rainfall_runoff_with_flood_events(time_data, rainfall_data, obs_flow_data, pred_flow_data, 
@@ -415,11 +433,12 @@ def plot_normal_comparison_period_with_rainfall(obs_flow, pred_flow, period, bas
     
     return metrics
 
-def plot_normal_comparison(data, save_dir, epoch=30, songliao_data_path="/mnt/data/ClassC/songliaorrevent"):
-    """Plot normal mode comparison analysis with denormalized data and rainfall"""
+def plot_normal_comparison(data, save_dir, epoch=30, songliao_data_path="/mnt/data/ClassC/songliaorrevent", mode="normal"):
+    """绘制指定模式 (normal/simX) 的洪水事件对比图与指标"""
     
     save_dir = Path(save_dir)
-    plots_dir = save_dir / "normal_comparison_plots"
+    subfolder_name = "normal_comparison_plots" if mode == "normal" else f"{mode}_comparison_plots"
+    plots_dir = save_dir / subfolder_name
     plots_dir.mkdir(exist_ok=True, parents=True)
     
     # Extract data
@@ -694,17 +713,19 @@ def main():
                         help='Base directory containing model results')
     parser.add_argument('--epoch', '-e', type=int, default=60,
                         help='Epoch number to analyze (default: 60)')
+    parser.add_argument('--mode', '-m', default='normal', choices=['normal','sim1','sim2','sim3'],
+                        help='Evaluation mode to visualize (normal/sim1/sim2/sim3)')
     parser.add_argument('--songliao_path', '-s', default='/mnt/data/ClassC/songliaorrevent',
                         help='Path to Songliao dataset')
     
     args = parser.parse_args()
     
-    print(f"Loading normal mode comparison data from: {args.base_dir}")
+    print(f"Loading mode={args.mode} comparison data from: {args.base_dir}")
     print(f"Using epoch: {args.epoch}")
     print(f"Songliao data path: {args.songliao_path}")
     
     # Load data
-    data = load_normal_comparison_data(args.base_dir, epoch=args.epoch, songliao_data_path=args.songliao_path)
+    data = load_normal_comparison_data(args.base_dir, epoch=args.epoch, songliao_data_path=args.songliao_path, mode=args.mode)
     
     if data['obs'] is None or data['normal'] is None:
         print("ERROR: Failed to load required data files")
@@ -729,8 +750,8 @@ def main():
         print(f"Variance-by-basin diagnostic failed: {e}")
 
     # Generate plots
-    save_dir = Path(args.base_dir) / "songliao_3h_test_normal"
-    plot_normal_comparison(data, save_dir, epoch=args.epoch, songliao_data_path=args.songliao_path)
+    save_dir = Path(args.base_dir) / f"songliao_3h_test_{args.mode}"
+    plot_normal_comparison(data, save_dir, epoch=args.epoch, songliao_data_path=args.songliao_path, mode=args.mode)
 
 
 if __name__ == "__main__":
