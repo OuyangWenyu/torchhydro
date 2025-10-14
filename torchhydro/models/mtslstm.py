@@ -54,6 +54,8 @@ class MTSLSTM(nn.Module):
         per_feature_aggs_map: Optional[List[Literal["mean","sum"]]] = None,
         down_aggregate_all_to_each_branch: bool = True,
         pretrained_day_path: Optional[str] = None,
+        pretrained_lstm_prefix=None,
+        pretrained_head_prefix=None,
     ):
         """Initializes an MTSLSTM model.
 
@@ -285,8 +287,8 @@ class MTSLSTM(nn.Module):
                             else:
                                 skipped += 1
 
-                    try_load("lstms.1.", lstm_state)
-                    try_load("heads.1.", head_state)
+                    try_load(pretrained_lstm_prefix, lstm_state)
+                    try_load(pretrained_head_prefix, head_state)
 
                     if matched == 0:
                         # Try raw state_dict without prefix

@@ -27,7 +27,7 @@ for logger_name in logging.root.manager.loggerDict:
     logger.setLevel(logging.INFO)
 
 # === Pretrained checkpoint path for daily branch ===
-PRETRAIN_DAY_PTH = "/Users/cylenlc/work/torchhydro/experiments/pretrain/day_branch_pretrain.pth"
+PRETRAIN_DAY_PTH = "/Users/cylenlc/work/torchhydro/experiments/best_model.pth"
 
 # === Dataset setup ===
 camels_dir = "/Users/cylenlc/data/camels_hourly"
@@ -126,7 +126,9 @@ def config():
 
         model_hyperparam={
             "pretrained_day_path": PRETRAIN_DAY_PTH,
-            "hidden_sizes": [64, 64, 64],
+            "pretrained_lstm_prefix": "lstm.",
+            "pretrained_head_prefix": "linearOut.",
+            "hidden_sizes": [128, 128, 128],
             "output_size": 1,
             "shared_mtslstm": False,
             "transfer": "linear",
@@ -168,7 +170,7 @@ def config():
         },
 
         # === Training/validation/testing periods ===
-        train_epoch=2,
+        train_epoch=20,
         save_epoch=1,
         train_period=["1990-01-01", "1991-12-31"],
         valid_period=["1990-01-01", "1991-12-31"],
