@@ -21,6 +21,8 @@ from torchhydro.trainers.trainer import train_and_evaluate
 from hydrodataset.camels import Camels
 #from hydrodataset.camels_aef import CamelsAef
 from hydrodataset.camels_sk_aqua import CamelsSk
+import torch
+torch.backends.cudnn.enabled = False
 # Get the project directory of the py file
 
 # import the module using a relative path
@@ -33,10 +35,10 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-camels_dir = os.path.join("F:/data")
+camels_dir = os.path.join("G:\data")
 camels = CamelsSk(camels_dir)
 # gage_id = camels.read_site_info()["gauge_id"].values.tolist()
-gage_id = ['2013615', '2017620']
+gage_id = ['2013615', '2017620', '1001620', '1002625']
 gage_id = sorted([x for x in gage_id])
 
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"
@@ -71,7 +73,7 @@ def config():
         ctx=[1],
         model_name="SimpleLSTM",
         model_hyperparam={
-            "input_size": 5,
+            "input_size": 11,
             "output_size": 1,
             "hidden_size": 128,
             "dr": 0.4,
@@ -86,30 +88,26 @@ def config():
         ensemble_items={"seeds": seeds},
         forecast_history=0,
         forecast_length=365,
-        min_time_unit="D",
+        min_time_unit="h",
         min_time_interval=1,
-        var_t=["total_precipitation", "temperature_2m"],
+        var_t=["total_precipitation", "temperature_2m", "potential_evaporation", "surface_net_solar_radiation", "precip_obs"],
         scaler_params={
             "prcp_norm_cols": [
-                "p_mean",
+                "q_cms_obs"
             ],
-            "gamma_norm_cols": ["total_precipitation"],
+            "gamma_norm_cols": [],
             "pbm_norm": False,
         },
-        var_c=[
-            "dis_m3_pyr",
-            "run_mm_syr",
-            "inu_pc_smn",
-        ],
+        var_c=['dis_m3_pyr', 'dis_m3_pmn', 'dis_m3_pmx', 'run_mm_syr', 'inu_pc_smn', 'inu_pc_smx'],
         # scaler="DapengScaler",
         scaler=scaler,
         var_out=["q_cms_obs"],
         dataset="StreamflowDataset",
-        train_epoch=20,
+        train_epoch=2,
         save_epoch=1,
-        train_period=["2010-01-01", "2011-12-31"],
-        valid_period=["2010-01-01", "2011-12-31"],
-        test_period=["2010-01-01", "2011-12-31"],
+        train_period=["2010-01-01", "2019-12-31"],
+        valid_period=["2010-01-01", "2019-12-31"],
+        test_period=["2017-01-01", "2019-12-31"],
         # train_period=["1980-01-01", "1981-12-31"],
         # valid_period=["2010-01-01", "2013-12-31"],
         # test_period=["2014-01-01", "2015-12-31"],

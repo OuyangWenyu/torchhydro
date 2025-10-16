@@ -384,6 +384,7 @@ class DeepHydro(DeepHydroInterface):
                 tqdm(test_dataloader, desc="Model inference", unit="batch")
             ):
                 ys, pred = model_infer(seq_first, self.device, self.model, batch)
+                print(batch[1][0])
                 test_preds.append(pred.cpu())
                 obss.append(ys.cpu())
                 if i % 100 == 0:
@@ -433,20 +434,20 @@ class DeepHydro(DeepHydroInterface):
 
         # 找到这个批次中最长的序列长度
         max_len = max(tensor_data[0].shape[0] for tensor_data in batch)
-        
+
         # 调整所有样本到相同长度
         processed_batch = []
         for tensor_data in batch:
             # 获取x和y（假设tensor_data[0]是x，tensor_data[1]是y）
             x = tensor_data[0]
             y = tensor_data[1] if len(tensor_data) > 1 else None
-            
+
             current_len = x.shape[0]
             if current_len < max_len:
                 # 使用最后一个值填充x
                 padding_x = x[-1:].repeat(max_len - current_len, 1)
                 padded_x = torch.cat([x, padding_x], dim=0)
-                
+
                 # 如果有y，也进行填充
                 if y is not None:
                     padding_y = y[-1:].repeat(max_len - current_len, 1)
@@ -457,12 +458,12 @@ class DeepHydro(DeepHydroInterface):
                 # 如果更长则截断
                 padded_x = x[:max_len]
                 padded_y = y[:max_len] if y is not None else None
-            
+
             if padded_y is not None:
                 processed_batch.append((padded_x, padded_y))
             else:
                 processed_batch.append(padded_x)
-        
+
         # 根据数据结构返回堆叠后的结果
         if len(processed_batch) > 0 and isinstance(processed_batch[0], tuple):
             return (

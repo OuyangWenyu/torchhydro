@@ -575,7 +575,7 @@ class BaseDataset(Dataset):
             else:
                 # 如果 selected_time_points 已经是整数索引，直接使用
                 selected_indices = selected_time_points
-            
+
             # 确保索引不越界
             max_idx = norm_data.shape[1] - 1
             selected_indices = np.clip(selected_indices, 0, max_idx)
@@ -913,6 +913,7 @@ class BaseDataset(Dataset):
             [start_date, end_date],
             self.data_cfgs["target_cols"],
         )
+        print(data_output_ds_)
         data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
         data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
@@ -924,7 +925,6 @@ class BaseDataset(Dataset):
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
-        print(type(data_attr_ds))
         x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, data_attr_ds
         )
