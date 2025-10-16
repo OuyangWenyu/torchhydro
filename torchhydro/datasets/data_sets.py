@@ -566,8 +566,21 @@ class BaseDataset(Dataset):
                 "variable": selected_data.coords["variable"],
             }
             dims = ["basin", "time", "variable"]
+#add
+            if isinstance(selected_time_points, xr.DataArray):
+                # 获取 target_data 的时间轴
+                time_coords = target_data.coords["time"].values
+                # 找到 selected_time_points 对应的整数索引
+                selected_indices = np.where(np.isin(time_coords, selected_time_points))[0]
+            else:
+                # 如果 selected_time_points 已经是整数索引，直接使用
+                selected_indices = selected_time_points
+            
+            # 确保索引不越界
+            max_idx = norm_data.shape[1] - 1
+            selected_indices = np.clip(selected_indices, 0, max_idx)
             if norm_data.shape[1] != len(selected_data.coords["time"]):
-                norm_data_3d = norm_data[:, selected_time_points, :]
+                norm_data_3d = norm_data[:, selected_indices, :]
             else:
                 norm_data_3d = norm_data
 
@@ -919,7 +932,7 @@ class BaseDataset(Dataset):
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
             "target_cols": y_origin.transpose("basin", "time", "variable"),
             "constant_cols": (
-                c_origin.transpose("basin", "variable")
+                c_origin.transpose("STAID", "variable")     #rewrite
                 if c_origin is not None
                 else None
             ),

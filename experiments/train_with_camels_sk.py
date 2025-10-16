@@ -33,7 +33,7 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-camels_dir = os.path.join("/Users/cylenlc", "data", "camels_us")
+camels_dir = os.path.join("F:/data")
 camels = CamelsSk(camels_dir)
 # gage_id = camels.read_site_info()["gauge_id"].values.tolist()
 gage_id = ['2013615', '2017620']
@@ -97,13 +97,13 @@ def config():
             "pbm_norm": False,
         },
         var_c=[
-            "dis_m3_",
-            "run_mm_",
-            "inu_pc_",
+            "dis_m3_pyr",
+            "run_mm_syr",
+            "inu_pc_smn",
         ],
         # scaler="DapengScaler",
         scaler=scaler,
-        var_out=["p_mean"],
+        var_out=["q_cms_obs"],
         dataset="StreamflowDataset",
         train_epoch=20,
         save_epoch=1,
