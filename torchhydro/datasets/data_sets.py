@@ -932,7 +932,7 @@ class BaseDataset(Dataset):
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
             "target_cols": y_origin.transpose("basin", "time", "variable"),
             "constant_cols": (
-                c_origin.transpose("STAID", "variable")     #rewrite
+                c_origin.transpose("basin", "variable")
                 if c_origin is not None
                 else None
             ),
