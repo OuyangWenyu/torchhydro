@@ -20,7 +20,7 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 from hydrodataset.camels import Camels
 #from hydrodataset.camels_aef import CamelsAef
-
+from hydrodataset.camels_sk_aqua import CamelsSk
 # Get the project directory of the py file
 
 # import the module using a relative path
@@ -34,7 +34,7 @@ for logger_name in logging.root.manager.loggerDict:
     logger.setLevel(logging.INFO)
 
 camels_dir = os.path.join("/Users/cylenlc", "data", "camels_us")
-camels = Camels(camels_dir)
+camels = CamelsSk(camels_dir)
 # gage_id = camels.read_site_info()["gauge_id"].values.tolist()
 gage_id = ['2013615', '2017620']
 gage_id = sorted([x for x in gage_id])
