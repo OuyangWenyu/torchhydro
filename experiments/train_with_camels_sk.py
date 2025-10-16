@@ -26,7 +26,7 @@ from hydrodataset.camels import Camels
 # import the module using a relative path
 sys.path.append(os.path.dirname(Path(os.path.abspath(__file__)).parent))
 
-hru_delete = "02"
+hru_delete = "01"
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
@@ -66,7 +66,7 @@ def config():
         source_cfgs={
             "source_name": "camels_sk",
             "source_path": camels_dir,
-            "other_settings": {"download": False, "region": "US"},
+            "other_settings": {"download": False, "region": "SK"},
         },
         ctx=[1],
         model_name="SimpleLSTM",
