@@ -3398,7 +3398,7 @@ class AEFDataset(BaseDataset):
             data_forcing_ds_, data_output_ds_
         )
         # c
-        csv_path = r"D:\work\torchhydro\data\basin_average_embeddings.csv"
+        csv_path = r"/ftproot/camels_data/CAMELS_SK/alphaearth/mean_result.csv"
         df_embeddings = pd.read_csv(csv_path)
         df_embeddings["hru_id"] = (
             df_embeddings["hru_id"].astype(int).astype(str).str.lstrip("0")
