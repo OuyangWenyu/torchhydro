@@ -1,7 +1,7 @@
 import os
 import pytest
 from typing import List, Dict, Any, Optional
-
+from hydrodataset.hydro_dataset import StandardVariable
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 import logging
@@ -371,7 +371,6 @@ def trans_args(basin4test: List[str]) -> Any:
 @pytest.fixture()
 def dpl_args() -> Any:
     project_name = os.path.join("test_camels", "expdpl001")
-    data_origin_dir = SETTING["local_data_path"]["datasets-origin"]
     train_period = ["1985-10-01", "1986-04-01"]
     # valid_period = ["1995-10-01", "2000-10-01"]
     valid_period = None
@@ -380,7 +379,7 @@ def dpl_args() -> Any:
         sub=project_name,
         source_cfgs={
             "source_name": "camels_us",
-            "source_path": os.path.join(data_origin_dir, "camels", "camels_us"),
+            "source_path": SETTING["local_data_path"]["datasets-origin"],
         },
         ctx=[0],
         model_type="MTL",
@@ -408,14 +407,9 @@ def dpl_args() -> Any:
         scaler_params={
             "prcp_norm_cols": ["streamflow"],
             "gamma_norm_cols": [
-                "prcp",
-                "pr",
-                "total_precipitation",
-                "potential_evaporation",
-                "ET",
-                "PET",
-                "ET_sum",
-                "ssm",
+                StandardVariable.PRECIPITATION,
+                StandardVariable.EVAPOTRANSPIRATION,
+                StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
             ],
             "pbm_norm": True,
         },
@@ -438,17 +432,17 @@ def dpl_args() -> Any:
         hindcast_length=0,
         forecast_length=60,
         var_t=[
-            "prcp",
-            "PET",
-            "dayl",
-            "srad",
-            "swe",
-            "tmax",
-            "tmin",
-            "vp",
+            StandardVariable.PRECIPITATION,
+            StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
+            StandardVariable.DAYLIGHT_DURATION,
+            StandardVariable.SOLAR_RADIATION,
+            StandardVariable.SNOW_WATER_EQUIVALENT,
+            StandardVariable.TEMPERATURE_MAX,
+            StandardVariable.TEMPERATURE_MIN,
+            StandardVariable.VAPOR_PRESSURE,
         ],
         # NOTE: The second variable is not necessary, or not used in the model. But to keep the same length with model output, we add a dummy variable.
-        var_out=["streamflow", "ET"],
+        var_out=[StandardVariable.STREAMFLOW, StandardVariable.EVAPOTRANSPIRATION],
         n_output=2,
         fill_nan=["no", "no"],
         target_as_input=0,

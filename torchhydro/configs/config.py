@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-10-29 08:55:59
+LastEditTime: 2025-10-29 14:34:08
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -18,6 +18,7 @@ from typing import Dict, List, Any, Optional
 import numpy as np
 import pandas as pd
 from hydroutils import hydro_file
+from hydrodataset.hydro_dataset import StandardVariable
 
 DAYMET_NAME = "daymet"
 SSM_SMAP_NAME = "ssm"
@@ -181,12 +182,14 @@ def default_config_file() -> Dict[str, Any]:
                     "qobs_mm_per_hour",
                 ],
                 "gamma_norm_cols": [
-                    "precipitation",
+                    StandardVariable.PRECIPITATION,
                     PRCP_DAYMET_NAME,
                     "pr",
                     # PRCP_ERA5LAND_NAME is same as PRCP_NLDAS_NAME
                     PRCP_NLDAS_NAME,
                     "pre",
+                    StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
+                    StandardVariable.EVAPOTRANSPIRATION,
                     # pet may be negative, but we set negative as 0 because of gamma_norm_cols
                     # https://earthscience.stackexchange.com/questions/12031/does-negative-reference-evapotranspiration-make-sense-using-fao-penman-monteith
                     "pet",
@@ -222,19 +225,19 @@ def default_config_file() -> Dict[str, Any]:
             "sampler": None,
             # station data configurations for GNN models
             "station_cfgs": {
-            # 站点数据配置 - 使用3h数据中实际存在的变量
-            "station_cols": ["DRP"],  # TM=温度, 从站点数据中选择变量
-            "station_rm_nan": True,
-            "station_time_units": ["3h"],
-            "station_scaler_type": "DapengScaler",            
-            # 邻接矩阵配置
-            "use_adjacency": True,
-            "adjacency_src_col": "ID",
-            "adjacency_dst_col": "NEXTDOWNID", 
-            "adjacency_edge_attr_cols": ["dist_hdn", "elev_diff", "strm_slope"],
-            "adjacency_weight_col": None,  # 不使用权重，返回边属性
-            "return_edge_weight": False,
-            }  
+                # 站点数据配置 - 使用3h数据中实际存在的变量
+                "station_cols": ["DRP"],  # TM=温度, 从站点数据中选择变量
+                "station_rm_nan": True,
+                "station_time_units": ["3h"],
+                "station_scaler_type": "DapengScaler",
+                # 邻接矩阵配置
+                "use_adjacency": True,
+                "adjacency_src_col": "ID",
+                "adjacency_dst_col": "NEXTDOWNID",
+                "adjacency_edge_attr_cols": ["dist_hdn", "elev_diff", "strm_slope"],
+                "adjacency_weight_col": None,  # 不使用权重，返回边属性
+                "return_edge_weight": False,
+            },
         },
         "training_cfgs": {
             # for distributed training, we use lightning fabric, it has some different strategies
@@ -381,7 +384,7 @@ def default_config_file() -> Dict[str, Any]:
             # 1 means we chose the first result of each sample which will be used in hindcast-forecast model inference
             # 3rd -- rolling: we perform evaluation for each sample of each basin,
             # stride means we will perform evaluation for each sample after stride periods
-           "evaluator": {
+            "evaluator": {
                 "eval_way": "once",
                 "stride": 0,
             },
