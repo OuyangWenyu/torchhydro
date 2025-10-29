@@ -9,7 +9,7 @@ description = "datasets, samplers, transforms, and pre-trained models for hydrol
 authors = [{name = "Wenyu Ouyang", email = "wenyuouyang@outlook.com"}]
 license = {text = "BSD"}
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
@@ -43,7 +43,10 @@ dependencies = [
     "tensorboard",
     "kaggle",
     "pytest",
-    "hydrodatasource",
+    # 水文数据相关包 - 开发时使用本地版本(见[tool.uv.sources])，发布时从PyPI安装
+    "hydrodatasource>=0.1.0",
+    "hydroutils>=0.1.0",
+    "hydrodataset>=0.2.0",
     # PyTorch Geometric 包（核心包）
     "torch-geometric",
     # 注意：torch-scatter, torch-sparse, torch-cluster 可能需要从源码编译
@@ -72,6 +75,7 @@ dev = [
     "twine",
     "grip",
     "pytest-runner",
+    "aqua-fetch[all]",
 ]
 
 # 测试依赖
@@ -83,8 +87,20 @@ test = [
 
 # 文档依赖
 docs = [
-    "Sphinx",
-    "grip",
+    "ipykernel",
+    "mkdocstrings>=0.30.0",
+    "mkdocstrings-python>=1.17.0",
+    "mkdocstrings-python-legacy>=0.2.7",
+    "Sphinx>=4.0",
+    "sphinx-rtd-theme",
+    "myst-parser",
+    "aiohappyeyeballs>=2.6.1",
+    "aiosignal>=1.4.0",
+    "ipykernel>=6.30.1",
+    "mkdocs-git-revision-date-plugin>=0.3.2",
+    "mkdocs-jupyter>=0.25.1",
+    "mkdocs-material>=9.6.17",
+    "yarl>=1.20.1",
 ]
 
 # 构建依赖
@@ -129,6 +145,20 @@ torchaudio = [
     { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
     { index = "pytorch-cu124", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
+# ============================================================================
+# 本地开发模式配置
+# ============================================================================
+# 说明：
+# 1. 本配置仅在本地开发时生效，使用 uv 时会优先使用本地可编辑版本
+# 2. 当项目发布到 PyPI 后，其他用户安装时会忽略此配置，自动从 PyPI 安装
+# 3. 如需临时使用 PyPI 版本进行测试，可以注释掉对应的本地路径配置
+# ============================================================================
+hydrodataset = { path = "../hydrodataset", editable = true }
+hydrodatasource = { path = "../hydrodatasource", editable = true }
+hydroutils = { path = "../hydroutils", editable = true }
+
+# 在线版本（从 git 安装，仅开发依赖）
+aqua-fetch = { git = "https://github.com/iHeadWater/AquaFetch.git", rev = "dev" }
 
 [tool.setuptools.packages.find]
 include = ["torchhydro", "torchhydro.*"]

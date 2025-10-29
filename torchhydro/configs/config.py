@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-14 08:07:35
+LastEditTime: 2025-10-29 08:55:59
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -130,7 +130,7 @@ def default_config_file() -> Dict[str, Any]:
             "constant_cols": [
                 "elev_mean",
                 "slope_mean",
-                "area_gages2",
+                "area",
                 "frac_forest",
                 "lai_max",
                 "lai_diff",
@@ -181,6 +181,7 @@ def default_config_file() -> Dict[str, Any]:
                     "qobs_mm_per_hour",
                 ],
                 "gamma_norm_cols": [
+                    "precipitation",
                     PRCP_DAYMET_NAME,
                     "pr",
                     # PRCP_ERA5LAND_NAME is same as PRCP_NLDAS_NAME

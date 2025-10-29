@@ -32,8 +32,7 @@ def config_data() -> Dict[str, Any]:
 @pytest.fixture()
 def args() -> Any:
     project_name = os.path.join("test_camels", "exp1")
-    data_dir = SETTING["local_data_path"]["datasets-origin"]
-    source_path = os.path.join(data_dir, "camels", "camels_us")
+    source_path = SETTING["local_data_path"]["datasets-origin"]
     return cmd(
         sub=project_name,
         source_cfgs={
@@ -64,7 +63,14 @@ def args() -> Any:
         forecast_length=20,
         min_time_unit="D",
         min_time_interval="1",
-        var_t=["prcp", "dayl", "srad", "tmax", "tmin", "vp"],
+        var_t=[
+            "precipitation",
+            "daylight_duration",
+            "solar_radiation",
+            "temperature_max",
+            "temperature_min",
+            "vapor_pressure",
+        ],
         # var_c=["None"],
         var_out=["streamflow"],
         dataset="StreamflowDataset",

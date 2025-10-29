@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-08-06 18:17:30
+LastEditTime: 2025-10-28 19:06:15
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from hydrodatasource.utils.utils import streamflow_unit_conv
+from hydroutils.hydro_units import streamflow_unit_conv
 
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
@@ -778,6 +778,7 @@ class BaseDataset(Dataset):
                 streamflow_dataset,
                 self.data_source.read_area(self.t_s_dict["sites_id"]),
                 target_unit=prcp_unit,
+                source_unit=streamflow_unit,
             )
             data_output_ds[self.streamflow_name] = converted_streamflow_dataset[
                 self.streamflow_name
