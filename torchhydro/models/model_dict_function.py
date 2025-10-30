@@ -97,6 +97,7 @@ pytorch_model_dict = {
     "DataEnhanced": DataEnhancedModel,
     "DataFusion": DataFusionModel,
     "MTSLSTM": MTSLSTM,
+    "SLSTM": SLSTM,
     # Transformer
     "Transformer": Transformer,
     # GNN models
