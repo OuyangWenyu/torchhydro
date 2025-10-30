@@ -13,7 +13,6 @@ import os.path
 import pandas as pd
 
 import sys
-#sys.path.append(r"C:\Users\Pengfei Qu\Desktop\torchhydro")
 from pathlib import Path
 from hydrodatasource.reader.data_source import SelfMadeHydroDataset
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
