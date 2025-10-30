@@ -117,9 +117,9 @@ def config():
         model_name="MTSLSTM",
 
         model_hyperparam={
-            #"pretrained_day_path": PRETRAIN_DAY_PTH,
-            #"pretrained_lstm_prefix": "lstm.",
-            #"pretrained_head_prefix": "linearOut.",
+            "pretrained_day_path": PRETRAIN_DAY_PTH,
+            "pretrained_lstm_prefix": "lstm.",
+            "pretrained_head_prefix": "linearOut.",
             "hidden_sizes": [128, 128],
             "output_size": 1,
             "shared_mtslstm": False,
