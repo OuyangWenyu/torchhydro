@@ -721,7 +721,7 @@ def _recover_samples_to_basin(arr_3d, valorte_data_loader, pace_idx):
 
     for sample_idx in range(arr_3d.shape[0]):
         # Get the basin and start time index corresponding to this sample
-        basin, start_time = dataset.lookup_table[sample_idx]
+        basin, start_time, _ = dataset.lookup_table[sample_idx]
         # Calculate the time position in the result array
         if pace_idx < 0:
             value = arr_3d[sample_idx, pace_idx, :]
@@ -1151,14 +1151,14 @@ def varied_length_collate_fn(batch):
 def gnn_collate_fn(batch):
     """
     Custom collate function for GNN datasets that handles variable-sized graphs
-    
+
     Each sample in batch is a tuple: (sxc, y, edge_index, edge_weight)
     where:
-    - sxc: [num_stations_i, seq_length, feature_dim] (variable num_stations)  
+    - sxc: [num_stations_i, seq_length, feature_dim] (variable num_stations)
     - y: [forecast_length, output_dim]
     - edge_index: [2, num_edges_i] (variable num_edges)
     - edge_weight: [num_edges_i] (variable num_edges)
-    
+
     Returns:
     --------
     list
@@ -1166,10 +1166,10 @@ def gnn_collate_fn(batch):
         where batched_sxc has shape [batch_size, max_num_nodes, seq_length, feature_dim]
     """
     import torch
-    
+
     if len(batch) == 0:
         return []
-    
+
     # Unpack the batch
     sxc_list, y_list, edge_index_list, edge_weight_list = zip(*batch)
 
@@ -1272,7 +1272,7 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
             # Fallback: treat as regular batch with first two elements
             xs, ys = batch[0], batch[1]
             xs_lens = ys_lens = xs_mask_bool = ys_mask_bool = None
-            
+
         if xs_mask_bool is None and ys_mask_bool is None:
             # sometime even you choose to use variable length training, the batch data may still be fixed length
             # so we need to return the batch data directly

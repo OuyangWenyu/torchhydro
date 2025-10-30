@@ -24,6 +24,8 @@ from torchhydro.datasets.data_sets import (
     EncDecBALSTMDataset,
     GNNDataset,
     FloodEventDataset,
+    AugmentedFloodEventDataset,
+    AEFDataset
 )
 
 
@@ -43,4 +45,6 @@ datasets_dict = {
     "ObsForeDataset": ObsForeDataset,
     "FloodEventDataset": FloodEventDataset,
     "FloodEventDplDataset": FloodEventDplDataset,
+    "AugmentedFloodEventDataset": AugmentedFloodEventDataset,
+    "AlphaEarthDataset": AEFDataset,
 }

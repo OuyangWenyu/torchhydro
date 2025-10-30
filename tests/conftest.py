@@ -1,9 +1,7 @@
 import os
 import pytest
 from typing import List, Dict, Any, Optional
-
-from torchhydro.configs.config import cmd
-from tests.test_seq2seq import gage_id
+from hydrodataset.hydro_dataset import StandardVariable
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 import logging
@@ -34,8 +32,7 @@ def config_data() -> Dict[str, Any]:
 @pytest.fixture()
 def args() -> Any:
     project_name = os.path.join("test_camels", "exp1")
-    data_dir = SETTING["local_data_path"]["datasets-origin"]
-    source_path = os.path.join(data_dir, "camels", "camels_us")
+    source_path = SETTING["local_data_path"]["datasets-origin"]
     return cmd(
         sub=project_name,
         source_cfgs={
@@ -66,7 +63,14 @@ def args() -> Any:
         forecast_length=20,
         min_time_unit="D",
         min_time_interval="1",
-        var_t=["prcp", "dayl", "srad", "tmax", "tmin", "vp"],
+        var_t=[
+            "precipitation",
+            "daylight_duration",
+            "solar_radiation",
+            "temperature_max",
+            "temperature_min",
+            "vapor_pressure",
+        ],
         # var_c=["None"],
         var_out=["streamflow"],
         dataset="StreamflowDataset",
@@ -367,7 +371,6 @@ def trans_args(basin4test: List[str]) -> Any:
 @pytest.fixture()
 def dpl_args() -> Any:
     project_name = os.path.join("test_camels", "expdpl001")
-    data_origin_dir = SETTING["local_data_path"]["datasets-origin"]
     train_period = ["1985-10-01", "1986-04-01"]
     # valid_period = ["1995-10-01", "2000-10-01"]
     valid_period = None
@@ -376,7 +379,7 @@ def dpl_args() -> Any:
         sub=project_name,
         source_cfgs={
             "source_name": "camels_us",
-            "source_path": os.path.join(data_origin_dir, "camels", "camels_us"),
+            "source_path": SETTING["local_data_path"]["datasets-origin"],
         },
         ctx=[0],
         model_type="MTL",
@@ -404,14 +407,9 @@ def dpl_args() -> Any:
         scaler_params={
             "prcp_norm_cols": ["streamflow"],
             "gamma_norm_cols": [
-                "prcp",
-                "pr",
-                "total_precipitation",
-                "potential_evaporation",
-                "ET",
-                "PET",
-                "ET_sum",
-                "ssm",
+                StandardVariable.PRECIPITATION,
+                StandardVariable.EVAPOTRANSPIRATION,
+                StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
             ],
             "pbm_norm": True,
         },
@@ -434,17 +432,17 @@ def dpl_args() -> Any:
         hindcast_length=0,
         forecast_length=60,
         var_t=[
-            "prcp",
-            "PET",
-            "dayl",
-            "srad",
-            "swe",
-            "tmax",
-            "tmin",
-            "vp",
+            StandardVariable.PRECIPITATION,
+            StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
+            StandardVariable.DAYLIGHT_DURATION,
+            StandardVariable.SOLAR_RADIATION,
+            StandardVariable.SNOW_WATER_EQUIVALENT,
+            StandardVariable.TEMPERATURE_MAX,
+            StandardVariable.TEMPERATURE_MIN,
+            StandardVariable.VAPOR_PRESSURE,
         ],
         # NOTE: The second variable is not necessary, or not used in the model. But to keep the same length with model output, we add a dummy variable.
-        var_out=["streamflow", "ET"],
+        var_out=[StandardVariable.STREAMFLOW, StandardVariable.EVAPOTRANSPIRATION],
         n_output=2,
         fill_nan=["no", "no"],
         target_as_input=0,
@@ -1054,7 +1052,7 @@ def selfmadehydrodataset_dpl4xaj_args() -> Any:
 @pytest.fixture()
 def flood_event_datasource_args() -> Any:
     """Configuration for FloodEventDatasource with enhanced data support"""
-    project_name = os.path.join("test_flood_event_datasource", "exp1")
+    project_name = os.path.join("test_flood_event_datasource", "exp4")
     data_dir = SETTING["local_data_path"]["datasets-interim"]
     source_path = os.path.join(data_dir, "songliaorrevent")
     DEVICE = -1
@@ -1085,12 +1083,12 @@ def flood_event_datasource_args() -> Any:
         frwin=20,
         min_time_unit="h",
         min_time_interval="3",
-        var_t=["net_rain"],
+        var_t=["rain"],
         t_rm_nan=False,
         var_c=["None"],
         c_rm_nan=False,
         var_out=["inflow", "flood_event"],
-        dataset="FloodEventDataset",
+        dataset="AugmentedFloodEventDataset",
         scaler="DapengScaler",
         variable_length_cfgs={
             "use_variable_length": True,
@@ -1101,9 +1099,12 @@ def flood_event_datasource_args() -> Any:
         train_epoch=2,
         save_epoch=1,
         model_loader={"load_way": "specified", "test_epoch": 2},
-        train_period=["1980-01-01", "2010-12-31"],
-        valid_period=["2011-01-01", "2015-12-31"],
-        test_period=["2016-01-01", "2020-12-31"],
+        train_period=[
+            ["1980-01-01-02", "2019-12-30-23"],
+            ["2026-07-01-02", "2262-12-30-23"],
+        ],
+        valid_period=["2020-01-01-02", "2024-12-30-23"],
+        test_period=["2020-01-01-02", "2024-12-30-23"],
         loss_func="FloodLoss",
         loss_param={
             "loss_func": "MSELoss",

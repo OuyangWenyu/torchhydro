@@ -70,6 +70,7 @@ class FabricWrapper:
     def _init_pytorch(self) -> None:
         """Initialize normal PyTorch setup"""
         self.device_num = self.fabric_config["devices"]
+        #self.device_num = [0]
         self._device = get_the_device(self.device_num)
         print(f"✅ Normal PyTorch initialized, using device: {self._device}")
 
