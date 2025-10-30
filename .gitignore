@@ -145,3 +145,5 @@ scripts/
 # Claude
 CLAUDE.md
 .claude/
+
+.DS_Store
