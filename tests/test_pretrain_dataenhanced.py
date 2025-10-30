@@ -32,13 +32,15 @@ def config():
     project_name = "test_pretrain_enhanced/ex1"
     args = cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": {
                 "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm",
                 "target": "basins-origin/hour_data/1h/mean_data/streamflow_basin",
                 "attributes": "basins-origin/attributes.nc",
             },
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[1],
         model_type="TransLearn",
@@ -51,7 +53,7 @@ def config():
             "cnn_size": 120,
             "forecast_length": 24,
             "model_mode": "dual",
-            "prec_window": 1,
+            "hindcast_output_window": 1,
         },
         model_loader={"load_way": "best"},
         opt="Adam",
@@ -61,7 +63,7 @@ def config():
         },
         loss_func="RMSESum",
         batch_size=256,
-        forecast_history=336,
+        hindcast_length=336,
         forecast_length=24,
         train_period=[
             ("2015-06-01", "2015-09-30"),
@@ -80,7 +82,7 @@ def config():
             ("2023-06-01", "2023-09-30"),  # 目前只支持一个时段
         ],
         dataset="MultiSourceDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="DapengScaler",
         weight_path=weight_path,
         weight_path_add={
@@ -161,8 +163,6 @@ def config():
             # "14306500",
         ],
         which_first_tensor="batch",
-        rolling=False,
-        long_seq_pred=False,
         early_stopping=True,
         patience=10,
         ensemble=True,

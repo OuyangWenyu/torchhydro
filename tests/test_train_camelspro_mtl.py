@@ -38,7 +38,7 @@ def test_multiout_loss_nan_gap():
     targ = targ.to(device)
     pred = pred.to(device)
     rmse = RMSELoss()
-    r = MultiOutLoss(rmse, data_gap=[0, 1], device=[0], item_weight=[1, 1])
+    r = MultiOutLoss(rmse, data_gap=[0, 1], item_weight=[1, 1])
     # for sum, we ignore last interval
     expect_value = rmse(
         torch.tensor(np.array([1.0, 2.0, 4.0, 5.0, 7.0]).astype(float)),

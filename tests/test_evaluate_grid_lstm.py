@@ -25,20 +25,22 @@ def config_data():
     train_path = os.path.join(os.getcwd(), "results", "test_spp_lstm", "ex1_0")
     args = cmd(
         sub=project_name,
-        source="HydroGrid",
-        source_path=[
-            {
-                "gpm": "basins-origin/hour_data/1h/grid_data/grid_gpm_data",
-                "gfs": "basins-origin/hour_data/1h/grid_data/grid_gfs_data",
-                "smap": "basins-origin/hour_data/1h/grid_data/grid_smap_data",
-                "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
-                "attributes": "basins-origin/attributes.nc",
-            }
-        ],
+        source_cfgs={
+            "source_name": "HydroGrid",
+            "source_path": [
+                {
+                    "gpm": "basins-origin/hour_data/1h/grid_data/grid_gpm_data",
+                    "gfs": "basins-origin/hour_data/1h/grid_data/grid_gfs_data",
+                    "smap": "basins-origin/hour_data/1h/grid_data/grid_smap_data",
+                    "target": "basins-origin/hour_data/1h/mean_data/mean_data_target",
+                    "attributes": "basins-origin/attributes.nc",
+                }
+            ],
+        },
         ctx=[2],
         model_name="SPPLSTM2",
         model_hyperparam={
-            "forecast_history": 168,
+            "hindcast_length": 168,
             "forecast_length": 24,
             "p_n_output": 1,
             "p_n_hidden_states": 60,
@@ -46,7 +48,7 @@ def config_data():
             "p_in_channels": 1,
             "p_out_channels": 8,
             "len_c": 15,
-            "s_forecast_history": None,
+            "s_hindcast_length": None,
             "s_n_output": 1,
             "s_n_hidden_states": 60,
             "s_dropout": 0.25,
@@ -83,12 +85,11 @@ def config_data():
             "dor_pc_pva",  # 调节程度
         ],
         dataset="GridDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="MutiBasinScaler",
         test_period=[
             ("2017-07-01", "2017-09-29"),
         ],
-        rolling=False,
         weight_path=os.path.join(train_path, "best_model.pth"),
         stat_dict_file=os.path.join(train_path, "MutiBasinScaler_stat.json"),
         continue_train=False,

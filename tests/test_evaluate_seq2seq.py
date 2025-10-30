@@ -34,13 +34,15 @@ def config_data():
     train_path = os.path.join(os.getcwd(), "results", "train_with_era5land", "ex20")
     args = cmd(
         sub=project_name,
+        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source": "HydroMean",
+            "source_name": "selfmadehydrodataset",
             "source_path": {
                 "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
                 "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
                 "attributes": "basins-origin/attributes.nc",
             },
+            "other_settings": {"time_unit": ["3h"]},
         },
         ctx=[0],
         model_name="Seq2Seq",
@@ -49,13 +51,13 @@ def config_data():
             "output_size": 2,
             "hidden_size": 256,
             "forecast_length": 8,
-            "prec_window": 1,
+            "hindcast_output_window": 1,
         },
         gage_id=gage_id,
         # gage_id=["21401550"],
         model_loader={"load_way": "best"},
         batch_size=1024,
-        forecast_history=240,
+        hindcast_length=240,
         forecast_length=8,
         min_time_unit="h",
         min_time_interval=3,
@@ -88,7 +90,7 @@ def config_data():
         ],
         var_out=["streamflow", "sm_surface"],
         dataset="Seq2SeqDataset",
-        sampler="HydroSampler",
+        sampler="BasinBatchSampler",
         scaler="DapengScaler",
         loss_func="MultiOutLoss",
         loss_param={
@@ -99,8 +101,6 @@ def config_data():
         },
         test_period=[("2015-05-01", "2016-05-31")],
         which_first_tensor="batch",
-        rolling=False,
-        long_seq_pred=False,
         weight_path=os.path.join(train_path, "best_model.pth"),
         stat_dict_file=os.path.join(train_path, "dapengscaler_stat.json"),
         train_mode=False,

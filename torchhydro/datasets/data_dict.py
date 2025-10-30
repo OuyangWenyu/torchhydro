@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2024-05-24 14:52:00
+LastEditTime: 2025-10-30 16:42:33
 LastEditors: Wenyu Ouyang
 Description: A dict used for data source and data loader
 FilePath: \torchhydro\torchhydro\datasets\data_dict.py
@@ -10,6 +10,9 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 
 from torchhydro.datasets.data_sets import (
     BaseDataset,
+    FloodEventDplDataset,
+    ForecastDataset,
+    HFDataset,
     BasinSingleFlowDataset,
     DplDataset,
     FlexibleDataset,
@@ -17,19 +20,34 @@ from torchhydro.datasets.data_sets import (
     # HydroMultiSourceDataset,
     PrecipitationFusionDataset,
     MopexPrecipitationGagesAttrFusionDataset,
+    ObsForeDataset,
     Seq2SeqDataset,
+    SeqForecastDataset,
     TransformerDataset,
+    GNNDataset,
+    FloodEventDataset,
+    AugmentedFloodEventDataset,
+    AEFDataset
 )
 
 datasets_dict = {
     "StreamflowDataset": BaseDataset,
+    "ForecastDataset": ForecastDataset,
+    "HFDataset": HFDataset,
     "SingleflowDataset": BasinSingleFlowDataset,
     "DplDataset": DplDataset,
-    "MeanDataset": HydroMeanDataset,
     "FlexDataset": FlexibleDataset,
     # "MultiSourceDataset": HydroMultiSourceDataset,
     "PrecipitationFusionDataset": PrecipitationFusionDataset,
     "MopexPrecipitationGagesAttrFusionDataset": MopexPrecipitationGagesAttrFusionDataset,
     "Seq2SeqDataset": Seq2SeqDataset,
     "TransformerDataset": TransformerDataset,
+    "GNNDataset": GNNDataset,
+    "SeqForecastDataset": SeqForecastDataset,
+    "TransformerDataset": TransformerDataset,
+    "ObsForeDataset": ObsForeDataset,
+    "FloodEventDataset": FloodEventDataset,
+    "FloodEventDplDataset": FloodEventDplDataset,
+    "AugmentedFloodEventDataset": AugmentedFloodEventDataset,
+    "AlphaEarthDataset": AEFDataset,
 }

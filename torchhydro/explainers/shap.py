@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-10-19 21:34:29
-LastEditTime: 2023-12-29 11:05:57
-LastEditors: Xinzhuo Wu
+LastEditTime: 2025-07-12 11:25:01
+LastEditors: Wenyu Ouyang
 Description: SHAP methods for deep learning models
-FilePath: \torchhydro\torchhydro\explainers\shap.py
+FilePath: /torchhydro/torchhydro/explainers/shap.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 from typing import List
 import torch
 import numpy as np
@@ -222,12 +223,12 @@ def shap_summary_plot(dl_model, train_dataset, test_dataset) -> None:
         test.squeeze(2).reshape(test.shape[0], test.shape[1], -1).mean(axis=-2)
     ).to("cpu")
     np.save(
-        os.path.join(test_dataset.data_cfgs["test_path"], "shap_values_avg.npy"),
+        os.path.join(test_dataset.data_cfgs["case_dir"], "shap_values_avg.npy"),
         shap_values_avg,
     )
     torch.save(
         test_tensor_avg,
-        os.path.join(test_dataset.data_cfgs["test_path"], "test_tensor_avg.pth"),
+        os.path.join(test_dataset.data_cfgs["case_dir"], "test_tensor_avg.pth"),
     )
     shap.summary_plot(shap_values_avg, test_tensor_avg)
-    plt.savefig(os.path.join(test_dataset.data_cfgs["test_path"], "shap.png"))
+    plt.savefig(os.path.join(test_dataset.data_cfgs["case_dir"], "shap.png"))

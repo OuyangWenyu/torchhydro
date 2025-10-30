@@ -85,7 +85,7 @@ def run_dplxaj(train_period=None, valid_period=None, test_period=None):
         valid_period=valid_period,
         test_period=test_period,
         batch_size=20,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=30,
         var_t=[
             "prcp",

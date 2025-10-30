@@ -7,6 +7,7 @@ Description: A test function for transfer learning
 FilePath: \torchhydro\tests\test_transfer_learning.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import os
 import pytest
 from hydroutils.hydro_file import get_lastest_file_in_a_dir
@@ -74,10 +75,12 @@ def test_transfer_gages_lstm_model(
     project_name = "test_camels/exp4"
     args = cmd(
         sub=project_name,
-        source="CAMELS",
-        source_path=os.path.join(
-            SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
-        ),
+        source_cfgs={
+            "source_name": "camels_us",
+            "source_path": os.path.join(
+                SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
+            ),
+        },
         source_region="US",
         ctx=[0],
         model_type="TransLearn",
@@ -91,7 +94,7 @@ def test_transfer_gages_lstm_model(
         opt="Adadelta",
         loss_func="RMSESum",
         batch_size=5,
-        forecast_history=0,
+        hindcast_length=0,
         forecast_length=20,
         rs=1234,
         train_period=["2010-10-01", "2011-10-01"],

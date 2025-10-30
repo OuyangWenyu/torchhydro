@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-09 21:16:45
-LastEditTime: 2024-04-09 21:23:48
+LastEditTime: 2025-01-02 14:13:29
 LastEditors: Wenyu Ouyang
 Description: Test the data utilities
-FilePath: \torchhydro\tests\test_data_utils.py
+FilePath: /torchhydro/tests/test_data_utils.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import numpy as np
 import pytest
 import xarray as xr
@@ -37,8 +38,17 @@ def test_warn_if_nan_all_nan_values():
     )
     da = xr.DataArray(data)
     # Call the function and assert that it raises a ValueError
+    assert warn_if_nan(da, nan_mode="all")
+
+
+def test_warn_if_nan_all_nan_values_raise_error():
+    # Create a dataarray with all NaN values
+    data = np.array(
+        [[np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan]]
+    )
+    da = xr.DataArray(data)
     with pytest.raises(ValueError):
-        warn_if_nan(da, nan_mode="all")
+        warn_if_nan(da, nan_mode="any")
 
 
 def test_warn_if_nan_max_display():
@@ -49,6 +59,6 @@ def test_warn_if_nan_max_display():
     # Assert that it raises a warning with the correct message
     with pytest.warns(
         UserWarning,
-        match=r"The dataarray contains 3 NaN values! Here are the indices of the first 2 NaNs:",
+        match=r"The  dataarray contains 3 NaN values! Here are the indices of the first 2 NaNs:",
     ):
         warn_if_nan(da, max_display=2)
