@@ -13,6 +13,8 @@ import pytest
 import hydrodataset as hds
 from hydrodataset.caravan import Caravan
 from torch.utils.data import Dataset
+from torchhydro.datasets.data_sources import Gages
+from torchhydro.datasets.data_sources import Mopex
 
 from torchhydro import SETTING
 from torchhydro.datasets.sampler import KuaiSampler
@@ -83,3 +85,18 @@ def test_cache_caravan():
         os.path.join(SETTING["local_data_path"]["datasets-origin"], "caravan")
     )
     caravan.cache_xrdataset()
+
+def test_cache_fusion():
+    """
+    Test whether the cache file is generated correctly
+    """
+    gages_dir = os.path.join(
+        SETTING["local_data_path"]["datasets-origin"], "gages"
+    )
+    mopex_dir = os.path.join(
+        SETTING["local_data_path"]["datasets-origin"], "mopex"
+    )
+    gages = Gages(gages_dir)
+    mopex = Mopex(mopex_dir)
+    gages.cache_xrdataset()
+    mopex.cache_xrdataset()

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-10-29 14:34:08
+LastEditTime: 2025-10-31 10:04:59
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -27,6 +27,7 @@ Q_CAMELS_US_NAME = "streamflow"
 Q_CAMELS_CC_NAME = "Q"
 PRCP_DAYMET_NAME = "prcp"
 PRCP_NLDAS_NAME = "total_precipitation"
+PRCP_MOPEX_NAME = "map"
 PET_MODIS_NAME = "PET"
 PET_NLDAS_NAME = "potential_evaporation"
 NLDAS_NAME = "nldas"
@@ -189,6 +190,7 @@ def default_config_file() -> Dict[str, Any]:
                     # PRCP_ERA5LAND_NAME is same as PRCP_NLDAS_NAME
                     PRCP_NLDAS_NAME,
                     "tp",
+                    PRCP_MOPEX_NAME,
                     "pre",
                     StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
                     StandardVariable.EVAPOTRANSPIRATION,

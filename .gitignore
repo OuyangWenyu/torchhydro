@@ -139,6 +139,7 @@ mlruns/
 .vscode/
 .idea
 results/
+/tests/output_data.xlsx
 data/
 scripts/
 

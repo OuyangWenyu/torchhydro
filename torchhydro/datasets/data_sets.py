@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-10-30 16:48:50
+LastEditTime: 2025-10-31 10:05:24
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -566,12 +566,14 @@ class BaseDataset(Dataset):
                 "variable": selected_data.coords["variable"],
             }
             dims = ["basin", "time", "variable"]
-#add
+            # add
             if isinstance(selected_time_points, xr.DataArray):
                 # 获取 target_data 的时间轴
                 time_coords = target_data.coords["time"].values
                 # 找到 selected_time_points 对应的整数索引
-                selected_indices = np.where(np.isin(time_coords, selected_time_points))[0]
+                selected_indices = np.where(np.isin(time_coords, selected_time_points))[
+                    0
+                ]
             else:
                 # 如果 selected_time_points 已经是整数索引，直接使用
                 selected_indices = selected_time_points
@@ -941,6 +943,11 @@ class BaseDataset(Dataset):
 
     def _trans2da_and_setunits(self, ds):
         """Set units for dataarray transfromed from dataset"""
+        for var_name in ds.data_vars:
+            if ds[var_name].dtype == "timedelta64[ns]":
+                # 将时间单位从纳秒转换为天，并转换为float类型
+                ds[var_name] = ds[var_name].astype("timedelta64[D]").astype(float)
+
         result = ds.to_array(dim="variable")
         units_dict = {
             var: ds[var].attrs["units"]
@@ -1607,7 +1614,6 @@ class TransformerDataset(Seq2SeqDataset):
         p = self.x[basin, idx + 1 : idx + rho + horizon + 1, 0]
         s = self.x[basin, idx : idx + rho, 1]
         x = np.stack((p[:rho], s), axis=1)
-
         c = self.c[basin, :]
         c = np.tile(c, (rho + horizon, 1))
         x = np.concatenate((x, c[:rho]), axis=1)
@@ -1723,6 +1729,54 @@ class EncDecBALSTMDataset(BALSTMDataset):
         else:
             raise ValueError(f"Unsupported time unit: {time_unit}")
         self._read_xyc_specified_time(start_date, adjusted_end_date)
+
+
+class PrecipitationFusionDataset(BaseDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        """
+        Parameters
+        ----------
+        data_cfgs
+            configs for reading source data
+        is_tra_val_te
+            train, vaild or test
+        """
+        super(PrecipitationFusionDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    @property
+    def data_source(self):
+        gages_data_path = self.data_cfgs["source_cfgs"]["source_paths"][0]
+        mopex_data_path = self.data_cfgs["source_cfgs"]["source_paths"][1]
+        return data_sources_dict["gagesmopexprepfusion"](
+            gages_data_path, mopex_data_path
+        )
+
+    def _read_xyc(self):
+        """Read x, y, c data from data source
+
+        Returns
+        -------
+        tuple[xr.Dataset, xr.Dataset, xr.Dataset]
+             x, y, c data
+        """
+        # y
+        data_output_ds_ = self.data_source.read_streamflow_ts(
+            self.t_s_dict["sites_id"],
+            self.t_s_dict["t_final_range"],
+            self.data_cfgs["target_cols"],
+        )
+        # if self.data_source.streamflow_unit != "mm/d":
+        #     data_output_ds = streamflow_unit_conv(
+        #         data_output_ds, self.data_source.read_area(self.t_s_dict["sites_id"])
+        #     )
+
+        # x
+        data_forcing_ds_ = self.data_source.read_forcing_ts(
+            self.t_s_dict["sites_id"],
+            self.t_s_dict["t_final_range"],
+            # 6 comes from here
+            self.data_cfgs["relevant_cols"],
+        )
 
 
 class ForecastDataset(BaseDataset):
