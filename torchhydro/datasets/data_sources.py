@@ -24,6 +24,7 @@ from hydrodatasource.reader.data_source import (
     SelfMadeForecastDataset,
     StationHydroDataset
 )
+from hydrodatasource.reader.data_source import TgHydroDatasource
 from hydrodatasource.reader.floodevent import FloodEventDatasource
 
 
@@ -738,4 +739,5 @@ data_sources_dict = {
     "smap4camels": Smap4Camels,
     "stationhydrodataset": StationHydroDataset,
     "camels_hourly": CamelsHourly,
+    "tgdatasource": TgHydroDatasource,
 }

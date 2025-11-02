@@ -1117,3 +1117,37 @@ class HybridFloodloss(FloodBaseLoss):
 
         base_loss_func = HybridLoss(self.mae_weight)
         return base_loss_func(predictions, targets)
+
+class MseMaskedLoss(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, predictions: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor):
+        """
+        Compute NSE loss for masked data.
+
+        Parameters
+        ----------
+        predictions : torch.Tensor
+            Model predictions [batch_size, seq_len, output_features]
+        targets : torch.Tensor
+            Target values [batch_size, seq_len, output_features]
+        mask : torch.Tensor
+            Mask [batch_size, seq_len, 1] (1 for valid, 0 for invalid)
+
+        Returns
+        -------
+        torch.Tensor
+            Computed NSE loss value
+        """
+        if mask is None:
+            mask = ~torch.isnan(targets)
+        
+        valid_predictions = predictions[mask]
+        valid_targets = targets[mask]
+        
+        if valid_predictions.numel() == 0:
+            return torch.tensor(0.0, device=predictions.device, requires_grad=True)
+        
+        loss = torch.mean((valid_predictions - valid_targets) ** 2)
+        return loss

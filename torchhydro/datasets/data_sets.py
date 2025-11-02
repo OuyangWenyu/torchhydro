@@ -578,10 +578,16 @@ class BaseDataset(Dataset):
                 else:
                     # 兜底：二分查找
                     pos = np.searchsorted(all_times, sel_vals).astype(np.int64)
-                    ok = (pos >= 0) & (pos < len(all_times)) & (all_times[pos] == sel_vals)
+                    ok = (
+                        (pos >= 0)
+                        & (pos < len(all_times))
+                        & (all_times[pos] == sel_vals)
+                    )
                     if not np.all(ok):
                         miss = int((~ok).sum())
-                        raise KeyError(f"{miss} datetimes not found in selected_data time axis.")
+                        raise KeyError(
+                            f"{miss} datetimes not found in selected_data time axis."
+                        )
             elif sel_vals.dtype.kind in ("i", "b"):
                 pos = sel_vals.astype(np.int64).reshape(-1)
             else:
@@ -590,7 +596,9 @@ class BaseDataset(Dataset):
 
             # 对齐长度到当前窗口 T（默认右对齐；如需左对齐改为 pos[:T]）
             if pos.size < T:
-                raise ValueError(f"Selected time points ({pos.size}) shorter than current window length ({T}).")
+                raise ValueError(
+                    f"Selected time points ({pos.size}) shorter than current window length ({T})."
+                )
             pos_T = pos[-T:]
             time_coords = all_times[pos_T]  # 长度 == T 的时间坐标
 
@@ -3467,12 +3475,12 @@ class CamelsHourlyDataset(BaseDataset):
         data_forcing_ds_ = self.data_source.read_relevant_cols(
             gage_id_lst=self.data_cfgs["object_ids"],
             t_range=[start_date, end_date],
-            var_lst=self.data_cfgs["relevant_cols"]
+            var_lst=self.data_cfgs["relevant_cols"],
         )
         data_output_ds_ = self.data_source.read_target_cols(
             gage_id_lst=self.data_cfgs["object_ids"],
             t_range=[start_date, end_date],
-            target_cols=self.data_cfgs["target_cols"]
+            target_cols=self.data_cfgs["target_cols"],
         )
 
         # 2) 去掉 timeunit 的坐标键（保持你原逻辑）
@@ -3487,8 +3495,10 @@ class CamelsHourlyDataset(BaseDataset):
         # 4) 构造【完整小时时间轴】并对齐 reindex（关键！）
         #    取配置里的最小时间粒度和步长（H / 1），拼 pandas 频率字符串
         #    注意：这里示例使用 self.data_cfgs，如果你的 BaseDataset 把它存在 t_s_dict，请改成相应字段
-        freq = f'{self.data_cfgs.get("min_time_interval", 1)}' \
-               f'{self.data_cfgs.get("min_time_unit", "h").upper()}'
+        freq = (
+            f'{self.data_cfgs.get("min_time_interval", 1)}'
+            f'{self.data_cfgs.get("min_time_unit", "h").upper()}'
+        )
         full_time = pd.date_range(
             start=pd.to_datetime(start_date),
             end=pd.to_datetime(end_date),
@@ -3522,7 +3532,203 @@ class CamelsHourlyDataset(BaseDataset):
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
             "target_cols": y_origin.transpose("basin", "time", "variable"),
             "constant_cols": (
-                c_origin.transpose("basin", "variable") if c_origin is not None else None
+                c_origin.transpose("basin", "variable")
+                if c_origin is not None
+                else None
             ),
         }
 
+
+class AutoregressiveTGDataset(BaseDataset):
+    def __init__(self, cfgs: dict, is_tra_val_te: str, upstream_indices: dict = None):
+        """
+        Datasets for Three-Gorge Basins
+
+        Args:
+            cfgs: 配置字典，包含data_cfgs, training_cfgs, evaluation_cfgs
+            is_tra_val_te: 'train', 'valid', 或 'test'
+            upstream_indices: 上游节点映射字典 {node_idx: [upstream_node_indices]}
+        """
+        super().__init__(cfgs, is_tra_val_te)
+        
+        # 从配置中获取TG特定参数
+        self.upstream_indices = upstream_indices or {}
+        
+        # 从training_cfgs获取时间窗口参数（与BaseDataset保持一致）
+        self.hindcast_length = self.rho  # 使用BaseDataset的rho
+        self.forecast_length = self.horizon  # 使用BaseDataset的horizon
+        
+        # TG特定的配置
+        tg_cfgs = self.data_cfgs.get("tg_cfgs", {})
+        self.node_attributes = tg_cfgs.get("node_attributes", None)
+        self.basin_names = tg_cfgs.get("basin_names", [])
+        self.basin_id = tg_cfgs.get("basin_id", None)
+        
+        print(f"上游节点映射: {self.upstream_indices}")
+
+    def _read_xyc(self):
+        """Read x, y, c data from TG data source
+        
+        Returns
+        -------
+        dict
+            Dictionary containing relevant_cols, target_cols, and constant_cols data
+            with dimensions (basin, time, variable) for 3D arrays
+        """
+        # 使用父类的基础数据读取逻辑
+        data_dict = super()._read_xyc()
+        
+        # TG特定的数据处理可以在这里添加
+        # 例如：处理LSTM预测数据、上游流量数据等
+        
+        return data_dict
+
+    def interpolate_missing_data(self, data, method="linear"):
+        """
+        处理缺失数据
+
+        Args:
+            data: 输入数据张量 [time_steps, num_nodes]
+            method: 插值方法 ('linear', 'forward', 'backward')
+
+        Returns:
+            interpolated_data: 插值后的数据
+            mask: 原始有效数据的掩码
+        """
+        # 创建原始有效数据的掩码
+        mask = ~torch.isnan(data)
+
+        # 转换为numpy进行插值
+        data_np = data.numpy()
+
+        for node_idx in range(data_np.shape[1]):
+            node_data = data_np[:, node_idx]
+            valid_mask = ~np.isnan(node_data)
+
+            if valid_mask.sum() == 0:
+                # 如果该节点完全没有数据，用0填充
+                data_np[:, node_idx] = 0.0
+            elif valid_mask.sum() == len(node_data):
+                # 如果该节点没有缺失数据，保持不变
+                continue
+            else:
+                # 进行插值
+                if method == "linear":
+                    # 线性插值
+                    valid_indices = np.where(valid_mask)[0]
+                    valid_values = node_data[valid_mask]
+
+                    # 对缺失值进行线性插值
+                    interpolated = np.interp(
+                        np.arange(len(node_data)), valid_indices, valid_values
+                    )
+                    data_np[:, node_idx] = interpolated
+                elif method == "forward":
+                    # 前向填充
+                    pd_series = pd.Series(node_data)
+                    data_np[:, node_idx] = (
+                        pd_series.fillna(method="ffill").fillna(0).values
+                    )
+                elif method == "backward":
+                    # 后向填充
+                    pd_series = pd.Series(node_data)
+                    data_np[:, node_idx] = (
+                        pd_series.fillna(method="bfill").fillna(0).values
+                    )
+
+        return torch.from_numpy(data_np).float(), mask
+
+    def __len__(self):
+        """Return the number of samples in the dataset"""
+        return self.num_samples
+
+    def __getitem__(self, item: int):
+        """Get one sample from the dataset with unified return format
+        
+        This method follows BaseDataset's interface but provides TG-specific data processing.
+        For TG dataset, we need to handle temporal sequences and upstream relationships.
+        
+        Parameters
+        ----------
+        item : int
+            Sample index
+            
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            (input_data, output_data) following BaseDataset format
+        """
+        # 使用BaseDataset的lookup_table机制
+        basin, idx, actual_length = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        
+        # 获取输入数据 (x) 和输出数据 (y)
+        x = self.x[basin, idx - warmup_length : idx + actual_length, :]
+        y = self.y[basin, idx : idx + actual_length, :]
+        
+        # 处理常量数据 (c) - 节点属性
+        if self.c is None or self.c.shape[-1] == 0:
+            input_data = torch.from_numpy(x).float()
+        else:
+            c = self.c[basin, :]
+            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
+            xc = np.concatenate((x, c), axis=1)
+            input_data = torch.from_numpy(xc).float()
+        
+        output_data = torch.from_numpy(y).float()
+        
+        # TG特定的数据处理可以在这里添加
+        # 例如：上游流量处理、缺失数据插值等
+        
+        return input_data, output_data
+
+    def _extract_upstream_flows(self, obs_flow_data):
+        """
+        提取上游节点的实测流量数据，使用面积加权聚合
+
+        Args:
+            obs_flow_data: 实测流量数据 [time_steps, num_nodes]
+
+        Returns:
+            upstream_flows: 上游流量数据 [time_steps, num_nodes]
+        """
+        time_steps, num_nodes = obs_flow_data.shape
+        upstream_flows = torch.zeros_like(obs_flow_data)
+
+        for node_idx in range(num_nodes):
+            upstream_indices = self.upstream_indices.get(node_idx, [])
+
+            if upstream_indices:
+                # 使用面积加权聚合上游节点流量
+                upstream_data = obs_flow_data[
+                    :, upstream_indices
+                ]  # [time_steps, num_upstream]
+
+                if hasattr(self, "node_areas") and self.node_areas is not None:
+                    # 获取上游节点的面积权重
+                    upstream_areas = self.node_areas[upstream_indices]  # [num_upstream]
+
+                    # 归一化权重，避免除零错误
+                    area_weights = upstream_areas / (
+                        upstream_areas.sum() + 1e-8
+                    )  # [num_upstream]
+
+                    # 扩展权重维度以匹配时间步
+                    area_weights = area_weights.unsqueeze(0).expand(
+                        time_steps, -1
+                    )  # [time_steps, num_upstream]
+
+                    # 面积加权求和
+                    upstream_flows[:, node_idx] = (upstream_data * area_weights).sum(
+                        dim=1
+                    )  # [time_steps]
+                else:
+                    # 如果没有面积信息，回退到均值
+                    upstream_flows[:, node_idx] = upstream_data.mean(
+                        dim=1
+                    )  # [time_steps]
+            else:
+                # 如果没有上游节点，使用0
+                upstream_flows[:, node_idx] = 0.0
+
+        return upstream_flows

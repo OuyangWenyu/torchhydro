@@ -141,6 +141,7 @@ mlruns/
 results/
 data/
 scripts/
+pyrightconfig.json
 
 # Claude
 CLAUDE.md
