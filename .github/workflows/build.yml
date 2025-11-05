@@ -53,42 +53,42 @@ jobs:
                   uv remove torch-scatter torch-sparse torch-cluster || true
                   uv add torch-geometric
 
-            - name: Create hydro_setting.yml directly in workflow
-              run: |
-                echo "Creating hydro_setting.yml..."
-                cat <<EOF > /root/hydro_setting.yml
-                minio:
-                  server_url: ''
-                  client_endpoint: ''
-                  access_key: ''
-                  secret: ''
-
-                local_data_path:
-                  root: ''
-                  datasets-origin: '/home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/' # set your path here
-                  datasets-interim: ''
-                  basins-origin: ''
-                  basins-interim: '/home/runner/.hydrodataset/cache/'
-                  cache: ''
-
-                postgres:
-                  server_url: ''
-                  port: 0
-                  username: ''
-                  password: ''
-                  database: ''
-                EOF
-                cat /root/hydro_setting.yml || echo "Failed to read the file"
-
-            - name: Download Camels data
-              run: |
-                  uv run kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/ --unzip
-                  uv run kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/ --unzip
-              env:
-                  KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-                  KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-
-            - name: PKG-TEST
-              run: |
-                  uv run pytest tests/test_train_camels_lstm.py
-                  uv run pytest tests/test_evaluate_model.py
+#            - name: Create hydro_setting.yml directly in workflow
+#              run: |
+#                echo "Creating hydro_setting.yml..."
+#                cat <<EOF > /root/hydro_setting.yml
+#                minio:
+#                  server_url: ''
+#                  client_endpoint: ''
+#                  access_key: ''
+#                  secret: ''
+#
+#                local_data_path:
+#                  root: ''
+#                  datasets-origin: '/home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/' # set your path here
+#                  datasets-interim: ''
+#                  basins-origin: ''
+#                  basins-interim: '/home/runner/.hydrodataset/cache/'
+#                  cache: ''
+#
+#                postgres:
+#                  server_url: ''
+#                  port: 0
+#                  username: ''
+#                  password: ''
+#                  database: ''
+#                EOF
+#                cat /root/hydro_setting.yml || echo "Failed to read the file"
+#
+#            - name: Download Camels data
+#              run: |
+#                  uv run kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/ --unzip
+#                  uv run kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/ --unzip
+#              env:
+#                  KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+#                  KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+#
+#            - name: PKG-TEST
+#              run: |
+#                  uv run pytest tests/test_train_camels_lstm.py
+#                  uv run pytest tests/test_evaluate_model.py

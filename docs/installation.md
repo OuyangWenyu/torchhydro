@@ -2,8 +2,8 @@
 
 ## Requirements
 
-- Python >= 3.7
-- PyTorch >= 1.7.0
+- Python >= 3.11
+- PyTorch >= 2.6.0
 - CUDA (optional, for GPU acceleration)
 
 ## Stable Release
