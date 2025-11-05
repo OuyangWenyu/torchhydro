@@ -26,29 +26,60 @@ jobs:
         steps:
             - name: CHECKOUT CODE
               uses: actions/checkout@v4
-            
+
+            - name: Cache pip dependencies
+              uses: actions/cache@v3
+              with:
+                path: ~/.cache/pip
+                key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+                restore-keys: |
+                  ${{ runner.os }}-pip-
+
             - name: SETUP UV
               uses: astral-sh/setup-uv@v3
               with:
                   enable-cache: true
                   cache-dependency-glob: "uv.lock"
-            
+
             - name: SETUP PYTHON
               run: uv python install ${{ matrix.config.py }}
-            
+
             - name: Install dependencies
               run: |
-                  # 安装项目依赖（包括 torch 等）
+                  # 使用 uv 安装依赖
                   uv sync --extra dev
-                  
+
                   # 针对 PyTorch Geometric 编译问题的解决方案
                   uv remove torch-scatter torch-sparse torch-cluster || true
                   uv add torch-geometric
-                  
-                  # 如果需要完整的 PyG 功能，可以尝试预编译包
-                  # uv pip install torch-scatter torch-sparse torch-cluster \
-                  #   --find-links https://data.pyg.org/whl/torch-2.5.0+cu124.html
-            
+
+            - name: Create hydro_setting.yml directly in workflow
+              run: |
+                echo "Creating hydro_setting.yml..."
+                cat <<EOF > /root/hydro_setting.yml
+                minio:
+                  server_url: ''
+                  client_endpoint: ''
+                  access_key: ''
+                  secret: ''
+
+                local_data_path:
+                  root: ''
+                  datasets-origin: '/home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/' # set your path here
+                  datasets-interim: ''
+                  basins-origin: ''
+                  basins-interim: '/home/runner/.hydrodataset/cache/'
+                  cache: ''
+
+                postgres:
+                  server_url: ''
+                  port: 0
+                  username: ''
+                  password: ''
+                  database: ''
+                EOF
+                cat /root/hydro_setting.yml || echo "Failed to read the file"
+
             - name: Download Camels data
               run: |
                   uv run kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/ --unzip
@@ -56,8 +87,8 @@ jobs:
               env:
                   KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
                   KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-            
+
             - name: PKG-TEST
               run: |
                   uv run pytest tests/test_train_camels_lstm.py
-                  uv run pytest tests/test_evaluate_model.py 
+                  uv run pytest tests/test_evaluate_model.py

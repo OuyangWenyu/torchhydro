@@ -14,7 +14,7 @@
 [![image](https://img.shields.io/conda/vn/conda-forge/torchhydro.svg)](https://anaconda.org/conda-forge/torchhydro)
 
 - 开源协议: BSD license
-- 文档: https://OuyangWenyu.github.io/torchhydro  
+- 文档: https://OuyangWenyu.github.io/torchhydro
 
 **注意：这个仓库还在开发中**
 
@@ -90,6 +90,9 @@ python run_camelslstm_experiments.py.py
 ```
 
 更多使用教程，后续我们会逐渐补充。
+
+## 目前存在的问题
+由于GitHub Actions的缓存大小限制，数据集下载存在问题，导致每次执行构建时需要重新下载数据集。在本地数据集不完整时，程序会自动下载缺失的数据，但由于GitHub Actions的缓存限制（单个缓存最大为5GB，每月存储500MB），这个问题暂时无法解决。对此，我们将继续关注并寻找解决方案。
 
 ## 主要模块
 

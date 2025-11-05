@@ -7,7 +7,7 @@ Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \torchhydro\torchhydro\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
-from models.mtslstm import MTSLSTM
+from torchhydro.models.mtslstm import MTSLSTM
 from torchhydro.models.dpl4hbv import DplLstmHbv, DplAnnHbv
 from torchhydro.models.cudnnlstm import (
     CudnnLstmModel,
@@ -97,7 +97,6 @@ pytorch_model_dict = {
     "DataEnhanced": DataEnhancedModel,
     "DataFusion": DataFusionModel,
     "MTSLSTM": MTSLSTM,
-    "SLSTM": SLSTM,
     # Transformer
     "Transformer": Transformer,
     # GNN models
