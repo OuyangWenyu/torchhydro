@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-07-13 15:56:15
+LastEditTime: 2025-11-06 13:48:48
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -97,7 +97,9 @@ def _rolling_preds_for_once_eval(
     return the_array_.reshape(ngrid, recover_len, nf)
 
 
-def model_infer(seq_first, device, model, batch, variable_length_cfgs=None, return_key=None):
+def model_infer(
+    seq_first, device, model, batch, variable_length_cfgs=None, return_key=None
+):
     """
     Unified model inference function with variable length support
 
@@ -121,7 +123,17 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None, retu
 
     # --- unpack inputs ---
     if len(result) == 9:
-        xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens = result
+        (
+            xs,
+            ys,
+            edge_index,
+            edge_weight,
+            batch_vector,
+            xs_mask,
+            ys_mask,
+            xs_lens,
+            ys_lens,
+        ) = result
     elif len(result) == 8:
         xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens = result
         batch_vector = None
@@ -131,13 +143,30 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None, retu
 
     # --- move xs to device ---
     if isinstance(xs, list):
-        xs = [(x.permute(1, 0, 2).to(device) if seq_first and x.ndim == 3 else x.to(device)) for x in xs]
+        xs = [
+            (
+                x.permute(1, 0, 2).to(device)
+                if seq_first and x.ndim == 3
+                else x.to(device)
+            )
+            for x in xs
+        ]
     else:
-        xs = [(xs.permute(1, 0, 2).to(device) if seq_first and xs.ndim == 3 else xs.to(device))]
+        xs = [
+            (
+                xs.permute(1, 0, 2).to(device)
+                if seq_first and xs.ndim == 3
+                else xs.to(device)
+            )
+        ]
 
     # --- move ys to device ---
     if ys is not None:
-        ys = (ys.permute(1, 0, 2).to(device) if seq_first and ys.ndim == 3 else ys.to(device))
+        ys = (
+            ys.permute(1, 0, 2).to(device)
+            if seq_first and ys.ndim == 3
+            else ys.to(device)
+        )
 
     # --- move graph data ---
     if edge_index is not None:
@@ -150,13 +179,24 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None, retu
     # --- forward ---
     if xs_mask is not None and ys_mask is not None:
         if edge_index is not None and edge_weight is not None:
-            output = model(*xs, edge_index=edge_index, edge_weight=edge_weight,
-                           batch_vector=batch_vector, mask=xs_mask, seq_lengths=xs_lens)
+            output = model(
+                *xs,
+                edge_index=edge_index,
+                edge_weight=edge_weight,
+                batch_vector=batch_vector,
+                mask=xs_mask,
+                seq_lengths=xs_lens,
+            )
         else:
             output = model(*xs, mask=xs_mask, seq_lengths=xs_lens)
     else:
         if edge_index is not None and edge_weight is not None:
-            output = model(*xs, edge_index=edge_index, edge_weight=edge_weight, batch_vector=batch_vector)
+            output = model(
+                *xs,
+                edge_index=edge_index,
+                edge_weight=edge_weight,
+                batch_vector=batch_vector,
+            )
         else:
             output = model(*xs)
 
@@ -167,9 +207,11 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None, retu
     if isinstance(output, dict):
         # 默认取最高频的输出
         if return_key is None:
-            return_key = sorted(output.keys())[-1]   # e.g., "f2"
+            return_key = sorted(output.keys())[-1]  # e.g., "f2"
         if return_key not in output:
-            raise KeyError(f"Model returned keys {list(output.keys())}, but return_key='{return_key}' not found")
+            raise KeyError(
+                f"Model returned keys {list(output.keys())}, but return_key='{return_key}' not found"
+            )
         output = output[return_key]
 
     if ys_mask is not None:
@@ -182,7 +224,6 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None, retu
             ys = ys.transpose(0, 1)
 
     return ys, output
-
 
 
 class EarlyStopper(object):
@@ -529,8 +570,6 @@ def get_preds_to_be_eval(
     else:
         # 理论不应走到这
         raise RuntimeError("Failed to build preds_xr / obss_xr for evaluation.")
-
-    return obss_xr, preds_xr
 
 
 def _recover_samples_to_4d_by_forecast(
@@ -1210,14 +1249,18 @@ def gnn_collate_fn(batch):
     batched_edge_weight = []
     batch_vector = []
     node_offset = 0
-    for i, (sxc, edge_index, edge_weight) in enumerate(zip(sxc_list, edge_index_list, edge_weight_list)):
+    for i, (sxc, edge_index, edge_weight) in enumerate(
+        zip(sxc_list, edge_index_list, edge_weight_list)
+    ):
         num_nodes = sxc.shape[0]
         # Fill the padded tensor with actual node features
         batched_sxc[i, :num_nodes] = sxc
         # For edge indices, we need to offset by node_offset to make them unique across batch
         if edge_index.numel() > 0:
             if edge_index.max() >= num_nodes:
-                print(f"Warning: Graph {i} has edge indices {edge_index.max().item()} >= num_nodes {num_nodes}")
+                print(
+                    f"Warning: Graph {i} has edge indices {edge_index.max().item()} >= num_nodes {num_nodes}"
+                )
                 valid_mask = (edge_index[0] < num_nodes) & (edge_index[1] < num_nodes)
                 edge_index = edge_index[:, valid_mask]
                 edge_weight = edge_weight[valid_mask]
@@ -1236,7 +1279,13 @@ def gnn_collate_fn(batch):
         batched_edge_index = torch.empty((2, 0), dtype=torch.long)
         batched_edge_weight = torch.empty(0)
     batch_vector = torch.cat(batch_vector, dim=0)  # [total_nodes]
-    return [batched_sxc, batched_y, batched_edge_index, batched_edge_weight, batch_vector]
+    return [
+        batched_sxc,
+        batched_y,
+        batched_edge_index,
+        batched_edge_weight,
+        batch_vector,
+    ]
 
 
 def get_masked_tensors(variable_length_cfgs, batch, seq_first):
@@ -1270,7 +1319,17 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
         if len(batch) == 5:
             # GNN batch with batch_vector: [sxc, y, edge_index, edge_weight, batch_vector]
             xs, ys, edge_index, edge_weight, batch_vector = batch
-            return xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens
+            return (
+                xs,
+                ys,
+                edge_index,
+                edge_weight,
+                batch_vector,
+                xs_mask,
+                ys_mask,
+                xs_lens,
+                ys_lens,
+            )
         elif len(batch) == 4:
             # GNN batch: [sxc, y, edge_index, edge_weight]
             xs, ys, edge_index, edge_weight = batch
@@ -1316,7 +1375,17 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
 
     # Return appropriate format based on what we have
     if edge_index is not None and edge_weight is not None:
-        return xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens
+        return (
+            xs,
+            ys,
+            edge_index,
+            edge_weight,
+            batch_vector,
+            xs_mask,
+            ys_mask,
+            xs_lens,
+            ys_lens,
+        )
     else:
         return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 

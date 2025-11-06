@@ -9,36 +9,35 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+    permissions:
+      id-token: write # This is required for trusted publishing
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+      with:
+        fetch-depth: 0 # Required for hatch-vcs to determine the version
+
     - name: Setup uv
       uses: astral-sh/setup-uv@v3
       with:
           enable-cache: true
-    
+
     - name: Setup Python
       run: uv python install 3.11
-    
+
     - name: Install dependencies
       run: |
-        uv sync --extra build
-    
+        uv sync --extra dev
+
     - name: Build package
       run: |
-        uv build
-    
+        uv run hatch build
+
     - name: Publish to PyPI
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERS }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: |
-        uv run twine upload dist/*
-    
+      uses: pypa/gh-action-pypi-publish@v1
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
       with:
         name: dist
-        path: dist/ 
+        path: dist/

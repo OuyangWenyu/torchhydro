@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "torchhydro"
-version = "0.0.9"
+dynamic = ["version"]
 description = "datasets, samplers, transforms, and pre-trained models for hydrology and water resources"
 authors = [{name = "Wenyu Ouyang", email = "wenyuouyang@outlook.com"}]
 license = {text = "BSD"}
@@ -65,15 +65,11 @@ dependencies = [
 # 开发依赖
 dev = [
     "pytest-mock",
-    "setuptools",
-    "bump2version",
-    "wheel",
     "watchdog",
     "flake8",
     "tox",
     "coverage",
     "Sphinx",
-    "twine",
     "grip",
     "pytest-runner",
 ]
@@ -101,14 +97,6 @@ docs = [
     "mkdocs-jupyter>=0.25.1",
     "mkdocs-material>=9.6.17",
     "yarl>=1.20.1",
-]
-
-# 构建依赖
-build = [
-    "setuptools",
-    "wheel",
-    "twine",
-    "bump2version",
 ]
 
 [project.urls]
@@ -157,19 +145,6 @@ hydrodataset = { path = "../hydrodataset", editable = true }
 hydrodatasource = { path = "../hydrodatasource", editable = true }
 hydroutils = { path = "../hydroutils", editable = true }
 
-# 在线版本（从 git 安装，仅开发依赖）
-aqua-fetch = { git = "https://github.com/iHeadWater/AquaFetch.git", rev = "dev" }
-
-[tool.setuptools.packages.find]
-include = ["torchhydro", "torchhydro.*"]
-
-[tool.setuptools.package-data]
-torchhydro = ["*"]
-
-# Wheel 构建配置
-[tool.setuptools]
-zip-safe = false
-
 # pytest 配置
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -208,36 +183,46 @@ multi_line_output = 3
 line_length = 88
 known_first_party = ["torchhydro"]
 
-# flake8 配置
-[tool.flake8]
-max-line-length = 88
-exclude = ["docs", ".git", "__pycache__", "build", "dist"]
-ignore = ["E203", "W503"]
-
 # mypy 类型检查配置
 [tool.mypy]
 python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true 
-
-# bump2version 配置 (版本管理)
-[tool.bumpversion]
-current_version = "0.0.9"
-commit = true
-tag = true
-
-[[tool.bumpversion.files]]
-filename = "torchhydro/__init__.py"
-search = "__version__ = \"{current_version}\""
-replace = "__version__ = \"{new_version}\""
-
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
-search = "version = \"{current_version}\""
-replace = "version = \"{new_version}\""
+disallow_untyped_defs = true
 
 [dependency-groups]
 dev = [
     "mypy>=1.16.1",
+]
+
+[tool.uv]
+# Override aqua-fetch's outdated dependency constraints
+# aqua-fetch 限制了 pandas<=2.1.4，但实际上新版本的 pandas 和 xarray 已经修复了兼容性问题
+override-dependencies = [
+    "pandas>=2.2.0",
+]
+
+# Hatch version management
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.1"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "torchhydro/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["torchhydro"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/torchhydro",
+    "/tests",
+    "/docs",
+    "/README.md",
+    "/LICENSE",
+    "/AUTHORS.rst",
+    "/MANIFEST.in",
 ]

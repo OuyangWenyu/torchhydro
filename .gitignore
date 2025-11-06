@@ -146,3 +146,6 @@ scripts/
 CLAUDE.md
 .claude/
 .DS_Store
+
+# version file
+torchhydro/_version.py
