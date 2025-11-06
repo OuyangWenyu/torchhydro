@@ -19,7 +19,7 @@ from pathlib import Path
 
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-from hydrodataset.camelshourly import CamelsHourly
+from hydrodataset.camelsh import Camelsh
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
@@ -31,7 +31,7 @@ PRETRAIN_DAY_PTH = "/Users/cylenlc/work/torchhydro/experiments/best_model.pth"
 
 # === Dataset setup ===
 camels_dir = "/Users/cylenlc/data/camels_hourly"
-camels = CamelsHourly(camels_dir)
+camels = Camelsh(camels_dir)
 gage_id = ['01022500', '01031500']
 gage_id = sorted(gage_id)
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"

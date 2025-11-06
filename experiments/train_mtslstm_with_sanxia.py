@@ -16,7 +16,7 @@ for logger_name in logging.root.manager.loggerDict:
 PRETRAIN_DAY_PTH = '/Users/cylenlc/Desktop/simple_lstm_DapengScaler_128_0.4/best_model.pth'
 
 # === Dataset setup ===
-sanxia_dir = "/Volumes/Untitled/data/sanxia"
+sanxia_dir = "/Volumes/Untitled/data"
 gage_id = ['sanxia_60406350', 'sanxia_60406500', 'sanxia_60406700', 'sanxia_60407100', 'sanxia_60407200', 'sanxia_60701101', 'sanxia_60711600', 'sanxia_60713400', 'sanxia_60713630', 'sanxia_60713800', 'sanxia_60717050']
 
 gage_id = sorted(gage_id)
@@ -110,13 +110,15 @@ def config():
         source_cfgs={
             "source_name": "selfmadehydrodataset",
             "source_path": sanxia_dir,
-            #"other_settings": {"download": False, "region": "US"},
-            "other_settings": {"time_unit": ["1h"]},
+            "other_settings": {"dataset_name": "sanxia", "time_unit": ["1h"]},
         },
         ctx=[0],
         model_name="MTSLSTM",
 
         model_hyperparam={
+            "pretrained_flag": True,
+            "linear1_size": 41,
+            "linear2_size": 128,
             "pretrained_day_path": PRETRAIN_DAY_PTH,
             "pretrained_lstm_prefix": "lstm.",
             "pretrained_head_prefix": "linearOut.",

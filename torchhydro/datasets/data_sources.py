@@ -18,6 +18,7 @@ from tqdm import tqdm
 
 from hydroutils import hydro_time
 from hydrodataset.camels_us import CamelsUs
+from hydrodataset.camelsh import Camelsh
 from hydrodataset.grdc_caravan import GrdcCaravan
 from hydrodatasource.reader.data_source import (
     SelfMadeHydroDataset,
@@ -32,6 +33,7 @@ from torchhydro import CACHE_DIR, SETTING
 
 data_sources_dict = {
     "camels_us": CamelsUs,
+    "camelsh": Camelsh,
     "grdc_caravan": GrdcCaravan,
     "selfmadehydrodataset": SelfMadeHydroDataset,
     "selfmadeforecastdataset": SelfMadeForecastDataset,
