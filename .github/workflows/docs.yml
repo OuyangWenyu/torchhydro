@@ -31,7 +31,7 @@ jobs:
             
             - name: Run tests
               run: |
-                  uv run pytest tests
+                  uv run pytest -m "not requires_data and not requires_gpu" tests
             
             - name: Build and deploy docs
               run: |

@@ -14,6 +14,7 @@ from torchhydro.models.cudnnlstm import CudnnLstmModel
 from torchhydro.models.cudnnlstm import CudnnLstmModel, CudnnLstm
 
 
+@pytest.mark.requires_gpu
 def test_mc_dropout_eval():
     # Monte Carlo Dropout sampling during evaluation
     model = CudnnLstmModel(
@@ -128,6 +129,7 @@ def test_reset_mask_with_zero_dropout():
     ), "mask_w_hh should have the same shape as w_hh"
 
 
+@pytest.mark.requires_gpu
 def test_forward_with_mc_dropout():
     model = CudnnLstm(input_size=10, hidden_size=20, dr=0.5)
     model = model.to("cuda:0")
@@ -141,6 +143,7 @@ def test_forward_with_mc_dropout():
     assert cy.shape == (1, 5, 20), "Cell state shape mismatch"
 
 
+@pytest.mark.requires_gpu
 def test_forward_with_dropout():
     model = CudnnLstm(input_size=10, hidden_size=20, dr=0.5)
     input_data = torch.randn(20, 5, 10)  # [seq_len, batch_size, input_size]
@@ -154,6 +157,7 @@ def test_forward_with_dropout():
     assert cy.shape == (1, 5, 20), "Cell state shape mismatch"
 
 
+@pytest.mark.requires_gpu
 def test_forward_with_zero_dropout():
     model = CudnnLstm(input_size=10, hidden_size=20, dr=0.0)
     input_data = torch.randn(20, 5, 10)  # [seq_len, batch_size, input_size]
@@ -167,6 +171,7 @@ def test_forward_with_zero_dropout():
     assert cy.shape == (1, 5, 20), "Cell state shape mismatch"
 
 
+@pytest.mark.requires_gpu
 def test_forward_with_dropout_false():
     model = CudnnLstm(input_size=10, hidden_size=20, dr=0.5)
     input_data = torch.randn(20, 5, 10)  # [seq_len, batch_size, input_size]
@@ -180,6 +185,7 @@ def test_forward_with_dropout_false():
     assert cy.shape == (1, 5, 20), "Cell state shape mismatch"
 
 
+@pytest.mark.requires_gpu
 def test_forward_with_initial_states():
     model = CudnnLstm(input_size=10, hidden_size=20, dr=0.5)
     input_data = torch.randn(20, 5, 10)  # [seq_len, batch_size, input_size]

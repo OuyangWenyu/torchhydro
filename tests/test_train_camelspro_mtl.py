@@ -16,6 +16,7 @@ from torchhydro.models.crits import MultiOutLoss, RMSELoss
 from torchhydro.trainers.trainer import train_and_evaluate
 
 
+@pytest.mark.requires_gpu
 def test_cuda_available():
     assert torch.cuda.is_available()
 

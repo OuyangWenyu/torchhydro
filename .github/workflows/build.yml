@@ -91,4 +91,4 @@ jobs:
 #
             - name: PKG-TEST
               run: |
-                  uv run pytest --noconftest -m "not requires_data" tests
+                  uv run pytest -m "not requires_data and not requires_gpu" tests
