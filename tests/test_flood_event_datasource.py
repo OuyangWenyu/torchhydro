@@ -244,6 +244,7 @@ def test_flood_event_loading(monkeypatch, flood_event_datasource_args, tmp_path)
     assert "inflow" in events[0]
 
 
+@pytest.mark.requires_data
 def test_enhanced_data_configuration(flood_event_datasource_args):
     """Test that enhanced data configuration is properly set"""
     config = default_config_file()
@@ -277,6 +278,7 @@ def test_variable_configuration_compatibility(flood_event_datasource_args):
     assert config["data_cfgs"]["min_time_interval"] == "3"
 
 
+@pytest.mark.requires_data
 def test_loss_function_configuration(flood_event_datasource_args):
     """Test that FloodLoss is properly configured for flood events"""
     config = default_config_file()
@@ -288,6 +290,7 @@ def test_loss_function_configuration(flood_event_datasource_args):
     assert config["training_cfgs"]["criterion_params"]["flood_strategy"] == "weight"
 
 
+@pytest.mark.requires_data
 def test_evaluator_configuration(flood_event_datasource_args):
     """Test that flood event evaluator is properly configured"""
     config = default_config_file()
