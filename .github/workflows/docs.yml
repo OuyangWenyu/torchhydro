@@ -6,6 +6,8 @@ on:
 jobs:
     deploy:
         runs-on: ubuntu-latest
+        env:
+            UV_NO_SOURCES: "1"
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -26,8 +28,6 @@ jobs:
                   
                   # Install documentation dependencies
                   uv pip install mkdocs-material mkdocstrings mkdocs-git-revision-date-plugin mkdocs-jupyter ipykernel
-              env:
-                  UV_NO_SOURCES: "1"
             
             - name: Run tests
               run: |
