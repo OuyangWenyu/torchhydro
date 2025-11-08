@@ -45,7 +45,7 @@ dependencies = [
     "pytest",
     "aqua-fetch[all]",
     # 水文数据相关包 - 开发时使用本地版本(见[tool.uv.sources])，发布时从PyPI安装
-    "hydrodatasource>=0.1.0",
+    "hydrodatasource>=0.2.0",
     "hydroutils>=0.1.0",
     "hydrodataset>=0.2.0",
     # PyTorch Geometric 包（核心包）
@@ -97,6 +97,7 @@ docs = [
     "mkdocs-jupyter>=0.25.1",
     "mkdocs-material>=9.6.17",
     "yarl>=1.20.1",
+    "mkdocs-include-markdown-plugin>=1.0.0",
 ]
 
 [project.urls]

@@ -433,12 +433,14 @@ class BaseDataset(Dataset):
         return self.num_samples
 
     def __getitem__(self, item: int):
-        """Get one sample from the dataset with unified return format
+        """Get one sample from the dataset with a unified return format.
+
+        Args:
+            item: The index of the sample to retrieve.
 
         Returns:
-        --------
-        tuple[torch.Tensor, torch.Tensor]
-            (input_data, output_data)
+            A tuple of (input_data, output_data), where input_data is a tensor
+            of input features and output_data is a tensor of target values.
         """
         basin, idx, actual_length = self.lookup_table[item]
         warmup_length = self.warmup_length
@@ -2286,14 +2288,6 @@ class GNNDataset(FloodEventDataset):
     - adjacency_weight_col: Column to use as edge weights (default: None for binary weights)
     - return_edge_weight: Whether to return edge_weight instead of edge_attr (default: False)
 
-    Returns:
-    --------
-    sxc : torch.Tensor
-        Station features merged with basin features [num_stations, seq_length, feature_dim]
-    y : torch.Tensor
-        Target values (unchanged from parent) [seq_length, output_dim]
-    edge_index : torch.Tensor
-        Edge connectivity [2, num_edges]
     edge_attr : torch.Tensor
         Edge attributes [num_edges, edge_attr_dim]
     """
@@ -2899,19 +2893,25 @@ class GNNDataset(FloodEventDataset):
         return basin_ids
 
     def __getitem__(self, item: int):
-        """Get one sample with GNN-specific data format: sxc, y, edge_index, edge_attr
+        """Get one sample with GNN-specific data format.
 
-        This method merges basin-level features (xc) into each station node's features (sxc),
-        so each node's input includes both station and basin attributes.
+        This method merges basin-level features (xc) into each station node's
+        features (sxc), so each node's input includes both station and basin
+        attributes.
 
-        Returns
-        -------
-        tuple
-            (sxc, y, edge_index, edge_attr) where:
-            - sxc: Station features merged with basin features [num_stations, seq_length, feature_dim]
-            - y: Target values for prediction [forecast_length, output_dim]
-            - edge_index: Edge connectivity [2, num_edges]
-            - edge_attr: Edge attributes [num_edges, edge_attr_dim]
+        Args:
+            item: The index of the sample to retrieve.
+
+        Returns:
+            A tuple of (sxc, y, edge_index, edge_weight) where:
+            - sxc: Station features merged with basin features.
+                   Shape: [num_stations, seq_length, feature_dim]
+            - y: Target values for prediction.
+                 Shape: [forecast_length, output_dim]
+            - edge_index: Edge connectivity.
+                          Shape: [2, num_edges]
+            - edge_weight: Edge weights.
+                           Shape: [num_edges]
         """
         import torch
         import numpy as np

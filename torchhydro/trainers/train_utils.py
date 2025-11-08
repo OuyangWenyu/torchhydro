@@ -1205,21 +1205,15 @@ def varied_length_collate_fn(batch):
 
 
 def gnn_collate_fn(batch):
-    """
-    Custom collate function for GNN datasets that handles variable-sized graphs
+    """Custom collate function for GNN datasets that handles variable-sized graphs.
 
-    Each sample in batch is a tuple: (sxc, y, edge_index, edge_weight)
-    where:
-    - sxc: [num_stations_i, seq_length, feature_dim] (variable num_stations)
-    - y: [forecast_length, output_dim]
-    - edge_index: [2, num_edges_i] (variable num_edges)
-    - edge_weight: [num_edges_i] (variable num_edges)
+    Args:
+        batch: A list of samples, where each sample is a tuple of
+            (sxc, y, edge_index, edge_weight).
 
     Returns:
-    --------
-    list
-        [batched_sxc, batched_y, batched_edge_index, batched_edge_weight]
-        where batched_sxc has shape [batch_size, max_num_nodes, seq_length, feature_dim]
+        A list containing batched tensors:
+        [batched_sxc, batched_y, batched_edge_index, batched_edge_weight, batch_vector]
     """
     import torch
 

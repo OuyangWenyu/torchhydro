@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-09-19 09:36:25
-LastEditTime: 2025-06-16 16:11:20
+LastEditTime: 2025-11-08 15:55:14
 LastEditors: Wenyu Ouyang
 Description: Some self-made LSTMs
 FilePath: \torchhydro\torchhydro\models\simple_lstm.py
@@ -9,18 +9,20 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import math
+from typing import Any, Tuple, Optional
 import torch as th
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch import Tensor as T
 from torch.nn import Parameter as P
-import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
 class SimpleLSTM(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size, dr=0.0):
+    def __init__(
+        self, input_size: int, output_size: int, hidden_size: int, dr: float = 0.0
+    ):
         super(SimpleLSTM, self).__init__()
         self.linearIn = nn.Linear(input_size, hidden_size)
         self.lstm = nn.LSTM(
@@ -30,19 +32,18 @@ class SimpleLSTM(nn.Module):
         self.dropout = nn.Dropout(p=dr)
         self.linearOut = nn.Linear(hidden_size, output_size)
 
-    def forward(self, x, **kwargs):
-        """
-        Forward pass of SimpleLSTM
+    def forward(self, x: torch.Tensor, **kwargs: Any) -> torch.Tensor:
+        """Forward pass of the SimpleLSTM model.
 
-        Parameters:
-        -----------
-        x : torch.Tensor
-            Input tensor
-        **kwargs : dict
-            Optional keyword arguments:
-            - seq_lengths: sequence lengths for PackedSequence
-            - mask: mask tensor for manual masking (shape: [seq_len, batch_size, 1] or [batch_size, seq_len])
-            - use_manual_mask: bool, whether to prioritize manual masking over PackedSequence
+        Args:
+            x: Input tensor.
+            **kwargs: Optional keyword arguments:
+                - seq_lengths: Sequence lengths for PackedSequence.
+                - mask: Mask tensor for manual masking.
+                - use_manual_mask: Prioritize manual masking over PackedSequence.
+
+        Returns:
+            The output tensor from the model.
         """
         x0 = F.relu(self.linearIn(x))
 
@@ -95,12 +96,12 @@ class SimpleLSTM(nn.Module):
 class HFLSTM(nn.Module):
     def __init__(
         self,
-        input_size,
-        output_size,
-        hidden_size,
-        dr=0.0,
-        teacher_forcing_ratio=0,
-        hindcast_with_output=True,
+        input_size: int,
+        output_size: int,
+        hidden_size: int,
+        dr: float = 0.0,
+        teacher_forcing_ratio: float = 0,
+        hindcast_with_output: bool = True,
     ):
         """
 
@@ -131,13 +132,15 @@ class HFLSTM(nn.Module):
         self.hidden_size = hidden_size
         self.output_size = output_size
 
-    def _teacher_forcing_preparation(self, xq_hor):
+    def _teacher_forcing_preparation(self, xq_hor: torch.Tensor) -> torch.Tensor:
         # teacher forcing preparation
         valid_mask = ~torch.isnan(xq_hor)
         random_vals = torch.rand_like(valid_mask, dtype=torch.float)
         return (random_vals < self.teacher_forcing_ratio) * valid_mask
 
-    def _rho_forward(self, x_rho):
+    def _rho_forward(
+        self, x_rho: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         x0_rho = F.relu(self.linearIn(x_rho))
         out_lstm_rho, (hn_rho, cn_rho) = self.lstm(x0_rho)
         out_lstm_rho_dr = self.dropout(out_lstm_rho)
@@ -145,7 +148,7 @@ class HFLSTM(nn.Module):
         prev_output = out_lstm_rho_lnout[-1:, :, :]
         return out_lstm_rho_lnout, hn_rho, cn_rho, prev_output
 
-    def forward(self, *x):
+    def forward(self, *x: Tuple[torch.Tensor, ...]) -> torch.Tensor:
         xfc_rho, xfc_hor, xq_rho, xq_hor = x
 
         x_rho = torch.cat((xfc_rho, xq_rho), dim=-1)
@@ -195,7 +198,14 @@ class HFLSTM(nn.Module):
 
 
 class MultiLayerLSTM(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size, num_layers=1, dr=0.0):
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        hidden_size: int,
+        num_layers: int = 1,
+        dr: float = 0.0,
+    ):
         super(MultiLayerLSTM, self).__init__()
         self.linearIn = nn.Linear(input_size, hidden_size)
         self.lstm = nn.LSTM(
@@ -206,7 +216,7 @@ class MultiLayerLSTM(nn.Module):
         )
         self.linearOut = nn.Linear(hidden_size, output_size)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x0 = F.relu(self.linearIn(x))
         out_lstm, (hn, cn) = self.lstm(x0)
         return self.linearOut(out_lstm)
@@ -217,7 +227,7 @@ class LinearSimpleLSTMModel(SimpleLSTM):
     This model is nonlinear layer + SimpleLSTM.
     """
 
-    def __init__(self, linear_size, **kwargs):
+    def __init__(self, linear_size: int, **kwargs: Any):
         """
 
         Parameters
@@ -228,7 +238,15 @@ class LinearSimpleLSTMModel(SimpleLSTM):
         super(LinearSimpleLSTMModel, self).__init__(**kwargs)
         self.former_linear = nn.Linear(linear_size, kwargs["input_size"])
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass for the LinearSimpleLSTMModel.
+
+        Args:
+            x: Input tensor which will be passed through a linear layer first.
+
+        Returns:
+            The output of the underlying SimpleLSTM model.
+        """
         x0 = F.relu(self.former_linear(x))
         return super(LinearSimpleLSTMModel, self).forward(x0)
 
@@ -238,7 +256,7 @@ class LinearMultiLayerLSTMModel(MultiLayerLSTM):
     This model is nonlinear layer + MultiLayerLSTM.
     """
 
-    def __init__(self, linear_size, **kwargs):
+    def __init__(self, linear_size: int, **kwargs: Any):
         """
 
         Parameters
@@ -249,19 +267,37 @@ class LinearMultiLayerLSTMModel(MultiLayerLSTM):
         super(LinearMultiLayerLSTMModel, self).__init__(**kwargs)
         self.former_linear = nn.Linear(linear_size, kwargs["input_size"])
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x0 = F.relu(self.former_linear(x))
         return super(LinearMultiLayerLSTMModel, self).forward(x0)
 
 
 class SimpleLSTMForecast(SimpleLSTM):
-    def __init__(self, input_size, output_size, hidden_size, forecast_length, dr=0.0):
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        hidden_size: int,
+        forecast_length: int,
+        dr: float = 0.0,
+    ):
         super(SimpleLSTMForecast, self).__init__(
             input_size, output_size, hidden_size, dr
         )
         self.forecast_length = forecast_length
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass for the SimpleLSTMForecast model.
+
+        This method calls the parent's forward method and returns only the
+        final part of the output sequence corresponding to the forecast length.
+
+        Args:
+            x: Input tensor.
+
+        Returns:
+            A tensor containing the forecast part of the output sequence.
+        """
         # 调用父类的forward方法获取完整的输出
         full_output = super(SimpleLSTMForecast, self).forward(x)
 
@@ -275,7 +311,9 @@ class SlowLSTM(nn.Module):
     http://www.bioinf.jku.at/publications/older/2604.pdf
     """
 
-    def __init__(self, input_size, hidden_size, bias=True, dropout=0.0):
+    def __init__(
+        self, input_size: int, hidden_size: int, bias: bool = True, dropout: float = 0.0
+    ):
         super(SlowLSTM, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -310,7 +348,9 @@ class SlowLSTM(nn.Module):
         for w in self.parameters():
             w.data.uniform_(-std, std)
 
-    def forward(self, x, hidden):
+    def forward(
+        self, x: torch.Tensor, hidden: Tuple[torch.Tensor, torch.Tensor]
+    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         h, c = hidden
         h = h.view(h.size(0), -1)
         c = c.view(h.size(0), -1)
@@ -335,7 +375,7 @@ class SlowLSTM(nn.Module):
             F.dropout(h_t, p=self.dropout, training=self.training, inplace=True)
         return h_t, (h_t, c_t)
 
-    def sample_mask(self):
+    def sample_mask(self) -> None:
         pass
 
 
@@ -352,7 +392,13 @@ class MinLSTM(nn.Module):
     output shape: [batch,seq_len, out_chn]
     """
 
-    def __init__(self, input_size: int, hidden_size: int, device=None, dtype=None):
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ):
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -360,7 +406,9 @@ class MinLSTM(nn.Module):
             input_size, hidden_size * 3, bias=False, device=device, dtype=dtype
         )
 
-    def forward(self, x_t, h_prev=None):
+    def forward(
+        self, x_t: torch.Tensor, h_prev: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         if h_prev is None:
             h_prev = torch.zeros(
                 x_t.size(0), self.hidden_size, device=x_t.device, dtype=x_t.dtype
@@ -377,14 +425,16 @@ class MinLSTM(nn.Module):
         h_t = self.parallel_scan_log(log_coeff, log_val)
         return h_t[:, -seq_len:]
 
-    def parallel_scan_log(self, log_coeffs, log_values):
+    def parallel_scan_log(
+        self, log_coeffs: torch.Tensor, log_values: torch.Tensor
+    ) -> torch.Tensor:
         a_star = F.pad(torch.cumsum(log_coeffs, dim=1), (0, 0, 1, 0)).squeeze(1)
         log_h0_plus_b_star = torch.logcumsumexp(log_values - a_star, dim=1).squeeze(1)
         log_h = a_star + log_h0_plus_b_star
         return torch.exp(log_h)  # will return [batch, seq + 1, chn]
 
-    def g(self, x):
+    def g(self, x: torch.Tensor) -> torch.Tensor:
         return torch.where(x >= 0, x + 0.5, torch.sigmoid(x))
 
-    def log_g(self, x):
+    def log_g(self, x: torch.Tensor) -> torch.Tensor:
         return torch.where(x >= 0, (F.relu(x) + 0.5).log(), -F.softplus(-x))

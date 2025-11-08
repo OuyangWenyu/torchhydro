@@ -1,7 +1,7 @@
 <!--
  * @Author: Wenyu Ouyang
  * @Date: 2024-04-13 18:29:19
- * @LastEditTime: 2025-07-13 14:24:12
+ * @LastEditTime: 2025-11-08 15:14:07
  * @LastEditors: Wenyu Ouyang
  * @Description: English version of the README
  * @FilePath: \torchhydro\README.md
@@ -9,112 +9,106 @@
 -->
 # Torchhydro
 
-
 [![image](https://img.shields.io/pypi/v/torchhydro.svg)](https://pypi.python.org/pypi/torchhydro)
 [![image](https://img.shields.io/conda/vn/conda-forge/torchhydro.svg)](https://anaconda.org/conda-forge/torchhydro)
 
 - License: BSD license
 - Documentation: https://OuyangWenyu.github.io/torchhydro
 
-📜 [中文文档](README.zh.md)
-
-**Note: This repository is still under development**
+`torchhydro` provides datasets and models for applying deep learning to hydrological modeling.
 
 ## Installation
 
-We provide a pip package for installation:
+### For Users
 
-```Shell
+You can install `torchhydro` using `pip` or `uv` (which is faster).
+
+```shell
 pip install torchhydro
 ```
+or
+```shell
+uv pip install torchhydro
+```
 
-If you want to participate in the development as a developer, you can install the environment and download the code using the following method:
+### For Developers
 
-```Shell
-# fork this repository to your GitHub account -- xxxx
-git clone git@github.com:xxxx/torchhydro.git
+If you want to contribute to the project, we recommend using `uv` for environment management.
+
+```shell
+# Clone the repository
+git clone https://github.com/OuyangWenyu/torchhydro.git
 cd torchhydro
-```
 
-### Option 1: Using uv with standalone virtual environment (recommended)
-
-```Shell
-# Install uv if not already installed, for linux and macos
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# for windows, you can use the following command with admin privileges powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-# if network is not good, you can use the following command
-pip install uv
-# check uv version
-uv --version
-# Create and activate virtual environment, install dependencies
-uv sync --dev
-# Activate the virtual environment
-source .venv/bin/activate  # On Linux/Mac
-# or
-.venv\Scripts\activate     # On Windows
-```
-
-### Option 2: Using uv with conda environment
-
-```Shell
-# Create conda environment (requires Python >=3.9)
-conda create -n torchhydro python=3.11
-conda activate torchhydro
-# Install uv in conda environment
-pip install uv
-# Install project dependencies to conda environment
-uv pip install -e .[dev]
-```
-
-**Note**:
-- Option 1 creates an isolated virtual environment in `.venv/` folder
-- Option 2 installs packages directly into your conda environment
-- Both methods provide the same functionality
-- For more pytorch geometric packages, you can use the following command:
-```Shell
-uv pip install torch-scatter torch-sparse torch-cluster \
-    --find-links https://data.pyg.org/whl/torch-2.5.0+cu124.html
+# Create a virtual environment and install all dependencies
+uv sync --all-extras
 ```
 
 ## Usage
 
-Currently, we provide an example of training an LSTM on the CAMELS dataset. The functions for reading CAMELS are all written in [hydrodataset](https://github.com/OuyangWenyu/hydrodataset), so first read its readme to download the data properly and place it in the specified folder path. Regarding the folder configuration, check if there is a hydro_setting.yml file in your user directory. If not, manually create one, and refer to [here](https://github.com/OuyangWenyu/torchhydro/blob/6aec414d99e35f4f1672903eb9e18e8eebeadb09/torchhydro/__init__.py#L34) to ensure the local_data_path is set correctly. If you can't download the CAMELS data, you can directly use a version we uploaded on Kaggle: [kaggle CAMELS](https://www.kaggle.com/datasets/headwater/camels)
+### 1. Configure Data Path
 
-Then you can try running the files under the experiments folder, such as:
+Before running any examples, you need to tell `torchhydro` where your data is located.
 
-```Shell
-cd experiments
-python run_camelslstm_experiments.py
+Create a file named `hydro_setting.yml` in your user home directory (`C:\Users\YourUsername` on Windows or `~/` on Linux/macOS). Then, add the following content, pointing to your data folders:
+
+```yaml
+local_data_path:
+  root: 'D:/data/waterism' # Update with your root data directory
+  datasets-origin: 'D:/data/waterism/datasets-origin'
+  datasets-interim: 'D:/data/waterism/datasets-interim'
+  cache: 'D:/data/waterism/cache'
 ```
 
-More tutorials will be added gradually.
+The examples use the CAMELS dataset. If you don't have it, `torchhydro` will automatically call [hydrodataset](https://github.com/OuyangWenyu/hydrodataset) to download it.
 
-## Current Issues
-Due to the caching size limitations of GitHub Actions, there is an issue with downloading datasets, resulting in the need to re-download the datasets every time the build is executed. When the local dataset is incomplete, the program automatically downloads the missing data. However, due to the cache limits of GitHub Actions (a single cache can be up to 5GB, with a monthly storage limit of 500MB), this issue cannot be resolved at the moment. We will continue to monitor the situation and look for potential solutions.
+### 2. Run Examples
+
+We provide standalone scripts in the `examples/` directory to help you get started.
+
+- **`examples/lstm_camels_example.py`**: A basic example of training a standard LSTM model on the CAMELS dataset.
+- **`examples/dpl_xaj_example.py`**: An advanced example of training a differentiable model based on the Xinanjiang (XAJ) hydrological model.
+
+To run an example:
+```shell
+python examples/lstm_camels_example.py
+```
+
+Feel free to modify these scripts to experiment with different models, datasets, and parameters.
+
+## Explore More Features
+
+The examples above cover two primary use cases, but `torchhydro` is much more flexible. We support a variety of models, datasets, and data sources out of the box. Explore the full public API to see all available components:
+
+- **[Models API](docs/api/models.md)**: Discover all available model architectures.
+- **[Datasets API](docs/api/datasets.md)**: See all dataset classes, data sources, and samplers.
+- **[Trainers API](docs/api/trainers.md)**: Understand the core training and evaluation pipeline.
+
+We are continuously working to expand the documentation with more examples.
 
 ## Main Modules
 
-The program mainly includes trainers, models, datasets, and configs, with an additional explainer responsible for the model interpretation part.
+The project is organized into several key modules:
 
-- **Trainers**: Designed to handle various modes, the main one being a DeepHydro class, found in the deep_hydro module (a .py file). This class configures its data sources, obtains configurations about the model, data, training, and testing (details here), and then initializes the model (load_model function), the data (make_dataset function), and performs training (model_train function) and testing (model_evaluate function). Transfer learning, multitask learning, and federated learning modes will inherit this class and rewrite specific execution code.
-- **Models**: Mainly declared through a model_dict, which shows which models are available for configuration. This includes the selection of loss, and then the remaining model modules like lstm or differentiable models with coupled physical mechanisms.
-- **Datasets**: First, we set up several datasource repository tools to provide data sources, including the public dataset [hydrodataset](https://github.com/OuyangWenyu/hydrodataset) (like CAMELS) and [hydrodatasource](https://github.com/iHeadWater/hydrodatasource) (which requires organizing data by oneself). These data sources mainly provide data access, and in torchhydro, specific torch datasets can be written to match the model's data type. The dataset also has a dict to record, and then specific dataset class modules.
-- **Configs**: This mainly involves overall configurations, which are loaded during the initialization of the DeepHydro class. It's contained in the config module, primarily encompassing four parts: model (currently mode and model together), data (use of data time range, modeling object, etc.), training (training epochs, batch size, etc.), and testing (performance metrics).
+- **Trainers**: Manages the end-to-end training and evaluation pipeline. The core `DeepHydro` class handles data loading, model initialization, training loops, and evaluation. It is designed to be extensible for various learning paradigms like transfer learning or multi-task learning.
+- **Models**: Contains all available model architectures, including standard neural networks (e.g., LSTM) and differentiable models. A central dictionary allows for easy configuration and selection of models and loss functions.
+- **Datasets**: Provides data handling capabilities. It interfaces with data source libraries like [hydrodataset](https://github.com/OuyangWenyu/hydrodataset) (for public datasets like CAMELS) and [hydrodatasource](https://github.com/iHeadWater/hydrodatasource) (for custom data) to create `torch.utils.data.Dataset` objects suitable for training.
+- **Configs**: Manages all experiment configurations, including settings for the model, data (time periods, variables), training (epochs, batch size), and evaluation.
 
 ## Why Torchhydro?
 
-Although there are relatively mature tools like [NeuralHydrology](https://github.com/neuralhydrology/neuralhydrology), we chose not to use it directly for several reasons:
-1. Our model-building mode is not limited to fixed datasets corresponding to a fixed Dataset and then connecting to the model. We believe that the data source, especially considering non-public data situations like in China, is very complex and requires a separate Datasource module to handle the data sources and then make a torch Dataset. This extra layer of abstraction makes code reuse easier. Moreover, not everyone requires deep learning, so having a separate Datasource module allows more hydrologists to use it. We created [hydrodataset](https://github.com/OuyangWenyu/hydrodataset) and [hydrodatasource](https://github.com/iHeadWater/hydrodatasource) for this reason.
-2. Deep learning modes are not limited to single-variable supervised learning of runoff. Commonly used modes include transfer learning, multitask learning, and federated learning. These modes may use the same specific models as conventional ones, but the program expression will differ significantly, requiring these different modes to be considered in the overall program design.
-3. Sometimes, extra configuration is needed for data traversal, normalization methods, data sampling during batch generation, and dropout functionality during model training, necessitating a more flexible design compatible with different specific settings.
-4. For historical reasons, we developed torchhydro independently and in parallel from the beginning, so it has continued as such. The main idea is to extend configuration outwardly as much as possible to achieve flexible matching and calling of data and models.
+While mature tools like [NeuralHydrology](https://github.com/neuralhydrology/neuralhydrology) exist, `torchhydro` was developed with a different architectural philosophy:
+
+1.  **Decoupled Data Sources**: We believe data handling, especially for complex or private datasets, requires a separate abstraction layer. Our approach uses `hydrodataset` and `hydrodatasource` to manage data access first, which then feeds into a PyTorch `Dataset`. This modularity promotes code reuse and allows the data source tools to be used even without a deep learning model.
+2.  **Flexible Learning Paradigms**: The framework is explicitly designed to support not just standard supervised learning, but also more complex modes like transfer learning, multi-task learning, and federated learning from the ground up.
+3.  **Deep Configuration**: We provide fine-grained control over many aspects of the pipeline, including data traversal, normalization methods, batch sampling strategies, and advanced dropout techniques, allowing for greater flexibility in experimentation.
+4.  **Extensibility**: The core design principle is to externalize as much configuration as possible, enabling flexible matching and calling of different data sources and models.
 
 ## Additional Information
 
 This package was inspired by:
 
-- [TorchGeo](https://torchgeo.readthedocs.io/en/stable/).
+- [TorchGeo](https://torchgeo.readthedocs.io/en/stable/)
 - [NeuralHydrology](https://github.com/neuralhydrology/neuralhydrology)
 - [hydroDL](https://github.com/mhpi/hydroDL)
 

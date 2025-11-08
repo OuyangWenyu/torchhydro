@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2024-09-10 20:10:25
+LastEditTime: 2025-11-08 15:06:58
 LastEditors: Wenyu Ouyang
 Description: Top-level package for torchhydro
 FilePath: \torchhydro\torchhydro\__init__.py
@@ -12,19 +12,19 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 
 __author__ = """Wenyu Ouyang"""
 __email__ = "wenyuouyang@outlook.com"
-__version__ = '0.0.9'
+try:
+    from ._version import __version__
+except ImportError:
+    # This is a fallback for cases where the package is not installed in an editable mode and the _version.py file is not generated.
+    # For instance, when the code is just cloned and not installed.
+    __version__ = "0.0.0+unknown"
 
 from pathlib import Path
 import yaml
 import os
 
-from hydroutils import hydro_file
 
-CACHE_DIR = Path(hydro_file.get_cache_dir())
-SETTING_FILE = os.path.join(Path.home(), "hydro_setting.yml")
-
-
-def read_setting(setting_path):
+def read_setting(setting_path: str) -> dict:
     if not os.path.exists(setting_path):
         raise FileNotFoundError(f"Configuration file not found: {setting_path}")
 
@@ -80,11 +80,21 @@ def read_setting(setting_path):
 
 
 try:
+    SETTING_FILE = os.path.join(Path.home(), "hydro_setting.yml")
     SETTING = read_setting(SETTING_FILE)
+    CACHE_DIR = SETTING["local_data_path"]["cache"]
 except ValueError as e:
-    print(e)
+    print(f"Warning: {e}")
+    # Set default values for CI/testing environments
+    SETTING = None
+    ROOT_DIR = os.path.join(Path.home(), "torchhydro_data", "datasets-origin")
+    CACHE_DIR = os.path.join(Path.home(), "torchhydro_data", "cache")
 except Exception as e:
     print(f"Unexpected error: {e}")
+    # Set default values for CI/testing environments
+    SETTING = None
+    ROOT_DIR = os.path.join(Path.home(), "torchhydro_data", "datasets-origin")
+    CACHE_DIR = os.path.join(Path.home(), "torchhydro_data", "cache")
 
 
 from .configs import *

@@ -924,7 +924,8 @@ class MTSLSTM(nn.Module):
 
         Raises:
             AssertionError: If the number of provided inputs does not match `nf`,
-            or if input feature dimensions do not match the expected configuration.
+                or if input feature dimensions do not match the expected
+                configuration.
         """
         if return_all is None:
             return_all = self.return_all_default
