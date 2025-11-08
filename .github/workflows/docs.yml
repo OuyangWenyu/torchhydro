@@ -23,11 +23,8 @@ jobs:
             
             - name: Install dependencies
               run: |
-                  # Install project dependencies
-                  uv sync --extra dev
-                  
-                  # Install documentation dependencies
-                  uv pip install mkdocs-material mkdocstrings mkdocs-git-revision-date-plugin mkdocs-jupyter ipykernel
+                  # Install project dependencies with documentation extras
+                  uv sync --extra dev --extra docs
             
             - name: Run tests
               run: |
