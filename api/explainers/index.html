@@ -1,0 +1,2652 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://OuyangWenyu.github.io/torchhydro/api/explainers/">
+      
+      
+        <link rel="prev" href="../configs/">
+      
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.17">
+    
+    
+      
+        <title>Explainers - torchhydro</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.7e37652d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="preference" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#explainers-api" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="torchhydro" class="md-header__button md-logo" aria-label="torchhydro" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            torchhydro
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Explainers
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/OuyangWenyu/torchhydro" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="torchhydro" class="md-nav__button md-logo" aria-label="torchhydro" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    torchhydro
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/OuyangWenyu/torchhydro" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Usage
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    FAQ
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Changelog
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/OuyangWenyu/torchhydro/issues" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Report Issues
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../torchhydro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Datasets
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../trainers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Trainers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Explainers
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Explainers
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#torchhydro.explainers" class="md-nav__link">
+    <span class="md-ellipsis">
+      torchhydro.explainers
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torchhydro.explainers.shap" class="md-nav__link">
+    <span class="md-ellipsis">
+      shap
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="shap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.shap.deep_explain_model_heatmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      deep_explain_model_heatmap()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.shap.deep_explain_model_summary_plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      deep_explain_model_summary_plot()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="deep_explain_model_summary_plot()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.shap.deep_explain_model_summary_plot--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.shap.jitter" class="md-nav__link">
+    <span class="md-ellipsis">
+      jitter()
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      uncertainty_analysis
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="uncertainty_analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.bin_aggregated_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      bin_aggregated_data()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="bin_aggregated_data()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.bin_aggregated_data--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.bin_aggregated_data--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf" class="md-nav__link">
+    <span class="md-ellipsis">
+      calculate_empirical_cdf()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="calculate_empirical_cdf()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf" class="md-nav__link">
+    <span class="md-ellipsis">
+      calculate_observed_ecdf()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="calculate_observed_ecdf()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.plot_probability_plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      plot_probability_plot()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="plot_probability_plot()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.plot_probability_plot--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins" class="md-nav__link">
+    <span class="md-ellipsis">
+      process_and_aggregate_basins()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="process_and_aggregate_basins()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_basin" class="md-nav__link">
+    <span class="md-ellipsis">
+      process_basin()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="process_basin()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_basin--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_multiple_basins" class="md-nav__link">
+    <span class="md-ellipsis">
+      process_multiple_basins()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="process_multiple_basins()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_multiple_basins--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      weight_anlysis
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="weight_anlysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.get_latest_event_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_latest_event_file()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get_latest_event_file()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.get_latest_event_file--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.plot_layer_hist_for_basin_model_fold" class="md-nav__link">
+    <span class="md-ellipsis">
+      plot_layer_hist_for_basin_model_fold()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="plot_layer_hist_for_basin_model_fold()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.plot_layer_hist_for_basin_model_fold--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.plot_param_hist_model" class="md-nav__link">
+    <span class="md-ellipsis">
+      plot_param_hist_model()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="plot_param_hist_model()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.plot_param_hist_model--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.plot_param_hist_model--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.read_tb_log" class="md-nav__link">
+    <span class="md-ellipsis">
+      read_tb_log()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="read_tb_log()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.read_tb_log--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.read_tb_log--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.read_tb_log--raises" class="md-nav__link">
+    <span class="md-ellipsis">
+      Raises
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#torchhydro.explainers" class="md-nav__link">
+    <span class="md-ellipsis">
+      torchhydro.explainers
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torchhydro.explainers.shap" class="md-nav__link">
+    <span class="md-ellipsis">
+      shap
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="shap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.shap.deep_explain_model_heatmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      deep_explain_model_heatmap()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.shap.deep_explain_model_summary_plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      deep_explain_model_summary_plot()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="deep_explain_model_summary_plot()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.shap.deep_explain_model_summary_plot--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.shap.jitter" class="md-nav__link">
+    <span class="md-ellipsis">
+      jitter()
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      uncertainty_analysis
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="uncertainty_analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.bin_aggregated_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      bin_aggregated_data()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="bin_aggregated_data()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.bin_aggregated_data--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.bin_aggregated_data--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf" class="md-nav__link">
+    <span class="md-ellipsis">
+      calculate_empirical_cdf()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="calculate_empirical_cdf()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf" class="md-nav__link">
+    <span class="md-ellipsis">
+      calculate_observed_ecdf()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="calculate_observed_ecdf()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.plot_probability_plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      plot_probability_plot()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="plot_probability_plot()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.plot_probability_plot--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins" class="md-nav__link">
+    <span class="md-ellipsis">
+      process_and_aggregate_basins()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="process_and_aggregate_basins()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_basin" class="md-nav__link">
+    <span class="md-ellipsis">
+      process_basin()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="process_basin()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_basin--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_multiple_basins" class="md-nav__link">
+    <span class="md-ellipsis">
+      process_multiple_basins()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="process_multiple_basins()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.uncertainty_analysis.process_multiple_basins--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      weight_anlysis
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="weight_anlysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.get_latest_event_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_latest_event_file()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get_latest_event_file()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.get_latest_event_file--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.plot_layer_hist_for_basin_model_fold" class="md-nav__link">
+    <span class="md-ellipsis">
+      plot_layer_hist_for_basin_model_fold()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="plot_layer_hist_for_basin_model_fold()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.plot_layer_hist_for_basin_model_fold--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.plot_param_hist_model" class="md-nav__link">
+    <span class="md-ellipsis">
+      plot_param_hist_model()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="plot_param_hist_model()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.plot_param_hist_model--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.plot_param_hist_model--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.read_tb_log" class="md-nav__link">
+    <span class="md-ellipsis">
+      read_tb_log()
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="read_tb_log()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.read_tb_log--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.read_tb_log--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#torchhydro.explainers.weight_anlysis.read_tb_log--raises" class="md-nav__link">
+    <span class="md-ellipsis">
+      Raises
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+
+
+
+                  
+
+
+  
+  
+
+
+<h1 id="explainers-api">Explainers API<a class="headerlink" href="#explainers-api" title="Permanent link">&para;</a></h1>
+
+
+  <div class="doc doc-object doc-module">
+
+<a id="torchhydro.explainers"></a>
+    <div class="doc doc-contents first">
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-module">
+
+
+
+<h2 id="torchhydro.explainers.shap" class="doc doc-heading">
+        <code>shap</code>
+
+
+
+<a href="#torchhydro.explainers.shap" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents ">
+
+      <p>Author: Wenyu Ouyang
+Date: 2023-10-19 21:34:29
+LastEditTime: 2025-07-12 11:25:01
+LastEditors: Wenyu Ouyang
+Description: SHAP methods for deep learning models
+FilePath: /torchhydro/torchhydro/explainers/shap.py
+Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.</p>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.shap.deep_explain_model_heatmap" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">deep_explain_model_heatmap</span><span class="p">(</span><span class="n">dl_model</span><span class="p">,</span> <span class="n">test_dataset</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.shap.deep_explain_model_heatmap" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Generate feature heatmap for prediction at a start time
+Parameters</p>
+<hr />
+<p>model
+    trained model
+test_dataset
+    test dataset
+Returns</p>
+<hr />
+<p>None</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/shap.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">deep_explain_model_heatmap</span><span class="p">(</span><span class="n">dl_model</span><span class="p">,</span> <span class="n">test_dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate feature heatmap for prediction at a start time</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model</span>
+<span class="sd">        trained model</span>
+<span class="sd">    test_dataset</span>
+<span class="sd">        test dataset</span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dl_model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+    <span class="n">history</span> <span class="o">=</span> <span class="n">test_dataset</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="c1"># background shape (L, N, M)</span>
+    <span class="c1"># L - batch size, N - history length, M - feature size</span>
+    <span class="c1"># for each element in each N x M batch in L,</span>
+    <span class="c1"># attribute to each prediction in forecast len</span>
+    <span class="n">deep_explainer</span> <span class="o">=</span> <span class="n">shap</span><span class="o">.</span><span class="n">DeepExplainer</span><span class="p">(</span><span class="n">dl_model</span><span class="p">,</span> <span class="n">history</span><span class="p">)</span>
+    <span class="n">shap_values</span> <span class="o">=</span> <span class="n">shap_results</span><span class="p">(</span><span class="n">deep_explainer</span><span class="p">,</span> <span class="n">history</span><span class="p">)</span>
+    <span class="n">figs</span> <span class="o">=</span> <span class="n">plot_shap_value_heatmaps</span><span class="p">(</span><span class="n">shap_values</span><span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.shap.deep_explain_model_summary_plot" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">deep_explain_model_summary_plot</span><span class="p">(</span><span class="n">dl_model</span><span class="p">,</span> <span class="n">test_dataset</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.shap.deep_explain_model_summary_plot" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Generate feature summary plot for trained deep learning models</p>
+<h5 id="torchhydro.explainers.shap.deep_explain_model_summary_plot--parameters">Parameters<a class="headerlink" href="#torchhydro.explainers.shap.deep_explain_model_summary_plot--parameters" title="Permanent link">&para;</a></h5>
+<p>model
+    trained model
+test_dataset
+    test dataset</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/shap.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">deep_explain_model_summary_plot</span><span class="p">(</span><span class="n">dl_model</span><span class="p">,</span> <span class="n">test_dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate feature summary plot for trained deep learning models</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model</span>
+<span class="sd">        trained model</span>
+<span class="sd">    test_dataset</span>
+<span class="sd">        test dataset</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dl_model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+    <span class="n">history</span> <span class="o">=</span> <span class="n">test_dataset</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">dl_model</span> <span class="o">=</span> <span class="n">dl_model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="n">deep_explainer</span> <span class="o">=</span> <span class="n">shap</span><span class="o">.</span><span class="n">DeepExplainer</span><span class="p">(</span><span class="n">dl_model</span><span class="p">,</span> <span class="n">history</span><span class="p">)</span>
+    <span class="n">shap_values</span> <span class="o">=</span> <span class="n">shap_results</span><span class="p">(</span><span class="n">deep_explainer</span><span class="p">,</span> <span class="n">history</span><span class="p">)</span>
+    <span class="c1"># summary plot shows overall feature ranking</span>
+    <span class="c1"># by average absolute shap values</span>
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">plot_summary_shap_values</span><span class="p">(</span><span class="n">shap_values</span><span class="p">,</span> <span class="n">test_dataset</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+    <span class="n">abs_mean_shap_values</span> <span class="o">=</span> <span class="n">shap_values</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;preds&quot;</span><span class="p">,</span> <span class="s2">&quot;batches&quot;</span><span class="p">])</span>
+    <span class="n">multi_shap_values</span> <span class="o">=</span> <span class="n">abs_mean_shap_values</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s2">&quot;observations&quot;</span><span class="p">)</span>
+    <span class="c1"># summary plot for multi-step outputs</span>
+    <span class="c1"># multi_shap_values = shap_values.apply_along_axis(np.mean, &#39;batches&#39;)</span>
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">plot_summary_shap_values_over_time_series</span><span class="p">(</span>
+        <span class="n">shap_values</span><span class="p">,</span> <span class="n">test_dataset</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span>
+    <span class="p">)</span>
+    <span class="n">history_numpy</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+        <span class="n">history</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;batches&quot;</span><span class="p">,</span> <span class="s2">&quot;observations&quot;</span><span class="p">,</span> <span class="s2">&quot;features&quot;</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">shap_values</span> <span class="o">=</span> <span class="n">shap_results</span><span class="p">(</span><span class="n">deep_explainer</span><span class="p">,</span> <span class="n">history</span><span class="p">)</span>
+    <span class="n">figs</span> <span class="o">=</span> <span class="n">plot_shap_values_from_history</span><span class="p">(</span><span class="n">shap_values</span><span class="p">,</span> <span class="n">history_numpy</span><span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.shap.jitter" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">jitter</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">jitter_strength</span><span class="o">=</span><span class="mf">0.005</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.shap.jitter" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Add some jitter to the values.</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/shap.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">jitter</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">jitter_strength</span><span class="o">=</span><span class="mf">0.005</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Add some jitter to the values.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">values</span> <span class="o">+</span> <span class="n">jitter_strength</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="o">*</span><span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-module">
+
+
+
+<h2 id="torchhydro.explainers.uncertainty_analysis" class="doc doc-heading">
+        <code>uncertainty_analysis</code>
+
+
+
+<a href="#torchhydro.explainers.uncertainty_analysis" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents ">
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.uncertainty_analysis.bin_aggregated_data" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">bin_aggregated_data</span><span class="p">(</span><span class="n">z_values</span><span class="p">,</span> <span class="n">r_values</span><span class="p">,</span> <span class="n">num_bins</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.uncertainty_analysis.bin_aggregated_data" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Aggregate the z-values and r-values into bins, and calculate the average for each bin.</p>
+<h5 id="torchhydro.explainers.uncertainty_analysis.bin_aggregated_data--parameters">Parameters<a class="headerlink" href="#torchhydro.explainers.uncertainty_analysis.bin_aggregated_data--parameters" title="Permanent link">&para;</a></h5>
+<p>!!! z_values "np.ndarray"
+    Aggregated z-values (quantiles) across all basins and time steps
+!!! r_values "np.ndarray"
+    Aggregated r-values (ECDF) across all basins and time steps
+!!! num_bins "int"
+    Number of bins to divide the data into (default is 10)</p>
+<h5 id="torchhydro.explainers.uncertainty_analysis.bin_aggregated_data--returns">Returns<a class="headerlink" href="#torchhydro.explainers.uncertainty_analysis.bin_aggregated_data--returns" title="Permanent link">&para;</a></h5>
+<p>!!! binned_z "np.ndarray"
+    Average z-values for each bin
+!!! binned_r "np.ndarray"
+    Average r-values for each bin</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/uncertainty_analysis.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">bin_aggregated_data</span><span class="p">(</span><span class="n">z_values</span><span class="p">,</span> <span class="n">r_values</span><span class="p">,</span> <span class="n">num_bins</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Aggregate the z-values and r-values into bins, and calculate the average for each bin.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    z_values: np.ndarray</span>
+<span class="sd">        Aggregated z-values (quantiles) across all basins and time steps</span>
+<span class="sd">    r_values: np.ndarray</span>
+<span class="sd">        Aggregated r-values (ECDF) across all basins and time steps</span>
+<span class="sd">    num_bins: int</span>
+<span class="sd">        Number of bins to divide the data into (default is 10)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    binned_z: np.ndarray</span>
+<span class="sd">        Average z-values for each bin</span>
+<span class="sd">    binned_r: np.ndarray</span>
+<span class="sd">        Average r-values for each bin</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">bins</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">num_bins</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># Create bin edges from 0 to 1</span>
+    <span class="n">bin_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">digitize</span><span class="p">(</span>
+        <span class="n">z_values</span><span class="p">,</span> <span class="n">bins</span>
+    <span class="p">)</span>  <span class="c1"># Find out which bin each z-value belongs to</span>
+
+    <span class="n">binned_z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_bins</span><span class="p">)</span>
+    <span class="n">binned_r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_bins</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_bins</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="c1"># Select the z and r values that fall into the current bin</span>
+        <span class="n">in_bin</span> <span class="o">=</span> <span class="n">bin_indices</span> <span class="o">==</span> <span class="n">i</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">in_bin</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Calculate the average z and r values for this bin</span>
+            <span class="n">binned_z</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">z_values</span><span class="p">[</span><span class="n">in_bin</span><span class="p">])</span>
+            <span class="n">binned_r</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">r_values</span><span class="p">[</span><span class="n">in_bin</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># If no values in this bin, assign NaN (can also handle this differently if needed)</span>
+            <span class="n">binned_z</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+            <span class="n">binned_r</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+    <span class="k">return</span> <span class="n">binned_z</span><span class="p">,</span> <span class="n">binned_r</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">calculate_empirical_cdf</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">obs_values</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Calculate the empirical cumulative distribution function (CDF) of model predictions for each time step
+and compute the quantiles z_i of the observed values.</p>
+<h5 id="torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf--parameters">Parameters<a class="headerlink" href="#torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf--parameters" title="Permanent link">&para;</a></h5>
+<p>!!! predictions "np.ndarray"
+    2D array of predictions (shape = (MC_dropout_times, time_steps))
+!!! obs_values "np.ndarray"
+    Time series of observed values (1D array, shape = (time_steps,))</p>
+<h5 id="torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf--returns">Returns<a class="headerlink" href="#torchhydro.explainers.uncertainty_analysis.calculate_empirical_cdf--returns" title="Permanent link">&para;</a></h5>
+<p>!!! z_values "np.ndarray"
+    Quantiles of the observed values in the prediction distribution for each time step (1D array)</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/uncertainty_analysis.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">calculate_empirical_cdf</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">obs_values</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the empirical cumulative distribution function (CDF) of model predictions for each time step</span>
+<span class="sd">    and compute the quantiles z_i of the observed values.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    predictions: np.ndarray</span>
+<span class="sd">        2D array of predictions (shape = (MC_dropout_times, time_steps))</span>
+<span class="sd">    obs_values: np.ndarray</span>
+<span class="sd">        Time series of observed values (1D array, shape = (time_steps,))</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    z_values: np.ndarray</span>
+<span class="sd">        Quantiles of the observed values in the prediction distribution for each time step (1D array)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">time_steps</span> <span class="o">=</span> <span class="n">obs_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">mc_dropout_times</span> <span class="o">=</span> <span class="n">predictions</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="n">z_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">time_steps</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">time_steps</span><span class="p">):</span>
+        <span class="c1"># Sort the predictions for each time step</span>
+        <span class="n">sorted_predictions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">predictions</span><span class="p">[:,</span> <span class="n">t</span><span class="p">])</span>
+
+        <span class="c1"># Calculate the quantile of the observed value in the prediction distribution</span>
+        <span class="n">z_values</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sorted_predictions</span> <span class="o">&lt;=</span> <span class="n">obs_values</span><span class="p">[</span><span class="n">t</span><span class="p">])</span> <span class="o">/</span> <span class="n">mc_dropout_times</span>
+
+    <span class="k">return</span> <span class="n">z_values</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">calculate_observed_ecdf</span><span class="p">(</span><span class="n">obs_values</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Calculate the empirical cumulative distribution function (ECDF) of observed values.</p>
+<h5 id="torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf--parameters">Parameters<a class="headerlink" href="#torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf--parameters" title="Permanent link">&para;</a></h5>
+<p>!!! obs_values "np.ndarray"
+    Time series of observed values (1D array, shape = (time_steps,))</p>
+<h5 id="torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf--returns">Returns<a class="headerlink" href="#torchhydro.explainers.uncertainty_analysis.calculate_observed_ecdf--returns" title="Permanent link">&para;</a></h5>
+<p>!!! ecdf "np.ndarray"
+    Proportion of observed values in the cumulative distribution (1D array, same shape as obs_values)</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/uncertainty_analysis.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">calculate_observed_ecdf</span><span class="p">(</span><span class="n">obs_values</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the empirical cumulative distribution function (ECDF) of observed values.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    obs_values: np.ndarray</span>
+<span class="sd">        Time series of observed values (1D array, shape = (time_steps,))</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ecdf: np.ndarray</span>
+<span class="sd">        Proportion of observed values in the cumulative distribution (1D array, same shape as obs_values)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">time_steps</span> <span class="o">=</span> <span class="n">obs_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># Sort observed values</span>
+    <span class="n">sorted_obs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">obs_values</span><span class="p">)</span>
+
+    <span class="c1"># Calculate ECDF: for each observed value, the proportion of values &lt;= that value</span>
+    <span class="n">ecdf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">time_steps</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">time_steps</span><span class="p">):</span>
+        <span class="n">ecdf</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sorted_obs</span> <span class="o">&lt;=</span> <span class="n">obs_values</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">/</span> <span class="n">time_steps</span>
+
+    <span class="k">return</span> <span class="n">ecdf</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.uncertainty_analysis.plot_probability_plot" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">plot_probability_plot</span><span class="p">(</span><span class="n">z_values</span><span class="p">,</span> <span class="n">r_values</span><span class="p">,</span> <span class="n">basin_name</span><span class="o">=</span><span class="s1">&#39;Basin&#39;</span><span class="p">,</span> <span class="n">scatter</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.uncertainty_analysis.plot_probability_plot" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Plot the probability plot for a single basin.</p>
+<h5 id="torchhydro.explainers.uncertainty_analysis.plot_probability_plot--parameters">Parameters<a class="headerlink" href="#torchhydro.explainers.uncertainty_analysis.plot_probability_plot--parameters" title="Permanent link">&para;</a></h5>
+<p>!!! z_values "np.ndarray"
+    Quantiles of the observed values for each time step (1D array)
+!!! r_values "np.ndarray"
+    Empirical cumulative distribution of observed values (ECDF, 1D array)
+!!! basin_name "str"
+    Name of the basin (for title of the plot)</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/uncertainty_analysis.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">plot_probability_plot</span><span class="p">(</span><span class="n">z_values</span><span class="p">,</span> <span class="n">r_values</span><span class="p">,</span> <span class="n">basin_name</span><span class="o">=</span><span class="s2">&quot;Basin&quot;</span><span class="p">,</span> <span class="n">scatter</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot the probability plot for a single basin.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    z_values: np.ndarray</span>
+<span class="sd">        Quantiles of the observed values for each time step (1D array)</span>
+<span class="sd">    r_values: np.ndarray</span>
+<span class="sd">        Empirical cumulative distribution of observed values (ECDF, 1D array)</span>
+<span class="sd">    basin_name: str</span>
+<span class="sd">        Name of the basin (for title of the plot)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Sort both z_values and r_values by z_values</span>
+    <span class="n">sorted_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">z_values</span><span class="p">)</span>
+    <span class="n">z_sorted</span> <span class="o">=</span> <span class="n">z_values</span><span class="p">[</span><span class="n">sorted_indices</span><span class="p">]</span>
+    <span class="n">r_sorted</span> <span class="o">=</span> <span class="n">r_values</span><span class="p">[</span><span class="n">sorted_indices</span><span class="p">]</span>
+
+    <span class="c1"># Plot the probability plot with markers only (no lines)</span>
+    <span class="k">if</span> <span class="n">scatter</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
+            <span class="n">z_sorted</span><span class="p">,</span> <span class="n">r_sorted</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Probability Plot (</span><span class="si">{</span><span class="n">basin_name</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;b&quot;</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+            <span class="n">z_sorted</span><span class="p">,</span> <span class="n">r_sorted</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Probability Plot (</span><span class="si">{</span><span class="n">basin_name</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;b&quot;</span>
+        <span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="s2">&quot;k--&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;1:1 Line&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Add labels and grid</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Predicted CDF Quantiles (z_i)&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Observed ECDF (R_i/n)&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Probability Plot - </span><span class="si">{</span><span class="n">basin_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">process_and_aggregate_basins</span><span class="p">(</span><span class="n">basins_data</span><span class="p">,</span> <span class="n">num_bins</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Process multiple basins: aggregate z-values and r-values across basins and time steps.</p>
+<h5 id="torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins--parameters">Parameters<a class="headerlink" href="#torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins--parameters" title="Permanent link">&para;</a></h5>
+<p>!!! basins_data "list of dict"
+    List of dictionaries, each containing 'predictions', 'obs_values', and 'name' for a basin.
+!!! num_bins "int"
+    Number of bins to divide the data into (default is 0, which does not bin the data)</p>
+<h5 id="torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins--returns">Returns<a class="headerlink" href="#torchhydro.explainers.uncertainty_analysis.process_and_aggregate_basins--returns" title="Permanent link">&para;</a></h5>
+<p>!!! all_z_values "np.ndarray"
+    Aggregated z-values (quantiles) across all basins and time steps
+!!! all_r_values "np.ndarray"
+    Aggregated r-values (ECDF) across all basins and time steps</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/uncertainty_analysis.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">process_and_aggregate_basins</span><span class="p">(</span><span class="n">basins_data</span><span class="p">,</span> <span class="n">num_bins</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Process multiple basins: aggregate z-values and r-values across basins and time steps.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    basins_data: list of dict</span>
+<span class="sd">        List of dictionaries, each containing &#39;predictions&#39;, &#39;obs_values&#39;, and &#39;name&#39; for a basin.</span>
+<span class="sd">    num_bins: int</span>
+<span class="sd">        Number of bins to divide the data into (default is 0, which does not bin the data)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    all_z_values: np.ndarray</span>
+<span class="sd">        Aggregated z-values (quantiles) across all basins and time steps</span>
+<span class="sd">    all_r_values: np.ndarray</span>
+<span class="sd">        Aggregated r-values (ECDF) across all basins and time steps</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">all_z_values</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">all_r_values</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">basin_data</span> <span class="ow">in</span> <span class="n">basins_data</span><span class="p">:</span>
+        <span class="n">predictions</span> <span class="o">=</span> <span class="n">basin_data</span><span class="p">[</span><span class="s2">&quot;predictions&quot;</span><span class="p">]</span>
+        <span class="n">obs_values</span> <span class="o">=</span> <span class="n">basin_data</span><span class="p">[</span><span class="s2">&quot;obs_values&quot;</span><span class="p">]</span>
+
+        <span class="c1"># Calculate z-values and r-values for the current basin</span>
+        <span class="n">z_values</span> <span class="o">=</span> <span class="n">calculate_empirical_cdf</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">obs_values</span><span class="p">)</span>
+        <span class="n">r_values</span> <span class="o">=</span> <span class="n">calculate_observed_ecdf</span><span class="p">(</span><span class="n">obs_values</span><span class="p">)</span>
+
+        <span class="c1"># Append the results to the global list</span>
+        <span class="n">all_z_values</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">z_values</span><span class="p">)</span>
+        <span class="n">all_r_values</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">r_values</span><span class="p">)</span>
+
+    <span class="c1"># Convert lists to numpy arrays</span>
+    <span class="n">all_z_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">all_z_values</span><span class="p">)</span>
+    <span class="n">all_r_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">all_r_values</span><span class="p">)</span>
+
+    <span class="c1"># Optionally bin the data</span>
+    <span class="k">if</span> <span class="n">num_bins</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">all_z_values</span><span class="p">,</span> <span class="n">all_r_values</span> <span class="o">=</span> <span class="n">bin_aggregated_data</span><span class="p">(</span>
+            <span class="n">all_z_values</span><span class="p">,</span> <span class="n">all_r_values</span><span class="p">,</span> <span class="n">num_bins</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">all_z_values</span><span class="p">,</span> <span class="n">all_r_values</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.uncertainty_analysis.process_basin" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">process_basin</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">obs_values</span><span class="p">,</span> <span class="n">basin_name</span><span class="o">=</span><span class="s1">&#39;Basin&#39;</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.uncertainty_analysis.process_basin" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Process a single basin: calculate z-values, ECDF, and plot the probability plot.</p>
+<h5 id="torchhydro.explainers.uncertainty_analysis.process_basin--parameters">Parameters<a class="headerlink" href="#torchhydro.explainers.uncertainty_analysis.process_basin--parameters" title="Permanent link">&para;</a></h5>
+<p>!!! predictions "np.ndarray"
+    2D array of predictions for the basin (shape = (MC_dropout_times, time_steps))
+!!! obs_values "np.ndarray"
+    Time series of observed values for the basin (1D array, shape = (time_steps,))
+!!! basin_name "str"
+    Name of the basin (for title of the plot)</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/uncertainty_analysis.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">process_basin</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">obs_values</span><span class="p">,</span> <span class="n">basin_name</span><span class="o">=</span><span class="s2">&quot;Basin&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Process a single basin: calculate z-values, ECDF, and plot the probability plot.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    predictions: np.ndarray</span>
+<span class="sd">        2D array of predictions for the basin (shape = (MC_dropout_times, time_steps))</span>
+<span class="sd">    obs_values: np.ndarray</span>
+<span class="sd">        Time series of observed values for the basin (1D array, shape = (time_steps,))</span>
+<span class="sd">    basin_name: str</span>
+<span class="sd">        Name of the basin (for title of the plot)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Calculate z-values (quantiles of the observed values in prediction distribution)</span>
+    <span class="n">z_values</span> <span class="o">=</span> <span class="n">calculate_empirical_cdf</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">obs_values</span><span class="p">)</span>
+
+    <span class="c1"># Calculate observed ECDF</span>
+    <span class="n">r_values</span> <span class="o">=</span> <span class="n">calculate_observed_ecdf</span><span class="p">(</span><span class="n">obs_values</span><span class="p">)</span>
+
+    <span class="c1"># Plot the probability plot for the basin</span>
+    <span class="n">plot_probability_plot</span><span class="p">(</span><span class="n">z_values</span><span class="p">,</span> <span class="n">r_values</span><span class="p">,</span> <span class="n">basin_name</span><span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.uncertainty_analysis.process_multiple_basins" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">process_multiple_basins</span><span class="p">(</span><span class="n">basins_data</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.uncertainty_analysis.process_multiple_basins" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Process multiple basins: for each basin, process and plot its probability plot.</p>
+<h5 id="torchhydro.explainers.uncertainty_analysis.process_multiple_basins--parameters">Parameters<a class="headerlink" href="#torchhydro.explainers.uncertainty_analysis.process_multiple_basins--parameters" title="Permanent link">&para;</a></h5>
+<p>!!! basins_data "list of dict"
+    List of dictionaries, each containing 'predictions', 'obs_values', and 'name' for a basin.</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/uncertainty_analysis.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">process_multiple_basins</span><span class="p">(</span><span class="n">basins_data</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Process multiple basins: for each basin, process and plot its probability plot.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    basins_data: list of dict</span>
+<span class="sd">        List of dictionaries, each containing &#39;predictions&#39;, &#39;obs_values&#39;, and &#39;name&#39; for a basin.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">basin_data</span> <span class="ow">in</span> <span class="n">basins_data</span><span class="p">:</span>
+        <span class="n">predictions</span> <span class="o">=</span> <span class="n">basin_data</span><span class="p">[</span><span class="s2">&quot;predictions&quot;</span><span class="p">]</span>
+        <span class="n">obs_values</span> <span class="o">=</span> <span class="n">basin_data</span><span class="p">[</span><span class="s2">&quot;obs_values&quot;</span><span class="p">]</span>
+        <span class="n">basin_name</span> <span class="o">=</span> <span class="n">basin_data</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span>
+        <span class="n">process_basin</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">obs_values</span><span class="p">,</span> <span class="n">basin_name</span><span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-module">
+
+
+
+<h2 id="torchhydro.explainers.weight_anlysis" class="doc doc-heading">
+        <code>weight_anlysis</code>
+
+
+
+<a href="#torchhydro.explainers.weight_anlysis" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents ">
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.weight_anlysis.get_latest_event_file" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">get_latest_event_file</span><span class="p">(</span><span class="n">event_file_lst</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.weight_anlysis.get_latest_event_file" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Get the latest event file in the current directory.</p>
+<h5 id="torchhydro.explainers.weight_anlysis.get_latest_event_file--returns">Returns<a class="headerlink" href="#torchhydro.explainers.weight_anlysis.get_latest_event_file--returns" title="Permanent link">&para;</a></h5>
+<p>str
+    The latest event file.</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/weight_anlysis.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_latest_event_file</span><span class="p">(</span><span class="n">event_file_lst</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the latest event file in the current directory.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str</span>
+<span class="sd">        The latest event file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">event_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">Path</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">event_file_lst</span><span class="p">]</span>
+    <span class="n">event_file_names_lst</span> <span class="o">=</span> <span class="p">[</span><span class="n">event_file</span><span class="o">.</span><span class="n">stem</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">event_file</span> <span class="ow">in</span> <span class="n">event_files</span><span class="p">]</span>
+    <span class="n">ctimes</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">event_file_names</span><span class="p">[</span><span class="n">event_file_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">&quot;tfevents&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">event_file_names</span> <span class="ow">in</span> <span class="n">event_file_names_lst</span>
+    <span class="p">]</span>
+    <span class="k">return</span> <span class="n">event_files</span><span class="p">[</span><span class="n">ctimes</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">ctimes</span><span class="p">))]</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.weight_anlysis.plot_layer_hist_for_basin_model_fold" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">plot_layer_hist_for_basin_model_fold</span><span class="p">(</span><span class="n">model_name</span><span class="p">,</span> <span class="n">chosen_layer_values</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">save_fig_dir</span><span class="p">,</span> <span class="n">cmap_str</span><span class="o">=</span><span class="s1">&#39;Oranges&#39;</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.weight_anlysis.plot_layer_hist_for_basin_model_fold" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p><em>summary</em></p>
+<h5 id="torchhydro.explainers.weight_anlysis.plot_layer_hist_for_basin_model_fold--parameters">Parameters<a class="headerlink" href="#torchhydro.explainers.weight_anlysis.plot_layer_hist_for_basin_model_fold--parameters" title="Permanent link">&para;</a></h5>
+<p>model_name : <em>type</em>
+    <em>description</em>
+chosen_layer_values : <em>type</em>
+    <em>description</em>
+layers : <em>type</em>
+    <em>description</em>
+bsize : <em>type</em>
+    <em>description</em>
+cmap_str : str, optional
+    chose from here: https://matplotlib.org/stable/tutorials/colors/colormaps.html#sequential, by default "Oranges"</p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/weight_anlysis.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">plot_layer_hist_for_basin_model_fold</span><span class="p">(</span>
+    <span class="n">model_name</span><span class="p">,</span>
+    <span class="n">chosen_layer_values</span><span class="p">,</span>
+    <span class="n">layers</span><span class="p">,</span>
+    <span class="n">save_fig_dir</span><span class="p">,</span>
+    <span class="n">cmap_str</span><span class="o">=</span><span class="s2">&quot;Oranges&quot;</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;_summary_</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model_name : _type_</span>
+<span class="sd">        _description_</span>
+<span class="sd">    chosen_layer_values : _type_</span>
+<span class="sd">        _description_</span>
+<span class="sd">    layers : _type_</span>
+<span class="sd">        _description_</span>
+<span class="sd">    bsize : _type_</span>
+<span class="sd">        _description_</span>
+<span class="sd">    cmap_str : str, optional</span>
+<span class="sd">        chose from here: https://matplotlib.org/stable/tutorials/colors/colormaps.html#sequential, by default &quot;Oranges&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">save_fig_dir</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">save_fig_dir</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">:</span>
+        <span class="n">two_model_layers</span> <span class="o">=</span> <span class="n">chosen_layer_values</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">df_lstm_show</span> <span class="o">=</span> <span class="n">two_model_layers</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="c1"># if the model does not have this layer, skip</span>
+            <span class="k">continue</span>
+        <span class="n">lstm_x_lst</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">lstm_y_lst</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">lstm_dash_lines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">color_str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="n">lw_lst</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">alpha_lst</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">cmap</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">get_cmap</span><span class="p">(</span><span class="n">cmap_str</span><span class="p">)</span>
+        <span class="n">rgb_lst</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">norm_color</span> <span class="o">=</span> <span class="n">colors</span><span class="o">.</span><span class="n">Normalize</span><span class="p">(</span><span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">df_lstm_show</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">df_lstm_show</span><span class="p">:</span>
+            <span class="n">lstm_x_lst</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">df_lstm_show</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
+            <span class="n">lstm_y_lst</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">df_lstm_show</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
+            <span class="n">lstm_dash_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">color_str</span> <span class="o">=</span> <span class="n">color_str</span> <span class="o">+</span> <span class="s2">&quot;r&quot;</span>
+            <span class="n">rgba</span> <span class="o">=</span> <span class="n">cmap</span><span class="p">(</span><span class="n">norm_color</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+            <span class="n">rgb_lst</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rgba</span><span class="p">)</span>
+            <span class="n">alpha_lst</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+            <span class="n">lw_lst</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+        <span class="c1"># the first and last line should be solid, have dark color and wide width</span>
+        <span class="n">rgb_lst</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">rgba</span>
+        <span class="n">lstm_dash_lines</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">alpha_lst</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">alpha_lst</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">lw_lst</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">lw_lst</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">hplt</span><span class="o">.</span><span class="n">plot_ts</span><span class="p">(</span>
+            <span class="n">lstm_x_lst</span><span class="p">,</span>
+            <span class="n">lstm_y_lst</span><span class="p">,</span>
+            <span class="n">dash_lines</span><span class="o">=</span><span class="n">lstm_dash_lines</span><span class="p">,</span>
+            <span class="n">fig_size</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+            <span class="n">xlabel</span><span class="o">=</span><span class="s2">&quot;weight_bias_value&quot;</span><span class="p">,</span>
+            <span class="n">ylabel</span><span class="o">=</span><span class="s2">&quot;hist_num&quot;</span><span class="p">,</span>
+            <span class="c1"># c_lst=color_str,</span>
+            <span class="n">c_lst</span><span class="o">=</span><span class="n">rgb_lst</span><span class="p">,</span>
+            <span class="n">linewidth</span><span class="o">=</span><span class="n">lw_lst</span><span class="p">,</span>
+            <span class="n">alpha</span><span class="o">=</span><span class="n">alpha_lst</span><span class="p">,</span>
+            <span class="n">leg_lst</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="n">save_fig_dir</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">layer</span><span class="si">}</span><span class="s2">_hist.png&quot;</span><span class="p">,</span>
+            <span class="p">),</span>
+            <span class="n">dpi</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span>
+            <span class="n">bbox_inches</span><span class="o">=</span><span class="s2">&quot;tight&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.weight_anlysis.plot_param_hist_model" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">plot_param_hist_model</span><span class="p">(</span><span class="n">model_name</span><span class="p">,</span> <span class="n">the_exp_dir</span><span class="p">,</span> <span class="n">batchsize</span><span class="p">,</span> <span class="n">chosen_layer_for_hist</span><span class="p">,</span> <span class="n">start_epoch</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">end_epoch</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">epoch_interval</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">save_fig_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.weight_anlysis.plot_param_hist_model" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>plot paramter histogram for each basin</p>
+<h5 id="torchhydro.explainers.weight_anlysis.plot_param_hist_model--parameters">Parameters<a class="headerlink" href="#torchhydro.explainers.weight_anlysis.plot_param_hist_model--parameters" title="Permanent link">&para;</a></h5>
+<p>!!! model_name "str"
+    name of a DL model
+the_exp_dir : str
+    saving directory for one experiment
+batchsize : int
+    batch size
+chosen_layer_for_hist : <em>type</em>
+    <em>description</em></p>
+<h5 id="torchhydro.explainers.weight_anlysis.plot_param_hist_model--returns">Returns<a class="headerlink" href="#torchhydro.explainers.weight_anlysis.plot_param_hist_model--returns" title="Permanent link">&para;</a></h5>
+<p><em>type</em>
+    <em>description</em></p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/weight_anlysis.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">plot_param_hist_model</span><span class="p">(</span>
+    <span class="n">model_name</span><span class="p">,</span>
+    <span class="n">the_exp_dir</span><span class="p">,</span>
+    <span class="n">batchsize</span><span class="p">,</span>
+    <span class="n">chosen_layer_for_hist</span><span class="p">,</span>
+    <span class="n">start_epoch</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">end_epoch</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">epoch_interval</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">save_fig_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;plot paramter histogram for each basin</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model_name: str</span>
+<span class="sd">        name of a DL model</span>
+<span class="sd">    the_exp_dir : str</span>
+<span class="sd">        saving directory for one experiment</span>
+<span class="sd">    batchsize : int</span>
+<span class="sd">        batch size</span>
+<span class="sd">    chosen_layer_for_hist : _type_</span>
+<span class="sd">        _description_</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    _type_</span>
+<span class="sd">        _description_</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">chosen_layer_values</span> <span class="o">=</span> <span class="p">{</span><span class="n">layer</span><span class="p">:</span> <span class="p">{}</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">chosen_layer_for_hist</span><span class="p">}</span>
+    <span class="n">chosen_layer_values_consine</span> <span class="o">=</span> <span class="p">{</span><span class="n">layer</span><span class="p">:</span> <span class="p">{}</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">chosen_layer_for_hist</span><span class="p">}</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">df_histgram</span> <span class="o">=</span> <span class="n">read_tb_log</span><span class="p">(</span><span class="n">the_exp_dir</span><span class="p">,</span> <span class="n">batchsize</span><span class="p">)</span>
+    <span class="n">hist_cols</span> <span class="o">=</span> <span class="n">df_histgram</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span>
+    <span class="n">model_layers</span> <span class="o">=</span> <span class="n">read_layer_name_from_tb_hist</span><span class="p">(</span><span class="n">hist_cols</span><span class="p">)</span>
+    <span class="n">chosen_layers</span> <span class="o">=</span> <span class="n">chosen_layer_in_layers</span><span class="p">(</span><span class="n">model_layers</span><span class="p">,</span> <span class="n">chosen_layer_for_hist</span><span class="p">)</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">chosen_layer_for_hist</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">layer</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">chosen_layers</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+            <span class="k">continue</span>
+        <span class="n">df_epochs_hist</span> <span class="o">=</span> <span class="n">epochs_hist_for_chosen_layer</span><span class="p">(</span>
+            <span class="n">epoch_interval</span><span class="p">,</span> <span class="n">chosen_layers</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">df_histgram</span>
+        <span class="p">)</span>
+        <span class="n">chosen_layer_values</span><span class="p">[</span><span class="n">layer</span><span class="p">][</span><span class="n">model_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_epochs_hist</span>
+        <span class="n">end_epoch_idx</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">end_epoch</span> <span class="o">/</span> <span class="n">epoch_interval</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">epoch_interval</span><span class="p">)</span>
+        <span class="n">chosen_layer_values_consine</span><span class="p">[</span><span class="n">layer</span><span class="p">][</span><span class="n">model_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">cosine</span><span class="p">(</span>
+            <span class="n">df_epochs_hist</span><span class="p">[</span><span class="n">start_epoch</span><span class="p">],</span> <span class="n">df_epochs_hist</span><span class="p">[</span><span class="n">end_epoch_idx</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">save_fig_dir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">save_fig_dir</span> <span class="o">=</span> <span class="n">the_exp_dir</span>
+    <span class="n">plot_layer_hist_for_basin_model_fold</span><span class="p">(</span>
+        <span class="n">model_name</span><span class="p">,</span>
+        <span class="n">chosen_layer_values</span><span class="p">,</span>
+        <span class="n">chosen_layer_for_hist</span><span class="p">,</span>
+        <span class="n">save_fig_dir</span><span class="o">=</span><span class="n">save_fig_dir</span><span class="p">,</span>
+        <span class="n">cmap_str</span><span class="o">=</span><span class="s2">&quot;Reds&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">chosen_layer_values</span><span class="p">,</span> <span class="n">chosen_layer_values_consine</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h3 id="torchhydro.explainers.weight_anlysis.read_tb_log" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">read_tb_log</span><span class="p">(</span><span class="n">the_exp_dir</span><span class="p">,</span> <span class="n">shown_batchsize</span><span class="p">,</span> <span class="n">where_save</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+
+<a href="#torchhydro.explainers.weight_anlysis.read_tb_log" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Copy a recent log file to the current directory and read the log file.</p>
+<h5 id="torchhydro.explainers.weight_anlysis.read_tb_log--parameters">Parameters<a class="headerlink" href="#torchhydro.explainers.weight_anlysis.read_tb_log--parameters" title="Permanent link">&para;</a></h5>
+<p>the_exp_dir : str
+    saving directory for one experiment
+shown_batchsize : int
+    batch size for the experiment
+where_save : str, optional
+    A directory for saving plots, by default None,
+    which means same directory as the_exp_dir.
+    The reason we use a new dir different from the_exp_dir is that
+    ... (I forgot why... haha)</p>
+<h5 id="torchhydro.explainers.weight_anlysis.read_tb_log--returns">Returns<a class="headerlink" href="#torchhydro.explainers.weight_anlysis.read_tb_log--returns" title="Permanent link">&para;</a></h5>
+<p><em>type</em>
+    <em>description</em></p>
+<h5 id="torchhydro.explainers.weight_anlysis.read_tb_log--raises">Raises<a class="headerlink" href="#torchhydro.explainers.weight_anlysis.read_tb_log--raises" title="Permanent link">&para;</a></h5>
+<p>FileNotFoundError
+    <em>description</em></p>
+
+        <details class="quote">
+          <summary>Source code in <code>torchhydro/explainers/weight_anlysis.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">read_tb_log</span><span class="p">(</span><span class="n">the_exp_dir</span><span class="p">,</span> <span class="n">shown_batchsize</span><span class="p">,</span> <span class="n">where_save</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Copy a recent log file to the current directory and read the log file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    the_exp_dir : str</span>
+<span class="sd">        saving directory for one experiment</span>
+<span class="sd">    shown_batchsize : int</span>
+<span class="sd">        batch size for the experiment</span>
+<span class="sd">    where_save : str, optional</span>
+<span class="sd">        A directory for saving plots, by default None,</span>
+<span class="sd">        which means same directory as the_exp_dir.</span>
+<span class="sd">        The reason we use a new dir different from the_exp_dir is that</span>
+<span class="sd">        ... (I forgot why... haha)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    _type_</span>
+<span class="sd">        _description_</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    FileNotFoundError</span>
+<span class="sd">        _description_</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">log_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="n">the_exp_dir</span><span class="p">,</span>
+        <span class="sa">f</span><span class="s2">&quot;opt_Adadelta_lr_1.0_bsize_</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">shown_batchsize</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">log_dir</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Log dir </span><span class="si">{</span><span class="n">log_dir</span><span class="si">}</span><span class="s2"> not found!&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">where_save</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">where_save</span> <span class="o">=</span> <span class="n">the_exp_dir</span>
+        <span class="n">plot_save_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="n">where_save</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;opt_Adadelta_lr_1.0_bsize_</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">shown_batchsize</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">plot_save_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="n">where_save</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;opt_Adadelta_lr_1.0_bsize_</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">shown_batchsize</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">copy_latest_tblog_file</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="n">plot_save_dir</span><span class="p">)</span>
+    <span class="n">scalar_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">plot_save_dir</span><span class="p">,</span> <span class="s2">&quot;scalars.csv&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">scalar_file</span><span class="p">):</span>
+        <span class="n">reader</span> <span class="o">=</span> <span class="n">SummaryReader</span><span class="p">(</span><span class="n">plot_save_dir</span><span class="p">)</span>
+        <span class="n">df_scalar</span> <span class="o">=</span> <span class="n">reader</span><span class="o">.</span><span class="n">scalars</span>
+        <span class="n">df_scalar</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">scalar_file</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">df_scalar</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">scalar_file</span><span class="p">)</span>
+
+    <span class="c1"># reader = SummaryReader(result_dir)</span>
+    <span class="n">histgram_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">plot_save_dir</span><span class="p">,</span> <span class="s2">&quot;histograms.pkl&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">histgram_file</span><span class="p">):</span>
+        <span class="n">reader</span> <span class="o">=</span> <span class="n">SummaryReader</span><span class="p">(</span><span class="n">plot_save_dir</span><span class="p">,</span> <span class="n">pivot</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">df_histgram</span> <span class="o">=</span> <span class="n">reader</span><span class="o">.</span><span class="n">histograms</span>
+        <span class="c1"># https://www.statology.org/pandas-save-dataframe/</span>
+        <span class="n">df_histgram</span><span class="o">.</span><span class="n">to_pickle</span><span class="p">(</span><span class="n">histgram_file</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">df_histgram</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_pickle</span><span class="p">(</span><span class="n">histgram_file</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">df_scalar</span><span class="p">,</span> <span class="n">df_histgram</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+
+
+
+
+
+
+
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    2025-11-08
+  </span>
+
+    
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.instant", "search.highlight"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.92b07e13.min.js"></script>
+      
+    
+  </body>
+</html>
