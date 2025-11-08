@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write # This is required for trusted publishing
+    env:
+      UV_NO_SOURCES: "1"
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
