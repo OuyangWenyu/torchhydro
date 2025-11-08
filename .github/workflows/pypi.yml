@@ -27,13 +27,9 @@ jobs:
     - name: Setup Python
       run: uv python install 3.11
 
-    - name: Install dependencies
-      run: |
-        uv sync --extra dev
-
     - name: Build package
       run: |
-        uv run hatch build
+        uv build
 
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
