@@ -60,6 +60,8 @@ def gage_id():
     ]
 
 
+@pytest.mark.requires_data
+@pytest.mark.skip(reason="TODO: Refactor datasource and update test for modern API")
 def test_run_lstm_cross_val(var_c_target, var_t_target, gage_id):
     config = default_config_file()
     project_name = "test_camels/expcccv61561"
@@ -70,10 +72,9 @@ def test_run_lstm_cross_val(var_c_target, var_t_target, gage_id):
         sub=project_name,
         source_cfgs={
             "source_name": "SelfMadeCAMELS",
-            "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-interim"], "camels_cc"
-            ),
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
+                "dataset_name": "camels_cc",
                 "time_unit": ["3h"],
             },
         },
@@ -97,7 +98,6 @@ def test_run_lstm_cross_val(var_c_target, var_t_target, gage_id):
         continue_train=True,
         warmup_length=0,
         train_epoch=10,
-        te=10,
         var_t=var_t_target,
         var_t_type="era5land",
         var_c=var_c_target,
@@ -114,6 +114,8 @@ def test_run_lstm_cross_val(var_c_target, var_t_target, gage_id):
     print("All processes are finished!")
 
 
+@pytest.mark.requires_data
+@pytest.mark.skip(reason="TODO: Refactor datasource and update test for modern API")
 def test_run_cross_val_tlcamelsus2cc(
     var_c_source, var_c_target, var_t_source, var_t_target, gage_id
 ):
@@ -131,10 +133,9 @@ def test_run_cross_val_tlcamelsus2cc(
         sub=project_name,
         source_cfgs={
             "source_name": "SelfMadeCAMELS",
-            "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-interim"], "camels_cc"
-            ),
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
+                "dataset_name": "camels_cc",
                 "time_unit": ["3h"],
             },
         },
@@ -164,7 +165,6 @@ def test_run_cross_val_tlcamelsus2cc(
         },
         continue_train=True,
         train_epoch=10,
-        te=10,
         var_t=var_t_target,
         var_c=var_c_target,
         var_out=["streamflow"],

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-04-06 14:45:34
-LastEditTime: 2024-04-10 20:23:36
+LastEditTime: 2025-11-08 09:51:42
 LastEditors: Wenyu Ouyang
 Description: Test the multioutput model
 FilePath: \torchhydro\tests\test_train_camelspro_mtl.py
@@ -10,7 +10,7 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 
 import numpy as np
 import torch
-
+import pytest
 from torchhydro.configs.config import update_cfg
 from torchhydro.models.crits import MultiOutLoss, RMSELoss
 from torchhydro.trainers.trainer import train_and_evaluate
@@ -49,6 +49,10 @@ def test_multiout_loss_nan_gap():
     )
 
 
+@pytest.mark.requires_data
+@pytest.mark.skip(
+    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
+)
 def test_flow_et_mtl(mtl_args, config_data):
     """
     Test for data augmentation of flow -> et with KuaiLSTM

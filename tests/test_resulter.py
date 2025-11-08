@@ -12,6 +12,7 @@ import os
 import pytest
 import xarray as xr
 import numpy as np
+import pandas as pd
 from torchhydro.trainers.resulter import Resulter
 
 
@@ -20,11 +21,14 @@ def mock_cfgs(tmpdir):
     return {
         "data_cfgs": {
             "case_dir": str(tmpdir),
+            "object_ids": [f"basin_{i}" for i in range(10)],
             "target_cols": ["streamflow", "total_evaporation_hourly"],
         },
         "evaluation_cfgs": {
             "model_loader": {"load_way": "latest"},
             "metrics": ["RMSE", "NSE"],
+            "fill_nan": "no",
+            "explainer": "none",
         },
         "training_cfgs": {"epochs": 10},
     }
@@ -59,17 +63,9 @@ def test_load_result(mock_resulter, tmpdir):
     np.testing.assert_array_equal(obs["data"].values, obs_data)
 
 
-def test_eval_result(mock_resulter):
-    # Mock configuration for eval_result
-    mock_resulter.cfgs["data_cfgs"]["target_cols"] = [
-        "streamflow",
-        "total_evaporation_hourly",
-    ]
-    mock_resulter.cfgs["evaluation_cfgs"]["metrics"] = ["RMSE", "NSE"]
-    mock_resulter.cfgs["evaluation_cfgs"]["fill_nan"] = ["no", "no"]
-    mock_resulter.cfgs["evaluation_cfgs"]["explainer"] = "none"
-
+def test_eval_result(mock_resulter, tmpdir):
     # Create mock prediction and observation xarray datasets
+    basins = mock_resulter.cfgs["data_cfgs"]["object_ids"]
     preds_data = {
         "streamflow": (("time", "basin"), np.random.rand(10, 10)),
         "total_evaporation_hourly": (("time", "basin"), np.random.rand(10, 10)),
@@ -78,21 +74,19 @@ def test_eval_result(mock_resulter):
         "streamflow": (("time", "basin"), np.random.rand(10, 10)),
         "total_evaporation_hourly": (("time", "basin"), np.random.rand(10, 10)),
     }
-    preds_xr = xr.Dataset(preds_data)
-    obss_xr = xr.Dataset(obss_data)
+    preds_xr = xr.Dataset(preds_data, coords={"basin": basins, "time": pd.date_range("2000-01-01", periods=10)})
+    obss_xr = xr.Dataset(obss_data, coords={"basin": basins, "time": pd.date_range("2000-01-01", periods=10)})
 
-    # Mock the calculate_and_record_metrics function
-    def mock_calculate_and_record_metrics(obs, pred, metrics, col, fill_nan, eval_log):
-        eval_log[col] = {metric: np.random.rand() for metric in metrics}
-        return eval_log
+    # Evaluate the results - this should create CSV files
+    mock_resulter.eval_result(preds_xr, obss_xr)
 
-    mock_resulter.calculate_and_record_metrics = mock_calculate_and_record_metrics
-
-    # Evaluate the results
-    eval_log = mock_resulter.eval_result(preds_xr, obss_xr)
-
-    # Check if the evaluation log contains the expected metrics for each variable
+    # Check if the evaluation CSV files were created
     for col in mock_resulter.cfgs["data_cfgs"]["target_cols"]:
+        output_file = os.path.join(tmpdir, f"metric_{col}.csv")
+        assert os.path.exists(output_file)
+        # Check content of the CSV
+        df = pd.read_csv(output_file)
+        assert "basin_id" in df.columns
+        assert len(df) == len(basins)
         for metric in mock_resulter.cfgs["evaluation_cfgs"]["metrics"]:
-            assert f"{metric} of {col}" in eval_log
-            assert isinstance(eval_log[f"{metric} of {col}"], list)
+            assert metric in df.columns

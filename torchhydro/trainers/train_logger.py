@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-05-14 19:32:46
+LastEditTime: 2025-11-07 08:36:50
 LastEditors: Wenyu Ouyang
 Description: Training function for DL models
 FilePath: \torchhydro\torchhydro\trainers\train_logger.py
@@ -197,6 +197,8 @@ class TrainLogger:
 
     def plot_model_structure(self, model):
         """plot model structure in tensorboard
+
+        TODO: This function is not working as expected. It should be rewritten.
 
         Parameters
         ----------

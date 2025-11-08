@@ -1,9 +1,9 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-12-31 18:20:31
-LastEditTime: 2025-01-01 18:12:08
+LastEditTime: 2025-11-07 11:15:19
 LastEditors: Wenyu Ouyang
-Description: 
+Description:
 FilePath: \torchhydro\tests\test_seqforecast.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
@@ -19,7 +19,7 @@ from torchhydro.models.seqforecast import (
 )
 
 
-def test_feature_embedding_forward():
+def test_feature_embedding_forward() -> None:
     input_dim = 10
     embedding_dim = 5
     batch_size = 2
@@ -33,7 +33,7 @@ def test_feature_embedding_forward():
     assert isinstance(output, torch.Tensor)
 
 
-def test_hindcast_lstm_forward():
+def test_hindcast_lstm_forward() -> None:
     input_dim = 10
     hidden_dim = 20
     batch_size = 2
@@ -52,7 +52,7 @@ def test_hindcast_lstm_forward():
     assert isinstance(c, torch.Tensor)
 
 
-def test_forecast_lstm_forward():
+def test_forecast_lstm_forward() -> None:
     input_dim = 10
     hidden_dim = 20
     batch_size = 2
@@ -69,7 +69,7 @@ def test_forecast_lstm_forward():
     assert isinstance(output, torch.Tensor)
 
 
-def test_hidden_state_transfer_net_forward():
+def test_hidden_state_transfer_net_forward() -> None:
     hindcast_hidden_dim = 20
     forecast_hidden_dim = 30
     batch_size = 2
@@ -86,7 +86,7 @@ def test_hidden_state_transfer_net_forward():
     assert isinstance(transfer_cell, torch.Tensor)
 
 
-def test_model_output_head_forward():
+def test_model_output_head_forward() -> None:
     hidden_dim = 20
     output_dim = 10
     batch_size = 2

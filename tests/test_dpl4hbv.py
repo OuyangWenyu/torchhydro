@@ -8,10 +8,12 @@ FilePath: \torchhydro\tests\test_dpl4hbv.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
+import pytest
 from torchhydro.configs.config import default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
 
+@pytest.mark.requires_data
 def test_dpl_selfmadehydrodataset(dpl4hbv_selfmadehydrodataset_args):
     cfg = default_config_file()
     update_cfg(cfg, dpl4hbv_selfmadehydrodataset_args)

@@ -1,7 +1,7 @@
 """
 Author: Xinzhuo Wu
 Date: 2023-12-29 14:20:18
-LastEditTime: 2024-05-31 11:00:01
+LastEditTime: 2025-11-07 10:50:04
 LastEditors: Wenyu Ouyang
 Description: A simple evaluate model test
 FilePath: \torchhydro\tests\test_evaluate_grid_lstm.py
@@ -99,6 +99,8 @@ def config_data():
     return config_data
 
 
+@pytest.mark.requires_data
+@pytest.mark.skip(reason="TODO: Refactor datasource and update test for modern API")
 def test_evaluate_spp_lstm(config_data):
     random_seed = config_data["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)

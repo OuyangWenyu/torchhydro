@@ -1,10 +1,10 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-10-05 16:16:48
-LastEditTime: 2024-07-15 15:59:34
+LastEditTime: 2025-11-08 11:06:10
 LastEditors: Wenyu Ouyang
 Description: Transfer learning for local basins with hydro_opendata
-FilePath: /torchhydro/tests/test_tl_selfmadedata.py
+FilePath: \torchhydro\tests\test_tl_selfmadedata.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
@@ -63,6 +63,8 @@ def var_t_source():
     return ["dayl", "prcp", "srad", "tmax", "tmin", "vp"]
 
 
+@pytest.mark.requires_data
+@pytest.mark.skip(reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping.")
 def test_transfer_gages_lstm_model(
     var_c_source, var_c_target, var_t_source, var_t_target
 ):

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-10-28 19:06:15
+LastEditTime: 2025-11-07 09:39:57
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -566,12 +566,14 @@ class BaseDataset(Dataset):
                 "variable": selected_data.coords["variable"],
             }
             dims = ["basin", "time", "variable"]
-#add
+            # add
             if isinstance(selected_time_points, xr.DataArray):
                 # 获取 target_data 的时间轴
                 time_coords = target_data.coords["time"].values
                 # 找到 selected_time_points 对应的整数索引
-                selected_indices = np.where(np.isin(time_coords, selected_time_points))[0]
+                selected_indices = np.where(np.isin(time_coords, selected_time_points))[
+                    0
+                ]
             else:
                 # 如果 selected_time_points 已经是整数索引，直接使用
                 selected_indices = selected_time_points
@@ -1038,13 +1040,14 @@ class BaseDataset(Dataset):
         rho = self.rho
         warmup_length = self.warmup_length
         horizon = self.horizon
-        seq_len = warmup_length + rho + horizon
+        # NOTE: we set seq_len to rho + horizon instead of warmup_length + rho + horizon
+        seq_len = rho + horizon
         max_time_length = self.nt
         variable_length_cfgs = self.training_cfgs.get("variable_length_cfgs", {})
         use_variable_length = variable_length_cfgs.get("use_variable_length", False)
         variable_length_type = variable_length_cfgs.get(
             "variable_length_type", "dynamic"
-        )
+        )  # only used for case when use_variable_length is True
         fixed_lengths = variable_length_cfgs.get("fixed_lengths", [365, 1095, 1825])
         # Use fixed type variable length if enabled and type is fixed
         is_fixed_length_train = use_variable_length and variable_length_type == "fixed"

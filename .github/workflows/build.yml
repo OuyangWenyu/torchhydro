@@ -88,7 +88,6 @@ jobs:
 #                  KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
 #                  KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
 #
-#            - name: PKG-TEST
-#              run: |
-#                  uv run pytest tests/test_train_camels_lstm.py
-#                  uv run pytest tests/test_evaluate_model.py
+            - name: PKG-TEST
+              run: |
+                  uv run pytest --noconftest -m "not requires_data" tests
