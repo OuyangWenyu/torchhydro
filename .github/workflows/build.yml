@@ -50,6 +50,8 @@ jobs:
                   # 针对 PyTorch Geometric 编译问题的解决方案
                   uv pip uninstall torch-scatter torch-sparse torch-cluster -y || true
                   uv pip install torch-geometric
+              env:
+                  UV_NO_SOURCES: "1"
 
 #            - name: Create hydro_setting.yml directly in workflow
 #              run: |

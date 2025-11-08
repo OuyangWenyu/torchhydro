@@ -25,7 +25,9 @@ jobs:
                   uv sync --extra dev
                   
                   # Install documentation dependencies
-                  uv add mkdocs-material mkdocstrings mkdocs-git-revision-date-plugin mkdocs-jupyter ipykernel
+                  uv pip install mkdocs-material mkdocstrings mkdocs-git-revision-date-plugin mkdocs-jupyter ipykernel
+              env:
+                  UV_NO_SOURCES: "1"
             
             - name: Run tests
               run: |
