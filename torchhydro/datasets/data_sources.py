@@ -17,11 +17,13 @@ from hydrodatasource.reader.data_source import (
     SelfMadeForecastDataset,
     StationHydroDataset,
 )
+from hydrodataset.camels import Camels
 
 from hydrodatasource.reader.floodevent import FloodEventDatasource
 
 
 data_sources_dict = {
+    "camels": Camels,
     "camels_us": CamelsUs,
     "camelsh": Camelsh,
     "caravan": Caravan,

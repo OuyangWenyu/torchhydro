@@ -44,6 +44,7 @@ def main():
         },
         # DPL models often require a specialized dataset
         dataset="DplDataset",
+        constant_only=True,
         # Use a hybrid loss function for multiple outputs
         loss_func="MultiOutLoss",
         loss_param={
@@ -82,7 +83,7 @@ def main():
             StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
         ],
         # Output variables (streamflow from XAJ, plus a dummy variable)
-        var_out=[StandardVariable.STREAMFLOW, StandardVariable.EVAPOTRANSPIRATION],
+        var_out=[StandardVariable.STREAMFLOW , StandardVariable.POTENTIAL_EVAPOTRANSPIRATION],
         n_output=2,
         train_epoch=2,  # Set a small number of epochs for quick testing
         model_loader={"load_way": "specified", "test_epoch": 2},
