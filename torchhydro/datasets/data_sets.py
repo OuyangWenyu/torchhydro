@@ -3539,196 +3539,114 @@ class CamelsHourlyDataset(BaseDataset):
         }
 
 
-class AutoregressiveTGDataset(BaseDataset):
+class MultiFeatureStreamDataset(BaseDataset):
     def __init__(self, cfgs: dict, is_tra_val_te: str, upstream_indices: dict = None):
-        """
-        Datasets for Three-Gorge Basins
-
-        Args:
-            cfgs: 配置字典，包含data_cfgs, training_cfgs, evaluation_cfgs
-            is_tra_val_te: 'train', 'valid', 或 'test'
-            upstream_indices: 上游节点映射字典 {node_idx: [upstream_node_indices]}
-        """
         super().__init__(cfgs, is_tra_val_te)
-        
-        # 从配置中获取TG特定参数
         self.upstream_indices = upstream_indices or {}
-        
-        # 从training_cfgs获取时间窗口参数（与BaseDataset保持一致）
-        self.hindcast_length = self.rho  # 使用BaseDataset的rho
-        self.forecast_length = self.horizon  # 使用BaseDataset的horizon
-        
-        # TG特定的配置
+        self.hindcast_length = self.rho
+        self.forecast_length = self.horizon
         tg_cfgs = self.data_cfgs.get("tg_cfgs", {})
         self.node_attributes = tg_cfgs.get("node_attributes", None)
         self.basin_names = tg_cfgs.get("basin_names", [])
         self.basin_id = tg_cfgs.get("basin_id", None)
-        
-        print(f"上游节点映射: {self.upstream_indices}")
+        self.use_confluence_nodes_only = tg_cfgs.get("use_confluence_nodes_only", True)
+        self.node_mask = None
+        self.num_nodes = len(self.basins)
+        rels = self.data_cfgs.get("relevant_cols", [])
+        self._var_idx_precip = rels.index("precipitation") if "precipitation" in rels else None
+        self._var_idx_lstm = rels.index("lstm_streamflow") if "lstm_streamflow" in rels else None
+        self._var_idx_obs = rels.index("observed_streamflow") if "observed_streamflow" in rels else None
+        self._var_idx_discharge = rels.index("discharge") if "discharge" in rels else None
+        self._init_node_mask()
 
     def _read_xyc(self):
-        """Read x, y, c data from TG data source
-        
-        Returns
-        -------
-        dict
-            Dictionary containing relevant_cols, target_cols, and constant_cols data
-            with dimensions (basin, time, variable) for 3D arrays
-        """
-        # 使用父类的基础数据读取逻辑
-        data_dict = super()._read_xyc()
-        
-        # TG特定的数据处理可以在这里添加
-        # 例如：处理LSTM预测数据、上游流量数据等
-        
-        return data_dict
-
-    def interpolate_missing_data(self, data, method="linear"):
-        """
-        处理缺失数据
-
-        Args:
-            data: 输入数据张量 [time_steps, num_nodes]
-            method: 插值方法 ('linear', 'forward', 'backward')
-
-        Returns:
-            interpolated_data: 插值后的数据
-            mask: 原始有效数据的掩码
-        """
-        # 创建原始有效数据的掩码
-        mask = ~torch.isnan(data)
-
-        # 转换为numpy进行插值
-        data_np = data.numpy()
-
-        for node_idx in range(data_np.shape[1]):
-            node_data = data_np[:, node_idx]
-            valid_mask = ~np.isnan(node_data)
-
-            if valid_mask.sum() == 0:
-                # 如果该节点完全没有数据，用0填充
-                data_np[:, node_idx] = 0.0
-            elif valid_mask.sum() == len(node_data):
-                # 如果该节点没有缺失数据，保持不变
-                continue
-            else:
-                # 进行插值
-                if method == "linear":
-                    # 线性插值
-                    valid_indices = np.where(valid_mask)[0]
-                    valid_values = node_data[valid_mask]
-
-                    # 对缺失值进行线性插值
-                    interpolated = np.interp(
-                        np.arange(len(node_data)), valid_indices, valid_values
-                    )
-                    data_np[:, node_idx] = interpolated
-                elif method == "forward":
-                    # 前向填充
-                    pd_series = pd.Series(node_data)
-                    data_np[:, node_idx] = (
-                        pd_series.fillna(method="ffill").fillna(0).values
-                    )
-                elif method == "backward":
-                    # 后向填充
-                    pd_series = pd.Series(node_data)
-                    data_np[:, node_idx] = (
-                        pd_series.fillna(method="bfill").fillna(0).values
-                    )
-
-        return torch.from_numpy(data_np).float(), mask
+        return super()._read_xyc()
 
     def __len__(self):
-        """Return the number of samples in the dataset"""
         return self.num_samples
 
     def __getitem__(self, item: int):
-        """Get one sample from the dataset with unified return format
-        
-        This method follows BaseDataset's interface but provides TG-specific data processing.
-        For TG dataset, we need to handle temporal sequences and upstream relationships.
-        
-        Parameters
-        ----------
-        item : int
-            Sample index
-            
-        Returns
-        -------
-        tuple[torch.Tensor, torch.Tensor]
-            (input_data, output_data) following BaseDataset format
-        """
-        # 使用BaseDataset的lookup_table机制
         basin, idx, actual_length = self.lookup_table[item]
         warmup_length = self.warmup_length
-        
-        # 获取输入数据 (x) 和输出数据 (y)
-        x = self.x[basin, idx - warmup_length : idx + actual_length, :]
-        y = self.y[basin, idx : idx + actual_length, :]
-        
-        # 处理常量数据 (c) - 节点属性
-        if self.c is None or self.c.shape[-1] == 0:
-            input_data = torch.from_numpy(x).float()
+        M = self.rho
+        F = self.horizon
+
+        x_all = self.x[:, idx - warmup_length : idx + actual_length, :]
+        y_all = self.y[:, idx : idx + actual_length, :]
+
+        start_obs_rel = warmup_length
+        end_obs_rel = warmup_length + M
+
+        if self._var_idx_precip is None or self._var_idx_lstm is None:
+            raise ValueError("relevant_cols 必须包含 'precipitation' 与 'lstm_streamflow' 变量以构建多特征输入")
+
+        past_rain = x_all[:, start_obs_rel + 1 : end_obs_rel + 1, self._var_idx_precip]
+        past_lstm = x_all[:, start_obs_rel + 1 : end_obs_rel + 1, self._var_idx_lstm]
+
+        if self._var_idx_obs is not None:
+            past_obs = x_all[:, start_obs_rel : end_obs_rel, self._var_idx_obs]
         else:
-            c = self.c[basin, :]
-            c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
-            xc = np.concatenate((x, c), axis=1)
-            input_data = torch.from_numpy(xc).float()
-        
-        output_data = torch.from_numpy(y).float()
-        
-        # TG特定的数据处理可以在这里添加
-        # 例如：上游流量处理、缺失数据插值等
-        
-        return input_data, output_data
+            past_obs = y_all[:, :M, 0]
 
-    def _extract_upstream_flows(self, obs_flow_data):
-        """
-        提取上游节点的实测流量数据，使用面积加权聚合
+        if self._var_idx_discharge is not None:
+            discharge_vals = x_all[:, start_obs_rel : end_obs_rel, self._var_idx_discharge]
+            mask = ~np.isnan(discharge_vals)
+            past_obs = np.where(mask, discharge_vals, past_obs)
 
-        Args:
-            obs_flow_data: 实测流量数据 [time_steps, num_nodes]
+        past_rain = np.clip(past_rain, 0, None)
+        past_lstm = np.clip(past_lstm, 0, None)
+        past_obs = np.clip(past_obs, 0, None)
 
-        Returns:
-            upstream_flows: 上游流量数据 [time_steps, num_nodes]
-        """
-        time_steps, num_nodes = obs_flow_data.shape
-        upstream_flows = torch.zeros_like(obs_flow_data)
+        time_series = np.stack([past_rain.transpose(0, 1), past_lstm.transpose(0, 1), past_obs.transpose(0, 1)], axis=-1)
 
-        for node_idx in range(num_nodes):
-            upstream_indices = self.upstream_indices.get(node_idx, [])
+        if self.c is None or self.c.shape[-1] == 0:
+            input_features = time_series
+        else:
+            c = self.c
+            c_exp = np.repeat(c[:, np.newaxis, :], M, axis=1)
+            input_features = np.concatenate((time_series, c_exp), axis=-1)
 
-            if upstream_indices:
-                # 使用面积加权聚合上游节点流量
-                upstream_data = obs_flow_data[
-                    :, upstream_indices
-                ]  # [time_steps, num_upstream]
+        input_features = input_features.transpose(1, 0, 2)
 
-                if hasattr(self, "node_areas") and self.node_areas is not None:
-                    # 获取上游节点的面积权重
-                    upstream_areas = self.node_areas[upstream_indices]  # [num_upstream]
+        future_targets = self.y[:, idx + M : idx + M + F, 0]
+        output_data = future_targets.transpose(1, 0)
 
-                    # 归一化权重，避免除零错误
-                    area_weights = upstream_areas / (
-                        upstream_areas.sum() + 1e-8
-                    )  # [num_upstream]
+        result = {
+            "relevant_cols": torch.from_numpy(input_features).float(),
+            "target_cols": torch.from_numpy(output_data).float(),
+            "constant_cols": None,
+        }
+        if self.use_confluence_nodes_only and self.node_mask is not None:
+            return result, torch.from_numpy(self.node_mask.astype(np.bool_))
+        else:
+            return result
 
-                    # 扩展权重维度以匹配时间步
-                    area_weights = area_weights.unsqueeze(0).expand(
-                        time_steps, -1
-                    )  # [time_steps, num_upstream]
+    def _init_node_mask(self):
+        mask = None
+        upstream = None
+        if self.upstream_indices:
+            upstream = self.upstream_indices
+        else:
+            if hasattr(self.data_source, "read_upstream_indices"):
+                try:
+                    upstream = self.data_source.read_upstream_indices(self.basin_id, self.basins)
+                except Exception:
+                    upstream = None
+            elif hasattr(self.data_source, "get_upstream_indices"):
+                try:
+                    upstream = self.data_source.get_upstream_indices(self.basin_id, self.basins)
+                except Exception:
+                    upstream = None
+        if upstream is not None:
+            mask_list = []
+            for i, b in enumerate(self.basins):
+                u = upstream.get(b)
+                if u is None:
+                    u = upstream.get(i)
+                if u is None:
+                    u = upstream.get(str(b))
+                mask_list.append(bool(u) and len(u) >= 2)
+            mask = np.array(mask_list, dtype=bool)
+        self.node_mask = mask
 
-                    # 面积加权求和
-                    upstream_flows[:, node_idx] = (upstream_data * area_weights).sum(
-                        dim=1
-                    )  # [time_steps]
-                else:
-                    # 如果没有面积信息，回退到均值
-                    upstream_flows[:, node_idx] = upstream_data.mean(
-                        dim=1
-                    )  # [time_steps]
-            else:
-                # 如果没有上游节点，使用0
-                upstream_flows[:, node_idx] = 0.0
 
-        return upstream_flows

@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 from torch_geometric.nn import ChebConv
 # 所有_calculate方法都对类似conv_h的方法进行了升维，原代码参考：
 # https://github.com/benedekrozemberczki/pytorch_geometric_temporal/blob/master/torch_geometric_temporal/nn/recurrent/gconv_gru.py
@@ -189,341 +190,167 @@ class GConvGRU(torch.nn.Module):
         return H
 
 
-class AutoregressiveStreamGCGRU(nn.Module):
-    def __init__(self, edge_index, config, upstream_mapping=None, node_areas=None):
+class GConvGRULayer(nn.Module):
+    """优化的GConvGRU包装层 - 支持完全批处理
+
+    直接利用GConvGRU的批处理能力，移除内层batch循环，实现完全并行化。
+    输入形状为 [batch_size, seq_len, num_nodes, in_channels]。
+    """
+    def __init__(self, in_channels, out_channels, K):
         super().__init__()
-        self.hindcast_length = config['hindcast_length']
-        self.forecast_length = config['forecast_length']
-        self.node_attr_dim = config.get('node_attr_dim', 0)
-        self.gcgru_out_channels = config['gcgru_out_channels']
-        self.upstream_mapping = upstream_mapping or {}
+        self.cell = GConvGRU(in_channels, out_channels, K)
+        self.out_channels = out_channels
+
+    def forward(self, X_seq, edge_index, edge_weight=None, H=None):
+        # X_seq: [batch_size, seq_len, num_nodes, in_channels]
+        batch_size, seq_len, num_nodes, in_channels = X_seq.shape
+        
+        # 初始化隐藏状态
+        if H is None:
+            H = torch.zeros(batch_size, num_nodes, self.out_channels, 
+                          device=X_seq.device, dtype=X_seq.dtype)
+        
+        outputs = []
+        for t in range(seq_len):
+            # 取出当前时间步的所有batch数据: [batch_size, num_nodes, in_channels]
+            X_t = X_seq[:, t, :, :]
+            # GConvGRU支持批处理，直接传入整个batch
+            H = self.cell(X_t, edge_index, edge_weight, H)
+            outputs.append(H)
+        
+        # 返回所有时间步的输出和最后的隐藏状态
+        # outputs: [seq_len, batch_size, num_nodes, out_channels]
+        return torch.stack(outputs, dim=0), H
+
+class MultiFeatureStreamGCGRU(nn.Module):
+    """多特征Stream GC-GRU模型 - 使用降水、LSTM流量、实测流量和静态属性"""
+    
+    def __init__(self, edge_index, config, node_attributes=None):
+        super(MultiFeatureStreamGCGRU, self).__init__()
+        
+        # 将edge_index注册为buffer，这样它会自动跟随模型移动到正确的设备
         self.register_buffer('edge_index', edge_index)
+        self.config = config
+        self.node_attributes = node_attributes
         
-        # 存储节点面积信息用于面积加权聚合
-        if node_areas is not None:
-            self.register_buffer('node_areas', torch.tensor(node_areas, dtype=torch.float32))
-        else:
-            self.node_areas = None
+        # 输入特征维度：3个时间序列特征 + 静态属性维度
+        self.time_series_dim = 3  # 降水、LSTM流量、实测流量
+        self.static_attr_dim = config['node_attr_dim'] if config['use_node_attr'] and node_attributes is not None else 0
+        self.input_feature_dim = self.time_series_dim + self.static_attr_dim
         
-        # 历史数据处理的GConvGRU层
-        self.gcgru_past_rain = GConvGRU(
-            in_channels=config['hindcast_length'], 
-            out_channels=config['gcgru_out_channels'], 
-            K=config['gcgru_K']
-        )
-        self.gcgru_past_lstm_flow = GConvGRU(
-            in_channels=config['hindcast_length'], 
-            out_channels=config['gcgru_out_channels'], 
-            K=config['gcgru_K']
-        )
-        self.gcgru_past_upstream_flow = GConvGRU(
-            in_channels=config['hindcast_length'], 
-            out_channels=config['gcgru_out_channels'], 
+        # GConvGRU层（外部时间循环）：直接使用多通道输入特征，时间维度由外层循环处理
+        self.gcgru_layer = GConvGRULayer(
+            in_channels=self.input_feature_dim,
+            out_channels=config['gcgru_out_channels'],
             K=config['gcgru_K']
         )
         
-        # 当前时刻数据处理的GConvGRU层（用于自回归）
-        self.gcgru_current_rain = GConvGRU(
-            in_channels=1,  # 单天数据
-            out_channels=config['gcgru_out_channels'], 
-            K=config['gcgru_K']
-        )
-        self.gcgru_current_lstm_flow = GConvGRU(
-            in_channels=1,  # 单天数据
-            out_channels=config['gcgru_out_channels'], 
-            K=config['gcgru_K']
-        )
-        
-        # 节点属性处理层
-        if self.node_attr_dim > 0:
-            self.node_attr_mlp = nn.Sequential(
-                nn.Linear(self.node_attr_dim, config['node_attr_hidden_dim']),
-                nn.ReLU(),
-                nn.Linear(config['node_attr_hidden_dim'], config['gcgru_out_channels'])
-            )
-            fusion_input_dim = config['gcgru_out_channels'] * 6  # 包含节点属性
-        else:
-            self.node_attr_mlp = None
-            fusion_input_dim = config['gcgru_out_channels'] * 5  # 不包含节点属性
-        
-        # 添加节点类型感知的特征权重
-        self.feature_weights = nn.ModuleDict({
-            'source_nodes': nn.Linear(fusion_input_dim, fusion_input_dim),
-            'confluence_nodes': nn.Linear(fusion_input_dim, fusion_input_dim)
-        })
-        
-        # 为源头节点和汇流节点设置不同的权重初始化
-        self._init_feature_weights()
-        
-        # 融合层
-        self.fusion_mlp = nn.Sequential(
-            nn.Linear(fusion_input_dim, config['mlp_hidden_dim']),
+        # 输出MLP
+        self.output_mlp = nn.Sequential(
+            nn.Linear(config['gcgru_out_channels'], config['mlp_hidden_dim']),
             nn.ReLU(),
             nn.Dropout(config['mlp_dropout']),
-            nn.Linear(config['mlp_hidden_dim'], config['gcgru_out_channels'])
+            nn.Linear(config['mlp_hidden_dim'], config['forecast_length'])
         )
         
-        # 输出层（单天预测）
-        self.output_linear = nn.Linear(config['gcgru_out_channels'], 1)
+        print(f"多特征模型创建完成:")
+        print(f"  - 时间序列特征维度: {self.time_series_dim}")
+        print(f"  - 静态属性维度: {self.static_attr_dim}")
+        print(f"  - 原始输入特征维度: {self.input_feature_dim}")
+        print(f"  - GConvGRU输出维度: {config['gcgru_out_channels']}")
+        print(f"  - 预测长度: {config['forecast_length']}")
         
-    def forward(self, x, autoregressive=True):
+    def forward(self, x):
+        """前向传播 - 优化的批处理版本，移除外层batch循环"""
+        # x: [batch_size, hindcast_length, num_nodes, features]
+        batch_size, seq_len, num_nodes, features = x.shape
+
+        # 直接使用批处理的GConvGRULayer，无需逐batch循环
+        # 输入: [batch_size, seq_len, num_nodes, features]
+        # 输出: outputs: [seq_len, batch_size, num_nodes, gcgru_out_channels]
+        #       h_last: [batch_size, num_nodes, gcgru_out_channels]
+        outputs, h_last = self.gcgru_layer(x, self.edge_index, edge_weight=None, H=None)
+
+        # 步骤2: 输出预测（基于最后一个隐藏状态）
+        predictions = self.output_mlp(h_last)  # [batch_size, num_nodes, forecast_length]
+
+        # 转换维度顺序以匹配targets的格式：[batch_size, forecast_length, num_nodes]
+        if self.config['forecast_length'] > 1:
+            predictions = predictions.transpose(1, 2)  # [batch_size, forecast_length, num_nodes]
+        else:
+            # 单步预测时去掉最后一个维度
+            predictions = predictions.squeeze(-1)  # [batch_size, num_nodes]
+
+        return predictions
+    
+    def autoregressive_predict(self, x, forecast_steps, precipitation_future=None, lstm_future=None, targets_future=None, teacher_forcing_ratio=0.0):
         """
-        前向传播
+        自回归多步预测
         
         Args:
-            x: 输入数据元组
-                x[0]: past_rain [batch, M, num_nodes]
-                x[1]: past_lstm_flow [batch, M, num_nodes]
-                x[2]: past_upstream_flow [batch, M, num_nodes]
-                x[3]: future_rain [batch, n, num_nodes]
-                x[4]: future_lstm_flow [batch, n, num_nodes]
-                x[5]: node_attributes [num_nodes, node_attr_dim] (可选)
-            autoregressive: 是否使用自回归模式
+            x: 初始输入序列 [batch_size, hindcast_length, num_nodes, features]
+            forecast_steps: 预测步数
+            precipitation_future: 未来降水数据 [batch_size, forecast_steps, num_nodes] (可选)
+            lstm_future: 未来LSTM预测数据 [batch_size, forecast_steps, num_nodes] (可选)
             
         Returns:
-            output: 预测结果 [batch, n, num_nodes]
+            predictions: [batch_size, forecast_steps, num_nodes] 多步预测结果
         """
-        batch_size = x[0].shape[0]
-        num_nodes = x[0].shape[2]
+        batch_size, seq_len, num_nodes, features = x.shape
+        device = x.device
         
-        if autoregressive:
-            return self._autoregressive_forward(x, batch_size, num_nodes)
-        else:
-            return self._single_step_forward(x, batch_size, num_nodes, day_idx=0)
-    
-    def _init_feature_weights(self):
-        """初始化特征权重，体现不同节点类型的特征重要性"""
-        # 获取特征权重矩阵的维度
-        feature_dim = self.feature_weights['source_nodes'].weight.shape[0]
-        gcgru_channels = self.gcgru_out_channels
+        # 存储所有预测结果
+        all_predictions = []
         
-        # 判断是否包含节点属性
-        has_node_attr = (feature_dim == gcgru_channels * 6)  # 5个动态特征 + 1个节点属性特征
+        # 当前输入序列（滑动窗口）
+        current_input = x.clone()  # [batch_size, hindcast_length, num_nodes, features]
         
-        if has_node_attr:
-            # 包含节点属性的情况：6个特征组
-            source_weights = torch.zeros(6)  # [rain_past, lstm_past, upstream_past, rain_current, lstm_current, node_attr]
-            source_weights[0] = 1.0  # 历史降雨权重大
-            source_weights[1] = 1.5  # LSTM流量权重中等
-            source_weights[2] = 0.0  # 上游流量权重为0
-            source_weights[3] = 1.0  # 当前降雨权重最大
-            source_weights[4] = 3.0  # 当前LSTM流量权重小
-            source_weights[5] = 1.0  # 节点属性权重中等偏大
-            
-            confluence_weights = torch.zeros(6)
-            confluence_weights[0] = 1.0  # 历史降雨权重小
-            confluence_weights[1] = 1.0  # LSTM流量权重大
-            confluence_weights[2] = 4.0  # 上游流量权重最大
-            confluence_weights[3] = 0.5  # 当前降雨权重小
-            confluence_weights[4] = 1.5  # 当前LSTM流量权重大
-            confluence_weights[5] = 1.0  # 节点属性权重中等
-        else:
-            # 不包含节点属性的情况：5个特征组
-            source_weights = torch.zeros(5)  # [rain_past, lstm_past, upstream_past, rain_current, lstm_current]
-            source_weights[0] = 1.0  # 历史降雨权重大
-            source_weights[1] = 1.5  # LSTM流量权重中等
-            source_weights[2] = 0.0  # 上游流量权重为0
-            source_weights[3] = 1.0  # 当前降雨权重最大
-            source_weights[4] = 3.0  # 当前LSTM流量权重小
-            
-            confluence_weights = torch.zeros(5)
-            confluence_weights[0] = 1.0  # 历史降雨权重小
-            confluence_weights[1] = 1.0  # LSTM流量权重大
-            confluence_weights[2] = 4.0  # 上游流量权重最大
-            confluence_weights[3] = 0.5  # 当前降雨权重小
-            confluence_weights[4] = 1.5  # 当前LSTM流量权重大
-        
-        # 将权重扩展到所有通道
-        source_weights_expanded = source_weights.repeat_interleave(gcgru_channels)
-        confluence_weights_expanded = confluence_weights.repeat_interleave(gcgru_channels)
-        
-        # 初始化权重矩阵为对角矩阵乘以权重
-        with torch.no_grad():
-            self.feature_weights['source_nodes'].weight.copy_(
-                torch.diag(source_weights_expanded)
-            )
-            self.feature_weights['confluence_nodes'].weight.copy_(
-                torch.diag(confluence_weights_expanded)
-            )
-    
-    def _apply_node_type_weighting(self, combined_features, batch_size, num_nodes):
-        """根据节点类型应用不同的特征权重"""
-        weighted_features = torch.zeros_like(combined_features)
-        
-        for node_idx in range(num_nodes):
-            # 判断节点类型
-            has_upstream = (node_idx in self.upstream_mapping and 
-                          len(self.upstream_mapping[node_idx]) > 0)
-            
-            if has_upstream:
-                # 汇流节点：使用汇流节点权重
-                weighted_features[:, node_idx, :] = self.feature_weights['confluence_nodes'](
-                    combined_features[:, node_idx, :]
-                )
+        for step in range(forecast_steps):
+            # 单步预测（保留梯度用于训练）
+            logits = self.forward(current_input)  # [batch_size, forecast_length, num_nodes] 或 [batch_size, num_nodes]
+            # 取第1个预测步作为单步预测
+            if logits.dim() == 3:
+                step_prediction = logits[:, 0, :]  # [batch_size, num_nodes]
             else:
-                # 源头节点：使用源头节点权重
-                weighted_features[:, node_idx, :] = self.feature_weights['source_nodes'](
-                    combined_features[:, node_idx, :]
-                )
-        
-        return weighted_features
-
-
-
-    def _single_step_forward(self, x, batch_size, num_nodes, day_idx=0):
-        """单步前向传播（添加节点类型感知的特征加权）"""
-        # 处理历史数据 - 输入形状: [batch, time_steps, num_nodes]
-        # GConvGRU期望输入形状: [batch, num_nodes, time_steps]
-        
-        # 处理历史数据，使用与原始模型相同的permute操作
-        past_rain_features = self.gcgru_past_rain(
-            x[0].permute(0, 2, 1), self.edge_index, num_nodes=num_nodes
-        )  # 输出: [batch, num_nodes, out_channels]
-        
-        past_lstm_flow_features = self.gcgru_past_lstm_flow(
-            x[1].permute(0, 2, 1), self.edge_index, num_nodes=num_nodes
-        )
-        
-        past_upstream_flow_features = self.gcgru_past_upstream_flow(
-            x[2].permute(0, 2, 1), self.edge_index, num_nodes=num_nodes
-        )
-        
-        # 处理当前时刻数据 - 需要添加时间维度
-        # x[3][:, day_idx, :] 形状: [batch, num_nodes]
-        # 需要转换为 [batch, num_nodes, 1] 以匹配GConvGRU期望的输入
-        current_rain = x[3][:, day_idx:day_idx+1, :].permute(0, 2, 1)  # [batch, num_nodes, 1]
-        current_lstm_flow = x[4][:, day_idx:day_idx+1, :].permute(0, 2, 1)  # [batch, num_nodes, 1]
-        
-        current_rain_features = self.gcgru_current_rain(
-            current_rain, self.edge_index, num_nodes=num_nodes
-        )  # 输出: [batch, num_nodes, out_channels]
-        
-        current_lstm_flow_features = self.gcgru_current_lstm_flow(
-            current_lstm_flow, self.edge_index, num_nodes=num_nodes
-        )
-        
-        # 特征融合
-        if len(x) > 5 and self.node_attr_mlp is not None:
-            # 处理节点属性
-            node_attrs = x[5]
-            node_attr_features = self.node_attr_mlp(node_attrs)
-            # 如果节点属性没有batch维度，添加batch维度
-            if node_attr_features.dim() == 2:
-                node_attr_features = node_attr_features.unsqueeze(0).expand(batch_size, -1, -1)
+                step_prediction = logits  # 已是单步
             
-            combined_features = torch.cat([
-                past_rain_features, past_lstm_flow_features, past_upstream_flow_features,
-                current_rain_features, current_lstm_flow_features, node_attr_features
-            ], dim=-1)
-        else:
-            combined_features = torch.cat([
-                past_rain_features, past_lstm_flow_features, past_upstream_flow_features,
-                current_rain_features, current_lstm_flow_features
-            ], dim=-1)
-        
-        # 应用节点类型感知的特征加权
-        weighted_features = self._apply_node_type_weighting(combined_features, batch_size, num_nodes)
-        
-        # 通过融合层和输出层
-        fused = self.fusion_mlp(weighted_features)
-        output = self.output_linear(fused)  # [batch, num_nodes, 1]
-        
-        return output.permute(0,2,1)  # [batch, 1, num_nodes]
-    
-    def _autoregressive_forward(self, x, batch_size, num_nodes):
-        """自回归前向传播"""
-        outputs = []
-        
-        # 初始化历史数据
-        current_past_rain = x[0].clone()  # [batch, M, num_nodes]
-        current_past_lstm_flow = x[1].clone()  # [batch, M, num_nodes]
-        current_past_upstream_flow = x[2].clone()  # [batch, M, num_nodes]
-        
-        for day in range(self.forecast_length):
-            # 构建当前输入
-            current_input = (
-                current_past_rain,
-                current_past_lstm_flow,
-                current_past_upstream_flow,
-                x[3],  # future_rain
-                x[4],  # future_lstm_flow
-            )
+            # 保存当前步的预测用于损失计算
+            step_pred_unsq = step_prediction.unsqueeze(1)  # [batch_size, 1, num_nodes]
+            all_predictions.append(step_pred_unsq)
             
-            # 添加节点属性（如果存在）
-            if len(x) > 5:
-                current_input = current_input + (x[5],)
-            
-            # 单步预测
-            day_output = self._single_step_forward(
-                current_input, batch_size, num_nodes, day_idx=day
-            )  # [batch, 1, num_nodes]
-            
-            outputs.append(day_output)
-            
-            # 更新历史数据（滑动窗口）
-            if day < self.forecast_length - 1:
-                # 更新历史降水和LSTM流量
-                new_rain = x[3][:, day:day+1, :]  # [batch, 1, num_nodes]
-                new_lstm_flow = x[4][:, day:day+1, :]  # [batch, 1, num_nodes]
-                
-                current_past_rain = torch.cat([
-                    current_past_rain[:, 1:, :], new_rain
-                ], dim=1)
-                current_past_lstm_flow = torch.cat([
-                    current_past_lstm_flow[:, 1:, :], new_lstm_flow
-                ], dim=1)
-                
-                # 更新历史上游流量（使用预测结果）
-                # 这里需要根据拓扑关系更新上游流量
-                new_upstream_flow = self._update_upstream_flow(
-                    day_output, current_past_upstream_flow
-                )  # [batch, 1, num_nodes]
-                
-                current_past_upstream_flow = torch.cat([
-                    current_past_upstream_flow[:, 1:, :], new_upstream_flow
-                ], dim=1)
-        
-        # 拼接所有输出
-        output = torch.cat(outputs, dim=1)  # [batch, n, num_nodes]
-        return output
-    
-    def _update_upstream_flow(self, predicted_flow, past_upstream_flow):
-        """
-        根据预测结果更新上游流量，使用面积加权聚合
-        
-        Args:
-            predicted_flow: 当前预测结果 [batch, 1, num_nodes]
-            past_upstream_flow: 历史上游流量 [batch, M, num_nodes]
-            
-        Returns:
-            new_upstream_flow: 更新后的上游流量 [batch, 1, num_nodes]
-        """
-        batch_size, _, num_nodes = predicted_flow.shape
-        new_upstream_flow = torch.zeros_like(predicted_flow)
-        
-        # 使用与训练阶段一致的拓扑关系计算上游流量
-        for node_idx in range(num_nodes):
-            # 获取当前节点的上游节点索引
-            upstream_indices = self.upstream_mapping.get(node_idx, [])
-            
-            if upstream_indices:
-                # 获取上游节点的预测流量
-                upstream_flows = predicted_flow[:, :, upstream_indices]  # [batch, 1, num_upstream]
-                
-                if self.node_areas is not None:
-                    # 使用面积加权聚合
-                    upstream_areas = self.node_areas[upstream_indices]  # [num_upstream]
-                    # 计算面积权重（归一化）
-                    area_weights = upstream_areas / upstream_areas.sum()  # [num_upstream]
-                    # 扩展权重维度以匹配流量数据
-                    area_weights = area_weights.unsqueeze(0).unsqueeze(0)  # [1, 1, num_upstream]
-                    # 面积加权聚合
-                    new_upstream_flow[:, :, node_idx] = (upstream_flows * area_weights).sum(dim=2)
+            # 准备下一步的输入（除最后一步外）
+            if step < forecast_steps - 1:
+                # 未来外生量（若未提供则回退为最后时间步）
+                if precipitation_future is not None:
+                    future_precip = precipitation_future[:, step:step+1, :]
                 else:
-                    # 如果没有面积信息，回退到简单均值
-                    new_upstream_flow[:, :, node_idx] = upstream_flows.mean(dim=2)  # [batch, 1]
-            else:
-                # 如果没有上游节点，使用0
-                new_upstream_flow[:, :, node_idx] = 0.0
+                    future_precip = current_input[:, -1:, :, 0]
+                if lstm_future is not None:
+                    future_lstm = lstm_future[:, step:step+1, :]
+                else:
+                    future_lstm = current_input[:, -1:, :, 1]
+                
+                # teacher forcing: 用真实流量替代下一步输入的预测流量（按比率）
+                input_flow = step_pred_unsq  # 默认用预测
+                if (targets_future is not None) and (teacher_forcing_ratio > 0.0):
+                    gt_flow = targets_future[:, step:step+1, :]  # [batch_size, 1, num_nodes]
+                    tf_mask = (torch.rand(batch_size, 1, 1, device=device) < teacher_forcing_ratio)
+                    input_flow = torch.where(tf_mask, gt_flow, input_flow)
+                
+                # 构建新的时间步特征 [batch_size, 1, num_nodes, 3]
+                new_time_step = torch.stack([
+                    future_precip,              # 降水 [batch_size, 1, num_nodes]
+                    future_lstm,                # LSTM流量 [batch_size, 1, num_nodes]
+                    input_flow                  # 实测流量（预测或真值） [batch_size, 1, num_nodes]
+                ], dim=3)
+                
+                # 拼接静态属性
+                if self.static_attr_dim > 0:
+                    static_attrs = current_input[:, -1:, :, 3:]  # [batch_size, 1, num_nodes, static_attr_dim]
+                    new_time_step = torch.cat([new_time_step, static_attrs], dim=3)
+                
+                # 滑动窗口前移并追加新时间步
+                current_input = torch.cat([current_input[:, 1:, :, :], new_time_step], dim=1)
         
-        return new_upstream_flow
+        predictions = torch.cat(all_predictions, dim=1)
+        return predictions
