@@ -918,7 +918,6 @@ class BaseDataset(Dataset):
             [start_date, end_date],
             self.data_cfgs["target_cols"],
         )
-        print(data_output_ds_)
         data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
         data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
@@ -3402,7 +3401,7 @@ class AEFDataset(BaseDataset):
             data_forcing_ds_, data_output_ds_
         )
         # c
-        csv_path = r"/ftproot/camels_data/CAMELS_SK/alphaearth/mean_result.csv"
+        csv_path = r"/Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv"
         df_embeddings = pd.read_csv(csv_path)
         df_embeddings["hru_id"] = (
             df_embeddings["hru_id"].astype(int).astype(str).str.lstrip("0")
@@ -3420,13 +3419,82 @@ class AEFDataset(BaseDataset):
             col: (("basin"), embeddings_data[:, i])
             for i, col in enumerate([f"A{j:02d}" for j in range(64)])
         }
-
         c_origin = xr.Dataset(c_data_vars, coords={"basin": self.t_s_dict["sites_id"]})
-        df = c_origin.to_dataframe()
-        print(c_origin)
-        print(df.head())
+
         x_origin, y_origin, c_origin_with_unit = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, c_origin
+        )
+        return {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": (
+                c_origin_with_unit.transpose("basin", "variable")
+                if c_origin_with_unit is not None
+                else None
+            ),
+        }
+
+class Camels_merge_AEFDataset(BaseDataset):
+    def _read_xyc_specified_time(self, start_date, end_date):
+        """Read x, y, c data from data source with specified time range
+        We set this function as sometimes we need adjust the time range for some specific dataset,
+        such as seq2seq dataset (it needs one more period for the end of the time range)
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+        """
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["relevant_cols"],
+        )
+        # y
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["target_cols"],
+        )
+        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
+        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
+        )
+        # c
+        data_attr_ds = self.data_source.read_attr_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.data_cfgs["constant_cols"],
+            all_number=True,
+        )
+
+        csv_path = r"/Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv"
+        df_embeddings = pd.read_csv(csv_path)
+        df_embeddings["hru_id"] = (
+            df_embeddings["hru_id"].astype(int).astype(str).str.lstrip("0")
+        )
+        target_ids = [site_id.lstrip("0") for site_id in self.t_s_dict["sites_id"]]
+        df_filtered = df_embeddings[df_embeddings["hru_id"].isin(target_ids)]
+        df_filtered = df_filtered.set_index("hru_id").reindex(target_ids).reset_index()
+
+        if len(df_filtered) != len(target_ids):
+            print("Warning: Some basin IDs not found in the embeddings CSV.")
+
+        df_indexed = df_filtered.set_index("hru_id")
+        embedding_values = df_indexed.values
+        embedding_vars = {
+            f"A{j:02d}": (("basin"), embedding_values[:, j])
+            for j in range(64)
+        }
+
+        c_origin = xr.Dataset(embedding_vars, coords={"basin": self.t_s_dict["sites_id"]})
+        c_origin = c_origin.reindex(basin=data_attr_ds.basin.values)
+        combined_ds = xr.merge([data_attr_ds, c_origin])
+
+        x_origin, y_origin, c_origin_with_unit = self._to_dataarray_with_unit(
+            data_forcing_ds, data_output_ds, combined_ds
         )
         return {
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
