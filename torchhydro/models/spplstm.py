@@ -173,28 +173,27 @@ class SPP_LSTM_Model_2(nn.Module):
         s_in_channels=None,
         s_out_channels=None,
     ):
-        """
-        A custom neural network model designed for handling and integrating various types of meteorological and geographical data.
-        This model incorporates data from different sources: precipitation (p), soil (s), basin attributes (c), and Global Forecast System (g).
+        """Initializes the SPP_LSTM_Model_2.
 
-        Parameters:
-        - hindcast_length: The length of the input sequence for precipitation data.
-        - forecast_length: The length of the forecast period.
-        - p_n_output: Output dimension for the precipitation (p) data path.
-        - p_n_hidden_states: Number of hidden states in the LSTM for the precipitation path.
-        - p_dropout: Dropout rate applied in the precipitation path.
-        - p_in_channels: Number of input channels for the convolutional layer in the precipitation path.
-        - p_out_channels: Number of output channels for the convolutional layer in the precipitation path.
-        - len_c: Optional, the number of basin attribute (c) features.
-        - s_hindcast_length, s_n_output, s_n_hidden_states, s_dropout, s_in_channels, s_out_channels: Similar parameters for the soil (s) data path.
+        A custom neural network model for handling and integrating various types
+        of meteorological and geographical data, including precipitation (p),
+        soil (s), and basin attributes (c).
 
-        Methods:
-        - forward(*x_lst): Processes the input data depending on its composition:
-            - If only precipitation data is provided, processes it through the primary precipitation path.
-            - If precipitation and either basin attributes or soil data are provided, integrates these with precipitation data for processing.
-            - If all three types of data (precipitation, basin attributes, soil) are provided, combines them effectively for prediction.
-
-        This model's architecture is versatile, enabling it to adapt to various data availability scenarios, making it suitable for complex meteorological and geographical data processing tasks.
+        Args:
+            hindcast_length: The length of the input sequence for precipitation data.
+            forecast_length: The length of the forecast period.
+            p_n_output: Output dimension for the precipitation (p) data path.
+            p_n_hidden_states: Number of hidden states in the LSTM for the precipitation path.
+            p_dropout: Dropout rate applied in the precipitation path.
+            p_in_channels: Number of input channels for the conv layer in the precipitation path.
+            p_out_channels: Number of output channels for the conv layer in the precipitation path.
+            len_c: Optional, the number of basin attribute (c) features.
+            s_hindcast_length: Optional, hindcast length for the soil (s) data path.
+            s_n_output: Optional, output dimension for the soil path.
+            s_n_hidden_states: Optional, number of hidden states for the soil path LSTM.
+            s_dropout: Optional, dropout rate for the soil path.
+            s_in_channels: Optional, input channels for the soil path conv layer.
+            s_out_channels: Optional, output channels for the soil path conv layer.
         """
         super(SPP_LSTM_Model_2, self).__init__()
         self.conv_p = nn.Conv2d(

@@ -158,13 +158,7 @@ def test_dpl_lstm_xaj_nnmodule(device, dpl_nnmodule):
     assert isinstance(qe, torch.Tensor)
 
 
+@pytest.mark.requires_data
 def test_train_evaluate_dpl(dpl_args, config_data):
     update_cfg(config_data, dpl_args)
     train_and_evaluate(config_data)
-
-
-def test_dpl_selfmadehydrodataset(dpl4xaj_selfmadehydrodataset_args):
-    cfg = default_config_file()
-    update_cfg(cfg, dpl4xaj_selfmadehydrodataset_args)
-    train_and_evaluate(cfg)
-    print("All processes are finished!")

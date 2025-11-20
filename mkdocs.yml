@@ -26,7 +26,8 @@ plugins:
         #   ignore_h1_titles: True
         #   execute: True
         #   execute_ignore: "*.ipynb"
-          
+    - include-markdown
+
 markdown_extensions:
     - attr_list
     - pymdownx.superfences
@@ -49,4 +50,9 @@ nav:
     - Changelog: changelog.md
     - Report Issues: https://github.com/OuyangWenyu/torchhydro/issues
     - API Reference:
-          - torchhydro module: torchhydro.md
+          - Overview: torchhydro.md
+          - Models: api/models.md
+          - Datasets: api/datasets.md
+          - Trainers: api/trainers.md
+          - Configs: api/configs.md
+          - Explainers: api/explainers.md

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2025-07-13 15:59:03
+LastEditTime: 2025-11-08 16:02:09
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
@@ -74,7 +74,6 @@ def train_and_evaluate(cfgs: Dict):
         deephydro.model_train()
     preds, obss = deephydro.model_evaluate()
     resulter.save_cfg(deephydro.cfgs)
-    # TODO: If preds and obss are 4-dimensional, this will run but metrics calculation for valid and test are not supported
     resulter.save_result(preds, obss)
     resulter.eval_result(preds, obss)
 

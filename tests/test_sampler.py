@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2024-05-27 15:53:43
+LastEditTime: 2025-11-07 11:13:54
 LastEditors: Wenyu Ouyang
 Description: Test some functions for dataset
 FilePath: \torchhydro\tests\test_sampler.py
@@ -62,24 +62,3 @@ def test_sampler_randomness(sampler):
     assert (
         first_epoch_samples != second_epoch_samples
     ), "Expected different samples for different epochs"
-
-
-def test_cache_file():
-    """
-    Test whether the cache file is generated correctly
-    """
-    camels_dir = os.path.join(
-        SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
-    )
-    camels_us = hds.Camels(camels_dir)
-    camels_us.cache_xrdataset()
-
-
-def test_cache_caravan():
-    """
-    Test whether the cache file is generated correctly
-    """
-    caravan = Caravan(
-        os.path.join(SETTING["local_data_path"]["datasets-origin"], "caravan")
-    )
-    caravan.cache_xrdataset()

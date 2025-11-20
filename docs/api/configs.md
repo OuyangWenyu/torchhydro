@@ -1,0 +1,3 @@
+# Configs API
+
+::: torchhydro.configs
