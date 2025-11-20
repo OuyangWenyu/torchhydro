@@ -106,8 +106,6 @@ pytorch_model_dict = {
     "ResGCN": ResGCN,
     "GCNII": GCNII,
     "ResGAT": ResGAT,
-
-    "MultiHopDirectedGConv": MultiHopDirectedGConv,
 }
 
 pytorch_criterion_dict = {

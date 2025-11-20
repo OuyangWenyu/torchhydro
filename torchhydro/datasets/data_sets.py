@@ -612,8 +612,6 @@ class BaseDataset(Dataset):
                 "variable": selected_data.coords["variable"],
             }
             dims = ["basin", "time", "variable"]
-<<<<<<< HEAD
-=======
             # add
             if isinstance(selected_time_points, xr.DataArray):
                 # 获取 target_data 的时间轴
@@ -633,7 +631,6 @@ class BaseDataset(Dataset):
                 norm_data_3d = norm_data[:, selected_indices, :]
             else:
                 norm_data_3d = norm_data
->>>>>>> dev
 
         # 处理四维数据
         elif norm_data.ndim == 4:
@@ -976,10 +973,6 @@ class BaseDataset(Dataset):
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
-<<<<<<< HEAD
-
-=======
->>>>>>> dev
         x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, data_attr_ds
         )
