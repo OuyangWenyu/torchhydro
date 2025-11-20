@@ -150,3 +150,6 @@ CLAUDE.md
 
 # version file
 torchhydro/_version.py
+
+# Gemini
+GEMINI.md
