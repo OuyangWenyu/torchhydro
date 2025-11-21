@@ -1,3 +1,4 @@
+from typing import Optional
 import torch
 import torch.nn as nn
 from torch_geometric_temporal.nn.recurrent import GConvGRU
@@ -13,12 +14,18 @@ class GConvGRULayer(nn.Module):
     输入形状为 [batch_size, seq_len, num_nodes, in_channels]。
     """
 
-    def __init__(self, in_channels, out_channels, K):
+    def __init__(self, in_channels: int, out_channels: int, K: int) -> None:
         super().__init__()
         self.cell = GConvGRU(in_channels, out_channels, K)
         self.out_channels = out_channels
 
-    def forward(self, X_seq, edge_index, edge_weight=None, H=None):
+    def forward(
+        self,
+        X_seq: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_weight: Optional[torch.Tensor] = None,
+        H: Optional[torch.Tensor] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         # X_seq: [batch_size, seq_len, num_nodes, in_channels]
         batch_size, seq_len, num_nodes, in_channels = X_seq.shape
 
