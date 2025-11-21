@@ -3478,6 +3478,108 @@ class AEFDataset(BaseDataset):
             ),
         }
 
+
+class MultiFeatureStreamDataset(BaseDataset):
+    def __init__(self, cfgs: dict, is_tra_val_te: str, upstream_indices: dict = None):
+        super().__init__(cfgs, is_tra_val_te)
+        self.upstream_indices = upstream_indices or {}
+        self.hindcast_length = self.rho
+        self.forecast_length = self.horizon
+        tg_cfgs = self.data_cfgs.get("tg_cfgs", {})
+        self.node_attributes = tg_cfgs.get("node_attributes", None)
+        self.basin_names = tg_cfgs.get("basin_names", [])
+        self.basin_id = tg_cfgs.get("basin_id", None)
+        self.use_confluence_nodes_only = tg_cfgs.get("use_confluence_nodes_only", True)
+        self.node_mask = None
+        self.num_nodes = len(self.basins)
+        rels = self.data_cfgs.get("relevant_cols", [])
+        self._var_idx_precip = rels.index("precipitation") if "precipitation" in rels else None
+        self._var_idx_lstm = rels.index("lstm_streamflow") if "lstm_streamflow" in rels else None
+        self._var_idx_obs = rels.index("observed_streamflow") if "observed_streamflow" in rels else None
+        self._var_idx_discharge = rels.index("discharge") if "discharge" in rels else None
+        self._init_node_mask()
+
+    def _read_xyc(self):
+        return super()._read_xyc()
+
+    def __len__(self):
+        return self.num_samples
+
+    def __getitem__(self, item: int):
+        basin, idx, actual_length = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        M = self.rho
+        F = self.horizon
+        x_all = self.x[:, idx - warmup_length : idx + actual_length, :]
+        y_all = self.y[:, idx : idx + actual_length, :]
+        start_obs_rel = warmup_length
+        end_obs_rel = warmup_length + M
+        if self._var_idx_precip is None or self._var_idx_lstm is None:
+            raise ValueError("relevant_cols 需包含 'precipitation' 与 'lstm_streamflow'")
+        past_rain = x_all[:, start_obs_rel + 1 : end_obs_rel + 1, self._var_idx_precip]
+        past_lstm = x_all[:, start_obs_rel + 1 : end_obs_rel + 1, self._var_idx_lstm]
+        if self._var_idx_obs is not None:
+            past_obs = x_all[:, start_obs_rel : end_obs_rel, self._var_idx_obs]
+        else:
+            past_obs = y_all[:, : M, 0]
+        if self._var_idx_discharge is not None:
+            discharge_vals = x_all[:, start_obs_rel : end_obs_rel, self._var_idx_discharge]
+            mask = ~np.isnan(discharge_vals)
+            past_obs = np.where(mask, discharge_vals, past_obs)
+        past_rain = np.clip(past_rain, 0, None)
+        past_lstm = np.clip(past_lstm, 0, None)
+        past_obs = np.clip(past_obs, 0, None)
+        time_series = np.stack(
+            [past_rain.transpose(0, 1), past_lstm.transpose(0, 1), past_obs.transpose(0, 1)],
+            axis=-1,
+        )
+        if self.c is None or self.c.shape[-1] == 0:
+            input_features = time_series
+        else:
+            c = self.c
+            c_exp = np.repeat(c[:, np.newaxis, :], M, axis=1)
+            input_features = np.concatenate((time_series, c_exp), axis=-1)
+        input_features = input_features.transpose(1, 0, 2)
+        future_targets = self.y[:, idx + M : idx + M + F, 0]
+        output_data = future_targets.transpose(1, 0)
+        result = {
+            "relevant_cols": torch.from_numpy(input_features).float(),
+            "target_cols": torch.from_numpy(output_data).float(),
+            "constant_cols": None,
+        }
+        if self.use_confluence_nodes_only and self.node_mask is not None:
+            return result, torch.from_numpy(self.node_mask.astype(np.bool_))
+        else:
+            return result
+
+    def _init_node_mask(self):
+        mask = None
+        upstream = None
+        if self.upstream_indices:
+            upstream = self.upstream_indices
+        else:
+            if hasattr(self.data_source, "read_upstream_indices"):
+                try:
+                    upstream = self.data_source.read_upstream_indices(self.basin_id, self.basins)
+                except Exception:
+                    upstream = None
+            elif hasattr(self.data_source, "get_upstream_indices"):
+                try:
+                    upstream = self.data_source.get_upstream_indices(self.basin_id, self.basins)
+                except Exception:
+                    upstream = None
+        if upstream is not None:
+            mask_list = []
+            for i, b in enumerate(self.basins):
+                u = upstream.get(b)
+                if u is None:
+                    u = upstream.get(i)
+                if u is None:
+                    u = upstream.get(str(b))
+                mask_list.append(bool(u) and len(u) >= 2)
+            mask = np.array(mask_list, dtype=bool)
+        self.node_mask = mask
+
 class Camels_merge_AEFDataset(BaseDataset):
     def _read_xyc_specified_time(self, start_date, end_date):
         """Read x, y, c data from data source with specified time range
