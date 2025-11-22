@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-02 14:37:09
-LastEditTime: 2025-11-08 09:58:42
+LastEditTime: 2025-11-22 11:10:32
 LastEditors: Wenyu Ouyang
 Description: A module for different data sources
 FilePath: \torchhydro\torchhydro\datasets\data_sources.py
@@ -16,6 +16,7 @@ from hydrodatasource.reader.data_source import (
     SelfMadeHydroDataset,
     SelfMadeForecastDataset,
     StationHydroDataset,
+    TgHydroDatasource,
 )
 from hydrodataset.camels import Camels
 
@@ -32,4 +33,5 @@ data_sources_dict = {
     "selfmadeforecastdataset": SelfMadeForecastDataset,
     "floodeventdatasource": FloodEventDatasource,
     "stationhydrodataset": StationHydroDataset,
+    "tghydrodatasource": TgHydroDatasource,
 }

@@ -55,7 +55,12 @@ class GConvGRULayer(nn.Module):
 class MultiFeatureStreamGCGRU(nn.Module):
     """多特征Stream GC-GRU模型 - 使用降水、LSTM流量、实测流量和静态属性"""
 
-    def __init__(self, edge_index, config, node_attributes=None):
+    def __init__(
+        self,
+        edge_index: torch.Tensor,
+        config: dict,
+        node_attributes: Optional[torch.Tensor] = None,
+    ) -> None:
         super(MultiFeatureStreamGCGRU, self).__init__()
 
         # 将edge_index注册为buffer，这样它会自动跟随模型移动到正确的设备
@@ -94,8 +99,15 @@ class MultiFeatureStreamGCGRU(nn.Module):
         print(f"  - GConvGRU输出维度: {config['gcgru_out_channels']}")
         print(f"  - 预测长度: {config['forecast_length']}")
 
-    def forward(self, x):
-        """前向传播 - 优化的批处理版本，移除外层batch循环"""
+    def _forward_single_step(self, x: torch.Tensor) -> torch.Tensor:
+        """单步前向传播 - 优化的批处理版本，移除外层batch循环
+
+        Args:
+            x: 输入序列 [batch_size, hindcast_length, num_nodes, features]
+
+        Returns:
+            predictions: [batch_size, forecast_length, num_nodes] 或 [batch_size, num_nodes]
+        """
         # x: [batch_size, hindcast_length, num_nodes, features]
         batch_size, seq_len, num_nodes, features = x.shape
 
@@ -121,27 +133,37 @@ class MultiFeatureStreamGCGRU(nn.Module):
 
         return predictions
 
-    def autoregressive_predict(
+    def forward(
         self,
-        x,
-        forecast_steps,
-        precipitation_future=None,
-        lstm_future=None,
-        targets_future=None,
-        teacher_forcing_ratio=0.0,
-    ):
+        x: torch.Tensor,
+        forecast_steps: Optional[int] = None,
+        precipitation_future: Optional[torch.Tensor] = None,
+        lstm_future: Optional[torch.Tensor] = None,
+        targets_future: Optional[torch.Tensor] = None,
+        teacher_forcing_ratio: float = 0.0,
+    ) -> torch.Tensor:
         """
-        自回归多步预测
+        自回归多步预测（主要forward接口）
+
+        如果不提供 forecast_steps，则执行单步预测；否则执行自回归多步预测。
 
         Args:
             x: 初始输入序列 [batch_size, hindcast_length, num_nodes, features]
-            forecast_steps: 预测步数
+            forecast_steps: 预测步数（可选）。如果为None，则使用config中的forecast_length进行单步预测
             precipitation_future: 未来降水数据 [batch_size, forecast_steps, num_nodes] (可选)
             lstm_future: 未来LSTM预测数据 [batch_size, forecast_steps, num_nodes] (可选)
+            targets_future: 未来真实流量数据 [batch_size, forecast_steps, num_nodes]（用于teacher forcing，可选）
+            teacher_forcing_ratio: teacher forcing比率 [0.0, 1.0]
 
         Returns:
             predictions: [batch_size, forecast_steps, num_nodes] 多步预测结果
+                        或 [batch_size, forecast_length, num_nodes] / [batch_size, num_nodes] 单步预测结果
         """
+        # 如果没有指定forecast_steps，执行单步预测
+        if forecast_steps is None:
+            return self._forward_single_step(x)
+
+        # 否则执行自回归多步预测
         batch_size, seq_len, num_nodes, features = x.shape
         device = x.device
 
@@ -153,7 +175,7 @@ class MultiFeatureStreamGCGRU(nn.Module):
 
         for step in range(forecast_steps):
             # 单步预测（保留梯度用于训练）
-            logits = self.forward(
+            logits = self._forward_single_step(
                 current_input
             )  # [batch_size, forecast_length, num_nodes] 或 [batch_size, num_nodes]
             # 取第1个预测步作为单步预测

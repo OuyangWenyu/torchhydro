@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-11-07 09:39:57
+LastEditTime: 2025-11-22 10:46:49
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -24,6 +24,7 @@ from hydroutils.hydro_units import streamflow_unit_conv
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
+from torch_geometric.data import Data
 from tqdm import tqdm
 import warnings
 
@@ -3493,19 +3494,39 @@ class MultiFeatureStreamDataset(BaseDataset):
         self.node_mask = None
         self.num_nodes = len(self.basins)
         rels = self.data_cfgs.get("relevant_cols", [])
-        self._var_idx_precip = rels.index("precipitation") if "precipitation" in rels else None
-        self._var_idx_lstm = rels.index("lstm_streamflow") if "lstm_streamflow" in rels else None
-        self._var_idx_obs = rels.index("observed_streamflow") if "observed_streamflow" in rels else None
-        self._var_idx_discharge = rels.index("discharge") if "discharge" in rels else None
+        self._var_idx_precip = (
+            rels.index("precipitation") if "precipitation" in rels else None
+        )
+        self._var_idx_lstm = (
+            rels.index("lstm_streamflow") if "lstm_streamflow" in rels else None
+        )
+        self._var_idx_obs = (
+            rels.index("observed_streamflow") if "observed_streamflow" in rels else None
+        )
+        self._var_idx_discharge = (
+            rels.index("discharge") if "discharge" in rels else None
+        )
         self._init_node_mask()
-
-    def _read_xyc(self):
-        return super()._read_xyc()
-
-    def __len__(self):
-        return self.num_samples
+        self._init_edge_index()
 
     def __getitem__(self, item: int):
+        """Get one sample from the dataset as a PyG Data object.
+
+        Parameters
+        ----------
+        item : int
+            Sample index
+
+        Returns
+        -------
+        torch_geometric.data.Data
+            PyG Data object containing:
+            - x: node features [num_nodes, hindcast_length, num_features]
+            - y: target values [num_nodes, forecast_length]
+            - edge_index: graph connectivity [2, num_edges]
+            - node_mask: (optional) mask for confluence nodes [num_nodes]
+        """
+
         basin, idx, actual_length = self.lookup_table[item]
         warmup_length = self.warmup_length
         M = self.rho
@@ -3515,22 +3536,30 @@ class MultiFeatureStreamDataset(BaseDataset):
         start_obs_rel = warmup_length
         end_obs_rel = warmup_length + M
         if self._var_idx_precip is None or self._var_idx_lstm is None:
-            raise ValueError("relevant_cols 需包含 'precipitation' 与 'lstm_streamflow'")
+            raise ValueError(
+                "relevant_cols 需包含 'precipitation' 与 'lstm_streamflow'"
+            )
         past_rain = x_all[:, start_obs_rel + 1 : end_obs_rel + 1, self._var_idx_precip]
         past_lstm = x_all[:, start_obs_rel + 1 : end_obs_rel + 1, self._var_idx_lstm]
         if self._var_idx_obs is not None:
-            past_obs = x_all[:, start_obs_rel : end_obs_rel, self._var_idx_obs]
+            past_obs = x_all[:, start_obs_rel:end_obs_rel, self._var_idx_obs]
         else:
-            past_obs = y_all[:, : M, 0]
+            past_obs = y_all[:, :M, 0]
         if self._var_idx_discharge is not None:
-            discharge_vals = x_all[:, start_obs_rel : end_obs_rel, self._var_idx_discharge]
+            discharge_vals = x_all[
+                :, start_obs_rel:end_obs_rel, self._var_idx_discharge
+            ]
             mask = ~np.isnan(discharge_vals)
             past_obs = np.where(mask, discharge_vals, past_obs)
         past_rain = np.clip(past_rain, 0, None)
         past_lstm = np.clip(past_lstm, 0, None)
         past_obs = np.clip(past_obs, 0, None)
         time_series = np.stack(
-            [past_rain.transpose(0, 1), past_lstm.transpose(0, 1), past_obs.transpose(0, 1)],
+            [
+                past_rain.transpose(0, 1),
+                past_lstm.transpose(0, 1),
+                past_obs.transpose(0, 1),
+            ],
             axis=-1,
         )
         if self.c is None or self.c.shape[-1] == 0:
@@ -3539,20 +3568,30 @@ class MultiFeatureStreamDataset(BaseDataset):
             c = self.c
             c_exp = np.repeat(c[:, np.newaxis, :], M, axis=1)
             input_features = np.concatenate((time_series, c_exp), axis=-1)
+        # Note: input_features is [M, num_nodes, num_features]
+        # For PyG, we want [num_nodes, M, num_features]
         input_features = input_features.transpose(1, 0, 2)
         future_targets = self.y[:, idx + M : idx + M + F, 0]
         output_data = future_targets.transpose(1, 0)
-        result = {
-            "relevant_cols": torch.from_numpy(input_features).float(),
-            "target_cols": torch.from_numpy(output_data).float(),
-            "constant_cols": None,
-        }
+
+        # Create PyG Data object
+        data = Data(
+            x=torch.from_numpy(input_features).float(),  # [num_nodes, M, num_features]
+            y=torch.from_numpy(output_data).float(),  # [num_nodes, F]
+            edge_index=self.edge_index,  # [2, num_edges]
+        )
+
+        # Add node mask if using confluence nodes only
         if self.use_confluence_nodes_only and self.node_mask is not None:
-            return result, torch.from_numpy(self.node_mask.astype(np.bool_))
-        else:
-            return result
+            data.node_mask = torch.from_numpy(self.node_mask.astype(np.bool_))
+
+        return data
 
     def _init_node_mask(self):
+        """Initialize node mask for identifying confluence nodes.
+
+        A confluence node is defined as having 2 or more upstream nodes.
+        """
         mask = None
         upstream = None
         if self.upstream_indices:
@@ -3560,12 +3599,16 @@ class MultiFeatureStreamDataset(BaseDataset):
         else:
             if hasattr(self.data_source, "read_upstream_indices"):
                 try:
-                    upstream = self.data_source.read_upstream_indices(self.basin_id, self.basins)
+                    upstream = self.data_source.read_upstream_indices(
+                        self.basin_id, self.basins
+                    )
                 except Exception:
                     upstream = None
             elif hasattr(self.data_source, "get_upstream_indices"):
                 try:
-                    upstream = self.data_source.get_upstream_indices(self.basin_id, self.basins)
+                    upstream = self.data_source.get_upstream_indices(
+                        self.basin_id, self.basins
+                    )
                 except Exception:
                     upstream = None
         if upstream is not None:
@@ -3579,6 +3622,50 @@ class MultiFeatureStreamDataset(BaseDataset):
                 mask_list.append(bool(u) and len(u) >= 2)
             mask = np.array(mask_list, dtype=bool)
         self.node_mask = mask
+
+    def _init_edge_index(self):
+        """Initialize edge_index from upstream_indices for PyG graph structure.
+
+        Converts the upstream_indices dict to PyG edge_index format [2, num_edges].
+        Edge direction: from upstream to downstream.
+        """
+        if not self.upstream_indices:
+            # No edges if upstream_indices is empty
+            self.edge_index = torch.empty((2, 0), dtype=torch.long)
+            return
+
+        # Create basin to index mapping
+        basin_to_idx = {basin: idx for idx, basin in enumerate(self.basins)}
+
+        # Build edge list: (source, target) pairs
+        edges = []
+        for downstream_basin, upstream_basins in self.upstream_indices.items():
+            # Get downstream node index
+            if downstream_basin in basin_to_idx:
+                downstream_idx = basin_to_idx[downstream_basin]
+            elif isinstance(downstream_basin, int):
+                downstream_idx = downstream_basin
+            else:
+                continue  # Skip if basin not found
+
+            # Add edges from each upstream basin to downstream
+            if isinstance(upstream_basins, list):
+                for upstream_basin in upstream_basins:
+                    if upstream_basin in basin_to_idx:
+                        upstream_idx = basin_to_idx[upstream_basin]
+                    elif isinstance(upstream_basin, int):
+                        upstream_idx = upstream_basin
+                    else:
+                        continue
+                    edges.append([upstream_idx, downstream_idx])
+
+        if edges:
+            # Convert to PyG edge_index format: [2, num_edges]
+            self.edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
+        else:
+            # No valid edges found
+            self.edge_index = torch.empty((2, 0), dtype=torch.long)
+
 
 class Camels_merge_AEFDataset(BaseDataset):
     def _read_xyc_specified_time(self, start_date, end_date):
@@ -3631,11 +3718,12 @@ class Camels_merge_AEFDataset(BaseDataset):
         df_indexed = df_filtered.set_index("hru_id")
         embedding_values = df_indexed.values
         embedding_vars = {
-            f"A{j:02d}": (("basin"), embedding_values[:, j])
-            for j in range(64)
+            f"A{j:02d}": (("basin"), embedding_values[:, j]) for j in range(64)
         }
 
-        c_origin = xr.Dataset(embedding_vars, coords={"basin": self.t_s_dict["sites_id"]})
+        c_origin = xr.Dataset(
+            embedding_vars, coords={"basin": self.t_s_dict["sites_id"]}
+        )
         c_origin = c_origin.reindex(basin=data_attr_ds.basin.values)
         combined_ds = xr.merge([data_attr_ds, c_origin])
 
