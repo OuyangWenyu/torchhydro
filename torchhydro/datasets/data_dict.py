@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-13 15:40:07
+LastEditTime: 2025-11-22 16:44:22
 LastEditors: Wenyu Ouyang
 Description: A dict used for data source and data loader
 FilePath: \torchhydro\torchhydro\datasets\data_dict.py
@@ -24,7 +24,8 @@ from torchhydro.datasets.data_sets import (
     FloodEventDataset,
     AugmentedFloodEventDataset,
     AEFDataset,
-    Camels_merge_AEFDataset
+    Camels_merge_AEFDataset,
+    MultiFeatureStreamDataset,
 )
 
 
@@ -45,4 +46,5 @@ datasets_dict = {
     "AugmentedFloodEventDataset": AugmentedFloodEventDataset,
     "AlphaEarthDataset": AEFDataset,
     "MergedDataset": Camels_merge_AEFDataset,
+    "MultiFeatureStreamDataset": MultiFeatureStreamDataset,
 }

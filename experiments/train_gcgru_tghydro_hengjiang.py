@@ -65,28 +65,28 @@ def main():
         sub=os.path.join("results", "gcgru_tghydro"),
         # Data source configuration
         source_cfgs={
-            "source_name": "TgHydroDatasource",
+            "source_name": "tghydrodatasource",
             "source_path": source_path,
             "other_settings": {
-                "time_unit": ["1D"],
                 "dataset_name": "tgproject_hengjiang",
+                "time_unit": ["1D"],
             },
         },
         # Device configuration: CPU: [-1], GPU: [0], Multi-GPU: [0, 1]
         ctx=[0],
         model_type="MTL",
         # Model selection
-        model_name="MultiFeatureStreamGCGRU",  # Use MultiFeatureStreamGCGRU
+        model_name="AutoRegressiveGCGRU",  # Use AutoRegressiveGCGRU
         model_hyperparam=model_config,
         # Dataset configuration - Use MultiFeatureStreamDataset
         dataset="MultiFeatureStreamDataset",
-        basin_id=basin_id,
+        gage_id=basin_id,
         # Training settings
         batch_size=16,  # Batch size for autoregressive training
         train_epoch=30,  # Number of training epochs
         save_epoch=5,  # Save model every N epochs
         # Sequence lengths
-        rho=30,  # Hindcast/history window length
+        hindcast_length=30,  # Hindcast/history window length
         forecast_length=3,  # Forecast horizon
         warmup_length=0,  # No warmup for this model
         # Time settings
@@ -145,21 +145,6 @@ def main():
     # ================================
     config_data = default_config_file()
     update_cfg(config_data, args)
-
-    # Print configuration summary
-    print("=" * 60)
-    print("GCGRU TgHydro Training Configuration")
-    print("=" * 60)
-    print(f"Data Directory: {source_path}")
-    print(f"Basin ID: {basin_id}")
-    print(f"Model: {args.model_name}")
-    print(f"Hindcast Length (rho): {args.rho}")
-    print(f"Forecast Length: {args.forecast_length}")
-    print(f"Batch Size: {args.batch_size}")
-    print(f"Training Epochs: {args.train_epoch}")
-    print(f"Device: {'GPU' if args.ctx[0] >= 0 else 'CPU'}")
-    print(f"Use PyG DataLoader: {args.use_pyg_dataloader}")
-    print("=" * 60)
 
     # Run training and evaluation
     train_and_evaluate(config_data)
