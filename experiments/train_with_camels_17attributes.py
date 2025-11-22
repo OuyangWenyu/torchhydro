@@ -28,7 +28,7 @@ for logger_name in logging.root.manager.loggerDict:
 camels_dir = os.path.join("/Volumes/Untitled/data")
 camels = Camels(camels_dir)
 # gage_id = camels.read_site_info()["gauge_id"].values.tolist()
-gage_id = ['14301000']
+gage_id = ['01013500', '01022500', '01030500', '01031500', '01047000']
 gage_id = sorted([x for x in gage_id])
 
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"
@@ -58,14 +58,14 @@ def config():
         ctx=[0],
         model_name="SimpleLSTM",
         model_hyperparam={
-            "input_size": 88,
+            "input_size": 29,
             "output_size": 1,
             "hidden_size": 128,
             "dr": 0.4,
         },
         model_loader={"load_way": "best"},
         gage_id=gage_id,
-        batch_size=384,
+        batch_size=256,
         rs=seeds,
         ensemble=ens,
         ensemble_items={"seeds": seeds},
@@ -73,18 +73,19 @@ def config():
         forecast_length=365,
         min_time_unit="D",
         min_time_interval=1,
-        var_t=["prcp", "dayl", "srad", "tmax", "tmin", "vp", "PET"],
+        var_t=["precipitation", "daylight_duration", "solar_radiation", "temperature_max", "temperature_min", "vapor_pressure", "potential_evapotranspiration"],
         scaler_params={
             "prcp_norm_cols": [
                 "streamflow",
             ],
-            "gamma_norm_cols": ["prcp", "PET"],
+            "gamma_norm_cols": ["precipitation", "potential_evapotranspiration"],
+            #"one_hot_cols": ["dom_land_cover", "geol_1st_class", "geol_2nd_class"],
             "pbm_norm": False,
         },
         var_c=[
             "elev_mean",
             "slope_mean",
-            "area_gages2",
+            "area",
             "frac_forest",
             "lai_max",
             "lai_diff",

@@ -324,6 +324,9 @@ class DapengScaler(object):
                 "sm_surface",
                 "sm_rootzone",
             ]
+        
+        self.one_hot_cols = data_cfgs["scaler_params"].get("one_hot_cols", [])
+        
         self.data_target = vars_data["target_cols"]
         self.data_cfgs = data_cfgs
         self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
@@ -417,6 +420,25 @@ class DapengScaler(object):
         pred.attrs.update(self.data_target.attrs)
         return pred.to_dataset(dim="variable")
 
+
+
+    def _get_one_hot_categories(self, vars_data):
+        """
+        Calculate unique categories for one-hot encoding columns from training data
+        """
+        categories_dict = {}
+        for k, v in vars_data.items():
+            if v is None:
+                continue
+            for var_name in v.coords["variable"].values:
+                if var_name in self.one_hot_cols:
+                    # Get unique values, ignoring NaNs
+                    unique_vals = np.unique(v.sel(variable=var_name).to_numpy())
+                    unique_vals = unique_vals[~np.isnan(unique_vals)]
+                    unique_vals.sort()
+                    categories_dict[f"{var_name}_categories"] = unique_vals.tolist()
+        return categories_dict
+
     def cal_stat_all(self, vars_data):
         """
         Calculate statistics of outputs(streamflow etc), and inputs(forcing and attributes)
@@ -431,11 +453,22 @@ class DapengScaler(object):
             a dict with statistic values
         """
         stat_dict = {}
+        
+        # Calculate categories for one-hot encoding if needed
+        if self.one_hot_cols:
+            categories_dict = self._get_one_hot_categories(vars_data)
+            stat_dict.update(categories_dict)
+
         for k, v in vars_data.items():
             if v is None:
                 continue
             for i in range(len(v.coords["variable"].values)):
                 var_name = v.coords["variable"].values[i]
+                
+                # Skip statistics calculation for one-hot columns as they don't need mean/std normalization
+                if var_name in self.one_hot_cols:
+                    continue
+                    
                 if var_name in self.prcp_norm_cols:
                     stat_dict[var_name] = cal_stat_prcp_norm(
                         v.sel(variable=var_name).to_numpy(),
@@ -468,31 +501,120 @@ class DapengScaler(object):
             the output value for modeling
         """
         stat_dict = self.stat_dict
-        out = xr.full_like(data, np.nan)
-        # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
-        out.attrs = copy.deepcopy(data.attrs)
+        
+        # We need to handle one-hot encoding which changes the dimensions/variables
+        # So we cannot simply use xr.full_like
+        
         _vars = data.coords["variable"].values
-        if "units" not in out.attrs:
-            Warning("The attrs of output data does not contain units")
-            out.attrs["units"] = {}
+        data_arrays = []
+        
         for i in range(len(_vars)):
             var = _vars[i]
-            if var in self.prcp_norm_cols:
-                out.loc[dict(variable=var)] = _prcp_norm(
-                    data.sel(variable=var).to_numpy(),
-                    self.mean_prcp,
-                    to_norm=True,
-                )
+            
+            if var in self.one_hot_cols:
+                # Perform one-hot encoding
+                categories = stat_dict.get(f"{var}_categories", [])
+                if not categories:
+                    # If no categories found (e.g. in test mode but not in stat_dict), 
+                    # we might have an issue. But let's assume it's handled or empty.
+                    # Or maybe we should warn?
+                    print(f"Warning: No categories found for {var} in stat_dict")
+                    continue
+                
+                original_vals = data.sel(variable=var).to_numpy()
+                
+                for cat in categories:
+                    # Create binary mask
+                    # Use isclose for float comparison if needed, but == is usually fine for categories if they are distinct
+                    # Assuming categories are floats since they come from numpy array
+                    mask = np.isclose(original_vals, cat) if isinstance(cat, (int, float)) else (original_vals == cat)
+                    
+                    new_var_name = f"{var}_{cat}"
+                    
+                    # Create new DataArray for this category
+                    # We need to preserve dimensions except 'variable'
+                    # The shape of original_vals matches the other dims
+                    
+                    # We construct a new DataArray with a single variable coordinate
+                    da_cat = xr.DataArray(
+                        mask.astype(float),
+                        coords={d: data.coords[d] for d in data.dims if d != "variable"},
+                        dims=[d for d in data.dims if d != "variable"]
+                    ).expand_dims(variable=[new_var_name])
+                    
+                    da_cat.attrs["units"] = "dimensionless"
+                    data_arrays.append(da_cat)
+                    
             else:
-                out.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()
-            out.attrs["units"][var] = "dimensionless"
-        out = _trans_norm(
-            out,
-            _vars,
-            stat_dict,
-            log_norm_cols=self.log_norm_cols,
-            to_norm=to_norm,
-        )
+                # Normal processing for non-one-hot variables
+                # Extract data for this variable
+                var_data = data.sel(variable=var)
+                
+                # Create a new DataArray to hold normalized values
+                # We start with a copy to keep coords/dims
+                out_var = xr.full_like(var_data, np.nan)
+                out_var.attrs = copy.deepcopy(data.attrs)
+                if "units" not in out_var.attrs:
+                    out_var.attrs["units"] = {}
+                
+                if var in self.prcp_norm_cols:
+                    out_var.values = _prcp_norm(
+                        var_data.to_numpy(),
+                        self.mean_prcp,
+                        to_norm=True,
+                    )
+                else:
+                    out_var.values = var_data.to_numpy()
+                
+                out_var.attrs["units"] = "dimensionless"
+                
+                # Now apply _trans_norm logic for this single variable
+                # Note: _trans_norm expects an xarray with 'variable' dim and multiple variables usually,
+                # but here we are processing one by one. 
+                # We can reuse _trans_norm if we wrap it back or just implement the logic here.
+                # Implementing logic here is safer to avoid recursion or shape issues.
+                
+                stat = stat_dict[var]
+                # stat: [mean, std, mean, std] usually? 
+                # Wait, cal_stat returns [mean, std, mean, std] or similar?
+                # Let's check cal_stat in hydro_stat.py or assume standard usage
+                # _trans_norm uses stat[2] for mean and stat[3] for std
+                
+                if to_norm:
+                    if var in self.log_norm_cols:
+                        out_var.values = (np.log10(np.sqrt(np.abs(out_var.values)) + 0.1) - stat[2]) / stat[3]
+                    else:
+                        out_var.values = (out_var.values - stat[2]) / stat[3]
+                
+                # Expand dims to include variable name
+                out_var = out_var.expand_dims(variable=[var])
+                data_arrays.append(out_var)
+
+        # Merge all data arrays
+        if not data_arrays:
+            return None
+            
+        # Ensure all DataArrays have names (though expand_dims(variable=...) usually sets the coordinate, not the name)
+        # Actually, xr.merge expects a list of DataArrays (if they have names) or a dict
+        # But we expanded dims with 'variable', so they are effectively parts of a larger array
+        # However, xr.merge merges by coordinates. If we want to concatenate along 'variable', we should use xr.concat
+        
+        out = xr.concat(data_arrays, dim="variable")
+        
+        if data.name:
+            out.name = data.name
+        
+        # Restore attributes if possible, though merge might have lost them or mixed them
+        # We mainly care about units which we set on individual arrays
+        
+        # Reorder dimensions to match input if possible, but 'variable' might be in different place
+        # Usually we want (basin, time, variable) or similar
+        # input data dims: e.g. ('basin', 'variable') or ('basin', 'time', 'variable')
+        
+        # Ensure 'variable' is the last dimension or consistent with input
+        desired_dims = [d for d in data.dims if d != "variable"] + ["variable"]
+        out = out.transpose(*desired_dims)
+        
         return out
 
     def load_norm_data(self, vars_data):

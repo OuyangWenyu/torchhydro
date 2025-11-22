@@ -32,7 +32,7 @@ for logger_name in logging.root.manager.loggerDict:
 camels_dir = os.path.join("/Volumes/Untitled/data")
 camels = Camels(camels_dir)
 # gage_id = camels.read_site_info()["gauge_id"].values.tolist()
-gage_id = ["01013500"]
+gage_id = ['01013500', '01022500', '01030500', '01031500', '01047000']
 
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"
 
@@ -96,6 +96,7 @@ def config():
             ],
             "gamma_norm_cols": ["precipitation", "potential_evapotranspiration"],
             "pbm_norm": False,
+            #"one_hot_cols": ["dom_land_cover", "geol_1st_class", "geol_2nd_class"],
         },
         var_c=[
             "elev_mean",
@@ -178,7 +179,7 @@ def config():
         },
         shap_cfgs={
             "enable": True,
-            "save_dir": "/Users/cylenlc/shap",
+            "save_dir": "/Users/cylenlc/追加实验/CamelsAttr+AEF/第一折",
             "max_sample": 3000,
         },
     )
