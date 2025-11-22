@@ -382,7 +382,8 @@ class DeepHydro(DeepHydroInterface):
             self.run_shap_analysis(
                 X_all=X_all,
                 save_dir=shap_cfgs.get("save_dir", "./shap_results"),
-                max_sample=shap_cfgs.get("max_sample", 3000)
+                max_sample=shap_cfgs.get("max_sample", 3000),
+                background_size=shap_cfgs.get("background_size", 100)
             )
 
         return pred_xr, obs_xr
@@ -424,7 +425,7 @@ class DeepHydro(DeepHydroInterface):
         else:
             return pred_xr, obs_xr
 
-    def run_shap_analysis(self, X_all, save_dir, max_sample=3000, feature_names=None):
+    def run_shap_analysis(self, X_all, save_dir, max_sample=3000, feature_names=None, background_size=100):
         import torch
         import numpy as np
         import shap
@@ -434,45 +435,111 @@ class DeepHydro(DeepHydroInterface):
         print("Running FAST SHAP analysis...")
 
         # ======================================================
-        # 1. Concatenate all batches: X_all is a list, each with shape (B, T, F)
+        # 1. Optimize Memory & Diversity: Sample sparsely from MANY batches
         # ======================================================
-        X_all = torch.cat(X_all, dim=0)  # shape: (N, T, F)
-        N, T, F_total = X_all.shape
-        print(f"[INFO] Total raw samples: N={N}, T={T}, Features={F_total}")
+        # X_all is a list of tensors, each (B, T, F)
+        
+        if not X_all:
+            print("[WARNING] No data for SHAP analysis.")
+            return
+
+        # Get dimensions from first batch
+        _, T, F_total = X_all[0].shape
+        
+        # We need max_sample samples. 
+        # To ensure spatial diversity (static attributes variation), we must sample from many batches.
+        # Strategy: Randomly select N batches, then sample k items from each batch.
+        
+        import random
+        n_batches = len(X_all)
+        
+        # We want to sample from at least min(50, n_batches) batches to cover different basins
+        target_batch_count = min(50, n_batches)
+        
+        # How many samples per batch?
+        # We want total ~ max_sample * 2 (safety margin)
+        samples_per_batch = max(1, (max_sample * 2) // target_batch_count)
+        
+        print(f"[INFO] Sampling strategy: {target_batch_count} batches, ~{samples_per_batch} samples/batch")
+        
+        batch_indices = list(range(n_batches))
+        random.shuffle(batch_indices)
+        selected_batch_indices = batch_indices[:target_batch_count]
+        
+        collected_subsets = []
+        
+        for idx in selected_batch_indices:
+            batch = X_all[idx] # (B, T, F)
+            B = batch.shape[0]
+            
+            # Flatten this batch to (B*T, F)
+            batch_flat = batch.reshape(-1, F_total)
+            M_batch = batch_flat.shape[0]
+            
+            # Sample randomly from this batch
+            if M_batch > samples_per_batch:
+                # Random indices
+                indices = torch.randperm(M_batch)[:samples_per_batch]
+                batch_subset = batch_flat[indices]
+            else:
+                batch_subset = batch_flat
+                
+            collected_subsets.append(batch_subset)
+        
+        # Concatenate subsets
+        X_subset = torch.cat(collected_subsets, dim=0) # (N_total_subset, F)
+        
+        # Handle NaNs: Replace NaNs with 0 (mean of normalized data)
+        if torch.isnan(X_subset).any():
+            print("[WARNING] Input data contains NaNs. Filling with 0 for SHAP analysis.")
+            X_subset = torch.nan_to_num(X_subset, nan=0.0)
+        
+        print(f"[INFO] Collected subset samples: {X_subset.shape[0]}")
 
         # ======================================================
-        # 2. Flatten to 2D: (N*T, F)
+        # 2. Flatten to 2D: Already flattened in loop
         # ======================================================
-        X_flat = X_all.reshape(N * T, F_total)  # shape: (M, F)
+        X_flat = X_subset
         M = X_flat.shape[0]
-        print(f"[INFO] Flattened samples: {M}")
+        print(f"[INFO] Flattened subset samples: {M}")
 
         # ======================================================
-        # 3. Sample input data for acceleration (Recommended 2000~3000 samples)
+        # 3. Sample input data for acceleration
         # ======================================================
-        # max_sample = 3000
+        # Ensure we don't sample more than we have
         sample_size = min(max_sample, M)
-        idx = np.random.choice(M, sample_size, replace=False)
+        if sample_size < M:
+            # We already shuffled and sampled, but let's do one final random selection to be sure
+            idx = np.random.choice(M, sample_size, replace=False)
+            X_sample = X_flat[idx]
+        else:
+            X_sample = X_flat
 
-        X_sample = X_flat[idx]  # tensor
         X_sample_np = X_sample.cpu().numpy()  # numpy，shape=(sample_size, F)
 
         print(f"[INFO] Using {sample_size} samples for SHAP")
 
         # ======================================================
-        # 4. Sample background baseline (Directly affects speed)
+        # 4. Select background for SHAP
         # ======================================================
-        background_size = min(30, M)  # Small background is faster
-        idx_bg = np.random.choice(M, background_size, replace=False)
-
-        background = X_flat[idx_bg]
-        background_np = background.cpu().numpy()  # shape=(background_size, F)
-
-        print(f"[INFO] Using {background_size} samples as SHAP background")
+        # background_size is passed as argument
+        if M > background_size:
+            idx_bg = np.random.choice(M, background_size, replace=False)
+            background = X_flat[idx_bg]
+        else:
+            background = X_flat
+        
+        background_np = background.cpu().numpy()
+        print(f"[INFO] Using {background.shape[0]} samples as SHAP background")
 
         # ======================================================
         # 5. Wrap the model: SamplingExplainer uses a python function
         # ======================================================
+        # Move model to CPU to avoid MPS bugs with SHAP/LSTM
+        original_device = self.device
+        shap_device = torch.device("cpu")
+        print(f"[INFO] Moving model to {shap_device} for SHAP analysis to avoid MPS errors...")
+        self.model.to(shap_device)
         self.model.eval()
 
         def model_predict(x_np):
@@ -488,52 +555,71 @@ class DeepHydro(DeepHydroInterface):
                 and reshapes the output to (batch, 1).
             """
             x_tensor = torch.tensor(
-                x_np, dtype=torch.float32, device=self.device
+                x_np, dtype=torch.float32, device=shap_device
             )  # shape=(B,F)
 
+            # SimpleLSTM (and default nn.LSTM) expects (Time, Batch, Features) if batch_first=False
+            # We treat SHAP samples as independent time steps (Time=1)
+            x_tensor = x_tensor.unsqueeze(0) # (1, B, F)
+            
+            if torch.isnan(x_tensor).any():
+                print(f"[WARNING] SHAP input x_tensor contains NaNs!")
+
             with torch.no_grad():
-                out = self.model(x_tensor)  # (B,1) or (B,T,1)
+                out = self.model(x_tensor)  # (1, B, 1)
+            
+            if torch.isnan(out).any():
+                print(f"[WARNING] SHAP model output contains NaNs!")
+                # Optional: Replace output NaNs with 0 to allow SHAP to continue (but this hides model issues)
+                # out = torch.nan_to_num(out, nan=0.0)
 
             # --- SamplingExplainer requires 2D output ---
-            out = out.reshape(out.shape[0], -1)  # shape = (B, 1)
+            if out.shape[0] == 1:
+                out = out.squeeze(0)
+            else:
+                print(f"[WARNING] Unexpected output shape {out.shape} in SHAP. Squeezing dim 0.")
+                out = out.squeeze(0)
+            
+            # Debug output range
+            # print(f"[DEBUG] SHAP model output range: [{out.min().item():.4f}, {out.max().item():.4f}]")
 
             return out.cpu().numpy()
 
         # ======================================================
-        # 6. Build SHAP SamplingExplainer (Fastest)
+        # 6. Run SHAP
         # ======================================================
-        explainer = shap.SamplingExplainer(
-            model_predict,
-            background_np,
-        )
-
-        print("[INFO] Computing SHAP values...")
-        # nsamples=100 is adjustable; larger values are more accurate but slower.
-        shap_values = explainer.shap_values(X_sample_np, nsamples=100)
-
-        # shap_values can be a list or an array; handle uniformly.
+        print(f"[INFO] Computing SHAP values...")
+        explainer = shap.SamplingExplainer(model_predict, background_np)
+        
+        # Increased nsamples for stability
+        shap_values = explainer.shap_values(X_sample_np, nsamples=200)
+        
+        # Check shap_values
         if isinstance(shap_values, list):
             shap_values = shap_values[0]  # Take the first output channel
 
         print(f"[INFO] SHAP shape = {np.array(shap_values).shape}")
+        
+        # Handle NaNs in SHAP values
+        if np.isnan(shap_values).any():
+            nan_count = np.isnan(shap_values).sum()
+            total_count = shap_values.size
+            print(f"[WARNING] SHAP values contain {nan_count}/{total_count} NaNs! Filling with 0.")
+            shap_values = np.nan_to_num(shap_values, nan=0.0)
 
         # ======================================================
         # 7. Construct feature names
         # ======================================================
         if feature_names is None:
-            # Attempt to retrieve real feature names from configuration.
-            data_cfgs = self.cfgs.get("data_cfgs", {})
-            relevant_cols = data_cfgs.get("relevant_cols", [])
-            constant_cols = data_cfgs.get("constant_cols", [])
-
-            # According to BaseDataset concatenation order: first dynamic (x), then static (c).
-            real_feature_names = relevant_cols + constant_cols
-
-            if len(real_feature_names) == F_total:
-                feature_names = real_feature_names
-                print(f"[INFO] Using real feature names from config: {feature_names}")
+            # Attempt to retrieve real feature names from configuration and stat file
+            feature_names = self._get_feature_names(F_total)
+            
+            if feature_names is not None:
+                print(f"[INFO] Using reconstructed real feature names: {feature_names}")
             else:
-                print(f"[WARNING] Feature count mismatch! Config: {len(real_feature_names)}, Model input: {F_total}. Using default names.")
+                print(f"[WARNING] Could not reconstruct feature names. Using default names.")
+                data_cfgs = self.cfgs.get("data_cfgs", {})
+                relevant_cols = data_cfgs.get("relevant_cols", [])
                 feature_names = (
                     [f"DYNAMIC_{i}" for i in range(len(relevant_cols))] +
                     [f"STATIC_{i}" for i in range(F_total - len(relevant_cols))]
@@ -550,6 +636,7 @@ class DeepHydro(DeepHydroInterface):
             shap_values,
             X_sample_np,
             feature_names=feature_names,
+            max_display=100, # Show all features
             show=False
         )
         plt.savefig(f"{save_dir}/shap_summary_fast.png", dpi=300, bbox_inches="tight")
@@ -562,12 +649,131 @@ class DeepHydro(DeepHydroInterface):
             X_sample_np,
             feature_names=feature_names,
             plot_type="bar",
+            max_display=100, # Show all features
             show=False
         )
         plt.savefig(f"{save_dir}/shap_bar_fast.png", dpi=300, bbox_inches="tight")
         plt.close()
 
         print(f"[INFO] SHAP analysis saved to {save_dir}")
+        
+        # Restore model to original device
+        self.model.to(original_device)
+        print(f"[INFO] Model restored to {original_device}")
+
+    def _get_feature_names(self, F_total):
+        """
+        Reconstruct feature names, handling One-Hot Encoding and extra features (e.g. embeddings) found in stat_dict.
+        """
+        import json
+        
+        data_cfgs = self.cfgs.get("data_cfgs", {})
+        relevant_cols = data_cfgs.get("relevant_cols", [])
+        constant_cols = data_cfgs.get("constant_cols", [])
+        target_cols = data_cfgs.get("target_cols", [])
+        
+        # Check for One-Hot Encoding
+        scaler_params = data_cfgs.get("scaler_params", {})
+        one_hot_cols = scaler_params.get("one_hot_cols", [])
+        
+        # Try to load stat_dict
+        # Priority 1: Directory of the weight path (best_model.pth)
+        stat_dict = {}
+        stat_file_loaded = False
+        
+        search_paths = []
+        if self.weight_path:
+            search_paths.append(os.path.join(os.path.dirname(self.weight_path), "dapengscaler_stat.json"))
+        if "case_dir" in data_cfgs:
+            search_paths.append(os.path.join(data_cfgs["case_dir"], "dapengscaler_stat.json"))
+            
+        for stat_file in search_paths:
+            if os.path.exists(stat_file):
+                try:
+                    with open(stat_file, "r") as fp:
+                        stat_dict = json.load(fp)
+                    print(f"[INFO] Loaded stat file from {stat_file}")
+                    stat_file_loaded = True
+                    break
+                except Exception as e:
+                    print(f"[WARNING] Failed to load stat file {stat_file}: {e}")
+        
+        if not stat_file_loaded:
+            print("[WARNING] Could not load dapengscaler_stat.json from any expected location.")
+        
+        feature_names = []
+        
+        # 1. Dynamic features (relevant_cols)
+        feature_names.extend(relevant_cols)
+        
+        # 2. Static features (constant_cols) from config
+        # We need to track which keys we have used to identify "extra" ones later
+        used_keys = set(relevant_cols) | set(target_cols)
+        
+        for col in constant_cols:
+            used_keys.add(col)
+            if col in one_hot_cols:
+                # Expand One-Hot columns
+                categories = stat_dict.get(f"{col}_categories", [])
+                if categories:
+                    for cat in categories:
+                        feature_names.append(f"{col}_{cat}")
+                else:
+                    # Fallback
+                    feature_names.append(f"{col}_UNKNOWN")
+            else:
+                feature_names.append(col)
+                
+        # 3. Check for missing features (e.g. AlphaEarth embeddings)
+        if len(feature_names) < F_total and stat_dict:
+            print(f"[INFO] Feature name count ({len(feature_names)}) < Model Input ({F_total}). Searching for extra features in stat_dict...")
+            
+            extra_candidates = []
+            for key in stat_dict.keys():
+                # Skip known columns
+                if key in used_keys:
+                    continue
+                # Skip One-Hot category metadata
+                if key.endswith("_categories"):
+                    continue
+                # Skip One-Hot original columns if they were expanded (already handled by checking used_keys? No, one_hot_cols are in constant_cols, so in used_keys)
+                
+                # Add to candidates
+                extra_candidates.append(key)
+            
+            # Sort candidates to ensure deterministic order
+            # We assume extra features (like embeddings) are appended in alphabetical or numerical order
+            extra_candidates.sort()
+            
+            # Try appending extra candidates
+            # We only append enough to match F_total if possible, or just all of them and see
+            
+            # Heuristic: If we need exactly N more features, and we found M extra candidates.
+            needed = F_total - len(feature_names)
+            
+            if len(extra_candidates) >= needed:
+                # If we have enough candidates, take them. 
+                # If we have MORE than needed, it's ambiguous. But usually embeddings are distinct.
+                # Let's assume all valid extra candidates are part of the input.
+                
+                # However, stat_dict might contain other auxiliary variables. 
+                # If we match exactly, great.
+                if len(extra_candidates) == needed:
+                    print(f"[INFO] Found exactly {needed} extra features. Appending them.")
+                    feature_names.extend(extra_candidates)
+                else:
+                    print(f"[WARNING] Found {len(extra_candidates)} extra candidates, but needed {needed}. Appending first {needed} sorted keys.")
+                    feature_names.extend(extra_candidates[:needed])
+            else:
+                print(f"[WARNING] Found {len(extra_candidates)} extra candidates, but needed {needed}. Appending all available.")
+                feature_names.extend(extra_candidates)
+
+        # Final check
+        if len(feature_names) != F_total:
+            print(f"[WARNING] Reconstructed feature names length ({len(feature_names)}) does not match model input ({F_total}).")
+            return None
+            
+        return feature_names
 
     def _get_optimizer(self, training_cfgs):
         params_in_opt = self.model.parameters()
