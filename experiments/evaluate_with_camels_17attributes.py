@@ -19,19 +19,17 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 from hydrodataset.camels import Camels
 
-# Get the project directory of the py file
 
-# import the module using a relative path
 sys.path.append(os.path.dirname(Path(os.path.abspath(__file__)).parent))
 
-hru_delete = "02"
+hru_delete = "01"
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-camels_dir = os.path.join("D:\stream_data", "camels", "camels_us")
+camels_dir = os.path.join("/Volumes/Untitled/data")
 camels = Camels(camels_dir)
 # gage_id = camels.read_site_info()["gauge_id"].values.tolist()
 gage_id = ["01013500"]
@@ -59,25 +57,25 @@ def config():
     # 填充测试所需的命令行参数
     args = cmd(
         train_mode=False,
-        stat_dict_file=r"A:\torchhydro\experiments\results\camels\simplelstm_DapengScaler_128_0.4_ens_02\dapengscaler_stat.json",
-        project_dir=r"A:\torchhydro\experiments",
+        stat_dict_file=r"/Users/cylenlc/work/torchhydro/experiments/results/camels/simplelstm_DapengScaler_128_0.4_ens_01/dapengscaler_stat.json",
+        project_dir=r"/Users/cylenlc/work/torchhydro/experiments",
         sub=project_name,
         source_cfgs={
             "source_name": "camels_us",
             "source_path": camels_dir,
             "other_settings": {"download": False, "region": "US"},
         },
-        ctx=[1],
+        ctx=[0],
         model_name="SimpleLSTM",
         model_hyperparam={
             "input_size": 24,
             "output_size": 1,
-            "hidden_size": 128,
+            "hidden_size": 256,
             "dr": 0.4,
         },
         model_loader={
             "load_way": "pth",
-            "pth_path": f"A:\\torchhydro\experiments\\results\camels\simplelstm_DapengScaler_128_0.4_ens_{hru_delete}\\best_model.pth",
+            "pth_path": f"/Users/cylenlc/work/torchhydro/experiments/results/camels/simplelstm_DapengScaler_128_0.4_ens_{hru_delete}/best_model.pth",
         },
         # gage_id=gage_id[5000:5009],
         gage_id=gage_id,
@@ -90,19 +88,19 @@ def config():
         forecast_length=365,
         min_time_unit="D",
         min_time_interval=1,
-        var_t=["prcp", "dayl", "srad", "tmax", "tmin", "vp", "PET"],
+        var_t=["precipitation", "daylight_duration", "solar_radiation", "temperature_max", "temperature_min", "vapor_pressure", "potential_evapotranspiration"],
         scaler_params={
             "prcp_norm_cols": [
                 # "streamflow_input",
                 "streamflow",
             ],
-            "gamma_norm_cols": ["prcp", "PET"],
+            "gamma_norm_cols": ["precipitation", "potential_evapotranspiration"],
             "pbm_norm": False,
         },
         var_c=[
             "elev_mean",
             "slope_mean",
-            "area_gages2",
+            "area",
             "frac_forest",
             "lai_max",
             "lai_diff",
@@ -178,6 +176,11 @@ def config():
             # "pace_idx": -1,
             "pace_idx": -1,
         },
+        shap_cfgs={
+            "enable": True,
+            "save_dir": "/Users/cylenlc/shap",
+            "max_sample": 3000,
+        },
     )
 
     # 更新默认配置
@@ -185,6 +188,6 @@ def config():
 
     return config_data
 
-
-configs = config()
-train_and_evaluate(configs)
+if __name__ == "__main__":
+    configs = config()
+    train_and_evaluate(configs)

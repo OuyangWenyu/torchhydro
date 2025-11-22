@@ -487,6 +487,7 @@ def cmd(
     fabric_strategy: Optional[str] = None,
     # station data configurations for GNN models
     station_cfgs: Optional[Dict[str, Any]] = None,
+    shap_cfgs: Optional[Dict[str, Any]] = None,
 ) -> argparse.Namespace:
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -1056,6 +1057,13 @@ def cmd(
         default=station_cfgs,
         type=json.loads,
     )
+    parser.add_argument(
+        "--shap_cfgs",
+        dest="shap_cfgs",
+        help="SHAP analysis configurations (as JSON)",
+        default=shap_cfgs,
+        type=json.loads,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -1350,6 +1358,9 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
     # Station data configurations for GNN models
     if new_args.station_cfgs is not None:
         cfg_file["data_cfgs"]["station_cfgs"] = new_args.station_cfgs
+
+    if new_args.shap_cfgs is not None:
+        cfg_file["evaluation_cfgs"]["shap_cfgs"] = new_args.shap_cfgs
 
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 

@@ -25,7 +25,7 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-camels_dir = os.path.join("/Volumes/Untitled/camels_us")
+camels_dir = os.path.join("/Volumes/Untitled/data")
 camels = Camels(camels_dir)
 # gage_id = camels.read_site_info()["gauge_id"].values.tolist()
 gage_id = ['14301000']

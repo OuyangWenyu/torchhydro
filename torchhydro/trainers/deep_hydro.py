@@ -13,6 +13,7 @@ import copy
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Dict, Tuple
+import os
 
 import numpy as np
 import xarray as xr
@@ -20,6 +21,7 @@ import torch
 from torch.optim.lr_scheduler import *
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import shap
 
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
@@ -354,70 +356,218 @@ class DeepHydro(DeepHydroInterface):
         model_pth_dir = self.cfgs["data_cfgs"]["case_dir"]
         return read_pth_from_model_loader(model_loader, model_pth_dir)
 
-    def model_evaluate(self) -> Tuple[Dict, np.array, np.array]:
+    def model_evaluate(self):
         """
-        A function to evaluate a model, called at end of training.
+        Evaluate the model, and perform SHAP analysis if needed.
 
         Returns
         -------
-        tuple[dict, np.array, np.array]
-            eval_log, denormalized predictions and observations
+        preds_xr, obss_xr
         """
         self.model = self.load_model(mode="infer").to(self.device)
-        preds_xr, obss_xr = self.inference()
-        return preds_xr, obss_xr
 
-    def inference(self) -> Tuple[xr.Dataset, xr.Dataset]:
-        """infer using trained model and unnormalized results"""
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
-        test_dataloader = self._get_dataloader(training_cfgs, data_cfgs, mode="infer")
-        seq_first = training_cfgs["which_first_tensor"] == "sequence"
-        self.model.eval()
-        # here the batch is just an index of lookup table, so any batch size could be chosen
-        test_preds = []
-        obss = []
-        with torch.no_grad():
-            test_preds = []
-            obss = []
-            for i, batch in enumerate(
-                tqdm(test_dataloader, desc="Model inference", unit="batch")
-            ):
-                ys, pred = model_infer(
-                    seq_first,
-                    self.device,
-                    self.model,
-                    batch,
-                    variable_length_cfgs=None,
-                    return_key=(
-                        self.cfgs.get("evaluation_cfgs", {})
-                        .get("evaluator", {})
-                        .get("return_key", None)
-                    )
 
+        # Create dataloader in advance as it is used for both inference and SHAP
+        test_dataloader = self._get_dataloader(training_cfgs, data_cfgs, mode="infer")
+
+        # Inference returns X_all for SHAP analysis
+        pred_xr, obs_xr, X_all = self.inference(test_dataloader, return_inputs=True)
+
+        # Decide whether to perform SHAP analysis based on configuration
+        eval_cfgs = self.cfgs.get("evaluation_cfgs", {})
+        shap_cfgs = eval_cfgs.get("shap_cfgs", {})
+        if shap_cfgs.get("enable", False):
+            self.run_shap_analysis(
+                X_all=X_all,
+                save_dir=shap_cfgs.get("save_dir", "./shap_results"),
+                max_sample=shap_cfgs.get("max_sample", 3000)
+            )
+
+        return pred_xr, obs_xr
+
+    def inference(self, dataloader, return_inputs=True):
+        self.model.eval()
+
+        preds = []
+        obss = []
+        X_all = []
+
+        with torch.no_grad():
+            for batch in dataloader:
+                x = batch[0].to(self.device)
+                y = batch[1].to(self.device)
+
+                pred = self.model(x)
+
+                preds.append(pred.cpu())
+                obss.append(y.cpu())
+
+                if return_inputs:
+                    X_all.append(x.cpu())
+
+        # Convert to numpy
+        pred_np = torch.cat(preds, 0).numpy()
+        obs_np = torch.cat(obss, 0).numpy()
+
+        # Convert to xarray ---- KEEP THIS (TorchHydro requirement)
+        obs_xr, pred_xr = get_preds_to_be_eval(
+            dataloader,
+            self.cfgs["evaluation_cfgs"],
+            pred_np,
+            obs_np
+        )
+
+        if return_inputs:
+            return pred_xr, obs_xr, X_all
+        else:
+            return pred_xr, obs_xr
+
+    def run_shap_analysis(self, X_all, save_dir, max_sample=3000, feature_names=None):
+        import torch
+        import numpy as np
+        import shap
+        import matplotlib.pyplot as plt
+        import os
+
+        print("Running FAST SHAP analysis...")
+
+        # ======================================================
+        # 1. Concatenate all batches: X_all is a list, each with shape (B, T, F)
+        # ======================================================
+        X_all = torch.cat(X_all, dim=0)  # shape: (N, T, F)
+        N, T, F_total = X_all.shape
+        print(f"[INFO] Total raw samples: N={N}, T={T}, Features={F_total}")
+
+        # ======================================================
+        # 2. Flatten to 2D: (N*T, F)
+        # ======================================================
+        X_flat = X_all.reshape(N * T, F_total)  # shape: (M, F)
+        M = X_flat.shape[0]
+        print(f"[INFO] Flattened samples: {M}")
+
+        # ======================================================
+        # 3. Sample input data for acceleration (Recommended 2000~3000 samples)
+        # ======================================================
+        # max_sample = 3000
+        sample_size = min(max_sample, M)
+        idx = np.random.choice(M, sample_size, replace=False)
+
+        X_sample = X_flat[idx]  # tensor
+        X_sample_np = X_sample.cpu().numpy()  # numpy，shape=(sample_size, F)
+
+        print(f"[INFO] Using {sample_size} samples for SHAP")
+
+        # ======================================================
+        # 4. Sample background baseline (Directly affects speed)
+        # ======================================================
+        background_size = min(30, M)  # Small background is faster
+        idx_bg = np.random.choice(M, background_size, replace=False)
+
+        background = X_flat[idx_bg]
+        background_np = background.cpu().numpy()  # shape=(background_size, F)
+
+        print(f"[INFO] Using {background_size} samples as SHAP background")
+
+        # ======================================================
+        # 5. Wrap the model: SamplingExplainer uses a python function
+        # ======================================================
+        self.model.eval()
+
+        def model_predict(x_np):
+            """
+            Args:
+                x_np: numpy array with shape (batch, F).
+
+            Returns:
+                numpy array with shape (batch, 1).
+
+            Note:
+                Converts numpy array to torch.Tensor, feeds it to the model,
+                and reshapes the output to (batch, 1).
+            """
+            x_tensor = torch.tensor(
+                x_np, dtype=torch.float32, device=self.device
+            )  # shape=(B,F)
+
+            with torch.no_grad():
+                out = self.model(x_tensor)  # (B,1) or (B,T,1)
+
+            # --- SamplingExplainer requires 2D output ---
+            out = out.reshape(out.shape[0], -1)  # shape = (B, 1)
+
+            return out.cpu().numpy()
+
+        # ======================================================
+        # 6. Build SHAP SamplingExplainer (Fastest)
+        # ======================================================
+        explainer = shap.SamplingExplainer(
+            model_predict,
+            background_np,
+        )
+
+        print("[INFO] Computing SHAP values...")
+        # nsamples=100 is adjustable; larger values are more accurate but slower.
+        shap_values = explainer.shap_values(X_sample_np, nsamples=100)
+
+        # shap_values can be a list or an array; handle uniformly.
+        if isinstance(shap_values, list):
+            shap_values = shap_values[0]  # Take the first output channel
+
+        print(f"[INFO] SHAP shape = {np.array(shap_values).shape}")
+
+        # ======================================================
+        # 7. Construct feature names
+        # ======================================================
+        if feature_names is None:
+            # Attempt to retrieve real feature names from configuration.
+            data_cfgs = self.cfgs.get("data_cfgs", {})
+            relevant_cols = data_cfgs.get("relevant_cols", [])
+            constant_cols = data_cfgs.get("constant_cols", [])
+
+            # According to BaseDataset concatenation order: first dynamic (x), then static (c).
+            real_feature_names = relevant_cols + constant_cols
+
+            if len(real_feature_names) == F_total:
+                feature_names = real_feature_names
+                print(f"[INFO] Using real feature names from config: {feature_names}")
+            else:
+                print(f"[WARNING] Feature count mismatch! Config: {len(real_feature_names)}, Model input: {F_total}. Using default names.")
+                feature_names = (
+                    [f"DYNAMIC_{i}" for i in range(len(relevant_cols))] +
+                    [f"STATIC_{i}" for i in range(F_total - len(relevant_cols))]
                 )
 
-                test_preds.append(pred.cpu())
-                obss.append(ys.cpu())
-                if i % 100 == 0:
-                    torch.cuda.empty_cache()
-            pred = torch.cat(test_preds, dim=0).numpy()  # 在最后转换为numpy
-            obs = torch.cat(obss, dim=0).numpy()  # 在最后转换为numpy
-        if pred.ndim == 2:
-            # TODO: check
-            # the ndim is 2 meaning we use an Nto1 mode
-            # as lookup table is (basin 1's all time length, basin 2's all time length, ...)
-            # params of reshape should be (basin size, time length)
-            pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
-            obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
-        evaluation_cfgs = self.cfgs["evaluation_cfgs"]
-        obs_xr, pred_xr = get_preds_to_be_eval(
-            test_dataloader,
-            evaluation_cfgs,
-            pred,
-            obs,
+        # ======================================================
+        # 8. Output plots
+        # ======================================================
+        os.makedirs(save_dir, exist_ok=True)
+
+        # --- beeswarm ---
+        plt.figure()
+        shap.summary_plot(
+            shap_values,
+            X_sample_np,
+            feature_names=feature_names,
+            show=False
         )
-        return pred_xr, obs_xr
+        plt.savefig(f"{save_dir}/shap_summary_fast.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+        # --- bar ---
+        plt.figure()
+        shap.summary_plot(
+            shap_values,
+            X_sample_np,
+            feature_names=feature_names,
+            plot_type="bar",
+            show=False
+        )
+        plt.savefig(f"{save_dir}/shap_bar_fast.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+        print(f"[INFO] SHAP analysis saved to {save_dir}")
 
     def _get_optimizer(self, training_cfgs):
         params_in_opt = self.model.parameters()
