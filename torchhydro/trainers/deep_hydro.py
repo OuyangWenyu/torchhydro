@@ -393,8 +393,7 @@ class DeepHydro(DeepHydroInterface):
                         self.cfgs.get("evaluation_cfgs", {})
                         .get("evaluator", {})
                         .get("return_key", None)
-                    )
-
+                    ),
                 )
 
                 test_preds.append(pred.cpu())
@@ -480,7 +479,7 @@ class DeepHydro(DeepHydroInterface):
         if len(processed_batch) > 0 and isinstance(processed_batch[0], tuple):
             return (
                 torch.stack([x for x, _ in processed_batch], 0),
-                torch.stack([y for _, y in processed_batch], 0)
+                torch.stack([y for _, y in processed_batch], 0),
             )
         else:
             return torch.stack(processed_batch, 0)
@@ -489,11 +488,37 @@ class DeepHydro(DeepHydroInterface):
         if mode == "infer":
             _collate_fn = None
             # Use GNN collate function for GNN datasets in inference mode
-            if hasattr(self.testdataset, '__class__') and 'GNN' in self.testdataset.__class__.__name__:
+            if (
+                hasattr(self.testdataset, "__class__")
+                and "GNN" in self.testdataset.__class__.__name__
+            ):
                 _collate_fn = gnn_collate_fn
             # 使用自定义的 collate 函数处理 FloodEventDataset
-            elif hasattr(self.testdataset, '__class__') and 'FloodEvent' in self.testdataset.__class__.__name__:
+            elif (
+                hasattr(self.testdataset, "__class__")
+                and "FloodEvent" in self.testdataset.__class__.__name__
+            ):
                 _collate_fn = self._flood_event_collate_fn
+
+            # Check if we should use PyG DataLoader
+            use_pyg_dataloader = training_cfgs.get("use_pyg_dataloader", False)
+            if (
+                use_pyg_dataloader
+                or "MultiFeatureStream" in self.testdataset.__class__.__name__
+            ):
+                try:
+                    from torch_geometric.loader import DataLoader as PyGDataLoader
+
+                    print("Using PyG DataLoader for inference")
+                    return PyGDataLoader(
+                        self.testdataset,
+                        batch_size=training_cfgs["batch_size"],
+                        shuffle=False,
+                        drop_last=False,
+                    )
+                except ImportError:
+                    print("PyG not available, falling back to standard DataLoader")
+
             return DataLoader(
                 self.testdataset,
                 batch_size=training_cfgs["batch_size"],
@@ -518,8 +543,46 @@ class DeepHydro(DeepHydroInterface):
         if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
             _collate_fn = varied_length_collate_fn
         # Use GNN collate function for GNN datasets
-        elif hasattr(self.traindataset, '__class__') and 'GNN' in self.traindataset.__class__.__name__:
+        elif (
+            hasattr(self.traindataset, "__class__")
+            and "GNN" in self.traindataset.__class__.__name__
+        ):
             _collate_fn = gnn_collate_fn
+
+        # Check if we should use PyG DataLoader
+        use_pyg_dataloader = training_cfgs.get("use_pyg_dataloader", False)
+        if (
+            use_pyg_dataloader
+            or "MultiFeatureStream" in self.traindataset.__class__.__name__
+        ):
+            try:
+                from torch_geometric.loader import DataLoader as PyGDataLoader
+
+                print("Using PyG DataLoader for training")
+                data_loader = PyGDataLoader(
+                    self.traindataset,
+                    batch_size=training_cfgs["batch_size"],
+                    shuffle=(sampler is None),
+                    num_workers=(
+                        worker_num if worker_num > 0 else 0
+                    ),  # PyG may not support workers well
+                    pin_memory=pin_memory,
+                )
+
+                # Create validation dataloader if needed
+                if data_cfgs["t_range_valid"] is not None:
+                    validation_data_loader = PyGDataLoader(
+                        self.validdataset,
+                        batch_size=training_cfgs["batch_size"],
+                        shuffle=False,
+                        num_workers=worker_num if worker_num > 0 else 0,
+                        pin_memory=pin_memory,
+                    )
+                    return data_loader, validation_data_loader
+                return data_loader, None
+            except ImportError:
+                print("PyG not available, falling back to standard DataLoader")
+
         data_loader = DataLoader(
             self.traindataset,
             batch_size=training_cfgs["batch_size"],
@@ -535,7 +598,10 @@ class DeepHydro(DeepHydroInterface):
             _val_collate_fn = None
             if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
                 _val_collate_fn = varied_length_collate_fn
-            elif hasattr(self.validdataset, '__class__') and 'GNN' in self.validdataset.__class__.__name__:
+            elif (
+                hasattr(self.validdataset, "__class__")
+                and "GNN" in self.validdataset.__class__.__name__
+            ):
                 _val_collate_fn = gnn_collate_fn
 
             validation_data_loader = DataLoader(

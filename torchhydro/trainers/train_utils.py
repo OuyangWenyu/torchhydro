@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-11-06 13:48:48
+LastEditTime: 2025-11-22 11:28:33
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -224,7 +224,6 @@ def model_infer(
             ys = ys.transpose(0, 1)
 
     return ys, output
-
 
 
 class EarlyStopper(object):
@@ -1290,8 +1289,8 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
     ----------
     variable_length_cfgs : dict
         The variable length configuration
-    batch : tuple or list
-        The batch data from collate_fn or dataset
+    batch : tuple or list or torch_geometric.data.Batch
+        The batch data from collate_fn or dataset (can be PyG Batch object)
     seq_first : bool
         Whether the data is in sequence first format
 
@@ -1302,12 +1301,50 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
         For GNN datasets: (xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens)
         For GNN with batch vector: (xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens)
     """
+    # Check if batch is a PyG Batch/Data object
+    try:
+        from torch_geometric.data import Batch as PyGBatch, Data as PyGData
+
+        is_pyg_batch = isinstance(batch, (PyGBatch, PyGData))
+    except ImportError:
+        is_pyg_batch = False
+
     xs_mask = None
     ys_mask = None
     xs_lens = None
     ys_lens = None
     edge_index = None
     edge_weight = None
+    batch_vector = None
+
+    # Handle PyG Data/Batch objects
+    if is_pyg_batch:
+        # Extract data from PyG Batch
+        xs = (
+            batch.x
+        )  # Node features: [batch_nodes, hindcast_length, features] or similar
+        ys = batch.y  # Target values: [batch_nodes, forecast_length] or similar
+        edge_index = batch.edge_index  # Edge connectivity: [2, num_edges]
+        edge_weight = batch.edge_attr if hasattr(batch, "edge_attr") else None
+        batch_vector = batch.batch if hasattr(batch, "batch") else None
+
+        # For PyG batch, return appropriate format
+        if batch_vector is not None:
+            return (
+                xs,
+                ys,
+                edge_index,
+                edge_weight,
+                batch_vector,
+                xs_mask,
+                ys_mask,
+                xs_lens,
+                ys_lens,
+            )
+        elif edge_index is not None:
+            return xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens
+        else:
+            return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 
     if variable_length_cfgs is None:
         # Check batch length to determine format
