@@ -57,47 +57,40 @@ class MultiFeatureStreamGCGRU(nn.Module):
 
     def __init__(
         self,
-        edge_index: torch.Tensor,
-        config: dict,
-        node_attributes: Optional[torch.Tensor] = None,
+        gcgru_out_channels: int,
+        gcgru_K: int,
+        mlp_hidden_dim: int,
+        mlp_dropout: float,
+        forecast_length: int,
+        teacher_forcing_ratio: float = 0.0,
     ) -> None:
         super(MultiFeatureStreamGCGRU, self).__init__()
 
         # 将edge_index注册为buffer，这样它会自动跟随模型移动到正确的设备
-        self.register_buffer("edge_index", edge_index)
-        self.config = config
-        self.node_attributes = node_attributes
+        self.forecast_length = forecast_length
+        self.teacher_forcing_ratio = teacher_forcing_ratio
 
         # 输入特征维度：3个时间序列特征 + 静态属性维度
         self.time_series_dim = 3  # 降水、LSTM流量、实测流量
-        self.static_attr_dim = (
-            config["node_attr_dim"]
-            if config["use_node_attr"] and node_attributes is not None
-            else 0
-        )
+        # TODO: need to be deleted
+        self.static_attr_dim = 0
+
         self.input_feature_dim = self.time_series_dim + self.static_attr_dim
 
         # GConvGRU层（外部时间循环）：直接使用多通道输入特征，时间维度由外层循环处理
         self.gcgru_layer = GConvGRULayer(
             in_channels=self.input_feature_dim,
-            out_channels=config["gcgru_out_channels"],
-            K=config["gcgru_K"],
+            out_channels=gcgru_out_channels,
+            K=gcgru_K,
         )
 
         # 输出MLP
         self.output_mlp = nn.Sequential(
-            nn.Linear(config["gcgru_out_channels"], config["mlp_hidden_dim"]),
+            nn.Linear(gcgru_out_channels, mlp_hidden_dim),
             nn.ReLU(),
-            nn.Dropout(config["mlp_dropout"]),
-            nn.Linear(config["mlp_hidden_dim"], config["forecast_length"]),
+            nn.Dropout(mlp_dropout),
+            nn.Linear(mlp_hidden_dim, forecast_length),
         )
-
-        print(f"多特征模型创建完成:")
-        print(f"  - 时间序列特征维度: {self.time_series_dim}")
-        print(f"  - 静态属性维度: {self.static_attr_dim}")
-        print(f"  - 原始输入特征维度: {self.input_feature_dim}")
-        print(f"  - GConvGRU输出维度: {config['gcgru_out_channels']}")
-        print(f"  - 预测长度: {config['forecast_length']}")
 
     def _forward_single_step(self, x: torch.Tensor) -> torch.Tensor:
         """单步前向传播 - 优化的批处理版本，移除外层batch循环
@@ -123,7 +116,7 @@ class MultiFeatureStreamGCGRU(nn.Module):
         )  # [batch_size, num_nodes, forecast_length]
 
         # 转换维度顺序以匹配targets的格式：[batch_size, forecast_length, num_nodes]
-        if self.config["forecast_length"] > 1:
+        if self.forecast_length > 1:
             predictions = predictions.transpose(
                 1, 2
             )  # [batch_size, forecast_length, num_nodes]
@@ -136,11 +129,6 @@ class MultiFeatureStreamGCGRU(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        forecast_steps: Optional[int] = None,
-        precipitation_future: Optional[torch.Tensor] = None,
-        lstm_future: Optional[torch.Tensor] = None,
-        targets_future: Optional[torch.Tensor] = None,
-        teacher_forcing_ratio: float = 0.0,
     ) -> torch.Tensor:
         """
         自回归多步预测（主要forward接口）
@@ -149,18 +137,16 @@ class MultiFeatureStreamGCGRU(nn.Module):
 
         Args:
             x: 初始输入序列 [batch_size, hindcast_length, num_nodes, features]
-            forecast_steps: 预测步数（可选）。如果为None，则使用config中的forecast_length进行单步预测
-            precipitation_future: 未来降水数据 [batch_size, forecast_steps, num_nodes] (可选)
-            lstm_future: 未来LSTM预测数据 [batch_size, forecast_steps, num_nodes] (可选)
-            targets_future: 未来真实流量数据 [batch_size, forecast_steps, num_nodes]（用于teacher forcing，可选）
-            teacher_forcing_ratio: teacher forcing比率 [0.0, 1.0]
+            x include: 
+            - precipitation: 降水数据 [batch_size, hindcast_length, num_nodes]
+            - lstm: LSTM预测数据 [batch_size, hindcast_length, num_nodes]
+            - targets: 真实流量数据 [batch_size, hindcast_length, num_nodes]
 
         Returns:
-            predictions: [batch_size, forecast_steps, num_nodes] 多步预测结果
-                        或 [batch_size, forecast_length, num_nodes] / [batch_size, num_nodes] 单步预测结果
+            predictions: [batch_size, forecast_length, num_nodes]
         """
         # 如果没有指定forecast_steps，执行单步预测
-        if forecast_steps is None:
+        if self.forecast_length == 1:
             return self._forward_single_step(x)
 
         # 否则执行自回归多步预测
@@ -173,7 +159,7 @@ class MultiFeatureStreamGCGRU(nn.Module):
         # 当前输入序列（滑动窗口）
         current_input = x.clone()  # [batch_size, hindcast_length, num_nodes, features]
 
-        for step in range(forecast_steps):
+        for step in range(self.forecast_length):
             # 单步预测（保留梯度用于训练）
             logits = self._forward_single_step(
                 current_input
@@ -208,7 +194,7 @@ class MultiFeatureStreamGCGRU(nn.Module):
                     ]  # [batch_size, 1, num_nodes]
                     tf_mask = (
                         torch.rand(batch_size, 1, 1, device=device)
-                        < teacher_forcing_ratio
+                        < self.teacher_forcing_ratio
                     )
                     input_flow = torch.where(tf_mask, gt_flow, input_flow)
 

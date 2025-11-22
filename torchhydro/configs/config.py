@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-10-29 14:34:08
+LastEditTime: 2025-11-22 16:34:42
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -487,6 +487,8 @@ def cmd(
     fabric_strategy: Optional[str] = None,
     # station data configurations for GNN models
     station_cfgs: Optional[Dict[str, Any]] = None,
+    # PyG DataLoader specific configurations
+    use_pyg_dataloader: Optional[bool] = None,
 ) -> argparse.Namespace:
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -1056,6 +1058,14 @@ def cmd(
         default=station_cfgs,
         type=json.loads,
     )
+    # TG-GNN specific configurations
+    parser.add_argument(
+        "--use_pyg_dataloader",
+        dest="use_pyg_dataloader",
+        help="Whether to use PyTorch Geometric DataLoader for graph datasets",
+        default=use_pyg_dataloader,
+        type=bool,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -1350,6 +1360,10 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
     # Station data configurations for GNN models
     if new_args.station_cfgs is not None:
         cfg_file["data_cfgs"]["station_cfgs"] = new_args.station_cfgs
+
+    # PyG DataLoader specific configurations
+    if new_args.use_pyg_dataloader is not None:
+        cfg_file["training_cfgs"]["use_pyg_dataloader"] = new_args.use_pyg_dataloader
 
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 

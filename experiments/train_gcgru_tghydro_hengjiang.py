@@ -29,18 +29,20 @@ def main():
     # ================================
     # 1. Data and Path Configuration
     # ================================
-    source_path = SETTING["local_data_path"]["datasets-origin"]
-    data_dir = os.path.join(source_path, "jialingjiang_29")
+    source_path = SETTING["local_data_path"]["datasets-interim"]
 
     # ================================
     # 2. Basin and Graph Configuration
     # ================================
-    # Specify the basin ID and target station
-    basin_id = "sanxia_60703800"
-    target_station = "sanxia_60703800"
-
-    # Selected node attributes (must match those available in TgHydroDatasource)
-    selected_node_attrs = ["area", "p_mean", "sgr_dk_sav"]
+    # Specify the basin ID
+    # TODO: Only support fixed basin ids for GNN modeling in a basin
+    basin_id = [
+        "sanxia_60406350",
+        "sanxia_60406500",
+        "sanxia_60406700",
+        "sanxia_60407100",
+        "sanxia_60407200",
+    ]
 
     # ================================
     # 3. Model Configuration
@@ -52,9 +54,7 @@ def main():
         "mlp_hidden_dim": 128,  # MLP hidden dimension
         "mlp_dropout": 0.1,  # MLP dropout rate
         "forecast_length": 3,  # Must match forecast_length below
-        # Node attributes
-        "use_node_attr": True,  # Whether to use node attributes
-        "node_attr_dim": len(selected_node_attrs),  # Node attribute dimension
+        "teacher_forcing_ratio": 0.0,
     }
 
     # ================================
@@ -64,20 +64,23 @@ def main():
         # Experiment name and output directory
         sub=os.path.join("results", "gcgru_tghydro"),
         # Data source configuration
-        source_cfgs={"source_name": "TgHydroDatasource", "source_path": data_dir},
+        source_cfgs={
+            "source_name": "TgHydroDatasource",
+            "source_path": source_path,
+            "other_settings": {
+                "time_unit": ["1D"],
+                "dataset_name": "tgproject_hengjiang",
+            },
+        },
         # Device configuration: CPU: [-1], GPU: [0], Multi-GPU: [0, 1]
         ctx=[0],
+        model_type="MTL",
         # Model selection
         model_name="MultiFeatureStreamGCGRU",  # Use MultiFeatureStreamGCGRU
         model_hyperparam=model_config,
         # Dataset configuration - Use MultiFeatureStreamDataset
         dataset="MultiFeatureStreamDataset",
-        # Graph and TG configuration
-        tg_cfgs={
-            "basin_id": basin_id,
-            "use_confluence_nodes_only": True,  # Only train on confluence nodes
-            "node_attributes": selected_node_attrs,  # Will be loaded from datasource
-        },
+        basin_id=basin_id,
         # Training settings
         batch_size=16,  # Batch size for autoregressive training
         train_epoch=30,  # Number of training epochs
@@ -91,24 +94,22 @@ def main():
         min_time_interval="1",
         # Input variables (from TgHydro)
         # These should match the column names expected by MultiFeatureStreamDataset
-        relevant_cols=[
+        var_t=[
             "precipitation",  # Will be mapped from total_precipitation_hourly
             "lstm_streamflow",  # Will be mapped from LSTM predictions
             "observed_streamflow",  # Will be mapped from observed discharge
         ],
+        t_rm_nan=1,  # Remove NaN from relevant columns (1 = True)
         var_out=["discharge"],  # Target variable
-        # Data preprocessing
-        relevant_rm_nan=True,
-        target_rm_nan=False,
-        constant_rm_nan=False,
-        # Sampler and scaler
-        sampler="HydroSampler",
-        scaler="DapengScaler",
-        scaler_params={
-            "pbm_norm": False,
-            "gamma_norm_cols": ["precipitation"],
-            "prcp_norm_cols": ["discharge"],
-        },
+        out_rm_nan=0,  # Don't remove NaN from target columns (0 = False)
+        var_c=[
+            "area",
+            "p_mean",
+            "sgr_dk_sav",
+        ],
+        c_rm_nan=0,  # Don't remove NaN from constant columns (0 = False)
+        # Scaler
+        scaler="StandardScaler",
         # Model loading for evaluation
         model_loader={
             "load_way": "best",  # Load best model (by validation loss)
@@ -118,21 +119,25 @@ def main():
         valid_period=["2021-01-01", "2024-12-31"],
         test_period=["2021-01-01", "2024-12-31"],
         # Loss function and optimizer
-        loss_func="RMSESum",  # or "NSELoss", "MaskedMSE"
+        loss_func="MultiOutLoss",
+        loss_param={
+            "loss_funcs": "RMSESum",
+            "data_gap": [0, 0],
+            "device": [0],
+            "item_weight": [0.5, 0.5],
+        },
         opt="Adam",
-        learning_rate=0.005,
+        opt_param={"lr": 0.005},  # Learning rate through opt_param
         lr_scheduler={
             0: 1.0,
             10: 0.95,
             20: 0.90,
         },  # Learning rate decay schedule
-        # Gradient clipping
-        max_grad_norm=1.0,
-        # PyG DataLoader specific settings
+        # PyG DataLoader and gradient clipping
         use_pyg_dataloader=True,  # Use PyG DataLoader for graph batching
         # Other settings
         which_first_tensor="batch",  # Tensor layout: "batch" first
-        random_seed=1234,
+        rs=1234,  # Random seed
     )
 
     # ================================
@@ -145,15 +150,15 @@ def main():
     print("=" * 60)
     print("GCGRU TgHydro Training Configuration")
     print("=" * 60)
-    print(f"Data Directory: {data_dir}")
+    print(f"Data Directory: {source_path}")
     print(f"Basin ID: {basin_id}")
-    print(f"Model: {args['model_name']}")
-    print(f"Hindcast Length (rho): {args['rho']}")
-    print(f"Forecast Length: {args['forecast_length']}")
-    print(f"Batch Size: {args['batch_size']}")
-    print(f"Training Epochs: {args['train_epoch']}")
-    print(f"Device: {'GPU' if args['ctx'][0] >= 0 else 'CPU'}")
-    print(f"Use PyG DataLoader: {args.get('use_pyg_dataloader', False)}")
+    print(f"Model: {args.model_name}")
+    print(f"Hindcast Length (rho): {args.rho}")
+    print(f"Forecast Length: {args.forecast_length}")
+    print(f"Batch Size: {args.batch_size}")
+    print(f"Training Epochs: {args.train_epoch}")
+    print(f"Device: {'GPU' if args.ctx[0] >= 0 else 'CPU'}")
+    print(f"Use PyG DataLoader: {args.use_pyg_dataloader}")
     print("=" * 60)
 
     # Run training and evaluation
