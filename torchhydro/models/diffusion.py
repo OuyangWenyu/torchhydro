@@ -1,6 +1,7 @@
 """
-This script implements a conditional diffusion model for time-series data,
-using an LSTM-based network to predict the noise. This is suitable for
+This script implements a conditional diffusion model for time-series data.
+It leverages the `diffusers` library for the diffusion scheduling process and
+uses a custom LSTM-based network to predict the noise, which is suitable for
 hydrological modeling where temporal dependencies are key.
 """
 
@@ -8,47 +9,21 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from typing import cast, Dict, Any
+from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from tqdm.auto import tqdm
 
 
-def exists(x):
-    return x is not None
-
-
-def default(val, d):
-    if exists(val):
-        return val
-    return d() if callable(d) else d
-
-
-def extract(a, t, x_shape):
-    b, *_ = t.shape
-    out = a.gather(-1, t)
-    return out.reshape(b, *((1,) * (len(x_shape) - 1)))
-
-
-def linear_beta_schedule(timesteps):
-    scale = 1000 / timesteps
-    beta_start = scale * 0.0001
-    beta_end = scale * 0.02
-    return torch.linspace(beta_start, beta_end, timesteps, dtype=torch.float32)
-
-
-def cosine_beta_schedule(timesteps, s=0.008):
-    steps = timesteps + 1
-    x = torch.linspace(0, timesteps, steps, dtype=torch.float32)
-    alphas_cumprod = torch.cos(((x / timesteps) + s) / (1 + s) * math.pi * 0.5) ** 2
-    alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
-    betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
-    return torch.clip(betas, 0, 0.999)
-
-
 class SinusoidalPosEmb(nn.Module):
-    def __init__(self, dim):
+    """Helper class for sinusoidal time embedding."""
+
+    def __init__(self, dim: int) -> None:
         super().__init__()
         self.dim = dim
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x.view(-1)
         device = x.device
         half_dim = self.dim // 2
         emb = math.log(10000) / (half_dim - 1)
@@ -59,7 +34,9 @@ class SinusoidalPosEmb(nn.Module):
 
 
 class LSTMDenoiseNet(nn.Module):
-    def __init__(self, cfgs):
+    """A denoising network for time-series data based on LSTM."""
+
+    def __init__(self, cfgs: dict) -> None:
         super().__init__()
         model_cfgs = cfgs["model"]
         diffusion_cfgs = model_cfgs["diffusion"]
@@ -85,7 +62,7 @@ class LSTMDenoiseNet(nn.Module):
             hidden_size=hidden_size,
             num_layers=num_layers,
             batch_first=True,
-            bidirectional=True,  # Using a bidirectional LSTM can capture dependencies from both past and future
+            bidirectional=True,
         )
 
         # Output layer
@@ -93,168 +70,134 @@ class LSTMDenoiseNet(nn.Module):
             hidden_size * 2, data_dim
         )  # *2 because of bidirectional
 
-    def forward(self, x, time, context):
-        # x: [batch, data_dim, seq_len]
-        # time: [batch]
-        # context: [batch, condition_dim, seq_len]
+    def forward(
+        self,
+        sample: torch.Tensor,
+        timestep: torch.Tensor,
+        encoder_hidden_states: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Forward pass for the denoising network.
 
-        # 1. Permute to (batch, seq_len, features) for LSTM
-        x = x.permute(0, 2, 1)
-        context = context.permute(0, 2, 1)
-        seq_len = x.shape[1]
+        Args:
+            sample (torch.Tensor): The noisy input data (x_t). Shape:
+                [batch, data_dim, seq_len].
+            timestep (torch.Tensor): The current timestep tensor. Shape:
+                [batch].
+            encoder_hidden_states (torch.Tensor): Conditioning data (y). Shape:
+                [batch, condition_dim, seq_len].
+        """
+        # 1. Permute inputs to (batch, seq_len, features) for LSTM
+        sample = sample.permute(0, 2, 1)
+        encoder_hidden_states = encoder_hidden_states.permute(0, 2, 1)
+        seq_len = sample.shape[1]
 
-        # 2. Process time embedding and expand it to match sequence length
-        t_emb = self.time_mlp(time)  # [batch, time_emb_dim]
+        # 2. Process time embedding and match batch size
+        t_emb = self.time_mlp(timestep)
+
+        # Repeat t_emb per batch item if needed
+        batch_size = sample.shape[0]
+        if t_emb.shape[0] != batch_size:
+            t_emb = t_emb.repeat(batch_size, 1)
+
         t_emb = t_emb.unsqueeze(1).expand(
             -1, seq_len, -1
-        )  # [batch, seq_len, time_emb_dim]
+        )  # [batch_size, seq_len, time_emb_dim]
 
         # 3. Concatenate all inputs along the feature dimension
-        lstm_input = torch.cat([x, context, t_emb], dim=-1)
+        lstm_input = torch.cat([sample, encoder_hidden_states, t_emb], dim=-1)
 
         # 4. Pass through LSTM
-        lstm_out, _ = self.lstm(lstm_input)  # [batch, seq_len, hidden_size * 2]
-
+        lstm_out, _ = self.lstm(lstm_input)  # [batch, seq_len, hidden_size*2]
         # 5. Apply final linear layer to predict noise
         pred_noise = self.final_layer(lstm_out)  # [batch, seq_len, data_dim]
 
         # 6. Permute back to the original shape [batch, data_dim, seq_len]
-        return pred_noise.permute(0, 2, 1)
+        return cast(torch.Tensor, pred_noise.permute(0, 2, 1))
 
 
 class ConditionalDiffusionModel(nn.Module):
-    def __init__(self, cfgs):
+    """
+    A conditional diffusion model for time-series, refactored to use the diffusers library.
+    """
+
+    def __init__(self, cfgs: Dict[str, Any]) -> None:
         super().__init__()
         self.cfgs = cfgs
-        model_cfgs = cfgs["model"]
-        diffusion_cfgs = model_cfgs["diffusion"]
-
-        self.data_dim = diffusion_cfgs["data_dim"]
-        self.condition_dim = diffusion_cfgs["condition_dim"]
-
         self.denoise_net = LSTMDenoiseNet(cfgs)
 
-        # --- Diffusion parameters ---
-        timesteps = diffusion_cfgs["num_timesteps"]
-        beta_schedule = diffusion_cfgs.get("beta_schedule", "cosine")
-
-        if beta_schedule == "linear":
-            betas = linear_beta_schedule(timesteps)
-        elif beta_schedule == "cosine":
-            betas = cosine_beta_schedule(timesteps)
-        else:
-            raise ValueError(f"unknown beta schedule {beta_schedule}")
-
-        alphas = 1.0 - betas
-        alphas_cumprod = torch.cumprod(alphas, dim=0)
-        alphas_cumprod_prev = nn.functional.pad(alphas_cumprod[:-1], (1, 0), value=1.0)
-
-        self.register_buffer("betas", betas)
-        self.register_buffer("alphas_cumprod", alphas_cumprod)
-        self.register_buffer("alphas_cumprod_prev", alphas_cumprod_prev)
-
-        self.register_buffer("sqrt_alphas_cumprod", torch.sqrt(alphas_cumprod))
-        self.register_buffer(
-            "sqrt_one_minus_alphas_cumprod", torch.sqrt(1.0 - alphas_cumprod)
-        )
-        self.register_buffer(
-            "log_one_minus_alphas_cumprod", torch.log(1.0 - alphas_cumprod)
-        )
-        self.register_buffer(
-            "sqrt_recip_alphas_cumprod", torch.sqrt(1.0 / alphas_cumprod)
-        )
-        self.register_buffer(
-            "sqrt_recipm1_alphas_cumprod", torch.sqrt(1.0 / alphas_cumprod - 1)
+        # Initialize the scheduler from diffusers
+        self.scheduler = DDPMScheduler(
+            num_train_timesteps=cfgs["model"]["diffusion"]["num_timesteps"],
+            beta_schedule=cfgs["model"]["diffusion"].get("beta_schedule", "cosine"),
+            clip_sample=False,  # Not predicting images; no need to clip to [0, 1]
         )
 
-        posterior_variance = (
-            betas * (1.0 - alphas_cumprod_prev) / (1.0 - alphas_cumprod)
-        )
-        self.register_buffer("posterior_variance", posterior_variance)
-        self.register_buffer(
-            "posterior_log_variance_clipped",
-            torch.log(posterior_variance.clamp(min=1e-20)),
-        )
-        self.register_buffer(
-            "posterior_mean_coef1",
-            betas * torch.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod),
-        )
-        self.register_buffer(
-            "posterior_mean_coef2",
-            (1.0 - alphas_cumprod_prev) * torch.sqrt(alphas) / (1.0 - alphas_cumprod),
-        )
+    def forward(self, x_0: torch.Tensor, y: torch.Tensor) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass for training.
 
-        self.num_timesteps = timesteps
-
-    def q_sample(self, x_start, t, noise=None):
-        noise = default(noise, lambda: torch.randn_like(x_start))
-        return (
-            extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-            + extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
-        )
-
-    def predict_start_from_noise(self, x_t, t, noise):
-        return (
-            extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t
-            - extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
-        )
-
-    def q_posterior(self, x_start, x_t, t):
-        posterior_mean = (
-            extract(self.posterior_mean_coef1, t, x_t.shape) * x_start
-            + extract(self.posterior_mean_coef2, t, x_t.shape) * x_t
-        )
-        posterior_variance = extract(self.posterior_variance, t, x_t.shape)
-        posterior_log_variance_clipped = extract(
-            self.posterior_log_variance_clipped, t, x_t.shape
-        )
-        return posterior_mean, posterior_variance, posterior_log_variance_clipped
-
-    @torch.no_grad()
-    def p_sample(self, x, t, context):
-        b, *_, device = *x.shape, x.device
-        batched_times = torch.full((b,), t, device=device, dtype=torch.long)
-        model_mean, _, model_log_variance = self.p_mean_variance(
-            x=x, t=batched_times, context=context
-        )
-        noise = torch.randn_like(x) if t > 0 else 0.0
-        pred_x_start = model_mean + (0.5 * model_log_variance).exp() * noise
-        return pred_x_start
-
-    def p_mean_variance(self, x, t, context):
-        pred_noise = self.denoise_net(x, t, context=context)
-        x_start = self.predict_start_from_noise(x, t=t, noise=pred_noise)
-        return self.q_posterior(x_start=x_start, x_t=x, t=t)
-
-    @torch.no_grad()
-    def sample(self, context):
-        batch_size, _, seq_len = context.shape
-        shape = (batch_size, self.data_dim, seq_len)
-        device = self.betas.device
-
-        img = torch.randn(shape, device=device)
-
-        for t in tqdm(
-            reversed(range(0, self.num_timesteps)),
-            desc="sampling loop",
-            total=self.num_timesteps,
-        ):
-            img = self.p_sample(img, t, context)
-
-        return img
-
-    def forward(self, x_0, y):
+        Args:
+            x_0 (torch.Tensor): The clean target data (e.g., runoff) with shape
+                [batch, data_dim, seq_len].
+            y (torch.Tensor): The conditioning data (e.g., rainfall) with shape
+                [batch, condition_dim, seq_len].
+        """
         batch_size = x_0.shape[0]
+        device = x_0.device
 
-        t = torch.randint(
-            0, self.num_timesteps, (batch_size,), device=x_0.device
-        ).long()
+        # 1. Sample noise
         noise = torch.randn_like(x_0)
 
-        x_t = self.q_sample(x_start=x_0, t=t, noise=noise)
+        # 2. Sample a random timestep for each sequence
+        timesteps = torch.randint(
+            low=0,
+            high=self.scheduler.config.num_train_timesteps,
+            size=(batch_size,),
+            device=device,
+        ).long()
 
-        predicted_noise = self.denoise_net(x_t, t, context=y)
+        # 3. Add noise to the clean data to get the noisy data
+        #    for the given timesteps
+        noisy_data = self.scheduler.add_noise(x_0, noise, timesteps)
 
-        loss = nn.functional.mse_loss(predicted_noise, noise)
+        # 4. Predict the noise residual
+        predicted_noise = self.denoise_net(
+            sample=noisy_data, timestep=timesteps, encoder_hidden_states=y
+        )
+
+        # 5. Calculate the loss
+        loss = F.mse_loss(predicted_noise, noise)
 
         return {"loss": loss}
+
+    @torch.no_grad()
+    def sample(self, context: torch.Tensor) -> torch.Tensor:
+        """
+        Inference method to generate samples from noise.
+
+        Args:
+            context (torch.Tensor): Conditioning data, e.g. rainfall, with shape
+                [batch, condition_dim, seq_len].
+        """
+        batch_size, _, seq_len = context.shape
+        device = context.device
+
+        # Start with random noise.
+        # Shape must match the data dimension (not the condition dimension).
+        data_dim = self.cfgs["model"]["diffusion"]["data_dim"]
+        sample = torch.randn(batch_size, data_dim, seq_len, device=device)
+
+        # Set the number of inference steps.
+        self.scheduler.set_timesteps(self.scheduler.config.num_train_timesteps)
+
+        # Loop through the timesteps to denoise the data.
+        for t in tqdm(self.scheduler.timesteps, desc="Sampling loop"):
+            # Predict the noise residual.
+            noise_pred = self.denoise_net(
+                sample=sample, timestep=t, encoder_hidden_states=context
+            )
+            # Compute the previous noisy sample x_t -> x_{t-1}.
+            sample = self.scheduler.step(noise_pred, t, sample).prev_sample
+
+        return sample

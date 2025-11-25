@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2025-11-25
-LastEditTime: 2025-11-25 17:42:43
+LastEditTime: 2025-11-25 18:51:13
 LastEditors: Wenyu Ouyang
 Description: Test function for MoE model
 FilePath: \torchhydro\tests\test_moe.py
@@ -12,7 +12,7 @@ import torch
 from torchhydro.models.moe import MoE
 
 
-def test_moe_model():
+def test_moe_model() -> None:
     """
     Test the forward pass of the MoE model.
     """
@@ -55,7 +55,7 @@ def test_moe_model():
     assert output.shape == (batch_size, ny)
 
 
-def test_moe_model_with_sequence():
+def test_moe_model_with_sequence() -> None:
     """
     Test the forward pass of the MoE model with sequence data.
     """

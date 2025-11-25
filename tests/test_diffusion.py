@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2025-11-25 17:43:01
-LastEditTime: 2025-11-25 17:53:02
+LastEditTime: 2025-11-25 20:37:01
 LastEditors: Wenyu Ouyang
-Description: 
+Description: Test functions for Diffusion model
 FilePath: \torchhydro\tests\test_diffusion.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 import torch
 import pytest
 
@@ -14,7 +15,7 @@ from torchhydro.models.diffusion import ConditionalDiffusionModel
 
 
 @pytest.fixture
-def dummy_cfgs():
+def dummy_cfgs() -> dict:
     """Provides a dummy configuration for the LSTM diffusion model."""
     return {
         "model": {
@@ -34,7 +35,7 @@ def dummy_cfgs():
     }
 
 
-def test_diffusion_model_instantiation(dummy_cfgs):
+def test_diffusion_model_instantiation(dummy_cfgs: dict) -> None:
     """Tests if the model can be instantiated without errors."""
     try:
         model = ConditionalDiffusionModel(dummy_cfgs)
@@ -43,7 +44,7 @@ def test_diffusion_model_instantiation(dummy_cfgs):
         pytest.fail(f"Failed to instantiate ConditionalDiffusionModel: {e}")
 
 
-def test_diffusion_model_dimensions(dummy_cfgs):
+def test_diffusion_model_dimensions(dummy_cfgs: dict) -> None:
     """
     Tests the input/output dimensions of the forward (training) and sample (inference) methods.
     """
