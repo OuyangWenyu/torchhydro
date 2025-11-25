@@ -65,11 +65,17 @@ from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
 from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
 from torchhydro.models.dpl4gr4j import DplLstmGr4j, DplAnnGr4j
+from torchhydro.models.moe import MoE
+from torchhydro.models.ann import SimpleAnn
 
 """
 Utility dictionaries to map a string to a class.
 """
 pytorch_model_dict = {
+    # MoE model
+    "MoE": MoE,
+    # ANN models
+    "SimpleAnn": SimpleAnn,
     # LSTM models from Group MHPI
     "KuaiLSTM": CudnnLstmModel,
     "CpuLSTM": CpuLstmModel,
