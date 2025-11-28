@@ -126,6 +126,17 @@ class MoE(nn.Module):
             model.to(device)
         return model
 
+    def to(self, *args, **kwargs):
+        """
+        Override to() to ensure experts stay on their assigned devices.
+        """
+        super().to(*args, **kwargs)
+        # Move experts back to their assigned devices
+        for i, expert in enumerate(self.experts):
+            if self.expert_devices[i] is not None:
+                expert.to(self.expert_devices[i])
+        return self
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass for the MoE model.
@@ -207,18 +218,26 @@ class MoE(nn.Module):
         expert_outputs = []
         for i, expert in enumerate(self.experts):
             # Move input to expert device
-            inp = x
-            if self.expert_devices[i] is not None:
-                inp = inp.to(self.expert_devices[i])
+            # Dynamically check expert's device to be robust against external moves
+            try:
+                expert_device = next(expert.parameters()).device
+            except StopIteration:
+                # Expert has no parameters, use configured device or default to x.device
+                expert_device = (
+                    self.expert_devices[i]
+                    if self.expert_devices[i] is not None
+                    else x.device
+                )
 
+            inp = x.to(expert_device)
             output = expert(inp)
+
             # Some models like SimpleLSTM return a tuple (output, state)
             if isinstance(output, tuple):
                 output = output[0]
 
             # Move output back to original device
-            if self.expert_devices[i] is not None:
-                output = output.to(x.device)
+            output = output.to(x.device)
 
             expert_outputs.append(output)
 
@@ -343,16 +362,24 @@ class MoE(nn.Module):
                 inp = torch.stack(expert_inputs[i])
 
                 # Move to expert device
-                if self.expert_devices[i] is not None:
-                    inp = inp.to(self.expert_devices[i])
+                # Dynamically check expert's device
+                try:
+                    expert_device = next(expert.parameters()).device
+                except StopIteration:
+                    expert_device = (
+                        self.expert_devices[i]
+                        if self.expert_devices[i] is not None
+                        else x.device
+                    )
+
+                inp = inp.to(expert_device)
 
                 out = expert(inp)
                 if isinstance(out, tuple):
                     out = out[0]
 
                 # Move back to original device
-                if self.expert_devices[i] is not None:
-                    out = out.to(x.device)
+                out = out.to(x.device)
 
                 results.append(out)
             else:

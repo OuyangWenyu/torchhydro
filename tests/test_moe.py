@@ -335,3 +335,47 @@ def test_moe_device_distribution() -> None:
     input_tensor = torch.randn(batch_size, nx)
     output = model(input_tensor)
     assert output.shape == (batch_size, ny)
+
+
+def test_moe_device_persistence() -> None:
+    """
+    Test that experts stay on their assigned devices even after model.to() is called.
+    """
+    nx = 10
+    ny = 5
+    n_experts = 2
+    # Simulate different devices (using cpu for test environment)
+    expert_devices = ["cpu", "cpu"]
+
+    experts_cfgs = [
+        {
+            "model_name": "SimpleAnn",
+            "model_hyperparam": {"nx": nx, "ny": ny, "hidden_size": [20, 20]},
+        }
+        for _ in range(n_experts)
+    ]
+
+    gating_cfgs = {
+        "model_name": "SimpleAnn",
+        "model_hyperparam": {"nx": nx, "ny": n_experts, "hidden_size": [15]},
+    }
+
+    model = MoE(
+        n_experts=n_experts,
+        experts_cfgs=experts_cfgs,
+        gating_cfgs=gating_cfgs,
+        expert_devices=expert_devices,
+    )
+
+    # Call model.to("cpu") - this mimics what the trainer does
+    model.to("cpu")
+
+    # Check if experts are still on the expected devices (which are "cpu" in this test)
+    # In a real multi-gpu env, we would check against cuda:0, cuda:1 etc.
+    # Here we verify the logic executes without error and devices match config.
+    for i, expert in enumerate(model.experts):
+        # Check device of first parameter
+        param = next(expert.parameters())
+        assert str(param.device) == "cpu"
+        # Also verify our stored config matches
+        assert model.expert_devices[i] == expert_devices[i]
