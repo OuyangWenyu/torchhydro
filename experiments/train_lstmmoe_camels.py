@@ -49,8 +49,13 @@ def main():
                 "capacity_factor": 1.0,
                 "load_balance_loss_coef": 0.01,
                 "noisy_gating": True,
+                "dist": {
+                    "backend": "nccl",
+                    "use_ddp": True,
+                    "use_fsdp": True,  # Enable FSDP
+                },
                 # 多卡时可以指定专家放到不同 GPU；单卡就用 None
-                "expert_devices": [f"cuda:{i % 3}" for i in range(16)],
+                # "expert_devices": ["cuda:0", "cuda:1", "cuda:2"],
                 # ------- Experts: SimpleAnn MLPs -------
                 "experts_cfgs": [
                     {

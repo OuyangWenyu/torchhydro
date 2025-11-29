@@ -44,7 +44,7 @@ class MoE(nn.Module):
         capacity_factor: float = None,
         load_balance_loss_coef: float = 0.0,
         noisy_gating: bool = False,
-        expert_devices: list = None,
+        noisy_gating: bool = False,
         **kwargs: dict,
     ) -> None:
         """Initializes the MoE model.
@@ -67,9 +67,6 @@ class MoE(nn.Module):
                 (Soft Balancing). Defaults to 0.0.
             noisy_gating (bool, optional): If True, add noise to gating logits (for Sparse MoE).
                 Defaults to False.
-            expert_devices (list, optional): A list of device strings (e.g., ['cuda:0', 'cuda:1'])
-                for each expert. If None, all experts are on the same device as the model.
-                Defaults to None.
             **kwargs (dict): Additional keyword arguments.
         """
         super(MoE, self).__init__()
@@ -85,22 +82,9 @@ class MoE(nn.Module):
         self.noisy_gating = noisy_gating
         self.aux_loss = 0.0
 
-        if expert_devices is not None:
-            if len(expert_devices) != n_experts:
-                # Round-robin assignment if lengths don't match
-                self.expert_devices = [
-                    expert_devices[i % len(expert_devices)] for i in range(n_experts)
-                ]
-            else:
-                self.expert_devices = expert_devices
-        else:
-            self.expert_devices = [None] * n_experts
-
         self.experts = nn.ModuleList(
             [
-                self._create_expert(
-                    expert_cfg, pytorch_model_dict, device=self.expert_devices[i]
-                )
+                self._create_expert(expert_cfg, pytorch_model_dict)
                 for i, expert_cfg in enumerate(experts_cfgs)
             ]
         )
@@ -120,14 +104,12 @@ class MoE(nn.Module):
         self,
         expert_cfg: Dict[str, Any],
         pytorch_model_dict: Mapping[str, Type[nn.Module]],
-        device: str = None,
     ) -> nn.Module:
         """Helper function to create an expert model from its configuration.
 
         Args:
             expert_cfg (Dict[str, Any]): Configuration for the expert.
             pytorch_model_dict (Mapping[str, Type[nn.Module]]): Dictionary mapping model names to classes.
-            device (str, optional): Device to place the expert on. Defaults to None.
 
         Returns:
             nn.Module: The instantiated expert model.
@@ -136,26 +118,7 @@ class MoE(nn.Module):
         model_hyperparam = expert_cfg["model_hyperparam"]
         cls = pytorch_model_dict[model_name]
         model = cls(**model_hyperparam)
-        if device is not None:
-            model.to(device)
         return model
-
-    def to(self, *args, **kwargs):
-        """Override to() to ensure experts stay on their assigned devices.
-
-        Args:
-            *args: Positional arguments passed to super().to().
-            **kwargs: Keyword arguments passed to super().to().
-
-        Returns:
-            self: The model instance.
-        """
-        super().to(*args, **kwargs)
-        # Move experts back to their assigned devices
-        for i, expert in enumerate(self.experts):
-            if self.expert_devices[i] is not None:
-                expert.to(self.expert_devices[i])
-        return self
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass for the MoE model.
@@ -232,27 +195,12 @@ class MoE(nn.Module):
 
         expert_outputs = []
         for i, expert in enumerate(self.experts):
-            # Move input to expert device
-            # Dynamically check expert's device to be robust against external moves
-            try:
-                expert_device = next(expert.parameters()).device
-            except StopIteration:
-                # Expert has no parameters, use configured device or default to x.device
-                expert_device = (
-                    self.expert_devices[i]
-                    if self.expert_devices[i] is not None
-                    else x.device
-                )
-
-            inp = x.to(expert_device)
-            output = expert(inp)
+            # No manual device movement needed for FSDP
+            output = expert(x)
 
             # Some models like SimpleLSTM return a tuple (output, state)
             if isinstance(output, tuple):
                 output = output[0]
-
-            # Move output back to original device
-            output = output.to(x.device)
 
             expert_outputs.append(output)
 
@@ -376,25 +324,10 @@ class MoE(nn.Module):
                 # Stack inputs: [batch_assigned, ...]
                 inp = torch.stack(expert_inputs[i])
 
-                # Move to expert device
-                # Dynamically check expert's device
-                try:
-                    expert_device = next(expert.parameters()).device
-                except StopIteration:
-                    expert_device = (
-                        self.expert_devices[i]
-                        if self.expert_devices[i] is not None
-                        else x.device
-                    )
-
-                inp = inp.to(expert_device)
-
+                # No manual device movement needed for FSDP
                 out = expert(inp)
                 if isinstance(out, tuple):
                     out = out[0]
-
-                # Move back to original device
-                out = out.to(x.device)
 
                 results.append(out)
             else:
@@ -422,11 +355,7 @@ class MoE(nn.Module):
         else:
             # Fallback if absolutely nothing ran (unlikely unless batch=0)
             # Try running expert 0 on x[0:1] to get shape
-            dummy_out = self.experts[0](
-                x[0:1].to(
-                    self.expert_devices[0] if self.expert_devices[0] else x.device
-                )
-            )
+            dummy_out = self.experts[0](x[0:1])
             if isinstance(dummy_out, tuple):
                 dummy_out = dummy_out[0]
             return torch.zeros((batch_size, *dummy_out.shape[1:]), device=x.device)

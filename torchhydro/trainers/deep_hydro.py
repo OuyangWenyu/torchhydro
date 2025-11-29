@@ -242,8 +242,16 @@ class DeepHydro(DeepHydroInterface):
         data_loader, validation_data_loader = self._get_dataloader(
             training_cfgs, data_cfgs
         )
+
+        dist_info = self.cfgs.get("dist_info", {})
+        is_dist = dist_info.get("is_dist", False)
+        rank = dist_info.get("rank", 0)
+
         logger = TrainLogger(model_filepath, self.cfgs, opt)
         for epoch in range(start_epoch, max_epochs + 1):
+            if is_dist and hasattr(data_loader.sampler, "set_epoch"):
+                data_loader.sampler.set_epoch(epoch)
+
             with logger.log_epoch_train(epoch) as train_logs:
                 total_loss, n_iter_ep = torch_single_train(
                     self.model,
@@ -258,24 +266,27 @@ class DeepHydro(DeepHydroInterface):
 
             valid_loss = None
             valid_metrics = None
-            if data_cfgs["t_range_valid"] is not None:
-                with logger.log_epoch_valid(epoch) as valid_logs:
-                    valid_loss, valid_metrics = self._1epoch_valid(
-                        training_cfgs, criterion, validation_data_loader, valid_logs
-                    )
 
-            self._scheduler_step(training_cfgs, scheduler, valid_loss)
-            logger.save_session_param(
-                epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
-            )
-            logger.save_model_and_params(self.model, epoch, self.cfgs)
-            if es and not es.check_loss(
-                self.model,
-                valid_loss,
-                self.cfgs["data_cfgs"]["case_dir"],
-            ):
-                print("Stopping model now")
-                break
+            # Only validate and save on rank 0
+            if (not is_dist) or rank == 0:
+                if data_cfgs["t_range_valid"] is not None:
+                    with logger.log_epoch_valid(epoch) as valid_logs:
+                        valid_loss, valid_metrics = self._1epoch_valid(
+                            training_cfgs, criterion, validation_data_loader, valid_logs
+                        )
+
+                self._scheduler_step(training_cfgs, scheduler, valid_loss)
+                logger.save_session_param(
+                    epoch, total_loss, n_iter_ep, valid_loss, valid_metrics
+                )
+                logger.save_model_and_params(self.model, epoch, self.cfgs)
+                if es and not es.check_loss(
+                    self.model,
+                    valid_loss,
+                    self.cfgs["data_cfgs"]["case_dir"],
+                ):
+                    print("Stopping model now")
+                    break
         # logger.plot_model_structure(self.model)
         logger.tb.close()
 
@@ -519,11 +530,29 @@ class DeepHydro(DeepHydroInterface):
                 except ImportError:
                     print("PyG not available, falling back to standard DataLoader")
 
+            # Check for distributed info
+            dist_info = self.cfgs.get("dist_info", {})
+            is_dist = dist_info.get("is_dist", False)
+            rank = dist_info.get("rank", 0)
+            world_size = dist_info.get("world_size", 1)
+
+            sampler = None
+            if is_dist:
+                from torch.utils.data import DistributedSampler
+
+                sampler = DistributedSampler(
+                    self.testdataset,
+                    num_replicas=world_size,
+                    rank=rank,
+                    shuffle=False,
+                    drop_last=False,
+                )
+
             return DataLoader(
                 self.testdataset,
                 batch_size=training_cfgs["batch_size"],
                 shuffle=False,
-                sampler=None,
+                sampler=sampler,
                 batch_sampler=None,
                 drop_last=False,
                 timeout=0,
@@ -538,7 +567,25 @@ class DeepHydro(DeepHydroInterface):
         if "pin_memory" in training_cfgs:
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
-        sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
+        # Check for distributed info
+        dist_info = self.cfgs.get("dist_info", {})
+        is_dist = dist_info.get("is_dist", False)
+        rank = dist_info.get("rank", 0)
+        world_size = dist_info.get("world_size", 1)
+
+        if is_dist:
+            from torch.utils.data import DistributedSampler
+
+            sampler = DistributedSampler(
+                self.traindataset,
+                num_replicas=world_size,
+                rank=rank,
+                shuffle=True,
+                drop_last=False,
+            )
+        else:
+            sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
+
         _collate_fn = None
         if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
             _collate_fn = varied_length_collate_fn
@@ -562,7 +609,9 @@ class DeepHydro(DeepHydroInterface):
                 data_loader = PyGDataLoader(
                     self.traindataset,
                     batch_size=training_cfgs["batch_size"],
-                    shuffle=(sampler is None),
+                    shuffle=(
+                        sampler is None
+                    ),  # PyG DataLoader handles shuffle with sampler
                     num_workers=(
                         worker_num if worker_num > 0 else 0
                     ),  # PyG may not support workers well
@@ -604,10 +653,23 @@ class DeepHydro(DeepHydroInterface):
             ):
                 _val_collate_fn = gnn_collate_fn
 
+            valid_sampler = None
+            if is_dist:
+                from torch.utils.data import DistributedSampler
+
+                valid_sampler = DistributedSampler(
+                    self.validdataset,
+                    num_replicas=world_size,
+                    rank=rank,
+                    shuffle=False,
+                    drop_last=False,
+                )
+
             validation_data_loader = DataLoader(
                 self.validdataset,
                 batch_size=training_cfgs["batch_size"],
                 shuffle=False,
+                sampler=valid_sampler,
                 num_workers=worker_num,
                 pin_memory=pin_memory,
                 timeout=0,
