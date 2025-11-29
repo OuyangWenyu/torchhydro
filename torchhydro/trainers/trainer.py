@@ -67,6 +67,9 @@ def train_and_evaluate(cfgs: Dict):
     # 2. Override ctx logic
     if is_dist:
         cfgs["ctx"] = [local_rank]
+        # Also update training_cfgs device to ensure FabricWrapper gets the correct device
+        if "training_cfgs" in cfgs:
+            cfgs["training_cfgs"]["device"] = [local_rank]
     else:
         if "ctx" not in cfgs or cfgs["ctx"] is None:
             cfgs["ctx"] = [0]

@@ -44,7 +44,6 @@ class MoE(nn.Module):
         capacity_factor: float = None,
         load_balance_loss_coef: float = 0.0,
         noisy_gating: bool = False,
-        noisy_gating: bool = False,
         **kwargs: dict,
     ) -> None:
         """Initializes the MoE model.
