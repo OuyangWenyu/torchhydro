@@ -18,6 +18,7 @@ from torchhydro.models.cudnnlstm import (
     CudnnLstmModelLstmKernel,
     CudnnLstmModelMultiOutput,
     CpuLstmModel,
+    CudnnLstmMoE,
 )
 
 from torchhydro.models.simple_lstm import (
@@ -74,6 +75,7 @@ Utility dictionaries to map a string to a class.
 pytorch_model_dict = {
     # MoE model
     "MoE": MoE,
+    "MoELSTM": CudnnLstmMoE,
     # ANN models
     "SimpleAnn": SimpleAnn,
     # LSTM models from Group MHPI

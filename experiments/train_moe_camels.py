@@ -29,7 +29,7 @@ def main():
     n_input_features = 23
     n_output_features = 1
     n_hidden_states = 256
-    forecast_length = 20
+    forecast_length = 365
 
     args = cmd(
         # Experiment name and output directory
@@ -39,40 +39,46 @@ def main():
         # Use CPU for this example. To use GPU, set it to [0], [0, 1], etc.
         ctx=[-1],
         # --- Model selection and hyperparameters for MoE Model ---
-        model_name="MoE",
-                model_hyperparam={
-                    "n_experts": 2,
-                    "gating_mode": "last", # Use the LAST time step to inform the gating network
-                    # Configuration for the two LSTM experts
-                    "experts_cfgs": [
-                        {
-                            "model_name": "CpuLSTM",
-                            "model_hyperparam": {
-                                "n_input_features": n_input_features,
-                                "n_output_features": n_output_features,
-                                "n_hidden_states": n_hidden_states,
-                            },
-                        },
-                        {
-                            "model_name": "CpuLSTM",
-                            "model_hyperparam": {
-                                "n_input_features": n_input_features,
-                                "n_output_features": n_output_features,
-                                "n_hidden_states": n_hidden_states,
-                            },
-                        },
-                    ],
-                    # Configuration for the gating network (a simple MLP)
-                    "gating_cfgs": {
+        model_name="MoELSTM",
+        model_hyperparam={
+            "n_input_features": n_input_features,
+            "n_output_features": n_output_features,
+            "n_hidden_states": n_hidden_states,
+            "moe_cfgs": {
+                "n_experts": 16,
+                "top_k": 2,
+                "gating_mode": "full",
+                "capacity_factor": 1.0,
+                "load_balance_loss_coef": 0.01,
+                "noisy_gating": True,
+                "expert_devices": None,
+                "experts_cfgs": [
+                    {
                         "model_name": "SimpleAnn",
                         "model_hyperparam": {
-                            # Input to the gate will now be from the last time step
-                            "nx": n_input_features, 
-                            "hidden_size": [64, 16], # Hidden layers of the gating network
-                            # 'ny' will be automatically set to n_experts by the MoE model
+                            "nx": n_hidden_states,
+                            "ny": n_hidden_states,
+                            "hidden_size": [n_hidden_states * 4],
+                            "dr": 0.0,
+                            "activation": "gelu",
+                            "normalization": None,
                         },
+                    }
+                    for _ in range(16)
+                ],
+                "gating_cfgs": {
+                    "model_name": "SimpleAnn",
+                    "model_hyperparam": {
+                        "nx": n_hidden_states,
+                        "hidden_size": [n_hidden_states],
+                        "dr": 0.0,
+                        "activation": "gelu",
+                        "normalization": "RMSNorm",
+                        # "ny" will be overwritten by MoE: ny = n_experts
                     },
                 },
+            },
+        },
         # Basin IDs for training and evaluation
         gage_id=[
             "01013500",

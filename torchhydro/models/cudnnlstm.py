@@ -616,3 +616,68 @@ class CudnnLstmModelMultiOutput(nn.Module):
         outs = [mod(out_lstm) for mod in self.multi_layers]
         final = torch.cat(outs, dim=-1)
         return (final, (hn, cn)) if return_h_c else final
+
+
+class CudnnLstmMoE(CudnnLstmModel):
+    def __init__(
+        self,
+        n_input_features,
+        n_output_features,
+        n_hidden_states,
+        moe_cfgs,
+        dr=0.4,
+    ):
+        """
+        CudnnLstmModel with MoE layer inserted after LSTM output.
+
+        Parameters
+        ----------
+        moe_cfgs : dict
+            Configuration dictionary for the MoE model.
+        """
+        super(CudnnLstmMoE, self).__init__(
+            n_input_features, n_output_features, n_hidden_states, dr
+        )
+        # Import here to avoid circular dependency
+        from torchhydro.models.moe import MoE
+
+        self.moe_layer = MoE(**moe_cfgs)
+
+    def forward(self, x, do_drop_mc=False, dropout_false=False):
+        # Replicate CudnnLstmModel logic up to LSTM output
+        out_lstm, (hn, cn) = self.lstm(
+            x, do_drop_mc=do_drop_mc, dropout_false=dropout_false
+        )
+
+        # out_lstm is [seq_len, batch_size, hidden_size]
+        seq_len, batch_size, hidden_size = out_lstm.shape
+
+        # Flatten to [batch_size * seq_len, hidden_size] for token-level MoE
+        # We use permute to ensure batch and seq are adjacent before flattening if we want batch-first logic,
+        # but flattening [seq, batch] directly is also fine as long as we reshape back correctly.
+        # However, MoE usually expects [batch, ...] logic for some internal things?
+        # Actually MoE just takes [N, D].
+        # Let's permute to [batch, seq, hidden] first to be safe and consistent with typical batch-first expectation.
+        out_lstm = (
+            out_lstm.permute(1, 0, 2)
+            .contiguous()
+            .view(batch_size * seq_len, hidden_size)
+        )
+
+        # Pass through MoE
+        # MoE output will be [batch_size * seq_len, moe_output_size]
+        out_moe = self.moe_layer(out_lstm)
+
+        # Reshape back to [batch, seq, moe_output_size]
+        moe_output_size = out_moe.shape[-1]
+        out_moe = out_moe.view(batch_size, seq_len, moe_output_size)
+
+        # Permute back to [seq, batch, moe_output_size] for LinearOut (which expects time-first usually in this repo?)
+        # CudnnLSTMModel linearOut applies to the last dimension, so shape doesn't matter for Linear,
+        # but the return shape should match CudnnLSTMModel expectation [seq, batch, ny].
+        out_moe = out_moe.permute(1, 0, 2)
+
+        # Apply LinearOut
+        out = self.linearOut(out_moe)
+
+        return out

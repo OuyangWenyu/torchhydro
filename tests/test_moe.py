@@ -8,6 +8,7 @@ FilePath: \torchhydro\tests\test_moe.py
 Copyright (c) 2023-2025 Wenyu Ouyang. All rights reserved.
 """
 
+import pytest
 import torch
 from torchhydro.models.moe import MoE
 

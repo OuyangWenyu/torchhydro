@@ -45,6 +45,11 @@ def main():
         model_hyperparam={
             "n_experts": 8,
             "gating_mode": "last",  # Use the LAST time step to inform the gating network
+            "topk": 2,
+            "load_balance_loss_coef": 0.01,
+            "noisy_gating": True,
+            "expert_devices": ["cuda:0", "cuda:1", "cuda:2"],
+            "normalization": "RMSNorm",
             # Configuration for the two LSTM experts
             "experts_cfgs": [
                 {
@@ -118,7 +123,7 @@ def main():
                 "model_hyperparam": {
                     # Input to the gate will now be from the last time step
                     "nx": n_input_features,
-                    "hidden_size": [128, 64],  # Hidden layers of the gating network
+                    "hidden_size": 0,  # Hidden layers of the gating network
                     # 'ny' will be automatically set to n_experts by the MoE model
                 },
             },
