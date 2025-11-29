@@ -15,8 +15,23 @@ from typing import Any, Dict, Mapping, Type
 
 
 class MoE(nn.Module):
-    """
-    A Mixture of Experts (MoE) model supporting both Dense and Sparse routing.
+    """A Mixture of Experts (MoE) model supporting both Dense and Sparse routing.
+
+    This model implements a Mixture of Experts architecture where input tokens are routed
+    to a subset of expert models (Sparse MoE) or all experts (Dense MoE). It supports
+    various gating mechanisms, load balancing strategies, and distributed training.
+
+    Attributes:
+        n_experts (int): Number of expert models.
+        gating_mode (str): 'full' or 'last'. Determines input to gating network.
+        top_k (int): Number of experts to route to (for Sparse MoE).
+        capacity_factor (float): Factor for hard balancing capacity.
+        load_balance_loss_coef (float): Coefficient for auxiliary load balancing loss.
+        noisy_gating (bool): Whether to add noise to gating logits.
+        expert_devices (list): List of devices for each expert.
+        experts (nn.ModuleList): List of expert modules.
+        gating_network (nn.Module): Gating network module.
+        aux_loss (float): Auxiliary loss value for the current forward pass.
     """
 
     def __init__(
@@ -32,38 +47,30 @@ class MoE(nn.Module):
         expert_devices: list = None,
         **kwargs: dict,
     ) -> None:
-        """
-        __init__ method for the MoE model.
+        """Initializes the MoE model.
 
-        Parameters
-        ----------
-        n_experts
-            Number of expert models.
-        experts_cfgs
-            A list of configurations for each expert model.
-            Each configuration is a dictionary with 'model_name' and
-            'model_hyperparam'.
-        gating_cfgs
-            Configuration for the gating network. It is a dictionary with
-            'model_name' and 'model_hyperparam'.
-        gating_mode
-            'full' or 'last'. If 'full', the full input is passed to the gating
-            network. If 'last', only the last time step is used (for sequence
-            data).
-        top_k
-            If not None, use Sparse MoE with Top-K gating.
-            If None, use Dense MoE (all experts run).
-        capacity_factor
-            Used for Hard Balancing in Sparse MoE.
-            Capacity = tokens_per_batch * capacity_factor / n_experts.
-            If None, defaults to 1.0 (if top_k is set).
-        load_balance_loss_coef
-            Coefficient for the auxiliary load balancing loss (Soft Balancing).
-        noisy_gating
-            If True, add noise to gating logits (for Sparse MoE).
-        expert_devices
-            A list of device strings (e.g., ['cuda:0', 'cuda:1']) for each expert.
-            If None, all experts are on the same device as the model.
+        Args:
+            n_experts (int): Number of expert models.
+            experts_cfgs (list): A list of configurations for each expert model.
+                Each configuration is a dictionary with 'model_name' and 'model_hyperparam'.
+            gating_cfgs (dict): Configuration for the gating network.
+                It is a dictionary with 'model_name' and 'model_hyperparam'.
+            gating_mode (str, optional): 'full' or 'last'. If 'full', the full input is passed
+                to the gating network. If 'last', only the last time step is used (for sequence data).
+                Defaults to "full".
+            top_k (int, optional): If not None, use Sparse MoE with Top-K gating.
+                If None, use Dense MoE (all experts run). Defaults to None.
+            capacity_factor (float, optional): Used for Hard Balancing in Sparse MoE.
+                Capacity = tokens_per_batch * capacity_factor / n_experts.
+                If None, defaults to 1.0 (if top_k is set). Defaults to None.
+            load_balance_loss_coef (float, optional): Coefficient for the auxiliary load balancing loss
+                (Soft Balancing). Defaults to 0.0.
+            noisy_gating (bool, optional): If True, add noise to gating logits (for Sparse MoE).
+                Defaults to False.
+            expert_devices (list, optional): A list of device strings (e.g., ['cuda:0', 'cuda:1'])
+                for each expert. If None, all experts are on the same device as the model.
+                Defaults to None.
+            **kwargs (dict): Additional keyword arguments.
         """
         super(MoE, self).__init__()
         # to avoid circular import, import model_dict_function here
@@ -115,8 +122,15 @@ class MoE(nn.Module):
         pytorch_model_dict: Mapping[str, Type[nn.Module]],
         device: str = None,
     ) -> nn.Module:
-        """
-        Helper function to create an expert model from its configuration.
+        """Helper function to create an expert model from its configuration.
+
+        Args:
+            expert_cfg (Dict[str, Any]): Configuration for the expert.
+            pytorch_model_dict (Mapping[str, Type[nn.Module]]): Dictionary mapping model names to classes.
+            device (str, optional): Device to place the expert on. Defaults to None.
+
+        Returns:
+            nn.Module: The instantiated expert model.
         """
         model_name = expert_cfg["model_name"]
         model_hyperparam = expert_cfg["model_hyperparam"]
@@ -127,8 +141,14 @@ class MoE(nn.Module):
         return model
 
     def to(self, *args, **kwargs):
-        """
-        Override to() to ensure experts stay on their assigned devices.
+        """Override to() to ensure experts stay on their assigned devices.
+
+        Args:
+            *args: Positional arguments passed to super().to().
+            **kwargs: Keyword arguments passed to super().to().
+
+        Returns:
+            self: The model instance.
         """
         super().to(*args, **kwargs)
         # Move experts back to their assigned devices
@@ -138,18 +158,13 @@ class MoE(nn.Module):
         return self
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass for the MoE model.
+        """Forward pass for the MoE model.
 
-        Parameters
-        ----------
-        x
-            Input tensor.
+        Args:
+            x (torch.Tensor): Input tensor.
 
-        Returns
-        -------
-        torch.Tensor
-            The output of the MoE model.
+        Returns:
+            torch.Tensor: The output of the MoE model.
         """
         if self.gating_mode == "last":
             # Use the last time step for gating, assuming input is a sequence
@@ -499,20 +514,22 @@ def get_norm(norm_type: str, hidden_size: int):
 
 
 class LSTMMoE(nn.Module):
-    """LSTM + Mixture-of-Experts (MoE) model for hydrological forecasting.
+    """LSTM + Mixture-of-Experts (MoE) model.
 
-    This model consists of the following pipeline:
-        - Linear input projection + optional normalization + activation
-        - LSTM encoder
-        - Token-level Mixture-of-Experts (MoE)
-        - Linear output projection
-
-    The activation type and normalization type can be configured.
+    This model combines an LSTM encoder with a Mixture-of-Experts layer.
+    It supports two modes of MoE integration:
+    - sequence-level: One routing decision for the entire sequence (based on last hidden state).
+    - token-level: Routing decision for each time step.
 
     Attributes:
+        moe_level (str): 'sequence' or 'token'.
+        nx (int): Number of input features.
+        ny (int): Number of output features.
+        hidden_size (int): Hidden size of LSTM and experts.
         linearIn (nn.Linear): Input projection layer.
-        input_norm (nn.Module): Normalization layer.
-        input_act (nn.Module): Activation function.
+        input_norm (nn.Module): Input normalization layer.
+        input_act (nn.Module): Input activation layer.
+        dropout (nn.Dropout): Input dropout layer.
         lstm (nn.LSTM): LSTM encoder.
         moe_layer (MoE): Mixture-of-Experts layer.
         linearOut (nn.Linear): Output projection layer.
@@ -524,6 +541,7 @@ class LSTMMoE(nn.Module):
         n_output_features: int,
         n_hidden_states: int,
         moe_cfgs: dict,
+        moe_level: str = "sequence",
         activation: str = "gelu",
         normalization: str = "rmsnorm",
         dr: float = 0.1,
@@ -531,17 +549,19 @@ class LSTMMoE(nn.Module):
         """Initializes the LSTMMoE model.
 
         Args:
-            n_input_features (int): Number of input time-series features.
-            n_output_features (int): Number of output features (typically 1).
-            n_hidden_states (int): Hidden dimension of LSTM and MoE experts.
+            n_input_features (int): Number of input features.
+            n_output_features (int): Number of output features.
+            n_hidden_states (int): Hidden size for LSTM and experts.
             moe_cfgs (dict): Configuration dictionary for the MoE layer.
-            activation (str, optional): Activation type ('relu' or 'gelu').
-                Defaults to 'gelu'.
-            normalization (str, optional): Normalization type ('layernorm',
-                'rmsnorm', or None). Defaults to 'rmsnorm'.
+            moe_level (str, optional): 'sequence' or 'token'. Defaults to "sequence".
+            activation (str, optional): Activation function name ('relu', 'gelu'). Defaults to "gelu".
+            normalization (str, optional): Normalization type ('layernorm', 'rmsnorm', None). Defaults to "rmsnorm".
             dr (float, optional): Dropout rate. Defaults to 0.1.
         """
         super().__init__()
+
+        assert moe_level in ["sequence", "token"], f"Unsupported moe_level: {moe_level}"
+        self.moe_level = moe_level
 
         self.nx = n_input_features
         self.ny = n_output_features
@@ -568,19 +588,16 @@ class LSTMMoE(nn.Module):
         self.linearOut = nn.Linear(n_hidden_states, n_output_features)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass of LSTMMoE.
+        """Forward pass for the LSTMMoE model.
 
         Args:
-            x (torch.Tensor):
-                Input tensor of shape [seq_len, batch_size, n_input_features].
+            x (torch.Tensor): Input tensor of shape [S, B, F] (sequence-first).
 
         Returns:
-            torch.Tensor:
-                Output tensor of shape [seq_len, batch_size, n_output_features].
+            torch.Tensor: Output tensor of shape [S, B, ny] (sequence-first).
         """
-        # Convert to batch-first: [B, S, F]
         seq_len, batch_size, _ = x.shape
-        x = x.permute(1, 0, 2)
+        x = x.permute(1, 0, 2)  # -> [B, S, F]
 
         # Input projection
         x = self.linearIn(x)
@@ -588,17 +605,34 @@ class LSTMMoE(nn.Module):
         x = self.input_act(x)
         x = self.dropout(x)
 
-        # LSTM encoder
-        lstm_out, _ = self.lstm(x)  # [B, S, H]
+        # LSTM encoder → [B, S, H]
+        lstm_out, _ = self.lstm(x)
         B, S, H = lstm_out.shape
 
-        # Token-level MoE
-        tokens = lstm_out.reshape(B * S, H)
-        moe_out = self.moe_layer(tokens)  # [B*S, H]
-        moe_out = moe_out.reshape(B, S, H)
+        # ============================================================
+        #                SEQUENCE-LEVEL MoE
+        # ============================================================
+        if self.moe_level == "sequence":
+            h_last = lstm_out[:, -1, :]  # [B, H]
+            h_last_3d = h_last.unsqueeze(1)  # [B, 1, H]
+            moe_out = self.moe_layer(h_last_3d)  # [B, 1, H]
+            moe_out = moe_out[:, 0, :]  # [B, H]
 
-        # Output projection
-        out = self.linearOut(moe_out)  # [B, S, ny]
+            # Broadcast to all time steps
+            moe_out_expand = moe_out.unsqueeze(1).expand(B, S, H)
 
-        # Return to seq-first
+            fused = lstm_out + moe_out_expand
+
+        # ============================================================
+        #                   TOKEN-LEVEL MoE
+        # ============================================================
+        else:  # "token"
+            # lstm_out: [B, S, H]
+            # MoE expects [B, S, H] directly → routing each token
+            moe_out = self.moe_layer(lstm_out)  # [B, S, H]
+            fused = lstm_out + moe_out  # residual mixing
+
+        # Projection
+        out = self.linearOut(fused)  # [B, S, ny]
+        # Back to seq-first
         return out.permute(1, 0, 2)
