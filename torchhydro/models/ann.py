@@ -14,6 +14,23 @@ import torch
 from torch import nn
 
 
+class RMSNorm(nn.Module):
+    def __init__(self, hidden_size, eps=1e-6):
+        """
+        RMSNorm is equivalent to T5LayerNorm
+        """
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.variance_epsilon = eps
+
+    def forward(self, hidden_states):
+        input_dtype = hidden_states.dtype
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+        return self.weight * hidden_states.to(input_dtype)
+
+
 class SimpleAnn(nn.Module):
     def __init__(
         self,
@@ -22,6 +39,7 @@ class SimpleAnn(nn.Module):
         hidden_size: Union[int, tuple, list] = None,
         dr: Union[float, tuple, list] = 0.0,
         activation: str = "relu",
+        normalization: str = None,
     ):
         """
         A simple multi-layer NN model with final linear layer
@@ -40,22 +58,29 @@ class SimpleAnn(nn.Module):
             here we set number of dropout layers to (number of nn layers - 1)
         activation
             activation function for hidden layers, default is "relu"
+        normalization
+            normalization type, "LayerNorm" or "RMSNorm" or None
         """
         super(SimpleAnn, self).__init__()
         linear_list = nn.ModuleList()
         dropout_list = nn.ModuleList()
+        normalization_list = nn.ModuleList()
+        self.normalization = normalization
         if (
             hidden_size is None
             or (type(hidden_size) is int and hidden_size == 0)
             or (type(hidden_size) in [tuple, list] and len(hidden_size) < 1)
         ):
+            self._add_normalization(normalization_list, nx, normalization)
             linear_list.add_module("linear1", nn.Linear(nx, ny))
             if type(dr) in [tuple, list]:
                 dr = dr[0]
             if dr > 0.0:
                 dropout_list.append(nn.Dropout(dr))
         elif type(hidden_size) is int:
+            self._add_normalization(normalization_list, nx, normalization)
             linear_list.add_module("linear1", nn.Linear(nx, hidden_size))
+            self._add_normalization(normalization_list, hidden_size, normalization)
             linear_list.add_module("linear2", nn.Linear(hidden_size, ny))
             if type(dr) in [tuple, list]:
                 # dropout layer do not have additional weights, so we do not name them here
@@ -66,7 +91,9 @@ class SimpleAnn(nn.Module):
                 # dr must be a float
                 dropout_list.append(nn.Dropout(dr))
         else:
+            self._add_normalization(normalization_list, nx, normalization)
             linear_list.add_module("linear1", nn.Linear(nx, hidden_size[0]))
+
             if type(dr) is float:
                 dr = [dr] * len(hidden_size)
             elif len(dr) > len(hidden_size) + 1:
@@ -76,6 +103,9 @@ class SimpleAnn(nn.Module):
             # dropout_list.add_module("dropout1", torch.nn.Dropout(dr[0]))
             dropout_list.append(nn.Dropout(dr[0]))
             for i in range(len(hidden_size) - 1):
+                self._add_normalization(
+                    normalization_list, hidden_size[i], normalization
+                )
                 linear_list.add_module(
                     "linear%d" % (i + 1 + 1),
                     nn.Linear(hidden_size[i], hidden_size[i + 1]),
@@ -83,6 +113,7 @@ class SimpleAnn(nn.Module):
                 dropout_list.append(
                     nn.Dropout(dr[i + 1]),
                 )
+            self._add_normalization(normalization_list, hidden_size[-1], normalization)
             linear_list.add_module(
                 "linear%d" % (len(hidden_size) + 1),
                 nn.Linear(hidden_size[-1], ny),
@@ -92,29 +123,42 @@ class SimpleAnn(nn.Module):
                 dropout_list.append(nn.Dropout(dr[-1]))
         self.linear_list = linear_list
         self.dropout_list = dropout_list
+        self.normalization_list = normalization_list
         self.activation = self._get_activation(activation)
 
+    def _add_normalization(self, normalization_list, hidden_size, normalization):
+        if normalization == "LayerNorm":
+            normalization_list.append(nn.LayerNorm(hidden_size))
+        elif normalization == "RMSNorm":
+            normalization_list.append(RMSNorm(hidden_size))
+        else:
+            pass
+
     def forward(self, x):
+        # Refactored order: Norm -> Activation -> Linear -> Dropout
+        out = x
+        norm_idx = 0
+
         for i, model in enumerate(self.linear_list):
-            if i == 0:
-                if len(self.linear_list) == 1:
-                    # final layer must be a linear layer
-                    return (
-                        model(x)
-                        if len(self.dropout_list) < len(self.linear_list)
-                        else self.dropout_list[i](model(x))
-                    )
-                else:
-                    out = self.activation(self.dropout_list[i](model(x)))
-            elif i == len(self.linear_list) - 1:
-                # in final layer, no relu again
-                return (
-                    model(out)
-                    if len(self.dropout_list) < len(self.linear_list)
-                    else self.dropout_list[i](model(out))
-                )
-            else:
-                out = self.activation(self.dropout_list[i](model(out)))
+            # Apply Normalization
+            if self.normalization is not None and norm_idx < len(
+                self.normalization_list
+            ):
+                out = self.normalization_list[norm_idx](out)
+                norm_idx += 1
+
+            # Apply Activation
+            # Note: Applying activation to raw input (for first layer) or normalized input
+            out = self.activation(out)
+
+            # Apply Linear
+            out = model(out)
+
+            # Apply Dropout
+            if i < len(self.dropout_list):
+                out = self.dropout_list[i](out)
+
+        return out
 
     def _get_activation(self, name: str) -> nn.Module:
         """a function to get activation function by name, reference from:
@@ -143,6 +187,8 @@ class SimpleAnn(nn.Module):
             activation = nn.ReLU()
         elif name.lower() == "linear":
             activation = nn.Identity()
+        elif name.lower() == "gelu":
+            activation = nn.GELU()
         else:
             raise NotImplementedError(
                 f"{name} currently not supported as activation in this class"
@@ -158,6 +204,7 @@ class Mlp(SimpleAnn):
         hidden_size: Union[int, tuple, list] = None,
         dr: Union[float, tuple, list] = 0.0,
         activation: str = "relu",
+        normalization: str = None,
     ):
         """
         MLP model inherited from SimpleAnn, using activation + dropout after each layer.
@@ -175,13 +222,12 @@ class Mlp(SimpleAnn):
             hidden_size=hidden_size,
             dr=dr,
             activation=activation,
+            normalization=normalization,
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass with activation followed by dropout for each layer in linear_list.
-        The number of dropout layers must match or be exactly one less than
-        the number of linear layers.
+        Forward pass with Norm -> Activation -> Linear -> Dropout
         """
         # Raise an error if the number of linear layers and dropout layers do not match
         # and do not satisfy "number of linear layers = number of dropout layers + 1"
@@ -194,9 +240,22 @@ class Mlp(SimpleAnn):
             )
 
         out = x
+        norm_idx = 0
         for i, layer in enumerate(self.linear_list):
-            out = layer(out)
+            # Apply Normalization
+            if self.normalization is not None and norm_idx < len(
+                self.normalization_list
+            ):
+                out = self.normalization_list[norm_idx](out)
+                norm_idx += 1
+
+            # Apply Activation
             out = self.activation(out)
+
+            # Apply Linear
+            out = layer(out)
+
+            # Apply Dropout
             if i < len(self.dropout_list):
                 out = self.dropout_list[i](out)
 

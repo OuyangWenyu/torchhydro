@@ -119,3 +119,41 @@ def test_mlp_forward_activation() -> None:
 def test_mlp_forward_mismatched_layers() -> None:
     with pytest.raises(IndexError):
         Mlp(3, 2, hidden_size=[4, 5], dr=[0.1])  # Mismatched dropout layers
+
+
+def test_simple_ann_normalization() -> None:
+    # Test LayerNorm
+    model = SimpleAnn(3, 2, hidden_size=[4, 5], normalization="LayerNorm")
+    x = torch.randn(5, 3)
+    output = model.forward(x)
+    assert output.shape == (5, 2)
+    # Check if LayerNorm layers exist
+    assert any(isinstance(m, nn.LayerNorm) for m in model.normalization_list)
+
+    # Test RMSNorm
+    model = SimpleAnn(3, 2, hidden_size=[4, 5], normalization="RMSNorm")
+    x = torch.randn(5, 3)
+    output = model.forward(x)
+    assert output.shape == (5, 2)
+    # Check if RMSNorm layers exist
+    from torchhydro.models.ann import RMSNorm
+
+    assert any(isinstance(m, RMSNorm) for m in model.normalization_list)
+
+
+def test_mlp_normalization() -> None:
+    # Test LayerNorm
+    model = Mlp(3, 2, hidden_size=[4, 5], normalization="LayerNorm")
+    x = torch.randn(5, 3)
+    output = model.forward(x)
+    assert output.shape == (5, 2)
+    assert any(isinstance(m, nn.LayerNorm) for m in model.normalization_list)
+
+    # Test RMSNorm
+    model = Mlp(3, 2, hidden_size=[4, 5], normalization="RMSNorm")
+    x = torch.randn(5, 3)
+    output = model.forward(x)
+    assert output.shape == (5, 2)
+    from torchhydro.models.ann import RMSNorm
+
+    assert any(isinstance(m, RMSNorm) for m in model.normalization_list)
