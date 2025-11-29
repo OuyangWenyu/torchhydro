@@ -415,3 +415,190 @@ class MoE(nn.Module):
             if isinstance(dummy_out, tuple):
                 dummy_out = dummy_out[0]
             return torch.zeros((batch_size, *dummy_out.shape[1:]), device=x.device)
+
+
+class RMSNorm(nn.Module):
+    """Root Mean Square Layer Normalization.
+
+    This layer normalizes the inputs based on their RMS (Root Mean Square)
+    instead of mean/variance, which improves stability for large models
+    and mixture-of-experts routing.
+
+    Attributes:
+        eps (float): A small epsilon value to avoid division by zero.
+        scale (nn.Parameter): Learnable scale parameter.
+    """
+
+    def __init__(self, dim: int, eps: float = 1e-8):
+        """Initializes RMSNorm.
+
+        Args:
+            dim (int): Size of last dimension of input tensor.
+            eps (float, optional): Numerical stability constant. Defaults to 1e-8.
+        """
+        super().__init__()
+        self.eps = eps
+        self.scale = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Applies RMSNorm to the input.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape [..., dim].
+
+        Returns:
+            torch.Tensor: Normalized tensor with same shape as input.
+        """
+        norm = x.norm(2, dim=-1, keepdim=True)
+        rms = norm / (x.shape[-1] ** 0.5)
+        return x / (rms + self.eps) * self.scale
+
+
+def get_activation(name: str):
+    """Returns activation function module.
+
+    Args:
+        name (str): Activation type ('relu' or 'gelu').
+
+    Returns:
+        nn.Module: Corresponding activation module.
+
+    Raises:
+        ValueError: If activation type is not supported.
+    """
+    if name.lower() == "relu":
+        return nn.ReLU()
+    elif name.lower() == "gelu":
+        return nn.GELU()
+    else:
+        raise ValueError(f"Unsupported activation: {name}")
+
+
+def get_norm(norm_type: str, hidden_size: int):
+    """Returns normalization layer module.
+
+    Args:
+        norm_type (str): Normalization type ('layernorm', 'rmsnorm', or None).
+        hidden_size (int): Dimension of hidden state.
+
+    Returns:
+        nn.Module: Normalization module or nn.Identity().
+
+    Raises:
+        ValueError: If normalization type is not supported.
+    """
+    if norm_type is None:
+        return nn.Identity()
+
+    if norm_type.lower() == "layernorm":
+        return nn.LayerNorm(hidden_size)
+    elif norm_type.lower() == "rmsnorm":
+        return RMSNorm(hidden_size)
+    else:
+        raise ValueError(f"Unsupported normalization: {norm_type}")
+
+
+class LSTMMoE(nn.Module):
+    """LSTM + Mixture-of-Experts (MoE) model for hydrological forecasting.
+
+    This model consists of the following pipeline:
+        - Linear input projection + optional normalization + activation
+        - LSTM encoder
+        - Token-level Mixture-of-Experts (MoE)
+        - Linear output projection
+
+    The activation type and normalization type can be configured.
+
+    Attributes:
+        linearIn (nn.Linear): Input projection layer.
+        input_norm (nn.Module): Normalization layer.
+        input_act (nn.Module): Activation function.
+        lstm (nn.LSTM): LSTM encoder.
+        moe_layer (MoE): Mixture-of-Experts layer.
+        linearOut (nn.Linear): Output projection layer.
+    """
+
+    def __init__(
+        self,
+        n_input_features: int,
+        n_output_features: int,
+        n_hidden_states: int,
+        moe_cfgs: dict,
+        activation: str = "gelu",
+        normalization: str = "rmsnorm",
+        dr: float = 0.1,
+    ):
+        """Initializes the LSTMMoE model.
+
+        Args:
+            n_input_features (int): Number of input time-series features.
+            n_output_features (int): Number of output features (typically 1).
+            n_hidden_states (int): Hidden dimension of LSTM and MoE experts.
+            moe_cfgs (dict): Configuration dictionary for the MoE layer.
+            activation (str, optional): Activation type ('relu' or 'gelu').
+                Defaults to 'gelu'.
+            normalization (str, optional): Normalization type ('layernorm',
+                'rmsnorm', or None). Defaults to 'rmsnorm'.
+            dr (float, optional): Dropout rate. Defaults to 0.1.
+        """
+        super().__init__()
+
+        self.nx = n_input_features
+        self.ny = n_output_features
+        self.hidden_size = n_hidden_states
+
+        # ----- Input projection -----
+        self.linearIn = nn.Linear(n_input_features, n_hidden_states)
+        self.input_norm = get_norm(normalization, n_hidden_states)
+        self.input_act = get_activation(activation)
+        self.dropout = nn.Dropout(dr)
+
+        # ----- LSTM -----
+        self.lstm = nn.LSTM(
+            input_size=n_hidden_states,
+            hidden_size=n_hidden_states,
+            num_layers=1,
+            batch_first=True,
+        )
+
+        # ----- MoE -----
+        self.moe_layer = MoE(**moe_cfgs)
+
+        # ----- Output projection -----
+        self.linearOut = nn.Linear(n_hidden_states, n_output_features)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass of LSTMMoE.
+
+        Args:
+            x (torch.Tensor):
+                Input tensor of shape [seq_len, batch_size, n_input_features].
+
+        Returns:
+            torch.Tensor:
+                Output tensor of shape [seq_len, batch_size, n_output_features].
+        """
+        # Convert to batch-first: [B, S, F]
+        seq_len, batch_size, _ = x.shape
+        x = x.permute(1, 0, 2)
+
+        # Input projection
+        x = self.linearIn(x)
+        x = self.input_norm(x)
+        x = self.input_act(x)
+        x = self.dropout(x)
+
+        # LSTM encoder
+        lstm_out, _ = self.lstm(x)  # [B, S, H]
+        B, S, H = lstm_out.shape
+
+        # Token-level MoE
+        tokens = lstm_out.reshape(B * S, H)
+        moe_out = self.moe_layer(tokens)  # [B*S, H]
+        moe_out = moe_out.reshape(B, S, H)
+
+        # Output projection
+        out = self.linearOut(moe_out)  # [B, S, ny]
+
+        # Return to seq-first
+        return out.permute(1, 0, 2)
