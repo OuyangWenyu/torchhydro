@@ -39,9 +39,9 @@ def main():
         # Data source configuration
         source_cfgs={"source_name": "camels_us", "source_path": source_path},
         # Use CPU for this example. To use GPU, set it to [0], [0, 1], etc.
-        ctx=[0, 1],
+        ctx=[0, 1, 2],
         # --- Model selection and hyperparameters for MoE Model ---
-        model_name="MoE",
+        model_name="LSTMMoE",
         model_hyperparam={
             "n_experts": 8,
             "gating_mode": "last",  # Use the LAST time step to inform the gating network
@@ -152,7 +152,7 @@ def main():
         model_loader={
             "load_way": "specified",
             "test_epoch": 2,
-            "pth_path": f"torchhydro/experiments/results/results/moe_camels_attr/model_Ep20.pth",
+            "pth_path": f"torchhydro/experiments/results/results/moe_camels_attr/best_model.pth",
         },
         # Date ranges
         train_period=["1980-01-01", "2004-12-31"],

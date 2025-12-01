@@ -48,7 +48,7 @@ def main():
                 "gating_mode": "last",
                 "capacity_factor": 1.0,
                 "load_balance_loss_coef": 0.01,
-                "noisy_gating": True,
+                "noisy_gating": False,
                 "dist": {
                     "backend": "nccl",
                     "use_ddp": True,
