@@ -44,67 +44,23 @@ def set_random_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
-from torchhydro.utils.dist_utils import init_distributed, cleanup_distributed
-
-try:
-    from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-    from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
-except ImportError:
-    FSDP = None
-    size_based_auto_wrap_policy = None
-
-
 def train_and_evaluate(cfgs: Dict):
     """
     Function to train and test a Model
+
+    Parameters
+    ----------
+    cfgs
+        Dictionary containing all configs needed to run the model
+
+    Returns
+    -------
+    None
     """
-    # 1. Initialize distributed
-    dist_cfg = cfgs.get("dist", {})
-    is_dist, rank, world_size, local_rank = init_distributed(
-        backend=dist_cfg.get("backend", "nccl")
-    )
-
-    # 2. Override ctx logic
-    if is_dist:
-        cfgs["ctx"] = [local_rank]
-        # Also update training_cfgs device to ensure FabricWrapper gets the correct device
-        if "training_cfgs" in cfgs:
-            cfgs["training_cfgs"]["device"] = [local_rank]
-    else:
-        if "ctx" not in cfgs or cfgs["ctx"] is None:
-            cfgs["ctx"] = [0]
-
     random_seed = cfgs["training_cfgs"]["random_seed"]
     set_random_seed(random_seed)
-
-    # Pass distributed info to DeepHydro
-    cfgs["dist_info"] = {
-        "is_dist": is_dist,
-        "rank": rank,
-        "world_size": world_size,
-        "local_rank": local_rank,
-    }
-
     resulter = Resulter(cfgs)
     deephydro = _get_deep_hydro(cfgs)
-
-    # 5. FSDP/Deepspeed wrapping (if enabled)
-    # We do this AFTER DeepHydro creates the model, but BEFORE training
-    if is_dist and dist_cfg.get("use_fsdp", False):
-        assert FSDP is not None, "FSDP not available in this PyTorch."
-        # Simple auto wrap policy
-        auto_wrap_policy = size_based_auto_wrap_policy(min_num_params=1e6)
-
-        device = torch.device(
-            f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
-        )
-        deephydro.model = FSDP(
-            deephydro.model,
-            device_id=device,
-            auto_wrap_policy=auto_wrap_policy,
-        )
-        print(f"[Rank {rank}] Model wrapped with FSDP")
-
     # if train_mode is False, we only evaluate the model
     train_mode = deephydro.cfgs["training_cfgs"]["train_mode"]
     # but if train_mode is True, we still need some conditions to train the model
@@ -114,19 +70,12 @@ def train_and_evaluate(cfgs: Dict):
         (deephydro.weight_path is not None and (continue_train or is_transfer_learning))
         or (deephydro.weight_path is None)
     )
-
     if is_train:
         deephydro.model_train()
-
-    # Only evaluate/save on rank 0 for distributed
-    if not is_dist or rank == 0:
-        preds, obss = deephydro.model_evaluate()
-        resulter.save_cfg(deephydro.cfgs)
-        resulter.save_result(preds, obss)
-        resulter.eval_result(preds, obss)
-
-    if is_dist:
-        cleanup_distributed()
+    preds, obss = deephydro.model_evaluate()
+    resulter.save_cfg(deephydro.cfgs)
+    resulter.save_result(preds, obss)
+    resulter.eval_result(preds, obss)
 
 
 def _get_deep_hydro(cfgs):

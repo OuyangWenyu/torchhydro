@@ -3446,7 +3446,7 @@ class AEFDataset(BaseDataset):
             data_forcing_ds_, data_output_ds_
         )
         # c
-        csv_path = r"/home/pengfeiqu/BasinEmbeddings_2017_2024_avg.csv"
+        csv_path = r"/Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv"
         df_embeddings = pd.read_csv(csv_path)
         df_embeddings["hru_id"] = (
             df_embeddings["hru_id"].astype(int).astype(str).str.lstrip("0")
