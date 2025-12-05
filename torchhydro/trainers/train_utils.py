@@ -1471,6 +1471,14 @@ def torch_single_train(
         # mask handling is already done inside model_infer function
         trg, output = model_infer(seq_first, device, model, batch, variable_length_cfgs)
         loss = compute_loss(trg, output, criterion, **kwargs)
+
+        # Add auxiliary loss from MoE models (if available)
+        if hasattr(model, "get_aux_loss"):
+            aux_loss = model.get_aux_loss()
+            if aux_loss is not None and aux_loss.device != loss.device:
+                aux_loss = aux_loss.to(loss.device)
+            loss = loss + aux_loss
+
         if loss > 100:
             print("Warning: high loss detected")
         if torch.isnan(loss):
