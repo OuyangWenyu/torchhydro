@@ -57,12 +57,12 @@ def main():
             "n_experts": num_experts,
             "static_features": num_static_attr,
             "capacity_factor": 1.25,
-            "load_balance_loss_coef": 1e-2,
-            "jitter_noise": 0,
+            "load_balance_loss_coef": 2e-2,
+            "jitter_noise": 0.1,
             # Configuration for the two LSTM experts
             "experts_cfgs": [
                 {
-                    "model_name": "KuaiLSTM",
+                    "model_name": "CpuLSTM",
                     "model_hyperparam": {
                         "n_input_features": n_input_features,
                         "n_output_features": n_output_features,

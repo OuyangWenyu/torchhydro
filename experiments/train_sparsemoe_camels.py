@@ -46,13 +46,13 @@ def main():
 
     args = cmd(
         # Experiment name and output directory
-        sub=os.path.join("results", "moe_camels"),
+        sub=os.path.join("results", "sparseMoE"),
         # Data source configuration
         source_cfgs={"source_name": "camels_us", "source_path": source_path},
         # Use CPU for this example. To use GPU, set it to [0], [0, 1], etc.
-        ctx=[0, 1],
+        ctx=[-1],
         # --- Model selection and hyperparameters for MoE Model ---
-        model_name="SparseMoE",
+        model_name="HydrologyTopKMoE",
         model_hyperparam={
             "n_experts": num_experts,
             "static_features": num_static_attr,
@@ -62,7 +62,7 @@ def main():
             # Configuration for the two LSTM experts
             "experts_cfgs": [
                 {
-                    "model_name": "KuaiLSTM",
+                    "model_name": "CpuLSTM",
                     "model_hyperparam": {
                         "n_input_features": n_input_features,
                         "n_output_features": n_output_features,
@@ -623,7 +623,7 @@ def main():
         ],
         # Training settings
         batch_size=256,
-        train_epoch=20,
+        train_epoch=2,
         save_epoch=1,
         # Sequence lengths
         hindcast_length=0,
