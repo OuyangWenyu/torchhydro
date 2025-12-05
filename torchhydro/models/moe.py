@@ -128,3 +128,70 @@ class MoE(nn.Module):
 
         # Sum the weighted outputs
         return torch.sum(weighted_outputs, dim=-1)
+
+
+class DenseMoE(nn.Module):
+    def __init__(
+        self,
+        n_experts: int,
+        experts_cfgs: list,
+        gating_cfgs: dict,
+        static_features: int,
+        **kwargs: dict,
+    ) -> None:
+        super().__init__()
+
+        assert len(experts_cfgs) == n_experts
+
+        from torchhydro.models.model_dict_function import pytorch_model_dict
+
+        self.n_experts = n_experts
+        self.static_features = static_features
+        self.experts = nn.ModuleList(
+            [
+                self._create_expert(expert_cfg, pytorch_model_dict)
+                for expert_cfg in experts_cfgs
+            ]
+        )
+
+        gating_model_name = gating_cfgs["model_name"]
+        gating_hyperparam = gating_cfgs["model_hyperparam"]
+        # The output of gating network is number of experts
+        gating_hyperparam["ny"] = n_experts
+        gating_cls = pytorch_model_dict[gating_model_name]
+        self.gating_network = gating_cls(**gating_hyperparam)
+
+    def _create_expert(
+        self,
+        expert_cfg: Dict[str, Any],
+        pytorch_model_dict: Mapping[str, Type[nn.Module]],
+    ) -> nn.Module:
+        """
+        Helper function to create an expert model from its configuration.
+        """
+        model_name = expert_cfg["model_name"]
+        model_hyperparam = expert_cfg["model_hyperparam"]
+        cls = pytorch_model_dict[model_name]
+        return cls(**model_hyperparam)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        _, B, _ = x.shape
+        basin_attr = x[0, :, -self.static_features :]  # [batch_size, static_features]
+        gating_logits = self.gating_network(basin_attr)
+        gating_weights = F.softmax(gating_logits, dim=-1)
+
+        expert_outputs = []
+        for expert in self.experts:
+            out = expert(x)
+            if isinstance(out, tuple):
+                out = out[0]
+            expert_outputs.append(out)
+
+        concat_expert_outputs = torch.stack(expert_outputs, dim=-1)
+
+        gating_weights = gating_weights.view(1, B, 1, self.n_experts)
+
+        weighted_outputs = concat_expert_outputs * gating_weights
+
+        # Sum the weighted outputs
+        return torch.sum(weighted_outputs, dim=-1)
