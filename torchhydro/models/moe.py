@@ -765,3 +765,223 @@ class HydrologyTopKMoE(nn.Module):
             output[:, token_ids, :] += out_e * gate_scale
 
         return output
+
+
+class GlobalTopKMoE(nn.Module):
+    """
+    Global-priority, capacity-constrained Top-k MoE with soft fallback (no token drop).
+
+    - 输入 x: [S, B, Din]  (sequence-first)
+    - gating 输入: 静态流域属性（输入最后 static_features 维）
+    - 路由策略：
+        1. 对所有 token×expert 的概率全局排序（大到小）
+        2. 按顺序尝试分配 (token, expert)，受 expert capacity 和 token top_k 约束
+        3. 分配完成后，若某个 token 仍然没有 expert：
+           → 在该 token 的 experts 中，按概率从大到小找第一个“尚未满载”的 expert 作为 fallback
+        4. 如果极端情况下所有 expert 都满载：
+           → fallback 到该 token 概率最大的 expert，但不再增加其 load（避免破坏 capacity 统计）
+
+    - 每个 token 至少 1 个 expert，最多 top_k 个 expert
+    - 对“实际成功分配的 experts”重新 softmax logits，保证 Σ_e g_{b,e} = 1
+    - self.aux_loss 存储 Switch 风格的负载均衡损失（P×F）
+    """
+
+    def __init__(
+        self,
+        n_experts: int,
+        experts_cfgs: List[Dict[str, Any]],
+        gating_cfgs: Dict[str, Any],
+        static_features: int,
+        top_k: int = 1,
+        capacity_factor: float = 1.25,
+        load_balance_loss_coef: float = 1e-2,
+        jitter_noise: float = 0.0,
+        **kwargs: dict,
+    ) -> None:
+        super().__init__()
+        assert len(experts_cfgs) == n_experts
+        assert top_k >= 1
+
+        from torchhydro.models.model_dict_function import pytorch_model_dict
+
+        self.n_experts = n_experts
+        self.static_features = static_features
+        self.top_k = top_k
+        self.capacity_factor = capacity_factor
+        self.load_balance_loss_coef = load_balance_loss_coef
+        self.jitter_noise = jitter_noise
+
+        # ------------- build experts -------------
+        self.experts = nn.ModuleList(
+            [
+                self._create_expert(expert_cfg, pytorch_model_dict)
+                for expert_cfg in experts_cfgs
+            ]
+        )
+
+        # ------------- build gating network -------------
+        gating_model_name = gating_cfgs["model_name"]
+        gating_hyperparam = gating_cfgs["model_hyperparam"].copy()
+        gating_hyperparam["ny"] = n_experts
+        gating_cls = pytorch_model_dict[gating_model_name]
+        self.gating_network = gating_cls(**gating_hyperparam)
+
+        self.aux_loss = torch.tensor(0.0)
+
+    def _create_expert(
+        self,
+        expert_cfg: Dict[str, Any],
+        pytorch_model_dict: Mapping[str, Type[nn.Module]],
+    ) -> nn.Module:
+        model_name = expert_cfg["model_name"]
+        model_hyperparam = expert_cfg["model_hyperparam"]
+        cls = pytorch_model_dict[model_name]
+        return cls(**model_hyperparam)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        x: [S, B, Din]
+        return: [S, B, Dout]
+        """
+        S, B, _ = x.shape
+        device = x.device
+        dtype = x.dtype
+        E = self.n_experts
+        top_k = self.top_k
+
+        # -------- 1. 计算 gating logits（静态流域属性作为路由输入） --------
+        basin_attr = x[0, :, -self.static_features :]  # [B, static_features]
+        logits = self.gating_network(basin_attr)  # [B, E]
+
+        # jitter noise 做探索（可选）
+        if self.training and self.jitter_noise > 0.0:
+            logits = logits + self.jitter_noise * torch.randn_like(logits)
+
+        # Router 概率（用于负载均衡损失）
+        router_probs = F.softmax(logits, dim=-1)  # [B, E]
+
+        # -------- 2. 全局排序的概率（用 probs 排序，更直观） --------
+        probs = router_probs  # [B, E]
+
+        # 计算 per-expert capacity
+        # 期望总 pair 数 ≈ B * top_k，平均每个 expert ≈ (B * top_k / E)
+        expected_pairs = B * top_k
+        capacity = int(expected_pairs / float(E) * self.capacity_factor)
+        capacity = max(1, capacity)
+
+        # 展平 B×E 为 BE
+        flat_probs = probs.reshape(-1)  # [B*E]
+        flat_exp_idx = torch.arange(E, device=device).repeat(B)  # [B*E]
+        flat_tok_idx = torch.arange(B, device=device).repeat_interleave(E)  # [B*E]
+
+        # 全局按概率降序排序
+        sorted_probs, perm = flat_probs.sort(descending=True)
+        sorted_tok = flat_tok_idx[perm]  # [B*E]
+        sorted_exp = flat_exp_idx[perm]  # [B*E]
+
+        # -------- 3. Global priority 分配 + capacity + per-token top_k --------
+        expert_load = torch.zeros(E, device=device, dtype=torch.int32)
+        assigned_experts: List[List[int]] = [[] for _ in range(B)]
+
+        # 3.1 全局优先分配：遵守 capacity 和 per-token top_k
+        for t, e in zip(sorted_tok.tolist(), sorted_exp.tolist()):
+            if len(assigned_experts[t]) >= top_k:
+                continue
+            if expert_load[e] < capacity:
+                assigned_experts[t].append(e)
+                expert_load[e] += 1
+
+        # 3.2 Soft fallback：保证每个 token 至少 1 个 expert（不破 capacity）
+        for t in range(B):
+            if len(assigned_experts[t]) == 0:
+                probs_t = probs[t]  # [E]
+                sorted_e = torch.argsort(probs_t, descending=True)  # [E]
+
+                fallback = None
+                for e in sorted_e.tolist():
+                    if expert_load[e] < capacity:
+                        fallback = e
+                        break
+
+                if fallback is not None:
+                    assigned_experts[t].append(fallback)
+                    expert_load[fallback] += 1
+                else:
+                    # 极端情况：所有 expert 都满载，强制 fallback 到概率最大的 expert
+                    # 不增加 expert_load，避免破坏 capacity 统计
+                    best_e = int(sorted_e[0].item())
+                    assigned_experts[t].append(best_e)
+
+        # -------- 4. 基于“实际成功分配的 experts”重新 softmax gate --------
+        gates_per_token: List[List[torch.Tensor]] = [[] for _ in range(B)]
+
+        for b in range(B):
+            experts_b = assigned_experts[b]  # List[int]
+            e_ids = torch.tensor(experts_b, device=device, dtype=torch.long)  # [m_b]
+            logits_b = logits[b, e_ids]  # [m_b]
+            gates_b = F.softmax(logits_b, dim=-1)  # [m_b]，保证 Σ g = 1
+
+            gates_per_token[b] = [gates_b[i] for i in range(len(experts_b))]
+
+        # -------- 5. 负载均衡损失（Switch 风格：P_i, F_i） --------
+        # P_i: 平均 router 概率
+        P = router_probs.mean(dim=0)  # [E]
+
+        # F_i: 实际分配到 expert i 的 (token, expert) pair 占比
+        expert_assign_counts = torch.zeros(E, device=device, dtype=torch.float32)
+        total_assign = 0.0
+        for b in range(B):
+            for e in assigned_experts[b]:
+                expert_assign_counts[e] += 1.0
+                total_assign += 1.0
+
+        if total_assign > 0:
+            F_vec = expert_assign_counts / total_assign
+        else:
+            F_vec = torch.zeros_like(P)
+
+        aux_loss = E * torch.sum(P * F_vec)
+        self.aux_loss = self.load_balance_loss_coef * aux_loss
+
+        # -------- 6. sparse expert forward（只跑被分配过的 experts） --------
+        # 用一个样本探测输出维度
+        example_out = self.experts[0](x[:, :1, :])
+        if isinstance(example_out, tuple):
+            example_out = example_out[0]
+        S_out, _, D_out = example_out.shape
+
+        output = torch.zeros((S_out, B, D_out), device=device, dtype=example_out.dtype)
+
+        # 为每个 expert 收集 tokens + gates
+        tokens_for_expert: List[List[int]] = [[] for _ in range(E)]
+        gates_for_expert: List[List[torch.Tensor]] = [[] for _ in range(E)]
+
+        for b in range(B):
+            for j, e in enumerate(assigned_experts[b]):
+                tokens_for_expert[e].append(b)
+                gates_for_expert[e].append(gates_per_token[b][j])
+
+        # 逐 expert 执行
+        for e in range(E):
+            if len(tokens_for_expert[e]) == 0:
+                continue
+
+            token_ids = torch.tensor(
+                tokens_for_expert[e], device=device, dtype=torch.long
+            )  # [N_e]
+            gates_e = torch.stack(gates_for_expert[e])  # [N_e]
+
+            expert_input = x[:, token_ids, :]  # [S, N_e, Din]
+
+            out_e = self.experts[e](expert_input)
+            if isinstance(out_e, tuple):
+                out_e = out_e[0]
+            # out_e: [S, N_e, Dout]
+
+            gate_scale = gates_e.view(1, -1, 1)  # [1, N_e, 1]
+            output[:, token_ids, :] += out_e * gate_scale
+
+        return output
+
+    def get_aux_loss(self) -> torch.Tensor:
+        return self.aux_loss

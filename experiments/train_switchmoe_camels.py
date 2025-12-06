@@ -52,13 +52,13 @@ def main():
         # Use CPU for this example. To use GPU, set it to [0], [0, 1], etc.
         ctx=[0, 1],
         # --- Model selection and hyperparameters for MoE Model ---
-        model_name="SwitchMoE",
+        model_name="GlobalTopKMoE",
         model_hyperparam={
             "n_experts": num_experts,
             "static_features": num_static_attr,
             "capacity_factor": 1.25,
             "load_balance_loss_coef": 2e-2,
-            "jitter_noise": 0.1,
+            "jitter_noise": 0.0,
             # Configuration for the two LSTM experts
             "experts_cfgs": [
                 {

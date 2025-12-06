@@ -28,7 +28,7 @@ def main():
     # Define common model parameters
     n_input_features = 23
     n_output_features = 1
-    n_hidden_states = 128
+    n_hidden_states = 256
     forecast_length = 365
 
     args = cmd(
@@ -39,7 +39,7 @@ def main():
         # Data source configuration
         source_cfgs={"source_name": "camels_us", "source_path": source_path},
         # Use CPU for this example. To use GPU, set it to [0], [0, 1], etc.
-        ctx=[0, 1, 2],
+        ctx=[0, 1],
         # --- Model selection and hyperparameters for MoE Model ---
         model_name="LSTMMoE",
         model_hyperparam={
@@ -54,63 +54,8 @@ def main():
                         "n_output_features": n_output_features,
                         "n_hidden_states": n_hidden_states,
                     },
-                },
-                {
-                    "model_name": "KuaiLSTM",
-                    "model_hyperparam": {
-                        "n_input_features": n_input_features,
-                        "n_output_features": n_output_features,
-                        "n_hidden_states": n_hidden_states,
-                    },
-                },
-                {
-                    "model_name": "KuaiLSTM",
-                    "model_hyperparam": {
-                        "n_input_features": n_input_features,
-                        "n_output_features": n_output_features,
-                        "n_hidden_states": n_hidden_states,
-                    },
-                },
-                {
-                    "model_name": "KuaiLSTM",
-                    "model_hyperparam": {
-                        "n_input_features": n_input_features,
-                        "n_output_features": n_output_features,
-                        "n_hidden_states": n_hidden_states,
-                    },
-                },
-                {
-                    "model_name": "KuaiLSTM",
-                    "model_hyperparam": {
-                        "n_input_features": n_input_features,
-                        "n_output_features": n_output_features,
-                        "n_hidden_states": n_hidden_states,
-                    },
-                },
-                {
-                    "model_name": "KuaiLSTM",
-                    "model_hyperparam": {
-                        "n_input_features": n_input_features,
-                        "n_output_features": n_output_features,
-                        "n_hidden_states": n_hidden_states,
-                    },
-                },
-                {
-                    "model_name": "KuaiLSTM",
-                    "model_hyperparam": {
-                        "n_input_features": n_input_features,
-                        "n_output_features": n_output_features,
-                        "n_hidden_states": n_hidden_states,
-                    },
-                },
-                {
-                    "model_name": "KuaiLSTM",
-                    "model_hyperparam": {
-                        "n_input_features": n_input_features,
-                        "n_output_features": n_output_features,
-                        "n_hidden_states": n_hidden_states,
-                    },
-                },
+                }
+                for _ in range(num_experts)
             ],
             # Configuration for the gating network (a simple MLP)
             "gating_cfgs": {
@@ -118,7 +63,7 @@ def main():
                 "model_hyperparam": {
                     # Input to the gate will now be from the last time step
                     "nx": n_input_features,
-                    "hidden_size": [128, 64],  # Hidden layers of the gating network
+                    "hidden_size": [64, 16],  # Hidden layers of the gating network
                     # 'ny' will be automatically set to n_experts by the MoE model
                 },
             },
@@ -150,8 +95,7 @@ def main():
         scaler="DapengScaler",
         # Model loading configuration
         model_loader={
-            "load_way": "specified",
-            "test_epoch": 2,
+            "load_way": "pth",
             "pth_path": f"torchhydro/experiments/results/results/moe_camels_attr/best_model.pth",
         },
         # Date ranges
@@ -175,7 +119,7 @@ def main():
             "pace_idx": -1,
         },
         early_stopping=True,
-        rolling=0,
+        rolling=1,
         patience=2,
         model_type="Normal",
     )
