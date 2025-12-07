@@ -430,7 +430,8 @@ class DeepHydro(DeepHydroInterface):
             loss_param = training_cfgs["criterion_params"]
             if loss_param is not None:
                 for key in loss_param.keys():
-                    if key == "loss_funcs":
+                    # Parameters that are loss function names need to be instantiated
+                    if key in ("loss_funcs", "eval_loss_func"):
                         criterion_init_params[key] = pytorch_criterion_dict[
                             loss_param[key]
                         ]()
@@ -918,7 +919,7 @@ class MultiTaskHydro(DeepHydro):
                 criterion_init_params = {
                     key: (
                         pytorch_criterion_dict[loss_param[key]]()
-                        if key == "loss_funcs"
+                        if key in ("loss_funcs", "eval_loss_func")
                         else loss_param[key]
                     )
                     for key in loss_param.keys()

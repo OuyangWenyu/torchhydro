@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-11-22 11:28:33
+LastEditTime: 2025-12-07 09:07:22
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -176,8 +176,26 @@ def model_infer(
     if batch_vector is not None:
         batch_vector = batch_vector.to(device)
 
+    # --- check if model is a generative model (e.g., Diffusion) ---
+    # Generative models require both input (xs) and target (ys) in forward pass
+    is_generative = getattr(model, "is_generative", False)
+    inner_model = getattr(model, "module", model)
+    # Also check wrapped model (e.g., DistributedDataParallel)
+    if not is_generative:
+        is_generative = getattr(inner_model, "is_generative", False)
+
     # --- forward ---
-    if xs_mask is not None and ys_mask is not None:
+    if is_generative:
+        # Generative models behave differently in train vs eval mode:
+        # - Train mode: forward(x_condition, y_target) returns {'loss': loss}
+        # - Eval mode: sample(x_condition) returns generated samples
+        if model.training:
+            # Training: compute loss with forward pass
+            output = inner_model(*xs, ys)
+        else:
+            # Inference: generate samples using sample method
+            output = inner_model.sample(*xs)
+    elif xs_mask is not None and ys_mask is not None:
         if edge_index is not None and edge_weight is not None:
             output = model(
                 *xs,
@@ -205,21 +223,28 @@ def model_infer(
         output = output[0]
 
     if isinstance(output, dict):
-        # 默认取最高频的输出
-        if return_key is None:
-            return_key = sorted(output.keys())[-1]  # e.g., "f2"
-        if return_key not in output:
-            raise KeyError(
-                f"Model returned keys {list(output.keys())}, but return_key='{return_key}' not found"
-            )
-        output = output[return_key]
+        # Check if this is a generative model that returns loss directly
+        if "loss" in output:
+            # Generative models return {'loss': loss_value}, pass it through
+            output = output
+        else:
+            # Multi-frequency output, pick the specified or highest frequency key
+            if return_key is None:
+                return_key = sorted(output.keys())[-1]  # e.g., "f2"
+            if return_key not in output:
+                raise KeyError(
+                    f"Model returned keys {list(output.keys())}, but return_key='{return_key}' not found"
+                )
+            output = output[return_key]
 
     if ys_mask is not None:
         ys = ys.masked_fill(ys_mask == 0, torch.nan)
 
     # --- seq_first transpose back ---
     if seq_first:
-        output = output.transpose(0, 1)
+        # Don't transpose dict outputs (generative models return {'loss': ...} during training)
+        if isinstance(output, torch.Tensor):
+            output = output.transpose(0, 1)
         if ys is not None:
             ys = ys.transpose(0, 1)
 
@@ -1087,7 +1112,7 @@ def evaluate_validation(
 
 
 def compute_loss(
-    labels: torch.Tensor, output: torch.Tensor, criterion, **kwargs
+    labels: torch.Tensor, output, criterion, **kwargs
 ) -> torch.Tensor:
     """
     Function for computing the loss
@@ -1097,7 +1122,7 @@ def compute_loss(
     labels
         The real values for the target. Shape can be variable but should follow (batch_size, time)
     output
-        The output of the model
+        The output of the model. Can be a tensor or a dict with 'loss' key for generative models.
     criterion
         loss function
     validation_dataset
@@ -1110,11 +1135,10 @@ def compute_loss(
     torch.Tensor
         the computed loss
     """
-    # a = np.sum(output.cpu().detach().numpy(),axis=1)/len(output)
-    # b=[]
-    # for i in a:
-    #     b.append([i.tolist()])
-    # output = torch.tensor(b, requires_grad=True).to(torch.device("cuda"))
+    # Handle generative models that compute loss internally
+    # These models return a dict with 'loss' key
+    if isinstance(output, dict) and "loss" in output:
+        return output["loss"]
 
     if isinstance(criterion, GaussianLoss):
         if len(output[0].shape) > 2:
@@ -1672,28 +1696,6 @@ def read_pth_from_model_loader(model_loader, model_pth_dir):
     if not os.path.exists(weight_path):
         raise ValueError(f"Model file {weight_path} does not exist.")
     return weight_path
-
-
-def get_lastest_logger_file_in_a_dir(dir_path):
-    """Get the last logger file in a directory
-
-    Parameters
-    ----------
-    dir_path : str
-        the directory
-
-    Returns
-    -------
-    str
-        the path of the logger file
-    """
-    pattern = r"^\d{1,2}_[A-Za-z]+_\d{6}_\d{2}(AM|PM)\.json$"
-    pth_files_lst = [
-        os.path.join(dir_path, file)
-        for file in os.listdir(dir_path)
-        if re.match(pattern, file)
-    ]
-    return get_latest_file_in_a_lst(pth_files_lst)
 
 
 def cellstates_when_inference(seq_first, data_cfgs, pred):

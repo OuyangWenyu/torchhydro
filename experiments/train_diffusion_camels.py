@@ -36,9 +36,10 @@ def main():
             "diffusion": {
                 "num_timesteps": 1000,
                 "data_dim": 1,  # 1 output feature: streamflow
-                "condition_dim": 5,  # 5 input features (see var_t below)
+                # condition_dim = 6 dynamic features (var_t) + 17 static attributes
+                "condition_dim": 23,
                 "time_emb_dim": 32,
-                "beta_schedule": "cosine",
+                "beta_schedule": "linear",
             },
             # Configuration for the LSTM-based denoising network
             "denoise_net": {
@@ -66,9 +67,10 @@ def main():
         min_time_unit="D",
         min_time_interval="1",
         # Input and output variables
-        # Using 5 standard meteorological variables as input conditions
+        # Using 6 standard meteorological variables as input conditions
         var_t=[
             StandardVariable.PRECIPITATION,
+            StandardVariable.DAYLIGHT_DURATION,
             StandardVariable.SOLAR_RADIATION,
             StandardVariable.TEMPERATURE_MAX,
             StandardVariable.TEMPERATURE_MIN,
@@ -86,14 +88,15 @@ def main():
         valid_period=["2002-10-01", "2003-10-01"],
         test_period=["2003-10-01", "2005-10-01"],
         # Loss function and optimizer
-        # NOTE: The diffusion model calculates its own loss internally (MSE of noise).
-        # The 'loss_func' here is a placeholder that might be required by the trainer framework,
-        # but the actual loss gradient will come from the model's forward pass.
-        loss_func="MSE",
+        # GenerativeLoss is a placeholder - actual loss is computed inside the diffusion model
+        loss_func="GenerativeLoss",
+        loss_param={
+            "eval_loss_func": "RMSESum",
+        },
         opt="Adam",
         lr_scheduler={0: 0.001, 2: 0.0005, 4: 0.0001},
         # Tensor layout
-        which_first_tensor="sequence",
+        which_first_tensor="batch",
     )
 
     # 2. Load default config and update it with your parameters

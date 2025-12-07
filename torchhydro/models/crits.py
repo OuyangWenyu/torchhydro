@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-13 16:36:07
+LastEditTime: 2025-12-07 09:51:25
 LastEditors: Wenyu Ouyang
 Description: Loss functions
 FilePath: \torchhydro\torchhydro\models\crits.py
@@ -1118,11 +1118,14 @@ class HybridFloodloss(FloodBaseLoss):
         base_loss_func = HybridLoss(self.mae_weight)
         return base_loss_func(predictions, targets)
 
+
 class MseMaskedLoss(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, predictions: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor):
+    def forward(
+        self, predictions: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor
+    ):
         """
         Compute NSE loss for masked data.
 
@@ -1142,12 +1145,92 @@ class MseMaskedLoss(torch.nn.Module):
         """
         if mask is None:
             mask = ~torch.isnan(targets)
-        
+
         valid_predictions = predictions[mask]
         valid_targets = targets[mask]
-        
+
         if valid_predictions.numel() == 0:
             return torch.tensor(0.0, device=predictions.device, requires_grad=True)
-        
+
         loss = torch.mean((valid_predictions - valid_targets) ** 2)
         return loss
+
+
+class GenerativeLoss(torch.nn.Module):
+    """
+    A loss function for generative models (e.g., Diffusion models).
+
+    During training:
+        - Model's forward() returns {'loss': loss}
+        - This loss is extracted and returned directly
+
+    During validation/inference:
+        - Model's sample() returns predicted tensor
+        - Uses the configured eval_loss_func to compute loss
+
+    Parameters
+    ----------
+    eval_loss_func : torch.nn.Module, optional
+        Loss function to use during validation/inference.
+        Default is None, which uses MSE loss.
+        Can be any loss function from pytorch_criterion_dict (e.g., RmseLoss, NSELoss)
+
+    Examples
+    --------
+    In training config:
+
+    >>> loss_func="GenerativeLoss",
+    >>> criterion_params={
+    >>>     "eval_loss_func": "RMSESum",  # Use RMSE for validation
+    >>> }
+    """
+
+    def __init__(self, eval_loss_func: torch.nn.Module = None) -> None:
+        super().__init__()
+        self.eval_loss_func = eval_loss_func
+
+    def forward(
+        self, prediction: torch.Tensor | dict, target: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Compute loss for generative models.
+
+        Parameters
+        ----------
+        prediction : dict or torch.Tensor
+            During training: dict with 'loss' key
+            During inference: predicted tensor from sample()
+        target : torch.Tensor
+            Ground truth target values
+
+        Returns
+        -------
+        torch.Tensor
+            The computed loss
+        """
+        # Training mode: model returns {'loss': loss}
+        if isinstance(prediction, dict) and "loss" in prediction:
+            return prediction["loss"]
+
+        # Scalar tensor (already computed loss)
+        if isinstance(prediction, torch.Tensor) and prediction.dim() == 0:
+            return prediction
+
+        # Inference/validation mode: compute loss between prediction and target
+        if isinstance(prediction, torch.Tensor) and isinstance(target, torch.Tensor):
+            # Use configured eval_loss_func or default to MSE
+            if self.eval_loss_func is not None:
+                return self.eval_loss_func(prediction, target)
+            else:
+                # Default: MSE with NaN handling
+                mask = ~torch.isnan(target)
+                if mask.sum() == 0:
+                    return torch.tensor(
+                        0.0, device=prediction.device, requires_grad=True
+                    )
+                return torch.nn.functional.mse_loss(prediction[mask], target[mask])
+
+        raise ValueError(
+            f"GenerativeLoss got unexpected types: prediction={type(prediction)}, "
+            f"target={type(target)}"
+        )

@@ -9,6 +9,7 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
 from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU
+from torchhydro.models.diffusion import ConditionalDiffusionModel
 from torchhydro.models.mtslstm import MTSLSTM
 from torchhydro.models.dpl4hbv import DplLstmHbv, DplAnnHbv
 from torchhydro.models.cudnnlstm import (
@@ -60,6 +61,7 @@ from torchhydro.models.crits import (
     FloodLoss,
     HybridLoss,
     HybridFloodloss,
+    GenerativeLoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
@@ -72,6 +74,8 @@ from torchhydro.models.ann import SimpleAnn
 Utility dictionaries to map a string to a class.
 """
 pytorch_model_dict = {
+    # Diffusion model
+    "ConditionalDiffusionModel": ConditionalDiffusionModel,
     # MoE model
     "MoE": MoE,
     # ANN models
@@ -134,6 +138,8 @@ pytorch_criterion_dict = {
     "FloodLoss": FloodLoss,
     "HybridLoss": HybridLoss,
     "HybridFloodloss": HybridFloodloss,  # Alias for backward compatibility
+    # Generative model loss (loss computed inside model, this is a placeholder)
+    "GenerativeLoss": GenerativeLoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}
