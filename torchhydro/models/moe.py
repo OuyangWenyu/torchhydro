@@ -789,8 +789,8 @@ class GlobalTopKMoE(nn.Module):
     def __init__(
         self,
         n_experts: int,
-        experts_cfgs: List[Dict[str, Any]],
-        gating_cfgs: Dict[str, Any],
+        experts_cfgs: list,
+        gating_cfgs: dict,
         static_features: int,
         top_k: int = 1,
         capacity_factor: float = 1.25,
