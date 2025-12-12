@@ -407,8 +407,8 @@ class DeepHydro(DeepHydroInterface):
             # the ndim is 2 meaning we use an Nto1 mode
             # as lookup table is (basin 1's all time length, basin 2's all time length, ...)
             # params of reshape should be (basin size, time length)
-            pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
-            obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
+            pred = pred.flatten().reshape(test_dataloader.dataset.y.shape[0], -1, 1)
+            obs = obs.flatten().reshape(test_dataloader.dataset.y.shape[0], -1, 1)
         evaluation_cfgs = self.cfgs["evaluation_cfgs"]
         obs_xr, pred_xr = get_preds_to_be_eval(
             test_dataloader,
@@ -504,7 +504,7 @@ class DeepHydro(DeepHydroInterface):
             use_pyg_dataloader = training_cfgs.get("use_pyg_dataloader", False)
             if (
                 use_pyg_dataloader
-                or "MultiFeatureStream" in self.testdataset.__class__.__name__
+                or "TgHydroDataset" in self.testdataset.__class__.__name__
             ):
                 try:
                     from torch_geometric.loader import DataLoader as PyGDataLoader
@@ -553,7 +553,7 @@ class DeepHydro(DeepHydroInterface):
         use_pyg_dataloader = training_cfgs.get("use_pyg_dataloader", False)
         if (
             use_pyg_dataloader
-            or "MultiFeatureStream" in self.traindataset.__class__.__name__
+            or "TgHydroDataset" in self.traindataset.__class__.__name__
         ):
             try:
                 from torch_geometric.loader import DataLoader as PyGDataLoader

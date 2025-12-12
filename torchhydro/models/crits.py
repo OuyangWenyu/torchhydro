@@ -1151,3 +1151,84 @@ class MseMaskedLoss(torch.nn.Module):
         
         loss = torch.mean((valid_predictions - valid_targets) ** 2)
         return loss
+
+
+class PyGraphLoss(torch.nn.Module):
+    def __init__(
+        self,
+        loss_func: Union[torch.nn.Module, str] = "MSELoss",
+        horizon_range: Union[int, list, tuple] = None,
+    ):
+        """
+        Specialized loss for PyG batch data.
+        
+        It assumes the input is flattened [Batch*Nodes, Horizon] and uses node_mask 
+        to filter valid nodes before computing the base loss.
+
+        Parameters
+        ----------
+        loss_func : Union[torch.nn.Module, str]
+            Base loss function
+        horizon_range : Union[int, list, tuple], optional
+            Which forecast horizons to include in loss calculation.
+            - None: Use all horizons (default)
+            - int: Use the first N horizons (e.g., 1 means only the first step)
+            - list/tuple: Use specific indices (e.g., [0, 2, 4]) or range (start, end)
+        """
+        super(PyGraphLoss, self).__init__()
+        self.horizon_range = horizon_range
+        # Initialize base loss function
+        if isinstance(loss_func, str):
+            loss_dict = {
+                # NOTE: reduction="none" is important, otherwise the loss will be reduced to a scalar
+                "MSELoss": torch.nn.MSELoss(reduction="none"),
+                "MAELoss": torch.nn.L1Loss(reduction="none"),
+                "L1Loss": torch.nn.L1Loss(reduction="none"),
+                "RMSE": RMSELoss(),
+            }
+            if loss_func in loss_dict:
+                self.base_loss = loss_dict[loss_func]
+            else:
+                raise ValueError(f"Unsupported loss function string: {loss_func}")
+        else:
+            self.base_loss = loss_func
+
+    def forward(self, output, labels, node_mask=None, **kwargs):
+        # 0. Select Horizon Range
+        if self.horizon_range is not None:
+            if isinstance(self.horizon_range, int):
+                # Use first N steps
+                output = output[:, : self.horizon_range]
+                labels = labels[:, : self.horizon_range]
+            elif isinstance(self.horizon_range, (list, tuple)):
+                if len(self.horizon_range) == 2 and isinstance(self.horizon_range[0], int):
+                    # Assume range [start, end)
+                    output = output[:, self.horizon_range[0] : self.horizon_range[1]]
+                    labels = labels[:, self.horizon_range[0] : self.horizon_range[1]]
+                else:
+                    # Specific indices
+                    output = output[:, self.horizon_range]
+                    labels = labels[:, self.horizon_range]
+
+        # 1. Apply Node Mask
+        if node_mask is not None:
+            if not isinstance(node_mask, torch.Tensor):
+                node_mask = torch.tensor(
+                    node_mask, dtype=torch.bool, device=labels.device
+                )
+            else:
+                node_mask = node_mask.to(labels.device).bool()
+            
+            # Ensure mask is 1D [B*N_total]
+            if node_mask.dim() > 1:
+                node_mask = node_mask.flatten()
+            
+            output = output[node_mask]
+            labels = labels[node_mask]
+
+        # 2. Handle NaN in labels
+        mask_nan = ~torch.isnan(labels)
+        output = output[mask_nan]
+        labels = labels[mask_nan]
+
+        return self.base_loss(output, labels)

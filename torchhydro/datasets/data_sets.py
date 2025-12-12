@@ -563,49 +563,16 @@ class BaseDataset(Dataset):
 
         # 处理三维数据 (basin, time, variable)
         if norm_data.ndim == 3:
-            # 全局（或子集后）的时间轴（注意：可能远大于当前窗口 T）
-            all_times = selected_data.coords["time"].values  # numpy datetime64[ns] 数组
+            all_times = selected_data.coords["time"].values
             T = norm_data.shape[1]
-
-            # 将 selected_time_points 统一成 numpy 数组
-            if isinstance(selected_time_points, xr.DataArray):
-                sel_vals = selected_time_points.values
+            if all_times.shape[0] >= T:
+                time_coords = all_times[-T:]
             else:
-                sel_vals = np.asarray(selected_time_points)
-
-            # 计算相对 all_times 的位置索引 pos
-            sel_vals = np.asarray(sel_vals)
-            if np.issubdtype(sel_vals.dtype, np.datetime64):
-                if pd is not None:
-                    pos = pd.Index(all_times).get_indexer(sel_vals).astype(np.int64)
-                else:
-                    # 兜底：二分查找
-                    pos = np.searchsorted(all_times, sel_vals).astype(np.int64)
-                    ok = (
-                        (pos >= 0)
-                        & (pos < len(all_times))
-                        & (all_times[pos] == sel_vals)
-                    )
-                    if not np.all(ok):
-                        miss = int((~ok).sum())
-                        raise KeyError(
-                            f"{miss} datetimes not found in selected_data time axis."
-                        )
-            elif sel_vals.dtype.kind in ("i", "b"):
-                pos = sel_vals.astype(np.int64).reshape(-1)
-            else:
-                # 其它类型强转为整数索引
-                pos = sel_vals.astype(np.int64).reshape(-1)
-
-            # 对齐长度到当前窗口 T（默认右对齐；如需左对齐改为 pos[:T]）
-            if pos.size < T:
-                raise ValueError(
-                    f"Selected time points ({pos.size}) shorter than current window length ({T})."
-                )
-            pos_T = pos[-T:]
-            time_coords = all_times[pos_T]  # 长度 == T 的时间坐标
-
-            # norm_data 本身就是 (B, T, nf)，不再用 datetime 去索引它
+                if all_times.shape[0] == 0:
+                    raise ValueError("No time coordinates available for denormalization.")
+                last_time = all_times[-1]
+                pad = np.array([last_time] * (T - all_times.shape[0]), dtype=all_times.dtype)
+                time_coords = np.concatenate([all_times, pad])
             norm_data_3d = norm_data
             coords = {
                 "basin": selected_data.coords["basin"],
@@ -613,25 +580,7 @@ class BaseDataset(Dataset):
                 "variable": selected_data.coords["variable"],
             }
             dims = ["basin", "time", "variable"]
-            # add
-            if isinstance(selected_time_points, xr.DataArray):
-                # 获取 target_data 的时间轴
-                time_coords = target_data.coords["time"].values
-                # 找到 selected_time_points 对应的整数索引
-                selected_indices = np.where(np.isin(time_coords, selected_time_points))[
-                    0
-                ]
-            else:
-                # 如果 selected_time_points 已经是整数索引，直接使用
-                selected_indices = selected_time_points
-
-            # 确保索引不越界
-            max_idx = norm_data.shape[1] - 1
-            selected_indices = np.clip(selected_indices, 0, max_idx)
-            if norm_data.shape[1] != len(selected_data.coords["time"]):
-                norm_data_3d = norm_data[:, selected_indices, :]
-            else:
-                norm_data_3d = norm_data
+            
 
         # 处理四维数据
         elif norm_data.ndim == 4:
@@ -666,26 +615,12 @@ class BaseDataset(Dataset):
                     norm_data_3d = norm_data.reshape(
                         basin_num, i_e_time_length * forecast_length, nf
                     )
-                    # 创建新的时间坐标，重复i_e_time_length次
-                    new_times = []
-                    for i in range(forecast_length):
-                        if i < len(selected_data.coords["time"]):
-                            new_times.extend(
-                                selected_data.coords["time"][:i_e_time_length]
-                            )
-
-                    # 确保时间坐标长度与数据匹配
-                    if len(new_times) > i_e_time_length * forecast_length:
-                        new_times = new_times[: i_e_time_length * forecast_length]
-                    elif len(new_times) < i_e_time_length * forecast_length:
-                        # 如果时间坐标不足，使用最后一个时间点填充
-                        last_time = (
-                            new_times[-1]
-                            if new_times
-                            else selected_data.coords["time"][0]
-                        )
-                        while len(new_times) < i_e_time_length * forecast_length:
-                            new_times.append(last_time)
+                    # 创建新的时间坐标：取连续的 time 切片再按 forecast_length 平铺，避免重复索引错误
+                    base_times = list(selected_data.coords["time"][:i_e_time_length].values)
+                    if not base_times:
+                        base_times = list(target_data.coords["time"][:i_e_time_length].values)
+                    tiled = base_times * forecast_length
+                    new_times = tiled[: i_e_time_length * forecast_length]
 
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
@@ -728,26 +663,12 @@ class BaseDataset(Dataset):
                         basin_num, forecast_length * i_e_time_length, nf
                     )
 
-                    # 创建新的时间坐标
-                    new_times = []
-                    for i in range(forecast_length):
-                        if i < len(selected_data.coords["time"]):
-                            new_times.extend(
-                                selected_data.coords["time"][:i_e_time_length]
-                            )
-
-                    # 确保时间坐标长度与数据匹配
-                    if len(new_times) > forecast_length * i_e_time_length:
-                        new_times = new_times[: forecast_length * i_e_time_length]
-                    elif len(new_times) < forecast_length * i_e_time_length:
-                        # 如果时间坐标不足，使用最后一个时间点填充
-                        last_time = (
-                            new_times[-1]
-                            if new_times
-                            else selected_data.coords["time"][0]
-                        )
-                        while len(new_times) < forecast_length * i_e_time_length:
-                            new_times.append(last_time)
+                    # 创建新的时间坐标：按 i_e_time_length 切片后平铺，避免重复索引错误
+                    base_times = list(selected_data.coords["time"][:i_e_time_length].values)
+                    if not base_times:
+                        base_times = list(target_data.coords["time"][:i_e_time_length].values)
+                    tiled = base_times * forecast_length
+                    new_times = tiled[: forecast_length * i_e_time_length]
 
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
@@ -3480,7 +3401,7 @@ class AEFDataset(BaseDataset):
         }
 
 
-class MultiFeatureStreamDataset(BaseDataset):
+class TgHydroDataset(BaseDataset):
     def __init__(self, cfgs: dict, is_tra_val_te: str, upstream_indices: dict = None):
         super().__init__(cfgs, is_tra_val_te)
         self.upstream_indices = upstream_indices or {}
@@ -3492,22 +3413,67 @@ class MultiFeatureStreamDataset(BaseDataset):
         self.basin_id = tg_cfgs.get("basin_id", None)
         self.use_confluence_nodes_only = tg_cfgs.get("use_confluence_nodes_only", True)
         self.node_mask = None
+        self.edge_index = None
         self.num_nodes = len(self.basins)
         rels = self.data_cfgs.get("relevant_cols", [])
-        self._var_idx_precip = (
-            rels.index("precipitation") if "precipitation" in rels else None
-        )
-        self._var_idx_lstm = (
-            rels.index("lstm_streamflow") if "lstm_streamflow" in rels else None
-        )
-        self._var_idx_obs = (
-            rels.index("observed_streamflow") if "observed_streamflow" in rels else None
-        )
-        self._var_idx_discharge = (
-            rels.index("discharge") if "discharge" in rels else None
-        )
-        self._init_node_mask()
-        self._init_edge_index()
+        def _find_first_index(names):
+            for n in names:
+                if n in rels:
+                    return rels.index(n)
+            return None
+        self._var_idx_precip = _find_first_index([
+            "precipitation",
+            "total_precipitation",
+            "total_precipitation_hourly",
+            "total_precipitation_surface",
+            "prcp",
+            "pr",
+        ])
+        self._var_idx_lstm = _find_first_index([
+            "lstm_streamflow",
+            "lstm_pred",
+            "lstm_prediction",
+        ])
+        self._var_idx_obs = _find_first_index([
+            "observed_streamflow",
+            "streamflow",
+            "qobs",
+        ])
+        self._var_idx_discharge = _find_first_index(["discharge"])
+        self._load_graph_from_datasource()
+        if self.node_mask is None:
+            self._init_node_mask()
+        if self.edge_index is None:
+            self._init_edge_index()
+
+    def _create_lookup_table(self):
+        """
+        Create lookup table for Graph Dataset.
+        For GNNs, each sample represents the state of ALL nodes at a specific time step.
+        So we only iterate over time, not basins.
+        """
+        lookup = []
+        rho = self.rho
+        warmup_length = self.warmup_length
+        horizon = self.horizon
+        seq_len = rho + horizon
+        max_time_length = self.nt
+
+        # We only iterate over time, not basins
+        # Validation/Test: maintain full sequence
+        # Training: Currently we also maintain full sequence to keep graph structure fixed.
+        # Handling of NaN targets should be done via loss masking, not by skipping samples here,
+        # unless all nodes are NaN at that time step.
+        
+        # Check for time steps where ALL basins are NaN (optional optimization)
+        # nan_array_all = np.isnan(self.y[:, :, 0]).all(axis=0) # [time]
+        
+        for f in range(warmup_length, max_time_length - rho - horizon):
+            # We use basin=None to indicate "all basins/nodes"
+            lookup.append((None, f, seq_len))
+
+        self.lookup_table = dict(enumerate(lookup))
+        self.num_samples = len(self.lookup_table)
 
     def __getitem__(self, item: int):
         """Get one sample from the dataset as a PyG Data object.
@@ -3531,29 +3497,51 @@ class MultiFeatureStreamDataset(BaseDataset):
         warmup_length = self.warmup_length
         M = self.rho
         F = self.horizon
-        x_all = self.x[:, idx - warmup_length : idx + actual_length, :]
-        y_all = self.y[:, idx : idx + actual_length, :]
+        # 若数据源提供了 node_ids，并且与 basins 顺序不一致，则按 node_ids 重排 x/y
+        node_ids = getattr(self, "node_ids", None)
+        if node_ids is not None and isinstance(node_ids, (list, np.ndarray)):
+            # 构建 basin->index 的映射并重排
+            basin_to_idx = {basin: i for i, basin in enumerate(self.basins)}
+            reorder_idx = [basin_to_idx.get(b, None) for b in node_ids]
+            if all(i is not None for i in reorder_idx):
+                x_all = self.x[reorder_idx, idx - warmup_length : idx + actual_length + 1, :]
+                y_all = self.y[reorder_idx, idx : idx + actual_length, :]
+            else:
+                x_all = self.x[:, idx - warmup_length : idx + actual_length + 1, :]
+                y_all = self.y[:, idx : idx + actual_length, :]
+        else:
+            x_all = self.x[:, idx - warmup_length : idx + actual_length + 1, :]
+            y_all = self.y[:, idx : idx + actual_length, :]
         start_obs_rel = warmup_length
         end_obs_rel = warmup_length + M
+        end_future_rel = warmup_length + M + F
         if self._var_idx_precip is None or self._var_idx_lstm is None:
             raise ValueError(
                 "relevant_cols 需包含 'precipitation' 与 'lstm_streamflow'"
             )
-        past_rain = x_all[:, start_obs_rel + 1 : end_obs_rel + 1, self._var_idx_precip]
-        past_lstm = x_all[:, start_obs_rel + 1 : end_obs_rel + 1, self._var_idx_lstm]
+        # Extend to include horizon F
+        past_rain = x_all[:, start_obs_rel + 1 : end_future_rel + 1, self._var_idx_precip]
+        past_lstm = x_all[:, start_obs_rel + 1 : end_future_rel + 1, self._var_idx_lstm]
+        
+        # Obs only up to M, then NaN for F
         if self._var_idx_obs is not None:
-            past_obs = x_all[:, start_obs_rel:end_obs_rel, self._var_idx_obs]
+            real_obs = x_all[:, start_obs_rel:end_obs_rel, self._var_idx_obs]
         else:
-            past_obs = y_all[:, :M, 0]
+            real_obs = y_all[:, :M, 0]
+            
         if self._var_idx_discharge is not None:
             discharge_vals = x_all[
                 :, start_obs_rel:end_obs_rel, self._var_idx_discharge
             ]
             mask = ~np.isnan(discharge_vals)
-            past_obs = np.where(mask, discharge_vals, past_obs)
-        past_rain = np.clip(past_rain, 0, None)
-        past_lstm = np.clip(past_lstm, 0, None)
-        past_obs = np.clip(past_obs, 0, None)
+            real_obs = np.where(mask, discharge_vals, real_obs)
+            
+        # Create placeholder for future obs (filled with NaN or 0)
+        # Using 0 or NaN? NaN is safer to detect leakage, but model needs to handle it if not overwritten immediately.
+        # But we will overwrite it in the model before use.
+        future_obs_placeholder = np.full((real_obs.shape[0], F), np.nan, dtype=real_obs.dtype)
+        past_obs = np.concatenate([real_obs, future_obs_placeholder], axis=1)
+
         time_series = np.stack(
             [
                 past_rain.transpose(0, 1),
@@ -3565,19 +3553,26 @@ class MultiFeatureStreamDataset(BaseDataset):
         if self.c is None or self.c.shape[-1] == 0:
             input_features = time_series
         else:
-            c = self.c
-            c_exp = np.repeat(c[:, np.newaxis, :], M, axis=1)
+            if node_ids is not None and isinstance(node_ids, (list, np.ndarray)):
+                basin_to_idx = {basin: i for i, basin in enumerate(self.basins)}
+                reorder_idx = [basin_to_idx.get(b, None) for b in node_ids]
+                if all(i is not None for i in reorder_idx):
+                    c = self.c[reorder_idx, :]
+                else:
+                    c = self.c
+            else:
+                c = self.c
+            # Extend c repetition to M + F
+            c_exp = np.repeat(c[:, np.newaxis, :], M + F, axis=1)
             input_features = np.concatenate((time_series, c_exp), axis=-1)
-        # Note: input_features is [M, num_nodes, num_features]
-        # For PyG, we want [num_nodes, M, num_features]
-        input_features = input_features.transpose(1, 0, 2)
+        # For PyG, we want [num_nodes, M+F, num_features]
         future_targets = self.y[:, idx + M : idx + M + F, 0]
-        output_data = future_targets.transpose(1, 0)
+        # output_data = future_targets.transpose(1, 0)
 
         # Create PyG Data object
         data = Data(
-            x=torch.from_numpy(input_features).float(),  # [num_nodes, M, num_features]
-            y=torch.from_numpy(output_data).float(),  # [num_nodes, F]
+            x=torch.from_numpy(input_features).float(),  # [num_nodes, M+F, num_features]
+            y=torch.from_numpy(future_targets).float(),  # [num_nodes, F]
             edge_index=self.edge_index,  # [2, num_edges]
         )
 
@@ -3586,6 +3581,193 @@ class MultiFeatureStreamDataset(BaseDataset):
             data.node_mask = torch.from_numpy(self.node_mask.astype(np.bool_))
 
         return data
+
+    def _read_xyc_specified_time(self, start_date, end_date):
+        tg_cfgs = self.data_cfgs.get("tg_cfgs", {})
+        var_source_map = tg_cfgs.get("var_source_map", tg_cfgs.get("source_selection", {}))
+        default_choice = tg_cfgs.get("default_source", None)
+        source_kwargs = {}
+        combine = tg_cfgs.get("combine", True)
+        if combine:
+            source_kwargs["combine"] = True
+
+        def _split_source(ds):
+            base, inter = None, None
+            if isinstance(ds, dict):
+                keys = {k.lower(): k for k in ds.keys()}
+                if "base" in keys:
+                    base = ds[keys["base"]]
+                if "intermediate" in keys:
+                    inter = ds[keys["intermediate"]]
+            elif isinstance(ds, xr.Dataset):
+                if "source" in ds.data_vars:
+                    src_da = ds["source"]
+                    if "basin" in src_da.dims:
+                        basins = (
+                            ds["basin"].values
+                            if "basin" in ds.coords
+                            else src_da["basin"].values
+                        )
+                        src_vals = src_da.values.astype(str)
+                        base_mask = np.isin(src_vals, ["base", "Base", "BASE"]) 
+                        inter_mask = np.isin(
+                            src_vals,
+                            ["intermediate", "Intermediate", "INTERMEDIATE", "inter"],
+                        )
+                        base_idx = np.where(base_mask)[0]
+                        inter_idx = np.where(inter_mask)[0]
+                        if base_idx.size > 0:
+                            base = ds.isel(basin=base_idx)
+                        if inter_idx.size > 0:
+                            inter = ds.isel(basin=inter_idx)
+                elif "source" in ds.coords or "source" in ds.dims:
+                    try:
+                        base = ds.sel(source="base")
+                    except Exception:
+                        base = None
+                    try:
+                        inter = ds.sel(source="intermediate")
+                    except Exception:
+                        inter = None
+            if base is None and inter is None:
+                base = ds
+            return base, inter
+
+        def _select_timeseries(ds_raw, var_list):
+            ds_base, ds_inter = _split_source(ds_raw)
+            if ds_base is not None:
+                ds_base = self._rm_timeunit_key(ds_base)
+            if ds_inter is not None:
+                ds_inter = self._rm_timeunit_key(ds_inter)
+            if ds_base is None and ds_inter is None:
+                return None
+            if ds_inter is None:
+                return ds_base[var_list]
+            if ds_base is None:
+                return ds_inter[var_list]
+            base_basins = (
+                ds_base["basin"].values if "basin" in ds_base.coords else np.array([])
+            )
+            inter_basins = (
+                ds_inter["basin"].values if "basin" in ds_inter.coords else np.array([])
+            )
+            basins_union = np.union1d(base_basins, inter_basins)
+            union_time = None
+            if "time" in ds_base.dims and "time" in ds_inter.dims:
+                union_time = np.union1d(ds_base.time.values, ds_inter.time.values)
+                ds_base = ds_base.reindex(time=union_time)
+                ds_inter = ds_inter.reindex(time=union_time)
+            if basins_union.size > 0:
+                if "basin" in ds_base.dims:
+                    ds_base = ds_base.reindex(basin=basins_union)
+                if "basin" in ds_inter.dims:
+                    ds_inter = ds_inter.reindex(basin=basins_union)
+            data_vars = {}
+            suffix_map = tg_cfgs.get("source_suffix", {"base": "_base", "intermediate": "_inter"})
+            for v in var_list:
+                choice = var_source_map.get(v, default_choice)
+                if isinstance(choice, (list, tuple)) or choice == "both":
+                    if ds_inter is not None and v in ds_inter:
+                        data_vars[f"{v}{suffix_map.get('intermediate', '_inter')}"] = ds_inter[v]
+                    if ds_base is not None and v in ds_base:
+                        data_vars[f"{v}{suffix_map.get('base', '_base')}"] = ds_base[v]
+                else:
+                    if choice == "intermediate" and v in ds_inter:
+                        data_vars[v] = ds_inter[v]
+                    elif v in ds_base:
+                        data_vars[v] = ds_base[v]
+                    elif v in ds_inter:
+                        data_vars[v] = ds_inter[v]
+            coords = {}
+            if basins_union.size > 0:
+                coords["basin"] = basins_union
+            if union_time is not None:
+                coords["time"] = union_time
+            return xr.Dataset(data_vars, coords=coords)
+
+        def _select_attributes(ds_raw, var_list):
+            ds_base, ds_inter = _split_source(ds_raw)
+            if ds_base is not None:
+                ds_base = self._rm_timeunit_key(ds_base)
+            if ds_inter is not None:
+                ds_inter = self._rm_timeunit_key(ds_inter)
+            if ds_base is None and ds_inter is None:
+                return None
+            if ds_inter is None:
+                return ds_base[var_list]
+            if ds_base is None:
+                return ds_inter[var_list]
+            base_basins = (
+                ds_base["basin"].values if "basin" in ds_base.coords else np.array([])
+            )
+            inter_basins = (
+                ds_inter["basin"].values if "basin" in ds_inter.coords else np.array([])
+            )
+            basins_union = np.union1d(base_basins, inter_basins)
+            if basins_union.size > 0:
+                if "basin" in ds_base.dims:
+                    ds_base = ds_base.reindex(basin=basins_union)
+                if "basin" in ds_inter.dims:
+                    ds_inter = ds_inter.reindex(basin=basins_union)
+            data_vars = {}
+            suffix_map = tg_cfgs.get("source_suffix", {"base": "_base", "intermediate": "_inter"})
+            for v in var_list:
+                choice = var_source_map.get(v, default_choice)
+                if isinstance(choice, (list, tuple)) or choice == "both":
+                    if ds_inter is not None and v in ds_inter:
+                        data_vars[f"{v}{suffix_map.get('intermediate', '_inter')}"] = ds_inter[v]
+                    if ds_base is not None and v in ds_base:
+                        data_vars[f"{v}{suffix_map.get('base', '_base')}"] = ds_base[v]
+                else:
+                    if choice == "intermediate" and v in ds_inter:
+                        data_vars[v] = ds_inter[v]
+                    elif v in ds_base:
+                        data_vars[v] = ds_base[v]
+                    elif v in ds_inter:
+                        data_vars[v] = ds_inter[v]
+            coords = {"basin": basins_union} if basins_union.size > 0 else {}
+            return xr.Dataset(data_vars, coords=coords)
+
+        data_forcing_ds_raw = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["relevant_cols"],
+            **source_kwargs,
+        )
+        data_output_ds_raw = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["target_cols"],
+            **source_kwargs,
+        )
+        data_attr_ds_raw = self.data_source.read_attr_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.data_cfgs["constant_cols"],
+            all_number=True,
+            **source_kwargs,
+        )
+
+        data_forcing_ds_raw = self._rm_timeunit_key(data_forcing_ds_raw)
+        data_output_ds_raw = self._rm_timeunit_key(data_output_ds_raw)
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_raw, data_output_ds_raw
+        )
+        
+        data_forcing_ds_sel = _select_timeseries(data_forcing_ds, self.data_cfgs["relevant_cols"])
+        data_output_ds_sel = _select_timeseries(data_output_ds, self.data_cfgs["target_cols"])
+        data_attr_ds_sel = _select_attributes(data_attr_ds_raw, self.data_cfgs["constant_cols"])
+
+        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
+            data_forcing_ds_sel, data_output_ds_sel, data_attr_ds_sel
+        )
+        return {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": (
+                c_origin.transpose("basin", "variable") if c_origin is not None else None
+            ),
+        }
+
 
     def _init_node_mask(self):
         """Initialize node mask for identifying confluence nodes.
@@ -3665,7 +3847,61 @@ class MultiFeatureStreamDataset(BaseDataset):
         else:
             # No valid edges found
             self.edge_index = torch.empty((2, 0), dtype=torch.long)
-
+        
+    def _load_graph_from_datasource(self):
+        graph = None
+        if hasattr(self.data_source, "read_graph_data"):
+            try:
+                graph = self.data_source.read_graph_data(self.basin_id, self.basins)
+            except Exception:
+                graph = None
+        elif hasattr(self.data_source, "get_graph_data"):
+            try:
+                graph = self.data_source.get_graph_data(self.basin_id, self.basins)
+            except Exception:
+                graph = None
+        if graph is None:
+            if hasattr(self.data_source, "read_upstream_indices"):
+                try:
+                    self.upstream_indices = self.data_source.read_upstream_indices(
+                        self.basin_id, self.basins
+                    )
+                except Exception:
+                    self.upstream_indices = {}
+            elif hasattr(self.data_source, "get_upstream_indices"):
+                try:
+                    self.upstream_indices = self.data_source.get_upstream_indices(
+                        self.basin_id, self.basins
+                    )
+                except Exception:
+                    self.upstream_indices = {}
+            return
+        if isinstance(graph, dict):
+            ei = graph.get("edge_index")
+            nm = graph.get("node_mask")
+            node_ids = graph.get("node_ids")
+            if ei is not None:
+                if isinstance(ei, torch.Tensor):
+                    self.edge_index = ei
+                else:
+                    try:
+                        self.edge_index = torch.tensor(ei, dtype=torch.long)
+                        if self.edge_index.dim() == 2 and self.edge_index.shape[0] != 2:
+                            self.edge_index = self.edge_index.t().contiguous()
+                    except Exception:
+                        self.edge_index = None
+            if nm is not None:
+                try:
+                    self.node_mask = np.array(nm, dtype=bool)
+                except Exception:
+                    self.node_mask = None
+            if node_ids is not None:
+                try:
+                    self.node_ids = list(node_ids)
+                except Exception:
+                    self.node_ids = None
+            if not self.upstream_indices and "upstream_indices" in graph:
+                self.upstream_indices = graph.get("upstream_indices")
 
 class Camels_merge_AEFDataset(BaseDataset):
     def _read_xyc_specified_time(self, start_date, end_date):

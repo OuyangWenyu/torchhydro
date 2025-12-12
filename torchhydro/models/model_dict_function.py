@@ -60,6 +60,7 @@ from torchhydro.models.crits import (
     FloodLoss,
     HybridLoss,
     HybridFloodloss,
+    PyGraphLoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
@@ -128,6 +129,7 @@ pytorch_criterion_dict = {
     "FloodLoss": FloodLoss,
     "HybridLoss": HybridLoss,
     "HybridFloodloss": HybridFloodloss,  # Alias for backward compatibility
+    "PyGraphLoss": PyGraphLoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}
