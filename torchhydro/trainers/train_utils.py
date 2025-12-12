@@ -1651,6 +1651,14 @@ def torch_single_train(
         batch_vector = getattr(batch, "batch", None)
         node_mask = getattr(batch, "node_mask", None)
         loss = compute_loss(trg, output, criterion, batch_vector=batch_vector, node_mask=node_mask, **kwargs)
+
+        # Add auxiliary loss from MoE models (if available)
+        if hasattr(model, "get_aux_loss"):
+            aux_loss = model.get_aux_loss()
+            if aux_loss is not None and aux_loss.device != loss.device:
+                aux_loss = aux_loss.to(loss.device)
+            loss = loss + aux_loss
+
         if loss > 100:
             print("Warning: high loss detected")
         if torch.isnan(loss):

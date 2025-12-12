@@ -30,6 +30,8 @@ dependencies = [
     "tbparse",
     "fsspec",
     "intake",
+    "diffusers",
+    "accelerate",
     # PyTorch 依赖 - 根据平台选择CPU或GPU版本
     "torch>=2.0.0,<3.0.0; sys_platform == 'darwin'", # macOS CPU only
     "torch>=2.0.0,<3.0.0; sys_platform == 'linux'", # Linux GPU (CUDA)
