@@ -1858,7 +1858,9 @@ class FloodEventDataset(BaseDataset):
         Returns
         -------
         np.ndarray
-            Flood mask with shape [seq_len, 1] where 1 indicates flood event, 0 indicates normal
+            Flood mask with shape [seq_len, 1] where:
+            - Non-positive values (<=0) indicate non-flood events
+            - Positive values (1-100) indicate flood events with quality scores
         """
         if self.flood_event_idx >= y.shape[1]:
             raise ValueError(
@@ -1868,9 +1870,11 @@ class FloodEventDataset(BaseDataset):
         # Extract flood_event column
         flood_events = y[:, self.flood_event_idx]
 
-        # Create binary mask: 1 for flood (non-zero), 0 for normal (zero)
-        no_flood_data = min(flood_events)
-        flood_mask = (flood_events != no_flood_data).astype(np.float32)
+        # Preserve original values for score-based weighting
+        # flood_events should contain:
+        # - Values <= 0 (e.g., 0, -1): non-flood events
+        # - Values >= 1 (e.g., 1-100): flood events with quality scores
+        flood_mask = flood_events.astype(np.float32)
 
         # Reshape to maintain dimension consistency
         flood_mask = flood_mask.reshape(-1, 1)
@@ -2137,8 +2141,10 @@ class FloodEventDataset(BaseDataset):
         x = self.x[basin, start_idx:end_idx, :]
         y = self.y[basin, start_idx + warmup_length : end_idx, :]
 
-        # Create flood mask from flood_event column
-        flood_mask = self._create_flood_mask(y)
+        # Create flood mask from flood_event column using ORIGINAL (non-normalized) data
+        # This preserves the 0-100 score values for score-based weighting in loss computation
+        y_origin = self.y_origin[basin, start_idx + warmup_length : end_idx, :]
+        flood_mask = self._create_flood_mask(y_origin)
 
         # Replace the original flood_event column with the new flood_mask
         y_with_flood_mask = y.copy()
@@ -3123,8 +3129,26 @@ class AugmentedFloodEventDataset(FloodEventDataset):
             data_forcing_hist_ = self._rm_timeunit_key(data_forcing_hist_)
             data_output_hist_ = self._rm_timeunit_key(data_output_hist_)
 
+            # Map real data flood_event from 0/1 to 0/100 scoring system
+            # This unifies real data (binary) with augmented data (0-100 scores)
+            if data_output_hist_ is not None and 'flood_event' in data_output_hist_.data_vars:
+                import xarray as xr
+                flood_event_da = data_output_hist_['flood_event']
+
+                # Map: 0 → 0 (non-flood), 1 → 100 (real flood event, high quality)
+                mapped_flood_event = xr.where(
+                    flood_event_da > 0,  # Condition: greater than 0 (i.e., 1)
+                    100.0,               # Map to 100 score
+                    0.0                  # Keep as 0
+                )
+
+                # Update dataset with mapped values
+                data_output_hist_['flood_event'] = mapped_flood_event
+
+                print("Real data flood_event mapped: 1→100, 0→0")
+
         except Exception as e:
-            LOGGER.info(f"无法读取历史数据，可能是时间范围不在历史数据中: {e}")
+            print(f"Unable to read the historical data. The time range may not be in the historical data: {e}")
             data_forcing_hist_ = None
             data_output_hist_ = None
 
@@ -3144,6 +3168,17 @@ class AugmentedFloodEventDataset(FloodEventDataset):
             # Process augmented data
             data_forcing_aug_ = self._rm_timeunit_key(data_forcing_aug_)
             data_output_aug_ = self._rm_timeunit_key(data_output_aug_)
+
+            # Verify augmented data flood_event score range (optional logging)
+            if data_output_aug_ is not None and 'flood_event' in data_output_aug_.data_vars:
+                import numpy as np
+                flood_values = data_output_aug_['flood_event'].values.ravel()
+                flood_values = flood_values[~np.isnan(flood_values)]
+
+                if len(flood_values) > 0:
+                    min_val = float(np.min(flood_values))
+                    max_val = float(np.max(flood_values))
+                    LOGGER.info(f"增强数据 flood_event 范围: {min_val:.1f} 到 {max_val:.1f}")
 
         except Exception as e:
             LOGGER.info(f"无法读取增强数据，可能是时间范围不在增强数据中: {e}")

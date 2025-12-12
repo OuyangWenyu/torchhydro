@@ -743,17 +743,19 @@ def selfmadehydrodataset_dpl4xaj_args() -> Any:
 
 @pytest.fixture()
 def flood_event_datasource_args() -> Any:
-    """Configuration for FloodEventDatasource with enhanced data support"""
-    project_name = os.path.join("test_flood_event_datasource", "exp4")
+    """
+    Configuration for FloodEventDatasource with enhanced data support and score weighting
+    """
+    project_name = os.path.join("test_flood_event_train", "exp20251211_real")
     DEVICE = -1
-    return cmd(
+    args = cmd(
         sub=project_name,
         source_cfgs={
             "source_name": "floodeventdatasource",
             "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
                 "time_unit": ["3h"],
-                "dataset_name": "songliaorrevents",
+                "dataset_name": "songliaorrevent",
                 "net_rain_key": "net_rain",
                 "obs_flow_key": "inflow",
                 "delta_t_hours": 3.0,
@@ -768,8 +770,9 @@ def flood_event_datasource_args() -> Any:
         },
         gage_id=["songliao_21401550"],
         batch_size=8,
+        warmup_length=0,  
         hindcast_length=0,
-        forecast_length=20,
+        forecast_length=30,
         frwin=20,
         min_time_unit="h",
         min_time_interval="3",
@@ -778,6 +781,7 @@ def flood_event_datasource_args() -> Any:
         var_c=["None"],
         c_rm_nan=False,
         var_out=["inflow", "flood_event"],
+        target_as_input=False,  # 不将target作为输入特征
         dataset="FloodEventDataset",
         scaler="DapengScaler",
         variable_length_cfgs={
@@ -786,15 +790,15 @@ def flood_event_datasource_args() -> Any:
             "fixed_lengths": None,
             "pad_strategy": "Pad",
         },
-        train_epoch=2,
+        train_epoch=20,
         save_epoch=1,
         model_loader={"load_way": "specified", "test_epoch": 2},
         train_period=[
-            ["1980-01-01-02", "2019-12-30-23"],
-            ["2026-07-01-02", "2262-12-30-23"],
+            "1980-01-01-02", "2017-12-31-23",   # 实测数据
+            # ["2017-01-01-02", "2017-12-31-23"],
         ],
-        valid_period=["2020-01-01-02", "2024-12-30-23"],
-        test_period=["2020-01-01-02", "2024-12-30-23"],
+        valid_period=["2018-01-01-02", "2024-12-31-23"],
+        test_period=["2018-01-01-02", "2023-12-31-23"],
         loss_func="FloodLoss",
         loss_param={
             "loss_func": "MSELoss",
@@ -811,4 +815,102 @@ def flood_event_datasource_args() -> Any:
         valid_batch_mode="train",
         rolling=-1,
         evaluator={"eval_way": "floodevent"},
+        # train_mode= False,
+        # stat_dict_file = "D:\project\songliao\torchhydro\results\test_flood_event_train\exp20251211_real\dapengscaler_stat.json"
+    )
+    return args
+
+
+@pytest.fixture()
+def flood_event_datasource_score_args() -> Any:
+    """Configuration for FloodEventDatasource with score threshold filtering
+
+    This config is designed for NC files (v1.2+) that use score_threshold filtering
+    during data loading. Data quality is controlled by threshold (default: 60),
+    and all loaded data has equal weight during training.
+
+    Features:
+    - Uses augmented data from run_data_postprocessing.py (score >= threshold)
+    - No score-based weighting (all data weighted equally)
+    - Compatible with NC files containing: rain, inflow, flood_event
+    - Supports both real historical data and augmented data
+    """
+    project_name = os.path.join("test_flood_event_score", "exp20251211_score")
+    DEVICE = -1
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "floodeventdatasource",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {
+                "time_unit": ["3h"],
+                "dataset_name": "songliaorrevent",
+                "net_rain_key": "net_rain",
+                "obs_flow_key": "inflow",
+                "delta_t_hours": 3.0,
+            },
+        },
+        ctx=[DEVICE],
+        model_name="SimpleLSTM",
+        model_hyperparam={
+            "input_size": 1,
+            "output_size": 1,
+            "hidden_size": 16,
+        },
+        gage_id=["songliao_21401550"],
+        batch_size=8,
+        warmup_length=0,        # 预热期长度
+        hindcast_length=0,      # 模型用于预测的历史观测数据的长度
+        forecast_length=30,     # 模型向未来预测的时间步长度
+        frwin=20,               # 滚动评估/测试时的预测窗口长度
+        min_time_unit="h",
+        min_time_interval="3",
+        var_t=["rain"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        target_as_input=False,  # target作为输入特征
+        dataset="AugmentedFloodEventDataset",
+        scaler="DapengScaler",
+        variable_length_cfgs={
+            "use_variable_length": True,
+            "variable_length_type": "dynamic",
+            "fixed_lengths": None,
+            "pad_strategy": "Pad",
+        },
+        train_epoch=15,  # 训练轮数
+        save_epoch=1,
+        model_loader={"load_way": "best"},  # 使用最佳模型
+        # 训练周期：混合真实数据和增强数据
+        train_period=[
+            ["1984-01-01-02", "2017-12-31-23"],  # 真实历史数据
+            ["2026-07-01-02", "3150-12-31-23"],  # 增强数据
+        ],
+        valid_period=["2018-01-01-02", "2024-12-30-23"],  # 真实数据
+        test_period=["2018-01-01-02", "2023-12-31-23"],  # 真实数据
+        loss_func="FloodLoss",
+        loss_param={
+            "loss_func": "MSELoss",
+            "flood_weight": 1.0,
+            "flood_strategy": "weight",
+            # Score-based weighting parameters (for augmented data with quality scores 1-100)
+            # Uncomment below to enable score-based weighting:
+            "use_score_weighting": True,    # Enable score-based weighting (flood_mask: -1/0=non-flood, 1-100=scores)
+            "score_weight_min": 0.5,        # Weight for lowest quality (score=1)
+            "score_weight_max": 3.0,        # Weight for highest quality (score=100)
+            "score_alpha": 3.0,             # Control high-quality emphasis (>1: emphasize high scores)
+            "device": [DEVICE],
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},
+        # train_mode= False,
+        # stat_dict_file = "D:\project\songliao\torchhydro\results\test_flood_event_train\exp20251211_score\dapengscaler_stat.json"
     )
