@@ -63,6 +63,8 @@ dependencies = [
     "lightning>=2.5.2",
     "shap>=0.48.0",
     "black>=25.11.0",
+    "h5py>=3.14.0",
+    "mpi4py>=4.1.1",
 ]
 
 [project.optional-dependencies]
