@@ -142,6 +142,7 @@ results/
 data/
 scripts/
 pyrightconfig.json
+torchhydro.code-workspace
 
 # Claude
 CLAUDE.md
@@ -153,3 +154,6 @@ torchhydro/_version.py
 
 # Gemini
 GEMINI.md
+
+# Ignore loss landscape output results
+loss_landscape_output/
