@@ -34,6 +34,36 @@ from torchhydro.explainers.loss_landscape import (
 from hydrodataset.hydro_dataset import StandardVariable
 
 
+class RmseLoss(torch.nn.Module):
+    def __init__(self):
+        """
+        RMSE loss which could ignore NaN values
+
+        Now we only support 3-d tensor and 1-d tensor
+        """
+        super(RmseLoss, self).__init__()
+
+    def forward(self, output, target):
+        if target.dim() == 1:
+            mask = target == target
+            p = output[mask]
+            t = target[mask]
+            return torch.sqrt(((p - t) ** 2).mean())
+        ny = target.shape[2]
+        loss = 0
+        for k in range(ny):
+            p0 = output[:, :, k]
+            t0 = target[:, :, k]
+            mask = t0 == t0
+            p = p0[mask]
+            p = torch.where(torch.isnan(p), torch.full_like(p, 0), p)
+            t = t0[mask]
+            t = torch.where(torch.isnan(t), torch.full_like(t, 0), t)
+            temp = torch.sqrt(((p - t) ** 2).mean())
+            loss = loss + temp
+        return loss
+
+
 def main():
     parser = argparse.ArgumentParser(description="Visualize Loss Landscape")
     parser.add_argument(
@@ -66,6 +96,7 @@ def main():
 
     args = parser.parse_args()
 
+    torch.manual_seed(123)
     # Setup MPI if requested
     if args.mpi:
         comm = setup_MPI()
@@ -168,6 +199,7 @@ def main():
 
     # Define loss function
     criterion = nn.MSELoss()
+    # criterion = RmseLoss
 
     # Model file path (for naming)
     model_file = config_data["evaluation_cfgs"]["model_loader"]["pth_path"]

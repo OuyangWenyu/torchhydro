@@ -25,7 +25,8 @@ def write_list(f, name, direction):
     grp = f.create_group(name)
     for i, l in enumerate(direction):
         if isinstance(l, torch.Tensor):
-            l = l.numpy()
+            # Move to CPU before converting to numpy
+            l = l.detach().cpu().numpy()
         grp.create_dataset(str(i), data=l)
 
 

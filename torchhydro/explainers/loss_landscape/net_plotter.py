@@ -18,6 +18,8 @@ def get_weights(net):
     """
     Extract parameters from net and return a list of tensors.
 
+    NOTE: Returns CLONES of the parameters to avoid mutation issues.
+
     Parameters
     ----------
     net : torch.nn.Module
@@ -26,9 +28,9 @@ def get_weights(net):
     Returns
     -------
     list
-        List of parameter tensors
+        List of parameter tensors (cloned)
     """
-    return [p.data for p in net.parameters()]
+    return [p.data.clone() for p in net.parameters()]
 
 
 def set_weights(net, weights, directions=None, step=None):
@@ -41,7 +43,7 @@ def set_weights(net, weights, directions=None, step=None):
     net : torch.nn.Module
         The neural network model
     weights : list
-        List of weight tensors (original weights)
+        List of weight tensors (original weights, should be cloned)
     directions : list, optional
         List of direction tensors [xdirection] or [xdirection, ydirection]
     step : float or tuple, optional
@@ -50,21 +52,31 @@ def set_weights(net, weights, directions=None, step=None):
     if directions is None:
         # Simply copy weights
         for p, w in zip(net.parameters(), weights):
-            p.data.copy_(w.type(type(p.data)))
+            p.data.copy_(w.type_as(p.data))
     else:
         assert (
             step is not None
         ), "If a direction is specified then step must be specified as well"
 
         if len(directions) == 2:
+            # dx and dy are the direction tensors
             dx = directions[0]
             dy = directions[1]
+
+            # Ensure step is a tuple and matches the number of directions
+            assert (
+                isinstance(step, tuple) and len(step) == 2
+            ), "Step must be a tuple with two values for two directions"
+
+            # Calculate the change in weights based on directions and step
             changes = [d0 * step[0] + d1 * step[1] for (d0, d1) in zip(dx, dy)]
         else:
+            # Only one direction is provided, apply step
             changes = [d * step for d in directions[0]]
 
+        # Update the weights using the calculated changes
         for p, w, d in zip(net.parameters(), weights, changes):
-            p.data = w + torch.Tensor(d).type(type(w))
+            p.data.copy_(w + torch.Tensor(d).type_as(w))
 
 
 def set_states(net, states, directions=None, step=None):
@@ -119,9 +131,9 @@ def get_random_weights(weights):
     Returns
     -------
     list
-        List of random direction tensors
+        List of random direction tensors (on same device as weights)
     """
-    return [torch.randn(w.size()) for w in weights]
+    return [torch.randn(w.size(), device=w.device, dtype=w.dtype) for w in weights]
 
 
 def get_random_states(states):
@@ -137,9 +149,11 @@ def get_random_states(states):
     Returns
     -------
     list
-        List of random direction tensors
+        List of random direction tensors (on same device as state values)
     """
-    return [torch.randn(w.size()) for k, w in states.items()]
+    return [
+        torch.randn(w.size(), device=w.device, dtype=w.dtype) for k, w in states.items()
+    ]
 
 
 def get_diff_weights(weights, weights2):
@@ -157,6 +171,9 @@ def normalize_direction(direction, weights, norm="filter"):
     Rescale the direction so that it has similar norm as the corresponding
     model weights in different levels.
 
+    NOTE: direction and weights are single layer tensors (e.g., [out_channels, in_channels, H, W])
+    For 'filter' norm, we iterate over the first dimension (filters).
+
     Parameters
     ----------
     direction : torch.Tensor
@@ -167,21 +184,26 @@ def normalize_direction(direction, weights, norm="filter"):
         Normalization method: 'filter' | 'layer' | 'weight' | 'dfilter' | 'dlayer'
     """
     if norm == "filter":
-        # Rescale so each filter has same norm as corresponding filter in weights
+        # Rescale the filters (weights in group) in 'direction' so that each
+        # filter has the same norm as its corresponding filter in 'weights'.
         for d, w in zip(direction, weights):
             d.mul_(w.norm() / (d.norm() + 1e-10))
     elif norm == "layer":
-        # Rescale so layer has same norm as layer in weights
+        # Rescale the layer variables in the direction so that each layer has
+        # the same norm as the layer variables in weights.
         direction.mul_(weights.norm() / direction.norm())
     elif norm == "weight":
-        # Rescale entries to have same scale as corresponding weight
+        # Rescale the entries in the direction so that each entry has the same
+        # scale as the corresponding weight.
         direction.mul_(weights)
     elif norm == "dfilter":
-        # Rescale so each filter direction has unit norm
+        # Rescale the entries in the direction so that each filter direction
+        # has the unit norm.
         for d in direction:
             d.div_(d.norm() + 1e-10)
     elif norm == "dlayer":
-        # Rescale so layer direction has unit norm
+        # Rescale the entries in the direction so that each layer direction has
+        # the unit norm.
         direction.div_(direction.norm())
 
 
