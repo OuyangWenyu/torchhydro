@@ -63,10 +63,10 @@ def set_weights(net, weights, directions=None, step=None):
             dx = directions[0]
             dy = directions[1]
 
-            # Ensure step is a tuple and matches the number of directions
+            # Ensure step is compatible
             assert (
-                isinstance(step, tuple) and len(step) == 2
-            ), "Step must be a tuple with two values for two directions"
+                len(step) == 2
+            ), "Step must be a tuple/array with two values for two directions"
 
             # Calculate the change in weights based on directions and step
             changes = [d0 * step[0] + d1 * step[1] for (d0, d1) in zip(dx, dy)]

@@ -334,7 +334,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--surf_file",
         "-f",
-        default="/Users/cylenlc/work/torchhydro/loss_landscape_resnet56_test/1d/surface.h5",
+        default="/Users/cylenlc/work/torchhydro/loss_landscape_output/best_model.pth_weights_xignore=biasbn_xnorm=filter_yignore=biasbn_ynorm=filter_[-1.0,1.0,51]x[-1.0,1.0,51].h5",
         help="The h5 file that contains surface values",
     )
     parser.add_argument(
@@ -342,7 +342,7 @@ if __name__ == "__main__":
         default="train_loss",
         help="The type of surface to plot: train_loss | test_loss | train_acc | test_acc ",
     )
-    parser.add_argument("--zmax", default=-1, type=float, help="Maximum z value to map")
+    parser.add_argument("--zmax", default=10, type=float, help="Maximum z value to map")
     parser.add_argument(
         "--interp",
         default=-1,
