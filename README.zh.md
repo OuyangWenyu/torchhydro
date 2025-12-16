@@ -80,7 +80,7 @@ python examples/lstm_camels_example.py
 
 我们提供了在 CAMELS-US 数据集上的基准测试结果，以展示模型的性能表现。下图展示了两种 CAMELS 数据处理方式的 NSE (纳什效率系数) 分布对比:
 
-![NSE 对比](docs/images/nse_comparison_camels.png)
+<img src="docs/images/nse_comparison_camels.png" alt="NSE 对比" width="600"/>
 
 **图示**: 在 CAMELS-US 数据集上训练的 LSTM 模型的 NSE 对比。左侧箱线图(红色)展示了使用 `hydrodataset.Camels` 类进行数据处理的结果，右侧箱线图(黄绿色)展示了使用 `hydrodataset.CamelsUS` 类的结果。两种方法都达到了 0.72 的中位数 NSE，证明了在 671 个流域上稳健且一致的性能表现。
 

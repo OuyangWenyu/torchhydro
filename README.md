@@ -80,7 +80,7 @@ Feel free to modify these scripts to experiment with different models, datasets,
 
 We provide benchmark results on the CAMELS-US dataset to demonstrate the performance of our models. The figure below shows the NSE (Nash-Sutcliffe Efficiency) distribution comparison between two CAMELS data processing approaches:
 
-![NSE Comparison](docs/images/nse_comparison_camels.png)
+<img src="docs/images/nse_comparison_camels.png" alt="NSE Comparison" width="600"/>
 
 **Figure**: NSE comparison of LSTM model trained on CAMELS-US dataset. The left box plot (red) shows results using `hydrodataset.Camels` class for data processing, while the right box plot (yellow-green) shows results using `hydrodataset.CamelsUS` class. Both approaches achieve a median NSE of 0.72, demonstrating robust and consistent performance across 671 basins.
 
