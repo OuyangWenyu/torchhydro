@@ -211,6 +211,157 @@ class GeneralSeq2Seq(nn.Module):
         return outputs
 
 
+class GeneralSeq2SeqNoForecastInput(GeneralSeq2Seq):
+    """Seq2Seq model without forecast period forcing input (ablation study version).
+
+    This model is designed for ablation studies where we want to test the model's
+    ability to predict future streamflow WITHOUT any future rainfall information.
+
+    Key differences from GeneralSeq2Seq:
+    - Decoder does NOT receive forecast period rainfall
+    - Decoder only uses previous output (autoregressive)
+    - de_input_size should equal output_size (no forcing input)
+
+    Parameters
+    ----------
+    en_input_size : int
+        Encoder input size (e.g., rainfall features for hindcast period)
+    de_input_size : int
+        Decoder input size (should equal output_size since no forcing input)
+        This parameter is kept for compatibility but will be ignored
+    output_size : int
+        Output size (e.g., streamflow)
+    hidden_size : int
+        Hidden state size for LSTM
+    forecast_length : int
+        Number of forecast timesteps
+    hindcast_output_window : int, optional
+        Number of hindcast outputs to include in final output (default: 0)
+    teacher_forcing_ratio : float, optional
+        Probability of using teacher forcing (default: 0.5)
+
+    Example
+    -------
+    >>> model = GeneralSeq2SeqNoForecastInput(
+    ...     en_input_size=1,     # encoder: rainfall
+    ...     de_input_size=1,     # ignored (will use output_size internally)
+    ...     output_size=1,       # output: streamflow
+    ...     hidden_size=16,
+    ...     forecast_length=24,
+    ...     hindcast_output_window=56,
+    ...     teacher_forcing_ratio=0.5
+    ... )
+    """
+
+    def __init__(
+        self,
+        en_input_size,
+        de_input_size,  # This will be ignored, kept for compatibility
+        output_size,
+        hidden_size,
+        forecast_length,
+        hindcast_output_window=0,
+        teacher_forcing_ratio=0.5,
+    ):
+        # Call parent init with de_input_size = output_size
+        # because decoder only receives previous output (no forcing input)
+        super(GeneralSeq2SeqNoForecastInput, self).__init__(
+            en_input_size=en_input_size,
+            de_input_size=output_size,  # Override: decoder only uses prev output
+            output_size=output_size,
+            hidden_size=hidden_size,
+            forecast_length=forecast_length,
+            hindcast_output_window=hindcast_output_window,
+            teacher_forcing_ratio=teacher_forcing_ratio,
+        )
+        print(f"[GeneralSeq2SeqNoForecastInput] Initialized without forecast forcing input")
+        print(f"  Decoder input: only previous output (no rainfall), size={output_size}")
+
+    def forward(self, *src):
+        """Forward pass without using forecast period forcing input.
+
+        Parameters
+        ----------
+        src : tuple
+            Can be either:
+            - (encoder_input, decoder_input, targets) for training with teacher forcing
+            - (encoder_input, decoder_input) for inference
+            Note: decoder_input will be IGNORED (not used in computation)
+
+        Returns
+        -------
+        torch.Tensor
+            Output predictions
+        """
+        if len(src) == 3:
+            encoder_input, decoder_input, trgs = src
+            # decoder_input is ignored in this model
+        else:
+            encoder_input, decoder_input = src
+            # decoder_input is ignored in this model
+            device = encoder_input.device
+            trgs = torch.full(
+                (
+                    self.hindcast_output_window + self.trg_len,
+                    encoder_input.shape[1],
+                    self.output_size,
+                ),
+                float("nan"),
+            ).to(device)
+
+        # Process targets (same as parent)
+        trgs_q = trgs[:, :, :1]
+        trgs_s = trgs[:, :, 1:]
+        trgs = torch.cat((trgs_s, trgs_q), dim=2)
+
+        # Encoder processes hindcast period
+        encoder_outputs, hidden_, cell_ = self.encoder(encoder_input)
+        hidden, cell = self.transfer(hidden_, cell_)
+
+        # Initialize outputs and prev_output
+        _, batch_size, _ = encoder_input.size()
+        outputs = torch.zeros(self.trg_len, batch_size, self.output_size).to(
+            encoder_input.device
+        )
+        prev_output = encoder_outputs[-1, :, :].unsqueeze(0)
+
+        # Prepare teacher forcing
+        use_teacher_forcing = self._teacher_forcing_preparation(trgs)
+
+        # Decoder loop: autoregressive prediction WITHOUT forecast forcing input
+        for t in range(self.trg_len):
+            # Teacher forcing: use real observation if available
+            obs = trgs[self.hindcast_output_window + t, :, :].unsqueeze(0)
+            safe_obs = torch.where(torch.isnan(obs), torch.zeros_like(obs), obs)
+            prev_output = torch.where(
+                use_teacher_forcing[t : t + 1, :, :],
+                safe_obs,
+                prev_output,
+            )
+
+            # KEY DIFFERENCE: current_input = prev_output ONLY (no forcing input)
+            # In parent class: current_input = cat(decoder_forcing, prev_output)
+            # In this class: current_input = prev_output
+            current_input = prev_output
+
+            # Decoder step
+            output, hidden, cell = self.decoder(current_input, hidden, cell)
+            outputs[t, :, :] = output.squeeze(0)
+            prev_output = output
+
+        # Include hindcast outputs if specified
+        if self.hindcast_output_window > 0:
+            prec_outputs = encoder_outputs[-self.hindcast_output_window :, :, :]
+            outputs = torch.cat((prec_outputs, outputs), dim=0)
+
+        # Reorder outputs (same as parent)
+        outputs_s = outputs[:, :, :1]
+        outputs_q = outputs[:, :, 1:]
+        outputs = torch.cat((outputs_q, outputs_s), dim=2)
+
+        return outputs
+
+
 class DataEnhancedModel(GeneralSeq2Seq):
     def __init__(self, hidden_length, **kwargs):
         super(DataEnhancedModel, self).__init__(**kwargs)

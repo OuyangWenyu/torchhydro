@@ -746,7 +746,7 @@ def flood_event_datasource_args() -> Any:
     """
     Configuration for FloodEventDatasource with enhanced data support and score weighting
     """
-    project_name = os.path.join("test_flood_event_train", "exp20251211_real")
+    project_name = os.path.join("test_flood_event_score", "exp20251211_real")
     DEVICE = -1
     args = cmd(
         sub=project_name,
@@ -771,9 +771,9 @@ def flood_event_datasource_args() -> Any:
         gage_id=["songliao_21401550"],
         batch_size=8,
         warmup_length=0,  
-        hindcast_length=0,
-        forecast_length=30,
-        frwin=20,
+        hindcast_length=56,
+        forecast_length=24,
+        frwin=24,
         min_time_unit="h",
         min_time_interval="3",
         var_t=["rain"],
@@ -790,7 +790,7 @@ def flood_event_datasource_args() -> Any:
             "fixed_lengths": None,
             "pad_strategy": "Pad",
         },
-        train_epoch=20,
+        train_epoch=100,
         save_epoch=1,
         model_loader={"load_way": "specified", "test_epoch": 2},
         train_period=[
@@ -815,6 +815,11 @@ def flood_event_datasource_args() -> Any:
         valid_batch_mode="train",
         rolling=-1,
         evaluator={"eval_way": "floodevent"},
+        peak_aligned_sampling={
+            "enabled": True,          # Enable peak-aligned sampling
+            "slide_step": 1,          # Sliding window step size
+            "peak_selection": "highest" # "first" or "highest"
+        },
         # train_mode= False,
         # stat_dict_file = "D:\project\songliao\torchhydro\results\test_flood_event_train\exp20251211_real\dapengscaler_stat.json"
     )
@@ -835,7 +840,7 @@ def flood_event_datasource_score_args() -> Any:
     - Compatible with NC files containing: rain, inflow, flood_event
     - Supports both real historical data and augmented data
     """
-    project_name = os.path.join("test_flood_event_score", "exp20251211_score")
+    project_name = os.path.join("test_flood_event_Seq2Seq_mask", "exp20251215_real")
     DEVICE = -1
     return cmd(
         sub=project_name,
@@ -851,18 +856,22 @@ def flood_event_datasource_score_args() -> Any:
             },
         },
         ctx=[DEVICE],
-        model_name="SimpleLSTM",
+        model_name="Seq2Seq",
         model_hyperparam={
-            "input_size": 1,
-            "output_size": 1,
-            "hidden_size": 16,
+            "en_input_size": 1,           # encoder输入特征数（降雨）
+            "de_input_size": 2,           # decoder输入维度 = 降雨(1) + 上一步输出(1)
+            "output_size": 1,             # 输出特征数（只预测径流，flood_event仅用于loss加权）
+            "hidden_size": 16,            # LSTM隐藏层大小
+            "forecast_length": 24,        # 预测步长（必须与training_cfgs.forecast_length一致）
+            "hindcast_output_window": 56, # 后验期输出窗口（输出完整后验期）
+            "teacher_forcing_ratio": 0.5, # teacher forcing比例（训练时使用真实值的概率）
         },
         gage_id=["songliao_21401550"],
         batch_size=8,
         warmup_length=0,        # 预热期长度
-        hindcast_length=0,      # 模型用于预测的历史观测数据的长度
-        forecast_length=30,     # 模型向未来预测的时间步长度
-        frwin=20,               # 滚动评估/测试时的预测窗口长度
+        hindcast_length=56,      # 模型用于预测的历史观测数据,7天
+        forecast_length=24,     # 模型向未来预测的时间步长度1天,决定样本数量
+        frwin=24,               # 测试/验证阶段使用的预测窗口长度
         min_time_unit="h",
         min_time_interval="3",
         var_t=["rain"],
@@ -871,7 +880,7 @@ def flood_event_datasource_score_args() -> Any:
         c_rm_nan=False,
         var_out=["inflow", "flood_event"],
         target_as_input=False,  # target作为输入特征
-        dataset="AugmentedFloodEventDataset",
+        dataset="FloodEventSeq2SeqDataset",
         scaler="DapengScaler",
         variable_length_cfgs={
             "use_variable_length": True,
@@ -879,24 +888,24 @@ def flood_event_datasource_score_args() -> Any:
             "fixed_lengths": None,
             "pad_strategy": "Pad",
         },
-        train_epoch=15,  # 训练轮数
+        train_epoch=20,  # 训练轮数
         save_epoch=1,
         model_loader={"load_way": "best"},  # 使用最佳模型
         # 训练周期：混合真实数据和增强数据
         train_period=[
-            ["1984-01-01-02", "2017-12-31-23"],  # 真实历史数据
-            ["2026-07-01-02", "3150-12-31-23"],  # 增强数据
+            "1984-01-01-02", "2017-12-31-23",  # 真实历史数据
+            # ["2026-07-01-02", "3150-12-31-23"],  # 增强数据
         ],
         valid_period=["2018-01-01-02", "2024-12-30-23"],  # 真实数据
         test_period=["2018-01-01-02", "2023-12-31-23"],  # 真实数据
         loss_func="FloodLoss",
         loss_param={
             "loss_func": "MSELoss",
-            "flood_weight": 1.0,
+            "flood_weight": 2.0,
             "flood_strategy": "weight",
             # Score-based weighting parameters (for augmented data with quality scores 1-100)
             # Uncomment below to enable score-based weighting:
-            "use_score_weighting": True,    # Enable score-based weighting (flood_mask: -1/0=non-flood, 1-100=scores)
+            "use_score_weighting": False,    # Enable score-based weighting (flood_mask: -1/0=non-flood, 1-100=scores)
             "score_weight_min": 0.5,        # Weight for lowest quality (score=1)
             "score_weight_max": 3.0,        # Weight for highest quality (score=100)
             "score_alpha": 3.0,             # Control high-quality emphasis (>1: emphasize high scores)
@@ -910,7 +919,110 @@ def flood_event_datasource_score_args() -> Any:
         which_first_tensor="sequence",
         valid_batch_mode="train",
         rolling=-1,
-        evaluator={"eval_way": "floodevent"},
+        evaluator={"eval_way": "floodevent"},  # FloodEventSeq2SeqDataset 支持洪水期评估
+        peak_aligned_sampling={
+            "enabled": True,          # Enable peak-aligned sampling
+            "slide_step": 1,          # Sliding window step size
+            "peak_selection": "first" # "first" or "highest"
+        },
         # train_mode= False,
         # stat_dict_file = "D:\project\songliao\torchhydro\results\test_flood_event_train\exp20251211_score\dapengscaler_stat.json"
+    )
+    return args
+
+
+@pytest.fixture()
+def flood_event_seq2seq_noforecast_args() -> Any:
+    """Configuration for FloodEventSeq2SeqDataset with Seq2SeqNoForecast model (ablation study).
+
+    This config uses the new Seq2SeqNoForecast model which does NOT use forecast period
+    rainfall as input. The decoder only uses autoregressive predictions.
+
+    Key differences from standard Seq2Seq:
+    - model_name: "Seq2SeqNoForecast"
+    - de_input_size: 1 (only previous output, no rainfall)
+    - Dataset still returns decoder_input but model ignores it
+    """
+    project_name = os.path.join("test_flood_event_Seq2SeqNoForecast", "exp20251215_ablation")
+    DEVICE = -1
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "floodeventdatasource",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {
+                "time_unit": ["3h"],
+                "dataset_name": "songliaorrevent",
+                "net_rain_key": "net_rain",
+                "obs_flow_key": "inflow",
+                "delta_t_hours": 3.0,
+            },
+        },
+        ctx=[DEVICE],
+        model_name="Seq2SeqNoForecast",  # Use new model
+        model_hyperparam={
+            "en_input_size": 1,           # encoder输入特征数（降雨）
+            "de_input_size": 1,           # decoder输入维度（将被模型忽略，内部使用output_size=1）
+            "output_size": 1,             # 输出特征数（只预测径流，flood_event仅用于loss加权）
+            "hidden_size": 16,            # LSTM隐藏层大小
+            "forecast_length": 24,        # 预测步长（必须与training_cfgs.forecast_length一致）
+            "hindcast_output_window": 56, # 后验期输出窗口（输出完整后验期）
+            "teacher_forcing_ratio": 0.5, # teacher forcing比例（训练时使用真实值的概率）
+        },
+        hindcast_output_window=56,  # 数据集配置：后验期输出窗口
+        gage_id=["songliao_21401550"],
+        batch_size=8,
+        warmup_length=0,
+        hindcast_length=56,
+        forecast_length=24,
+        frwin=24,
+        min_time_unit="h",
+        min_time_interval="3",
+        var_t=["rain"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        target_as_input=False,
+        dataset="FloodEventSeq2SeqDataset",
+        scaler="DapengScaler",
+        variable_length_cfgs={
+            "use_variable_length": True,
+            "variable_length_type": "dynamic",
+            "fixed_lengths": None,
+            "pad_strategy": "Pad",
+        },
+        train_epoch=20,
+        save_epoch=1,
+        model_loader={"load_way": "best"},
+        train_period=[
+            "1984-01-01-02", "2017-12-31-23",  # 真实历史数据
+        ],
+        valid_period=["2018-01-01-02", "2024-12-30-23"],
+        test_period=["2018-01-01-02", "2023-12-31-23"],
+        loss_func="FloodLoss",
+        loss_param={
+            "loss_func": "MSELoss",
+            "flood_weight": 2.0,
+            "flood_strategy": "weight",
+            "use_score_weighting": False,
+            "score_weight_min": 0.5,
+            "score_weight_max": 3.0,
+            "score_alpha": 3.0,
+            "device": [DEVICE],
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},
+        peak_aligned_sampling={
+            "enabled": True,
+            "slide_step": 1,
+            "peak_selection": "first"
+        },
     )

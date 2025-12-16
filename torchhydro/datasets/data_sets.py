@@ -1831,6 +1831,37 @@ class FloodEventDataset(BaseDataset):
             raise ValueError(
                 "flood_event column not found in target_cols. Please ensure flood_event is included in the target columns."
             )
+
+        # Find inflow/streamflow column index for peak detection
+        STREAMFLOW_KEYWORDS = ["inflow", "streamflow", "flow", "discharge"]
+        self.inflow_idx = None
+        for i, col in enumerate(target_cols):
+            col_lower = col.lower()
+            for keyword in STREAMFLOW_KEYWORDS:
+                if keyword in col_lower:
+                    self.inflow_idx = i
+                    break
+            if self.inflow_idx is not None:
+                break
+
+        # If not found, default to first target column (usually streamflow)
+        if self.inflow_idx is None:
+            self.inflow_idx = 0
+            print(f"Warning: No streamflow column found in target_cols, using target_cols[0]: {target_cols[0]}")
+
+        # Read peak-aligned sampling configuration
+        peak_cfg = cfgs["data_cfgs"].get("peak_aligned_sampling", {})
+        self.peak_aligned_enabled = peak_cfg.get("enabled", False)
+        self.peak_slide_step = peak_cfg.get("slide_step", 1)
+        self.peak_selection = peak_cfg.get("peak_selection", "first")  # "first" or "highest"
+
+        # Log peak-aligned sampling configuration
+        if self.peak_aligned_enabled:
+            print(f"Peak-aligned sampling ENABLED: slide_step={self.peak_slide_step}, peak_selection={self.peak_selection}, inflow_idx={self.inflow_idx}")
+            self._debug_first_flood = False  # Debug flag for first flood sequence
+        else:
+            print("Peak-aligned sampling DISABLED (using traditional sliding window)")
+
         super(FloodEventDataset, self).__init__(cfgs, is_tra_val_te)
 
     @property
@@ -1924,10 +1955,17 @@ class FloodEventDataset(BaseDataset):
 
                     lookup.append((basin_idx, actual_start, total_length))
                 else:
-                    # For training, use sliding window approach
-                    self._create_sliding_window_samples(
-                        basin_idx, seq_start, seq_end, sample_seqlen, lookup
-                    )
+                    # For training, choose sampling strategy based on configuration
+                    if self.peak_aligned_enabled:
+                        # New logic: peak-aligned sampling
+                        self._create_peak_aligned_samples(
+                            basin_idx, seq_start, seq_end, sample_seqlen, lookup
+                        )
+                    else:
+                        # Old logic: sliding window sampling
+                        self._create_sliding_window_samples(
+                            basin_idx, seq_start, seq_end, sample_seqlen, lookup
+                        )
 
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
@@ -1963,6 +2001,60 @@ class FloodEventDataset(BaseDataset):
                 sequences.append((start_idx, i))
 
         return sequences
+
+    def _find_flood_peak_in_sequence(self, basin_idx, seq_start, seq_end):
+        """Find flood peak within a flood event sequence
+
+        Flood peak definition:
+        - "first": First local maximum (where inflow stops increasing)
+        - "highest": Global maximum within the sequence
+
+        Parameters
+        ----------
+        basin_idx : int
+            Basin index
+        seq_start : int
+            Start index of flood sequence
+        seq_end : int
+            End index of flood sequence
+
+        Returns
+        -------
+        int or None
+            Time index of the flood peak, None if cannot be determined
+        """
+        # Get inflow data for this flood sequence (use original data y_origin)
+        inflow_sequence = self.y_origin[basin_idx, seq_start:seq_end+1, self.inflow_idx]
+
+        # Handle NaN values - find valid data range
+        valid_mask = ~np.isnan(inflow_sequence)
+        valid_indices = np.where(valid_mask)[0]
+        if len(valid_indices) == 0:
+            return None
+
+        first_valid = valid_indices[0]
+        last_valid = valid_indices[-1]
+        valid_inflow = inflow_sequence[first_valid:last_valid+1]
+
+        if self.peak_selection == "highest":
+            # Global maximum strategy
+            peak_idx_in_valid = np.nanargmax(valid_inflow)
+        else:  # "first"
+            # Find first local maximum (where inflow stops increasing)
+            peak_idx_in_valid = None
+            for i in range(len(valid_inflow) - 1):
+                if not np.isnan(valid_inflow[i]) and not np.isnan(valid_inflow[i+1]):
+                    if valid_inflow[i] >= valid_inflow[i+1]:
+                        peak_idx_in_valid = i
+                        break
+
+            # If entire sequence is increasing, take last valid point
+            if peak_idx_in_valid is None:
+                peak_idx_in_valid = len(valid_inflow) - 1
+
+        # Convert to global index
+        peak_idx = seq_start + first_valid + peak_idx_in_valid
+        return peak_idx
 
     def _create_sliding_window_samples(
         self, basin_idx, seq_start, seq_end, sample_seqlen, lookup
@@ -2020,6 +2112,78 @@ class FloodEventDataset(BaseDataset):
                         actual_length >= self.rho + self.horizon
                     ):  # At least need rho + horizon
                         lookup.append((basin_idx, actual_start, actual_length))
+
+    def _create_peak_aligned_samples(
+        self, basin_idx, seq_start, seq_end, sample_seqlen, lookup
+    ):
+        """Create peak-aligned training samples for a flood sequence
+
+        Core idea:
+        1. Find flood peak t_peak within the sequence
+        2. First sample: window right boundary = t_peak
+           - Input: [t_peak - hindcast + 1, t_peak] (length: hindcast)
+           - Output: [t_peak - hindcast + 1, t_peak + forecast] (length: hindcast + forecast)
+        3. Slide window right boundary from t_peak to seq_end
+        4. Last sample: window right boundary = seq_end
+           - Input: [seq_end - hindcast + 1, seq_end] (length: hindcast)
+           - Output: [seq_end - hindcast + 1, seq_end] (length: hindcast, no forecast)
+
+        Parameters
+        ----------
+        basin_idx : int
+            Basin index
+        seq_start : int
+            Start index of flood sequence
+        seq_end : int
+            End index of flood sequence
+        sample_seqlen : int
+            Sample sequence length (warmup_length + rho + horizon)
+        lookup : list
+            List to append new samples to (basin_idx, start, length)
+        """
+        # 1. Find flood peak
+        peak_idx = self._find_flood_peak_in_sequence(basin_idx, seq_start, seq_end)
+
+        if peak_idx is None:
+            # Fallback to original sliding window logic
+            print(f"Warning: Cannot find peak for basin {basin_idx}, "
+                  f"flood sequence [{seq_start}, {seq_end}], using fallback")
+            self._create_sliding_window_samples(
+                basin_idx, seq_start, seq_end, sample_seqlen, lookup
+            )
+            return
+
+        # 2. Slide window right boundary from peak to flood end
+        # window_right slides from peak_idx to seq_end
+        total_samples = 0
+
+        for window_right in range(peak_idx, seq_end + 1, self.peak_slide_step):
+            # Calculate window range
+            # window_end = window_right + forecast
+            # window_start = window_end - sample_seqlen + 1
+            window_end = window_right + self.horizon
+            start_idx = window_end - sample_seqlen + 1
+
+            # Boundary checks
+            if start_idx < 0:
+                start_idx = 0
+                window_end = start_idx + sample_seqlen - 1
+
+            if window_end >= self.nt:
+                # Can't extend beyond data bounds
+                break
+
+            # Calculate actual data length (always sample_seqlen to keep consistent)
+            actual_length = sample_seqlen
+
+            # Check data validity (avoid NaN)
+            actual_start, valid_length = self._find_valid_data_range(
+                basin_idx, start_idx, window_end, seq_start, seq_end
+            )
+
+            if valid_length >= self.rho + self.horizon:
+                lookup.append((basin_idx, actual_start, actual_length))
+                total_samples += 1
 
     def _find_valid_data_range(
         self, basin_idx, window_start, window_end, flood_start, flood_end
@@ -3178,7 +3342,7 @@ class AugmentedFloodEventDataset(FloodEventDataset):
                 if len(flood_values) > 0:
                     min_val = float(np.min(flood_values))
                     max_val = float(np.max(flood_values))
-                    LOGGER.info(f"增强数据 flood_event 范围: {min_val:.1f} 到 {max_val:.1f}")
+                    LOGGER.info(f"augmented data flood_event range: {min_val:.1f} to {max_val:.1f}")
 
         except Exception as e:
             LOGGER.info(f"无法读取增强数据，可能是时间范围不在增强数据中: {e}")
@@ -3404,6 +3568,105 @@ class AugmentedFloodEventDataset(FloodEventDataset):
         processed_dict["constant_cols"] = data_dict.get("constant_cols")
 
         return processed_dict
+
+
+class FloodEventSeq2SeqDataset(AugmentedFloodEventDataset):
+    """Dataset class for Seq2Seq models with flood event detection and peak-aligned sampling.
+
+    This dataset combines:
+    1. Flood event data organization (from FloodEventDataset)
+    2. Augmented data support (from AugmentedFloodEventDataset)
+    3. Peak-aligned sampling (from FloodEventDataset)
+    4. Seq2Seq data format (encoder input, decoder input, targets)
+
+    Returns data in the format required by GeneralSeq2Seq model:
+    - Training: [encoder_input, decoder_input, targets], targets
+    - Inference: [encoder_input, decoder_input], targets
+    """
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        super(FloodEventSeq2SeqDataset, self).__init__(cfgs, is_tra_val_te)
+        # Get hindcast_output_window from data_cfgs (default to rho if not specified)
+        self.hindcast_output_window = self.data_cfgs.get("hindcast_output_window", self.rho)
+
+    def __getitem__(self, item: int):
+        """Get one sample from the dataset in Seq2Seq format
+
+        Returns
+        -------
+        Training mode:
+            [encoder_input, decoder_input, targets], targets
+        Inference mode:
+            [encoder_input, decoder_input], targets
+
+        Where:
+        - encoder_input: (rho steps, feature_size) - hindcast period forcing data
+        - decoder_input: (horizon steps, feature_size) - forecast period forcing data
+        - targets: (hindcast_output_window + horizon steps, output_size) - full output sequence
+        """
+        basin, start_idx, actual_length = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        rho = self.rho
+        horizon = self.horizon
+        end_idx = start_idx + actual_length
+
+        # Get input data (forcing variables like rainfall)
+        x = self.x[basin, start_idx:end_idx, :]
+
+        # Get target data (streamflow, flood_event)
+        y = self.y[basin, start_idx + warmup_length : end_idx, :]
+
+        # Create flood mask from original data
+        y_origin = self.y_origin[basin, start_idx + warmup_length : end_idx, :]
+        flood_mask = self._create_flood_mask(y_origin)
+
+        # Replace flood_event column with flood_mask
+        y_with_flood_mask = y.copy()
+        y_with_flood_mask[:, self.flood_event_idx] = flood_mask.squeeze()
+
+        # Split data for Seq2Seq format
+        # Encoder input: warmup + rho period forcing data
+        x_encoder = x[warmup_length : warmup_length + rho, :]
+
+        # Decoder input: horizon period forcing data
+        x_decoder = x[warmup_length + rho : warmup_length + rho + horizon, :]
+
+        # Targets: hindcast_output_window + horizon period targets
+        # Calculate start index for targets to include specified hindcast window
+        target_start = max(0, rho - self.hindcast_output_window)
+        y_targets = y_with_flood_mask[target_start : rho + horizon, :]
+
+        # Handle constant features if available
+        if self.c is not None and self.c.shape[-1] > 0:
+            c = self.c[basin, :]
+
+            # Add constants to encoder input
+            c_encoder = np.repeat(c, x_encoder.shape[0], axis=0).reshape(c.shape[0], -1).T
+            x_encoder = np.concatenate((x_encoder, c_encoder), axis=1)
+
+            # Add constants to decoder input
+            c_decoder = np.repeat(c, x_decoder.shape[0], axis=0).reshape(c.shape[0], -1).T
+            x_decoder = np.concatenate((x_decoder, c_decoder), axis=1)
+
+        # Convert to tensors
+        encoder_input = torch.from_numpy(x_encoder).float()
+        decoder_input = torch.from_numpy(x_decoder).float()
+
+        # For Seq2Seq model:
+        # - targets_for_model: only inflow (for teacher forcing), shape: [seq, 1]
+        # - targets_for_loss: inflow + flood_event (for loss computation), shape: [seq, 2]
+        targets_for_model = torch.from_numpy(y_targets[:, :1]).float()  # Only inflow column
+        targets_for_loss = torch.from_numpy(y_targets).float()  # All columns (inflow + flood_event)
+
+        # Return format depends on training/inference mode
+        if self.is_tra_val_te == "train":
+            # Training mode: include targets for teacher forcing
+            # Model receives targets_for_model (1 column)
+            # Loss receives targets_for_loss (2 columns)
+            return [encoder_input, decoder_input, targets_for_model], targets_for_loss
+        else:
+            # Inference mode: no teacher forcing targets
+            return [encoder_input, decoder_input], targets_for_loss
 
 
 class AEFDataset(BaseDataset):

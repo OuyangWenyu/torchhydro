@@ -488,6 +488,8 @@ def cmd(
     # station data configurations for GNN models
     station_cfgs: Optional[Dict[str, Any]] = None,
     shap_cfgs: Optional[Dict[str, Any]] = None,
+    # peak-aligned sampling configuration for FloodEventDataset
+    peak_aligned_sampling: Optional[Dict[str, Any]] = None,
 ) -> argparse.Namespace:
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -1064,6 +1066,13 @@ def cmd(
         default=shap_cfgs,
         type=json.loads,
     )
+    parser.add_argument(
+        "--peak_aligned_sampling",
+        dest="peak_aligned_sampling",
+        help="Peak-aligned sampling configurations for FloodEventDataset (as JSON)",
+        default=peak_aligned_sampling,
+        type=json.loads,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -1361,6 +1370,10 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
 
     if new_args.shap_cfgs is not None:
         cfg_file["evaluation_cfgs"]["shap_cfgs"] = new_args.shap_cfgs
+
+    # Peak-aligned sampling configuration for FloodEventDataset
+    if new_args.peak_aligned_sampling is not None:
+        cfg_file["data_cfgs"]["peak_aligned_sampling"] = new_args.peak_aligned_sampling
 
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 

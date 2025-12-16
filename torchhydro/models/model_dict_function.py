@@ -29,6 +29,7 @@ from torchhydro.models.simple_lstm import (
 from torchhydro.models.seqforecast import SequentialForecastLSTM
 from torchhydro.models.seq2seq import (
     GeneralSeq2Seq,
+    GeneralSeq2SeqNoForecastInput,
     DataEnhancedModel,
     DataFusionModel,
     Transformer,
@@ -58,6 +59,7 @@ from torchhydro.models.crits import (
     FloodLoss,
     HybridLoss,
     HybridFloodloss,
+    PeakShapeLoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
@@ -94,6 +96,7 @@ pytorch_model_dict = {
     "SPPLSTM2": SPP_LSTM_Model_2,
     "SeqForecastLSTM": SequentialForecastLSTM,
     "Seq2Seq": GeneralSeq2Seq,
+    "Seq2SeqNoForecast": GeneralSeq2SeqNoForecastInput,
     "DataEnhanced": DataEnhancedModel,
     "DataFusion": DataFusionModel,
     "MTSLSTM": MTSLSTM,
@@ -125,6 +128,7 @@ pytorch_criterion_dict = {
     "FloodLoss": FloodLoss,
     "HybridLoss": HybridLoss,
     "HybridFloodloss": HybridFloodloss,  # Alias for backward compatibility
+    "PeakShapeLoss": PeakShapeLoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}

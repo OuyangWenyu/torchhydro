@@ -1206,6 +1206,213 @@ class HybridLoss(torch.nn.Module):
             )
 
 
+class PeakShapeLoss(FloodBaseLoss):
+    """
+    Peak Shape Loss for flood events.
+
+    This loss focuses on three key hydrological indicators for flood peak prediction:
+    1. Peak Magnitude: Maximum flow value during flood event
+    2. Peak Timing: Time of peak occurrence (with asymmetric penalty for late/early)
+    3. Flood Volume: Total volume of water during flood event
+
+    Loss = peak_magnitude_weight * L_magnitude +
+           peak_timing_weight * L_timing +
+           flood_volume_weight * L_volume
+
+    Where:
+    - L_magnitude: absolute difference in peak flow values
+    - L_timing: time shift with asymmetric penalty (late > early)
+    - L_volume: difference in cumulative flood volume
+    """
+
+    def __init__(
+        self,
+        loss_func: Union[torch.nn.Module, str] = "MSELoss",
+        peak_magnitude_weight: float = 1.0,
+        peak_timing_weight: float = 1.0,
+        flood_volume_weight: float = 1.0,
+        late_penalty_factor: float = 2.0,
+        early_penalty_factor: float = 0.5,
+        flood_weight: float = 1.0,
+        non_flood_weight: float = 0.5,
+        device: list = None,
+        **kwargs,
+    ):
+        """
+        Initialize Peak Shape Loss.
+
+        Parameters
+        ----------
+        loss_func : Union[torch.nn.Module, str]
+            Base loss function, default is "MSELoss"
+        peak_magnitude_weight : float
+            Weight for peak magnitude loss, default is 1.0
+        peak_timing_weight : float
+            Weight for peak timing loss, default is 1.0
+        flood_volume_weight : float
+            Weight for flood volume loss, default is 1.0
+        late_penalty_factor : float
+            Penalty multiplier for late peak predictions, default is 2.0
+        early_penalty_factor : float
+            Penalty multiplier for early peak predictions, default is 0.5
+        flood_weight : float
+            Weight multiplier for flood events in global loss, default is 1.0
+        non_flood_weight : float
+            Weight multiplier for non-flood events, default is 0.5
+        device : list
+            Device configuration, default is None (auto-detect)
+        """
+        super(PeakShapeLoss, self).__init__()
+        self.peak_magnitude_weight = peak_magnitude_weight
+        self.peak_timing_weight = peak_timing_weight
+        self.flood_volume_weight = flood_volume_weight
+        self.late_penalty_factor = late_penalty_factor
+        self.early_penalty_factor = early_penalty_factor
+        self.flood_weight = flood_weight
+        self.non_flood_weight = non_flood_weight
+        self.device = get_the_device(device if device is not None else [0])
+
+        # Initialize base loss function
+        self.base_loss_func = self._initialize_base_loss(loss_func, kwargs)
+
+        print(f"[PeakShapeLoss] Initialized with:")
+        print(f"  Peak magnitude weight: {peak_magnitude_weight}")
+        print(f"  Peak timing weight: {peak_timing_weight} (late penalty: {late_penalty_factor}x, early: {early_penalty_factor}x)")
+        print(f"  Flood volume weight: {flood_volume_weight}")
+        print(f"  Flood weight: {flood_weight} vs non-flood: {non_flood_weight}")
+
+    def _initialize_base_loss(self, loss_func, kwargs):
+        """Initialize base loss function."""
+        if isinstance(loss_func, str):
+            loss_dict = {
+                "MSELoss": torch.nn.MSELoss(reduction="none"),
+                "MAELoss": torch.nn.L1Loss(reduction="none"),
+                "L1Loss": torch.nn.L1Loss(reduction="none"),
+                "RMSELoss": RMSELoss(),
+                "HybridLoss": HybridLoss(
+                    kwargs.get("mae_weight", 0.5), reduction="none"
+                ),
+            }
+            if loss_func in loss_dict:
+                return loss_dict[loss_func]
+            else:
+                raise ValueError(f"Unsupported loss function string: {loss_func}")
+        else:
+            return loss_func
+
+    def compute_flood_loss(
+        self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Compute peak-based loss with three hydrological indicators.
+
+        Parameters
+        ----------
+        predictions : torch.Tensor
+            Model predictions [batch_size, seq_len, output_features]
+        targets : torch.Tensor
+            Target values [batch_size, seq_len, output_features]
+        flood_mask : torch.Tensor
+            Flood mask [batch_size, seq_len] (1 for flood, 0 for normal)
+
+        Returns
+        -------
+        torch.Tensor
+            Computed loss value
+        """
+        # Ensure flood_mask has correct shape
+        if flood_mask.dim() == 3 and flood_mask.shape[-1] == 1:
+            flood_mask = flood_mask.squeeze(-1)
+
+        # Handle warmup_length: predictions may have more timesteps than targets
+        if predictions.shape[1] > targets.shape[1]:
+            seq_diff = predictions.shape[1] - targets.shape[1]
+            predictions = predictions[:, seq_diff:, :]
+            flood_mask = flood_mask[:, seq_diff:]
+
+        batch_size, seq_len, num_features = targets.shape
+
+        # Extract streamflow (first feature)
+        pred_flow = predictions[:, :, 0]  # [batch_size, seq_len]
+        target_flow = targets[:, :, 0]  # [batch_size, seq_len]
+
+        magnitude_losses = []
+        timing_losses = []
+        volume_losses = []
+
+        for b in range(batch_size):
+            # Get flood mask for this sample
+            flood_mask_b = flood_mask[b]  # [seq_len]
+
+            # Skip if no flood events
+            if flood_mask_b.sum() == 0:
+                continue
+
+            # Extract flood period data
+            pred_flood = pred_flow[b]  # [seq_len]
+            target_flood = target_flow[b]  # [seq_len]
+
+            # Skip if contains NaN
+            if torch.isnan(target_flood).any() or torch.isnan(pred_flood).any():
+                continue
+
+            # === 1. Peak Magnitude Loss ===
+            # Find peak values in the entire sequence
+            pred_peak_value = torch.max(pred_flood)
+            target_peak_value = torch.max(target_flood)
+
+            magnitude_loss = torch.abs(pred_peak_value - target_peak_value)
+            magnitude_losses.append(magnitude_loss)
+
+            # === 2. Peak Timing Loss (asymmetric penalty) ===
+            # Find peak positions
+            pred_peak_idx = torch.argmax(pred_flood)
+            target_peak_idx = torch.argmax(target_flood)
+
+            # Time difference (positive = late, negative = early)
+            time_diff = pred_peak_idx.float() - target_peak_idx.float()
+
+            # Asymmetric penalty
+            if time_diff > 0:
+                # Late prediction: higher penalty
+                timing_loss = self.late_penalty_factor * torch.abs(time_diff)
+            else:
+                # Early prediction: lower penalty
+                timing_loss = self.early_penalty_factor * torch.abs(time_diff)
+
+            timing_losses.append(timing_loss)
+
+            # === 3. Flood Volume Loss ===
+            # Compute cumulative volume during flood period
+            # Only sum over flood mask to focus on flood events
+            pred_volume = torch.sum(pred_flood * flood_mask_b)
+            target_volume = torch.sum(target_flood * flood_mask_b)
+
+            volume_loss = torch.abs(pred_volume - target_volume)
+            volume_losses.append(volume_loss)
+
+        # Compute mean losses across batch
+        if len(magnitude_losses) == 0:
+            # Fallback: if no valid samples, use global MSE
+            print("[PeakShapeLoss] Warning: No valid flood samples found, using global MSE")
+            mask = ~torch.isnan(targets)
+            base_loss = self.base_loss_func(predictions[mask], targets[mask])
+            return base_loss.mean()
+
+        magnitude_loss_mean = torch.stack(magnitude_losses).mean()
+        timing_loss_mean = torch.stack(timing_losses).mean()
+        volume_loss_mean = torch.stack(volume_losses).mean()
+
+        # Combined loss with equal weights (as requested)
+        total_loss = (
+            self.peak_magnitude_weight * magnitude_loss_mean +
+            self.peak_timing_weight * timing_loss_mean +
+            self.flood_volume_weight * volume_loss_mean
+        )
+
+        return total_loss
+
+
 class HybridFloodloss(FloodBaseLoss):
     def __init__(self, mae_weight=0.5):
         """

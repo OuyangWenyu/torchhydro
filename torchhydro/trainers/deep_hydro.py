@@ -397,16 +397,30 @@ class DeepHydro(DeepHydroInterface):
 
         with torch.no_grad():
             for batch in dataloader:
-                x = batch[0].to(self.device)
-                y = batch[1].to(self.device)
+                # Handle Seq2Seq format: batch[0] might be a list [encoder_input, decoder_input]
+                if isinstance(batch[0], list):
+                    # Seq2Seq format: move each element to device and transpose to (seq, batch, feature)
+                    x = [inp.permute(1, 0, 2).to(self.device) for inp in batch[0]]
+                    pred = self.model(*x)
+                    # Transpose prediction back to (batch, seq, feature)
+                    pred = pred.permute(1, 0, 2)
+                else:
+                    # Traditional format: single tensor
+                    x = batch[0].to(self.device)
+                    pred = self.model(x)
 
-                pred = self.model(x)
+                y = batch[1].to(self.device)
 
                 preds.append(pred.cpu())
                 obss.append(y.cpu())
 
                 if return_inputs:
-                    X_all.append(x.cpu())
+                    # Handle both formats for X_all
+                    if isinstance(x, list):
+                        # For Seq2Seq, store the encoder input (first element)
+                        X_all.append(x[0].cpu())
+                    else:
+                        X_all.append(x.cpu())
 
         # Convert to numpy
         pred_np = torch.cat(preds, 0).numpy()
@@ -799,6 +813,12 @@ class DeepHydro(DeepHydroInterface):
 
     def _flood_event_collate_fn(self, batch):
         """自定义的洪水事件 collate 函数，确保所有样本长度一致"""
+
+        # Check if this is Seq2Seq format: ([x1, x2, ...], y)
+        if isinstance(batch[0][0], list):
+            # Seq2Seq format: use default collate for list of tensors
+            from torch.utils.data.dataloader import default_collate
+            return default_collate(batch)
 
         # 找到这个批次中最长的序列长度
         max_len = max(tensor_data[0].shape[0] for tensor_data in batch)
