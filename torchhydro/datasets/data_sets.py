@@ -20,6 +20,7 @@ from typing import Optional
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from hydroutils.hydro_units import streamflow_unit_conv
+from hydrodataset.multi_dataset_reader import MultiDatasetReader, DATASET_MAPPING
 
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
@@ -569,9 +570,13 @@ class BaseDataset(Dataset):
                 time_coords = all_times[-T:]
             else:
                 if all_times.shape[0] == 0:
-                    raise ValueError("No time coordinates available for denormalization.")
+                    raise ValueError(
+                        "No time coordinates available for denormalization."
+                    )
                 last_time = all_times[-1]
-                pad = np.array([last_time] * (T - all_times.shape[0]), dtype=all_times.dtype)
+                pad = np.array(
+                    [last_time] * (T - all_times.shape[0]), dtype=all_times.dtype
+                )
                 time_coords = np.concatenate([all_times, pad])
             norm_data_3d = norm_data
             coords = {
@@ -580,7 +585,6 @@ class BaseDataset(Dataset):
                 "variable": selected_data.coords["variable"],
             }
             dims = ["basin", "time", "variable"]
-            
 
         # 处理四维数据
         elif norm_data.ndim == 4:
@@ -616,9 +620,13 @@ class BaseDataset(Dataset):
                         basin_num, i_e_time_length * forecast_length, nf
                     )
                     # 创建新的时间坐标：取连续的 time 切片再按 forecast_length 平铺，避免重复索引错误
-                    base_times = list(selected_data.coords["time"][:i_e_time_length].values)
+                    base_times = list(
+                        selected_data.coords["time"][:i_e_time_length].values
+                    )
                     if not base_times:
-                        base_times = list(target_data.coords["time"][:i_e_time_length].values)
+                        base_times = list(
+                            target_data.coords["time"][:i_e_time_length].values
+                        )
                     tiled = base_times * forecast_length
                     new_times = tiled[: i_e_time_length * forecast_length]
 
@@ -664,9 +672,13 @@ class BaseDataset(Dataset):
                     )
 
                     # 创建新的时间坐标：按 i_e_time_length 切片后平铺，避免重复索引错误
-                    base_times = list(selected_data.coords["time"][:i_e_time_length].values)
+                    base_times = list(
+                        selected_data.coords["time"][:i_e_time_length].values
+                    )
                     if not base_times:
-                        base_times = list(target_data.coords["time"][:i_e_time_length].values)
+                        base_times = list(
+                            target_data.coords["time"][:i_e_time_length].values
+                        )
                     tiled = base_times * forecast_length
                     new_times = tiled[: forecast_length * i_e_time_length]
 
@@ -1346,6 +1358,427 @@ class DplDataset(BaseDataset):
             torch.from_numpy(x_train).float(),
             z_train,
         ), torch.from_numpy(y_train).float()
+
+
+class MultiDataSourceWrapper:
+    """Wrapper that presents multiple data sources as a unified interface for scalers."""
+
+    def __init__(self, sources, datasets_config=None):
+        self.sources = sources
+        self.datasets_config = datasets_config
+        self._reader = MultiDatasetReader(datasets=datasets_config)
+        # Cache unique IDs mapping
+        self._unique_ids_map, _ = self._reader.get_global_unique_ids()
+
+    def _group_ids(self, gage_id_lst):
+        ids_by_dataset = {}
+        for gage_id in gage_id_lst:
+            # Handle duplicates logic if needed, but here we likely want unique source per ID
+            # Use cached map
+            if gage_id in self._unique_ids_map:
+                ds_name = self._unique_ids_map[gage_id]
+                if ds_name not in ids_by_dataset:
+                    ids_by_dataset[ds_name] = []
+                ids_by_dataset[ds_name].append(gage_id)
+            else:
+                # Fallback/retry or warn
+                pass
+        return ids_by_dataset
+
+    def read_mean_prcp(self, gage_id_lst: list, unit: str = "mm/d"):
+        ids_by_ds = self._group_ids(gage_id_lst)
+        results = []
+        for ds_name, ids in ids_by_ds.items():
+            if ds_name in self.sources:
+                ds_obj = self.sources[ds_name]
+                if hasattr(ds_obj, "read_mean_prcp"):
+                    results.append(ds_obj.read_mean_prcp(ids, unit))
+
+        if not results:
+            return None
+        return xr.concat(results, dim="basin")
+
+    def read_area(self, gage_id_lst: list):
+        ids_by_ds = self._group_ids(gage_id_lst)
+        results = []
+        for ds_name, ids in ids_by_ds.items():
+            if ds_name in self.sources:
+                ds_obj = self.sources[ds_name]
+                if hasattr(ds_obj, "read_area"):
+                    results.append(ds_obj.read_area(ids))
+
+        if not results:
+            return None
+        return xr.concat(results, dim="basin")
+
+    def read_attr_xrdataset(self, gage_id_lst, var_lst, **kwargs):
+        ids_by_ds = self._group_ids(gage_id_lst)
+        results = []
+        for ds_name, ids in ids_by_ds.items():
+            if ds_name in self.sources:
+                ds_obj = self.sources[ds_name]
+                if hasattr(ds_obj, "read_attr_xrdataset"):
+                    results.append(ds_obj.read_attr_xrdataset(ids, var_lst, **kwargs))
+
+        if not results:
+            return None
+        return xr.concat(results, dim="basin")
+
+
+class MultiSourceDataset(BaseDataset):
+    """A dataset that supports reading from multiple hydrological datasets simultaneously.
+
+    This class uses MultiDatasetReader to handle IDs and data loading from multiple sources.
+    It automatically groups stations by dataset, reads data using the appropriate data source,
+    and merges the results.
+    """
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        super(MultiSourceDataset, self).__init__(cfgs, is_tra_val_te)
+
+    @property
+    def data_source(self):
+        """
+        For MultiSourceDataset, we returns a wrapper that aggregates all sources.
+        """
+        from torchhydro.datasets.data_sources import data_sources_dict
+
+        # Initialize all required data sources
+        sources = {}
+        # Get datasets from config, or default to all available in DATASET_MAPPING
+        if "source_cfgs" in self.data_cfgs:
+            datasets_config = self.data_cfgs["source_cfgs"].get("datasets", None)
+            if isinstance(datasets_config, list):
+                req_datasets = datasets_config
+            else:
+                # Default to all if not specified list
+                req_datasets = list(DATASET_MAPPING.keys())
+        else:
+            req_datasets = list(DATASET_MAPPING.keys())
+
+        for ds_name in req_datasets:
+            if ds_name in DATASET_MAPPING:
+                _, class_name = DATASET_MAPPING[ds_name]
+                if ds_name in data_sources_dict:
+                    source_constructor = data_sources_dict[ds_name]
+                    # source_path = SETTING["local_data_path"]["datasets-origin"]
+                    source_path = self.data_cfgs["source_cfgs"]["source_path"]
+                    sources[ds_name] = source_constructor(source_path)
+
+        return MultiDataSourceWrapper(sources, datasets_config)
+
+    def _read_xyc(self):
+        """Read x, y, c data from multiple data sources and merge them."""
+
+        # 1. Collect IDs and their source datasets
+        # use MultiDatasetReader logic to identify which dataset each ID belongs to
+        # We assume self.t_s_dict["sites_id"] contains the list of all IDs we want to read
+        target_ids = self.t_s_dict["sites_id"]
+
+        # Initialize reader just for ID mapping (cache might be used)
+        datasets_config = self.data_cfgs.get("source_cfgs", {}).get("datasets", None)
+        reader = MultiDatasetReader(datasets=datasets_config)
+
+        # Use reader to get global unique IDs to find where each ID comes from
+        # Note: this might be slow if we have many datasets and didn't cache IDs
+        unique_ids_map, duplicates_map = reader.get_global_unique_ids()
+
+        # Group target IDs by dataset
+        ids_by_dataset = {}
+
+        for gage_id in target_ids:
+            if gage_id in unique_ids_map:
+                ds_name = unique_ids_map[gage_id]
+                if ds_name not in ids_by_dataset:
+                    ids_by_dataset[ds_name] = []
+                ids_by_dataset[ds_name].append(gage_id)
+            else:
+                # Log warning or handle missing ID
+                print(f"Warning: ID {gage_id} not found in any configured dataset.")
+
+        # 2. Read data for each group
+        x_list, y_list, c_list = [], [], []
+
+        t_range = self.t_s_dict["t_final_range"]
+
+        # Need to instantiate data sources on the fly or use the property
+        # Since we need to pass specific paths or args, better to do it here or use a helper
+
+        for ds_name, ids in ids_by_dataset.items():
+            if ds_name not in DATASET_MAPPING:
+                continue
+
+            # Get the data source instance for this dataset
+            # We assume data_sources_dict has entries for these datasets
+            # If not, we might need to rely on hydrodataset readers directly?
+            # But torchhydro pipeline expects xarray from its own data_sources.
+            # Let's assume we have corresponding wrappers in torchhydro.
+
+            # Construct the data source
+            # This relies on torchhydro.datasets.data_sources having wrappers for these datasets
+            # which usually wrap hydrodataset classes.
+            if ds_name in data_sources_dict:
+                source_cls = data_sources_dict[ds_name]
+                # source_path = SETTING["local_data_path"]["datasets-origin"]
+                source_path = self.data_cfgs["source_cfgs"]["source_path"]
+                # Some data sources might need extra config
+                ds_instance = source_cls(source_path)
+
+                # Read x (forcing)
+                if self.data_cfgs["relevant_cols"]:
+                    x_ds = ds_instance.read_ts_xrdataset(
+                        ids, t_range, self.data_cfgs["relevant_cols"]
+                    )
+                    x_ds = self._rm_timeunit_key(x_ds)
+                    x_list.append(x_ds)
+
+                # Read y (streamflow/target)
+                if self.data_cfgs["target_cols"]:
+                    y_ds = ds_instance.read_ts_xrdataset(
+                        ids, t_range, self.data_cfgs["target_cols"]
+                    )
+                    y_ds = self._rm_timeunit_key(y_ds)
+                    y_list.append(y_ds)
+
+                # Read c (attributes)
+                if self.data_cfgs["constant_cols"]:
+                    c_ds = ds_instance.read_attr_xrdataset(
+                        ids, self.data_cfgs["constant_cols"], all_number=True
+                    )
+                    c_list.append(c_ds)
+            else:
+                print(f"Warning: No torchhydro data source found for {ds_name}")
+
+        # 3. Merge datasets
+        # We need to concatenate along the 'basin' dimension.
+        # xarray's concat or merge should handle this if dimensions match (time, variable)
+
+        if not x_list and not y_list:
+            raise ValueError("No data read from any source.")
+
+        # Helper to merge list of datasets
+        def safe_concat(ds_list):
+            if not ds_list:
+                return None
+            # Prepare for concatenation: ensure they have the same variables and time index
+            # This might be tricky if time ranges slightly differ or if variables are missing
+            # Assuming standard read_ts_xrdataset returns aligned time series for the requested t_range
+            return xr.concat(ds_list, dim="basin")
+
+        x_merged = safe_concat(x_list)
+        y_merged = safe_concat(y_list)
+        c_merged = safe_concat(c_list)
+
+        # Ensure units are consistent/handled if needed (e.g., using unit conversion logic from BaseDataset)
+        # For now, we assume _check_ts_xrds_unit might need to be called on the merged result
+        # OR iteratively before merging.
+        # Since _check_ts_xrds_unit takes (forcing, output), let's try running it on merged result.
+        # But wait, unit conversion depends on each dataset's metadata.
+        # Merging first might lose that per-dataset metadata if attributes aren't preserved per basin.
+        # However, xr.concat typically preserves attributes of the first object or drops them.
+        # Ideally, we should unify units BEFORE merging.
+        # Let's skip complex unit unification for now and assume standard units (mm/d, m3/s) or handle it simply.
+        # BaseDataset._check_ts_xrds_unit handles streamflow unit conversion based on attrs.
+        # If we concat, we might lose individual attrs.
+
+        # Let's try to convert units PER DATASET before merging
+        # But _check_ts_xrds_unit logic is a bit coupled.
+        # Let's rely on standard hydrodataset behavior which tries to standardize to mm/d or m3/s.
+
+        if x_merged is not None and y_merged is not None:
+            # Just ensures variable names match what's expected
+            pass
+
+        # Check if any flow variable exists in y dataset and convert units if needed
+        # We try to use streamflow name attribute or fallback to target cols
+        flow_var_name = getattr(self, "streamflow_name", None)
+        if flow_var_name is None:
+            # fallback: check if any target variable is in y
+            for target_var in self.data_cfgs["target_cols"]:
+                if y_merged is not None and target_var in y_merged:
+                    flow_var_name = target_var
+                    break
+
+        if flow_var_name and y_merged is not None and flow_var_name in y_merged:
+            # We need to read area for ALL basins in y_merged to perform conversion
+            # self.data_source is now a MultiDataSourceWrapper which handles this
+            area = self.data_source.read_area(y_merged["basin"].values.tolist())
+
+            # Use precipitation unit as target unit if available
+            prcp_unit = "mm/d"
+            if x_merged is not None and self.data_cfgs.get("relevant_cols"):
+                prcp_name = self.precipitation_name
+                if prcp_name in x_merged:
+                    prcp_unit = x_merged[prcp_name].attrs.get("units", "mm/d")
+
+            if area is not None:
+                y_merged.update(
+                    streamflow_unit_conv(
+                        y_merged[[flow_var_name]], area, target_unit=prcp_unit
+                    )
+                )
+        # Validate and sync basin IDs
+        # We must ensure self.t_s_dict["sites_id"] matches the basins actually present in the merged data
+        # created by xarray. The order and count must match for BaseDataset lookup table generation.
+        loaded_basins = None
+        if y_merged is not None:
+            loaded_basins = y_merged["basin"].values.astype(str).tolist()
+        elif x_merged is not None:
+            loaded_basins = x_merged["basin"].values.astype(str).tolist()
+
+        if loaded_basins is not None:
+            if len(loaded_basins) != len(self.t_s_dict["sites_id"]):
+                print(
+                    f"Warning: Requested {len(self.t_s_dict['sites_id'])} stations, but only {len(loaded_basins)} were successfully loaded. Updating sites_id list."
+                )
+                # Update the list in place
+                self.t_s_dict["sites_id"] = loaded_basins
+            else:
+                # Ensure order matches if count is same (though xarray concat usually preserves order of concat/input,
+                # but merged might reorder if not aligned? Let's force update to be safe)
+                self.t_s_dict["sites_id"] = loaded_basins
+
+        # Convert to DataArrays with units
+        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
+            x_merged, y_merged, c_merged
+        )
+
+        return {
+            "relevant_cols": (
+                x_origin.transpose("basin", "time", "variable")
+                if x_origin is not None
+                else None
+            ),
+            "target_cols": (
+                y_origin.transpose("basin", "time", "variable")
+                if y_origin is not None
+                else None
+            ),
+            "constant_cols": (
+                c_origin.transpose("basin", "variable")
+                if c_origin is not None
+                else None
+            ),
+        }
+
+
+class MultiSourceAEFDataset(MultiSourceDataset):
+    """
+    仿照MultiSourceDataset编写的一个类，
+    读取x和y即动态属性和观测值的方式不变（继承自MultiSourceDataset），
+    读取c即静态属性改为从指定路径的csv中读取。
+    source_cfgs["attributes_paths"] 应该是一个字典: {dataset_name: csv_path}，
+    为每个数据集指定对应的静态属性CSV文件。
+    CSV文件格式第一列为流域id（hru_id），第一行是列名。
+    """
+
+    def _read_xyc(self):
+        # 1. 暂存并清空 constant_cols 配置，避免父类 _read_xyc 方法从数据源读取静态属性
+        original_constant_cols = self.data_cfgs.get("constant_cols")
+        self.data_cfgs["constant_cols"] = None
+
+        try:
+            # 2. 调用父类方法读取 X 和 Y
+            # 父类会处理 ID 对齐、多源数据读取和合并
+            data_dict = super()._read_xyc()
+        finally:
+            # 3. 恢复 constant_cols 配置
+            self.data_cfgs["constant_cols"] = original_constant_cols
+
+        # 4. 获取属性文件配置字典
+        attributes_paths = self.data_cfgs.get("source_cfgs", {}).get("attributes_paths")
+        if not attributes_paths or not isinstance(attributes_paths, dict):
+            raise ValueError(
+                "MultiSourceCsvStaticDataset requires 'attributes_paths' dict in source_cfgs mapping dataset names to csv paths"
+            )
+
+        # 5. 对此时的 basins 进行分组（确定属于哪个数据集）
+        # 此时的 sites_id 是经过父类 _read_xyc 可能更新过的（剔除了无数据的basin）
+        target_ids = self.t_s_dict["sites_id"]
+        datasets_config = self.data_cfgs.get("source_cfgs", {}).get("datasets", None)
+        reader = MultiDatasetReader(datasets=datasets_config)
+        unique_ids_map, _ = reader.get_global_unique_ids()
+
+        ids_by_dataset = {}
+        for gage_id in target_ids:
+            if gage_id in unique_ids_map:
+                ds_name = unique_ids_map[gage_id]
+                if ds_name not in ids_by_dataset:
+                    ids_by_dataset[ds_name] = []
+                ids_by_dataset[ds_name].append(gage_id)
+            else:
+                # 如果找不到归属的数据集，打印警告
+                print(
+                    f"Warning: ID {gage_id} not found in any configured dataset for attribute loading."
+                )
+
+        c_list = []
+
+        # 6. 遍历每个数据集读取 CSV
+        for ds_name, ids in ids_by_dataset.items():
+            csv_path = attributes_paths.get(ds_name)
+            if not csv_path:
+                print(
+                    f"Error: No attributes CSV path defined for dataset {ds_name} which contains {len(ids)} basins."
+                )
+                raise ValueError(
+                    f"Missing attributes_paths entry for dataset: {ds_name}"
+                )
+
+            # 读取 CSV，强制第一列为字符串（流域ID）
+            df = pd.read_csv(csv_path, dtype={0: str})
+            # 第一列为索引
+            df.set_index(df.columns[0], inplace=True)
+
+            # 筛选 Basin
+            # reindex 会引入 NaN 如果有缺失 ID
+            df_subset = df.reindex(ids)
+
+            # 检查是否有完全缺失的行
+            if df_subset.isnull().all(axis=1).any():
+                missing_ids = df_subset.index[df_subset.isnull().all(axis=1)].tolist()
+                print(
+                    f"Warning: {len(missing_ids)} basins in dataset {ds_name} match no static attributes in CSV (first 5: {missing_ids[:5]})"
+                )
+
+            # 选择列
+            if original_constant_cols:
+                # 这种方式会保留所有 original_constant_cols，缺失的列会变成 NaN
+                # 如果不需要严格对齐，可以用 intersection
+                # df_subset = df_subset[df_subset.columns.intersection(original_constant_cols)]
+                # 但一般要求所有属性都存在，故直接 reindex
+                df_subset = df_subset.reindex(columns=original_constant_cols)
+
+            # 转换为 Dataset/DataArray
+            df_subset.index.name = "basin"
+            ds_c = xr.Dataset.from_dataframe(df_subset)
+
+            # 设置默认单位
+            for var in ds_c.data_vars:
+                ds_c[var].attrs["units"] = "dimensionless"
+
+            c_da_part = self._trans2da_and_setunits(ds_c)
+            # 确保维度顺序 (basin, variable)
+            if "basin" in c_da_part.dims and "variable" in c_da_part.dims:
+                c_da_part = c_da_part.transpose("basin", "variable")
+
+            c_list.append(c_da_part)
+
+        # 7. 合并所有数据集的静态属性
+        if not c_list:
+            data_dict["constant_cols"] = None
+        else:
+            # 按 basin 维度合并
+            c_merged = xr.concat(c_list, dim="basin")
+
+            # 8. 重新按照 target_ids 排序，确保与 X, Y 顺序一致
+            if "basin" in c_merged.coords:
+                # 必须确保所有 basin 都在 merged 中（reindexing 会引入 NaN 如果没有）
+                c_merged = c_merged.sel(basin=target_ids)
+
+            data_dict["constant_cols"] = c_merged
+
+        return data_dict
 
 
 class FlexibleDataset(BaseDataset):
@@ -3416,29 +3849,37 @@ class TgHydroDataset(BaseDataset):
         self.edge_index = None
         self.num_nodes = len(self.basins)
         rels = self.data_cfgs.get("relevant_cols", [])
+
         def _find_first_index(names):
             for n in names:
                 if n in rels:
                     return rels.index(n)
             return None
-        self._var_idx_precip = _find_first_index([
-            "precipitation",
-            "total_precipitation",
-            "total_precipitation_hourly",
-            "total_precipitation_surface",
-            "prcp",
-            "pr",
-        ])
-        self._var_idx_lstm = _find_first_index([
-            "lstm_streamflow",
-            "lstm_pred",
-            "lstm_prediction",
-        ])
-        self._var_idx_obs = _find_first_index([
-            "observed_streamflow",
-            "streamflow",
-            "qobs",
-        ])
+
+        self._var_idx_precip = _find_first_index(
+            [
+                "precipitation",
+                "total_precipitation",
+                "total_precipitation_hourly",
+                "total_precipitation_surface",
+                "prcp",
+                "pr",
+            ]
+        )
+        self._var_idx_lstm = _find_first_index(
+            [
+                "lstm_streamflow",
+                "lstm_pred",
+                "lstm_prediction",
+            ]
+        )
+        self._var_idx_obs = _find_first_index(
+            [
+                "observed_streamflow",
+                "streamflow",
+                "qobs",
+            ]
+        )
         self._var_idx_discharge = _find_first_index(["discharge"])
         self._load_graph_from_datasource()
         if self.node_mask is None:
@@ -3464,10 +3905,10 @@ class TgHydroDataset(BaseDataset):
         # Training: Currently we also maintain full sequence to keep graph structure fixed.
         # Handling of NaN targets should be done via loss masking, not by skipping samples here,
         # unless all nodes are NaN at that time step.
-        
+
         # Check for time steps where ALL basins are NaN (optional optimization)
         # nan_array_all = np.isnan(self.y[:, :, 0]).all(axis=0) # [time]
-        
+
         for f in range(warmup_length, max_time_length - rho - horizon):
             # We use basin=None to indicate "all basins/nodes"
             lookup.append((None, f, seq_len))
@@ -3504,7 +3945,9 @@ class TgHydroDataset(BaseDataset):
             basin_to_idx = {basin: i for i, basin in enumerate(self.basins)}
             reorder_idx = [basin_to_idx.get(b, None) for b in node_ids]
             if all(i is not None for i in reorder_idx):
-                x_all = self.x[reorder_idx, idx - warmup_length : idx + actual_length + 1, :]
+                x_all = self.x[
+                    reorder_idx, idx - warmup_length : idx + actual_length + 1, :
+                ]
                 y_all = self.y[reorder_idx, idx : idx + actual_length, :]
             else:
                 x_all = self.x[:, idx - warmup_length : idx + actual_length + 1, :]
@@ -3520,26 +3963,30 @@ class TgHydroDataset(BaseDataset):
                 "relevant_cols 需包含 'precipitation' 与 'lstm_streamflow'"
             )
         # Extend to include horizon F
-        past_rain = x_all[:, start_obs_rel + 1 : end_future_rel + 1, self._var_idx_precip]
+        past_rain = x_all[
+            :, start_obs_rel + 1 : end_future_rel + 1, self._var_idx_precip
+        ]
         past_lstm = x_all[:, start_obs_rel + 1 : end_future_rel + 1, self._var_idx_lstm]
-        
+
         # Obs only up to M, then NaN for F
         if self._var_idx_obs is not None:
             real_obs = x_all[:, start_obs_rel:end_obs_rel, self._var_idx_obs]
         else:
             real_obs = y_all[:, :M, 0]
-            
+
         if self._var_idx_discharge is not None:
             discharge_vals = x_all[
                 :, start_obs_rel:end_obs_rel, self._var_idx_discharge
             ]
             mask = ~np.isnan(discharge_vals)
             real_obs = np.where(mask, discharge_vals, real_obs)
-            
+
         # Create placeholder for future obs (filled with NaN or 0)
         # Using 0 or NaN? NaN is safer to detect leakage, but model needs to handle it if not overwritten immediately.
         # But we will overwrite it in the model before use.
-        future_obs_placeholder = np.full((real_obs.shape[0], F), np.nan, dtype=real_obs.dtype)
+        future_obs_placeholder = np.full(
+            (real_obs.shape[0], F), np.nan, dtype=real_obs.dtype
+        )
         past_obs = np.concatenate([real_obs, future_obs_placeholder], axis=1)
 
         time_series = np.stack(
@@ -3571,7 +4018,9 @@ class TgHydroDataset(BaseDataset):
 
         # Create PyG Data object
         data = Data(
-            x=torch.from_numpy(input_features).float(),  # [num_nodes, M+F, num_features]
+            x=torch.from_numpy(
+                input_features
+            ).float(),  # [num_nodes, M+F, num_features]
             y=torch.from_numpy(future_targets).float(),  # [num_nodes, F]
             edge_index=self.edge_index,  # [2, num_edges]
         )
@@ -3584,7 +4033,9 @@ class TgHydroDataset(BaseDataset):
 
     def _read_xyc_specified_time(self, start_date, end_date):
         tg_cfgs = self.data_cfgs.get("tg_cfgs", {})
-        var_source_map = tg_cfgs.get("var_source_map", tg_cfgs.get("source_selection", {}))
+        var_source_map = tg_cfgs.get(
+            "var_source_map", tg_cfgs.get("source_selection", {})
+        )
         default_choice = tg_cfgs.get("default_source", None)
         source_kwargs = {}
         combine = tg_cfgs.get("combine", True)
@@ -3609,7 +4060,7 @@ class TgHydroDataset(BaseDataset):
                             else src_da["basin"].values
                         )
                         src_vals = src_da.values.astype(str)
-                        base_mask = np.isin(src_vals, ["base", "Base", "BASE"]) 
+                        base_mask = np.isin(src_vals, ["base", "Base", "BASE"])
                         inter_mask = np.isin(
                             src_vals,
                             ["intermediate", "Intermediate", "INTERMEDIATE", "inter"],
@@ -3663,12 +4114,16 @@ class TgHydroDataset(BaseDataset):
                 if "basin" in ds_inter.dims:
                     ds_inter = ds_inter.reindex(basin=basins_union)
             data_vars = {}
-            suffix_map = tg_cfgs.get("source_suffix", {"base": "_base", "intermediate": "_inter"})
+            suffix_map = tg_cfgs.get(
+                "source_suffix", {"base": "_base", "intermediate": "_inter"}
+            )
             for v in var_list:
                 choice = var_source_map.get(v, default_choice)
                 if isinstance(choice, (list, tuple)) or choice == "both":
                     if ds_inter is not None and v in ds_inter:
-                        data_vars[f"{v}{suffix_map.get('intermediate', '_inter')}"] = ds_inter[v]
+                        data_vars[f"{v}{suffix_map.get('intermediate', '_inter')}"] = (
+                            ds_inter[v]
+                        )
                     if ds_base is not None and v in ds_base:
                         data_vars[f"{v}{suffix_map.get('base', '_base')}"] = ds_base[v]
                 else:
@@ -3710,12 +4165,16 @@ class TgHydroDataset(BaseDataset):
                 if "basin" in ds_inter.dims:
                     ds_inter = ds_inter.reindex(basin=basins_union)
             data_vars = {}
-            suffix_map = tg_cfgs.get("source_suffix", {"base": "_base", "intermediate": "_inter"})
+            suffix_map = tg_cfgs.get(
+                "source_suffix", {"base": "_base", "intermediate": "_inter"}
+            )
             for v in var_list:
                 choice = var_source_map.get(v, default_choice)
                 if isinstance(choice, (list, tuple)) or choice == "both":
                     if ds_inter is not None and v in ds_inter:
-                        data_vars[f"{v}{suffix_map.get('intermediate', '_inter')}"] = ds_inter[v]
+                        data_vars[f"{v}{suffix_map.get('intermediate', '_inter')}"] = (
+                            ds_inter[v]
+                        )
                     if ds_base is not None and v in ds_base:
                         data_vars[f"{v}{suffix_map.get('base', '_base')}"] = ds_base[v]
                 else:
@@ -3752,10 +4211,16 @@ class TgHydroDataset(BaseDataset):
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
             data_forcing_ds_raw, data_output_ds_raw
         )
-        
-        data_forcing_ds_sel = _select_timeseries(data_forcing_ds, self.data_cfgs["relevant_cols"])
-        data_output_ds_sel = _select_timeseries(data_output_ds, self.data_cfgs["target_cols"])
-        data_attr_ds_sel = _select_attributes(data_attr_ds_raw, self.data_cfgs["constant_cols"])
+
+        data_forcing_ds_sel = _select_timeseries(
+            data_forcing_ds, self.data_cfgs["relevant_cols"]
+        )
+        data_output_ds_sel = _select_timeseries(
+            data_output_ds, self.data_cfgs["target_cols"]
+        )
+        data_attr_ds_sel = _select_attributes(
+            data_attr_ds_raw, self.data_cfgs["constant_cols"]
+        )
 
         x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
             data_forcing_ds_sel, data_output_ds_sel, data_attr_ds_sel
@@ -3764,10 +4229,11 @@ class TgHydroDataset(BaseDataset):
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
             "target_cols": y_origin.transpose("basin", "time", "variable"),
             "constant_cols": (
-                c_origin.transpose("basin", "variable") if c_origin is not None else None
+                c_origin.transpose("basin", "variable")
+                if c_origin is not None
+                else None
             ),
         }
-
 
     def _init_node_mask(self):
         """Initialize node mask for identifying confluence nodes.
@@ -3847,7 +4313,7 @@ class TgHydroDataset(BaseDataset):
         else:
             # No valid edges found
             self.edge_index = torch.empty((2, 0), dtype=torch.long)
-        
+
     def _load_graph_from_datasource(self):
         graph = None
         if hasattr(self.data_source, "read_graph_data"):
@@ -3902,6 +4368,7 @@ class TgHydroDataset(BaseDataset):
                     self.node_ids = None
             if not self.upstream_indices and "upstream_indices" in graph:
                 self.upstream_indices = graph.get("upstream_indices")
+
 
 class Camels_merge_AEFDataset(BaseDataset):
     def _read_xyc_specified_time(self, start_date, end_date):

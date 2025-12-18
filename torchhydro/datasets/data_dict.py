@@ -26,6 +26,8 @@ from torchhydro.datasets.data_sets import (
     AEFDataset,
     Camels_merge_AEFDataset,
     TgHydroDataset,
+    MultiSourceDataset,
+    MultiSourceAEFDataset,
 )
 
 
@@ -47,4 +49,6 @@ datasets_dict = {
     "AlphaEarthDataset": AEFDataset,
     "MergedDataset": Camels_merge_AEFDataset,
     "TgHydroDataset": TgHydroDataset,
+    "MultiSourceDataset": MultiSourceDataset,
+    "MultiSourceAEFDataset": MultiSourceAEFDataset,
 }
