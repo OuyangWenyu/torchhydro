@@ -40,7 +40,7 @@ def main():
 
     # Example: specific datasets
     DATASETS = ["camels_us", "camels_cl", "camels_aus", "camels_col"]
-
+    # DATASETS = ["camels_us"]
     # If you want to run on ALL supported datasets, uncomment below:
     # DATASETS = list(DATASET_MAPPING.keys())
 
@@ -116,10 +116,12 @@ def main():
                 "camels_cl": "/Users/cylenlc/Desktop/shp文件/camelscl/mean_result.csv",
                 "camels_aus": "/Users/cylenlc/Desktop/shp文件/camelsaus/mean_result.csv",
                 "camels_col": "/Users/cylenlc/Desktop/shp文件/camelscol/mean_result.csv",
+                "camels_de": "/Users/cylenlc/Desktop/shp文件/camelsde/mean_result.csv",
             },
         },
-        # Use CPU for this example. To use GPU, set it to [0], [0, 1], etc.
-        ctx=[0, 1],
+        # Use None to let Fabric handle devices based on the launch command (fabric run)
+        # Setting it to "auto" or a list will conflict with CLI args
+        ctx=None,
         # --- Model selection and hyperparameters for MoE Model ---
         model_name="DenseMoE",
         model_hyperparam={
@@ -128,7 +130,7 @@ def main():
             # Configuration for the two LSTM experts
             "experts_cfgs": [
                 {
-                    "model_name": "KuaiLSTM",
+                    "model_name": "CpuLSTM",
                     "model_hyperparam": {
                         "n_input_features": n_input_features,
                         "n_output_features": n_output_features,
@@ -198,6 +200,7 @@ def main():
         rolling=1,
         patience=2,
         model_type="Normal",
+        # fabric_strategy="auto",
     )
 
     # 2. Load default config and update it with your parameters

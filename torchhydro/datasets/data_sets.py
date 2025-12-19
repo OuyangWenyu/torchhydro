@@ -1725,14 +1725,23 @@ class MultiSourceAEFDataset(MultiSourceDataset):
                     f"Missing attributes_paths entry for dataset: {ds_name}"
                 )
 
-            # 读取 CSV，强制第一列为字符串（流域ID）
-            df = pd.read_csv(csv_path, dtype={0: str})
-            # 第一列为索引
-            df.set_index(df.columns[0], inplace=True)
+            # 读取 CSV
+            df = pd.read_csv(csv_path)
+            # 仿照 AEFDataset 的逻辑，将 ID 转换为去掉前导零的字符串
+            # 假设第一列是 ID
+            id_col = df.columns[0]
+            df[id_col] = df[id_col].astype(int).astype(str).str.lstrip("0")
+            df.set_index(id_col, inplace=True)
+
+            # 对请求的 ids 也做同样的处理
+            target_ids_stripped = [str(gid).lstrip("0") for gid in ids]
 
             # 筛选 Basin
             # reindex 会引入 NaN 如果有缺失 ID
-            df_subset = df.reindex(ids)
+            df_subset = df.reindex(target_ids_stripped)
+
+            # 恢复原始 ID 作为索引
+            df_subset.index = ids
 
             # 检查是否有完全缺失的行
             if df_subset.isnull().all(axis=1).any():
