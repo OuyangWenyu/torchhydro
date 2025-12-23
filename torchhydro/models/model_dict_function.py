@@ -89,7 +89,6 @@ pytorch_model_dict = {
     "SwitchMoE": SwitchMoE,
     "HydrologyTopKMoE": HydrologyTopKMoE,
     "GlobalTopKMoE": GlobalTopKMoE,
-    "GlobalTopKMoE_FastRouting": GlobalTopKMoE_FastRouting,
     # ANN models
     "SimpleAnn": SimpleAnn,
     # LSTM models from Group MHPI
