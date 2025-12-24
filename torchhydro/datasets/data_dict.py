@@ -28,6 +28,7 @@ from torchhydro.datasets.data_sets import (
     TgHydroDataset,
     MultiSourceDataset,
     MultiSourceAEFDataset,
+    FNODataset,
 )
 
 
@@ -51,4 +52,5 @@ datasets_dict = {
     "TgHydroDataset": TgHydroDataset,
     "MultiSourceDataset": MultiSourceDataset,
     "MultiSourceAEFDataset": MultiSourceAEFDataset,
+    "FNODataset": FNODataset,
 }

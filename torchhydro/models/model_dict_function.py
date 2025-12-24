@@ -19,7 +19,6 @@ from torchhydro.models.cudnnlstm import (
     CudnnLstmModelMultiOutput,
     CpuLstmModel,
 )
-from torchhydro.models.fno import HydrologyFNO
 
 from torchhydro.models.simple_lstm import (
     LinearMultiLayerLSTMModel,
@@ -74,14 +73,16 @@ from torchhydro.models.moe import (
     SwitchMoE,
     HydrologyTopKMoE,
     GlobalTopKMoE,
-    GlobalTopKMoE_FastRouting,
 )
 from torchhydro.models.ann import SimpleAnn
+from torchhydro.models.fno import FNO
 
 """
 Utility dictionaries to map a string to a class.
 """
 pytorch_model_dict = {
+    # FNO
+    "FNO": FNO,
     # MoE model
     "MoE": MoE,
     "DenseMoE": DenseMoE,
@@ -130,7 +131,6 @@ pytorch_model_dict = {
     "GCNII": GCNII,
     "ResGAT": ResGAT,
     "AutoRegressiveGCGRU": MultiFeatureStreamGCGRU,
-    "FNO": HydrologyFNO,
 }
 
 pytorch_criterion_dict = {

@@ -4451,3 +4451,78 @@ class Camels_merge_AEFDataset(BaseDataset):
                 else None
             ),
         }
+
+
+class FNODataset(BaseDataset):
+    def _load_data(self):
+        origin_data = self._read_xyc()
+        # normalization
+        norm_data = self._normalize(origin_data)
+        # 启用 NaN 处理以确保数据清洁
+        origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
+        origin_data_wonan, norm_data_wonan = self._add_absolute_time_axis(
+            origin_data_wonan,
+            norm_data_wonan,
+        )
+        self._trans2nparr(origin_data_wonan, norm_data_wonan)
+        self._create_lookup_table()
+
+    def _add_absolute_time_axis(self, origin_data, norm_data):
+        """
+        Add absolute time coordinate normalized to [0, 1] as an extra dynamic feature.
+
+        Parameters
+        ----------
+        origin_data : dict
+            output of _kill_nan, contains xarray DataArrays
+        norm_data : dict
+            normalized version of origin_data
+
+        Returns
+        -------
+        origin_data_new, norm_data_new : dict
+            same structure as input, but relevant_cols has +1 variable (time)
+        """
+
+        # -------- 1. Extract time coordinate --------
+        time_coord = origin_data["relevant_cols"].coords["time"]
+        # datetime64[ns] → int64
+        time_ns = time_coord.values.astype("datetime64[ns]").astype("int64")
+
+        t_min = time_ns.min()
+        t_max = time_ns.max()
+
+        time_norm = (time_ns - t_min) / (t_max - t_min)
+        time_norm = time_norm.astype("float32")  # (T,)
+
+        # -------- 2. Expand to (basin, time, 1) --------
+        n_basins = origin_data["relevant_cols"].sizes["basin"]
+        n_time = origin_data["relevant_cols"].sizes["time"]
+
+        time_feat = np.broadcast_to(time_norm[None, :, None], (n_basins, n_time, 1))
+
+        # -------- 3. Wrap as xarray.DataArray --------
+        time_da = xr.DataArray(
+            time_feat,
+            dims=("basin", "time", "variable"),
+            coords={
+                "basin": origin_data["relevant_cols"].coords["basin"],
+                "time": origin_data["relevant_cols"].coords["time"],
+                "variable": ["absolute_time"],
+            },
+            attrs={"description": "absolute time normalized to [0,1]"},
+        )
+
+        # -------- 4. Concatenate to relevant_cols --------
+        origin_data = origin_data.copy()
+        norm_data = norm_data.copy()
+
+        origin_data["relevant_cols"] = xr.concat(
+            [origin_data["relevant_cols"], time_da], dim="variable"
+        )
+
+        norm_data["relevant_cols"] = xr.concat(
+            [norm_data["relevant_cols"], time_da], dim="variable"
+        )
+
+        return origin_data, norm_data

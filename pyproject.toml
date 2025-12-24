@@ -63,6 +63,8 @@ dependencies = [
     "lightning>=2.5.2",
     "shap>=0.48.0",
     "black>=25.11.0",
+    "opt-einsum>=3.4.0",
+    "tensorly>=0.9.0",
 ]
 
 [project.optional-dependencies]
