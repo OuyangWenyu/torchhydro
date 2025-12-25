@@ -141,6 +141,7 @@ mlruns/
 results/
 data/
 scripts/
+pth_file/
 
 # Claude
 CLAUDE.md
