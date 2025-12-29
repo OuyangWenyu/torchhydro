@@ -59,45 +59,48 @@ model_hyperparam = {
 
 ## Training Progress
 
-### Training and Validation Loss
+### Loss Curves
 
-| Epoch | Training Loss | Validation Loss | Change |
-|-------|--------------|-----------------|--------|
-| 1 | 0.312819 | 0.311590 | - |
-| 2 | 0.260448 | **0.311538** | **Best** |
-| 3 | 0.244755 | 0.324826 | ↑ 4.3% |
-| 4 | 0.235673 | 0.319392 | ↓ 1.7% |
-| 5 | 0.229913 | 0.320268 | ↑ 0.3% |
-| 6 | 0.226075 | 0.327835 | ↑ 2.4% |
-| 7 | 0.222972 | 0.328254 | ↑ 0.1% |
+![LSTM Training and Validation Loss](figures/lstm_camels/lstm_loss_curves.png)
 
-**Note**: Training stopped at Epoch 7 due to early stopping.
+**Training Loss** decreased steadily from **0.313** (Epoch 1) to **0.223** (Epoch 7), showing consistent improvement with the largest drop of 16.7% between Epochs 1-2.
+
+**Validation Loss** showed overfitting signs after Epoch 2, where it reached minimum (**0.3115**) and then increased to **0.328** by Epoch 7 while training loss continued decreasing.
 
 ### Validation Metrics by Epoch
 
-**NSE (Nash-Sutcliffe Efficiency)**:
+![LSTM Validation Metrics](figures/lstm_camels/lstm_validation_metrics.png)
 
-| Epoch | NSE Mean | NSE Median |
-|-------|----------|------------|
-| 1 | 0.6029 | 0.6995 |
-| 2 | 0.6091 | 0.7175 |
-| 3 | 0.5808 | 0.7087 |
-| 4 | 0.5963 | 0.7172 |
-| **5** | **0.5660** | **0.7215** |
-| 6 | 0.5619 | 0.7179 |
-| 7 | 0.5500 | 0.7121 |
+**NSE (Nash-Sutcliffe Efficiency)**:
+- NSE Median peaked at **0.7215** (Epoch 5), indicating good performance
+- NSE Mean remained around 0.55-0.61 across epochs
+- Higher median than mean suggests good performance on majority of basins
 
 **KGE (Kling-Gupta Efficiency)**:
+- KGE Median peaked at **0.7476** (Epoch 5), indicating good performance
+- KGE Mean: 0.658-0.667, more stable than NSE throughout training
 
-| Epoch | KGE Mean | KGE Median |
-|-------|----------|------------|
-| 1 | 0.6578 | 0.7325 |
-| 2 | 0.6674 | 0.7432 |
-| 3 | 0.6643 | 0.7325 |
-| 4 | 0.6619 | 0.7330 |
-| **5** | **0.6650** | **0.7476** |
-| 6 | 0.6603 | 0.7385 |
-| 7 | 0.6589 | 0.7383 |
+**RMSE (Root Mean Square Error)**:
+- RMSE Median lowest at **0.985 m³/s** (Epoch 2)
+- Both metrics showed minimal variation across epochs (< 5%)
+
+### Training Overview
+
+![LSTM Training Overview](figures/lstm_camels/lstm_training_overview.png)
+
+**Figure**: Combined view of training/validation loss (left) and validation NSE metrics (right).
+
+### Key Observations
+
+1. **Best Validation Performance**: Epoch 5 achieved optimal NSE/KGE median scores (NSE: 0.7215, KGE: 0.7476)
+
+2. **Overfitting Pattern**: Training loss decreased continuously (29% reduction) while validation loss increased after Epoch 2 (5% increase), indicating model achieved best generalization between Epochs 2-5
+
+3. **Early Stopping**: Training stopped at Epoch 7 (patience=5). Validation loss minimum at Epoch 2, but NSE/KGE metrics better at Epoch 5, demonstrating importance of using multiple metrics for model selection
+
+4. **Model Convergence**: Loss change rate decreased from 16.7% (Epoch 1→2) to 1.4% (Epoch 6→7), with NSE and KGE medians stabilizing in 0.71-0.75 range
+
+**Note**: Training stopped at Epoch 7 due to early stopping.
 
 ## Test Results (2010-2014)
 
