@@ -76,6 +76,17 @@ python examples/lstm_camels_example.py
 
 Feel free to modify these scripts to experiment with different models, datasets, and parameters.
 
+## Benchmark Results
+
+We provide benchmark results on the CAMELS-US dataset to demonstrate the performance of our models. The figure below shows the NSE (Nash-Sutcliffe Efficiency) distribution comparison between two CAMELS data processing approaches:
+
+<img src="docs/images/nse_comparison_camels.png" alt="NSE Comparison" width="600"/>
+
+**Figure**: NSE comparison of LSTM model trained on CAMELS-US dataset. The left box plot (red) shows results using `hydrodataset.Camels` class for data processing, while the right box plot (yellow-green) shows results using `hydrodataset.CamelsUS` class. Both approaches achieve a median NSE of 0.72, demonstrating robust and consistent performance across 671 basins.
+
+For detailed training results, methodology, and comprehensive performance analysis, see:
+- **[LSTM Training Results on CAMELS-US](docs/examples/lstm_camels_results.md)**: Complete experiment documentation including model configuration, training progress, and basin-level performance statistics.
+
 ## Explore More Features
 
 The examples above cover two primary use cases, but `torchhydro` is much more flexible. We support a variety of models, datasets, and data sources out of the box. Explore the full public API to see all available components:
