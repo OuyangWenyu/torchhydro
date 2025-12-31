@@ -40,39 +40,39 @@ def main():
         ctx=[-1],
         # --- Model selection and hyperparameters for MoE Model ---
         model_name="MoE",
-                model_hyperparam={
-                    "n_experts": 2,
-                    "gating_mode": "last", # Use the LAST time step to inform the gating network
-                    # Configuration for the two LSTM experts
-                    "experts_cfgs": [
-                        {
-                            "model_name": "CpuLSTM",
-                            "model_hyperparam": {
-                                "n_input_features": n_input_features,
-                                "n_output_features": n_output_features,
-                                "n_hidden_states": n_hidden_states,
-                            },
-                        },
-                        {
-                            "model_name": "CpuLSTM",
-                            "model_hyperparam": {
-                                "n_input_features": n_input_features,
-                                "n_output_features": n_output_features,
-                                "n_hidden_states": n_hidden_states,
-                            },
-                        },
-                    ],
-                    # Configuration for the gating network (a simple MLP)
-                    "gating_cfgs": {
-                        "model_name": "SimpleAnn",
-                        "model_hyperparam": {
-                            # Input to the gate will now be from the last time step
-                            "nx": n_input_features, 
-                            "hidden_size": [64, 16], # Hidden layers of the gating network
-                            # 'ny' will be automatically set to n_experts by the MoE model
-                        },
+        model_hyperparam={
+            "n_experts": 2,
+            "gating_mode": "last",  # Use the LAST time step to inform the gating network
+            # Configuration for the two LSTM experts
+            "experts_cfgs": [
+                {
+                    "model_name": "CpuLSTM",
+                    "model_hyperparam": {
+                        "n_input_features": n_input_features,
+                        "n_output_features": n_output_features,
+                        "n_hidden_states": n_hidden_states,
                     },
                 },
+                {
+                    "model_name": "CpuLSTM",
+                    "model_hyperparam": {
+                        "n_input_features": n_input_features,
+                        "n_output_features": n_output_features,
+                        "n_hidden_states": n_hidden_states,
+                    },
+                },
+            ],
+            # Configuration for the gating network (a simple MLP)
+            "gating_cfgs": {
+                "model_name": "SimpleAnn",
+                "model_hyperparam": {
+                    # Input to the gate will now be from the last time step
+                    "nx": n_input_features,
+                    "hidden_size": [64, 16],  # Hidden layers of the gating network
+                    # 'ny' will be automatically set to n_experts by the MoE model
+                },
+            },
+        },
         # Basin IDs for training and evaluation
         gage_id=[
             "01013500",

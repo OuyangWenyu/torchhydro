@@ -438,3 +438,71 @@ class MinLSTM(nn.Module):
 
     def log_g(self, x: torch.Tensor) -> torch.Tensor:
         return torch.where(x >= 0, (F.relu(x) + 0.5).log(), -F.softplus(-x))
+
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from typing import Any, Tuple
+
+
+class DeepGEVLSTM(nn.Module):
+    def __init__(self, input_size: int, hidden_size: int, dr: float = 0.0):
+        super(DeepGEVLSTM, self).__init__()
+        self.linearIn = nn.Linear(input_size, hidden_size)
+        self.lstm = nn.LSTM(
+            hidden_size,
+            hidden_size,
+        )
+        self.dropout = nn.Dropout(p=dr)
+
+        # --- 修改部分：将原来的 linearOut 拆分为三个头 ---
+        self.fc_mu = nn.Linear(hidden_size, 1)  # 位置参数
+        self.fc_sigma = nn.Linear(hidden_size, 1)  # 尺度参数
+        self.fc_xi = nn.Linear(hidden_size, 1)  # 形状参数
+
+    def forward(
+        self, x: torch.Tensor, **kwargs: Any
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        # 1. 前向传播（保持原有逻辑不变，处理 Masking 和 LSTM）
+        x0 = F.relu(self.linearIn(x))
+        seq_lengths = kwargs.get("seq_lengths", None)
+        mask = kwargs.get("mask", None)
+        use_manual_mask = kwargs.get("use_manual_mask", False)
+
+        if use_manual_mask and mask is not None:
+            out_lstm, _ = self.lstm(x0)
+            if mask.dim() == 2:
+                mask = mask.transpose(0, 1).unsqueeze(-1)
+            out_lstm = out_lstm * mask
+        elif seq_lengths is not None and not use_manual_mask:
+            packed_x = pack_padded_sequence(
+                x0, seq_lengths, batch_first=False, enforce_sorted=False
+            )
+            packed_out, _ = self.lstm(packed_x)
+            out_lstm, _ = pad_packed_sequence(packed_out, batch_first=False)
+        else:
+            out_lstm, _ = self.lstm(x0)
+            if mask is not None:
+                if mask.dim() == 2:
+                    mask = mask.transpose(0, 1).unsqueeze(-1)
+                out_lstm = out_lstm * mask
+
+        # 2. 获取最后一个有效时间步的输出 (用于 Block Maxima 预测)
+        # 如果是序列预测序列，则直接取 out_lstm_dr
+        out_lstm_dr = self.dropout(out_lstm[-1, :, :])  # 取序列末尾 [batch, hidden]
+
+        # --- 修改部分：参数约束激活 ---
+
+        # mu: 无约束
+        mu = self.fc_mu(out_lstm_dr)
+
+        # sigma: 必须 > 0。使用 Softplus 并加上微小值防止 log(0)
+        sigma = F.softplus(self.fc_sigma(out_lstm_dr)) + 1e-6
+
+        # xi: 形状参数，通常在 [-0.5, 0.5] 之间。使用 Tanh 缩放
+        # 限制在 (-0.5, 0.5) 能极大提高洪水极值预测的训练稳定性
+        xi = 0.5 * torch.tanh(self.fc_xi(out_lstm_dr))
+
+        return mu, sigma, xi

@@ -19,6 +19,7 @@ from torchhydro.models.cudnnlstm import (
     CudnnLstmModelMultiOutput,
     CpuLstmModel,
 )
+from torchhydro.models.fno import HydrologyFNO
 
 from torchhydro.models.simple_lstm import (
     LinearMultiLayerLSTMModel,
@@ -73,6 +74,7 @@ from torchhydro.models.moe import (
     SwitchMoE,
     HydrologyTopKMoE,
     GlobalTopKMoE,
+    GlobalTopKMoE_FastRouting,
 )
 from torchhydro.models.ann import SimpleAnn
 
@@ -87,6 +89,7 @@ pytorch_model_dict = {
     "SwitchMoE": SwitchMoE,
     "HydrologyTopKMoE": HydrologyTopKMoE,
     "GlobalTopKMoE": GlobalTopKMoE,
+    "GlobalTopKMoE_FastRouting": GlobalTopKMoE_FastRouting,
     # ANN models
     "SimpleAnn": SimpleAnn,
     # LSTM models from Group MHPI
@@ -129,6 +132,7 @@ pytorch_model_dict = {
     "ResGAT": ResGAT,
     "AutoRegressiveGCGRU": MultiFeatureStreamGCGRU,
     "AutoRegressiveGCLSTM": MultiFeatureStreamGCLSTM,
+    "FNO": HydrologyFNO,
 }
 
 pytorch_criterion_dict = {

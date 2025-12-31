@@ -154,3 +154,5 @@ torchhydro/_version.py
 
 # Gemini
 GEMINI.md
+
+torchhydro.code-workspace
