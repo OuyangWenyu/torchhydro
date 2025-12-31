@@ -3505,13 +3505,13 @@ class TgHydroDataset(BaseDataset):
             reorder_idx = [basin_to_idx.get(b, None) for b in node_ids]
             if all(i is not None for i in reorder_idx):
                 x_all = self.x[reorder_idx, idx - warmup_length : idx + actual_length + 1, :]
-                y_all = self.y[reorder_idx, idx : idx + actual_length, :]
+                y_all = self.y[reorder_idx, idx : idx + actual_length + 1, :]
             else:
                 x_all = self.x[:, idx - warmup_length : idx + actual_length + 1, :]
-                y_all = self.y[:, idx : idx + actual_length, :]
+                y_all = self.y[:, idx : idx + actual_length + 1, :]
         else:
             x_all = self.x[:, idx - warmup_length : idx + actual_length + 1, :]
-            y_all = self.y[:, idx : idx + actual_length, :]
+            y_all = self.y[:, idx : idx + actual_length + 1, :]
         start_obs_rel = warmup_length
         end_obs_rel = warmup_length + M
         end_future_rel = warmup_length + M + F
@@ -3525,22 +3525,20 @@ class TgHydroDataset(BaseDataset):
         
         # Obs only up to M, then NaN for F
         if self._var_idx_obs is not None:
-            real_obs = x_all[:, start_obs_rel:end_obs_rel, self._var_idx_obs]
-        else:
-            real_obs = y_all[:, :M, 0]
+            real_obs = x_all[:, start_obs_rel : end_future_rel, self._var_idx_obs]
             
         if self._var_idx_discharge is not None:
             discharge_vals = x_all[
-                :, start_obs_rel:end_obs_rel, self._var_idx_discharge
+                :, start_obs_rel : end_future_rel, self._var_idx_discharge
             ]
             mask = ~np.isnan(discharge_vals)
-            real_obs = np.where(mask, discharge_vals, real_obs)
+            past_obs = np.where(mask, discharge_vals, real_obs)
             
-        # Create placeholder for future obs (filled with NaN or 0)
-        # Using 0 or NaN? NaN is safer to detect leakage, but model needs to handle it if not overwritten immediately.
-        # But we will overwrite it in the model before use.
-        future_obs_placeholder = np.full((real_obs.shape[0], F), np.nan, dtype=real_obs.dtype)
-        past_obs = np.concatenate([real_obs, future_obs_placeholder], axis=1)
+        # # Create placeholder for future obs (filled with NaN or 0)
+        # # Using 0 or NaN? NaN is safer to detect leakage, but model needs to handle it if not overwritten immediately.
+        # # But we will overwrite it in the model before use.
+        # future_obs_placeholder = np.full((real_obs.shape[0], F), np.nan, dtype=real_obs.dtype)
+        # past_obs = np.concatenate([real_obs, future_obs_placeholder], axis=1)
 
         time_series = np.stack(
             [
@@ -3566,7 +3564,7 @@ class TgHydroDataset(BaseDataset):
             c_exp = np.repeat(c[:, np.newaxis, :], M + F, axis=1)
             input_features = np.concatenate((time_series, c_exp), axis=-1)
         # For PyG, we want [num_nodes, M+F, num_features]
-        future_targets = self.y[:, idx + M : idx + M + F, 0]
+        future_targets = y_all[:, M + 1 : M + F + 1, 0]
         # output_data = future_targets.transpose(1, 0)
 
         # Create PyG Data object

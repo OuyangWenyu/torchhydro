@@ -142,6 +142,7 @@ results/
 data/
 scripts/
 pyrightconfig.json
+.trae/
 
 # Claude
 CLAUDE.md

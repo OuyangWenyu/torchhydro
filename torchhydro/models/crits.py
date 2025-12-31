@@ -1158,6 +1158,7 @@ class PyGraphLoss(torch.nn.Module):
         self,
         loss_func: Union[torch.nn.Module, str] = "MSELoss",
         horizon_range: Union[int, list, tuple] = None,
+        use_node_mask: bool = True,
     ):
         """
         Specialized loss for PyG batch data.

@@ -8,7 +8,7 @@ FilePath: \torchhydro\torchhydro\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
-from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU
+from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU, MultiFeatureStreamGCLSTM
 from torchhydro.models.mtslstm import MTSLSTM
 from torchhydro.models.dpl4hbv import DplLstmHbv, DplAnnHbv
 from torchhydro.models.cudnnlstm import (
@@ -128,6 +128,7 @@ pytorch_model_dict = {
     "GCNII": GCNII,
     "ResGAT": ResGAT,
     "AutoRegressiveGCGRU": MultiFeatureStreamGCGRU,
+    "AutoRegressiveGCLSTM": MultiFeatureStreamGCLSTM,
 }
 
 pytorch_criterion_dict = {

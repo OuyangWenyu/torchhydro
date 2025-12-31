@@ -351,15 +351,15 @@ def get_preds_to_be_eval(
     nt = valorte_data_loader.dataset.nt - warmup_length
     basin_num = len(target_data.basin)
     data_shape = (basin_num, nt, nf)
+    # Check if GNN mode (PyG output)
+    is_gnn = False
+    dataset = valorte_data_loader.dataset
+    if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
+         # lookup_table[0] is (basin, time, len). For GNN, basin is None.
+         if dataset.lookup_table[0][0] is None:
+             is_gnn = True
+    
     if evaluator["eval_way"] == "once":
-        # Check if GNN mode (PyG output)
-        is_gnn = False
-        dataset = valorte_data_loader.dataset
-        if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
-             # lookup_table[0] is (basin, time, len). For GNN, basin is None.
-             if dataset.lookup_table[0][0] is None:
-                 is_gnn = True
-        
         if is_gnn:
             raise NotImplementedError(
                 "eval_way='once' is not currently supported for PyG/GNN models. "
@@ -513,12 +513,16 @@ def get_preds_to_be_eval(
             # 创建一个列表存储每个预测步长的结果
             preds_xr_list = []
             obss_xr_list = []
+            if is_gnn:
+                start_idx = rho + 1
+            else:
+                start_idx = rho
             for i in range(pred.shape[2]):
                 pred_3d = pred[:, :, i, :]
                 obs_3d = obs[:, :, i, :]
                 the_array_pred_ = np.full(target_data.shape, np.nan)
                 the_array_obs_ = np.full(target_data.shape, np.nan)
-                start = rho + i  # TODO:need check
+                start = start_idx + i  # TODO:need check
                 end = start + pred_3d.shape[1]
                 assert end <= the_array_pred_.shape[1]
                 the_array_pred_[:, start:end, :] = pred_3d
