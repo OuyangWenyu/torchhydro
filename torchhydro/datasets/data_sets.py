@@ -3867,10 +3867,8 @@ class TgHydroDataset(BaseDataset):
 
         self._var_idx_precip = _find_first_index(
             [
-                "precipitation",
-                "total_precipitation",
+                "precipitation_obs",
                 "total_precipitation_hourly",
-                "total_precipitation_surface",
                 "prcp",
                 "pr",
             ]
