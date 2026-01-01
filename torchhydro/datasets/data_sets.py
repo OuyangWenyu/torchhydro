@@ -1847,17 +1847,23 @@ class FloodEventDataset(BaseDataset):
         # If not found, default to first target column (usually streamflow)
         if self.inflow_idx is None:
             self.inflow_idx = 0
-            print(f"Warning: No streamflow column found in target_cols, using target_cols[0]: {target_cols[0]}")
+            print(
+                f"Warning: No streamflow column found in target_cols, using target_cols[0]: {target_cols[0]}"
+            )
 
         # Read peak-aligned sampling configuration
         peak_cfg = cfgs["data_cfgs"].get("peak_aligned_sampling", {})
         self.peak_aligned_enabled = peak_cfg.get("enabled", False)
         self.peak_slide_step = peak_cfg.get("slide_step", 1)
-        self.peak_selection = peak_cfg.get("peak_selection", "first")  # "first" or "highest"
+        self.peak_selection = peak_cfg.get(
+            "peak_selection", "first"
+        )  # "first" or "highest"
 
         # Log peak-aligned sampling configuration
         if self.peak_aligned_enabled:
-            print(f"Peak-aligned sampling ENABLED: slide_step={self.peak_slide_step}, peak_selection={self.peak_selection}, inflow_idx={self.inflow_idx}")
+            print(
+                f"Peak-aligned sampling ENABLED: slide_step={self.peak_slide_step}, peak_selection={self.peak_selection}, inflow_idx={self.inflow_idx}"
+            )
             self._debug_first_flood = False  # Debug flag for first flood sequence
         else:
             print("Peak-aligned sampling DISABLED (using traditional sliding window)")
@@ -2024,7 +2030,9 @@ class FloodEventDataset(BaseDataset):
             Time index of the flood peak, None if cannot be determined
         """
         # Get inflow data for this flood sequence (use original data y_origin)
-        inflow_sequence = self.y_origin[basin_idx, seq_start:seq_end+1, self.inflow_idx]
+        inflow_sequence = self.y_origin[
+            basin_idx, seq_start : seq_end + 1, self.inflow_idx
+        ]
 
         # Handle NaN values - find valid data range
         valid_mask = ~np.isnan(inflow_sequence)
@@ -2034,7 +2042,7 @@ class FloodEventDataset(BaseDataset):
 
         first_valid = valid_indices[0]
         last_valid = valid_indices[-1]
-        valid_inflow = inflow_sequence[first_valid:last_valid+1]
+        valid_inflow = inflow_sequence[first_valid : last_valid + 1]
 
         if self.peak_selection == "highest":
             # Global maximum strategy
@@ -2043,8 +2051,8 @@ class FloodEventDataset(BaseDataset):
             # Find first local maximum (where inflow stops increasing)
             peak_idx_in_valid = None
             for i in range(len(valid_inflow) - 1):
-                if not np.isnan(valid_inflow[i]) and not np.isnan(valid_inflow[i+1]):
-                    if valid_inflow[i] >= valid_inflow[i+1]:
+                if not np.isnan(valid_inflow[i]) and not np.isnan(valid_inflow[i + 1]):
+                    if valid_inflow[i] >= valid_inflow[i + 1]:
                         peak_idx_in_valid = i
                         break
 
@@ -2146,8 +2154,10 @@ class FloodEventDataset(BaseDataset):
 
         if peak_idx is None:
             # Fallback to original sliding window logic
-            print(f"Warning: Cannot find peak for basin {basin_idx}, "
-                  f"flood sequence [{seq_start}, {seq_end}], using fallback")
+            print(
+                f"Warning: Cannot find peak for basin {basin_idx}, "
+                f"flood sequence [{seq_start}, {seq_end}], using fallback"
+            )
             self._create_sliding_window_samples(
                 basin_idx, seq_start, seq_end, sample_seqlen, lookup
             )
@@ -3295,24 +3305,30 @@ class AugmentedFloodEventDataset(FloodEventDataset):
 
             # Map real data flood_event from 0/1 to 0/100 scoring system
             # This unifies real data (binary) with augmented data (0-100 scores)
-            if data_output_hist_ is not None and 'flood_event' in data_output_hist_.data_vars:
+            if (
+                data_output_hist_ is not None
+                and "flood_event" in data_output_hist_.data_vars
+            ):
                 import xarray as xr
-                flood_event_da = data_output_hist_['flood_event']
+
+                flood_event_da = data_output_hist_["flood_event"]
 
                 # Map: 0 → 0 (non-flood), 1 → 100 (real flood event, high quality)
                 mapped_flood_event = xr.where(
                     flood_event_da > 0,  # Condition: greater than 0 (i.e., 1)
-                    100.0,               # Map to 100 score
-                    0.0                  # Keep as 0
+                    100.0,  # Map to 100 score
+                    0.0,  # Keep as 0
                 )
 
                 # Update dataset with mapped values
-                data_output_hist_['flood_event'] = mapped_flood_event
+                data_output_hist_["flood_event"] = mapped_flood_event
 
                 print("Real data flood_event mapped: 1→100, 0→0")
 
         except Exception as e:
-            print(f"Unable to read the historical data. The time range may not be in the historical data: {e}")
+            print(
+                f"Unable to read the historical data. The time range may not be in the historical data: {e}"
+            )
             data_forcing_hist_ = None
             data_output_hist_ = None
 
@@ -3334,15 +3350,21 @@ class AugmentedFloodEventDataset(FloodEventDataset):
             data_output_aug_ = self._rm_timeunit_key(data_output_aug_)
 
             # Verify augmented data flood_event score range (optional logging)
-            if data_output_aug_ is not None and 'flood_event' in data_output_aug_.data_vars:
+            if (
+                data_output_aug_ is not None
+                and "flood_event" in data_output_aug_.data_vars
+            ):
                 import numpy as np
-                flood_values = data_output_aug_['flood_event'].values.ravel()
+
+                flood_values = data_output_aug_["flood_event"].values.ravel()
                 flood_values = flood_values[~np.isnan(flood_values)]
 
                 if len(flood_values) > 0:
                     min_val = float(np.min(flood_values))
                     max_val = float(np.max(flood_values))
-                    LOGGER.info(f"augmented data flood_event range: {min_val:.1f} to {max_val:.1f}")
+                    LOGGER.info(
+                        f"augmented data flood_event range: {min_val:.1f} to {max_val:.1f}"
+                    )
 
         except Exception as e:
             LOGGER.info(f"无法读取增强数据，可能是时间范围不在增强数据中: {e}")
@@ -3587,7 +3609,9 @@ class FloodEventSeq2SeqDataset(AugmentedFloodEventDataset):
     def __init__(self, cfgs: dict, is_tra_val_te: str):
         super(FloodEventSeq2SeqDataset, self).__init__(cfgs, is_tra_val_te)
         # Get hindcast_output_window from data_cfgs (default to rho if not specified)
-        self.hindcast_output_window = self.data_cfgs.get("hindcast_output_window", self.rho)
+        self.hindcast_output_window = self.data_cfgs.get(
+            "hindcast_output_window", self.rho
+        )
 
     def __getitem__(self, item: int):
         """Get one sample from the dataset in Seq2Seq format
@@ -3641,11 +3665,15 @@ class FloodEventSeq2SeqDataset(AugmentedFloodEventDataset):
             c = self.c[basin, :]
 
             # Add constants to encoder input
-            c_encoder = np.repeat(c, x_encoder.shape[0], axis=0).reshape(c.shape[0], -1).T
+            c_encoder = (
+                np.repeat(c, x_encoder.shape[0], axis=0).reshape(c.shape[0], -1).T
+            )
             x_encoder = np.concatenate((x_encoder, c_encoder), axis=1)
 
             # Add constants to decoder input
-            c_decoder = np.repeat(c, x_decoder.shape[0], axis=0).reshape(c.shape[0], -1).T
+            c_decoder = (
+                np.repeat(c, x_decoder.shape[0], axis=0).reshape(c.shape[0], -1).T
+            )
             x_decoder = np.concatenate((x_decoder, c_decoder), axis=1)
 
         # Convert to tensors
@@ -3655,8 +3683,12 @@ class FloodEventSeq2SeqDataset(AugmentedFloodEventDataset):
         # For Seq2Seq model:
         # - targets_for_model: only inflow (for teacher forcing), shape: [seq, 1]
         # - targets_for_loss: inflow + flood_event (for loss computation), shape: [seq, 2]
-        targets_for_model = torch.from_numpy(y_targets[:, :1]).float()  # Only inflow column
-        targets_for_loss = torch.from_numpy(y_targets).float()  # All columns (inflow + flood_event)
+        targets_for_model = torch.from_numpy(
+            y_targets[:, :1]
+        ).float()  # Only inflow column
+        targets_for_loss = torch.from_numpy(
+            y_targets
+        ).float()  # All columns (inflow + flood_event)
 
         # Return format depends on training/inference mode
         if self.is_tra_val_te == "train":
@@ -3732,6 +3764,7 @@ class AEFDataset(BaseDataset):
             ),
         }
 
+
 class Camels_merge_AEFDataset(BaseDataset):
     def _read_xyc_specified_time(self, start_date, end_date):
         """Read x, y, c data from data source with specified time range
@@ -3783,11 +3816,12 @@ class Camels_merge_AEFDataset(BaseDataset):
         df_indexed = df_filtered.set_index("hru_id")
         embedding_values = df_indexed.values
         embedding_vars = {
-            f"A{j:02d}": (("basin"), embedding_values[:, j])
-            for j in range(64)
+            f"A{j:02d}": (("basin"), embedding_values[:, j]) for j in range(64)
         }
 
-        c_origin = xr.Dataset(embedding_vars, coords={"basin": self.t_s_dict["sites_id"]})
+        c_origin = xr.Dataset(
+            embedding_vars, coords={"basin": self.t_s_dict["sites_id"]}
+        )
         c_origin = c_origin.reindex(basin=data_attr_ds.basin.values)
         combined_ds = xr.merge([data_attr_ds, c_origin])
 

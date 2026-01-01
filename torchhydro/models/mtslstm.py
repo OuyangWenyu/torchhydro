@@ -60,7 +60,7 @@ class MTSLSTM(nn.Module):
         pretrained_head_prefix: Optional[str] = None,
         pretrained_flag: bool = False,
         linear1_size: Optional[int] = None,
-        linear2_size: Optional[int] = None
+        linear2_size: Optional[int] = None,
     ):
         """Initializes an MTSLSTM model.
 
@@ -114,11 +114,15 @@ class MTSLSTM(nn.Module):
         self.output_size = output_size
         self.shared = shared_mtslstm
         self.return_all_default = return_all
-        self.feature_buckets = list(feature_buckets) if feature_buckets is not None else None
-        self.per_feature_aggs_map = list(per_feature_aggs_map) if per_feature_aggs_map is not None else None
+        self.feature_buckets = (
+            list(feature_buckets) if feature_buckets is not None else None
+        )
+        self.per_feature_aggs_map = (
+            list(per_feature_aggs_map) if per_feature_aggs_map is not None else None
+        )
         self.down_agg_all = down_aggregate_all_to_each_branch
         self.auto_build_lowfreq = auto_build_lowfreq
-        
+
         # Aggregation and slicing parameters
         assert build_factor >= 2, "build_factor must be >=2"
         self.build_factor = int(build_factor)
@@ -132,7 +136,7 @@ class MTSLSTM(nn.Module):
 
         # Setup frequency configuration
         self._setup_frequency_config(feature_buckets, input_sizes, auto_build_lowfreq)
-        
+
         # Validate seq_lengths
         if self.seq_lengths is not None:
             assert len(self.seq_lengths) == self.nf, "seq_lengths length must match nf"
@@ -156,7 +160,9 @@ class MTSLSTM(nn.Module):
         self._setup_transfer_config(transfer)
 
         # Setup frequency factors and slice timesteps
-        self._setup_frequency_factors(frequency_factors, auto_build_lowfreq, self.build_factor)
+        self._setup_frequency_factors(
+            frequency_factors, auto_build_lowfreq, self.build_factor
+        )
 
         # Calculate effective input sizes (including one-hot if needed)
         eff_input_sizes = self.base_input_sizes[:]
@@ -193,7 +199,9 @@ class MTSLSTM(nn.Module):
                 assert len(input_sizes) >= 2, "At least 2 frequencies required"
                 self.nf = len(input_sizes)
 
-    def _setup_input_sizes(self, feature_buckets, input_sizes, down_aggregate_all_to_each_branch):
+    def _setup_input_sizes(
+        self, feature_buckets, input_sizes, down_aggregate_all_to_each_branch
+    ):
         """Setup input sizes for each frequency branch."""
         if feature_buckets is not None:
             D = len(feature_buckets)
@@ -212,7 +220,7 @@ class MTSLSTM(nn.Module):
                 base_input_sizes = [input_sizes] * self.nf
             else:
                 base_input_sizes = list(input_sizes)
-        
+
         assert len(base_input_sizes) == self.nf, "input_sizes mismatch with nf"
         return base_input_sizes
 
@@ -226,10 +234,14 @@ class MTSLSTM(nn.Module):
         }
         for k in ("h", "c"):
             assert self.transfer_mode[k] in (
-                None, "identity", "linear"
+                None,
+                "identity",
+                "linear",
             ), "transfer must be None/'identity'/'linear'"
 
-    def _setup_frequency_factors(self, frequency_factors, auto_build_lowfreq, build_factor):
+    def _setup_frequency_factors(
+        self, frequency_factors, auto_build_lowfreq, build_factor
+    ):
         """Setup frequency factors and slice timesteps."""
         if frequency_factors is not None:
             assert (
@@ -255,12 +267,18 @@ class MTSLSTM(nn.Module):
         """Create LSTM and linear layers based on configuration."""
         if self.pretrained_flag:
             # Use pretrained model specific layers
-            self.linear1 = nn.ModuleList([
-                nn.Linear(eff_input_sizes[i], self.linear1_size) for i in range(self.nf)
-            ])
-            self.linear2 = nn.ModuleList([
-                nn.Linear(self.linear1_size, self.linear2_size) for i in range(self.nf)
-            ])
+            self.linear1 = nn.ModuleList(
+                [
+                    nn.Linear(eff_input_sizes[i], self.linear1_size)
+                    for i in range(self.nf)
+                ]
+            )
+            self.linear2 = nn.ModuleList(
+                [
+                    nn.Linear(self.linear1_size, self.linear2_size)
+                    for i in range(self.nf)
+                ]
+            )
             self.lstms = nn.ModuleList()
             if self.shared:
                 self.lstms.append(nn.LSTM(self.hidden_sizes[0], self.hidden_sizes[0]))
@@ -269,15 +287,20 @@ class MTSLSTM(nn.Module):
                     self.lstms.append(nn.LSTM(self.linear2_size, self.hidden_sizes[i]))
         else:
             # Use default layers when no pretrained model is loaded
-            self.input_linears = nn.ModuleList([
-                nn.Linear(eff_input_sizes[i], self.hidden_sizes[i]) for i in range(self.nf)
-            ])
+            self.input_linears = nn.ModuleList(
+                [
+                    nn.Linear(eff_input_sizes[i], self.hidden_sizes[i])
+                    for i in range(self.nf)
+                ]
+            )
             self.lstms = nn.ModuleList()
             if self.shared:
                 self.lstms.append(nn.LSTM(self.hidden_sizes[0], self.hidden_sizes[0]))
             else:
                 for i in range(self.nf):
-                    self.lstms.append(nn.LSTM(self.hidden_sizes[i], self.hidden_sizes[i]))
+                    self.lstms.append(
+                        nn.LSTM(self.hidden_sizes[i], self.hidden_sizes[i])
+                    )
 
         # Create head layers
         self.heads = nn.ModuleList()
@@ -294,7 +317,7 @@ class MTSLSTM(nn.Module):
         for i in range(self.nf - 1):
             hs_i = self.hidden_sizes[i]
             hs_j = self.hidden_sizes[i + 1]
-            
+
             if self.transfer_mode["h"] == "linear":
                 self.transfer_h.append(nn.Linear(hs_i, hs_j))
             elif self.transfer_mode["h"] == "identity":
@@ -315,19 +338,19 @@ class MTSLSTM(nn.Module):
         """Load pretrained weights for the daily branch if specified."""
         if self.pretrained_day_path is None:
             return
-            
+
         if not os.path.isfile(self.pretrained_day_path):
             warnings.warn(
                 f"[MTSLSTM] Pretrained file not found: {self.pretrained_day_path}"
             )
             return
-            
+
         if self.shared:
             warnings.warn(
                 "[MTSLSTM] shared_mtslstm=True: skip daily-only pretrained load."
             )
             return
-            
+
         if self.nf < 2:
             warnings.warn("[MTSLSTM] nf<2: no daily branch, skip pretrained load.")
             return
@@ -340,15 +363,19 @@ class MTSLSTM(nn.Module):
                 elif "model" in state:
                     state = state["model"]
 
-            self._load_daily_branch_weights(state, pretrained_lstm_prefix, pretrained_head_prefix)
-            
+            self._load_daily_branch_weights(
+                state, pretrained_lstm_prefix, pretrained_head_prefix
+            )
+
         except Exception as e:
             warnings.warn(f"[MTSLSTM] Failed to load daily pretrained: {e}")
 
-    def _load_daily_branch_weights(self, state, pretrained_lstm_prefix, pretrained_head_prefix):
+    def _load_daily_branch_weights(
+        self, state, pretrained_lstm_prefix, pretrained_head_prefix
+    ):
         """Load weights for the daily LSTM and head from pretrained state."""
-        day_lstm = self.lstms[1]
-        day_head = self.heads[1]
+        day_lstm = self.lstms[0]
+        day_head = self.heads[0]
         lstm_state = day_lstm.state_dict()
         head_state = day_head.state_dict()
 
@@ -359,7 +386,7 @@ class MTSLSTM(nn.Module):
             for k_pre, v in state.items():
                 if not k_pre.startswith(prefix):
                     continue
-                k = k_pre[len(prefix):]
+                k = k_pre[len(prefix) :]
                 if k in target_state:
                     if target_state[k].shape == v.shape:
                         target_state[k].copy_(v)
@@ -388,7 +415,7 @@ class MTSLSTM(nn.Module):
                     shape_mismatch += 1
 
         self._print_loading_debug_info(state, day_lstm, day_head)
-        
+
         day_lstm.load_state_dict(lstm_state)
         day_head.load_state_dict(head_state)
         print(
@@ -402,7 +429,7 @@ class MTSLSTM(nn.Module):
             linear_weight = state["linearIn.weight"]
             linear_bias = state["linearIn.bias"]
 
-            target_linear = self.linear2[1]
+            target_linear = self.linear2[0]
             if (
                 target_linear.weight.shape == linear_weight.shape
                 and target_linear.bias.shape == linear_bias.shape
@@ -475,6 +502,12 @@ class MTSLSTM(nn.Module):
                 - h_n (torch.Tensor): Final hidden state (1, B, H).
                 - c_n (torch.Tensor): Final cell state (1, B, H).
         """
+        # Handle empty sequences or batches to avoid MPS crashes (Placeholder tensor is empty!)
+        if x.shape[0] == 0 or x.shape[1] == 0:
+            T, B, _ = x.shape
+            y = x.new_zeros((T, B, self.output_size))
+            return y, h0, c0
+
         out, (h_n, c_n) = (
             lstm(x, (h0, c0)) if (h0 is not None and c0 is not None) else lstm(x)
         )
@@ -662,10 +695,10 @@ class MTSLSTM(nn.Module):
 
     def _prepare_inputs(self, xs: Tuple[torch.Tensor, ...]) -> Tuple[torch.Tensor, ...]:
         """Prepare and validate input tensors for multi-frequency processing.
-        
+
         Args:
             xs: Input tensors from forward method
-            
+
         Returns:
             Tuple of validated input tensors for each frequency branch
         """
@@ -690,15 +723,15 @@ class MTSLSTM(nn.Module):
                 truncate_incomplete=self.truncate_incomplete,
             )
             return (x_low, x_high)
-        
+
         return xs
 
     def _validate_inputs(self, xs: Tuple[torch.Tensor, ...]) -> None:
         """Validate input tensor dimensions and shapes.
-        
+
         Args:
             xs: Input tensors to validate
-            
+
         Raises:
             AssertionError: If inputs don't match expected configuration
         """
@@ -710,20 +743,22 @@ class MTSLSTM(nn.Module):
                 x.shape[-1] == exp_d
             ), f"第 {i} 个输入特征维 {x.shape[-1]} 与期望 {exp_d} 不一致"
 
-    def _preprocess_branch_input(self, x: torch.Tensor, branch_idx: int) -> torch.Tensor:
+    def _preprocess_branch_input(
+        self, x: torch.Tensor, branch_idx: int
+    ) -> torch.Tensor:
         """Preprocess input for a specific frequency branch.
-        
+
         Args:
             x: Input tensor for the branch
             branch_idx: Index of the frequency branch
-            
+
         Returns:
             Preprocessed tensor ready for LSTM processing
         """
         # Add frequency one-hot encoding first if needed
         if self.add_freq1hot:
             x = self._append_one_hot(x, branch_idx)
-            
+
         if self.pretrained_flag:
             x = self.linear1[branch_idx](x)
             x = F.relu(x)
@@ -733,15 +768,15 @@ class MTSLSTM(nn.Module):
             # For non-pretrained mode, apply input linear layer
             x = self.input_linears[branch_idx](x)
             x = F.relu(x)
-            
+
         return x
 
     def _get_branch_modules(self, branch_idx: int) -> Tuple[nn.LSTM, nn.Linear]:
         """Get LSTM and head modules for a specific branch.
-        
+
         Args:
             branch_idx: Index of the frequency branch
-            
+
         Returns:
             Tuple of (lstm_module, head_module) for the branch
         """
@@ -749,13 +784,15 @@ class MTSLSTM(nn.Module):
         head = self.heads[0] if self.shared else self.heads[branch_idx]
         return lstm, head
 
-    def _initialize_transfer_states(self, device: torch.device, batch_size: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _initialize_transfer_states(
+        self, device: torch.device, batch_size: int
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Initialize hidden and cell states for transfer between branches.
-        
+
         Args:
             device: Device to create tensors on
             batch_size: Batch size for state tensors
-            
+
         Returns:
             Tuple of (h_transfer, c_transfer) initial states
         """
@@ -765,37 +802,37 @@ class MTSLSTM(nn.Module):
         return h_transfer, c_transfer
 
     def _update_transfer_states(
-        self, 
-        branch_idx: int, 
-        h_state: torch.Tensor, 
+        self,
+        branch_idx: int,
+        h_state: torch.Tensor,
         c_state: torch.Tensor,
         next_batch_size: int,
-        device: torch.device
+        device: torch.device,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Update transfer states for the next branch.
-        
+
         Args:
             branch_idx: Current branch index
             h_state: Current hidden state
-            c_state: Current cell state  
+            c_state: Current cell state
             next_batch_size: Batch size for next branch
             device: Device for tensor creation
-            
+
         Returns:
             Updated (h_transfer, c_transfer) for next branch
         """
         if branch_idx >= self.nf - 1:
             return h_state, c_state
-            
+
         Hn = self.hidden_sizes[branch_idx + 1]
         h_transfer = torch.zeros(1, next_batch_size, Hn, device=device)
         c_transfer = torch.zeros(1, next_batch_size, Hn, device=device)
-        
+
         if self.transfer_h[branch_idx] is not None:
             h_transfer = self.transfer_h[branch_idx](h_state[0]).unsqueeze(0)
         if self.transfer_c[branch_idx] is not None:
             c_transfer = self.transfer_c[branch_idx](c_state[0]).unsqueeze(0)
-            
+
         return h_transfer, c_transfer
 
     def _process_branch_with_slice_transfer(
@@ -807,10 +844,10 @@ class MTSLSTM(nn.Module):
         head: nn.Linear,
         h_transfer: torch.Tensor,
         c_transfer: torch.Tensor,
-        device: torch.device
+        device: torch.device,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Process a branch with slice transfer enabled.
-        
+
         Args:
             x_i: Input tensor for current branch
             branch_idx: Index of current branch
@@ -820,7 +857,7 @@ class MTSLSTM(nn.Module):
             h_transfer: Transfer hidden state
             c_transfer: Transfer cell state
             device: Device for tensor operations
-            
+
         Returns:
             Tuple of (output, final_h_state, final_c_state)
         """
@@ -832,9 +869,7 @@ class MTSLSTM(nn.Module):
             return self._run_lstm(x_i, lstm, head, h_transfer, c_transfer)
         else:
             # Process first part
-            x_part1 = (
-                x_i[:-slice_len_low] if slice_len_low < x_i.shape[0] else x_i[:0]
-            )
+            x_part1 = x_i[:-slice_len_low] if slice_len_low < x_i.shape[0] else x_i[:0]
             if x_part1.shape[0] > 0:
                 y1, h1, c1 = self._run_lstm(x_part1, lstm, head, h_transfer, c_transfer)
             else:
@@ -850,7 +885,7 @@ class MTSLSTM(nn.Module):
                 y_all = y1
                 h_final, c_final = h1, c1
 
-            return y_all, h_final, c_final
+            return y_all, h1, c1
 
     def _process_single_branch(
         self,
@@ -858,26 +893,26 @@ class MTSLSTM(nn.Module):
         xs: Tuple[torch.Tensor, ...],
         h_transfer: torch.Tensor,
         c_transfer: torch.Tensor,
-        device: torch.device
+        device: torch.device,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Process a single frequency branch.
-        
+
         Args:
             branch_idx: Index of the branch to process
             xs: All input tensors
             h_transfer: Transfer hidden state
             c_transfer: Transfer cell state
             device: Device for tensor operations
-            
+
         Returns:
             Tuple of (branch_output, final_h_state, final_c_state)
         """
         # Preprocess input
         x_i = self._preprocess_branch_input(xs[branch_idx], branch_idx)
-        
+
         # Get branch modules
         lstm_i, head_i = self._get_branch_modules(branch_idx)
-        
+
         # Process with or without slice transfer
         if (branch_idx < self.nf - 1) and self.slice_transfer:
             return self._process_branch_with_slice_transfer(
@@ -938,14 +973,16 @@ class MTSLSTM(nn.Module):
         device = xs[0].device
         batch_size = xs[0].shape[1]
         h_transfer, c_transfer = self._initialize_transfer_states(device, batch_size)
-        
+
         outputs: Dict[str, torch.Tensor] = {}
 
         # Process each frequency branch
         for i in range(self.nf):
-            y_i, h_i, c_i = self._process_single_branch(i, xs, h_transfer, c_transfer, device)
+            y_i, h_i, c_i = self._process_single_branch(
+                i, xs, h_transfer, c_transfer, device
+            )
             outputs[f"f{i}"] = y_i
-            
+
             # Update transfer states for next branch
             if i < self.nf - 1:
                 next_batch_size = xs[i + 1].shape[1]

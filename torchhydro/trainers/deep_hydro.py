@@ -372,18 +372,25 @@ class DeepHydro(DeepHydroInterface):
         # Create dataloader in advance as it is used for both inference and SHAP
         test_dataloader = self._get_dataloader(training_cfgs, data_cfgs, mode="infer")
 
-        # Inference returns X_all for SHAP analysis
-        pred_xr, obs_xr, X_all = self.inference(test_dataloader, return_inputs=True)
-
         # Decide whether to perform SHAP analysis based on configuration
         eval_cfgs = self.cfgs.get("evaluation_cfgs", {})
         shap_cfgs = eval_cfgs.get("shap_cfgs", {})
+
+        # Inference returns X_all for SHAP analysis only if enabled
+        if shap_cfgs.get("enable", False):
+            pred_xr, obs_xr, X_all = self.inference(test_dataloader, return_inputs=True)
+            print("SHAP analysis enabled.")
+        else:
+            pred_xr, obs_xr = self.inference(test_dataloader, return_inputs=False)
+            X_all = None
+            print("SHAP analysis disabled.")
+
         if shap_cfgs.get("enable", False):
             self.run_shap_analysis(
                 X_all=X_all,
                 save_dir=shap_cfgs.get("save_dir", "./shap_results"),
                 max_sample=shap_cfgs.get("max_sample", 3000),
-                background_size=shap_cfgs.get("background_size", 100)
+                background_size=shap_cfgs.get("background_size", 100),
             )
 
         return pred_xr, obs_xr
@@ -401,15 +408,72 @@ class DeepHydro(DeepHydroInterface):
                 if isinstance(batch[0], list):
                     # Seq2Seq format: move each element to device and transpose to (seq, batch, feature)
                     x = [inp.permute(1, 0, 2).to(self.device) for inp in batch[0]]
+                    # if x[0].shape[0] == 0:
+                    # Handle empty batch case
+                    # continue
                     pred = self.model(*x)
                     # Transpose prediction back to (batch, seq, feature)
                     pred = pred.permute(1, 0, 2)
+
                 else:
                     # Traditional format: single tensor
                     x = batch[0].to(self.device)
+                    # --- PERMUTE TO SEQ-FIRST IF NEEDED ---
+                    if (
+                        self.cfgs["training_cfgs"].get("which_first_tensor")
+                        == "sequence"
+                        and x.ndim == 3
+                    ):
+                        x = x.transpose(0, 1)
+
                     pred = self.model(x)
 
-                y = batch[1].to(self.device)
+                    # --- TRANSPOSE BACK TO BATCH-FIRST ---
+                    if (
+                        self.cfgs["training_cfgs"].get("which_first_tensor")
+                        == "sequence"
+                        and isinstance(pred, torch.Tensor)
+                        and pred.ndim == 3
+                    ):
+                        pred = pred.transpose(0, 1)
+
+                y = batch[1].to(self.device).cpu()
+
+                # --- DO NOT TRANSPOSE LABELS ---
+                # Labels from _flood_event_collate_fn or default stack are already (Batch, Seq, Feat).
+                # Transposing them here would make them (Seq, Batch, Feat), which breaks concatenation.
+
+                # Handle models that return dict (e.g., Seq2Seq with attention)
+                if isinstance(pred, dict):
+                    # If this was a sequence-first dict, permute its tensors
+                    if (
+                        self.cfgs["training_cfgs"].get("which_first_tensor")
+                        == "sequence"
+                    ):
+                        for k, v in pred.items():
+                            if isinstance(v, torch.Tensor) and v.ndim == 3:
+                                # Avoid double-transposition if it starts with 'f' (frequency branches)
+                                # and we already know where it came from. Actually, safer to check shape.
+                                # seq_first: (Seq, Batch, Feat). Batch size is usually smaller than Seq len.
+                                # But in inference, Seq len (Flood events) can be smaller too.
+                                # Let's assume if it came through model(x) it is Seq-first.
+                                pred[k] = v.transpose(0, 1)
+                    if "f1" in pred:
+                        # Use f1 for 1-hour scale predictions
+                        pred = pred["f1"]
+                    # elif 'f0' in pred:
+                    # Fallback to f0
+                    # pred = pred['f0']
+                    else:
+                        # Generic handling for other dict outputs
+                        pred_tensor = None
+                        for key in ["predictions", "output", "pred", "logits"]:
+                            if key in pred and isinstance(pred[key], torch.Tensor):
+                                pred_tensor = pred[key]
+                                break
+                        if pred_tensor is None:
+                            pred_tensor = next(iter(pred.values()))
+                        pred = pred_tensor
 
                 preds.append(pred.cpu())
                 obss.append(y.cpu())
@@ -418,20 +482,52 @@ class DeepHydro(DeepHydroInterface):
                     # Handle both formats for X_all
                     if isinstance(x, list):
                         # For Seq2Seq, store the encoder input (first element)
-                        X_all.append(x[0].cpu())
+                        x_for_shap = x[0]
                     else:
-                        X_all.append(x.cpu())
+                        x_for_shap = x
+
+                    # Ensure SHAP input is Batch-first
+                    if (
+                        self.cfgs["training_cfgs"].get("which_first_tensor")
+                        == "sequence"
+                        and x_for_shap.ndim == 3
+                    ):
+                        x_for_shap = x_for_shap.transpose(0, 1)
+
+                    X_all.append(x_for_shap.cpu())
 
         # Convert to numpy
-        pred_np = torch.cat(preds, 0).numpy()
-        obs_np = torch.cat(obss, 0).numpy()
+        # Pad sequence dimension independently for preds and obss
+        if len(preds) > 0:
+            max_p_s = max(p.shape[1] for p in preds)
+            max_o_s = max(o.shape[1] for o in obss)
+
+            padded_preds = []
+            padded_obss = []
+
+            for p, o in zip(preds, obss):
+                if p.shape[1] < max_p_s:
+                    pad_p = torch.full(
+                        (p.shape[0], max_p_s - p.shape[1], p.shape[2]), np.nan
+                    )
+                    p = torch.cat([p, pad_p], dim=1)
+                if o.shape[1] < max_o_s:
+                    pad_o = torch.full(
+                        (o.shape[0], max_o_s - o.shape[1], o.shape[2]), np.nan
+                    )
+                    o = torch.cat([o, pad_o], dim=1)
+                padded_preds.append(p)
+                padded_obss.append(o)
+
+            pred_np = torch.cat(padded_preds, 0).numpy()
+            obs_np = torch.cat(padded_obss, 0).numpy()
+        else:
+            pred_np = np.array([])
+            obs_np = np.array([])
 
         # Convert to xarray ---- KEEP THIS (TorchHydro requirement)
         obs_xr, pred_xr = get_preds_to_be_eval(
-            dataloader,
-            self.cfgs["evaluation_cfgs"],
-            pred_np,
-            obs_np
+            dataloader, self.cfgs["evaluation_cfgs"], pred_np, obs_np
         )
 
         if return_inputs:
@@ -439,7 +535,9 @@ class DeepHydro(DeepHydroInterface):
         else:
             return pred_xr, obs_xr
 
-    def run_shap_analysis(self, X_all, save_dir, max_sample=3000, feature_names=None, background_size=100):
+    def run_shap_analysis(
+        self, X_all, save_dir, max_sample=3000, feature_names=None, background_size=100
+    ):
         import torch
         import numpy as np
         import shap
@@ -452,44 +550,47 @@ class DeepHydro(DeepHydroInterface):
         # 1. Optimize Memory & Diversity: Sample sparsely from MANY batches
         # ======================================================
         # X_all is a list of tensors, each (B, T, F)
-        
+
         if not X_all:
             print("[WARNING] No data for SHAP analysis.")
             return
 
         # Get dimensions from first batch
         _, T, F_total = X_all[0].shape
-        
-        # We need max_sample samples. 
+
+        # We need max_sample samples.
         # To ensure spatial diversity (static attributes variation), we must sample from many batches.
         # Strategy: Randomly select N batches, then sample k items from each batch.
-        
+
         import random
+
         n_batches = len(X_all)
-        
+
         # We want to sample from at least min(50, n_batches) batches to cover different basins
         target_batch_count = min(50, n_batches)
-        
+
         # How many samples per batch?
         # We want total ~ max_sample * 2 (safety margin)
         samples_per_batch = max(1, (max_sample * 2) // target_batch_count)
-        
-        print(f"[INFO] Sampling strategy: {target_batch_count} batches, ~{samples_per_batch} samples/batch")
-        
+
+        print(
+            f"[INFO] Sampling strategy: {target_batch_count} batches, ~{samples_per_batch} samples/batch"
+        )
+
         batch_indices = list(range(n_batches))
         random.shuffle(batch_indices)
         selected_batch_indices = batch_indices[:target_batch_count]
-        
+
         collected_subsets = []
-        
+
         for idx in selected_batch_indices:
-            batch = X_all[idx] # (B, T, F)
+            batch = X_all[idx]  # (B, T, F)
             B = batch.shape[0]
-            
+
             # Flatten this batch to (B*T, F)
             batch_flat = batch.reshape(-1, F_total)
             M_batch = batch_flat.shape[0]
-            
+
             # Sample randomly from this batch
             if M_batch > samples_per_batch:
                 # Random indices
@@ -497,17 +598,19 @@ class DeepHydro(DeepHydroInterface):
                 batch_subset = batch_flat[indices]
             else:
                 batch_subset = batch_flat
-                
+
             collected_subsets.append(batch_subset)
-        
+
         # Concatenate subsets
-        X_subset = torch.cat(collected_subsets, dim=0) # (N_total_subset, F)
-        
+        X_subset = torch.cat(collected_subsets, dim=0)  # (N_total_subset, F)
+
         # Handle NaNs: Replace NaNs with 0 (mean of normalized data)
         if torch.isnan(X_subset).any():
-            print("[WARNING] Input data contains NaNs. Filling with 0 for SHAP analysis.")
+            print(
+                "[WARNING] Input data contains NaNs. Filling with 0 for SHAP analysis."
+            )
             X_subset = torch.nan_to_num(X_subset, nan=0.0)
-        
+
         print(f"[INFO] Collected subset samples: {X_subset.shape[0]}")
 
         # ======================================================
@@ -542,7 +645,7 @@ class DeepHydro(DeepHydroInterface):
             background = X_flat[idx_bg]
         else:
             background = X_flat
-        
+
         background_np = background.cpu().numpy()
         print(f"[INFO] Using {background.shape[0]} samples as SHAP background")
 
@@ -552,7 +655,9 @@ class DeepHydro(DeepHydroInterface):
         # Move model to CPU to avoid MPS bugs with SHAP/LSTM
         original_device = self.device
         shap_device = torch.device("cpu")
-        print(f"[INFO] Moving model to {shap_device} for SHAP analysis to avoid MPS errors...")
+        print(
+            f"[INFO] Moving model to {shap_device} for SHAP analysis to avoid MPS errors..."
+        )
         self.model.to(shap_device)
         self.model.eval()
 
@@ -574,14 +679,14 @@ class DeepHydro(DeepHydroInterface):
 
             # SimpleLSTM (and default nn.LSTM) expects (Time, Batch, Features) if batch_first=False
             # We treat SHAP samples as independent time steps (Time=1)
-            x_tensor = x_tensor.unsqueeze(0) # (1, B, F)
-            
+            x_tensor = x_tensor.unsqueeze(0)  # (1, B, F)
+
             if torch.isnan(x_tensor).any():
                 print(f"[WARNING] SHAP input x_tensor contains NaNs!")
 
             with torch.no_grad():
                 out = self.model(x_tensor)  # (1, B, 1)
-            
+
             if torch.isnan(out).any():
                 print(f"[WARNING] SHAP model output contains NaNs!")
                 # Optional: Replace output NaNs with 0 to allow SHAP to continue (but this hides model issues)
@@ -591,9 +696,11 @@ class DeepHydro(DeepHydroInterface):
             if out.shape[0] == 1:
                 out = out.squeeze(0)
             else:
-                print(f"[WARNING] Unexpected output shape {out.shape} in SHAP. Squeezing dim 0.")
+                print(
+                    f"[WARNING] Unexpected output shape {out.shape} in SHAP. Squeezing dim 0."
+                )
                 out = out.squeeze(0)
-            
+
             # Debug output range
             # print(f"[DEBUG] SHAP model output range: [{out.min().item():.4f}, {out.max().item():.4f}]")
 
@@ -604,21 +711,23 @@ class DeepHydro(DeepHydroInterface):
         # ======================================================
         print(f"[INFO] Computing SHAP values...")
         explainer = shap.SamplingExplainer(model_predict, background_np)
-        
+
         # Increased nsamples for stability
         shap_values = explainer.shap_values(X_sample_np, nsamples=200)
-        
+
         # Check shap_values
         if isinstance(shap_values, list):
             shap_values = shap_values[0]  # Take the first output channel
 
         print(f"[INFO] SHAP shape = {np.array(shap_values).shape}")
-        
+
         # Handle NaNs in SHAP values
         if np.isnan(shap_values).any():
             nan_count = np.isnan(shap_values).sum()
             total_count = shap_values.size
-            print(f"[WARNING] SHAP values contain {nan_count}/{total_count} NaNs! Filling with 0.")
+            print(
+                f"[WARNING] SHAP values contain {nan_count}/{total_count} NaNs! Filling with 0."
+            )
             shap_values = np.nan_to_num(shap_values, nan=0.0)
 
         # ======================================================
@@ -627,17 +736,18 @@ class DeepHydro(DeepHydroInterface):
         if feature_names is None:
             # Attempt to retrieve real feature names from configuration and stat file
             feature_names = self._get_feature_names(F_total)
-            
+
             if feature_names is not None:
                 print(f"[INFO] Using reconstructed real feature names: {feature_names}")
             else:
-                print(f"[WARNING] Could not reconstruct feature names. Using default names.")
+                print(
+                    f"[WARNING] Could not reconstruct feature names. Using default names."
+                )
                 data_cfgs = self.cfgs.get("data_cfgs", {})
                 relevant_cols = data_cfgs.get("relevant_cols", [])
-                feature_names = (
-                    [f"DYNAMIC_{i}" for i in range(len(relevant_cols))] +
-                    [f"STATIC_{i}" for i in range(F_total - len(relevant_cols))]
-                )
+                feature_names = [f"DYNAMIC_{i}" for i in range(len(relevant_cols))] + [
+                    f"STATIC_{i}" for i in range(F_total - len(relevant_cols))
+                ]
 
         # ======================================================
         # 8. Output plots
@@ -650,8 +760,8 @@ class DeepHydro(DeepHydroInterface):
             shap_values,
             X_sample_np,
             feature_names=feature_names,
-            max_display=100, # Show all features
-            show=False
+            max_display=100,  # Show all features
+            show=False,
         )
         plt.savefig(f"{save_dir}/shap_summary_fast.png", dpi=300, bbox_inches="tight")
         plt.close()
@@ -663,14 +773,14 @@ class DeepHydro(DeepHydroInterface):
             X_sample_np,
             feature_names=feature_names,
             plot_type="bar",
-            max_display=100, # Show all features
-            show=False
+            max_display=100,  # Show all features
+            show=False,
         )
         plt.savefig(f"{save_dir}/shap_bar_fast.png", dpi=300, bbox_inches="tight")
         plt.close()
 
         print(f"[INFO] SHAP analysis saved to {save_dir}")
-        
+
         # Restore model to original device
         self.model.to(original_device)
         print(f"[INFO] Model restored to {original_device}")
@@ -680,27 +790,33 @@ class DeepHydro(DeepHydroInterface):
         Reconstruct feature names, handling One-Hot Encoding and extra features (e.g. embeddings) found in stat_dict.
         """
         import json
-        
+
         data_cfgs = self.cfgs.get("data_cfgs", {})
         relevant_cols = data_cfgs.get("relevant_cols", [])
         constant_cols = data_cfgs.get("constant_cols", [])
         target_cols = data_cfgs.get("target_cols", [])
-        
+
         # Check for One-Hot Encoding
         scaler_params = data_cfgs.get("scaler_params", {})
         one_hot_cols = scaler_params.get("one_hot_cols", [])
-        
+
         # Try to load stat_dict
         # Priority 1: Directory of the weight path (best_model.pth)
         stat_dict = {}
         stat_file_loaded = False
-        
+
         search_paths = []
         if self.weight_path:
-            search_paths.append(os.path.join(os.path.dirname(self.weight_path), "dapengscaler_stat.json"))
+            search_paths.append(
+                os.path.join(
+                    os.path.dirname(self.weight_path), "dapengscaler_stat.json"
+                )
+            )
         if "case_dir" in data_cfgs:
-            search_paths.append(os.path.join(data_cfgs["case_dir"], "dapengscaler_stat.json"))
-            
+            search_paths.append(
+                os.path.join(data_cfgs["case_dir"], "dapengscaler_stat.json")
+            )
+
         for stat_file in search_paths:
             if os.path.exists(stat_file):
                 try:
@@ -711,19 +827,21 @@ class DeepHydro(DeepHydroInterface):
                     break
                 except Exception as e:
                     print(f"[WARNING] Failed to load stat file {stat_file}: {e}")
-        
+
         if not stat_file_loaded:
-            print("[WARNING] Could not load dapengscaler_stat.json from any expected location.")
-        
+            print(
+                "[WARNING] Could not load dapengscaler_stat.json from any expected location."
+            )
+
         feature_names = []
-        
+
         # 1. Dynamic features (relevant_cols)
         feature_names.extend(relevant_cols)
-        
+
         # 2. Static features (constant_cols) from config
         # We need to track which keys we have used to identify "extra" ones later
         used_keys = set(relevant_cols) | set(target_cols)
-        
+
         for col in constant_cols:
             used_keys.add(col)
             if col in one_hot_cols:
@@ -737,11 +855,13 @@ class DeepHydro(DeepHydroInterface):
                     feature_names.append(f"{col}_UNKNOWN")
             else:
                 feature_names.append(col)
-                
+
         # 3. Check for missing features (e.g. AlphaEarth embeddings)
         if len(feature_names) < F_total and stat_dict:
-            print(f"[INFO] Feature name count ({len(feature_names)}) < Model Input ({F_total}). Searching for extra features in stat_dict...")
-            
+            print(
+                f"[INFO] Feature name count ({len(feature_names)}) < Model Input ({F_total}). Searching for extra features in stat_dict..."
+            )
+
             extra_candidates = []
             for key in stat_dict.keys():
                 # Skip known columns
@@ -751,42 +871,50 @@ class DeepHydro(DeepHydroInterface):
                 if key.endswith("_categories"):
                     continue
                 # Skip One-Hot original columns if they were expanded (already handled by checking used_keys? No, one_hot_cols are in constant_cols, so in used_keys)
-                
+
                 # Add to candidates
                 extra_candidates.append(key)
-            
+
             # Sort candidates to ensure deterministic order
             # We assume extra features (like embeddings) are appended in alphabetical or numerical order
             extra_candidates.sort()
-            
+
             # Try appending extra candidates
             # We only append enough to match F_total if possible, or just all of them and see
-            
+
             # Heuristic: If we need exactly N more features, and we found M extra candidates.
             needed = F_total - len(feature_names)
-            
+
             if len(extra_candidates) >= needed:
-                # If we have enough candidates, take them. 
+                # If we have enough candidates, take them.
                 # If we have MORE than needed, it's ambiguous. But usually embeddings are distinct.
                 # Let's assume all valid extra candidates are part of the input.
-                
-                # However, stat_dict might contain other auxiliary variables. 
+
+                # However, stat_dict might contain other auxiliary variables.
                 # If we match exactly, great.
                 if len(extra_candidates) == needed:
-                    print(f"[INFO] Found exactly {needed} extra features. Appending them.")
+                    print(
+                        f"[INFO] Found exactly {needed} extra features. Appending them."
+                    )
                     feature_names.extend(extra_candidates)
                 else:
-                    print(f"[WARNING] Found {len(extra_candidates)} extra candidates, but needed {needed}. Appending first {needed} sorted keys.")
+                    print(
+                        f"[WARNING] Found {len(extra_candidates)} extra candidates, but needed {needed}. Appending first {needed} sorted keys."
+                    )
                     feature_names.extend(extra_candidates[:needed])
             else:
-                print(f"[WARNING] Found {len(extra_candidates)} extra candidates, but needed {needed}. Appending all available.")
+                print(
+                    f"[WARNING] Found {len(extra_candidates)} extra candidates, but needed {needed}. Appending all available."
+                )
                 feature_names.extend(extra_candidates)
 
         # Final check
         if len(feature_names) != F_total:
-            print(f"[WARNING] Reconstructed feature names length ({len(feature_names)}) does not match model input ({F_total}).")
+            print(
+                f"[WARNING] Reconstructed feature names length ({len(feature_names)}) does not match model input ({F_total})."
+            )
             return None
-            
+
         return feature_names
 
     def _get_optimizer(self, training_cfgs):
@@ -818,6 +946,7 @@ class DeepHydro(DeepHydroInterface):
         if isinstance(batch[0][0], list):
             # Seq2Seq format: use default collate for list of tensors
             from torch.utils.data.dataloader import default_collate
+
             return default_collate(batch)
 
         # 找到这个批次中最长的序列长度
@@ -832,13 +961,17 @@ class DeepHydro(DeepHydroInterface):
 
             current_len = x.shape[0]
             if current_len < max_len:
-                # 使用最后一个值填充x
-                padding_x = x[-1:].repeat(max_len - current_len, 1)
+                # 使用 NaN 填充 x
+                padding_x = torch.full(
+                    (max_len - current_len, x.shape[1]), np.nan, dtype=x.dtype
+                )
                 padded_x = torch.cat([x, padding_x], dim=0)
 
                 # 如果有y，也进行填充
                 if y is not None:
-                    padding_y = y[-1:].repeat(max_len - current_len, 1)
+                    padding_y = torch.full(
+                        (max_len - current_len, y.shape[1]), np.nan, dtype=y.dtype
+                    )
                     padded_y = torch.cat([y, padding_y], dim=0)
                 else:
                     padded_y = None
@@ -856,7 +989,7 @@ class DeepHydro(DeepHydroInterface):
         if len(processed_batch) > 0 and isinstance(processed_batch[0], tuple):
             return (
                 torch.stack([x for x, _ in processed_batch], 0),
-                torch.stack([y for _, y in processed_batch], 0)
+                torch.stack([y for _, y in processed_batch], 0),
             )
         else:
             return torch.stack(processed_batch, 0)
@@ -865,10 +998,16 @@ class DeepHydro(DeepHydroInterface):
         if mode == "infer":
             _collate_fn = None
             # Use GNN collate function for GNN datasets in inference mode
-            if hasattr(self.testdataset, '__class__') and 'GNN' in self.testdataset.__class__.__name__:
+            if (
+                hasattr(self.testdataset, "__class__")
+                and "GNN" in self.testdataset.__class__.__name__
+            ):
                 _collate_fn = gnn_collate_fn
             # 使用自定义的 collate 函数处理 FloodEventDataset
-            elif hasattr(self.testdataset, '__class__') and 'FloodEvent' in self.testdataset.__class__.__name__:
+            elif (
+                hasattr(self.testdataset, "__class__")
+                and "FloodEvent" in self.testdataset.__class__.__name__
+            ):
                 _collate_fn = self._flood_event_collate_fn
             return DataLoader(
                 self.testdataset,
@@ -894,7 +1033,10 @@ class DeepHydro(DeepHydroInterface):
         if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
             _collate_fn = varied_length_collate_fn
         # Use GNN collate function for GNN datasets
-        elif hasattr(self.traindataset, '__class__') and 'GNN' in self.traindataset.__class__.__name__:
+        elif (
+            hasattr(self.traindataset, "__class__")
+            and "GNN" in self.traindataset.__class__.__name__
+        ):
             _collate_fn = gnn_collate_fn
         data_loader = DataLoader(
             self.traindataset,
@@ -911,7 +1053,10 @@ class DeepHydro(DeepHydroInterface):
             _val_collate_fn = None
             if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
                 _val_collate_fn = varied_length_collate_fn
-            elif hasattr(self.validdataset, '__class__') and 'GNN' in self.validdataset.__class__.__name__:
+            elif (
+                hasattr(self.validdataset, "__class__")
+                and "GNN" in self.validdataset.__class__.__name__
+            ):
                 _val_collate_fn = gnn_collate_fn
 
             validation_data_loader = DataLoader(
