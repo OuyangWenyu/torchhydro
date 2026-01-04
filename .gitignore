@@ -142,6 +142,11 @@ results/
 data/
 scripts/
 pth_file/
+check/
+data_processing/    
+Temporary_file/
+test/
+.gitignore
 
 # Claude
 CLAUDE.md

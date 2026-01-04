@@ -502,15 +502,30 @@ class MTSLSTM(nn.Module):
                 - h_n (torch.Tensor): Final hidden state (1, B, H).
                 - c_n (torch.Tensor): Final cell state (1, B, H).
         """
-        # Handle empty sequences or batches to avoid MPS crashes (Placeholder tensor is empty!)
+        # Ensure x is contiguous and float32
+        x = x.contiguous().float()
+
+        # Handle empty sequences or batches
         if x.shape[0] == 0 or x.shape[1] == 0:
             T, B, _ = x.shape
             y = x.new_zeros((T, B, self.output_size))
             return y, h0, c0
 
-        out, (h_n, c_n) = (
-            lstm(x, (h0, c0)) if (h0 is not None and c0 is not None) else lstm(x)
-        )
+        # Ensure h0 and c0 are not None, and if provided, make them contiguous and float32
+        if h0 is not None:
+            h0 = h0.contiguous().float()
+        else:
+            h0 = torch.zeros(1, x.shape[1], lstm.hidden_size, device=x.device, dtype=torch.float32)
+
+        if c0 is not None:
+            c0 = c0.contiguous().float()
+        else:
+            c0 = torch.zeros(1, x.shape[1], lstm.hidden_size, device=x.device, dtype=torch.float32)
+
+        # Perform the LSTM operation
+        out, (h_n, c_n) = lstm(x, (h0, c0))  # If h0 and c0 are not None, pass them
+
+        # Apply the output linear transformation
         y = head(self.dropout(out))  # Project to output size
         return y, h_n, c_n
 

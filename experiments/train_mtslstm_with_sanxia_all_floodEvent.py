@@ -19,8 +19,8 @@ for logger_name in logging.root.manager.loggerDict:
 PRETRAIN_DAY_PTH = "/home/litianli/torchhydro-feature-MTSLSTM/pth_file/best_model2.pth"
 
 # === Dataset setup ===
-sanxia_dir = "/Volumes/Untitled"
-csv_path = Path("/Volumes/Untitled/223_FloodEvents/floodevent_40.csv")
+sanxia_dir = "/home/litianli/Dataset/"
+csv_path = Path("data/floodevent_40.csv")
 try:
     gage_df = pd.read_csv(csv_path)
     gage_id = gage_df["GAGE_ID"].dropna().tolist()
@@ -32,10 +32,10 @@ assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sort
 
 # === 超参数设置（固定隐藏层，仅调整其他参数） ===
 FIXED_HIDDEN_SIZES = [128, 128]  # 固定2层128单元（可按需修改）
-LRS = [5e-4]  # 学习率候选
-BATCH_SIZES = [128]  # 批次大小候选
-EPOCHS = [3]  # 训练轮数候选
-LR_FACTORS = [0.9]  # 学习率衰减因子候选++
+LRS = [1e-3,2e-3,5e-4]  # 学习率候选
+BATCH_SIZES = [256, 128, 64, 36]  # 批次大小候选
+EPOCHS = [20]  # 训练轮数候选
+LR_FACTORS = [0.9, 0.95, 0.98]  # 学习率衰减因子候选++
 
 # === 生成超参数组合（不含隐藏层，仅其他参数的笛卡尔积） ===
 hyperparam_combinations = list(product(LRS, BATCH_SIZES, EPOCHS, LR_FACTORS))
@@ -138,27 +138,27 @@ def get_config(hyperparams):
         f"lr_{lr:.0e}_batch_{batch_size}_epoch_{epoch}_lrf_{lr_factor}"
     )
     project_sub = (
-        f"newbasin_223_FloodEvents_40_ori_nopeak_3_test/{exp_name}"  # 两级目录结构
+        f"newbasin_223_FloodEvents_form_40_repick_2024_new/{exp_name}"  # 两级目录结构
     )
 
     cfg = default_config_file()
     args = cmd(
-        # stat_dict_file="pth_file/dapengscaler_stat.json",
+        stat_dict_file="pth_file/dapengscaler_stat.json",
         sub=project_sub,
         source_cfgs={
             "source_name": "selfmadehydrodataset",
             "source_path": sanxia_dir,
             "other_settings": {
                 "time_unit": ["1h"],
-                "dataset_name": "223_FloodEvents",
+                "dataset_name": "223_FloodEvents_40_repick_2024",
                 "delta_t_hours": 1.0,
             },
         },
         ctx=[0],
-        model_name="SimpleLSTM",
+        model_name="MTSLSTM",
         model_hyperparam={
-            "input_size": 39,
-            "hidden_size": 128,
+            # "input_size": 39,
+            # "hidden_size": 128,
             "pretrained_day_path": PRETRAIN_DAY_PTH,
             "pretrained_lstm_prefix": "lstm.",
             "pretrained_head_prefix": "linearOut.",
@@ -166,7 +166,7 @@ def get_config(hyperparams):
             "output_size": 1,
             "shared_mtslstm": False,
             "transfer": "linear",
-            "dr": 0.1,
+            "dropout": 0.1,
             "return_all": False,
             "feature_buckets": feature_buckets,
             "per_feature_aggs_map": per_feature_aggs_map,
@@ -180,7 +180,7 @@ def get_config(hyperparams):
         rolling=0,
         hindcast_length=30,  # hindcast period: 30 hours
         forecast_length=72,  # forecast period: 72 hours (matches original SEQ_LENS[-1]=72)
-        warmup_length=240,
+        warmup_length=720,
         batch_size=batch_size,
         rs=seeds,
         ensemble=True,
@@ -198,9 +198,9 @@ def get_config(hyperparams):
         },
         train_epoch=epoch,
         save_epoch=1,
-        train_period=["2014-01-01", "2022-12-31"],
-        valid_period=["2023-01-01", "2023-12-31"],
-        test_period=["2023-01-01", "2023-12-31"],
+        train_period=["2014-01-01", "2023-07-31"],
+        valid_period=["2023-07-02", "2024-12-31"],
+        test_period=["2023-07-02", "2024-12-31"],
         loss_func="FloodLoss",
         opt="Adam",
         opt_param={"lr": lr},
