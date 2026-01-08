@@ -22,7 +22,7 @@ PRETRAIN_DAY_PTH = "/home/litianli/torchhydro-feature-MTSLSTM/pth_file/best_mode
 
 # === Dataset setup ===
 sanxia_dir = "/home/litianli/Dataset/"
-csv_path = Path("data/floodevent_40.csv")
+csv_path = Path("data/106_floodevents.csv")
 try:
     gage_df = pd.read_csv(csv_path)
     gage_id = gage_df["GAGE_ID"].dropna().tolist()
@@ -34,10 +34,10 @@ assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sort
 
 # === 超参数设置（固定隐藏层，仅调整其他参数） ===
 FIXED_HIDDEN_SIZES = [128, 128]  # 固定2层128单元（可按需修改）
-LRS = [5e-4]  # 学习率候选
+LRS = [1e-3]  # 学习率候选
 BATCH_SIZES = [64]  # 批次大小候选
-EPOCHS = [7]  # 训练轮数候选
-LR_FACTORS = [0.9]  # 学习率衰减因子候选++
+EPOCHS = [3]  # 训练轮数候选
+LR_FACTORS = [0.95]  # 学习率衰减因子候选++
 
 # === 生成超参数组合（不含隐藏层，仅其他参数的笛卡尔积） ===
 hyperparam_combinations = list(product(LRS, BATCH_SIZES, EPOCHS, LR_FACTORS))
@@ -140,13 +140,13 @@ def get_config(hyperparams):
         f"lr_{lr:.0e}_batch_{batch_size}_epoch_{epoch}_lrf_{lr_factor}"
     )
     project_sub = (
-        f"newbasin_223_FloodEvents_form_evaluate_40_repick_2024_new/{exp_name}"  # 两级目录结构
+        f"6_newbasin_223_FloodEvents_form_106/{exp_name}"  # 两级目录结构
     )
 
     cfg = default_config_file()
     args = cmd(
         train_mode=False,
-        stat_dict_file=r"results/newbasin_223_FloodEvents_form_40_repick_2024_new/mtslstm_DapengScaler_hidden_128_128_lr_5e-04_batch_64_epoch_20_lrf_0.9/dapengscaler_stat.json",
+        stat_dict_file=r"results/newbasin_223_FloodEvents_form_106/mtslstm_DapengScaler_hidden_128_128_lr_1e-03_batch_64_epoch_20_lrf_0.95/dapengscaler_stat.json",
         # stat_dict_file="pth_file/dapengscaler_stat.json",
         sub=project_sub,
         source_cfgs={
@@ -154,7 +154,7 @@ def get_config(hyperparams):
             "source_path": sanxia_dir,
             "other_settings": {
                 "time_unit": ["1h"],
-                "dataset_name": "223_FloodEvents_40_repick_2024",
+                "dataset_name": "223_FloodEvents_106",
                 "delta_t_hours": 1.0,
             },
         },
@@ -202,9 +202,9 @@ def get_config(hyperparams):
         },
         train_epoch=epoch,
         save_epoch=1,
-        train_period=["2014-01-01", "2023-07-29"],
-        valid_period=["2023-08-01", "2024-12-31"],
-        test_period=["2014-01-01", "2023-12-29"],
+        train_period=["2014-01-01", "2023-07-31"],
+        valid_period=["2023-07-02", "2024-12-31"],
+        test_period=["2014-01-01", "2023-08-31"],
         loss_func="FloodLoss",
         opt="Adam",
         opt_param={"lr": lr},
@@ -216,7 +216,7 @@ def get_config(hyperparams):
         model_type="Normal",
         model_loader={
             "load_way": "pth",
-            "pth_path": "results/newbasin_223_FloodEvents_form_40_repick_2024_new/mtslstm_DapengScaler_hidden_128_128_lr_5e-04_batch_64_epoch_20_lrf_0.9/best_model.pth",
+            "pth_path": "results/newbasin_223_FloodEvents_form_106/mtslstm_DapengScaler_hidden_128_128_lr_1e-03_batch_64_epoch_20_lrf_0.95/best_model.pth",
         },
         dataset="FloodEventDataset",
         evaluator={"eval_way": "floodevent"},

@@ -143,11 +143,11 @@ data/
 scripts/
 pth_file/
 check/
-data_processing/    
+# data_processing/    
 Temporary_file/
 test/
 .gitignore
-
+pic/
 # Claude
 CLAUDE.md
 .claude/
