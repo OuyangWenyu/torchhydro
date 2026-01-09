@@ -32,6 +32,19 @@ from hydroutils.hydro_stat import (
     cal_4_stat_inds,
 )
 
+# 导入 NaN-safe 版本的统计函数
+try:
+    from torchhydro.datasets.data_scalers_nan_safe import (
+        cal_stat_nan_safe,
+        cal_stat_prcp_norm_nan_safe,
+        cal_stat_gamma_nan_safe,
+        check_data_quality,
+    )
+    USE_NAN_SAFE_STATS = True
+except ImportError:
+    USE_NAN_SAFE_STATS = False
+    print("警告: 无法导入 NaN-safe 统计函数，将使用原始版本")
+
 from torchhydro.datasets.data_utils import (
     _trans_norm,
     _prcp_norm,
@@ -327,6 +340,9 @@ class DapengScaler(object):
         
         self.one_hot_cols = data_cfgs["scaler_params"].get("one_hot_cols", [])
         
+        # 从 scaler_params 中读取 use_nan_safe_stats 参数
+        self.use_nan_safe_stats = data_cfgs["scaler_params"].get("use_nan_safe_stats", True)
+        
         self.data_target = vars_data["target_cols"]
         self.data_cfgs = data_cfgs
         self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
@@ -454,6 +470,9 @@ class DapengScaler(object):
         """
         stat_dict = {}
         
+        # 从实例属性中读取 use_nan_safe_stats
+        use_nan_safe = getattr(self, 'use_nan_safe_stats', True)
+        
         # Calculate categories for one-hot encoding if needed
         if self.one_hot_cols:
             categories_dict = self._get_one_hot_categories(vars_data)
@@ -468,18 +487,56 @@ class DapengScaler(object):
                 # Skip statistics calculation for one-hot columns as they don't need mean/std normalization
                 if var_name in self.one_hot_cols:
                     continue
+                
+                # 获取数据
+                data = v.sel(variable=var_name).to_numpy()
+                
+                # 检查 NaN 值情况
+                nan_count = np.isnan(data).sum()
+                total_count = data.size
+                if nan_count > 0:
+                    nan_ratio = nan_count / total_count
+                    print(f"警告: {var_name} 包含 {nan_count}/{total_count} ({nan_ratio:.2%}) 个 NaN 值")
                     
+                    # 如果 NaN 比例过高，给出警告
+                    if nan_ratio > 0.5:
+                        print(f"  ⚠️  {var_name} 的 NaN 比例超过 50%，统计量可能不可靠")
+                
+                # 根据变量类型选择统计函数
                 if var_name in self.prcp_norm_cols:
-                    stat_dict[var_name] = cal_stat_prcp_norm(
-                        v.sel(variable=var_name).to_numpy(),
-                        self.mean_prcp,
-                    )
+                    if use_nan_safe and USE_NAN_SAFE_STATS:
+                        stat_dict[var_name] = cal_stat_prcp_norm_nan_safe(
+                            data,
+                            self.mean_prcp,
+                        )
+                    else:
+                        stat_dict[var_name] = cal_stat_prcp_norm(
+                            data,
+                            self.mean_prcp,
+                        )
                 elif var_name in self.gamma_norm_cols:
-                    stat_dict[var_name] = cal_stat_gamma(
-                        v.sel(variable=var_name).to_numpy()
-                    )
+                    if use_nan_safe and USE_NAN_SAFE_STATS:
+                        stat_dict[var_name] = cal_stat_gamma_nan_safe(data)
+                    else:
+                        stat_dict[var_name] = cal_stat_gamma(data)
                 else:
-                    stat_dict[var_name] = cal_stat(v.sel(variable=var_name).to_numpy())
+                    if use_nan_safe and USE_NAN_SAFE_STATS:
+                        stat_dict[var_name] = cal_stat_nan_safe(data)
+                    else:
+                        stat_dict[var_name] = cal_stat(data)
+                
+                # 验证统计量是否有效（应该有 4 个元素：p10, p90, mean, std）
+                if len(stat_dict[var_name]) != 4:
+                    print(f"  ❌ {var_name} 的统计量格式错误，应该有 4 个元素: {stat_dict[var_name]}")
+                    raise ValueError(
+                        f"变量 {var_name} 的统计量格式错误，应该是 [p10, p90, mean, std]"
+                    )
+                if any(np.isnan(stat_dict[var_name])):
+                    print(f"  ❌ {var_name} 的统计量包含 NaN: {stat_dict[var_name]}")
+                    raise ValueError(
+                        f"变量 {var_name} 的统计量计算失败，包含 NaN 值。"
+                        f"请检查数据质量或在 scaler_params 中设置 use_nan_safe_stats=True"
+                    )
 
         return stat_dict
 

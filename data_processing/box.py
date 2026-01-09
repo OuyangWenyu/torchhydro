@@ -7,7 +7,7 @@ plt.rcParams['font.sans-serif'] = ['Arial']
 plt.rcParams['axes.unicode_minus'] = False
 
 # 读取CSV文件并提取NSE列，过滤掉小于0的值
-file_path = 'results/6_106/metrics_results/valid_event_level_metrics.csv'
+file_path = 'results/7_84/metrics_results/valid_event_level_metrics.csv'
 df = pd.read_csv(file_path)
 nse_data = df['NSE_VALID'].dropna()  # 去除缺失值
 nse_data = nse_data[nse_data >= 0]  # 过滤掉小于0的数据
@@ -50,5 +50,5 @@ if len(nse_data) > 0:
 plt.tight_layout()
 
 # 保存图片
-plt.savefig('6_106.png', dpi=300, bbox_inches='tight')
+plt.savefig('7_84.png', dpi=300, bbox_inches='tight')
 plt.show()

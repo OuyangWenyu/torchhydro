@@ -4,9 +4,9 @@ import os
 import numpy as np
 
 # -------------------------- 1. 路径设置 --------------------------
-train_csv_path = r"results/6_106/metrics_results/train_event_level_metrics.csv"
-valid_csv_path = r"results/6_106/metrics_results/valid_event_level_metrics.csv"
-output_main_folder = r"results/6_106"
+train_csv_path = r"results/7_84/metrics_results/train_event_level_metrics.csv"
+valid_csv_path = r"results/7_84/metrics_results/valid_event_level_metrics.csv"
+output_main_folder = r"results/7_84"
 output_per_basin_folder = os.path.join(output_main_folder, "per_basin_plots")
 
 # -------------------------- 2. 创建文件夹 --------------------------

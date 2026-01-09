@@ -40,17 +40,17 @@ print(f"  Warmup偏移: {VALID_WARMUP_OFFSET_DAYS} 天")
 print(f"  NC文件实际时间范围: {VALID_START} 到 {VALID_END}")
 
 # 3. 文件路径配置
-flood_events_excel = "Temporary_file/副本场次筛选汇总20260106.xlsx"
-basin_data_dir = "/home/litianli/Dataset/223_FloodEvents_106/timeseries/1h/"
+flood_events_excel = "Temporary_file/场次筛选20260108.xlsx"
+basin_data_dir = "/home/litianli/Dataset/223_FloodEvents_84/timeseries/1h/"
 
 # NC文件路径
-train_nc_obs_path = "results/6_newbasin_223_FloodEvents_form_106/mtslstm_DapengScaler_hidden_128_128_lr_1e-03_batch_64_epoch_3_lrf_0.95/epochbest_model.pthflow_obs.nc"
-train_nc_pred_path = "results/6_newbasin_223_FloodEvents_form_106/mtslstm_DapengScaler_hidden_128_128_lr_1e-03_batch_64_epoch_3_lrf_0.95/epochbest_model.pthflow_pred.nc"
-valid_nc_obs_path = "results/newbasin_223_FloodEvents_form_106/mtslstm_DapengScaler_hidden_128_128_lr_1e-03_batch_64_epoch_20_lrf_0.95/epochbest_model.pthflow_obs.nc"
-valid_nc_pred_path = "results/newbasin_223_FloodEvents_form_106/mtslstm_DapengScaler_hidden_128_128_lr_1e-03_batch_64_epoch_20_lrf_0.95/epochbest_model.pthflow_pred.nc"
+train_nc_obs_path = "results/7_newbasin_223_FloodEvents_form_84/mtslstm_DapengScaler_hidden_128_128_lr_2e-03_batch_128_epoch_6_lrf_0.9/epochbest_model.pthflow_obs.nc"
+train_nc_pred_path = "results/7_newbasin_223_FloodEvents_form_84/mtslstm_DapengScaler_hidden_128_128_lr_2e-03_batch_128_epoch_6_lrf_0.9/epochbest_model.pthflow_pred.nc"
+valid_nc_obs_path = "results/newbasin_223_FloodEvents_form_84/mtslstm_DapengScaler_hidden_128_128_lr_2e-03_batch_64_epoch_20_lrf_0.9/epochbest_model.pthflow_obs.nc"
+valid_nc_pred_path = "results/newbasin_223_FloodEvents_form_84/mtslstm_DapengScaler_hidden_128_128_lr_2e-03_batch_64_epoch_20_lrf_0.9/epochbest_model.pthflow_pred.nc"
 
 # 4. 保存路径配置
-save_root = "results/6_223_FloodEvents_106/"
+save_root = "results/7_84/"
 train_plot_dir = os.path.join(save_root, "train_plots")
 valid_plot_dir = os.path.join(save_root, "valid_plots")
 metrics_save_dir = os.path.join(save_root, "metrics_results")  # 重命名更通用
