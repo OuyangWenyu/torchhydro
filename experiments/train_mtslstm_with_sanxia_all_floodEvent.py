@@ -20,7 +20,7 @@ PRETRAIN_DAY_PTH = "/home/litianli/torchhydro-feature-MTSLSTM/pth_file/best_mode
 
 # === Dataset setup ===
 sanxia_dir = "/home/litianli/Dataset/"
-csv_path = Path("data/79_floodevents.csv")
+csv_path = Path("data/155_floodevents.csv")
 try:
     gage_df = pd.read_csv(csv_path)
     gage_id = gage_df["GAGE_ID"].dropna().tolist()
@@ -42,9 +42,9 @@ hyperparam_combinations = list(product(LRS, BATCH_SIZES, EPOCHS, LR_FACTORS))
 
 # === 固定参数 ===
 FACS = [24]
-# Sample length = warmup(0) + hindcast(30) + forecast(72) = 102 hours
-# Daily: 102 / 24 = 4.25 → use 5 days to ensure coverage
-SEQ_LENS = [5, 102]  # Low-freq 5 days, High-freq 102 hours
+# Sample length = warmup(0) + hindcast(72) + forecast(24) = 96 hours
+# Daily: 96 / 24 = 4 → use 4 days to ensure coverage
+SEQ_LENS = [4, 96]  # Low-freq 4 days, High-freq 96 hours
 
 
 # 动态特征配置
@@ -138,7 +138,7 @@ def get_config(hyperparams):
         f"lr_{lr:.0e}_batch_{batch_size}_epoch_{epoch}_lrf_{lr_factor}"
     )
     project_sub = (
-        f"newbasin_223_FloodEvents_form_79/{exp_name}"  # 两级目录结构
+        f"newbasin_223_FloodEvents_form_155_Interpolation/{exp_name}"  # 两级目录结构
     )
 
     cfg = default_config_file()
@@ -150,11 +150,11 @@ def get_config(hyperparams):
             "source_path": sanxia_dir,
             "other_settings": {
                 "time_unit": ["1h"],
-                "dataset_name": "223_FloodEvents_79",
+                "dataset_name": "223_FloodEvents_155_Interpolation",
                 "delta_t_hours": 1.0,
             },
         },
-        ctx=[0],
+        ctx=[2],
         model_name="MTSLSTM",
         model_hyperparam={
             # "input_size": 39,
@@ -178,8 +178,8 @@ def get_config(hyperparams):
         # 训练参数（动态代入超参数）
         gage_id=gage_id,
         rolling=0,
-        hindcast_length=30,  # hindcast period: 30 hours
-        forecast_length=72,  # forecast period: 72 hours (matches original SEQ_LENS[-1]=72)
+        hindcast_length=72,  # hindcast period: 96 hours
+        forecast_length=24,  # forecast period: 48 hours 
         warmup_length=720,
         batch_size=batch_size,
         rs=seeds,

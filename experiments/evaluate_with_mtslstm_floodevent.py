@@ -199,6 +199,7 @@ def get_config(hyperparams):
             "prcp_norm_cols": ["streamflow"],
             "gamma_norm_cols": [],
             "pbm_norm": False,
+            "use_nan_safe_stats": True,  # 启用 NaN-safe 统计函数
         },
         train_epoch=epoch,
         save_epoch=1,

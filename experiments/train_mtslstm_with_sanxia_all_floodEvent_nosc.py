@@ -20,7 +20,7 @@ PRETRAIN_DAY_PTH = "/home/litianli/torchhydro-feature-MTSLSTM/pth_file/best_mode
 
 # === Dataset setup ===
 sanxia_dir = "/home/litianli/Dataset/"
-csv_path = Path("data/84_floodevents.csv")
+csv_path = Path("data/4_38.csv")
 try:
     gage_df = pd.read_csv(csv_path)
     gage_id = gage_df["GAGE_ID"].dropna().tolist()
@@ -32,10 +32,10 @@ assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sort
 
 # === 超参数设置（固定隐藏层，仅调整其他参数） ===
 FIXED_HIDDEN_SIZES = [128, 128]  # 固定2层128单元（可按需修改）
-LRS = [1e-3,2e-3,5e-4]  # 学习率候选
-BATCH_SIZES = [ 128, 64, 36]  # 批次大小候选
+LRS = [1e-3]  # 学习率候选
+BATCH_SIZES = [36]  # 批次大小候选
 EPOCHS = [20]  # 训练轮数候选
-LR_FACTORS = [0.9, 0.95, 0.98]  # 学习率衰减因子候选++
+LR_FACTORS = [0.98]  # 学习率衰减因子候选++
 
 # === 生成超参数组合（不含隐藏层，仅其他参数的笛卡尔积） ===
 hyperparam_combinations = list(product(LRS, BATCH_SIZES, EPOCHS, LR_FACTORS))
@@ -138,7 +138,7 @@ def get_config(hyperparams):
         f"lr_{lr:.0e}_batch_{batch_size}_epoch_{epoch}_lrf_{lr_factor}"
     )
     project_sub = (
-        f"newbasin_223_FloodEvents_form_84_noscr/{exp_name}"  # 两级目录结构
+        f"newbasin_223_FloodEvents_form_38_repick_nosc/{exp_name}"  # 两级目录结构
     )
 
     cfg = default_config_file()
@@ -151,7 +151,7 @@ def get_config(hyperparams):
             "source_path": sanxia_dir,
             "other_settings": {
                 "time_unit": ["1h"],
-                "dataset_name": "223_FloodEvents_106",
+                "dataset_name": "223_FloodEvents_38_repick",
                 "delta_t_hours": 1.0,
             },
         },
