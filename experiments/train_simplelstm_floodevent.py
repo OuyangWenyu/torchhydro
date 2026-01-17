@@ -60,7 +60,7 @@ def create_simplelstm_config():
             "input_size": 1,      # 输入特征数（降雨）
             "output_size": 1,     # 输出特征数（只预测径流，flood_event仅用于loss加权）
             "hidden_size": 16,    # LSTM隐藏层大小
-            "dr": 0.0,            # Dropout率
+            "dr": 0.3,            # Dropout率
         },
 
         # ========== 站点配置 ==========
@@ -70,7 +70,7 @@ def create_simplelstm_config():
         dataset="AugmentedFloodEventDataset",  # 使用增强洪水场次数据集
         scaler="DapengScaler",
         batch_size=8,
-        warmup_length=0,
+        warmup_length=240,
         hindcast_length=hindcast_length,
         forecast_length=forecast_length,
         frwin=forecast_length,
@@ -100,11 +100,11 @@ def create_simplelstm_config():
 
         # ========== 时间段配置 ==========
         train_period=[
-            ["1984-01-01-02", "2017-12-31-23"],  # 真实历史数据
-            ["2026-07-01-02", "3150-12-31-23"],  # 增强数据
+            ["1984-01-01-02", "2017-12-31-23"],
+            ["2026-07-01-02", "3150-12-31-23"],  # 真实历史数据
         ],
-        valid_period=["2018-01-01-02", "2023-12-31-23"],  # 验证期
-        test_period=["2018-01-01-02", "2023-12-31-23"],   # 测试期
+        valid_period=["1984-01-01-02", "2023-12-31-23"],  # 验证期
+        test_period=["1984-01-01-02", "2023-12-31-23"],   # 测试期
 
         # ========== 损失函数配置 ==========
                 loss_func="FloodLoss",              # 洪水区间loss
@@ -151,7 +151,7 @@ def create_simplelstm_config():
 
         # ========== 洪峰对齐采样配置 ==========
         peak_aligned_sampling={
-            "enabled": True,          # 启用洪峰对齐采样
+            "enabled": False,          # 启用洪峰对齐采样
             "slide_step": 1,          # 滑动步长
             "peak_selection": "first" # 选择第一个洪峰
         },
