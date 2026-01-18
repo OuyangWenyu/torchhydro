@@ -3624,7 +3624,7 @@ class FloodEventSeq2SeqDataset(AugmentedFloodEventDataset):
             [encoder_input, decoder_input], targets
 
         Where:
-        - encoder_input: (rho steps, feature_size) - hindcast period forcing data
+        - encoder_input: (warmup_length + rho steps, feature_size) - warmup + hindcast period forcing data
         - decoder_input: (horizon steps, feature_size) - forecast period forcing data
         - targets: (hindcast_output_window + horizon steps, output_size) - full output sequence
         """
@@ -3649,8 +3649,8 @@ class FloodEventSeq2SeqDataset(AugmentedFloodEventDataset):
         y_with_flood_mask[:, self.flood_event_idx] = flood_mask.squeeze()
 
         # Split data for Seq2Seq format
-        # Encoder input: warmup + rho period forcing data
-        x_encoder = x[warmup_length : warmup_length + rho, :]
+        # Encoder input: warmup + rho period forcing data (包含 warmup 用于模型热身)
+        x_encoder = x[: warmup_length + rho, :]  # 从 0 开始，包含 warmup
 
         # Decoder input: horizon period forcing data
         x_decoder = x[warmup_length + rho : warmup_length + rho + horizon, :]
