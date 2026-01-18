@@ -3649,8 +3649,9 @@ class FloodEventSeq2SeqDataset(AugmentedFloodEventDataset):
         y_with_flood_mask[:, self.flood_event_idx] = flood_mask.squeeze()
 
         # Split data for Seq2Seq format
-        # Encoder input: warmup + rho period forcing data (包含 warmup 用于模型热身)
-        x_encoder = x[: warmup_length + rho, :]  # 从 0 开始，包含 warmup
+        # Encoder input: 包含 warmup + rho 数据，让 encoder LSTM 预热
+        # 当 warmup_length=0 时，长度为 rho；当 warmup_length>0 时，长度为 warmup+rho
+        x_encoder = x[: warmup_length + rho, :]
 
         # Decoder input: horizon period forcing data
         x_decoder = x[warmup_length + rho : warmup_length + rho + horizon, :]
