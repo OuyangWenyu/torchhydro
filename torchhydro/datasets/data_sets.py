@@ -2183,16 +2183,15 @@ class FloodEventDataset(BaseDataset):
                 # Can't extend beyond data bounds
                 break
 
-            # Calculate actual data length (always sample_seqlen to keep consistent)
-            actual_length = sample_seqlen
-
             # Check data validity (avoid NaN)
             actual_start, valid_length = self._find_valid_data_range(
                 basin_idx, start_idx, window_end, seq_start, seq_end
             )
 
-            if valid_length >= self.rho + self.horizon:
-                lookup.append((basin_idx, actual_start, actual_length))
+            # 只采样完全有效的样本（valid_length >= sample_seqlen）
+            # 这样保持固定长度，避免验证时 torch.cat 维度不匹配
+            if valid_length >= sample_seqlen:
+                lookup.append((basin_idx, actual_start, sample_seqlen))
                 total_samples += 1
 
     def _find_valid_data_range(
