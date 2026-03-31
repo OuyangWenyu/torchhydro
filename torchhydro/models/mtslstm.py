@@ -59,6 +59,7 @@ class MTSLSTM(nn.Module):
         pretrained_lstm_prefix: Optional[str] = None,
         pretrained_head_prefix: Optional[str] = None,
         pretrained_flag: bool = False,
+        pretrained_copy_to_all_branches: bool = False,
         linear1_size: Optional[int] = None,
         linear2_size: Optional[int] = None,
     ):
@@ -109,6 +110,7 @@ class MTSLSTM(nn.Module):
         # Store configuration parameters
         self.pretrained_day_path = pretrained_day_path
         self.pretrained_flag = pretrained_flag
+        self.pretrained_copy_to_all_branches = pretrained_copy_to_all_branches
         self.linear1_size = linear1_size
         self.linear2_size = linear2_size
         self.output_size = output_size
@@ -422,6 +424,44 @@ class MTSLSTM(nn.Module):
             f"[MTSLSTM] Daily pretrained loaded: matched={matched}, "
             f"shape_mismatch={shape_mismatch}, skipped={skipped}"
         )
+        if self.pretrained_copy_to_all_branches:
+            self._copy_branch0_weights_to_all()
+
+    def _copy_branch0_weights_to_all(self):
+        if self.nf <= 1 or self.shared:
+            return
+
+        src = 0
+        for i in range(1, self.nf):
+            if hasattr(self, "linear1") and isinstance(self.linear1, nn.ModuleList):
+                if (
+                    self.linear1[src].weight.shape == self.linear1[i].weight.shape
+                    and self.linear1[src].bias.shape == self.linear1[i].bias.shape
+                ):
+                    self.linear1[i].weight.data.copy_(self.linear1[src].weight.data)
+                    self.linear1[i].bias.data.copy_(self.linear1[src].bias.data)
+
+            if hasattr(self, "linear2") and isinstance(self.linear2, nn.ModuleList):
+                if (
+                    self.linear2[src].weight.shape == self.linear2[i].weight.shape
+                    and self.linear2[src].bias.shape == self.linear2[i].bias.shape
+                ):
+                    self.linear2[i].weight.data.copy_(self.linear2[src].weight.data)
+                    self.linear2[i].bias.data.copy_(self.linear2[src].bias.data)
+
+            src_lstm_state = self.lstms[src].state_dict()
+            dst_lstm_state = self.lstms[i].state_dict()
+            for k, v in src_lstm_state.items():
+                if k in dst_lstm_state and dst_lstm_state[k].shape == v.shape:
+                    dst_lstm_state[k].copy_(v)
+            self.lstms[i].load_state_dict(dst_lstm_state)
+
+            if (
+                self.heads[src].weight.shape == self.heads[i].weight.shape
+                and self.heads[src].bias.shape == self.heads[i].bias.shape
+            ):
+                self.heads[i].weight.data.copy_(self.heads[src].weight.data)
+                self.heads[i].bias.data.copy_(self.heads[src].bias.data)
 
     def _load_linear_weights(self, state):
         """Load pretrained linear layer weights."""
@@ -522,8 +562,17 @@ class MTSLSTM(nn.Module):
         else:
             c0 = torch.zeros(1, x.shape[1], lstm.hidden_size, device=x.device, dtype=torch.float32)
 
+        lstm.flatten_parameters()
+
         # Perform the LSTM operation
-        out, (h_n, c_n) = lstm(x, (h0, c0))  # If h0 and c0 are not None, pass them
+        try:
+            out, (h_n, c_n) = lstm(x, (h0, c0))  # If h0 and c0 are not None, pass them
+        except RuntimeError as e:
+            msg = str(e)
+            if "CUDNN_STATUS_NOT_SUPPORTED" not in msg:
+                raise
+            with torch.backends.cudnn.flags(enabled=False):
+                out, (h_n, c_n) = lstm(x, (h0, c0))
 
         # Apply the output linear transformation
         y = head(self.dropout(out))  # Project to output size
@@ -900,7 +949,7 @@ class MTSLSTM(nn.Module):
                 y_all = y1
                 h_final, c_final = h1, c1
 
-            return y_all, h1, c1
+            return y_all, h_final, c_final
 
     def _process_single_branch(
         self,

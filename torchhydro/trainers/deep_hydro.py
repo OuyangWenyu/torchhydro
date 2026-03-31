@@ -546,6 +546,26 @@ class DeepHydro(DeepHydroInterface):
 
         print("Running FAST SHAP analysis...")
 
+        eval_cfgs = self.cfgs.get("evaluation_cfgs", {}) or {}
+        shap_cfgs = eval_cfgs.get("shap_cfgs", {}) or {}
+        sequence_enable = bool(shap_cfgs.get("sequence_enable", False))
+        plot_mode = shap_cfgs.get("plot_mode")
+        if not isinstance(plot_mode, str):
+            plot_mode = "all"
+        plot_mode = plot_mode.lower()
+
+        plot_fast = True
+        plot_seq = True
+        plot_hybrid = True
+        plot_split = False
+
+        if plot_mode == "split_only":
+            plot_fast = False
+            plot_seq = False
+            plot_hybrid = False
+            plot_split = True
+            sequence_enable = True
+
         # ======================================================
         # 1. Optimize Memory & Diversity: Sample sparsely from MANY batches
         # ======================================================
@@ -754,32 +774,445 @@ class DeepHydro(DeepHydroInterface):
         # ======================================================
         os.makedirs(save_dir, exist_ok=True)
 
-        # --- beeswarm ---
-        plt.figure()
-        shap.summary_plot(
-            shap_values,
-            X_sample_np,
-            feature_names=feature_names,
-            max_display=100,  # Show all features
-            show=False,
-        )
-        plt.savefig(f"{save_dir}/shap_summary_fast.png", dpi=300, bbox_inches="tight")
-        plt.close()
+        shap_values_fast = np.array(shap_values)
+        X_fast_np = X_sample_np
 
-        # --- bar ---
-        plt.figure()
-        shap.summary_plot(
-            shap_values,
-            X_sample_np,
-            feature_names=feature_names,
-            plot_type="bar",
-            max_display=100,  # Show all features
-            show=False,
-        )
-        plt.savefig(f"{save_dir}/shap_bar_fast.png", dpi=300, bbox_inches="tight")
-        plt.close()
+        if plot_fast:
+            plt.figure()
+            shap.summary_plot(
+                shap_values,
+                X_sample_np,
+                feature_names=feature_names,
+                max_display=100,
+                show=False,
+            )
+            plt.savefig(f"{save_dir}/shap_summary_fast.png", dpi=300, bbox_inches="tight")
+            plt.close()
+
+            plt.figure()
+            shap.summary_plot(
+                shap_values,
+                X_sample_np,
+                feature_names=feature_names,
+                plot_type="bar",
+                max_display=100,
+                show=False,
+            )
+            plt.savefig(f"{save_dir}/shap_bar_fast.png", dpi=300, bbox_inches="tight")
+            plt.close()
 
         print(f"[INFO] SHAP analysis saved to {save_dir}")
+
+        if sequence_enable:
+            training_cfgs = self.cfgs.get("training_cfgs", {}) or {}
+            warmup_length = training_cfgs.get("warmup_length")
+            hindcast_length = training_cfgs.get("hindcast_length")
+            forecast_length = training_cfgs.get("forecast_length")
+
+            seq_len = shap_cfgs.get("sequence_length")
+            if not isinstance(seq_len, int):
+                if (
+                    isinstance(warmup_length, int)
+                    and isinstance(hindcast_length, int)
+                    and isinstance(forecast_length, int)
+                ):
+                    seq_len = warmup_length + hindcast_length + forecast_length
+                else:
+                    seq_len = T
+
+            seq_max_sample = shap_cfgs.get("sequence_max_sample")
+            if not isinstance(seq_max_sample, int):
+                seq_max_sample = min(128, max_sample)
+            seq_max_sample = max(1, seq_max_sample)
+
+            seq_background_size = shap_cfgs.get("sequence_background_size")
+            if not isinstance(seq_background_size, int):
+                seq_background_size = min(32, background_size)
+            seq_background_size = max(1, seq_background_size)
+
+            seq_nsamples = shap_cfgs.get("sequence_nsamples")
+            if not isinstance(seq_nsamples, int):
+                seq_nsamples = 50
+
+            time_agg = shap_cfgs.get("time_agg")
+            if not isinstance(time_agg, str):
+                time_agg = "abs_sum"
+            time_agg = time_agg.lower()
+
+            which_first_tensor = (
+                self.cfgs.get("training_cfgs", {}).get("which_first_tensor") or "batch"
+            )
+
+            import random
+
+            n_batches = len(X_all)
+            target_batch_count = min(50, n_batches)
+            seqs_per_batch = max(1, (seq_max_sample * 2) // max(1, target_batch_count))
+            batch_indices = list(range(n_batches))
+            random.shuffle(batch_indices)
+            selected_batch_indices = batch_indices[:target_batch_count]
+
+            seq_list = []
+            for idx in selected_batch_indices:
+                batch = X_all[idx]  # (B, T, F)
+                if not isinstance(batch, torch.Tensor) or batch.ndim != 3:
+                    continue
+                B = int(batch.shape[0])
+                if B <= 0:
+                    continue
+                take = min(B, seqs_per_batch)
+                seq_indices = torch.randperm(B)[:take]
+                for sidx in seq_indices:
+                    seq = batch[sidx]  # (T, F)
+                    if not isinstance(seq, torch.Tensor) or seq.ndim != 2:
+                        continue
+                    T_seq = int(seq.shape[0])
+                    if T_seq <= 0:
+                        continue
+                    if T_seq >= seq_len:
+                        seq_use = seq[-seq_len:]
+                    else:
+                        pad_len = seq_len - T_seq
+                        pad = torch.zeros(
+                            (pad_len, F_total), dtype=seq.dtype, device=seq.device
+                        )
+                        seq_use = torch.cat([pad, seq], dim=0)
+                    seq_list.append(seq_use)
+
+            if not seq_list:
+                print("[WARNING] sequence_enable=True but no sequences collected; skipping.")
+            else:
+                X_seq = torch.stack(seq_list, dim=0)  # (N, seq_len, F)
+                if torch.isnan(X_seq).any():
+                    X_seq = torch.nan_to_num(X_seq, nan=0.0)
+
+                if X_seq.shape[0] > seq_max_sample:
+                    X_seq = X_seq[torch.randperm(X_seq.shape[0])[:seq_max_sample]]
+
+                N_seq = int(X_seq.shape[0])
+                bg_n = min(seq_background_size, N_seq)
+                if bg_n < N_seq:
+                    idx_bg = np.random.choice(N_seq, bg_n, replace=False)
+                    background_seq = X_seq[idx_bg]
+                else:
+                    background_seq = X_seq
+
+                print(
+                    f"[INFO] SHAP sequence enabled: N={N_seq}, T={seq_len}, F={F_total}, bg={int(background_seq.shape[0])}, nsamples={seq_nsamples}, time_agg={time_agg}"
+                )
+
+                self.model.to(original_device)
+                self.model.eval()
+
+                try:
+                    from torch.nn.modules.rnn import RNNBase
+                except Exception:
+                    RNNBase = ()
+
+                rnn_modules = []
+                rnn_training_states = []
+                for m in self.model.modules():
+                    if isinstance(m, RNNBase):
+                        rnn_modules.append(m)
+                        rnn_training_states.append(m.training)
+                        m.train()
+
+                class _ShapSeqWrapper(torch.nn.Module):
+                    def __init__(self, model):
+                        super().__init__()
+                        self.model = model
+
+                    def forward(self, x):
+                        if which_first_tensor == "sequence":
+                            x = x.transpose(0, 1)
+                        out = self.model(x)
+                        if isinstance(out, dict):
+                            if "f1" in out:
+                                out = out["f1"]
+                            else:
+                                out = next(iter(out.values()))
+                        if isinstance(out, torch.Tensor) and out.ndim == 3:
+                            out = out[-1] if which_first_tensor == "sequence" else out[:, -1]
+                        if isinstance(out, torch.Tensor) and out.ndim == 1:
+                            out = out.unsqueeze(1)
+                        return out
+
+                wrapper = _ShapSeqWrapper(self.model).to(original_device)
+                background_t = background_seq.to(original_device).float()
+                sample_t = X_seq.to(original_device).float()
+
+                try:
+                    with torch.backends.cudnn.flags(enabled=False):
+                        explainer = shap.GradientExplainer(wrapper, background_t)
+                        shap_values = explainer.shap_values(sample_t, nsamples=seq_nsamples)
+                finally:
+                    for m, st in zip(rnn_modules, rnn_training_states):
+                        m.train(st)
+
+                if isinstance(shap_values, list):
+                    shap_values = shap_values[0]
+                shap_values = np.array(shap_values)
+                if shap_values.ndim == 4 and shap_values.shape[-1] == 1:
+                    shap_values = shap_values[..., 0]
+                if np.isnan(shap_values).any():
+                    shap_values = np.nan_to_num(shap_values, nan=0.0)
+
+                if time_agg == "sum":
+                    shap_values_feat = shap_values.sum(axis=1)
+                else:
+                    shap_values_feat = np.abs(shap_values).sum(axis=1)
+
+                X_feat = sample_t.detach().cpu().numpy().mean(axis=1)
+                suffix = "sum" if time_agg == "sum" else "abs_sum"
+
+                if plot_seq:
+                    plt.figure()
+                    shap.summary_plot(
+                        shap_values_feat,
+                        X_feat,
+                        feature_names=feature_names,
+                        max_display=100,
+                        show=False,
+                    )
+                    plt.savefig(
+                        f"{save_dir}/shap_summary_seq_{suffix}.png",
+                        dpi=300,
+                        bbox_inches="tight",
+                    )
+                    plt.close()
+
+                    plt.figure()
+                    shap.summary_plot(
+                        shap_values_feat,
+                        X_feat,
+                        feature_names=feature_names,
+                        plot_type="bar",
+                        max_display=100,
+                        show=False,
+                    )
+                    plt.savefig(
+                        f"{save_dir}/shap_bar_seq_{suffix}.png",
+                        dpi=300,
+                        bbox_inches="tight",
+                    )
+                    plt.close()
+
+                    print(f"[INFO] SHAP sequence plots saved to {save_dir}")
+
+                data_cfgs = self.cfgs.get("data_cfgs", {}) or {}
+                relevant_cols = data_cfgs.get("relevant_cols", []) or []
+                static_start = int(len(relevant_cols))
+                static_start = max(0, min(static_start, F_total))
+
+                hybrid_n = int(min(512, shap_values_fast.shape[0], shap_values_feat.shape[0]))
+                if hybrid_n > 0 and static_start < F_total:
+                    if shap_values_fast.shape[0] > hybrid_n:
+                        idx_fast = np.random.choice(shap_values_fast.shape[0], hybrid_n, replace=False)
+                    else:
+                        idx_fast = np.arange(shap_values_fast.shape[0])
+
+                    if shap_values_feat.shape[0] > hybrid_n:
+                        idx_seq = np.random.choice(shap_values_feat.shape[0], hybrid_n, replace=False)
+                    else:
+                        idx_seq = np.arange(shap_values_feat.shape[0])
+
+                    hybrid_shap = shap_values_fast[idx_fast].copy()
+                    hybrid_x = X_fast_np[idx_fast].copy()
+
+                    x_seq_last = sample_t.detach().cpu().numpy()[:, -1, :]
+                    seq_shap_sel = shap_values_feat[idx_seq]
+                    seq_x_sel = x_seq_last[idx_seq]
+
+                    hybrid_shap[:, static_start:] = seq_shap_sel[:, static_start:]
+                    hybrid_x[:, static_start:] = seq_x_sel[:, static_start:]
+
+                    hybrid_dynamic_mode = shap_cfgs.get("hybrid_dynamic_mode")
+                    if not isinstance(hybrid_dynamic_mode, str):
+                        hybrid_dynamic_mode = "fast"
+                    hybrid_dynamic_mode = hybrid_dynamic_mode.lower()
+
+                    dyn_seq_idx = []
+                    if hybrid_dynamic_mode == "seq_all":
+                        dyn_seq_idx = list(range(static_start))
+                    elif hybrid_dynamic_mode == "seq_bucket0":
+                        feature_buckets = (
+                            (self.cfgs.get("model_cfgs", {}) or {})
+                            .get("model_hyperparam", {})
+                            .get("feature_buckets")
+                        )
+                        if isinstance(feature_buckets, (list, tuple)) and len(
+                            feature_buckets
+                        ) >= static_start:
+                            dyn_seq_idx = [
+                                i
+                                for i in range(static_start)
+                                if int(feature_buckets[i]) == 0
+                            ]
+
+                    extra_seq_features = shap_cfgs.get("hybrid_dynamic_seq_features")
+                    if isinstance(extra_seq_features, (list, tuple)) and static_start > 0:
+                        name_to_idx = {
+                            str(n): i for i, n in enumerate(feature_names[:static_start])
+                        }
+                        for fn in extra_seq_features:
+                            idx = name_to_idx.get(str(fn))
+                            if idx is not None:
+                                dyn_seq_idx.append(idx)
+
+                    if dyn_seq_idx:
+                        dyn_seq_idx = sorted(set(dyn_seq_idx))
+                        hybrid_shap[:, dyn_seq_idx] = seq_shap_sel[:, dyn_seq_idx]
+                        hybrid_x[:, dyn_seq_idx] = seq_x_sel[:, dyn_seq_idx]
+
+                    if plot_hybrid:
+                        plt.figure()
+                        shap.summary_plot(
+                            hybrid_shap,
+                            hybrid_x,
+                            feature_names=feature_names,
+                            max_display=100,
+                            show=False,
+                        )
+                        plt.savefig(
+                            f"{save_dir}/shap_summary_hybrid.png",
+                            dpi=300,
+                            bbox_inches="tight",
+                        )
+                        plt.close()
+
+                        plt.figure()
+                        shap.summary_plot(
+                            hybrid_shap,
+                            hybrid_x,
+                            feature_names=feature_names,
+                            plot_type="bar",
+                            max_display=100,
+                            show=False,
+                        )
+                        plt.savefig(
+                            f"{save_dir}/shap_bar_hybrid.png",
+                            dpi=300,
+                            bbox_inches="tight",
+                        )
+                        plt.close()
+
+                        print(f"[INFO] SHAP hybrid plots saved to {save_dir}")
+
+                    if plot_split:
+                        feature_buckets = (
+                            (self.cfgs.get("model_cfgs", {}) or {})
+                            .get("model_hyperparam", {})
+                            .get("feature_buckets")
+                        )
+                        fb = None
+                        if isinstance(feature_buckets, (list, tuple)):
+                            if len(feature_buckets) >= F_total:
+                                fb = [int(x) for x in feature_buckets[:F_total]]
+                            elif len(feature_buckets) == static_start:
+                                fb = [int(x) for x in feature_buckets] + [0] * (
+                                    F_total - static_start
+                                )
+
+                        if fb is None:
+                            low_idx = list(range(static_start, F_total))
+                            high_idx = list(range(0, static_start))
+                        else:
+                            low_idx = [i for i in range(F_total) if int(fb[i]) == 0]
+                            high_idx = [i for i in range(F_total) if int(fb[i]) > 0]
+
+                        if low_idx:
+                            low_shap = hybrid_shap[:, low_idx]
+                            low_x = hybrid_x[:, low_idx]
+                            low_names = [feature_names[i] for i in low_idx]
+
+                            plt.figure()
+                            shap.summary_plot(
+                                low_shap,
+                                low_x,
+                                feature_names=low_names,
+                                max_display=100,
+                                show=False,
+                            )
+                            plt.savefig(
+                                f"{save_dir}/shap_summary_hybrid_lowfreq.png",
+                                dpi=300,
+                                bbox_inches="tight",
+                            )
+                            plt.close()
+
+                            plt.figure()
+                            shap.summary_plot(
+                                low_shap,
+                                low_x,
+                                feature_names=low_names,
+                                plot_type="bar",
+                                max_display=100,
+                                show=False,
+                            )
+                            plt.savefig(
+                                f"{save_dir}/shap_bar_hybrid_lowfreq.png",
+                                dpi=300,
+                                bbox_inches="tight",
+                            )
+                            plt.close()
+
+                        if high_idx:
+                            high_shap = hybrid_shap[:, high_idx]
+                            high_x = hybrid_x[:, high_idx]
+                            high_names = [feature_names[i] for i in high_idx]
+
+                            plt.figure()
+                            shap.summary_plot(
+                                high_shap,
+                                high_x,
+                                feature_names=high_names,
+                                max_display=100,
+                                show=False,
+                            )
+                            plt.savefig(
+                                f"{save_dir}/shap_summary_hybrid_highfreq.png",
+                                dpi=300,
+                                bbox_inches="tight",
+                            )
+                            plt.close()
+
+                            plt.figure()
+                            shap.summary_plot(
+                                high_shap,
+                                high_x,
+                                feature_names=high_names,
+                                plot_type="bar",
+                                max_display=100,
+                                show=False,
+                            )
+                            plt.savefig(
+                                f"{save_dir}/shap_bar_hybrid_highfreq.png",
+                                dpi=300,
+                                bbox_inches="tight",
+                            )
+                            plt.close()
+
+                        print(f"[INFO] SHAP hybrid high/low frequency split plots saved to {save_dir}")
+
+                        clean_extra = shap_cfgs.get("clean_extra")
+                        if not isinstance(clean_extra, bool):
+                            clean_extra = True
+                        if clean_extra:
+                            keep = {
+                                "shap_bar_hybrid_lowfreq.png",
+                                "shap_bar_hybrid_highfreq.png",
+                                "shap_summary_hybrid_lowfreq.png",
+                                "shap_summary_hybrid_highfreq.png",
+                            }
+                            for fn in os.listdir(save_dir):
+                                if not (fn.startswith("shap_") and fn.endswith(".png")):
+                                    continue
+                                if fn in keep:
+                                    continue
+                                try:
+                                    os.remove(os.path.join(save_dir, fn))
+                                except Exception:
+                                    pass
 
         # Restore model to original device
         self.model.to(original_device)

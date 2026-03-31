@@ -143,9 +143,14 @@ data/
 scripts/
 pth_file/
 check/
+MC-LSTM/
+generated_docs/
 # data_processing/    
 Temporary_file/
 test/
+!test/
+test/*
+!test/run_shap_standalone.py
 .gitignore
 pic/
 # Claude
@@ -154,5 +159,6 @@ CLAUDE.md
 .DS_Store
 
 # version file
-torchhydro/_version.pydata_processing/box.py
+torchhydro/_version.py
+data_processing/box.py
 data_processing/

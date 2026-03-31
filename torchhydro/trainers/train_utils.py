@@ -925,6 +925,26 @@ def _recover_samples_to_continuous_by_floodevent(
     # Get the actual number of basins
     basin_num = len(dataset.t_s_dict["sites_id"])
 
+    # Normalize input shape to [samples, time, features]
+    if arr_3d is None:
+        raise ValueError("arr_3d cannot be None for flood-event recovery.")
+    if arr_3d.ndim == 1:
+        # [samples] -> assume single feature and single time step
+        arr_3d = arr_3d.reshape(-1, 1, 1)
+    elif arr_3d.ndim == 2:
+        # Heuristic: if second dim equals nf (features), treat as [samples, features]
+        # otherwise treat as [samples, time] with single feature
+        n2 = arr_3d.shape[1]
+        tgt_n = len(getattr(dataset.data_cfgs, "get", lambda *_: [])("target_cols", [])) if isinstance(dataset.data_cfgs, dict) else nf
+        try:
+            expected_features = len(dataset.data_cfgs["target_cols"])
+        except Exception:
+            expected_features = nf
+        if n2 == expected_features or n2 == nf:
+            arr_3d = arr_3d[:, None, :]
+        else:
+            arr_3d = arr_3d[:, :, None]
+
     # Check if this is a FloodEventDataset and handle flood_event column properly
     is_flood_dataset = isinstance(dataset, FloodEventDataset)
 
