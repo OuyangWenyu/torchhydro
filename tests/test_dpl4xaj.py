@@ -81,6 +81,7 @@ def test_dpl_lstm_xaj_eh(device, dpl_eh):
 
 def test_dpl_lstm_xaj_eh5mm(device, dpl_eh5mm):
     # sequence-first tensor: time_sequence, batch, feature_size (assume that they are p, pet, srad, tmax, tmin)
+    torch.manual_seed(42)
     x = torch.rand(20, 10, 5).to(device)
     z = torch.rand(20, 10, 5).to(device)
     qe = dpl_eh5mm(x, z)
