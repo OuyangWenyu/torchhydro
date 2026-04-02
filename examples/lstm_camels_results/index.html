@@ -1,0 +1,1257 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://OuyangWenyu.github.io/torchhydro/examples/lstm_camels_results/">
+      
+      
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.17">
+    
+    
+      
+        <title>SimpleLSTM on CAMELS-US: Training Results - torchhydro</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.7e37652d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="preference" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#simplelstm-on-camels-us-training-results" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="torchhydro" class="md-header__button md-logo" aria-label="torchhydro" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            torchhydro
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              SimpleLSTM on CAMELS-US: Training Results
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/OuyangWenyu/torchhydro" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="torchhydro" class="md-nav__button md-logo" aria-label="torchhydro" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    torchhydro
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/OuyangWenyu/torchhydro" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Usage
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    FAQ
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Changelog
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/OuyangWenyu/torchhydro/issues" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Report Issues
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../torchhydro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Datasets
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/trainers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Trainers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/explainers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Explainers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Experiment Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Model Configuration
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Model Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      Architecture
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#input-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Input Features
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Input Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#time-varying-features-7" class="md-nav__link">
+    <span class="md-ellipsis">
+      Time-Varying Features (7)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#static-catchment-features-23" class="md-nav__link">
+    <span class="md-ellipsis">
+      Static Catchment Features (23)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#training-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Training Configuration
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#training-progress" class="md-nav__link">
+    <span class="md-ellipsis">
+      Training Progress
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Training Progress">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#loss-curves" class="md-nav__link">
+    <span class="md-ellipsis">
+      Loss Curves
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validation-metrics-by-epoch" class="md-nav__link">
+    <span class="md-ellipsis">
+      Validation Metrics by Epoch
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#training-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Training Overview
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-observations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Observations
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-results-2010-2014" class="md-nav__link">
+    <span class="md-ellipsis">
+      Test Results (2010-2014)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Test Results (2010-2014)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#performance-distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      Performance Distribution
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#top-performing-basins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Top Performing Basins
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-findings" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Findings
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      Output Files
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-reproduce" class="md-nav__link">
+    <span class="md-ellipsis">
+      How to Reproduce
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How to Reproduce">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-setup-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Setup Environment
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-configure-data-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Configure Data Path
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-run-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Run Training
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluation-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Evaluation Metrics
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Evaluation Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#nash-sutcliffe-efficiency-nse" class="md-nav__link">
+    <span class="md-ellipsis">
+      Nash-Sutcliffe Efficiency (NSE)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kling-gupta-efficiency-kge" class="md-nav__link">
+    <span class="md-ellipsis">
+      Kling-Gupta Efficiency (KGE)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#root-mean-square-error-rmse" class="md-nav__link">
+    <span class="md-ellipsis">
+      Root Mean Square Error (RMSE)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#further-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Further Resources
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+
+
+
+                  
+
+
+  
+  
+
+
+<h1 id="simplelstm-on-camels-us-training-results">SimpleLSTM on CAMELS-US: Training Results<a class="headerlink" href="#simplelstm-on-camels-us-training-results" title="Permanent link">&para;</a></h1>
+<p>This document presents the training results of a standard LSTM model on the CAMELS-US dataset for streamflow prediction.</p>
+<h2 id="experiment-overview">Experiment Overview<a class="headerlink" href="#experiment-overview" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Model</strong>: SimpleLSTM neural network</li>
+<li><strong>Dataset</strong>: CAMELS-US (671 basins)</li>
+<li><strong>Training Period</strong>: 1980-01-01 to 2004-12-31 (25 years)</li>
+<li><strong>Validation Period</strong>: 2005-01-01 to 2009-12-31 (5 years)</li>
+<li><strong>Test Period</strong>: 2010-01-01 to 2014-12-31 (5 years)</li>
+</ul>
+<h2 id="model-configuration">Model Configuration<a class="headerlink" href="#model-configuration" title="Permanent link">&para;</a></h2>
+<h3 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">model_hyperparam</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;input_size&quot;</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span>      <span class="c1"># 7 time-varying + 23 static features</span>
+    <span class="s2">&quot;output_size&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>      <span class="c1"># Streamflow prediction</span>
+    <span class="s2">&quot;hidden_size&quot;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span>    <span class="c1"># LSTM hidden units</span>
+<span class="p">}</span>
+</code></pre></div></td></tr></table></div>
+<p><strong>Total Parameters</strong>: ~133K trainable parameters</p>
+<h3 id="input-features">Input Features<a class="headerlink" href="#input-features" title="Permanent link">&para;</a></h3>
+<h4 id="time-varying-features-7">Time-Varying Features (7)<a class="headerlink" href="#time-varying-features-7" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Precipitation (mm/day)</li>
+<li>Daylight duration (hours)</li>
+<li>Solar radiation (W/m²)</li>
+<li>Maximum daily temperature (°C)</li>
+<li>Minimum daily temperature (°C)</li>
+<li>Vapor pressure (Pa)</li>
+<li>Potential evapotranspiration (mm/day)</li>
+</ul>
+<h4 id="static-catchment-features-23">Static Catchment Features (23)<a class="headerlink" href="#static-catchment-features-23" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Topography</strong>: area, elevation, slope, gauge location</li>
+<li><strong>Climate</strong>: precipitation mean, PET mean</li>
+<li><strong>Geology</strong>: geology classes, porosity, permeability</li>
+<li><strong>Vegetation</strong>: forest fraction, LAI, land cover</li>
+<li><strong>Soil</strong>: root depth, soil depth, porosity, conductivity, water content</li>
+<li><strong>Administrative</strong>: HUC-02 classification</li>
+</ul>
+<h2 id="training-configuration">Training Configuration<a class="headerlink" href="#training-configuration" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Optimizer</td>
+<td>Adam</td>
+</tr>
+<tr>
+<td>Learning Rate</td>
+<td>0.0005</td>
+</tr>
+<tr>
+<td>LR Scheduler</td>
+<td>ExponentialLR (factor: 0.95)</td>
+</tr>
+<tr>
+<td>Loss Function</td>
+<td>RMSESum</td>
+</tr>
+<tr>
+<td>Batch Size</td>
+<td>256</td>
+</tr>
+<tr>
+<td>Total Epochs</td>
+<td>50</td>
+</tr>
+<tr>
+<td>Early Stopping</td>
+<td>Enabled (patience: 5)</td>
+</tr>
+<tr>
+<td>Forecast Length</td>
+<td>365 days</td>
+</tr>
+<tr>
+<td>Device</td>
+<td>GPU (CUDA)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="training-progress">Training Progress<a class="headerlink" href="#training-progress" title="Permanent link">&para;</a></h2>
+<h3 id="loss-curves">Loss Curves<a class="headerlink" href="#loss-curves" title="Permanent link">&para;</a></h3>
+<p><img alt="LSTM Training and Validation Loss" src="../figures/lstm_camels/lstm_loss_curves.png" /></p>
+<p><strong>Training Loss</strong> decreased steadily from <strong>0.313</strong> (Epoch 1) to <strong>0.223</strong> (Epoch 7), showing consistent improvement with the largest drop of 16.7% between Epochs 1-2.</p>
+<p><strong>Validation Loss</strong> showed overfitting signs after Epoch 2, where it reached minimum (<strong>0.3115</strong>) and then increased to <strong>0.328</strong> by Epoch 7 while training loss continued decreasing.</p>
+<h3 id="validation-metrics-by-epoch">Validation Metrics by Epoch<a class="headerlink" href="#validation-metrics-by-epoch" title="Permanent link">&para;</a></h3>
+<p><img alt="LSTM Validation Metrics" src="../figures/lstm_camels/lstm_validation_metrics.png" /></p>
+<p><strong>NSE (Nash-Sutcliffe Efficiency)</strong>:
+- NSE Median peaked at <strong>0.7215</strong> (Epoch 5), indicating good performance
+- NSE Mean remained around 0.55-0.61 across epochs
+- Higher median than mean suggests good performance on majority of basins</p>
+<p><strong>KGE (Kling-Gupta Efficiency)</strong>:
+- KGE Median peaked at <strong>0.7476</strong> (Epoch 5), indicating good performance
+- KGE Mean: 0.658-0.667, more stable than NSE throughout training</p>
+<p><strong>RMSE (Root Mean Square Error)</strong>:
+- RMSE Median lowest at <strong>0.985 m³/s</strong> (Epoch 2)
+- Both metrics showed minimal variation across epochs (&lt; 5%)</p>
+<h3 id="training-overview">Training Overview<a class="headerlink" href="#training-overview" title="Permanent link">&para;</a></h3>
+<p><img alt="LSTM Training Overview" src="../figures/lstm_camels/lstm_training_overview.png" /></p>
+<p><strong>Figure</strong>: Combined view of training/validation loss (left) and validation NSE metrics (right).</p>
+<h3 id="key-observations">Key Observations<a class="headerlink" href="#key-observations" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>Best Validation Performance</strong>: Epoch 5 achieved optimal NSE/KGE median scores (NSE: 0.7215, KGE: 0.7476)</p>
+</li>
+<li>
+<p><strong>Overfitting Pattern</strong>: Training loss decreased continuously (29% reduction) while validation loss increased after Epoch 2 (5% increase), indicating model achieved best generalization between Epochs 2-5</p>
+</li>
+<li>
+<p><strong>Early Stopping</strong>: Training stopped at Epoch 7 (patience=5). Validation loss minimum at Epoch 2, but NSE/KGE metrics better at Epoch 5, demonstrating importance of using multiple metrics for model selection</p>
+</li>
+<li>
+<p><strong>Model Convergence</strong>: Loss change rate decreased from 16.7% (Epoch 1→2) to 1.4% (Epoch 6→7), with NSE and KGE medians stabilizing in 0.71-0.75 range</p>
+</li>
+</ol>
+<p><strong>Note</strong>: Training stopped at Epoch 7 due to early stopping.</p>
+<h2 id="test-results-2010-2014">Test Results (2010-2014)<a class="headerlink" href="#test-results-2010-2014" title="Permanent link">&para;</a></h2>
+<p><strong>Performance Statistics</strong> (669 valid basins):</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Mean</th>
+<th>Median</th>
+<th>Std</th>
+<th>25%</th>
+<th>75%</th>
+<th>Min</th>
+<th>Max</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>NSE</strong></td>
+<td>0.523</td>
+<td>0.717</td>
+<td>1.584</td>
+<td>0.543</td>
+<td>0.808</td>
+<td>-29.65</td>
+<td>0.936</td>
+</tr>
+<tr>
+<td><strong>KGE</strong></td>
+<td>0.629</td>
+<td>0.721</td>
+<td>0.418</td>
+<td>0.547</td>
+<td>0.827</td>
+<td>-5.78</td>
+<td>0.938</td>
+</tr>
+<tr>
+<td><strong>RMSE</strong></td>
+<td>1.248</td>
+<td>1.018</td>
+<td>0.996</td>
+<td>0.588</td>
+<td>1.616</td>
+<td>0.025</td>
+<td>8.024</td>
+</tr>
+</tbody>
+</table>
+<h3 id="performance-distribution">Performance Distribution<a class="headerlink" href="#performance-distribution" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Excellent (NSE &gt; 0.8)</strong>: ~25% of basins (169 basins)</li>
+<li><strong>Good (0.7 &lt; NSE ≤ 0.8)</strong>: ~25% of basins (168 basins)</li>
+<li><strong>Satisfactory (0.5 &lt; NSE ≤ 0.7)</strong>: ~25% of basins (168 basins)</li>
+<li><strong>Unsatisfactory (NSE ≤ 0.5)</strong>: ~25% of basins (164 basins)</li>
+</ul>
+<p><strong>Median NSE of 0.717</strong> indicates strong performance across the majority of catchments.</p>
+<h3 id="top-performing-basins">Top Performing Basins<a class="headerlink" href="#top-performing-basins" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Basin ID</th>
+<th>NSE</th>
+<th>RMSE</th>
+<th>KGE</th>
+<th>Region</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>01013500</td>
+<td>0.856</td>
+<td>0.699</td>
+<td>0.907</td>
+<td>Northeast</td>
+</tr>
+<tr>
+<td>01022500</td>
+<td>0.847</td>
+<td>1.011</td>
+<td>0.798</td>
+<td>Northeast</td>
+</tr>
+<tr>
+<td>01030500</td>
+<td>0.831</td>
+<td>1.018</td>
+<td>0.717</td>
+<td>Northeast</td>
+</tr>
+<tr>
+<td>01031500</td>
+<td>0.827</td>
+<td>1.355</td>
+<td>0.713</td>
+<td>Northeast</td>
+</tr>
+<tr>
+<td>01057000</td>
+<td>0.855</td>
+<td>1.143</td>
+<td>0.841</td>
+<td>Northeast</td>
+</tr>
+</tbody>
+</table>
+<h2 id="key-findings">Key Findings<a class="headerlink" href="#key-findings" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Strong Generalization</strong>: Median NSE of 0.717 demonstrates robust performance across diverse catchments</li>
+<li><strong>Efficient Training</strong>: Model converged in 7 epochs (~47 minutes total)</li>
+<li><strong>Overfitting Detection</strong>: Validation loss increased after Epoch 2, but NSE/KGE metrics continued improving until Epoch 5</li>
+<li><strong>Basin Heterogeneity</strong>: Wide performance range reflects the diversity of hydrological conditions across CAMELS-US</li>
+</ol>
+<h2 id="output-files">Output Files<a class="headerlink" href="#output-files" title="Permanent link">&para;</a></h2>
+<p>Results are saved in <code>results/lstm_results/camels_all/</code>:</p>
+<ul>
+<li><code>best_model.pth</code>: Model checkpoint with best validation performance</li>
+<li><code>metric_streamflow.csv</code>: Per-basin evaluation metrics (671 rows)</li>
+<li><code>epochbest_model.pthflow_obs.nc</code>: Observed streamflow (NetCDF)</li>
+<li><code>epochbest_model.pthflow_pred.nc</code>: Predicted streamflow (NetCDF)</li>
+<li><code>dapengscaler_stat.json</code>: Normalization statistics</li>
+<li><code>*.json</code>: Complete configuration snapshot</li>
+</ul>
+<h2 id="how-to-reproduce">How to Reproduce<a class="headerlink" href="#how-to-reproduce" title="Permanent link">&para;</a></h2>
+<h3 id="1-setup-environment">1. Setup Environment<a class="headerlink" href="#1-setup-environment" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/OuyangWenyu/torchhydro.git
+<span class="nb">cd</span><span class="w"> </span>torchhydro
+uv<span class="w"> </span>sync<span class="w"> </span>--all-extras
+</code></pre></div></td></tr></table></div>
+<h3 id="2-configure-data-path">2. Configure Data Path<a class="headerlink" href="#2-configure-data-path" title="Permanent link">&para;</a></h3>
+<p>Create <code>~/hydro_setting.yml</code>:</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nt">local_data_path</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">root</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;D:/data&#39;</span>
+<span class="w">  </span><span class="nt">datasets-origin</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;D:/data&#39;</span>
+<span class="w">  </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;D:/data/.cache&#39;</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="3-run-training">3. Run Training<a class="headerlink" href="#3-run-training" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>python<span class="w"> </span>examples/lstm_camels_example.py
+</code></pre></div></td></tr></table></div>
+<p>Modify the example script to train on all 671 basins by updating the <code>gage_id</code> parameter.</p>
+<h2 id="evaluation-metrics">Evaluation Metrics<a class="headerlink" href="#evaluation-metrics" title="Permanent link">&para;</a></h2>
+<h3 id="nash-sutcliffe-efficiency-nse">Nash-Sutcliffe Efficiency (NSE)<a class="headerlink" href="#nash-sutcliffe-efficiency-nse" title="Permanent link">&para;</a></h3>
+<p>$$\text{NSE} = 1 - \frac{\sum_{t=1}^{T}(Q_{\text{obs}}(t) - Q_{\text{sim}}(t))^2}{\sum_{t=1}^{T}(Q_{\text{obs}}(t) - \bar{Q}_{\text{obs}})^2}$$</p>
+<ul>
+<li><strong>Range</strong>: (-∞, 1], optimal = 1</li>
+<li><strong>Interpretation</strong>:</li>
+<li>NSE &gt; 0.8: Excellent</li>
+<li>0.7 &lt; NSE ≤ 0.8: Good</li>
+<li>0.5 &lt; NSE ≤ 0.7: Satisfactory</li>
+<li>NSE ≤ 0.5: Unsatisfactory</li>
+</ul>
+<h3 id="kling-gupta-efficiency-kge">Kling-Gupta Efficiency (KGE)<a class="headerlink" href="#kling-gupta-efficiency-kge" title="Permanent link">&para;</a></h3>
+<p>$$\text{KGE} = 1 - \sqrt{(r - 1)^2 + (\alpha - 1)^2 + (\beta - 1)^2}$$</p>
+<p>Where $r$ is correlation, $\alpha$ is variability ratio, $\beta$ is bias ratio.</p>
+<ul>
+<li><strong>Range</strong>: (-∞, 1], optimal = 1</li>
+<li><strong>Interpretation</strong>: KGE &gt; 0.5 considered acceptable</li>
+</ul>
+<h3 id="root-mean-square-error-rmse">Root Mean Square Error (RMSE)<a class="headerlink" href="#root-mean-square-error-rmse" title="Permanent link">&para;</a></h3>
+<p>$$\text{RMSE} = \sqrt{\frac{1}{T}\sum_{t=1}^{T}(Q_{\text{obs}}(t) - Q_{\text{sim}}(t))^2}$$</p>
+<ul>
+<li><strong>Unit</strong>: m³/s</li>
+<li><strong>Lower is better</strong></li>
+</ul>
+<h2 id="further-resources">Further Resources<a class="headerlink" href="#further-resources" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="https://OuyangWenyu.github.io/torchhydro">torchhydro Documentation</a></strong>: Complete API reference</li>
+<li><strong><a href="../../examples/">Example Scripts</a></strong>: Training examples for different models</li>
+<li><strong><a href="../../api/models/">Models API</a></strong>: Available model architectures</li>
+<li><strong><a href="../../api/datasets/">Datasets API</a></strong>: Data handling and preprocessing</li>
+</ul>
+<hr />
+<p><strong>Last Updated</strong>: December 2025</p>
+
+
+
+
+
+
+
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    2026-04-02
+  </span>
+
+    
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.instant", "search.highlight"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.92b07e13.min.js"></script>
+      
+    
+  </body>
+</html>
