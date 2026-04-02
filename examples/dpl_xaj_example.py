@@ -88,6 +88,7 @@ def main():
         model_loader={"load_way": "specified", "test_epoch": 2},
         opt="Adadelta",
         which_first_tensor="sequence",
+        constant_only=1,  # DplAttrXaj uses only static attributes as ANN input
     )
 
     # 2. Load default config and update it with your parameters
