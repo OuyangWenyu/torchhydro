@@ -1,0 +1,18 @@
+# Server 2: 3 GPUs, shared with other users.
+# Auto mode probes nvidia-smi each scheduling tick to find a GPU with enough headroom.
+# Copy to server2_slots.local.yaml on the machine and edit thresholds for the box.
+
+mode: auto
+max_per_gpu: 1
+# When mode=auto, only consider GPUs in this allowlist (others may belong to other users).
+gpus:
+  - 0
+  - 1
+  - 2
+# Free MiB required to claim a GPU as a slot.
+min_free_mib: 8000
+# Skip GPUs whose utilization is above this percent.
+max_utilization_pct: 50
+
+pair_high_low: false
+high_k_threshold: 400

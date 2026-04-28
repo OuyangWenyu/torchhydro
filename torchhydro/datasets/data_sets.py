@@ -9,6 +9,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import logging
+import os
 import re
 import sys
 import torch
@@ -3731,7 +3732,7 @@ class AEFDataset(BaseDataset):
             data_forcing_ds_, data_output_ds_
         )
         # c
-        csv_path = r"/Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv"
+        csv_path = os.environ.get("TORCHHYDRO_EMBEDDING_CSV") or r"/Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv"
         df_embeddings = pd.read_csv(csv_path)
         df_embeddings["hru_id"] = (
             df_embeddings["hru_id"].astype(int).astype(str).str.lstrip("0")
@@ -3801,7 +3802,7 @@ class Camels_merge_AEFDataset(BaseDataset):
             all_number=True,
         )
 
-        csv_path = r"/Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv"
+        csv_path = os.environ.get("TORCHHYDRO_EMBEDDING_CSV") or r"/Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv"
         df_embeddings = pd.read_csv(csv_path)
         df_embeddings["hru_id"] = (
             df_embeddings["hru_id"].astype(int).astype(str).str.lstrip("0")

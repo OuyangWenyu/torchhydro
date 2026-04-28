@@ -8,6 +8,7 @@ FilePath: /HydroForecastEval/scripts/train_googlefloodhub_camels_671basins_ear5l
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
+import argparse
 import logging
 import os.path
 import pandas as pd
@@ -22,155 +23,67 @@ from hydrodataset.camels import Camels
 
 sys.path.append(os.path.dirname(Path(os.path.abspath(__file__)).parent))
 
-hru_delete = "01"
+
+def _parse_cli():
+    p = argparse.ArgumentParser(add_help=True)
+    p.add_argument("--gage-id-file", default=None)
+    p.add_argument("--gage-ids", default=None,
+                   help="comma-separated basin ids (single id is fine)")
+    p.add_argument("--train-hru-delete", default=None,
+                   help="hru_delete used at training time; locates the checkpoint")
+    p.add_argument("--eval-hru-delete", default=None,
+                   help="hru_delete for eval output sub-folder; defaults to --train-hru-delete")
+    p.add_argument("--dataset", default=None)
+    p.add_argument("--ctx", default=None)
+    p.add_argument("--project-dir", default=None,
+                   help="eval project_dir; default from paths.yaml eval_project_dir")
+    p.add_argument("--training-project-dir", default=None,
+                   help="root of training results tree; default from paths.yaml project_dir")
+    p.add_argument("--camels-dir", default=None)
+    p.add_argument("--train-epoch", type=int, default=None)
+    args, _ = p.parse_known_args()
+    return args
+
+
+CLI = _parse_cli()
+
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from path_config import get_paths
+    _PATHS = get_paths()
+except Exception:
+    _PATHS = {}
+
+
+train_hru_delete = CLI.train_hru_delete or "01"
+eval_hru_delete = CLI.eval_hru_delete or train_hru_delete
+hru_delete = eval_hru_delete  # used in project_name (eval output sub-folder)
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-camels_dir = os.path.join("/Volumes/Untitled/data")
+camels_dir = CLI.camels_dir or _PATHS.get("camels_dir") or os.path.join("/Volumes/Untitled/data")
 camels = Camels(camels_dir)
-# gage_id = camels.read_site_info()["gauge_id"].values.tolist()
-gage_id = [
-    "01013500",
-    "01031500",
-    "01052500",
-    "01055000",
-    "01078000",
-    "01121000",
-    "01162500",
-    "01365000",
-    "01439500",
-    "01516500",
-    "01543500",
-    "01544500",
-    "01550000",
-    "01568000",
-    "01583500",
-    "01591400",
-    "01644000",
-    "01666500",
-    "01669520",
-    "02011400",
-    "02016000",
-    "02017500",
-    "02028500",
-    "02046000",
-    "02051000",
-    "02051500",
-    "02056900",
-    "02059500",
-    "02065500",
-    "02082950",
-    "02111180",
-    "02143000",
-    "02149000",
-    "02152100",
-    "02216180",
-    "02245500",
-    "02349900",
-    "02369800",
-    "02372250",
-    "02395120",
-    "02430085",
-    "02465493",
-    "02472500",
-    "02481510",
-    "03028000",
-    "03066000",
-    "03070500",
-    "03076600",
-    "03186500",
-    "03291780",
-    "03338780",
-    "03340800",
-    "03455500",
-    "03500240",
-    "03574500",
-    "04015330",
-    "04074950",
-    "04161580",
-    "04213075",
-    "05056000",
-    "05057000",
-    "05413500",
-    "05414000",
-    "05488200",
-    "05495500",
-    "05501000",
-    "05508805",
-    "05593575",
-    "06037500",
-    "06224000",
-    "06289000",
-    "06339100",
-    "06441500",
-    "06450500",
-    "06468170",
-    "06746095",
-    "06784000",
-    "06803510",
-    "06876700",
-    "06903400",
-    "06921070",
-    "07149000",
-    "07208500",
-    "07315200",
-    "07315700",
-    "07362100",
-    "07375000",
-    "08014500",
-    "08050800",
-    "08070200",
-    "08104900",
-    "08164300",
-    "08171300",
-    "08175000",
-    "08178880",
-    "08198500",
-    "08200000",
-    "08271000",
-    "08377900",
-    "08380500",
-    "09047700",
-    "09107000",
-    "09312600",
-    "09430500",
-    "09484000",
-    "09497980",
-    "10234500",
-    "10244950",
-    "10348850",
-    "10396000",
-    "11162500",
-    "11180960",
-    "11253310",
-    "11381500",
-    "11473900",
-    "11478500",
-    "11522500",
-    "11523200",
-    "12025000",
-    "12054000",
-    "12092000",
-    "12114500",
-    "12141300",
-    "12167000",
-    "12374250",
-    "12377150",
-    "12411000",
-    "13018300",
-    "13023000",
-    "13313000",
-    "14138900",
-    "14154500",
-    "14166500",
-    "14185900",
-    "14362250",
-]
+
+if CLI.gage_id_file:
+    with open(CLI.gage_id_file, "r", encoding="utf-8") as _f:
+        gage_id = [ln.strip() for ln in _f if ln.strip()]
+elif CLI.gage_ids:
+    gage_id = [s.strip() for s in CLI.gage_ids.split(",") if s.strip()]
+else:
+    gage_id = ["01013500", "01022500", "01030500", "01031500", "01047000"]
+gage_id = sorted([x for x in gage_id])
 
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"
+
+_train_results_root = (CLI.training_project_dir
+                       or _PATHS.get("project_dir")
+                       or "/Users/cylenlc/work/torchhydro")
+_eval_project_dir = (CLI.project_dir
+                     or _PATHS.get("eval_project_dir")
+                     or r"/Users/cylenlc/work/torchhydro/experiments")
 
 length = 7
 dim = 128
@@ -189,25 +102,25 @@ def config():
 
     args = cmd(
         train_mode=False,
-        stat_dict_file=r"/Users/cylenlc/work/torchhydro/experiments/results/camels/simplelstm_DapengScaler_128_0.4_ens_01/dapengscaler_stat.json",
-        project_dir=r"/Users/cylenlc/work/torchhydro/experiments",
+        stat_dict_file=f"{_train_results_root}/results/camels/simplelstm_{scaler}_{dim}_{dr}_ens_{train_hru_delete}/dapengscaler_stat.json",
+        project_dir=_eval_project_dir,
         sub=project_name,
         source_cfgs={
             "source_name": "camels_us",
             "source_path": camels_dir,
             "other_settings": {"download": False, "region": "US"},
         },
-        ctx=[0],
+        ctx=[int(x) for x in CLI.ctx.split(",")] if CLI.ctx else [0],
         model_name="SimpleLSTM",
         model_hyperparam={
-            "input_size": 88,
+            "input_size": 24,
             "output_size": 1,
             "hidden_size": 128,
             "dr": 0.4,
         },
         model_loader={
             "load_way": "pth",
-            "pth_path": f"/Users/cylenlc/work/torchhydro/experiments/results/camels/simplelstm_DapengScaler_128_0.4_ens_{hru_delete}/best_model.pth",
+            "pth_path": f"{_train_results_root}/results/camels/simplelstm_{scaler}_{dim}_{dr}_ens_{train_hru_delete}/best_model.pth",
         },
         gage_id=gage_id,
         batch_size=256,
@@ -257,8 +170,8 @@ def config():
         # scaler="DapengScaler",
         scaler=scaler,
         var_out=["streamflow"],
-        dataset="MergedDataset",
-        train_epoch=10,
+        dataset=CLI.dataset or "StreamflowDataset",
+        train_epoch=CLI.train_epoch or 20,
         save_epoch=1,
         train_period=["1980-01-01", "2004-12-31"],
         valid_period=["2005-01-01", "2009-12-31"],
@@ -306,7 +219,7 @@ def config():
             "pace_idx": -1,
         },
         shap_cfgs={
-            "enable": True,
+            "enable": False,
             "save_dir": "/Users/cylenlc/追加实验/CamelsAttr+AEF/第一折",
             "max_sample": 3000,
             "background_size": 100,

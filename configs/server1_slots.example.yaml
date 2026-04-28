@@ -1,0 +1,13 @@
+# Server 1: 2 dedicated GPUs, max 2 jobs per GPU.
+# Copy to server1_slots.local.yaml on the machine and edit if needed.
+# Used by scripts/batch_runner.py with --server server1.
+
+mode: manual           # manual = use the gpus list below; auto = ignore and probe nvidia-smi
+max_per_gpu: 2
+gpus:
+  - 0
+  - 1
+
+# Pairing strategy: each GPU runs at most one "high-k" job (k>=400) plus one "low-k" job at a time.
+pair_high_low: true
+high_k_threshold: 400

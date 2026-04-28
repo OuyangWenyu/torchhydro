@@ -8,6 +8,7 @@ FilePath: /HydroForecastEval/scripts/train_googlefloodhub_camels_671basins_ear5l
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
+import argparse
 import logging
 import os.path
 import sys
@@ -18,17 +19,56 @@ from hydrodataset.camels import Camels
 
 sys.path.append(os.path.dirname(Path(os.path.abspath(__file__)).parent))
 
-hru_delete = "01"
+
+def _parse_cli():
+    p = argparse.ArgumentParser(add_help=True)
+    p.add_argument("--gage-id-file", default=None,
+                   help="text file with one basin id per line (overrides hardcoded list)")
+    p.add_argument("--gage-ids", default=None,
+                   help="comma-separated basin ids (overrides hardcoded list)")
+    p.add_argument("--hru-delete", default=None,
+                   help="suffix used in the experiment sub-folder; default '01'")
+    p.add_argument("--dataset", default=None,
+                   help="dataset class name; default 'StreamflowDataset'")
+    p.add_argument("--ctx", default=None,
+                   help="comma-separated GPU device ids; default '0'")
+    p.add_argument("--project-dir", default=None,
+                   help="project dir for results/; default from paths.yaml")
+    p.add_argument("--camels-dir", default=None,
+                   help="CAMELS data root; default from paths.yaml")
+    p.add_argument("--train-epoch", type=int, default=None,
+                   help="override training epochs (debug)")
+    args, _ = p.parse_known_args()
+    return args
+
+
+CLI = _parse_cli()
+
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from path_config import get_paths
+    _PATHS = get_paths()
+except Exception:
+    _PATHS = {}
+
+
+hru_delete = CLI.hru_delete or "01"
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-camels_dir = os.path.join("/Volumes/Untitled/data")
+camels_dir = CLI.camels_dir or _PATHS.get("camels_dir") or os.path.join("/Volumes/Untitled/data")
 camels = Camels(camels_dir)
-# gage_id = camels.read_site_info()["gauge_id"].values.tolist()
-gage_id = ['01013500', '01022500', '01030500', '01031500', '01047000']
+
+if CLI.gage_id_file:
+    with open(CLI.gage_id_file, "r", encoding="utf-8") as _f:
+        gage_id = [ln.strip() for ln in _f if ln.strip()]
+elif CLI.gage_ids:
+    gage_id = [s.strip() for s in CLI.gage_ids.split(",") if s.strip()]
+else:
+    gage_id = ["01013500", "01022500", "01030500", "01031500", "01047000"]
 gage_id = sorted([x for x in gage_id])
 
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"
@@ -49,16 +89,17 @@ def config():
     config_data = default_config_file()
 
     args = cmd(
+        project_dir=CLI.project_dir or _PATHS.get("project_dir"),
         sub=project_name,
         source_cfgs={
             "source_name": "camels_us",
             "source_path": camels_dir,
             "other_settings": {"download": False, "region": "US"},
         },
-        ctx=[0],
+        ctx=[int(x) for x in CLI.ctx.split(",")] if CLI.ctx else [0],
         model_name="SimpleLSTM",
         model_hyperparam={
-            "input_size": 29,
+            "input_size": 24,
             "output_size": 1,
             "hidden_size": 128,
             "dr": 0.4,
@@ -73,13 +114,20 @@ def config():
         forecast_length=365,
         min_time_unit="D",
         min_time_interval=1,
-        var_t=["precipitation", "daylight_duration", "solar_radiation", "temperature_max", "temperature_min", "vapor_pressure", "potential_evapotranspiration"],
+        var_t=[
+            "precipitation",
+            "daylight_duration",
+            "solar_radiation",
+            "temperature_max",
+            "temperature_min",
+            "vapor_pressure",
+            "potential_evapotranspiration",
+        ],
         scaler_params={
             "prcp_norm_cols": [
                 "streamflow",
             ],
             "gamma_norm_cols": ["precipitation", "potential_evapotranspiration"],
-            #"one_hot_cols": ["dom_land_cover", "geol_1st_class", "geol_2nd_class"],
             "pbm_norm": False,
         },
         var_c=[
@@ -103,8 +151,8 @@ def config():
         ],
         scaler=scaler,
         var_out=["streamflow"],
-        dataset="StreamflowDataset",
-        train_epoch=20,
+        dataset=CLI.dataset or "StreamflowDataset",
+        train_epoch=CLI.train_epoch or 20,
         save_epoch=1,
         train_period=["1980-01-01", "2004-12-31"],
         valid_period=["2005-01-01", "2009-12-31"],

@@ -140,7 +140,7 @@ mlruns/
 .idea
 results/
 data/
-scripts/
+scripts/__pycache__
 pth_file/
 check/
 MC-LSTM/
@@ -162,3 +162,10 @@ CLAUDE.md
 torchhydro/_version.py
 data_processing/box.py
 data_processing/
+
+# per-machine batch automation configs
+configs/paths.yaml
+configs/*_slots.local.yaml
+logs/
+gage_id_cache/
+batch_state/

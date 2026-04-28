@@ -8,6 +8,7 @@ FilePath: /HydroForecastEval/scripts/train_googlefloodhub_camels_671basins_ear5l
 Copyright (c) 2021-2024 Wenyu Ouyang. All rights reserved.
 """
 
+import argparse
 import logging
 import os.path
 import pandas as pd
@@ -19,22 +20,63 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 from hydrodataset.camels import Camels
 
-# Get the project directory of the py file
-
-# import the module using a relative path
 sys.path.append(os.path.dirname(Path(os.path.abspath(__file__)).parent))
 
-hru_delete = "01"
+
+def _parse_cli():
+    p = argparse.ArgumentParser(add_help=True)
+    p.add_argument("--gage-id-file", default=None)
+    p.add_argument("--gage-ids", default=None)
+    p.add_argument("--train-hru-delete", default=None)
+    p.add_argument("--eval-hru-delete", default=None)
+    p.add_argument("--dataset", default=None)
+    p.add_argument("--ctx", default=None)
+    p.add_argument("--project-dir", default=None)
+    p.add_argument("--training-project-dir", default=None)
+    p.add_argument("--camels-dir", default=None)
+    p.add_argument("--train-epoch", type=int, default=None)
+    args, _ = p.parse_known_args()
+    return args
+
+
+CLI = _parse_cli()
+
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from path_config import get_paths
+    _PATHS = get_paths()
+except Exception:
+    _PATHS = {}
+
+
+train_hru_delete = CLI.train_hru_delete or "01"
+eval_hru_delete = CLI.eval_hru_delete or train_hru_delete
+hru_delete = eval_hru_delete
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-camels_dir = os.path.join("D:\stream_data", "camels", "camels_us")
+camels_dir = CLI.camels_dir or _PATHS.get("camels_dir") or os.path.join("/Volumes/Untitled/data")
 camels = Camels(camels_dir)
-gage_id = ["01013500"]
+
+if CLI.gage_id_file:
+    with open(CLI.gage_id_file, "r", encoding="utf-8") as _f:
+        gage_id = [ln.strip() for ln in _f if ln.strip()]
+elif CLI.gage_ids:
+    gage_id = [s.strip() for s in CLI.gage_ids.split(",") if s.strip()]
+else:
+    gage_id = ["01013500", "01022500", "01030500", "01031500", "01047000"]
+gage_id = sorted([x for x in gage_id])
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"
+
+_train_results_root = (CLI.training_project_dir
+                       or _PATHS.get("project_dir")
+                       or "/Users/cylenlc/work/torchhydro")
+_eval_project_dir = (CLI.project_dir
+                     or _PATHS.get("eval_project_dir")
+                     or r"/Users/cylenlc/work/torchhydro/experiments")
 
 length = 7
 dim = 128
@@ -56,15 +98,15 @@ def config():
     # 填充测试所需的命令行参数
     args = cmd(
         train_mode=False,
-        stat_dict_file=r"D:\work\torchhydro\experiments\results\camels\simplelstm_DapengScaler_128_0.4_ens_01\dapengscaler_stat.json",
-        project_dir=r"D:\work\torchhydro\experiments",
+        stat_dict_file=f"{_train_results_root}/results/camels/simplelstm_{scaler}_{dim}_{dr}_ens_{train_hru_delete}/dapengscaler_stat.json",
+        project_dir=_eval_project_dir,
         sub=project_name,
         source_cfgs={
             "source_name": "camels_us",
             "source_path": camels_dir,
             "other_settings": {"download": False, "region": "US"},
         },
-        ctx=[1],
+        ctx=[int(x) for x in CLI.ctx.split(",")] if CLI.ctx else [0],
         model_name="SimpleLSTM",
         model_hyperparam={
             "input_size": 71,
@@ -74,10 +116,10 @@ def config():
         },
         model_loader={
             "load_way": "pth",
-            "pth_path": f"D:\work\\torchhydro\experiments\\results\camels\simplelstm_DapengScaler_128_0.4_ens_{hru_delete}/best_model.pth",
+            "pth_path": f"{_train_results_root}/results/camels/simplelstm_{scaler}_{dim}_{dr}_ens_{train_hru_delete}/best_model.pth",
         },
         gage_id=gage_id,
-        batch_size=384,
+        batch_size=256,
         rs=seeds,
         ensemble=ens,
         ensemble_items={"seeds": seeds},
@@ -85,57 +127,46 @@ def config():
         forecast_length=365,
         min_time_unit="D",
         min_time_interval=1,
-        var_t=["prcp", "dayl", "srad", "tmax", "tmin", "vp", "PET"],
+        var_t=[
+            "precipitation",
+            "daylight_duration",
+            "solar_radiation",
+            "temperature_max",
+            "temperature_min",
+            "vapor_pressure",
+            "potential_evapotranspiration",
+        ],
         scaler_params={
             "prcp_norm_cols": [
-                # "streamflow_input",
                 "streamflow",
             ],
-            "gamma_norm_cols": ["prcp", "PET"],
+            "gamma_norm_cols": ["precipitation", "potential_evapotranspiration"],
+            # "one_hot_cols": ["dom_land_cover", "geol_1st_class", "geol_2nd_class"],
             "pbm_norm": False,
         },
         var_c=[
-            "p_mean",
-            "pet_mean",
-            "p_seasonality",
-            "frac_snow",
-            "aridity",
-            "high_prec_freq",
-            "high_prec_dur",
-            "low_prec_freq",
-            "low_prec_dur",
             "elev_mean",
             "slope_mean",
-            "area_gages2",
+            "area",
             "frac_forest",
             "lai_max",
             "lai_diff",
-            "gvf_max",
-            "gvf_diff",
             "dom_land_cover_frac",
             "dom_land_cover",
             "root_depth_50",
-            "soil_depth_pelletier",
             "soil_depth_statsgo",
             "soil_porosity",
             "soil_conductivity",
             "max_water_content",
-            "sand_frac",
-            "silt_frac",
-            "clay_frac",
             "geol_1st_class",
-            "glim_1st_class_frac",
             "geol_2nd_class",
-            "glim_2nd_class_frac",
-            "carbonate_rocks_frac",
             "geol_porostiy",
             "geol_permeability",
         ],
-        # scaler="DapengScaler",
         scaler=scaler,
         var_out=["streamflow"],
-        dataset="AlphaEarthDataset",
-        train_epoch=10,
+        dataset=CLI.dataset or "AlphaEarthDataset",
+        train_epoch=CLI.train_epoch or 10,
         save_epoch=1,
         train_period=["1980-01-01", "2004-12-31"],
         valid_period=["2005-01-01", "2009-12-31"],
@@ -199,5 +230,6 @@ def config():
     return config_data
 
 
-configs = config()
-train_and_evaluate(configs)
+if __name__ == "__main__":
+    configs = config()
+    train_and_evaluate(configs)
