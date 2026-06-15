@@ -2412,7 +2412,10 @@ class GNNDataset(FloodEventDataset):
         
         # Clean and convert numeric columns to proper dtypes in batch
         # Handle string "nan" values that may come from NetCDF files
-        numeric_cols = [col for col in edge_attr_cols + ([weight_col] if weight_col else []) if col in adj_df.columns]
+        numeric_cols = list(dict.fromkeys(
+            col for col in edge_attr_cols + ([weight_col] if weight_col else [])
+            if col in adj_df.columns
+        ))  # dict.fromkeys 去重保序，避免 weight_col 和 edge_attr_cols 重叠时出错
         if numeric_cols:
             # Batch replace string "nan" with actual NaN and convert to numeric
             adj_df[numeric_cols] = adj_df[numeric_cols].replace(['nan', 'NaN', 'NAN'], np.nan)

@@ -1151,14 +1151,15 @@ def varied_length_collate_fn(batch):
 def gnn_collate_fn(batch):
     """
     Custom collate function for GNN datasets that creates a single large graph
-    
+    by concatenating multiple variable-sized graphs with proper node index offsetting.
+
     Each sample in batch is a tuple: (sxc, y, edge_index, edge_weight)
     where:
-    - sxc: [num_stations_i, seq_length, feature_dim] (variable num_stations)  
+    - sxc: [num_stations_i, seq_length, feature_dim] (variable num_stations)
     - y: [forecast_length, output_dim]
     - edge_index: [2, num_edges_i] (variable num_edges)
     - edge_weight: [num_edges_i] (variable num_edges)
-    
+
     Returns:
     --------
     list
@@ -1170,61 +1171,45 @@ def gnn_collate_fn(batch):
         - batched_edge_weight: [total_edges] - concatenated edge weights
         - batch_vector: [total_nodes] - batch assignment for each node
     """
-    import torch
-    
     if len(batch) == 0:
         return []
-    
-    # Unpack the batch
+
     sxc_list, y_list, edge_index_list, edge_weight_list = zip(*batch)
 
-    # Batch the target values (y) - these should have the same shape
+    # Target: all graphs have the same forecast horizon → stack directly
     batched_y = torch.stack(y_list, dim=0)  # [batch_size, forecast_length, output_dim]
 
-    # Concatenate all node features directly (no padding)
+    # Node features: concat along node dimension (no padding needed)
     batched_sxc = torch.cat(sxc_list, dim=0)  # [total_nodes, seq_length, feature_dim]
 
-    # Create batched edge indices and weights with proper offsets
-    batched_edge_index = []
-    batched_edge_weight = []
-    batch_vector = []
-    node_offset = 0
-    
-    for i, (sxc, edge_index, edge_weight) in enumerate(zip(sxc_list, edge_index_list, edge_weight_list)):
-        num_nodes = sxc.shape[0]
-        
-        # Process edge indices with offset
-        if edge_index.numel() > 0:
-            # Validate edge indices
-            if edge_index.max() >= num_nodes:
-                print(f"Warning: Graph {i} has edge indices {edge_index.max().item()} >= num_nodes {num_nodes}")
-                valid_mask = (edge_index[0] < num_nodes) & (edge_index[1] < num_nodes)
-                edge_index = edge_index[:, valid_mask]
-                edge_weight = edge_weight[valid_mask]
-            
-            # Apply offset to create global node indices
-            if edge_index.numel() > 0:
-                offset_edge_index = edge_index + node_offset
-                batched_edge_index.append(offset_edge_index)
-                batched_edge_weight.append(edge_weight)
-        
-        # Create batch vector: assign batch index i to all nodes in this graph
-        batch_vector.append(torch.full((num_nodes,), i, dtype=torch.long))
-        
-        # Update offset for next graph
-        node_offset += num_nodes
-    
-    # Concatenate all edge indices and weights
-    if batched_edge_index:
-        batched_edge_index = torch.cat(batched_edge_index, dim=1)  # [2, total_edges]
-        batched_edge_weight = torch.cat(batched_edge_weight, dim=0)  # [total_edges]
+    # --- Build batch_vector and compute node offsets (vectorized) ---
+    num_nodes_list = [s.shape[0] for s in sxc_list]
+    batch_vector = torch.repeat_interleave(
+        torch.arange(len(sxc_list), dtype=torch.long),
+        torch.tensor(num_nodes_list, dtype=torch.long),
+    )  # [total_nodes]
+
+    # Cumulative node offsets for edge index remapping
+    node_offsets = torch.tensor([0] + num_nodes_list[:-1], dtype=torch.long).cumsum(0)
+
+    # --- Offset edge indices to global node space ---
+    batched_edge_index_parts = []
+    batched_edge_weight_parts = []
+
+    for i, (edge_index, edge_weight) in enumerate(zip(edge_index_list, edge_weight_list)):
+        if edge_index.numel() == 0:
+            continue
+        offset_edge_index = edge_index + node_offsets[i]
+        batched_edge_index_parts.append(offset_edge_index)
+        batched_edge_weight_parts.append(edge_weight)
+
+    if batched_edge_index_parts:
+        batched_edge_index = torch.cat(batched_edge_index_parts, dim=1)  # [2, total_edges]
+        batched_edge_weight = torch.cat(batched_edge_weight_parts, dim=0)  # [total_edges]
     else:
         batched_edge_index = torch.empty((2, 0), dtype=torch.long)
         batched_edge_weight = torch.empty(0)
-    
-    # Concatenate batch vectors
-    batch_vector = torch.cat(batch_vector, dim=0)  # [total_nodes]
-    
+
     return [batched_sxc, batched_y, batched_edge_index, batched_edge_weight, batch_vector]
 
 # def gnn_collate_fn(batch):
@@ -1326,6 +1311,7 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
     ys_lens = None
     edge_index = None
     edge_weight = None
+    batch_vector = None
 
     if variable_length_cfgs is None:
         # Check batch length to determine format

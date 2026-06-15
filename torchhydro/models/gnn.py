@@ -91,7 +91,8 @@ class GNNBaseModel(Module, ABC):
         # === 输出预测层 ===
         if aggregate_to_graph:
             # 图级输出：节点聚合 + 时序预测
-            self.graph_aggregation = nn.Linear(self.spatial_hidden, self.spatial_hidden)
+            # 聚合后输出 mean+max+std 三部分拼接，故输入维度为 3 * spatial_hidden
+            self.graph_aggregation = nn.Linear(self.spatial_hidden * 3, self.spatial_hidden)
             # 正确的输出投影：直接输出时间序列×特征数
             self.output_projection = nn.Linear(self.spatial_hidden, output_size * self.output_time)
         else:
@@ -227,7 +228,7 @@ class GNNBaseModel(Module, ABC):
         batch_vector: Optional[torch.Tensor]
     ) -> torch.Tensor:
         """
-        节点到图聚合 - 使用平均池化
+        节点到图聚合 - 使用多种聚合策略
         """
         if batch_vector is not None:
             # 多样本批处理
@@ -237,16 +238,28 @@ class GNNBaseModel(Module, ABC):
             for sample_id in range(num_samples):
                 mask = (batch_vector == sample_id)
                 if mask.sum() > 0:
-                    # 平均聚合
-                    graph_feature = x[mask].mean(dim=0)
+                    node_features = x[mask]  # [num_nodes_in_sample, features]
+                    
+                    # 多重聚合策略，结合不同的统计信息
+                    mean_feat = node_features.mean(dim=0)      # 平均值
+                    max_feat = node_features.max(dim=0)[0]     # 最大值
+                    std_feat = node_features.std(dim=0)       # 标准差
+                    
+                    # 组合多种统计特征
+                    graph_feature = torch.cat([mean_feat, max_feat, std_feat], dim=0)
                     graph_features.append(graph_feature)
                 else:
-                    graph_features.append(torch.zeros(self.spatial_hidden, device=x.device))
+                    # 对应的零特征
+                    zero_feat = torch.zeros(self.spatial_hidden * 3, device=x.device)
+                    graph_features.append(zero_feat)
             
             return torch.stack(graph_features, dim=0)
         else:
-            # 单样本：简单平均
-            return x.mean(dim=0, keepdim=True)
+            # 单样本：多重聚合
+            mean_feat = x.mean(dim=0, keepdim=True)
+            max_feat = x.max(dim=0, keepdim=True)[0]
+            std_feat = x.std(dim=0, keepdim=True)
+            return torch.cat([mean_feat, max_feat, std_feat], dim=1)
     
     def _extract_temporal_features(self, x: torch.Tensor) -> torch.Tensor:
         """提取时序特征"""
