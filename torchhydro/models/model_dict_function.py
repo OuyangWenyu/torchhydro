@@ -41,11 +41,13 @@ from torchhydro.models.gnn import (
     GCNII,
     ResGAT,
 )
+from torchhydro.models.adaptive_gnn import WDNEAdapter
 from torchhydro.models.gnn_st_flood_3d_batch import (
     SpatioTemporalFloodNet3D,
     MeanAggregationFloodNet,
     AttentionAggregationFloodNet,
     MultiScaleAggregationFloodNet,
+    SpatialFirstTemporalFloodNet3D,
 )
 from torchhydro.models.STGCN import (
     STGCN,
@@ -124,6 +126,11 @@ pytorch_model_dict = {
     "FloodGCN3D": SpatioTemporalFloodNet3D,  # Alias for easier access
     # Standard STGCN implementation
     "STGCN": STGCNModel,  # Standard Spatio-Temporal Graph Convolutional Network
+    # Spatial-First Temporal Models (Space → Time + Transformer)
+    "SpatialFirstTemporalFloodNet3D": SpatialFirstTemporalFloodNet3D,
+    # 自适应图网络模型 (WDNE family)
+    "WDNEInspiredFloodNet": WDNEAdapter,
+    "WDNEAdaptiveRoutingNet": WDNEAdapter,
     #"ASTGCN": ASTGCN,
 }
 
