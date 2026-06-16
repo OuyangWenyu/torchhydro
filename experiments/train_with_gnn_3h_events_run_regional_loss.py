@@ -34,19 +34,23 @@ def create_simple_gnn_config():
     project_name = os.path.join("gnn_experiment", "songliao_3h_test_")
 
     # 使用有有效数据的流域ID（基于3h数据）
+    # 使用有有效数据的流域ID（基于3h数据）
+    # example_gage_ids = [
+    #     "songliao_20800900",
+    #     "songliao_20810200",
+    #     "songliao_21100150",
+    #     "songliao_21110150",
+    #     #"songliao_21113800",
+    #     "songliao_21401050",
+    #     "songliao_21401550"
+    # ]
     example_gage_ids = [
-        "songliao_20800900",
-        "songliao_20810200",
-        "songliao_21100150",
-        "songliao_21110150",
-        #"songliao_21113800",
-        "songliao_21401050",
-        "songliao_21401550"
-    ]
+        "songliao_21110150"
+    ]    
 
     # ==== 超简化的参数配置 - 解决预测平滑问题 ====
     # 1. 大幅缩短时间窗口
-    warmup_length, hindcast_length, forecast_length = 90, 0, 24  # 90h历史, 24h预测
+    warmup_length, hindcast_length, forecast_length = 90, 0, 24  # 90*3h历史, 24*3h预测
 
     # 2. 简化特征
     var_t = ["rain"]  # 气象变量
@@ -113,12 +117,12 @@ def create_simple_gnn_config():
         warmup_length=warmup_length, hindcast_length=hindcast_length, forecast_length=forecast_length,
         min_time_unit="h", min_time_interval=3,
         var_t=var_t, var_c=var_c, var_out=["inflow", "flood_event"],
-        train_mode=True,  # 开始训练
+        train_mode=False,  # 开始训练
         train_epoch=60, save_epoch=5,   # 减少epoch，更频繁保存便于调试
         train_period=["1980-01-01-02", "2012-12-31-23"],
         valid_period=["2013-01-01-02", "2019-12-31-23"],
-        test_period=["1980-01-01-02", "2024-12-30-23"],
-        #test_period=["2020-01-01-02", "2024-12-30-23"],
+        test_period=["1980-01-01-02", "2024-12-31-23"],
+        #test_period=["2022-01-01-02", "2022-12-31-23"],
         rolling=-1,  # 不使用滚动窗口
         model_loader={"load_way": "latest"},  # 对应训练epoch
         #model_loader={"load_way": "specified", "test_epoch": 60},  # 对应训练epoch

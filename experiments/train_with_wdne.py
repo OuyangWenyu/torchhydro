@@ -87,6 +87,19 @@ def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet"):
     config_data = default_config_file()
 
     model_configs = {
+        "Baseline_LSTM_only": {
+            "model_name": "SpatioTemporalFloodNet3D",
+            "experiment_dir": "baseline_lstm_only",
+            "description": "Baseline LSTM-only - 纯时序建模, 无GNN",
+            "model_type": "baseline",
+            "hidden_channels": 32,
+            "use_gnn": False,
+            "use_lstm": True,
+            "aggregation": "mean",
+            "gnn_type": "gcn2",
+            "num_hidden": 2,
+            "dropout": 0.2,
+        },
         "Baseline_LSTM_GNN": {
             "model_name": "SpatioTemporalFloodNet3D",
             "experiment_dir": "baseline_lstm_gnn",
@@ -278,7 +291,7 @@ def main():
         model_name = sys.argv[1]
         test_mode = sys.argv[2] if len(sys.argv) > 2 else "normal"
 
-        valid_models = ["Baseline_LSTM_GNN", "WDNEInspiredFloodNet", "WDNEAdaptiveRoutingNet",
+        valid_models = ["Baseline_LSTM_only", "Baseline_LSTM_GNN", "WDNEInspiredFloodNet", "WDNEAdaptiveRoutingNet",
                        "WDNE_NoStruct_Mean", "WDNE_Mean"]
 
         if model_name in valid_models:

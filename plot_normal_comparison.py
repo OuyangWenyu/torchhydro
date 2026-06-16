@@ -709,12 +709,10 @@ def main():
     
     # 参数解析
     parser = argparse.ArgumentParser(description='Normal mode comparison analysis with flood events')
-    parser.add_argument('--base_dir', '-d', default='/home/loujinghe/user/torchhydro/results/4d_gnn_experiment_stgcn',
+    parser.add_argument('--base_dir', '-d', default='/home/lizilin/code/torchhydro/results/3d_ST_e40_basin6/',
                         help='Base directory containing model results')
-    parser.add_argument('--epoch', '-e', type=int, default=60,
-                        help='Epoch number to analyze (default: 60)')
-    parser.add_argument('--mode', '-m', default='normal', choices=['normal','sim1','sim2','sim3'],
-                        help='Evaluation mode to visualize (normal/sim1/sim2/sim3)')
+    parser.add_argument('--epoch', '-e', type=str, default="best_model.pth",
+                        help='Epoch identifier to analyze (string allowed, e.g. "40" or "best_model.pth")')
     parser.add_argument('--songliao_path', '-s', default='/mnt/data/ClassC/songliaorrevent',
                         help='Path to Songliao dataset')
     
