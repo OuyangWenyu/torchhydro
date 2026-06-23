@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-13 16:36:07
+LastEditTime: 2025-12-07 09:51:25
 LastEditors: Wenyu Ouyang
 Description: Loss functions
 FilePath: \torchhydro\torchhydro\models\crits.py
@@ -1461,3 +1461,202 @@ class HybridFloodloss(FloodBaseLoss):
 
         base_loss_func = HybridLoss(self.mae_weight)
         return base_loss_func(predictions, targets)
+
+
+class MseMaskedLoss(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(
+        self, predictions: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor
+    ):
+        """
+        Compute NSE loss for masked data.
+
+        Parameters
+        ----------
+        predictions : torch.Tensor
+            Model predictions [batch_size, seq_len, output_features]
+        targets : torch.Tensor
+            Target values [batch_size, seq_len, output_features]
+        mask : torch.Tensor
+            Mask [batch_size, seq_len, 1] (1 for valid, 0 for invalid)
+
+        Returns
+        -------
+        torch.Tensor
+            Computed NSE loss value
+        """
+        if mask is None:
+            mask = ~torch.isnan(targets)
+
+        valid_predictions = predictions[mask]
+        valid_targets = targets[mask]
+
+        if valid_predictions.numel() == 0:
+            return torch.tensor(0.0, device=predictions.device, requires_grad=True)
+
+        loss = torch.mean((valid_predictions - valid_targets) ** 2)
+        return loss
+
+
+class GenerativeLoss(torch.nn.Module):
+    """
+    A loss function for generative models (e.g., Diffusion models).
+
+    During training:
+        - Model's forward() returns {'loss': loss}
+        - This loss is extracted and returned directly
+
+    During validation/inference:
+        - Model's sample() returns predicted tensor
+        - Uses the configured eval_loss_func to compute loss
+
+    Parameters
+    ----------
+    eval_loss_func : torch.nn.Module, optional
+        Loss function to use during validation/inference.
+        Default is None, which uses MSE loss.
+        Can be any loss function from pytorch_criterion_dict (e.g., RmseLoss, NSELoss)
+
+    Examples
+    --------
+    In training config:
+
+    >>> loss_func="GenerativeLoss",
+    >>> criterion_params={
+    >>>     "eval_loss_func": "RMSESum",  # Use RMSE for validation
+    >>> }
+    """
+
+    def __init__(self, eval_loss_func: torch.nn.Module = None) -> None:
+        super().__init__()
+        self.eval_loss_func = eval_loss_func
+
+    def forward(
+        self, prediction: torch.Tensor | dict, target: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Compute loss for generative models.
+
+        Parameters
+        ----------
+        prediction : dict or torch.Tensor
+            During training: dict with 'loss' key
+            During inference: predicted tensor from sample()
+        target : torch.Tensor
+            Ground truth target values
+
+        Returns
+        -------
+        torch.Tensor
+            The computed loss
+        """
+        # Training mode: model returns {'loss': loss}
+        if isinstance(prediction, dict) and "loss" in prediction:
+            return prediction["loss"]
+
+        # Scalar tensor (already computed loss)
+        if isinstance(prediction, torch.Tensor) and prediction.dim() == 0:
+            return prediction
+
+        # Inference/validation mode: compute loss between prediction and target
+        if isinstance(prediction, torch.Tensor) and isinstance(target, torch.Tensor):
+            # Use configured eval_loss_func or default to MSE
+            if self.eval_loss_func is not None:
+                return self.eval_loss_func(prediction, target)
+            else:
+                # Default: MSE with NaN handling
+                mask = ~torch.isnan(target)
+                if mask.sum() == 0:
+                    return torch.tensor(
+                        0.0, device=prediction.device, requires_grad=True
+                    )
+                return torch.nn.functional.mse_loss(prediction[mask], target[mask])
+
+        raise ValueError(
+            f"GenerativeLoss got unexpected types: prediction={type(prediction)}, "
+            f"target={type(target)}"
+        )
+
+
+class PyGraphLoss(torch.nn.Module):
+    def __init__(
+        self,
+        loss_func: Union[torch.nn.Module, str] = "MSELoss",
+        horizon_range: Union[int, list, tuple] = None,
+        use_node_mask: bool = True,
+    ):
+        """
+        Specialized loss for PyG batch data.
+
+        It assumes the input is flattened [Batch*Nodes, Horizon] and uses node_mask
+        to filter valid nodes before computing the base loss.
+
+        Parameters
+        ----------
+        loss_func : Union[torch.nn.Module, str]
+            Base loss function
+        horizon_range : Union[int, list, tuple], optional
+            Which forecast horizons to include in loss calculation.
+            - None: Use all horizons (default)
+            - int: Use the first N horizons (e.g., 1 means only the first step)
+            - list/tuple: Use specific indices (e.g., [0, 2, 4]) or range (start, end)
+        """
+        super(PyGraphLoss, self).__init__()
+        self.horizon_range = horizon_range
+        # Initialize base loss function
+        if isinstance(loss_func, str):
+            loss_dict = {
+                # NOTE: reduction="none" is important, otherwise the loss will be reduced to a scalar
+                "MSELoss": torch.nn.MSELoss(reduction="none"),
+                "MAELoss": torch.nn.L1Loss(reduction="none"),
+                "L1Loss": torch.nn.L1Loss(reduction="none"),
+                "RMSE": RMSELoss(),
+            }
+            if loss_func in loss_dict:
+                self.base_loss = loss_dict[loss_func]
+            else:
+                raise ValueError(f"Unsupported loss function string: {loss_func}")
+        else:
+            self.base_loss = loss_func
+
+    def forward(self, output, labels, node_mask=None, **kwargs):
+        # 0. Select Horizon Range
+        if self.horizon_range is not None:
+            if isinstance(self.horizon_range, int):
+                # Use first N steps
+                output = output[:, : self.horizon_range]
+                labels = labels[:, : self.horizon_range]
+            elif isinstance(self.horizon_range, (list, tuple)):
+                if len(self.horizon_range) == 2 and isinstance(self.horizon_range[0], int):
+                    # Assume range [start, end)
+                    output = output[:, self.horizon_range[0] : self.horizon_range[1]]
+                    labels = labels[:, self.horizon_range[0] : self.horizon_range[1]]
+                else:
+                    # Specific indices
+                    output = output[:, self.horizon_range]
+                    labels = labels[:, self.horizon_range]
+
+        # 1. Apply Node Mask
+        if node_mask is not None:
+            if not isinstance(node_mask, torch.Tensor):
+                node_mask = torch.tensor(
+                    node_mask, dtype=torch.bool, device=labels.device
+                )
+            else:
+                node_mask = node_mask.to(labels.device).bool()
+
+            # Ensure mask is 1D [B*N_total]
+            if node_mask.dim() > 1:
+                node_mask = node_mask.flatten()
+
+            output = output[node_mask]
+            labels = labels[node_mask]
+
+        # 2. Handle NaN in labels
+        mask_nan = ~torch.isnan(labels)
+        output = output[mask_nan]
+        labels = labels[mask_nan]
+
+        return self.base_loss(output, labels)

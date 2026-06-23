@@ -30,16 +30,18 @@ dependencies = [
     "tbparse",
     "fsspec",
     "intake",
+    "diffusers",
+    "accelerate",
     # PyTorch 依赖 - 根据平台选择CPU或GPU版本
-    "torch>=2.0.0,<3.0.0; sys_platform == 'darwin'",  # macOS CPU only
-    "torch>=2.0.0,<3.0.0; sys_platform == 'linux'",   # Linux GPU (CUDA)
-    "torch>=2.0.0,<3.0.0; sys_platform == 'win32'",   # Windows GPU (CUDA)
-    "torchvision>=0.15.0; sys_platform == 'darwin'",  # macOS CPU only
-    "torchvision>=0.15.0; sys_platform == 'linux'",   # Linux GPU (CUDA)
-    "torchvision>=0.15.0; sys_platform == 'win32'",   # Windows GPU (CUDA)
-    "torchaudio>=2.0.0; sys_platform == 'darwin'",    # macOS CPU only
-    "torchaudio>=2.0.0; sys_platform == 'linux'",     # Linux GPU (CUDA)
-    "torchaudio>=2.0.0; sys_platform == 'win32'",     # Windows GPU (CUDA)
+    "torch>=2.0.0,<3.0.0; sys_platform == 'darwin'", # macOS CPU only
+    "torch>=2.0.0,<3.0.0; sys_platform == 'linux'", # Linux GPU (CUDA)
+    "torch>=2.0.0,<3.0.0; sys_platform == 'win32'", # Windows GPU (CUDA)
+    "torchvision>=0.15.0; sys_platform == 'darwin'", # macOS CPU only
+    "torchvision>=0.15.0; sys_platform == 'linux'", # Linux GPU (CUDA)
+    "torchvision>=0.15.0; sys_platform == 'win32'", # Windows GPU (CUDA)
+    "torchaudio>=2.0.0; sys_platform == 'darwin'", # macOS CPU only
+    "torchaudio>=2.0.0; sys_platform == 'linux'", # Linux GPU (CUDA)
+    "torchaudio>=2.0.0; sys_platform == 'win32'", # Windows GPU (CUDA)
     "tensorboard",
     "kaggle",
     "pytest",
@@ -48,10 +50,11 @@ dependencies = [
     "hydrodatasource>=0.2.0",
     "hydroutils>=0.1.0",
     "hydrodataset>=0.2.0",
-    # PyTorch Geometric 包（核心包）
+    # PyTorch Geometric 包（核心包及扩展）
     "torch-geometric",
-    # 注意：torch-scatter, torch-sparse, torch-cluster 可能需要从源码编译
-    # 如果遇到编译问题，可以只安装核心包或使用预编译版本
+    "torch-geometric-temporal",
+    # 注意：torch-scatter, torch-sparse, torch-cluster 等会作为依赖自动安装
+    # 它们需要在构建时使用 torch（已在 [tool.uv.extra-build-dependencies] 配置）
     "cartopy>=0.23.0",
     "rich>=14.0.0",
     "boto3>=1.39.4",
@@ -59,6 +62,9 @@ dependencies = [
     "minio>=7.2.15",
     "lightning>=2.5.2",
     "shap>=0.48.0",
+    "black>=25.11.0",
+    "h5py>=3.14.0",
+    "mpi4py>=4.1.1",
 ]
 
 [project.optional-dependencies]
@@ -72,6 +78,7 @@ dev = [
     "Sphinx",
     "grip",
     "pytest-runner",
+    "black",
 ]
 
 # 测试依赖
@@ -120,6 +127,12 @@ name = "pytorch-cu124"
 url = "https://download.pytorch.org/whl/cu124"
 explicit = true
 
+# PyTorch Geometric 预编译包索引
+[[tool.uv.index]]
+name = "pyg"
+url = "https://data.pyg.org/whl/torch-2.5.0+cu124.html"
+explicit = true
+
 # PyTorch 包源配置
 [tool.uv.sources]
 torch = [
@@ -133,6 +146,19 @@ torchvision = [
 torchaudio = [
     { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
     { index = "pytorch-cu124", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+# PyTorch Geometric 扩展包使用预编译版本（仅 Windows/Linux GPU）
+torch-scatter = [
+    { index = "pyg", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torch-sparse = [
+    { index = "pyg", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torch-cluster = [
+    { index = "pyg", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torch-spline-conv = [
+    { index = "pyg", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 # ============================================================================
 # 本地开发模式配置
@@ -203,6 +229,15 @@ dev = [
 # aqua-fetch 限制了 pandas<=2.1.4，但实际上新版本的 pandas 和 xarray 已经修复了兼容性问题
 override-dependencies = [
     "pandas>=2.2.0",
+]
+
+# Disable build isolation for PyTorch Geometric extensions
+# These packages need torch at build time but don't declare it properly
+no-build-isolation-package = [
+    "torch-scatter",
+    "torch-sparse",
+    "torch-cluster",
+    "torch-spline-conv",
 ]
 
 # Hatch version management

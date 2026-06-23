@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-31 08:40:43
-LastEditTime: 2025-11-07 11:13:54
+LastEditTime: 2024-05-27 15:53:43
 LastEditors: Wenyu Ouyang
 Description: Test some functions for dataset
 FilePath: \torchhydro\tests\test_sampler.py
@@ -13,6 +13,8 @@ import pytest
 import hydrodataset as hds
 from hydrodataset.caravan import Caravan
 from torch.utils.data import Dataset
+from torchhydro.datasets.data_sources import Gages
+from torchhydro.datasets.data_sources import Mopex
 
 from torchhydro import SETTING
 from torchhydro.datasets.sampler import KuaiSampler
@@ -62,3 +64,39 @@ def test_sampler_randomness(sampler):
     assert (
         first_epoch_samples != second_epoch_samples
     ), "Expected different samples for different epochs"
+
+
+def test_cache_file():
+    """
+    Test whether the cache file is generated correctly
+    """
+    camels_dir = os.path.join(
+        SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
+    )
+    camels_us = hds.Camels(camels_dir)
+    camels_us.cache_xrdataset()
+
+
+def test_cache_caravan():
+    """
+    Test whether the cache file is generated correctly
+    """
+    caravan = Caravan(
+        os.path.join(SETTING["local_data_path"]["datasets-origin"], "caravan")
+    )
+    caravan.cache_xrdataset()
+
+def test_cache_fusion():
+    """
+    Test whether the cache file is generated correctly
+    """
+    gages_dir = os.path.join(
+        SETTING["local_data_path"]["datasets-origin"], "gages"
+    )
+    mopex_dir = os.path.join(
+        SETTING["local_data_path"]["datasets-origin"], "mopex"
+    )
+    gages = Gages(gages_dir)
+    mopex = Mopex(mopex_dir)
+    gages.cache_xrdataset()
+    mopex.cache_xrdataset()

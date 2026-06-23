@@ -140,12 +140,15 @@ mlruns/
 .idea
 results/
 data/
-scripts/__pycache__
+scripts/__pycache__/
+pyrightconfig.json
+torchhydro.code-workspace
+.trae/
 pth_file/
 check/
 MC-LSTM/
 generated_docs/
-# data_processing/    
+# data_processing/
 Temporary_file/
 test/
 !test/
@@ -160,6 +163,13 @@ CLAUDE.md
 
 # version file
 torchhydro/_version.py
+
+# Gemini
+GEMINI.md
+
+# Ignore loss landscape output results
+loss_landscape_output/
+torchhydro.code-workspace
 data_processing/box.py
 data_processing/
 

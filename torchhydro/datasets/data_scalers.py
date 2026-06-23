@@ -1,9 +1,9 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:17:44
-LastEditTime: 2026-01-16
+LastEditTime: 2025-10-29 08:53:29
 LastEditors: Wenyu Ouyang
-Description: normalize the data (包含 NaN-safe 版本的统计函数)
+Description: normalize the data
 FilePath: \torchhydro\torchhydro\datasets\data_scalers.py
 Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
@@ -31,184 +31,6 @@ from hydroutils.hydro_stat import (
     cal_stat,
     cal_4_stat_inds,
 )
-
-
-# ============================================================================
-# NaN-safe 版本的统计计算函数
-# ============================================================================
-
-def cal_stat_nan_safe(x: np.ndarray) -> list:
-    """
-    计算统计量（p10, p90, 均值和标准差），安全处理 NaN 值
-    
-    Parameters
-    ----------
-    x : np.ndarray
-        输入数据，可能包含 NaN 值
-        
-    Returns
-    -------
-    list
-        [p10, p90, mean, std] - 使用 nanpercentile, nanmean 和 nanstd 计算
-    """
-    # 使用 nanpercentile, nanmean 和 nanstd 忽略 NaN 值
-    p10 = np.nanpercentile(x, 10)
-    p90 = np.nanpercentile(x, 90)
-    mean = np.nanmean(x)
-    std = np.nanstd(x)
-    
-    # 如果所有值都是 NaN，返回默认值
-    if np.isnan(mean):
-        print(f"警告: 数据全部为 NaN，使用默认值 mean=0.0")
-        mean = 0.0
-    if np.isnan(std) or std == 0:
-        print(f"警告: 标准差为 NaN 或 0，使用默认值 std=1.0")
-        std = 1.0
-    if np.isnan(p10):
-        p10 = mean - std
-    if np.isnan(p90):
-        p90 = mean + std
-        
-    return [float(p10), float(p90), float(mean), float(std)]
-
-
-def cal_stat_prcp_norm_nan_safe(
-    x: np.ndarray, 
-    mean_prep: np.ndarray
-) -> list:
-    """
-    计算降水归一化的统计量，安全处理 NaN 值
-    
-    Parameters
-    ----------
-    x : np.ndarray
-        streamflow 数据，shape: (basin, time) 或 (basin, time, 1)
-    mean_prep : np.ndarray
-        平均降水量，shape: (basin, 1)
-        
-    Returns
-    -------
-    list
-        [p10, p90, mean, std] - 归一化后的统计量
-    """
-    # 确保维度匹配
-    if x.ndim == 3:
-        x = x.squeeze(-1)  # (basin, time, 1) -> (basin, time)
-    
-    # 使用 log(sqrt(x) + 0.1) 变换
-    x_transformed = np.log10(np.sqrt(x) + 0.1)
-    
-    # 除以平均降水量进行归一化
-    if mean_prep.ndim == 2 and mean_prep.shape[1] == 1:
-        mean_prep = mean_prep.squeeze(-1)  # (basin, 1) -> (basin,)
-    
-    # 广播除法: (basin, time) / (basin,) -> (basin, time)
-    x_normalized = x_transformed / mean_prep[:, np.newaxis]
-    
-    # 使用 nanpercentile, nanmean 和 nanstd 计算统计量
-    p10 = np.nanpercentile(x_normalized, 10)
-    p90 = np.nanpercentile(x_normalized, 90)
-    mean = np.nanmean(x_normalized)
-    std = np.nanstd(x_normalized)
-    
-    # 处理异常情况
-    if np.isnan(mean):
-        print(f"警告: streamflow 归一化后均值为 NaN，使用默认值 0.0")
-        mean = 0.0
-    if np.isnan(std) or std == 0:
-        print(f"警告: streamflow 归一化后标准差为 NaN 或 0，使用默认值 1.0")
-        std = 1.0
-    if np.isnan(p10):
-        p10 = mean - std
-    if np.isnan(p90):
-        p90 = mean + std
-        
-    return [float(p10), float(p90), float(mean), float(std)]
-
-
-def cal_stat_gamma_nan_safe(x: np.ndarray) -> list:
-    """
-    使用 gamma 变换计算统计量，安全处理 NaN 值
-    
-    Parameters
-    ----------
-    x : np.ndarray
-        输入数据
-        
-    Returns
-    -------
-    list
-        [p10, p90, mean, std] - 变换后的统计量
-    """
-    # 使用 log(sqrt(x) + 0.1) 变换
-    x_transformed = np.log10(np.sqrt(x) + 0.1)
-    
-    # 使用 nanpercentile, nanmean 和 nanstd
-    p10 = np.nanpercentile(x_transformed, 10)
-    p90 = np.nanpercentile(x_transformed, 90)
-    mean = np.nanmean(x_transformed)
-    std = np.nanstd(x_transformed)
-    
-    # 处理异常情况
-    if np.isnan(mean):
-        print(f"警告: gamma 变换后均值为 NaN，使用默认值 0.0")
-        mean = 0.0
-    if np.isnan(std) or std == 0:
-        print(f"警告: gamma 变换后标准差为 NaN 或 0，使用默认值 1.0")
-        std = 1.0
-    if np.isnan(p10):
-        p10 = mean - std
-    if np.isnan(p90):
-        p90 = mean + std
-        
-    return [float(p10), float(p90), float(mean), float(std)]
-
-
-def check_data_quality(vars_data: dict, var_name: str) -> dict:
-    """
-    检查数据质量，报告 NaN 值的情况
-    
-    Parameters
-    ----------
-    vars_data : dict
-        变量数据字典
-    var_name : str
-        变量名称
-        
-    Returns
-    -------
-    dict
-        数据质量报告
-    """
-    report = {}
-    
-    for k, v in vars_data.items():
-        if v is None:
-            continue
-            
-        if var_name in v.coords["variable"].values:
-            data = v.sel(variable=var_name).to_numpy()
-            
-            total_count = data.size
-            nan_count = np.isnan(data).sum()
-            nan_ratio = nan_count / total_count if total_count > 0 else 0
-            
-            report[k] = {
-                "total_count": total_count,
-                "nan_count": nan_count,
-                "nan_ratio": f"{nan_ratio:.2%}",
-                "valid_count": total_count - nan_count,
-                "min": np.nanmin(data) if nan_count < total_count else np.nan,
-                "max": np.nanmax(data) if nan_count < total_count else np.nan,
-                "mean": np.nanmean(data) if nan_count < total_count else np.nan,
-                "std": np.nanstd(data) if nan_count < total_count else np.nan,
-            }
-    
-    return report
-
-
-# 标记 NaN-safe 函数可用
-USE_NAN_SAFE_STATS = True
 
 from torchhydro.datasets.data_utils import (
     _trans_norm,
@@ -269,8 +91,10 @@ class ScalerHub(object):
                 is_tra_val_te,
                 prcp_norm_cols=prcp_norm_cols,
                 gamma_norm_cols=gamma_norm_cols,
+                maxmin_norm_cols='',
                 pbm_norm=pbm_norm,
                 data_source=data_source,
+                global_vars=global_vars,
             )
         elif scaler_type in SCALER_DICT.keys():
             scaler = SklearnScaler(
@@ -463,8 +287,10 @@ class DapengScaler(object):
         other_vars: Optional[dict] = None,
         prcp_norm_cols=None,
         gamma_norm_cols=None,
+        maxmin_norm_cols=None,
         pbm_norm=False,
         data_source: object = None,
+        global_vars: np.array = None,
     ):
         """
         The normalization and denormalization methods from Dapeng's 1st WRR paper.
@@ -501,19 +327,19 @@ class DapengScaler(object):
                 "surface_net_solar_radiation",
                 "sm_surface",
                 "sm_rootzone",
+                "tp",
             ]
-        
-        self.one_hot_cols = data_cfgs["scaler_params"].get("one_hot_cols", [])
-        
-        # 从 scaler_params 中读取 use_nan_safe_stats 参数
-        self.use_nan_safe_stats = data_cfgs["scaler_params"].get("use_nan_safe_stats", True)
-        
+        if maxmin_norm_cols is not None and global_vars is not None:
+            maxmin_norm_cols = [
+                "streamflow",
+            ]
         self.data_target = vars_data["target_cols"]
         self.data_cfgs = data_cfgs
         self.t_s_dict = wrap_t_s_dict(data_cfgs, is_tra_val_te)
         self.data_other = other_vars
         self.prcp_norm_cols = prcp_norm_cols
         self.gamma_norm_cols = gamma_norm_cols
+        self.maxmin_norm_cols = maxmin_norm_cols
         # both prcp_norm_cols and gamma_norm_cols use log(\sqrt(x)+.1) method to normalize
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
         self.pbm_norm = pbm_norm
@@ -558,9 +384,8 @@ class DapengScaler(object):
         mean_prcp = self.data_source.read_mean_prcp(
             self.t_s_dict["sites_id"], unit=final_unit
         )
-        return mean_prcp.to_array().transpose("basin", "variable").to_numpy()
 
-    def inverse_transform(self, target_values):
+    def inverse_transform(self, target_values, maxmin_norm_cols=None):
         """
         Denormalization for output variables
 
@@ -568,6 +393,8 @@ class DapengScaler(object):
         ----------
         target_values
             output variables
+        maxmin_norm_cols : list, optional
+            data items which use maxmin_norm method to normalize, by default None
 
         Returns
         -------
@@ -585,6 +412,7 @@ class DapengScaler(object):
                 target_vars,
                 stat_dict,
                 log_norm_cols=self.log_norm_cols,
+                maxmin_norm_cols=maxmin_norm_cols,
                 to_norm=False,
             )
             for i in range(len(self.data_cfgs["target_cols"])):
@@ -601,25 +429,6 @@ class DapengScaler(object):
         pred.attrs.update(self.data_target.attrs)
         return pred.to_dataset(dim="variable")
 
-
-
-    def _get_one_hot_categories(self, vars_data):
-        """
-        Calculate unique categories for one-hot encoding columns from training data
-        """
-        categories_dict = {}
-        for k, v in vars_data.items():
-            if v is None:
-                continue
-            for var_name in v.coords["variable"].values:
-                if var_name in self.one_hot_cols:
-                    # Get unique values, ignoring NaNs
-                    unique_vals = np.unique(v.sel(variable=var_name).to_numpy())
-                    unique_vals = unique_vals[~np.isnan(unique_vals)]
-                    unique_vals.sort()
-                    categories_dict[f"{var_name}_categories"] = unique_vals.tolist()
-        return categories_dict
-
     def cal_stat_all(self, vars_data):
         """
         Calculate statistics of outputs(streamflow etc), and inputs(forcing and attributes)
@@ -634,75 +443,29 @@ class DapengScaler(object):
             a dict with statistic values
         """
         stat_dict = {}
-        
-        # 从实例属性中读取 use_nan_safe_stats
-        use_nan_safe = getattr(self, 'use_nan_safe_stats', True)
-        
-        # Calculate categories for one-hot encoding if needed
-        if self.one_hot_cols:
-            categories_dict = self._get_one_hot_categories(vars_data)
-            stat_dict.update(categories_dict)
-
         for k, v in vars_data.items():
             if v is None:
                 continue
             for i in range(len(v.coords["variable"].values)):
                 var_name = v.coords["variable"].values[i]
-                
-                # Skip statistics calculation for one-hot columns as they don't need mean/std normalization
-                if var_name in self.one_hot_cols:
-                    continue
-                
-                # 获取数据
-                data = v.sel(variable=var_name).to_numpy()
-                
-                # 检查 NaN 值情况
-                nan_count = np.isnan(data).sum()
-                total_count = data.size
-                if nan_count > 0:
-                    nan_ratio = nan_count / total_count
-                    print(f"警告: {var_name} 包含 {nan_count}/{total_count} ({nan_ratio:.2%}) 个 NaN 值")
-                    
-                    # 如果 NaN 比例过高，给出警告
-                    if nan_ratio > 0.5:
-                        print(f"  ⚠️  {var_name} 的 NaN 比例超过 50%，统计量可能不可靠")
-                
-                # 根据变量类型选择统计函数
                 if var_name in self.prcp_norm_cols:
-                    if use_nan_safe and USE_NAN_SAFE_STATS:
-                        stat_dict[var_name] = cal_stat_prcp_norm_nan_safe(
-                            data,
-                            self.mean_prcp,
-                        )
-                    else:
-                        stat_dict[var_name] = cal_stat_prcp_norm(
-                            data,
-                            self.mean_prcp,
-                        )
+                    stat_dict[var_name] = cal_stat_prcp_norm(
+                        v.sel(variable=var_name).to_numpy(),
+                        self.mean_prcp,
+                    )
                 elif var_name in self.gamma_norm_cols:
-                    if use_nan_safe and USE_NAN_SAFE_STATS:
-                        stat_dict[var_name] = cal_stat_gamma_nan_safe(data)
-                    else:
-                        stat_dict[var_name] = cal_stat_gamma(data)
+                    stat_dict[var_name] = cal_stat_gamma(
+                        v.sel(variable=var_name).to_numpy()
+                    )
                 else:
-                    if use_nan_safe and USE_NAN_SAFE_STATS:
-                        stat_dict[var_name] = cal_stat_nan_safe(data)
-                    else:
-                        stat_dict[var_name] = cal_stat(data)
-                
-                # 验证统计量是否有效（应该有 4 个元素：p10, p90, mean, std）
-                if len(stat_dict[var_name]) != 4:
-                    print(f"  ❌ {var_name} 的统计量格式错误，应该有 4 个元素: {stat_dict[var_name]}")
-                    raise ValueError(
-                        f"变量 {var_name} 的统计量格式错误，应该是 [p10, p90, mean, std]"
-                    )
-                if any(np.isnan(stat_dict[var_name])):
-                    print(f"  ❌ {var_name} 的统计量包含 NaN: {stat_dict[var_name]}")
-                    raise ValueError(
-                        f"变量 {var_name} 的统计量计算失败，包含 NaN 值。"
-                        f"请检查数据质量或在 scaler_params 中设置 use_nan_safe_stats=True"
-                    )
+                    stat_dict[var_name] = cal_stat(v.sel(variable=var_name).to_numpy())
 
+        if self.data_global is not None:
+            # global data
+            global_data = self.data_global
+            global_lst = list(global_data.coords["variable"].values)
+            for var in global_lst:
+                stat_dict[var] = cal_stat(global_data.sel(variable=var).to_numpy())
         return stat_dict
 
     def get_data_norm(self, data, to_norm: bool = True) -> np.ndarray:
@@ -723,120 +486,32 @@ class DapengScaler(object):
             the output value for modeling
         """
         stat_dict = self.stat_dict
-        
-        # We need to handle one-hot encoding which changes the dimensions/variables
-        # So we cannot simply use xr.full_like
-        
+        out = xr.full_like(data, np.nan)
+        # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
+        out.attrs = copy.deepcopy(data.attrs)
         _vars = data.coords["variable"].values
-        data_arrays = []
-        
+        if "units" not in out.attrs:
+            Warning("The attrs of output data does not contain units")
+            out.attrs["units"] = {}
         for i in range(len(_vars)):
             var = _vars[i]
-            
-            if var in self.one_hot_cols:
-                # Perform one-hot encoding
-                categories = stat_dict.get(f"{var}_categories", [])
-                if not categories:
-                    # If no categories found (e.g. in test mode but not in stat_dict), 
-                    # we might have an issue. But let's assume it's handled or empty.
-                    # Or maybe we should warn?
-                    print(f"Warning: No categories found for {var} in stat_dict")
-                    continue
-                
-                original_vals = data.sel(variable=var).to_numpy()
-                
-                for cat in categories:
-                    # Create binary mask
-                    # Use isclose for float comparison if needed, but == is usually fine for categories if they are distinct
-                    # Assuming categories are floats since they come from numpy array
-                    mask = np.isclose(original_vals, cat) if isinstance(cat, (int, float)) else (original_vals == cat)
-                    
-                    new_var_name = f"{var}_{cat}"
-                    
-                    # Create new DataArray for this category
-                    # We need to preserve dimensions except 'variable'
-                    # The shape of original_vals matches the other dims
-                    
-                    # We construct a new DataArray with a single variable coordinate
-                    da_cat = xr.DataArray(
-                        mask.astype(float),
-                        coords={d: data.coords[d] for d in data.dims if d != "variable"},
-                        dims=[d for d in data.dims if d != "variable"]
-                    ).expand_dims(variable=[new_var_name])
-                    
-                    da_cat.attrs["units"] = "dimensionless"
-                    data_arrays.append(da_cat)
-                    
+            if var in self.prcp_norm_cols:
+                out.loc[dict(variable=var)] = _prcp_norm(
+                    data.sel(variable=var).to_numpy(),
+                    self.mean_prcp,
+                    to_norm=True,
+                )
             else:
-                # Normal processing for non-one-hot variables
-                # Extract data for this variable
-                var_data = data.sel(variable=var)
-                
-                # Create a new DataArray to hold normalized values
-                # We start with a copy to keep coords/dims
-                out_var = xr.full_like(var_data, np.nan)
-                out_var.attrs = copy.deepcopy(data.attrs)
-                if "units" not in out_var.attrs:
-                    out_var.attrs["units"] = {}
-                
-                if var in self.prcp_norm_cols:
-                    out_var.values = _prcp_norm(
-                        var_data.to_numpy(),
-                        self.mean_prcp,
-                        to_norm=True,
-                    )
-                else:
-                    out_var.values = var_data.to_numpy()
-                
-                out_var.attrs["units"] = "dimensionless"
-                
-                # Now apply _trans_norm logic for this single variable
-                # Note: _trans_norm expects an xarray with 'variable' dim and multiple variables usually,
-                # but here we are processing one by one. 
-                # We can reuse _trans_norm if we wrap it back or just implement the logic here.
-                # Implementing logic here is safer to avoid recursion or shape issues.
-                
-                stat = stat_dict[var]
-                # stat: [mean, std, mean, std] usually? 
-                # Wait, cal_stat returns [mean, std, mean, std] or similar?
-                # Let's check cal_stat in hydro_stat.py or assume standard usage
-                # _trans_norm uses stat[2] for mean and stat[3] for std
-                
-                if to_norm:
-                    if var in self.log_norm_cols:
-                        out_var.values = (np.log10(np.sqrt(np.abs(out_var.values)) + 0.1) - stat[2]) / stat[3]
-                    else:
-                        out_var.values = (out_var.values - stat[2]) / stat[3]
-                
-                # Expand dims to include variable name
-                out_var = out_var.expand_dims(variable=[var])
-                data_arrays.append(out_var)
-
-        # Merge all data arrays
-        if not data_arrays:
-            return None
-            
-        # Ensure all DataArrays have names (though expand_dims(variable=...) usually sets the coordinate, not the name)
-        # Actually, xr.merge expects a list of DataArrays (if they have names) or a dict
-        # But we expanded dims with 'variable', so they are effectively parts of a larger array
-        # However, xr.merge merges by coordinates. If we want to concatenate along 'variable', we should use xr.concat
-        
-        out = xr.concat(data_arrays, dim="variable")
-        
-        if data.name:
-            out.name = data.name
-        
-        # Restore attributes if possible, though merge might have lost them or mixed them
-        # We mainly care about units which we set on individual arrays
-        
-        # Reorder dimensions to match input if possible, but 'variable' might be in different place
-        # Usually we want (basin, time, variable) or similar
-        # input data dims: e.g. ('basin', 'variable') or ('basin', 'time', 'variable')
-        
-        # Ensure 'variable' is the last dimension or consistent with input
-        desired_dims = [d for d in data.dims if d != "variable"] + ["variable"]
-        out = out.transpose(*desired_dims)
-        
+                out.loc[dict(variable=var)] = data.sel(variable=var).to_numpy()
+            out.attrs["units"][var] = "dimensionless"
+        out = _trans_norm(
+            out,
+            _vars,
+            stat_dict,
+            log_norm_cols=self.log_norm_cols,
+            maxmin_norm_cols=self.maxmin_norm_cols,
+            to_norm=to_norm,
+        )
         return out
 
     def load_norm_data(self, vars_data):
@@ -853,6 +528,7 @@ class DapengScaler(object):
             x: 3-d  gages_num*time_num*var_num
             y: 3-d  gages_num*time_num*1
             c: 2-d  gages_num*var_num
+            g: 3-d  gages_num*time_num*var_num
         """
         if vars_data is None:
             return None

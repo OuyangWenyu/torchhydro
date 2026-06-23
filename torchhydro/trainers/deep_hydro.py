@@ -288,7 +288,9 @@ class DeepHydro(DeepHydroInterface):
         lr_scheduler_cfg = training_cfgs["lr_scheduler"]
 
         if "lr" in lr_scheduler_cfg and "lr_factor" not in lr_scheduler_cfg:
-            scheduler = LambdaLR(opt, lr_lambda=lambda epoch: 1.0)
+            target_lr = lr_scheduler_cfg["lr"]
+            scheduler = LambdaLR(opt, lr_lambda=lambda epoch: target_lr / opt.param_groups[0]['lr'])
+            # scheduler = LambdaLR(opt, lr_lambda=lambda epoch: 1.0)
         elif isinstance(lr_scheduler_cfg, dict) and all(
             isinstance(epoch, int) for epoch in lr_scheduler_cfg
         ):
@@ -1362,7 +1364,7 @@ class DeepHydro(DeepHydroInterface):
             loss_param = training_cfgs["criterion_params"]
             if loss_param is not None:
                 for key in loss_param.keys():
-                    if key == "loss_funcs":
+                    if key in ("loss_funcs", "eval_loss_func"):
                         criterion_init_params[key] = pytorch_criterion_dict[
                             loss_param[key]
                         ]()
@@ -1430,10 +1432,13 @@ class DeepHydro(DeepHydroInterface):
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         if mode == "infer":
             _collate_fn = None
-            # Use GNN collate function for GNN datasets in inference mode
+            # Use GNN collate function for GNN/graph datasets in inference mode
             if (
                 hasattr(self.testdataset, "__class__")
-                and "GNN" in self.testdataset.__class__.__name__
+                and (
+                    "GNN" in self.testdataset.__class__.__name__
+                    or "TgHydroDataset" in self.testdataset.__class__.__name__
+                )
             ):
                 _collate_fn = gnn_collate_fn
             # 使用自定义的 collate 函数处理 FloodEventDataset
@@ -1465,10 +1470,13 @@ class DeepHydro(DeepHydroInterface):
         _collate_fn = None
         if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
             _collate_fn = varied_length_collate_fn
-        # Use GNN collate function for GNN datasets
+        # Use GNN collate function for GNN/graph datasets
         elif (
             hasattr(self.traindataset, "__class__")
-            and "GNN" in self.traindataset.__class__.__name__
+            and (
+                "GNN" in self.traindataset.__class__.__name__
+                or "TgHydroDataset" in self.traindataset.__class__.__name__
+            )
         ):
             _collate_fn = gnn_collate_fn
         data_loader = DataLoader(
@@ -1488,7 +1496,10 @@ class DeepHydro(DeepHydroInterface):
                 _val_collate_fn = varied_length_collate_fn
             elif (
                 hasattr(self.validdataset, "__class__")
-                and "GNN" in self.validdataset.__class__.__name__
+                and (
+                    "GNN" in self.validdataset.__class__.__name__
+                    or "TgHydroDataset" in self.validdataset.__class__.__name__
+                )
             ):
                 _val_collate_fn = gnn_collate_fn
 

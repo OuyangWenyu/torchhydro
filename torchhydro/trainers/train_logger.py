@@ -18,7 +18,7 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from torchhydro.trainers.train_utils import get_lastest_logger_file_in_a_dir
+
 
 
 def save_model(model, model_file, gpu_num=1):
@@ -55,7 +55,7 @@ class TrainLogger:
             self.model_cfgs["continue_train"]
             and self.model_cfgs["weight_path"] is not None
         ):
-            the_logger_file = get_lastest_logger_file_in_a_dir(self.training_save_dir)
+            the_logger_file = hydro_file.get_lastest_file_in_a_dir(self.training_save_dir)
             if the_logger_file is not None:
                 with open(the_logger_file, "r") as f:
                     logs = json.load(f)
