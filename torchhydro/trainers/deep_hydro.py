@@ -195,7 +195,7 @@ class DeepHydro(DeepHydroInterface):
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
         model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
-        checkpoint = torch.load(weight_path, map_location=self.device)
+        checkpoint = torch.load(weight_path, map_location=self.device, weights_only=False)
         model.load_state_dict(checkpoint)
         print("Weights sucessfully loaded")
         return model
@@ -1778,7 +1778,7 @@ class TransLearnHydro(DeepHydro):
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
         model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
-        checkpoint = torch.load(weight_path, map_location=self.device)
+        checkpoint = torch.load(weight_path, map_location=self.device, weights_only=False)
         if "weight_path_add" in model_cfgs:
             if "excluded_layers" in model_cfgs["weight_path_add"]:
                 # delete some layers from source model if we don't need them

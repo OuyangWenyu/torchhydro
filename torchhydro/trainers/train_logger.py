@@ -109,7 +109,7 @@ class TrainLogger:
         )
         print(log_str)
         model = logs["model"]
-        print(model)
+        # print(model)  # 注释掉模型结构打印，避免训练过程中重复显示
         self.tb.add_scalar("Loss", total_loss, epoch)
         # self.plot_hist_img(model, epoch)
         self.train_time.append(log_str)
@@ -126,9 +126,12 @@ class TrainLogger:
         ):
             # NOTE: Now we only evaluate the metrics for test-mode validation
             valid_metrics = logs["valid_metrics"]
-            val_log = "Epoch {} Valid Loss {:.4f} Valid Metric {}".format(
-                epoch, valid_loss, valid_metrics
-            )
+            # val_log = "Epoch {} Valid Loss {:.4f} Valid Metric {}".format(
+            #     epoch, valid_loss, valid_metrics
+            # )
+            val_log = "Epoch {} Valid Loss {:.4f} ".format(
+                epoch, valid_loss
+            ) #简化模型的输出
             print(val_log)
             self.tb.add_scalar("ValidLoss", valid_loss, epoch)
             target_col = self.data_cfgs["target_cols"]
@@ -150,7 +153,7 @@ class TrainLogger:
                         epoch,
                     )
         else:
-            val_log = "Epoch {} Valid Loss {:.4f} ".format(epoch, valid_loss)
+            val_log = "Epoch {} Valid Loss {:.4f}".format(epoch, valid_loss)
             print(val_log)
             self.tb.add_scalar("ValidLoss", valid_loss, epoch)
 

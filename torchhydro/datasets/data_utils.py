@@ -58,7 +58,7 @@ def warn_if_nan(dataarray, max_display=5, nan_mode="any", data_name=""):
         if total_nans > max_display
         else f" Here are the indices of the NaNs: {display_indices}"
     )
-    warnings.warn(message)
+    # warnings.warn(message)  # 注释掉NaN警告，减少训练时的详细输出
 
     return True
 
