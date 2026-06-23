@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "torchhydro"
-version = "0.0.9"
+dynamic = ["version"]
 description = "datasets, samplers, transforms, and pre-trained models for hydrology and water resources"
 authors = [{name = "Wenyu Ouyang", email = "wenyuouyang@outlook.com"}]
 license = {text = "BSD"}
@@ -30,28 +30,31 @@ dependencies = [
     "tbparse",
     "fsspec",
     "intake",
+    "diffusers",
+    "accelerate",
     # PyTorch 依赖 - 根据平台选择CPU或GPU版本
-    "torch>=2.0.0,<3.0.0; sys_platform == 'darwin'",  # macOS CPU only
-    "torch>=2.0.0,<3.0.0; sys_platform == 'linux'",   # Linux GPU (CUDA)
-    "torch>=2.0.0,<3.0.0; sys_platform == 'win32'",   # Windows GPU (CUDA)
-    "torchvision>=0.15.0; sys_platform == 'darwin'",  # macOS CPU only
-    "torchvision>=0.15.0; sys_platform == 'linux'",   # Linux GPU (CUDA)
-    "torchvision>=0.15.0; sys_platform == 'win32'",   # Windows GPU (CUDA)
-    "torchaudio>=2.0.0; sys_platform == 'darwin'",    # macOS CPU only
-    "torchaudio>=2.0.0; sys_platform == 'linux'",     # Linux GPU (CUDA)
-    "torchaudio>=2.0.0; sys_platform == 'win32'",     # Windows GPU (CUDA)
+    "torch>=2.0.0,<3.0.0; sys_platform == 'darwin'", # macOS CPU only
+    "torch>=2.0.0,<3.0.0; sys_platform == 'linux'", # Linux GPU (CUDA)
+    "torch>=2.0.0,<3.0.0; sys_platform == 'win32'", # Windows GPU (CUDA)
+    "torchvision>=0.15.0; sys_platform == 'darwin'", # macOS CPU only
+    "torchvision>=0.15.0; sys_platform == 'linux'", # Linux GPU (CUDA)
+    "torchvision>=0.15.0; sys_platform == 'win32'", # Windows GPU (CUDA)
+    "torchaudio>=2.0.0; sys_platform == 'darwin'", # macOS CPU only
+    "torchaudio>=2.0.0; sys_platform == 'linux'", # Linux GPU (CUDA)
+    "torchaudio>=2.0.0; sys_platform == 'win32'", # Windows GPU (CUDA)
     "tensorboard",
     "kaggle",
     "pytest",
     "aqua-fetch[all]",
     # 水文数据相关包 - 开发时使用本地版本(见[tool.uv.sources])，发布时从PyPI安装
-    "hydrodatasource>=0.1.0",
+    "hydrodatasource>=0.2.0",
     "hydroutils>=0.1.0",
     "hydrodataset>=0.2.0",
-    # PyTorch Geometric 包（核心包）
+    # PyTorch Geometric 包（核心包及扩展）
     "torch-geometric",
-    # 注意：torch-scatter, torch-sparse, torch-cluster 可能需要从源码编译
-    # 如果遇到编译问题，可以只安装核心包或使用预编译版本
+    "torch-geometric-temporal",
+    # 注意：torch-scatter, torch-sparse, torch-cluster 等会作为依赖自动安装
+    # 它们需要在构建时使用 torch（已在 [tool.uv.extra-build-dependencies] 配置）
     "cartopy>=0.23.0",
     "rich>=14.0.0",
     "boto3>=1.39.4",
@@ -59,23 +62,21 @@ dependencies = [
     "minio>=7.2.15",
     "lightning>=2.5.2",
     "shap>=0.48.0",
+    "black>=25.11.0",
 ]
 
 [project.optional-dependencies]
 # 开发依赖
 dev = [
     "pytest-mock",
-    "setuptools",
-    "bump2version",
-    "wheel",
     "watchdog",
     "flake8",
     "tox",
     "coverage",
     "Sphinx",
-    "twine",
     "grip",
     "pytest-runner",
+    "black",
 ]
 
 # 测试依赖
@@ -101,14 +102,7 @@ docs = [
     "mkdocs-jupyter>=0.25.1",
     "mkdocs-material>=9.6.17",
     "yarl>=1.20.1",
-]
-
-# 构建依赖
-build = [
-    "setuptools",
-    "wheel",
-    "twine",
-    "bump2version",
+    "mkdocs-include-markdown-plugin>=1.0.0",
 ]
 
 [project.urls]
@@ -131,6 +125,12 @@ name = "pytorch-cu124"
 url = "https://download.pytorch.org/whl/cu124"
 explicit = true
 
+# PyTorch Geometric 预编译包索引
+[[tool.uv.index]]
+name = "pyg"
+url = "https://data.pyg.org/whl/torch-2.5.0+cu124.html"
+explicit = true
+
 # PyTorch 包源配置
 [tool.uv.sources]
 torch = [
@@ -145,6 +145,19 @@ torchaudio = [
     { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
     { index = "pytorch-cu124", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
+# PyTorch Geometric 扩展包使用预编译版本（仅 Windows/Linux GPU）
+torch-scatter = [
+    { index = "pyg", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torch-sparse = [
+    { index = "pyg", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torch-cluster = [
+    { index = "pyg", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torch-spline-conv = [
+    { index = "pyg", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
 # ============================================================================
 # 本地开发模式配置
 # ============================================================================
@@ -157,19 +170,6 @@ hydrodataset = { path = "../hydrodataset", editable = true }
 hydrodatasource = { path = "../hydrodatasource", editable = true }
 hydroutils = { path = "../hydroutils", editable = true }
 
-# 在线版本（从 git 安装，仅开发依赖）
-aqua-fetch = { git = "https://github.com/iHeadWater/AquaFetch.git", rev = "dev" }
-
-[tool.setuptools.packages.find]
-include = ["torchhydro", "torchhydro.*"]
-
-[tool.setuptools.package-data]
-torchhydro = ["*"]
-
-# Wheel 构建配置
-[tool.setuptools]
-zip-safe = false
-
 # pytest 配置
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -180,6 +180,8 @@ addopts = "--strict-markers"
 collect_ignore = []  # 之前setup.py已删除，保留配置项以备将来使用
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "requires_data: marks tests that require downloading external data",
+    "requires_gpu: marks tests that require GPU/CUDA (deselect with '-m \"not requires_gpu\"')",
 ]
 
 # black 代码格式化配置
@@ -208,36 +210,55 @@ multi_line_output = 3
 line_length = 88
 known_first_party = ["torchhydro"]
 
-# flake8 配置
-[tool.flake8]
-max-line-length = 88
-exclude = ["docs", ".git", "__pycache__", "build", "dist"]
-ignore = ["E203", "W503"]
-
 # mypy 类型检查配置
 [tool.mypy]
 python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true 
-
-# bump2version 配置 (版本管理)
-[tool.bumpversion]
-current_version = "0.0.9"
-commit = true
-tag = true
-
-[[tool.bumpversion.files]]
-filename = "torchhydro/__init__.py"
-search = "__version__ = \"{current_version}\""
-replace = "__version__ = \"{new_version}\""
-
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
-search = "version = \"{current_version}\""
-replace = "version = \"{new_version}\""
+disallow_untyped_defs = true
 
 [dependency-groups]
 dev = [
     "mypy>=1.16.1",
+]
+
+[tool.uv]
+# Override aqua-fetch's outdated dependency constraints
+# aqua-fetch 限制了 pandas<=2.1.4，但实际上新版本的 pandas 和 xarray 已经修复了兼容性问题
+override-dependencies = [
+    "pandas>=2.2.0",
+]
+
+# Disable build isolation for PyTorch Geometric extensions
+# These packages need torch at build time but don't declare it properly
+no-build-isolation-package = [
+    "torch-scatter",
+    "torch-sparse",
+    "torch-cluster",
+    "torch-spline-conv",
+]
+
+# Hatch version management
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.1"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "torchhydro/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["torchhydro"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/torchhydro",
+    "/tests",
+    "/docs",
+    "/README.md",
+    "/LICENSE",
+    "/AUTHORS.rst",
+    "/MANIFEST.in",
 ]

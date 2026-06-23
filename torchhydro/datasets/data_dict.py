@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-10-30 16:42:33
+LastEditTime: 2025-11-22 16:44:22
 LastEditors: Wenyu Ouyang
 Description: A dict used for data source and data loader
 FilePath: \torchhydro\torchhydro\datasets\data_dict.py
@@ -16,21 +16,21 @@ from torchhydro.datasets.data_sets import (
     BasinSingleFlowDataset,
     DplDataset,
     FlexibleDataset,
-    HydroMeanDataset,
-    # HydroMultiSourceDataset,
-    PrecipitationFusionDataset,
-    MopexPrecipitationGagesAttrFusionDataset,
     ObsForeDataset,
     Seq2SeqDataset,
     SeqForecastDataset,
     TransformerDataset,
-    BALSTMDataset,
-    EncDecBALSTMDataset,
     GNNDataset,
     FloodEventDataset,
     AugmentedFloodEventDataset,
-    AEFDataset
+    FloodEventSeq2SeqDataset,
+    AEFDataset,
+    Camels_merge_AEFDataset,
+    TgHydroDataset,
+    MultiSourceDataset,
+    MultiSourceAEFDataset,
 )
+
 
 datasets_dict = {
     "StreamflowDataset": BaseDataset,
@@ -39,19 +39,18 @@ datasets_dict = {
     "SingleflowDataset": BasinSingleFlowDataset,
     "DplDataset": DplDataset,
     "FlexDataset": FlexibleDataset,
-    # "MultiSourceDataset": HydroMultiSourceDataset,
-    "PrecipitationFusionDataset": PrecipitationFusionDataset,
-    "MopexPrecipitationGagesAttrFusionDataset": MopexPrecipitationGagesAttrFusionDataset,
     "Seq2SeqDataset": Seq2SeqDataset,
-    "TransformerDataset": TransformerDataset,
     "GNNDataset": GNNDataset,
     "SeqForecastDataset": SeqForecastDataset,
-    "BALSTMDataset": BALSTMDataset,
-    "EncDecBALSTMDataset": EncDecBALSTMDataset,
     "TransformerDataset": TransformerDataset,
     "ObsForeDataset": ObsForeDataset,
     "FloodEventDataset": FloodEventDataset,
     "FloodEventDplDataset": FloodEventDplDataset,
     "AugmentedFloodEventDataset": AugmentedFloodEventDataset,
+    "FloodEventSeq2SeqDataset": FloodEventSeq2SeqDataset,
     "AlphaEarthDataset": AEFDataset,
+    "MergedDataset": Camels_merge_AEFDataset,
+    "TgHydroDataset": TgHydroDataset,
+    "MultiSourceDataset": MultiSourceDataset,
+    "MultiSourceAEFDataset": MultiSourceAEFDataset,
 }

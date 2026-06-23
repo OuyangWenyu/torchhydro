@@ -6,6 +6,10 @@ on:
 jobs:
     deploy:
         runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        env:
+            UV_NO_SOURCES: "1"
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -21,15 +25,17 @@ jobs:
             
             - name: Install dependencies
               run: |
-                  # Install project dependencies
-                  uv sync --extra dev
-                  
-                  # Install documentation dependencies
-                  uv add mkdocs-material mkdocstrings mkdocs-git-revision-date-plugin mkdocs-jupyter ipykernel
+                  # Install project dependencies with documentation extras
+                  uv sync --extra dev --extra docs
             
             - name: Run tests
               run: |
-                  uv run pytest tests
+                  uv run pytest -m "not requires_data and not requires_gpu" tests
+            
+            - name: Configure Git
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
             
             - name: Build and deploy docs
               run: |

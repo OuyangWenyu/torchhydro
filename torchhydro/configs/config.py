@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-10-31 10:04:59
+LastEditTime: 2025-11-22 16:34:42
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -27,7 +27,6 @@ Q_CAMELS_US_NAME = "streamflow"
 Q_CAMELS_CC_NAME = "Q"
 PRCP_DAYMET_NAME = "prcp"
 PRCP_NLDAS_NAME = "total_precipitation"
-PRCP_MOPEX_NAME = "map"
 PET_MODIS_NAME = "PET"
 PET_NLDAS_NAME = "potential_evaporation"
 NLDAS_NAME = "nldas"
@@ -169,7 +168,6 @@ def default_config_file() -> Dict[str, Any]:
             #     "ET": "modiset4camels",
             # },
             "constant_rm_nan": True,
-            "global_rm_nan": True,
             # if constant_only, we will only use constant data as DL models' input: this is only for dpl models now
             "constant_only": False,
             # only numerical scaler: for categorical vars, they are transformed to numerical vars when reading them
@@ -189,8 +187,6 @@ def default_config_file() -> Dict[str, Any]:
                     "pr",
                     # PRCP_ERA5LAND_NAME is same as PRCP_NLDAS_NAME
                     PRCP_NLDAS_NAME,
-                    "tp",
-                    PRCP_MOPEX_NAME,
                     "pre",
                     StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
                     StandardVariable.EVAPOTRANSPIRATION,
@@ -217,9 +213,6 @@ def default_config_file() -> Dict[str, Any]:
                 ],
                 # NOTE: pbm_norm is True means norm and denorm for differentiable models; if you use pure data-driven models, you should set it as False
                 "pbm_norm": False,
-                "maxmin_norm_cols": [
-                    "streamflow",
-                ],
             },
             # For scaler from sklearn, we need to specify the stat_dict_file for three different parts:
             # target_cols, relevant_vars and constant_cols, and the sequence must be target_cols, relevant_cols, constant_cols
@@ -244,6 +237,22 @@ def default_config_file() -> Dict[str, Any]:
                 "adjacency_edge_attr_cols": ["dist_hdn", "elev_diff", "strm_slope"],
                 "adjacency_weight_col": None,  # 不使用权重，返回边属性
                 "return_edge_weight": False,
+            },
+            # TgHydroDataset 专用配置
+            "tg_cfgs": {
+                # 每个变量的源选择："base" 或 "intermediate"
+                "var_source_map": None,
+                # 默认源选择，如果未在 var_source_map 指定
+                "default_source": None,
+                # 是否在两种源都可用时优先使用中间产品
+                "prefer_intermediate": False,
+                # 是否在读取数据时合并多源时间维度
+                "combine": True,
+                # 图相关可选配置
+                "node_attributes": None,
+                "basin_names": [],
+                "basin_id": None,
+                "use_confluence_nodes_only": True,
             },
         },
         "training_cfgs": {
@@ -494,6 +503,13 @@ def cmd(
     fabric_strategy: Optional[str] = None,
     # station data configurations for GNN models
     station_cfgs: Optional[Dict[str, Any]] = None,
+    # PyG DataLoader specific configurations
+    use_pyg_dataloader: Optional[bool] = None,
+    # TgHydroDataset 专用配置
+    tg_cfgs: Optional[Dict[str, Any]] = None,
+    shap_cfgs: Optional[Dict[str, Any]] = None,
+    # peak-aligned sampling configuration for FloodEventDataset
+    peak_aligned_sampling: Optional[Dict[str, Any]] = None,
 ) -> argparse.Namespace:
     """input args from cmd"""
     parser = argparse.ArgumentParser(
@@ -1063,6 +1079,37 @@ def cmd(
         default=station_cfgs,
         type=json.loads,
     )
+    # TG-GNN specific configurations
+    parser.add_argument(
+        "--use_pyg_dataloader",
+        dest="use_pyg_dataloader",
+        help="Whether to use PyTorch Geometric DataLoader for graph datasets",
+        default=use_pyg_dataloader,
+        type=bool,
+    )
+    parser.add_argument(
+        "--tg_cfgs",
+        dest="tg_cfgs",
+        help="TgHydroDataset specific configurations (as JSON)",
+        default=tg_cfgs,
+        type=json.loads,
+    )
+    parser.add_argument(
+        "--shap_cfgs",
+        dest="shap_cfgs",
+        help="SHAP analysis configurations (as JSON)",
+        default=shap_cfgs,
+        type=json.loads,
+    )
+    parser.add_argument(
+        "--peak_aligned_sampling",
+        dest="peak_aligned_sampling",
+        help="Peak-aligned sampling configurations for FloodEventDataset (as JSON)",
+        default=peak_aligned_sampling,
+        type=json.loads,
+    )
+        type=json.loads,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
@@ -1274,7 +1321,7 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
     if new_args.batch_size is not None:
         cfg_file["training_cfgs"]["batch_size"] = new_args.batch_size
     if new_args.min_time_unit is not None:
-        if new_args.min_time_unit not in ["h", "D", "ME"]:
+        if new_args.min_time_unit not in ["h", "D"]:
             raise ValueError("min_time_unit must be 'h' (HOURLY) or 'D' (DAILY)")
         cfg_file["data_cfgs"]["min_time_unit"] = new_args.min_time_unit
     if new_args.min_time_interval is not None:
@@ -1296,7 +1343,8 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
     if new_args.warmup_length is not None:
         cfg_file["training_cfgs"]["warmup_length"] = new_args.warmup_length
         if (
-            "warmup_length" in new_args.model_hyperparam.keys()
+            new_args.model_hyperparam is not None
+            and "warmup_length" in new_args.model_hyperparam.keys()
             and new_args.warmup_length != new_args.model_hyperparam["warmup_length"]
         ):
             raise RuntimeError(
@@ -1357,6 +1405,21 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
     # Station data configurations for GNN models
     if new_args.station_cfgs is not None:
         cfg_file["data_cfgs"]["station_cfgs"] = new_args.station_cfgs
+
+    # PyG DataLoader specific configurations
+    if new_args.use_pyg_dataloader is not None:
+        cfg_file["training_cfgs"]["use_pyg_dataloader"] = new_args.use_pyg_dataloader
+
+    # TgHydroDataset 专用配置透传
+    if hasattr(new_args, "tg_cfgs") and new_args.tg_cfgs is not None:
+        cfg_file["data_cfgs"]["tg_cfgs"] = new_args.tg_cfgs
+
+    if new_args.shap_cfgs is not None:
+        cfg_file["evaluation_cfgs"]["shap_cfgs"] = new_args.shap_cfgs
+
+    # Peak-aligned sampling configuration for FloodEventDataset
+    if new_args.peak_aligned_sampling is not None:
+        cfg_file["data_cfgs"]["peak_aligned_sampling"] = new_args.peak_aligned_sampling
 
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 

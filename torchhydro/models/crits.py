@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-07-13 16:36:07
+LastEditTime: 2025-12-07 09:51:25
 LastEditors: Wenyu Ouyang
 Description: Loss functions
 FilePath: \torchhydro\torchhydro\models\crits.py
@@ -862,10 +862,14 @@ class FloodLoss(FloodBaseLoss):
     def __init__(
         self,
         loss_func: Union[torch.nn.Module, str] = "MSELoss",
-        flood_weight: float = 2.0,
-        non_flood_weight: float = 1.0,
+        flood_weight: float = 1.0,    
+        non_flood_weight: float = 0.5,
         flood_strategy: str = "weight",
         flood_focus_factor: float = 2.0,
+        use_score_weighting: bool = False,
+        score_weight_min: float = 0.5,
+        score_weight_max: float = 2.0,
+        score_alpha: float = 2.0,
         device: list = None,
         **kwargs,
     ):
@@ -878,15 +882,30 @@ class FloodLoss(FloodBaseLoss):
             Base loss function to use. Can be a PyTorch loss function or string name.
             Supported strings: "MSELoss", "MAELoss", "RMSELoss", "L1Loss"
         flood_weight : float
-            Weight multiplier for flood events when using "weight" strategy, default is 2.0
+            Weight multiplier for flood events when using binary weighting (use_score_weighting=False), default is 2.0
         non_flood_weight : float
-            Weight multiplier for non-flood events when using "weight" strategy, default is 1.0
+            Weight multiplier for non-flood events (flood_mask <= 0), default is 1.0
         flood_strategy : str
             Strategy for handling flood events:
             - "weight": Apply higher weights to flood events
             - "focal": Use focal loss approach based on flood event frequency
         flood_focus_factor : float
             Factor for focal loss when using "focal" strategy, default is 2.0
+        use_score_weighting : bool
+            If True, use data quality scores (from flood_mask values 1-100) as loss weights.
+            flood_mask: -1/0 = non-flood (weight=non_flood_weight), 1-100 = flood quality score
+            Default is False (use binary weighting: 0/1).
+        score_weight_min : float
+            Minimum weight for lowest quality score (score=1), default is 0.5
+        score_weight_max : float
+            Maximum weight for highest quality score (score=100), default is 2.0
+        score_alpha : float
+            Power factor controlling high-quality data weight proportion.
+            weight(score) = base + (score/100)^alpha * (max - base)
+            - alpha > 1: emphasize high-quality data (steeper curve)
+            - alpha < 1: smoother weight distribution
+            - alpha = 1: linear mapping
+            Default is 2.0 (quadratic, emphasizing high scores).
         device : list
             Device configuration, default is None (auto-detect)
         """
@@ -895,9 +914,37 @@ class FloodLoss(FloodBaseLoss):
         self.non_flood_weight = non_flood_weight
         self.flood_strategy = flood_strategy
         self.flood_focus_factor = flood_focus_factor
+        self.use_score_weighting = use_score_weighting
+        self.score_weight_min = score_weight_min
+        self.score_weight_max = score_weight_max
+        self.score_alpha = score_alpha
         self.device = get_the_device(device if device is not None else [0])
 
+        # Initialize epoch-level statistics for score weighting
+        self.reset_statistics()
+
         # Initialize base loss function
+        self.base_loss_func = self._initialize_base_loss(loss_func, kwargs)
+
+    def reset_statistics(self):
+        """Reset epoch-level statistics for score weighting."""
+        self.epoch_stats = {
+            'total_batches': 0,
+            'total_flood_events': 0,
+            'score_sum': 0.0,
+            'score_min': float('inf'),
+            'score_max': float('-inf'),
+            'all_scores': [],
+            'high_quality_count': 0,  # score >= 90
+            'perfect_score_count': 0,  # score == 100
+            'perfect_score_positions': [],  # List of (batch_idx, timestep, batch_num)
+            'weight_sum': 0.0,
+            'weight_min': float('inf'),
+            'weight_max': float('-inf'),
+        }
+
+    def _initialize_base_loss(self, loss_func, kwargs):
+        """Initialize base loss function."""
         if isinstance(loss_func, str):
             loss_dict = {
                 # NOTE: reduction="none" is important, otherwise the loss will be reduced to a scalar
@@ -910,11 +957,11 @@ class FloodLoss(FloodBaseLoss):
                 ),
             }
             if loss_func in loss_dict:
-                self.base_loss_func = loss_dict[loss_func]
+                return loss_dict[loss_func]
             else:
                 raise ValueError(f"Unsupported loss function string: {loss_func}")
         else:
-            self.base_loss_func = loss_func
+            return loss_func
 
     def compute_flood_loss(
         self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
@@ -951,6 +998,14 @@ class FloodLoss(FloodBaseLoss):
         self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
     ) -> torch.Tensor:
         """Compute loss with higher weights for flood events."""
+        # Handle warmup_length: predictions may have more timesteps than targets
+        # If predictions shape is [batch, seq_pred, features] and targets is [batch, seq_target, features]
+        # where seq_pred > seq_target, we need to slice predictions to match targets
+        if predictions.shape[1] > targets.shape[1]:
+            # Take the last seq_target timesteps from predictions
+            seq_diff = predictions.shape[1] - targets.shape[1]
+            predictions = predictions[:, seq_diff:, :]
+
         # Compute base loss
         if isinstance(self.base_loss_func, RMSELoss):
             # Special handling for RMSELoss which doesn't have reduction="none"
@@ -966,10 +1021,86 @@ class FloodLoss(FloodBaseLoss):
         # return base_loss
 
         # Apply flood weights
-        weights = torch.full_like(
-            flood_mask, self.non_flood_weight, dtype=predictions.dtype
-        )
-        weights[flood_mask >= 1] = self.flood_weight
+        if self.use_score_weighting:
+            # Use data quality scores (1-100) as loss weights
+            # flood_mask: -1/0 = non-flood, 1-100 = flood quality score
+            weights = torch.full_like(
+                flood_mask, self.non_flood_weight, dtype=predictions.dtype
+            )
+
+            # For flood events (flood_mask >= 1), compute score-based weights
+            is_flood = flood_mask >= 1
+
+            # Increment batch counter
+            self.epoch_stats['total_batches'] += 1
+
+            if is_flood.any():
+                scores = flood_mask[is_flood]
+                num_flood_events = is_flood.sum().item()
+
+                # Accumulate statistics
+                self.epoch_stats['total_flood_events'] += num_flood_events
+                self.epoch_stats['score_sum'] += scores.sum().item()
+                self.epoch_stats['score_min'] = min(self.epoch_stats['score_min'], scores.min().item())
+                self.epoch_stats['score_max'] = max(self.epoch_stats['score_max'], scores.max().item())
+
+                # Store all scores for median calculation
+                self.epoch_stats['all_scores'].extend(scores.cpu().tolist())
+
+                # Count high-quality events (score >= 90)
+                high_quality_mask = scores >= 90
+                self.epoch_stats['high_quality_count'] += high_quality_mask.sum().item()
+
+                # Find perfect score events (score == 100)
+                perfect_mask = scores == 100
+                if perfect_mask.any():
+                    num_perfect = perfect_mask.sum().item()
+                    self.epoch_stats['perfect_score_count'] += num_perfect
+
+                    # Get positions in the original flood_mask tensor
+                    flood_indices = torch.nonzero(is_flood, as_tuple=False)
+                    perfect_indices = flood_indices[perfect_mask]
+
+                    # Store positions (batch_idx, timestep, current_batch_num)
+                    for idx in perfect_indices:
+                        if idx.dim() == 1 and len(idx) == 2:
+                            batch_idx, timestep = idx[0].item(), idx[1].item()
+                            self.epoch_stats['perfect_score_positions'].append(
+                                (batch_idx, timestep, self.epoch_stats['total_batches'])
+                            )
+                        elif idx.dim() == 1 and len(idx) == 1:
+                            timestep = idx[0].item()
+                            self.epoch_stats['perfect_score_positions'].append(
+                                (0, timestep, self.epoch_stats['total_batches'])
+                            )
+
+                # Normalize scores to [0, 1]: (score / 100)
+                normalized_scores = scores / 100.0
+                normalized_scores = torch.clamp(normalized_scores, 0.0, 1.0)
+
+                # Apply power transformation with alpha to control high-quality emphasis
+                # weight(score) = base + (score/100)^alpha * (max - base)
+                score_weights = self.score_weight_min + torch.pow(normalized_scores, self.score_alpha) * (
+                    self.score_weight_max - self.score_weight_min
+                )
+
+                # Accumulate weight statistics
+                self.epoch_stats['weight_sum'] += score_weights.sum().item()
+                self.epoch_stats['weight_min'] = min(self.epoch_stats['weight_min'], score_weights.min().item())
+                self.epoch_stats['weight_max'] = max(self.epoch_stats['weight_max'], score_weights.max().item())
+
+                weights[is_flood] = score_weights
+
+        else:
+            # Increment batch counter for binary weighting mode
+            self.epoch_stats['total_batches'] += 1
+
+            # Use original binary weighting (backward compatible)
+            # flood_mask >= 1: flood event, otherwise: non-flood
+            weights = torch.full_like(
+                flood_mask, self.non_flood_weight, dtype=predictions.dtype
+            )
+            weights[flood_mask >= 1] = self.flood_weight
 
         # Apply weights to loss
         if base_loss.dim() == 3:  # [batch, seq, features]
@@ -988,6 +1119,12 @@ class FloodLoss(FloodBaseLoss):
         self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
     ) -> torch.Tensor:
         """Compute focal loss that emphasizes flood events."""
+        # Handle warmup_length: predictions may have more timesteps than targets
+        if predictions.shape[1] > targets.shape[1]:
+            # Take the last seq_target timesteps from predictions
+            seq_diff = predictions.shape[1] - targets.shape[1]
+            predictions = predictions[:, seq_diff:, :]
+
         # Compute base loss
         if isinstance(self.base_loss_func, RMSELoss):
             base_loss = torch.pow(predictions - targets, 2)
@@ -1069,6 +1206,213 @@ class HybridLoss(torch.nn.Module):
             )
 
 
+class PeakShapeLoss(FloodBaseLoss):
+    """
+    Peak Shape Loss for flood events.
+
+    This loss focuses on three key hydrological indicators for flood peak prediction:
+    1. Peak Magnitude: Maximum flow value during flood event
+    2. Peak Timing: Time of peak occurrence (with asymmetric penalty for late/early)
+    3. Flood Volume: Total volume of water during flood event
+
+    Loss = peak_magnitude_weight * L_magnitude +
+           peak_timing_weight * L_timing +
+           flood_volume_weight * L_volume
+
+    Where:
+    - L_magnitude: absolute difference in peak flow values
+    - L_timing: time shift with asymmetric penalty (late > early)
+    - L_volume: difference in cumulative flood volume
+    """
+
+    def __init__(
+        self,
+        loss_func: Union[torch.nn.Module, str] = "MSELoss",
+        peak_magnitude_weight: float = 1.0,
+        peak_timing_weight: float = 1.0,
+        flood_volume_weight: float = 1.0,
+        late_penalty_factor: float = 2.0,
+        early_penalty_factor: float = 0.5,
+        flood_weight: float = 1.0,
+        non_flood_weight: float = 0.5,
+        device: list = None,
+        **kwargs,
+    ):
+        """
+        Initialize Peak Shape Loss.
+
+        Parameters
+        ----------
+        loss_func : Union[torch.nn.Module, str]
+            Base loss function, default is "MSELoss"
+        peak_magnitude_weight : float
+            Weight for peak magnitude loss, default is 1.0
+        peak_timing_weight : float
+            Weight for peak timing loss, default is 1.0
+        flood_volume_weight : float
+            Weight for flood volume loss, default is 1.0
+        late_penalty_factor : float
+            Penalty multiplier for late peak predictions, default is 2.0
+        early_penalty_factor : float
+            Penalty multiplier for early peak predictions, default is 0.5
+        flood_weight : float
+            Weight multiplier for flood events in global loss, default is 1.0
+        non_flood_weight : float
+            Weight multiplier for non-flood events, default is 0.5
+        device : list
+            Device configuration, default is None (auto-detect)
+        """
+        super(PeakShapeLoss, self).__init__()
+        self.peak_magnitude_weight = peak_magnitude_weight
+        self.peak_timing_weight = peak_timing_weight
+        self.flood_volume_weight = flood_volume_weight
+        self.late_penalty_factor = late_penalty_factor
+        self.early_penalty_factor = early_penalty_factor
+        self.flood_weight = flood_weight
+        self.non_flood_weight = non_flood_weight
+        self.device = get_the_device(device if device is not None else [0])
+
+        # Initialize base loss function
+        self.base_loss_func = self._initialize_base_loss(loss_func, kwargs)
+
+        print(f"[PeakShapeLoss] Initialized with:")
+        print(f"  Peak magnitude weight: {peak_magnitude_weight}")
+        print(f"  Peak timing weight: {peak_timing_weight} (late penalty: {late_penalty_factor}x, early: {early_penalty_factor}x)")
+        print(f"  Flood volume weight: {flood_volume_weight}")
+        print(f"  Flood weight: {flood_weight} vs non-flood: {non_flood_weight}")
+
+    def _initialize_base_loss(self, loss_func, kwargs):
+        """Initialize base loss function."""
+        if isinstance(loss_func, str):
+            loss_dict = {
+                "MSELoss": torch.nn.MSELoss(reduction="none"),
+                "MAELoss": torch.nn.L1Loss(reduction="none"),
+                "L1Loss": torch.nn.L1Loss(reduction="none"),
+                "RMSELoss": RMSELoss(),
+                "HybridLoss": HybridLoss(
+                    kwargs.get("mae_weight", 0.5), reduction="none"
+                ),
+            }
+            if loss_func in loss_dict:
+                return loss_dict[loss_func]
+            else:
+                raise ValueError(f"Unsupported loss function string: {loss_func}")
+        else:
+            return loss_func
+
+    def compute_flood_loss(
+        self, predictions: torch.Tensor, targets: torch.Tensor, flood_mask: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Compute peak-based loss with three hydrological indicators.
+
+        Parameters
+        ----------
+        predictions : torch.Tensor
+            Model predictions [batch_size, seq_len, output_features]
+        targets : torch.Tensor
+            Target values [batch_size, seq_len, output_features]
+        flood_mask : torch.Tensor
+            Flood mask [batch_size, seq_len] (1 for flood, 0 for normal)
+
+        Returns
+        -------
+        torch.Tensor
+            Computed loss value
+        """
+        # Ensure flood_mask has correct shape
+        if flood_mask.dim() == 3 and flood_mask.shape[-1] == 1:
+            flood_mask = flood_mask.squeeze(-1)
+
+        # Handle warmup_length: predictions may have more timesteps than targets
+        if predictions.shape[1] > targets.shape[1]:
+            seq_diff = predictions.shape[1] - targets.shape[1]
+            predictions = predictions[:, seq_diff:, :]
+            flood_mask = flood_mask[:, seq_diff:]
+
+        batch_size, seq_len, num_features = targets.shape
+
+        # Extract streamflow (first feature)
+        pred_flow = predictions[:, :, 0]  # [batch_size, seq_len]
+        target_flow = targets[:, :, 0]  # [batch_size, seq_len]
+
+        magnitude_losses = []
+        timing_losses = []
+        volume_losses = []
+
+        for b in range(batch_size):
+            # Get flood mask for this sample
+            flood_mask_b = flood_mask[b]  # [seq_len]
+
+            # Skip if no flood events
+            if flood_mask_b.sum() == 0:
+                continue
+
+            # Extract flood period data
+            pred_flood = pred_flow[b]  # [seq_len]
+            target_flood = target_flow[b]  # [seq_len]
+
+            # Skip if contains NaN
+            if torch.isnan(target_flood).any() or torch.isnan(pred_flood).any():
+                continue
+
+            # === 1. Peak Magnitude Loss ===
+            # Find peak values in the entire sequence
+            pred_peak_value = torch.max(pred_flood)
+            target_peak_value = torch.max(target_flood)
+
+            magnitude_loss = torch.abs(pred_peak_value - target_peak_value)
+            magnitude_losses.append(magnitude_loss)
+
+            # === 2. Peak Timing Loss (asymmetric penalty) ===
+            # Find peak positions
+            pred_peak_idx = torch.argmax(pred_flood)
+            target_peak_idx = torch.argmax(target_flood)
+
+            # Time difference (positive = late, negative = early)
+            time_diff = pred_peak_idx.float() - target_peak_idx.float()
+
+            # Asymmetric penalty
+            if time_diff > 0:
+                # Late prediction: higher penalty
+                timing_loss = self.late_penalty_factor * torch.abs(time_diff)
+            else:
+                # Early prediction: lower penalty
+                timing_loss = self.early_penalty_factor * torch.abs(time_diff)
+
+            timing_losses.append(timing_loss)
+
+            # === 3. Flood Volume Loss ===
+            # Compute cumulative volume during flood period
+            # Only sum over flood mask to focus on flood events
+            pred_volume = torch.sum(pred_flood * flood_mask_b)
+            target_volume = torch.sum(target_flood * flood_mask_b)
+
+            volume_loss = torch.abs(pred_volume - target_volume)
+            volume_losses.append(volume_loss)
+
+        # Compute mean losses across batch
+        if len(magnitude_losses) == 0:
+            # Fallback: if no valid samples, use global MSE
+            print("[PeakShapeLoss] Warning: No valid flood samples found, using global MSE")
+            mask = ~torch.isnan(targets)
+            base_loss = self.base_loss_func(predictions[mask], targets[mask])
+            return base_loss.mean()
+
+        magnitude_loss_mean = torch.stack(magnitude_losses).mean()
+        timing_loss_mean = torch.stack(timing_losses).mean()
+        volume_loss_mean = torch.stack(volume_losses).mean()
+
+        # Combined loss with equal weights (as requested)
+        total_loss = (
+            self.peak_magnitude_weight * magnitude_loss_mean +
+            self.peak_timing_weight * timing_loss_mean +
+            self.flood_volume_weight * volume_loss_mean
+        )
+
+        return total_loss
+
+
 class HybridFloodloss(FloodBaseLoss):
     def __init__(self, mae_weight=0.5):
         """
@@ -1117,3 +1461,202 @@ class HybridFloodloss(FloodBaseLoss):
 
         base_loss_func = HybridLoss(self.mae_weight)
         return base_loss_func(predictions, targets)
+
+
+class MseMaskedLoss(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(
+        self, predictions: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor
+    ):
+        """
+        Compute NSE loss for masked data.
+
+        Parameters
+        ----------
+        predictions : torch.Tensor
+            Model predictions [batch_size, seq_len, output_features]
+        targets : torch.Tensor
+            Target values [batch_size, seq_len, output_features]
+        mask : torch.Tensor
+            Mask [batch_size, seq_len, 1] (1 for valid, 0 for invalid)
+
+        Returns
+        -------
+        torch.Tensor
+            Computed NSE loss value
+        """
+        if mask is None:
+            mask = ~torch.isnan(targets)
+
+        valid_predictions = predictions[mask]
+        valid_targets = targets[mask]
+
+        if valid_predictions.numel() == 0:
+            return torch.tensor(0.0, device=predictions.device, requires_grad=True)
+
+        loss = torch.mean((valid_predictions - valid_targets) ** 2)
+        return loss
+
+
+class GenerativeLoss(torch.nn.Module):
+    """
+    A loss function for generative models (e.g., Diffusion models).
+
+    During training:
+        - Model's forward() returns {'loss': loss}
+        - This loss is extracted and returned directly
+
+    During validation/inference:
+        - Model's sample() returns predicted tensor
+        - Uses the configured eval_loss_func to compute loss
+
+    Parameters
+    ----------
+    eval_loss_func : torch.nn.Module, optional
+        Loss function to use during validation/inference.
+        Default is None, which uses MSE loss.
+        Can be any loss function from pytorch_criterion_dict (e.g., RmseLoss, NSELoss)
+
+    Examples
+    --------
+    In training config:
+
+    >>> loss_func="GenerativeLoss",
+    >>> criterion_params={
+    >>>     "eval_loss_func": "RMSESum",  # Use RMSE for validation
+    >>> }
+    """
+
+    def __init__(self, eval_loss_func: torch.nn.Module = None) -> None:
+        super().__init__()
+        self.eval_loss_func = eval_loss_func
+
+    def forward(
+        self, prediction: torch.Tensor | dict, target: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Compute loss for generative models.
+
+        Parameters
+        ----------
+        prediction : dict or torch.Tensor
+            During training: dict with 'loss' key
+            During inference: predicted tensor from sample()
+        target : torch.Tensor
+            Ground truth target values
+
+        Returns
+        -------
+        torch.Tensor
+            The computed loss
+        """
+        # Training mode: model returns {'loss': loss}
+        if isinstance(prediction, dict) and "loss" in prediction:
+            return prediction["loss"]
+
+        # Scalar tensor (already computed loss)
+        if isinstance(prediction, torch.Tensor) and prediction.dim() == 0:
+            return prediction
+
+        # Inference/validation mode: compute loss between prediction and target
+        if isinstance(prediction, torch.Tensor) and isinstance(target, torch.Tensor):
+            # Use configured eval_loss_func or default to MSE
+            if self.eval_loss_func is not None:
+                return self.eval_loss_func(prediction, target)
+            else:
+                # Default: MSE with NaN handling
+                mask = ~torch.isnan(target)
+                if mask.sum() == 0:
+                    return torch.tensor(
+                        0.0, device=prediction.device, requires_grad=True
+                    )
+                return torch.nn.functional.mse_loss(prediction[mask], target[mask])
+
+        raise ValueError(
+            f"GenerativeLoss got unexpected types: prediction={type(prediction)}, "
+            f"target={type(target)}"
+        )
+
+
+class PyGraphLoss(torch.nn.Module):
+    def __init__(
+        self,
+        loss_func: Union[torch.nn.Module, str] = "MSELoss",
+        horizon_range: Union[int, list, tuple] = None,
+        use_node_mask: bool = True,
+    ):
+        """
+        Specialized loss for PyG batch data.
+
+        It assumes the input is flattened [Batch*Nodes, Horizon] and uses node_mask
+        to filter valid nodes before computing the base loss.
+
+        Parameters
+        ----------
+        loss_func : Union[torch.nn.Module, str]
+            Base loss function
+        horizon_range : Union[int, list, tuple], optional
+            Which forecast horizons to include in loss calculation.
+            - None: Use all horizons (default)
+            - int: Use the first N horizons (e.g., 1 means only the first step)
+            - list/tuple: Use specific indices (e.g., [0, 2, 4]) or range (start, end)
+        """
+        super(PyGraphLoss, self).__init__()
+        self.horizon_range = horizon_range
+        # Initialize base loss function
+        if isinstance(loss_func, str):
+            loss_dict = {
+                # NOTE: reduction="none" is important, otherwise the loss will be reduced to a scalar
+                "MSELoss": torch.nn.MSELoss(reduction="none"),
+                "MAELoss": torch.nn.L1Loss(reduction="none"),
+                "L1Loss": torch.nn.L1Loss(reduction="none"),
+                "RMSE": RMSELoss(),
+            }
+            if loss_func in loss_dict:
+                self.base_loss = loss_dict[loss_func]
+            else:
+                raise ValueError(f"Unsupported loss function string: {loss_func}")
+        else:
+            self.base_loss = loss_func
+
+    def forward(self, output, labels, node_mask=None, **kwargs):
+        # 0. Select Horizon Range
+        if self.horizon_range is not None:
+            if isinstance(self.horizon_range, int):
+                # Use first N steps
+                output = output[:, : self.horizon_range]
+                labels = labels[:, : self.horizon_range]
+            elif isinstance(self.horizon_range, (list, tuple)):
+                if len(self.horizon_range) == 2 and isinstance(self.horizon_range[0], int):
+                    # Assume range [start, end)
+                    output = output[:, self.horizon_range[0] : self.horizon_range[1]]
+                    labels = labels[:, self.horizon_range[0] : self.horizon_range[1]]
+                else:
+                    # Specific indices
+                    output = output[:, self.horizon_range]
+                    labels = labels[:, self.horizon_range]
+
+        # 1. Apply Node Mask
+        if node_mask is not None:
+            if not isinstance(node_mask, torch.Tensor):
+                node_mask = torch.tensor(
+                    node_mask, dtype=torch.bool, device=labels.device
+                )
+            else:
+                node_mask = node_mask.to(labels.device).bool()
+
+            # Ensure mask is 1D [B*N_total]
+            if node_mask.dim() > 1:
+                node_mask = node_mask.flatten()
+
+            output = output[node_mask]
+            labels = labels[node_mask]
+
+        # 2. Handle NaN in labels
+        mask_nan = ~torch.isnan(labels)
+        output = output[mask_nan]
+        labels = labels[mask_nan]
+
+        return self.base_loss(output, labels)

@@ -102,12 +102,40 @@ class Resulter:
         save_dir = self.result_dir
         flow_pred_file = os.path.join(save_dir, self.pred_name)
         flow_obs_file = os.path.join(save_dir, self.obs_name)
-        max_len = max(len(basin) for basin in pred.basin.values)
-        encoding = {"basin": {"dtype": f"U{max_len}"}}
-        pred.to_netcdf(flow_pred_file + ".nc", encoding=encoding)
-        obs.to_netcdf(flow_obs_file + ".nc", encoding=encoding)
+        
+        if isinstance(pred, list) and isinstance(obs, list):
+            # Case for recover_mode="byforecast", where we have a list of DataArrays per horizon
+            for i, (p, o) in enumerate(zip(pred, obs)):
+                max_len = max(len(basin) for basin in p.basin.values)
+                encoding = {"basin": {"dtype": f"U{max_len}"}}
+                p.to_netcdf(f"{flow_pred_file}_horizon{i+1}.nc", encoding=encoding)
+                o.to_netcdf(f"{flow_obs_file}_horizon{i+1}.nc", encoding=encoding)
+        else:
+            # Standard case
+            max_len = max(len(basin) for basin in pred.basin.values)
+            encoding = {"basin": {"dtype": f"U{max_len}"}}
+            pred.to_netcdf(flow_pred_file + ".nc", encoding=encoding)
+            obs.to_netcdf(flow_obs_file + ".nc", encoding=encoding)
 
     def eval_result(self, preds_xr, obss_xr):
+        # Handle list input for byforecast mode
+        if isinstance(preds_xr, list) and isinstance(obss_xr, list):
+            # Evaluate each horizon separately
+            for i, (p, o) in enumerate(zip(preds_xr, obss_xr)):
+                # We can reuse the same logic, but maybe append horizon to logs or filenames
+                # For simplicity, we just evaluate the first horizon or average?
+                # Usually we want metrics per horizon.
+                # Here we temporarily adapt to evaluate each one but overwrite or use simple logic
+                # A better approach: The user might want to see metrics for EACH horizon.
+                # Let's modify the internal logic to handle this loop if needed, 
+                # OR, for now, we just evaluate them sequentially and print/save separately.
+                
+                print(f"Evaluating Horizon {i+1}...")
+                self._eval_single_result(p, o, suffix=f"_horizon{i+1}")
+        else:
+            self._eval_single_result(preds_xr, obss_xr)
+
+    def _eval_single_result(self, preds_xr, obss_xr, suffix=""):
         # types of observations
         target_col = self.cfgs["data_cfgs"]["target_cols"]
         evaluation_metrics = self.cfgs["evaluation_cfgs"]["metrics"]
@@ -151,15 +179,13 @@ class Resulter:
             # Create a DataFrame using object_ids as the index and metrics as columns
             df = pd.DataFrame(data, index=basin_ids)
 
-            # Define the output file name based on the target variable
-            output_file = os.path.join(test_path, f"metric_{col}.csv")
-
             # Save the DataFrame to a CSV file
+            output_file = os.path.join(test_path, f"metric_{col}{suffix}.csv")
             df.to_csv(output_file, index_label="basin_id")
 
         # Finally, try to explain model behaviour using shap
         is_shap = self.cfgs["evaluation_cfgs"]["explainer"] == "shap"
-        if is_shap:
+        if is_shap and suffix == "": # Only run SHAP once or for main result
             shap_summary_plot(self.model, self.traindataset, self.testdataset)
             # deep_explain_model_summary_plot(self.model, test_data)
             # deep_explain_model_heatmap(self.model, test_data)

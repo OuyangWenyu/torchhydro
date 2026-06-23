@@ -179,6 +179,8 @@ def _trans_norm(
     out = xr.full_like(x, np.nan)
     for item in var_lst:
         stat = stat_dict[item]
+        arr = x.sel(variable=item).to_numpy()
+        print(f"[DEBUG] {item}: mean={stat[2]}, std={stat[3]}, arr_sample={arr[:10]}")
         if to_norm:
             if item in maxmin_norm_cols:
                 out.loc[dict(variable=item)] = (x.sel(variable=item) - stat[0]) / (stat[1] - stat[0])

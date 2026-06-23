@@ -50,7 +50,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
-tmp/
+
 # Translations
 *.mo
 *.pot
@@ -139,10 +139,33 @@ mlruns/
 .vscode/
 .idea
 results/
-/tests/output_data.xlsx
 data/
 scripts/
-
+pyrightconfig.json
+.trae/
+pth_file/
+check/
+MC-LSTM/
+generated_docs/
+# data_processing/
+Temporary_file/
+test/
+!test/
+test/*
+!test/run_shap_standalone.py
+.gitignore
+pic/
 # Claude
 CLAUDE.md
 .claude/
+.DS_Store
+
+# version file
+torchhydro/_version.py
+
+# Gemini
+GEMINI.md
+
+torchhydro.code-workspace
+data_processing/box.py
+data_processing/

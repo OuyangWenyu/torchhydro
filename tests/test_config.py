@@ -1,7 +1,16 @@
+"""
+Author: Wenyu Ouyang
+Date: 2024-12-12 11:03:50
+LastEditTime: 2025-11-06 21:00:41
+LastEditors: Wenyu Ouyang
+Description: test function for config
+FilePath: \torchhydro\tests\test_config.py
+Copyright (c) 2023-2026 Wenyu Ouyang. All rights reserved.
+"""
 from torchhydro.configs.config import default_config_file, cmd
 
 
-def test_default_config_file():
+def test_default_config_file() -> None:
     config = default_config_file()
     assert isinstance(config, dict)
     assert "model_cfgs" in config
@@ -10,7 +19,7 @@ def test_default_config_file():
     assert "evaluation_cfgs" in config
 
 
-def test_cmd_default_args():
+def test_cmd_default_args() -> None:
     # Call cmd() directly, which will return the parsed arguments
     args = cmd()
 
@@ -41,4 +50,4 @@ def test_cmd_default_args():
     assert args.test_period is None
     assert args.batch_size is None
     assert args.dropout is None
-    assert args.warmup_length == 0
+    assert args.warmup_length is None

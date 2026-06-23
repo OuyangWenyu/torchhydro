@@ -1,11 +1,10 @@
 import os
 import pytest
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from hydrodataset.hydro_dataset import StandardVariable
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 import logging
-import pandas as pd
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -20,8 +19,12 @@ def configure_logging() -> None:
 @pytest.fixture(scope="session")
 def basin4test() -> List[str]:
     """Read the basin ID list, only choose final 5 basins as test data"""
-    show = pd.read_csv("data/basin_id(46+1).csv", dtype={"id": str})
-    return show["id"].values.tolist()[-5:]
+    # For now, use a hardcoded list to avoid dependency on a local file
+    return [
+        "01055000",
+        "01057000",
+        "01170100",
+    ]
 
 
 @pytest.fixture()
@@ -193,178 +196,90 @@ def mtl_args() -> Any:
 
 
 @pytest.fixture()
-def s2s_args(basin4test: List[str]) -> Any:
-    project_name = os.path.join("test_seq2seq", "gpmsmapexp1")
-    return cmd(
-        sub=project_name,
-        # TODO: Update the source_path to the correct path
-        source_cfgs={
-            "source_name": "selfmadehydrodataset",
-            "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
-                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
-                "attributes": "basins-origin/attributes.nc",
-            },
-            "other_settings": {"time_unit": ["3h"]},
-        },
-        ctx=[0],
-        model_name="Seq2Seq",
-        model_hyperparam={
-            "en_input_size": 17,
-            "de_input_size": 18,
-            "output_size": 2,
-            "hidden_size": 256,
-            # number of min-time-intervals to predict; horizon
-            "forecast_length": 56,
-            # Number of preceding streamflow time steps included in the output,
-            # which must be less than or equal to hindcast_length, and is recommended to be set to 1
-            "hindcast_output_window": 1,
-            "teacher_forcing_ratio": 0.5,
-        },
-        model_loader={"load_way": "best"},
-        gage_id=basin4test,
-        batch_size=512,
-        # historical number of min-time-intervals; 240 means 240 * 3H = 720H
-        hindcast_length=240,
-        forecast_length=56,
-        min_time_unit="h",
-        min_time_interval="3",
-        var_t=[
-            "gpm_tp",
-            "sm_surface",
-        ],
-        var_c=[
-            "area",  # 面积
-            "ele_mt_smn",  # 海拔(空间平均)
-            "slp_dg_sav",  # 地形坡度 (空间平均)
-            "sgr_dk_sav",  # 河流坡度 (平均)
-            "for_pc_sse",  # 森林覆盖率
-            "glc_cl_smj",  # 土地覆盖类型
-            "run_mm_syr",  # 陆面径流 (流域径流的空间平均值)
-            "inu_pc_slt",  # 淹没范围 (长期最大)
-            "cmi_ix_syr",  # 气候湿度指数
-            "aet_mm_syr",  # 实际蒸散发 (年平均)
-            "snw_pc_syr",  # 雪盖范围 (年平均)
-            "swc_pc_syr",  # 土壤水含量
-            "gwt_cm_sav",  # 地下水位深度
-            "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
-            "dor_pc_pva",  # 调节程度
-        ],
-        var_out=["streamflow", "sm_surface"],
-        dataset="Seq2SeqDataset",
-        sampler="BasinBatchSampler",
-        scaler="DapengScaler",
-        train_epoch=1,
-        save_epoch=1,
-        train_period=[("2016-06-01-01", "2016-12-31-01")],
-        test_period=[("2015-06-01-01", "2015-10-31-01")],
-        valid_period=[("2015-06-01-01", "2015-10-31-01")],
-        # loss_func="QuantileLoss",
-        # loss_param={"quantiles":[0.2,0.8]},
-        loss_func="MultiOutLoss",
-        loss_param={
-            "loss_funcs": "RMSESum",
-            "data_gap": [0, 0],
-            "device": [0],
-            "item_weight": [0.8, 0.2],
-        },
-        opt="Adam",
-        lr_scheduler={
-            "lr": 0.001,
-            "lr_factor": 0.96,
-        },
-        which_first_tensor="batch",
-        calc_metrics=False,
-        early_stopping=True,
-        patience=8,
-        model_type="MTL",
-        fill_nan=["no", "no"],
-    )
-
-
-@pytest.fixture()
 def trans_args(basin4test: List[str]) -> Any:
-    project_name = os.path.join("test_trans", "gpmsmapexp1")
+    var_c_target = [
+        "elev_mean",
+        "slope_mean",
+        "area_gages2",
+        "frac_forest",
+        "lai_max",
+        "lai_diff",
+    ]
+    var_c_source = [
+        "elev_mean",
+        "slope_mean",
+        "area_gages2",
+        "frac_forest",
+        "lai_max",
+        "lai_diff",
+        "dom_land_cover_frac",
+        "dom_land_cover",
+        "root_depth_50",
+        "soil_depth_statsgo",
+        "soil_porosity",
+        "soil_conductivity",
+        "max_water_content",
+        "geol_1st_class",
+        "geol_2nd_class",
+        "geol_porostiy",
+        "geol_permeability",
+    ]
+    var_t_target = [
+        "daylight_duration",
+        "precipitation",
+        "solar_radiation",
+    ]
+    var_t_source = [
+        "precipitation",
+        "daylight_duration",
+        "solar_radiation",
+        "temperature_max",
+        "temperature_min",
+        "vapor_pressure",
+    ]
+    # This config is from test_transfer_learning.py.
+    # It requires a pre-trained model specified by weight_path, which is not available in the repo.
+    # Setting weight_path to None to make it runnable as a unit test, but the test logic
+    # that relies on it will likely fail. The test should be marked as requires_data or skipped.
+    weight_path = None
+    project_name = "test_camels/exp4"
     return cmd(
         sub=project_name,
-        # TODO: Update the source_path to the correct path
         source_cfgs={
-            "source_name": "selfmadehydrodataset",
-            "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
-                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_gpm_streamflow",
-                "attributes": "basins-origin/attributes.nc",
-            },
-            "other_settings": {"time_unit": ["3h"]},
+            "source_name": "camels_us",
+            "source_path": SETTING["local_data_path"]["datasets-origin"],
         },
         ctx=[0],
-        model_name="Transformer",
+        model_type="TransLearn",
+        model_name="KaiLSTM",
         model_hyperparam={
-            "n_encoder_inputs": 17,
-            "n_decoder_inputs": 16,
-            "n_decoder_output": 2,
-            "channels": 256,
-            "num_embeddings": 512,
-            "nhead": 8,
-            "num_layers": 4,
-            "dropout": 0.1,
-            "hindcast_output_window": 0,
+            "linear_size": len(var_c_target) + len(var_t_target),
+            "n_input_features": len(var_c_source) + len(var_t_source),
+            "n_output_features": 1,
+            "n_hidden_states": 256,
         },
-        model_loader={"load_way": "best"},
-        gage_id=basin4test,
-        batch_size=128,
-        hindcast_length=240,
-        forecast_length=56,
-        min_time_unit="h",
-        min_time_interval="3",
-        var_t=[
-            "gpm_tp",
-            "sm_surface",
-        ],
-        var_c=[
-            "area",  # 面积
-            "ele_mt_smn",  # 海拔(空间平均)
-            "slp_dg_sav",  # 地形坡度 (空间平均)
-            "sgr_dk_sav",  # 河流坡度 (平均)
-            "for_pc_sse",  # 森林覆盖率
-            "glc_cl_smj",  # 土地覆盖类型
-            "run_mm_syr",  # 陆面径流 (流域径流的空间平均值)
-            "inu_pc_slt",  # 淹没范围 (长期最大)
-            "cmi_ix_syr",  # 气候湿度指数
-            "aet_mm_syr",  # 实际蒸散发 (年平均)
-            "snw_pc_syr",  # 雪盖范围 (年平均)
-            "swc_pc_syr",  # 土壤水含量
-            "gwt_cm_sav",  # 地下水位深度
-            "cly_pc_sav",  # 土壤中的黏土、粉砂、砂粒含量
-            "dor_pc_pva",  # 调节程度
-        ],
-        var_out=["streamflow", "sm_surface"],
-        dataset="TransformerDataset",
-        sampler="BasinBatchSampler",
+        opt="Adadelta",
+        loss_func="RMSESum",
+        batch_size=5,
+        hindcast_length=0,
+        forecast_length=20,
+        rs=1234,
+        train_period=["2010-10-01", "2011-10-01"],
+        test_period=["2011-10-01", "2012-10-01"],
         scaler="DapengScaler",
-        train_epoch=10,
-        save_epoch=1,
-        train_period=[("2016-06-01-01", "2016-12-31-01")],
-        test_period=[("2015-06-01-01", "2015-10-31-01")],
-        valid_period=[("2015-06-01-01", "2015-10-31-01")],
-        loss_func="MultiOutLoss",
-        loss_param={
-            "loss_funcs": "RMSESum",
-            "data_gap": [0, 0],
-            "device": [0],
-            "item_weight": [0.8, 0.2],
+        sampler="KuaiSampler",
+        dataset="StreamflowDataset",
+        weight_path=weight_path,
+        weight_path_add={
+            "freeze_params": ["lstm.b_hh", "lstm.b_ih", "lstm.w_hh", "lstm.w_ih"]
         },
-        opt="Adam",
-        lr_scheduler={
-            "lr": 0.001,
-            "lr_factor": 0.96,
-        },
-        which_first_tensor="sequence",
-        calc_metrics=False,
-        early_stopping=True,
-        patience=8,
-        model_type="MTL",
-        fill_nan=["no", "no"],
+        continue_train=True,
+        train_epoch=20,
+        save_epoch=10,
+        var_t=var_t_target,
+        var_c=var_c_target,
+        var_out=["streamflow"],
+        gage_id=basin4test,
     )
 
 
@@ -1193,7 +1108,10 @@ def dpl4hbv_selfmadehydrodataset_args() -> Any:
         source_cfgs={
             "source_name": "selfmadehydrodataset",
             "source_path": SETTING["local_data_path"]["datasets-interim"],
-            "other_settings": {"time_unit": ["1D"]},
+            "other_settings": {
+                "time_unit": ["1D"],
+                "dataset_name": "FDSources",
+            },
         },
         model_type="Normal",
         ctx=[0],
@@ -1516,14 +1434,12 @@ def BALSTM_config():
 @pytest.fixture()
 def selfmadehydrodataset_args() -> Any:
     project_name = os.path.join("test_selfmadehydrodataset", "exp1")
-    data_dir = SETTING["local_data_path"]["datasets-interim"]
-    source_path = os.path.join(data_dir, "songliaorrevent")
     DEVICE = -1
     return cmd(
         sub=project_name,
         source_cfgs={
             "source_name": "selfmadehydrodataset",
-            "source_path": source_path,
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
                 "time_unit": ["1D"],
                 "dataset_name": "songliaorrevent",
@@ -1592,14 +1508,12 @@ def selfmadehydrodataset_args() -> Any:
 @pytest.fixture()
 def selfmadehydrodataset_dpl4xaj_args() -> Any:
     project_name = os.path.join("test_selfmadehydrodataset", "dpl4xajexp1")
-    data_dir = SETTING["local_data_path"]["datasets-interim"]
-    source_path = os.path.join(data_dir, "songliaorrevent")
     DEVICE = -1
     return cmd(
         sub=project_name,
         source_cfgs={
             "source_name": "selfmadehydrodataset",
-            "source_path": source_path,
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
                 "time_unit": ["1D"],
                 "dataset_name": "songliaorrevent",
@@ -1683,19 +1597,19 @@ def selfmadehydrodataset_dpl4xaj_args() -> Any:
 
 @pytest.fixture()
 def flood_event_datasource_args() -> Any:
-    """Configuration for FloodEventDatasource with enhanced data support"""
-    project_name = os.path.join("test_flood_event_datasource", "exp4")
-    data_dir = SETTING["local_data_path"]["datasets-interim"]
-    source_path = os.path.join(data_dir, "songliaorrevent")
+    """
+    Configuration for FloodEventDatasource with enhanced data support and score weighting
+    """
+    project_name = os.path.join("test_flood_event_score", "exp20251211_real")
     DEVICE = -1
-    return cmd(
+    args = cmd(
         sub=project_name,
         source_cfgs={
             "source_name": "floodeventdatasource",
-            "source_path": source_path,
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
                 "time_unit": ["3h"],
-                "dataset_name": "songliaorrevents",
+                "dataset_name": "songliaorrevent",
                 "net_rain_key": "net_rain",
                 "obs_flow_key": "inflow",
                 "delta_t_hours": 3.0,
@@ -1710,9 +1624,10 @@ def flood_event_datasource_args() -> Any:
         },
         gage_id=["songliao_21401550"],
         batch_size=8,
-        hindcast_length=0,
-        forecast_length=20,
-        frwin=20,
+        warmup_length=0,  
+        hindcast_length=56,
+        forecast_length=24,
+        frwin=24,
         min_time_unit="h",
         min_time_interval="3",
         var_t=["rain"],
@@ -1720,7 +1635,8 @@ def flood_event_datasource_args() -> Any:
         var_c=["None"],
         c_rm_nan=False,
         var_out=["inflow", "flood_event"],
-        dataset="AugmentedFloodEventDataset",
+        target_as_input=False,  # 不将target作为输入特征
+        dataset="FloodEventDataset",
         scaler="DapengScaler",
         variable_length_cfgs={
             "use_variable_length": True,
@@ -1728,15 +1644,15 @@ def flood_event_datasource_args() -> Any:
             "fixed_lengths": None,
             "pad_strategy": "Pad",
         },
-        train_epoch=2,
+        train_epoch=100,
         save_epoch=1,
         model_loader={"load_way": "specified", "test_epoch": 2},
         train_period=[
-            ["1980-01-01-02", "2019-12-30-23"],
-            ["2026-07-01-02", "2262-12-30-23"],
+            "1980-01-01-02", "2017-12-31-23",   # 实测数据
+            # ["2017-01-01-02", "2017-12-31-23"],
         ],
-        valid_period=["2020-01-01-02", "2024-12-30-23"],
-        test_period=["2020-01-01-02", "2024-12-30-23"],
+        valid_period=["2018-01-01-02", "2024-12-31-23"],
+        test_period=["2018-01-01-02", "2023-12-31-23"],
         loss_func="FloodLoss",
         loss_param={
             "loss_func": "MSELoss",
@@ -1753,4 +1669,214 @@ def flood_event_datasource_args() -> Any:
         valid_batch_mode="train",
         rolling=-1,
         evaluator={"eval_way": "floodevent"},
+        peak_aligned_sampling={
+            "enabled": True,          # Enable peak-aligned sampling
+            "slide_step": 1,          # Sliding window step size
+            "peak_selection": "highest" # "first" or "highest"
+        },
+        # train_mode= False,
+        # stat_dict_file = "D:\project\songliao\torchhydro\results\test_flood_event_train\exp20251211_real\dapengscaler_stat.json"
+    )
+    return args
+
+
+@pytest.fixture()
+def flood_event_datasource_score_args() -> Any:
+    """Configuration for FloodEventDatasource with score threshold filtering
+
+    This config is designed for NC files (v1.2+) that use score_threshold filtering
+    during data loading. Data quality is controlled by threshold (default: 60),
+    and all loaded data has equal weight during training.
+
+    Features:
+    - Uses augmented data from run_data_postprocessing.py (score >= threshold)
+    - No score-based weighting (all data weighted equally)
+    - Compatible with NC files containing: rain, inflow, flood_event
+    - Supports both real historical data and augmented data
+    """
+    project_name = os.path.join("test_flood_event_Seq2Seq_mask", "exp20251215_real")
+    DEVICE = -1
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "floodeventdatasource",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {
+                "time_unit": ["3h"],
+                "dataset_name": "songliaorrevent",
+                "net_rain_key": "net_rain",
+                "obs_flow_key": "inflow",
+                "delta_t_hours": 3.0,
+            },
+        },
+        ctx=[DEVICE],
+        model_name="Seq2Seq",
+        model_hyperparam={
+            "en_input_size": 1,           # encoder输入特征数（降雨）
+            "de_input_size": 2,           # decoder输入维度 = 降雨(1) + 上一步输出(1)
+            "output_size": 1,             # 输出特征数（只预测径流，flood_event仅用于loss加权）
+            "hidden_size": 16,            # LSTM隐藏层大小
+            "forecast_length": 24,        # 预测步长（必须与training_cfgs.forecast_length一致）
+            "hindcast_output_window": 56, # 后验期输出窗口（输出完整后验期）
+            "teacher_forcing_ratio": 0.5, # teacher forcing比例（训练时使用真实值的概率）
+        },
+        gage_id=["songliao_21401550"],
+        batch_size=8,
+        warmup_length=0,        # 预热期长度
+        hindcast_length=56,      # 模型用于预测的历史观测数据,7天
+        forecast_length=24,     # 模型向未来预测的时间步长度1天,决定样本数量
+        frwin=24,               # 测试/验证阶段使用的预测窗口长度
+        min_time_unit="h",
+        min_time_interval="3",
+        var_t=["rain"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        target_as_input=False,  # target作为输入特征
+        dataset="FloodEventSeq2SeqDataset",
+        scaler="DapengScaler",
+        variable_length_cfgs={
+            "use_variable_length": True,
+            "variable_length_type": "dynamic",
+            "fixed_lengths": None,
+            "pad_strategy": "Pad",
+        },
+        train_epoch=20,  # 训练轮数
+        save_epoch=1,
+        model_loader={"load_way": "best"},  # 使用最佳模型
+        # 训练周期：混合真实数据和增强数据
+        train_period=[
+            "1984-01-01-02", "2017-12-31-23",  # 真实历史数据
+            # ["2026-07-01-02", "3150-12-31-23"],  # 增强数据
+        ],
+        valid_period=["2018-01-01-02", "2024-12-30-23"],  # 真实数据
+        test_period=["2018-01-01-02", "2023-12-31-23"],  # 真实数据
+        loss_func="FloodLoss",
+        loss_param={
+            "loss_func": "MSELoss",
+            "flood_weight": 2.0,
+            "flood_strategy": "weight",
+            # Score-based weighting parameters (for augmented data with quality scores 1-100)
+            # Uncomment below to enable score-based weighting:
+            "use_score_weighting": False,    # Enable score-based weighting (flood_mask: -1/0=non-flood, 1-100=scores)
+            "score_weight_min": 0.5,        # Weight for lowest quality (score=1)
+            "score_weight_max": 3.0,        # Weight for highest quality (score=100)
+            "score_alpha": 3.0,             # Control high-quality emphasis (>1: emphasize high scores)
+            "device": [DEVICE],
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},  # FloodEventSeq2SeqDataset 支持洪水期评估
+        peak_aligned_sampling={
+            "enabled": True,          # Enable peak-aligned sampling
+            "slide_step": 1,          # Sliding window step size
+            "peak_selection": "first" # "first" or "highest"
+        },
+        # train_mode= False,
+        # stat_dict_file = "D:\project\songliao\torchhydro\results\test_flood_event_train\exp20251211_score\dapengscaler_stat.json"
+    )
+    return args
+
+
+@pytest.fixture()
+def flood_event_seq2seq_noforecast_args() -> Any:
+    """Configuration for FloodEventSeq2SeqDataset with Seq2SeqNoForecast model (ablation study).
+
+    This config uses the new Seq2SeqNoForecast model which does NOT use forecast period
+    rainfall as input. The decoder only uses autoregressive predictions.
+
+    Key differences from standard Seq2Seq:
+    - model_name: "Seq2SeqNoForecast"
+    - de_input_size: 1 (only previous output, no rainfall)
+    - Dataset still returns decoder_input but model ignores it
+    """
+    project_name = os.path.join("test_flood_event_Seq2SeqNoForecast", "exp20251215_ablation")
+    DEVICE = -1
+    return cmd(
+        sub=project_name,
+        source_cfgs={
+            "source_name": "floodeventdatasource",
+            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "other_settings": {
+                "time_unit": ["3h"],
+                "dataset_name": "songliaorrevent",
+                "net_rain_key": "net_rain",
+                "obs_flow_key": "inflow",
+                "delta_t_hours": 3.0,
+            },
+        },
+        ctx=[DEVICE],
+        model_name="Seq2SeqNoForecast",  # Use new model
+        model_hyperparam={
+            "en_input_size": 1,           # encoder输入特征数（降雨）
+            "de_input_size": 1,           # decoder输入维度（将被模型忽略，内部使用output_size=1）
+            "output_size": 1,             # 输出特征数（只预测径流，flood_event仅用于loss加权）
+            "hidden_size": 16,            # LSTM隐藏层大小
+            "forecast_length": 24,        # 预测步长（必须与training_cfgs.forecast_length一致）
+            "hindcast_output_window": 56, # 后验期输出窗口（输出完整后验期）
+            "teacher_forcing_ratio": 0.5, # teacher forcing比例（训练时使用真实值的概率）
+        },
+        hindcast_output_window=56,  # 数据集配置：后验期输出窗口
+        gage_id=["songliao_21401550"],
+        batch_size=8,
+        warmup_length=0,
+        hindcast_length=56,
+        forecast_length=24,
+        frwin=24,
+        min_time_unit="h",
+        min_time_interval="3",
+        var_t=["rain"],
+        t_rm_nan=False,
+        var_c=["None"],
+        c_rm_nan=False,
+        var_out=["inflow", "flood_event"],
+        target_as_input=False,
+        dataset="FloodEventSeq2SeqDataset",
+        scaler="DapengScaler",
+        variable_length_cfgs={
+            "use_variable_length": True,
+            "variable_length_type": "dynamic",
+            "fixed_lengths": None,
+            "pad_strategy": "Pad",
+        },
+        train_epoch=20,
+        save_epoch=1,
+        model_loader={"load_way": "best"},
+        train_period=[
+            "1984-01-01-02", "2017-12-31-23",  # 真实历史数据
+        ],
+        valid_period=["2018-01-01-02", "2024-12-30-23"],
+        test_period=["2018-01-01-02", "2023-12-31-23"],
+        loss_func="FloodLoss",
+        loss_param={
+            "loss_func": "MSELoss",
+            "flood_weight": 2.0,
+            "flood_strategy": "weight",
+            "use_score_weighting": False,
+            "score_weight_min": 0.5,
+            "score_weight_max": 3.0,
+            "score_alpha": 3.0,
+            "device": [DEVICE],
+        },
+        opt="Adam",
+        lr_scheduler={
+            "lr": 0.001,
+            "lr_factor": 0.9,
+        },
+        which_first_tensor="sequence",
+        valid_batch_mode="train",
+        rolling=-1,
+        evaluator={"eval_way": "floodevent"},
+        peak_aligned_sampling={
+            "enabled": True,
+            "slide_step": 1,
+            "peak_selection": "first"
+        },
     )

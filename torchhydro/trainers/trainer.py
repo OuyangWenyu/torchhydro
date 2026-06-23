@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-05 11:21:58
-LastEditTime: 2025-07-13 15:59:03
+LastEditTime: 2025-11-08 16:02:09
 LastEditors: Wenyu Ouyang
 Description: Main function for training and testing
 FilePath: \torchhydro\torchhydro\trainers\trainer.py
@@ -72,9 +72,20 @@ def train_and_evaluate(cfgs: Dict):
     )
     if is_train:
         deephydro.model_train()
+        # Explicitly delete optimizer to free its states (momentum, etc.)
+        """if hasattr(deephydro, "optimizer"):
+            del deephydro.optimizer
+        # Note: deephydro.model will be re-initialized in model_evaluate
+        import gc
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            torch.mps.empty_cache()"""
+
     preds, obss = deephydro.model_evaluate()
     resulter.save_cfg(deephydro.cfgs)
-    # TODO: If preds and obss are 4-dimensional, this will run but metrics calculation for valid and test are not supported
     resulter.save_result(preds, obss)
     resulter.eval_result(preds, obss)
 
