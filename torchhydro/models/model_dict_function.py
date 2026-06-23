@@ -11,6 +11,8 @@ from torchhydro.models.coupledlstm import CoupledLSTMModel
 from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU, MultiFeatureStreamGCLSTM
 from torchhydro.models.diffusion import ConditionalDiffusionModel
 from torchhydro.models.mtslstm import MTSLSTM
+from torchhydro.models.regulstm import REGULstmModel
+from torchhydro.models.inflowlstm import InflowLstmModel
 from torchhydro.models.dpl4hbv import DplLstmHbv, DplAnnHbv
 from torchhydro.models.cudnnlstm import (
     CudnnLstmModel,
@@ -139,6 +141,8 @@ pytorch_model_dict = {
     "SimpleBALSTM": SimpleBALSTM,
     "SimpleBALSTM_EncDec": SimpleBALSTM_EncDec,
     "Attn_SimpleBALSTM_EncDec": Attn_SimpleBALSTM_EncDec,
+    "REGULSTM": REGULstmModel,
+    "INFLOWLSTM": InflowLstmModel,
     # Transformer
     "Transformer": Transformer,
     # GNN models
