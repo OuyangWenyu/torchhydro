@@ -1,14 +1,15 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-11-22 16:41:37
+<LastEditTime: 2025-11-22 16:41:37
 LastEditors: Wenyu Ouyang
 Description: Dicts including models (which are seq-first), losses, and optims
 FilePath: \torchhydro\torchhydro\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
-
-from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU
+from torchhydro.models.coupledlstm import CoupledLSTMModel
+from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU, MultiFeatureStreamGCLSTM
+from torchhydro.models.diffusion import ConditionalDiffusionModel
 from torchhydro.models.mtslstm import MTSLSTM
 from torchhydro.models.dpl4hbv import DplLstmHbv, DplAnnHbv
 from torchhydro.models.cudnnlstm import (
@@ -19,6 +20,8 @@ from torchhydro.models.cudnnlstm import (
     CudnnLstmModelMultiOutput,
     CpuLstmModel,
 )
+from torchhydro.models.cnnlstm import CNN_LSTM_Model
+from torchhydro.models.fno import HydrologyFNO
 
 from torchhydro.models.simple_lstm import (
     LinearMultiLayerLSTMModel,
@@ -31,6 +34,7 @@ from torchhydro.models.simple_lstm import (
 from torchhydro.models.seqforecast import SequentialForecastLSTM
 from torchhydro.models.seq2seq import (
     GeneralSeq2Seq,
+    GeneralSeq2SeqNoForecastInput,
     DataEnhancedModel,
     DataFusionModel,
     Transformer,
@@ -60,11 +64,17 @@ from torchhydro.models.crits import (
     FloodLoss,
     HybridLoss,
     HybridFloodloss,
+    GenerativeLoss,
+    PyGraphLoss,
+    PeakShapeLoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
 from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
 from torchhydro.models.dpl4gr4j import DplLstmGr4j, DplAnnGr4j
+from torchhydro.models.balstm_model import BALSTM, VanillaLSTM, SimpleBALSTM
+from torchhydro.models.ed_balstm import SimpleBALSTM_EncDec
+from torchhydro.models.attn_ed_balstm import Attn_SimpleBALSTM_EncDec
 from torchhydro.models.moe import (
     MoE,
     DenseMoE,
@@ -72,6 +82,7 @@ from torchhydro.models.moe import (
     SwitchMoE,
     HydrologyTopKMoE,
     GlobalTopKMoE,
+    GlobalTopKMoE_FastRouting,
 )
 from torchhydro.models.ann import SimpleAnn
 
@@ -79,6 +90,8 @@ from torchhydro.models.ann import SimpleAnn
 Utility dictionaries to map a string to a class.
 """
 pytorch_model_dict = {
+    # Diffusion model
+    "ConditionalDiffusionModel": ConditionalDiffusionModel,
     # MoE model
     "MoE": MoE,
     "DenseMoE": DenseMoE,
@@ -86,6 +99,7 @@ pytorch_model_dict = {
     "SwitchMoE": SwitchMoE,
     "HydrologyTopKMoE": HydrologyTopKMoE,
     "GlobalTopKMoE": GlobalTopKMoE,
+    "GlobalTopKMoE_FastRouting": GlobalTopKMoE_FastRouting,
     # ANN models
     "SimpleAnn": SimpleAnn,
     # LSTM models from Group MHPI
@@ -114,9 +128,17 @@ pytorch_model_dict = {
     "SPPLSTM2": SPP_LSTM_Model_2,
     "SeqForecastLSTM": SequentialForecastLSTM,
     "Seq2Seq": GeneralSeq2Seq,
+    "CNNLSTM": CNN_LSTM_Model,
+    "CoupledLSTM": CoupledLSTMModel,
+    "Seq2SeqNoForecast": GeneralSeq2SeqNoForecastInput,
     "DataEnhanced": DataEnhancedModel,
     "DataFusion": DataFusionModel,
     "MTSLSTM": MTSLSTM,
+    "BALSTM": BALSTM,
+    "VanillaLSTM": VanillaLSTM,
+    "SimpleBALSTM": SimpleBALSTM,
+    "SimpleBALSTM_EncDec": SimpleBALSTM_EncDec,
+    "Attn_SimpleBALSTM_EncDec": Attn_SimpleBALSTM_EncDec,
     # Transformer
     "Transformer": Transformer,
     # GNN models
@@ -127,6 +149,8 @@ pytorch_model_dict = {
     "GCNII": GCNII,
     "ResGAT": ResGAT,
     "AutoRegressiveGCGRU": MultiFeatureStreamGCGRU,
+    "AutoRegressiveGCLSTM": MultiFeatureStreamGCLSTM,
+    "FNO": HydrologyFNO,
 }
 
 pytorch_criterion_dict = {
@@ -146,6 +170,10 @@ pytorch_criterion_dict = {
     "FloodLoss": FloodLoss,
     "HybridLoss": HybridLoss,
     "HybridFloodloss": HybridFloodloss,  # Alias for backward compatibility
+    # Generative model loss (loss computed inside model, this is a placeholder)
+    "GenerativeLoss": GenerativeLoss,
+    "PyGraphLoss": PyGraphLoss,
+    "PeakShapeLoss": PeakShapeLoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}

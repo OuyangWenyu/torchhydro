@@ -130,6 +130,7 @@ def _trans_norm(
     var_lst: list,
     stat_dict: dict,
     log_norm_cols: list = None,
+    maxmin_norm_cols: list = None,
     to_norm: bool = True,
     **kwargs,
 ) -> np.array:
@@ -143,6 +144,9 @@ def _trans_norm(
     and
 
      .. math:: normalized_x = [log_{10}(\sqrt{x} + 0.1) - mean] / std
+
+    and:
+        .. math:: normalized_x = (x-min) / (max-min)
 
      The later is only for vars in log_norm_cols; mean is mean value; std means standard deviation
 
@@ -168,6 +172,8 @@ def _trans_norm(
         return None
     if log_norm_cols is None:
         log_norm_cols = []
+    if maxmin_norm_cols is None:
+        maxmin_norm_cols = []
     if type(var_lst) is str:
         var_lst = [var_lst]
     out = xr.full_like(x, np.nan)
@@ -176,28 +182,51 @@ def _trans_norm(
         arr = x.sel(variable=item).to_numpy()
         print(f"[DEBUG] {item}: mean={stat[2]}, std={stat[3]}, arr_sample={arr[:10]}")
         if to_norm:
-            out.loc[dict(variable=item)] = (
-                (np.log10(np.sqrt(np.abs(x.sel(variable=item))) + 0.1) - stat[2])
-                / stat[3]
-                if item in log_norm_cols
-                else (x.sel(variable=item) - stat[2]) / stat[3]
-            )
-        elif item in log_norm_cols:
-            out.loc[dict(variable=item)] = (
-                np.power(10, x.sel(variable=item) * stat[3] + stat[2]) - 0.1
-            ) ** 2
+            if item in maxmin_norm_cols:
+                out.loc[dict(variable=item)] = (x.sel(variable=item) - stat[0]) / (stat[1] - stat[0])
+            elif item in log_norm_cols:
+                out.loc[dict(variable=item)] = (np.log10(np.sqrt(np.abs(x.sel(variable=item))) + 0.1) - stat[2]) / stat[3]
+            else:
+                out.loc[dict(variable=item)] = (x.sel(variable=item) - stat[2]) / stat[3]
         else:
-            out.loc[dict(variable=item)] = x.sel(variable=item) * stat[3] + stat[2]
+            if item in maxmin_norm_cols:
+                out.loc[dict(variable=item)] = x.sel(variable=item) * (stat[1] - stat[0]) + stat[0]
+            elif item in log_norm_cols:
+                out.loc[dict(variable=item)] = (np.power(10, x.sel(variable=item) * stat[3] + stat[2]) - 0.1) ** 2
+            else:
+                out.loc[dict(variable=item)] = x.sel(variable=item) * stat[3] + stat[2]
     if to_norm:
-        # after normalization, all units are dimensionless
         out.attrs = {}
-    # after denormalization, recover units
     else:
         if "recover_units" in kwargs.keys() and kwargs["recover_units"] is not None:
             recover_units = kwargs["recover_units"]
             for item in var_lst:
                 out.attrs["units"][item] = recover_units[item]
     return out
+    #     stat = stat_dict[item]
+    #     if to_norm:
+    #         out.loc[dict(variable=item)] = (
+    #             (np.log10(np.sqrt(np.abs(x.sel(variable=item))) + 0.1) - stat[2])
+    #             / stat[3]
+    #             if item in log_norm_cols
+    #             else (x.sel(variable=item) - stat[2]) / stat[3]
+    #         )
+    #     elif item in log_norm_cols:
+    #         out.loc[dict(variable=item)] = (
+    #             np.power(10, x.sel(variable=item) * stat[3] + stat[2]) - 0.1
+    #         ) ** 2
+    #     else:
+    #         out.loc[dict(variable=item)] = x.sel(variable=item) * stat[3] + stat[2]
+    # if to_norm:
+    #     # after normalization, all units are dimensionless
+    #     out.attrs = {}
+    # # after denormalization, recover units
+    # else:
+    #     if "recover_units" in kwargs.keys() and kwargs["recover_units"] is not None:
+    #         recover_units = kwargs["recover_units"]
+    #         for item in var_lst:
+    #             out.attrs["units"][item] = recover_units[item]
+    # return out
 
 
 def _prcp_norm(x: np.array, mean_prep: np.array, to_norm: bool) -> np.array:

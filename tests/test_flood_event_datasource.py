@@ -356,12 +356,20 @@ def test_data_source_description(flood_event_datasource_args, tmp_path):
     assert hasattr(data_source, "dataset_name")
     assert data_source.dataset_name == "songliaorrevents"
 
+@pytest.mark.requires_data
+@pytest.mark.skip(
+    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
+)
+def test_train_evaluate_floodevent(flood_event_datasource_args):
+    config = default_config_file()
+    update_cfg(config, flood_event_datasource_args)
+    train_and_evaluate(config)
 
 @pytest.mark.requires_data
 @pytest.mark.skip(
     reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
 )
-def test_train_evaluate(flood_event_datasource_args):
+def test_train_evaluate_floodevent_score(flood_event_datasource_score_args):
     config = default_config_file()
-    update_cfg(config, flood_event_datasource_args)
+    update_cfg(config, flood_event_datasource_score_args)
     train_and_evaluate(config)

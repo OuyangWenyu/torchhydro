@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-11-22 10:46:49
+LastEditTime: 2025-10-31 10:05:24
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -24,7 +24,6 @@ from hydroutils.hydro_units import streamflow_unit_conv
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
-from torch_geometric.data import Data
 from tqdm import tqdm
 import warnings
 
@@ -434,14 +433,12 @@ class BaseDataset(Dataset):
         return self.num_samples
 
     def __getitem__(self, item: int):
-        """Get one sample from the dataset with a unified return format.
-
-        Args:
-            item: The index of the sample to retrieve.
+        """Get one sample from the dataset with unified return format
 
         Returns:
-            A tuple of (input_data, output_data), where input_data is a tensor
-            of input features and output_data is a tensor of target values.
+        --------
+        tuple[torch.Tensor, torch.Tensor]
+            (input_data, output_data)
         """
         basin, idx, actual_length = self.lookup_table[item]
         warmup_length = self.warmup_length
@@ -563,53 +560,9 @@ class BaseDataset(Dataset):
 
         # 处理三维数据 (basin, time, variable)
         if norm_data.ndim == 3:
-            # 全局（或子集后）的时间轴（注意：可能远大于当前窗口 T）
-            all_times = selected_data.coords["time"].values  # numpy datetime64[ns] 数组
-            T = norm_data.shape[1]
-
-            # 将 selected_time_points 统一成 numpy 数组
-            if isinstance(selected_time_points, xr.DataArray):
-                sel_vals = selected_time_points.values
-            else:
-                sel_vals = np.asarray(selected_time_points)
-
-            # 计算相对 all_times 的位置索引 pos
-            sel_vals = np.asarray(sel_vals)
-            if np.issubdtype(sel_vals.dtype, np.datetime64):
-                if pd is not None:
-                    pos = pd.Index(all_times).get_indexer(sel_vals).astype(np.int64)
-                else:
-                    # 兜底：二分查找
-                    pos = np.searchsorted(all_times, sel_vals).astype(np.int64)
-                    ok = (
-                        (pos >= 0)
-                        & (pos < len(all_times))
-                        & (all_times[pos] == sel_vals)
-                    )
-                    if not np.all(ok):
-                        miss = int((~ok).sum())
-                        raise KeyError(
-                            f"{miss} datetimes not found in selected_data time axis."
-                        )
-            elif sel_vals.dtype.kind in ("i", "b"):
-                pos = sel_vals.astype(np.int64).reshape(-1)
-            else:
-                # 其它类型强转为整数索引
-                pos = sel_vals.astype(np.int64).reshape(-1)
-
-            # 对齐长度到当前窗口 T（默认右对齐；如需左对齐改为 pos[:T]）
-            if pos.size < T:
-                raise ValueError(
-                    f"Selected time points ({pos.size}) shorter than current window length ({T})."
-                )
-            pos_T = pos[-T:]
-            time_coords = all_times[pos_T]  # 长度 == T 的时间坐标
-
-            # norm_data 本身就是 (B, T, nf)，不再用 datetime 去索引它
-            norm_data_3d = norm_data
             coords = {
                 "basin": selected_data.coords["basin"],
-                "time": time_coords,
+                "time": selected_data.coords["time"],
                 "variable": selected_data.coords["variable"],
             }
             dims = ["basin", "time", "variable"]
@@ -963,6 +916,7 @@ class BaseDataset(Dataset):
             [start_date, end_date],
             self.data_cfgs["target_cols"],
         )
+        print(data_output_ds_)
         data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
         data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
@@ -989,6 +943,11 @@ class BaseDataset(Dataset):
 
     def _trans2da_and_setunits(self, ds):
         """Set units for dataarray transfromed from dataset"""
+        for var_name in ds.data_vars:
+            if ds[var_name].dtype == "timedelta64[ns]":
+                # 将时间单位从纳秒转换为天，并转换为float类型
+                ds[var_name] = ds[var_name].astype("timedelta64[D]").astype(float)
+
         result = ds.to_array(dim="variable")
         units_dict = {
             var: ds[var].attrs["units"]
@@ -1086,14 +1045,13 @@ class BaseDataset(Dataset):
         rho = self.rho
         warmup_length = self.warmup_length
         horizon = self.horizon
-        # NOTE: we set seq_len to rho + horizon instead of warmup_length + rho + horizon
-        seq_len = rho + horizon
+        seq_len = warmup_length + rho + horizon
         max_time_length = self.nt
         variable_length_cfgs = self.training_cfgs.get("variable_length_cfgs", {})
         use_variable_length = variable_length_cfgs.get("use_variable_length", False)
         variable_length_type = variable_length_cfgs.get(
             "variable_length_type", "dynamic"
-        )  # only used for case when use_variable_length is True
+        )
         fixed_lengths = variable_length_cfgs.get("fixed_lengths", [365, 1095, 1825])
         # Use fixed type variable length if enabled and type is fixed
         is_fixed_length_train = use_variable_length and variable_length_type == "fixed"
@@ -1656,7 +1614,6 @@ class TransformerDataset(Seq2SeqDataset):
         p = self.x[basin, idx + 1 : idx + rho + horizon + 1, 0]
         s = self.x[basin, idx : idx + rho, 1]
         x = np.stack((p[:rho], s), axis=1)
-
         c = self.c[basin, :]
         c = np.tile(c, (rho + horizon, 1))
         x = np.concatenate((x, c[:rho]), axis=1)
@@ -1668,6 +1625,158 @@ class TransformerDataset(Seq2SeqDataset):
             torch.from_numpy(x).float(),
             torch.from_numpy(x_h).float(),
         ], torch.from_numpy(y).float()
+
+
+class BALSTMDataset(BaseDataset):
+    def __init__(self, data_cfgs, is_tra_val_te):
+        super().__init__(data_cfgs, is_tra_val_te)
+
+    def __len__(self):
+        return self.num_samples if self.train_mode else self.ngrid
+
+    def __getitem__(self, idx):
+        basin, idx = self.lookup_table[idx]
+        warmup_length = self.warmup_length
+        if not self.train_mode:
+            x = self.x[idx, :, :]
+            y = self.y[idx, :, :]
+            c = self.c[idx, :]
+            c = c.reshape(c.shape[0], -1).T
+            xg = self.xg[idx, :, :]
+            return (
+                torch.from_numpy(c).float(),
+                torch.from_numpy(x).float(),
+                torch.from_numpy(xg).float(),
+            ), torch.from_numpy(y).float()
+
+        x = self.x[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+        y = self.y[basin, idx : idx + self.rho + self.horizon, :]
+        c = self.c[basin, :]
+        c = c.reshape(c.shape[0], -1).T
+        xg = self.xg[basin, idx - warmup_length : idx + self.rho + self.horizon, :]
+        return (
+            torch.from_numpy(c).float(),
+            torch.from_numpy(x).float(),
+            torch.from_numpy(xg).float(),
+        ), torch.from_numpy(y).float()
+
+    def _read_xyc(self):
+        """Read x, y, c and global data from data source.
+
+        Returns
+        -------
+        tuple[xr.Dataset, xr.Dataset, xr.Dataset, xr.Dataset]
+            x, y, c, global data
+        """
+        all_data_dict = super()._read_xyc()
+        global_data_ds = self.data_source.read_global_data(
+            self.t_s_dict["sites_id"],  # assuming global data has a different ID set
+            self.t_s_dict["t_final_range"],
+            self.data_cfgs["global_cols"],
+        )
+        # global_data_ds = global_data_ds[list(global_data_ds.keys())[0]]
+        all_data_dict["global_data"] = global_data_ds
+        return all_data_dict
+
+
+class EncDecBALSTMDataset(BALSTMDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        super().__init__(data_cfgs, is_tra_val_te)
+
+    def __len__(self):
+        return self.num_samples
+
+    def __getitem__(self, item: int):
+        basin, time = self.lookup_table[item]
+        rho = self.rho
+        horizon = self.horizon
+        prec = self.data_cfgs.get("hindcast_output_window", 0)
+        p = self.x[basin, time : time + rho + horizon, 0].reshape(-1, 1)
+        xt = self.x[basin, time : time + rho, :]
+        xg = self.xg[basin, time : time + rho, :]
+        c = self.c[basin, :]
+        c = c.reshape(c.shape[0], -1).T
+        cd = np.tile(self.c[basin, :], (rho + horizon, 1))
+        x_dec = np.concatenate((p[rho:], cd[rho:]), axis=1)
+        y = self.y[basin, time + rho - prec : time + rho + horizon, :]
+
+        if self.is_tra_val_te == "train":
+            return [
+                torch.from_numpy(c).float(),
+                torch.from_numpy(xt).float(),
+                torch.from_numpy(xg).float(),
+                torch.from_numpy(x_dec).float(),
+                torch.from_numpy(y).float(),
+            ], torch.from_numpy(y).float()
+        return [
+            torch.from_numpy(c).float(),
+            torch.from_numpy(xt).float(),
+            torch.from_numpy(xg).float(),
+            torch.from_numpy(x_dec).float(),
+        ], torch.from_numpy(y).float()
+
+    def _read_xyc(self):
+        start_date = self.t_s_dict["t_final_range"][0]
+        end_date = self.t_s_dict["t_final_range"][1]
+        interval = self.data_cfgs["min_time_interval"]
+        time_unit = self.data_cfgs["min_time_unit"]
+
+        date_format = detect_date_format(end_date)
+        end_date_dt = datetime.strptime(end_date, date_format)
+        if time_unit == "ME":
+            next_month = end_date_dt + relativedelta(months=interval)
+            adjusted_end_date = next_month.replace(day=1).strftime(date_format)
+        else:
+            raise ValueError(f"Unsupported time unit: {time_unit}")
+        self._read_xyc_specified_time(start_date, adjusted_end_date)
+
+
+class PrecipitationFusionDataset(BaseDataset):
+    def __init__(self, data_cfgs: dict, is_tra_val_te: str):
+        """
+        Parameters
+        ----------
+        data_cfgs
+            configs for reading source data
+        is_tra_val_te
+            train, vaild or test
+        """
+        super(PrecipitationFusionDataset, self).__init__(data_cfgs, is_tra_val_te)
+
+    @property
+    def data_source(self):
+        gages_data_path = self.data_cfgs["source_cfgs"]["source_paths"][0]
+        mopex_data_path = self.data_cfgs["source_cfgs"]["source_paths"][1]
+        return data_sources_dict["gagesmopexprepfusion"](
+            gages_data_path, mopex_data_path
+        )
+
+    def _read_xyc(self):
+        """Read x, y, c data from data source
+
+        Returns
+        -------
+        tuple[xr.Dataset, xr.Dataset, xr.Dataset]
+             x, y, c data
+        """
+        # y
+        data_output_ds_ = self.data_source.read_streamflow_ts(
+            self.t_s_dict["sites_id"],
+            self.t_s_dict["t_final_range"],
+            self.data_cfgs["target_cols"],
+        )
+        # if self.data_source.streamflow_unit != "mm/d":
+        #     data_output_ds = streamflow_unit_conv(
+        #         data_output_ds, self.data_source.read_area(self.t_s_dict["sites_id"])
+        #     )
+
+        # x
+        data_forcing_ds_ = self.data_source.read_forcing_ts(
+            self.t_s_dict["sites_id"],
+            self.t_s_dict["t_final_range"],
+            # 6 comes from here
+            self.data_cfgs["relevant_cols"],
+        )
 
 
 class ForecastDataset(BaseDataset):
@@ -2332,6 +2441,14 @@ class GNNDataset(FloodEventDataset):
     - adjacency_weight_col: Column to use as edge weights (default: None for binary weights)
     - return_edge_weight: Whether to return edge_weight instead of edge_attr (default: False)
 
+    Returns:
+    --------
+    sxc : torch.Tensor
+        Station features merged with basin features [num_stations, seq_length, feature_dim]
+    y : torch.Tensor
+        Target values (unchanged from parent) [seq_length, output_dim]
+    edge_index : torch.Tensor
+        Edge connectivity [2, num_edges]
     edge_attr : torch.Tensor
         Edge attributes [num_edges, edge_attr_dim]
     """
@@ -2937,25 +3054,19 @@ class GNNDataset(FloodEventDataset):
         return basin_ids
 
     def __getitem__(self, item: int):
-        """Get one sample with GNN-specific data format.
+        """Get one sample with GNN-specific data format: sxc, y, edge_index, edge_attr
 
-        This method merges basin-level features (xc) into each station node's
-        features (sxc), so each node's input includes both station and basin
-        attributes.
+        This method merges basin-level features (xc) into each station node's features (sxc),
+        so each node's input includes both station and basin attributes.
 
-        Args:
-            item: The index of the sample to retrieve.
-
-        Returns:
-            A tuple of (sxc, y, edge_index, edge_weight) where:
-            - sxc: Station features merged with basin features.
-                   Shape: [num_stations, seq_length, feature_dim]
-            - y: Target values for prediction.
-                 Shape: [forecast_length, output_dim]
-            - edge_index: Edge connectivity.
-                          Shape: [2, num_edges]
-            - edge_weight: Edge weights.
-                           Shape: [num_edges]
+        Returns
+        -------
+        tuple
+            (sxc, y, edge_index, edge_attr) where:
+            - sxc: Station features merged with basin features [num_stations, seq_length, feature_dim]
+            - y: Target values for prediction [forecast_length, output_dim]
+            - edge_index: Edge connectivity [2, num_edges]
+            - edge_attr: Edge attributes [num_edges, edge_attr_dim]
         """
         import torch
         import numpy as np
@@ -3446,7 +3557,7 @@ class AEFDataset(BaseDataset):
             data_forcing_ds_, data_output_ds_
         )
         # c
-        csv_path = r"/Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv"
+        csv_path = r"/ftproot/camels_data/CAMELS_SK/alphaearth/mean_result.csv"
         df_embeddings = pd.read_csv(csv_path)
         df_embeddings["hru_id"] = (
             df_embeddings["hru_id"].astype(int).astype(str).str.lstrip("0")
@@ -3464,271 +3575,13 @@ class AEFDataset(BaseDataset):
             col: (("basin"), embeddings_data[:, i])
             for i, col in enumerate([f"A{j:02d}" for j in range(64)])
         }
-        c_origin = xr.Dataset(c_data_vars, coords={"basin": self.t_s_dict["sites_id"]})
 
+        c_origin = xr.Dataset(c_data_vars, coords={"basin": self.t_s_dict["sites_id"]})
+        df = c_origin.to_dataframe()
+        print(c_origin)
+        print(df.head())
         x_origin, y_origin, c_origin_with_unit = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, c_origin
-        )
-        return {
-            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
-            "target_cols": y_origin.transpose("basin", "time", "variable"),
-            "constant_cols": (
-                c_origin_with_unit.transpose("basin", "variable")
-                if c_origin_with_unit is not None
-                else None
-            ),
-        }
-
-
-class MultiFeatureStreamDataset(BaseDataset):
-    def __init__(self, cfgs: dict, is_tra_val_te: str, upstream_indices: dict = None):
-        super().__init__(cfgs, is_tra_val_te)
-        self.upstream_indices = upstream_indices or {}
-        self.hindcast_length = self.rho
-        self.forecast_length = self.horizon
-        tg_cfgs = self.data_cfgs.get("tg_cfgs", {})
-        self.node_attributes = tg_cfgs.get("node_attributes", None)
-        self.basin_names = tg_cfgs.get("basin_names", [])
-        self.basin_id = tg_cfgs.get("basin_id", None)
-        self.use_confluence_nodes_only = tg_cfgs.get("use_confluence_nodes_only", True)
-        self.node_mask = None
-        self.num_nodes = len(self.basins)
-        rels = self.data_cfgs.get("relevant_cols", [])
-        self._var_idx_precip = (
-            rels.index("precipitation") if "precipitation" in rels else None
-        )
-        self._var_idx_lstm = (
-            rels.index("lstm_streamflow") if "lstm_streamflow" in rels else None
-        )
-        self._var_idx_obs = (
-            rels.index("observed_streamflow") if "observed_streamflow" in rels else None
-        )
-        self._var_idx_discharge = (
-            rels.index("discharge") if "discharge" in rels else None
-        )
-        self._init_node_mask()
-        self._init_edge_index()
-
-    def __getitem__(self, item: int):
-        """Get one sample from the dataset as a PyG Data object.
-
-        Parameters
-        ----------
-        item : int
-            Sample index
-
-        Returns
-        -------
-        torch_geometric.data.Data
-            PyG Data object containing:
-            - x: node features [num_nodes, hindcast_length, num_features]
-            - y: target values [num_nodes, forecast_length]
-            - edge_index: graph connectivity [2, num_edges]
-            - node_mask: (optional) mask for confluence nodes [num_nodes]
-        """
-
-        basin, idx, actual_length = self.lookup_table[item]
-        warmup_length = self.warmup_length
-        M = self.rho
-        F = self.horizon
-        x_all = self.x[:, idx - warmup_length : idx + actual_length, :]
-        y_all = self.y[:, idx : idx + actual_length, :]
-        start_obs_rel = warmup_length
-        end_obs_rel = warmup_length + M
-        if self._var_idx_precip is None or self._var_idx_lstm is None:
-            raise ValueError(
-                "relevant_cols 需包含 'precipitation' 与 'lstm_streamflow'"
-            )
-        past_rain = x_all[:, start_obs_rel + 1 : end_obs_rel + 1, self._var_idx_precip]
-        past_lstm = x_all[:, start_obs_rel + 1 : end_obs_rel + 1, self._var_idx_lstm]
-        if self._var_idx_obs is not None:
-            past_obs = x_all[:, start_obs_rel:end_obs_rel, self._var_idx_obs]
-        else:
-            past_obs = y_all[:, :M, 0]
-        if self._var_idx_discharge is not None:
-            discharge_vals = x_all[
-                :, start_obs_rel:end_obs_rel, self._var_idx_discharge
-            ]
-            mask = ~np.isnan(discharge_vals)
-            past_obs = np.where(mask, discharge_vals, past_obs)
-        past_rain = np.clip(past_rain, 0, None)
-        past_lstm = np.clip(past_lstm, 0, None)
-        past_obs = np.clip(past_obs, 0, None)
-        time_series = np.stack(
-            [
-                past_rain.transpose(0, 1),
-                past_lstm.transpose(0, 1),
-                past_obs.transpose(0, 1),
-            ],
-            axis=-1,
-        )
-        if self.c is None or self.c.shape[-1] == 0:
-            input_features = time_series
-        else:
-            c = self.c
-            c_exp = np.repeat(c[:, np.newaxis, :], M, axis=1)
-            input_features = np.concatenate((time_series, c_exp), axis=-1)
-        # Note: input_features is [M, num_nodes, num_features]
-        # For PyG, we want [num_nodes, M, num_features]
-        input_features = input_features.transpose(1, 0, 2)
-        future_targets = self.y[:, idx + M : idx + M + F, 0]
-        output_data = future_targets.transpose(1, 0)
-
-        # Create PyG Data object
-        data = Data(
-            x=torch.from_numpy(input_features).float(),  # [num_nodes, M, num_features]
-            y=torch.from_numpy(output_data).float(),  # [num_nodes, F]
-            edge_index=self.edge_index,  # [2, num_edges]
-        )
-
-        # Add node mask if using confluence nodes only
-        if self.use_confluence_nodes_only and self.node_mask is not None:
-            data.node_mask = torch.from_numpy(self.node_mask.astype(np.bool_))
-
-        return data
-
-    def _init_node_mask(self):
-        """Initialize node mask for identifying confluence nodes.
-
-        A confluence node is defined as having 2 or more upstream nodes.
-        """
-        mask = None
-        upstream = None
-        if self.upstream_indices:
-            upstream = self.upstream_indices
-        else:
-            if hasattr(self.data_source, "read_upstream_indices"):
-                try:
-                    upstream = self.data_source.read_upstream_indices(
-                        self.basin_id, self.basins
-                    )
-                except Exception:
-                    upstream = None
-            elif hasattr(self.data_source, "get_upstream_indices"):
-                try:
-                    upstream = self.data_source.get_upstream_indices(
-                        self.basin_id, self.basins
-                    )
-                except Exception:
-                    upstream = None
-        if upstream is not None:
-            mask_list = []
-            for i, b in enumerate(self.basins):
-                u = upstream.get(b)
-                if u is None:
-                    u = upstream.get(i)
-                if u is None:
-                    u = upstream.get(str(b))
-                mask_list.append(bool(u) and len(u) >= 2)
-            mask = np.array(mask_list, dtype=bool)
-        self.node_mask = mask
-
-    def _init_edge_index(self):
-        """Initialize edge_index from upstream_indices for PyG graph structure.
-
-        Converts the upstream_indices dict to PyG edge_index format [2, num_edges].
-        Edge direction: from upstream to downstream.
-        """
-        if not self.upstream_indices:
-            # No edges if upstream_indices is empty
-            self.edge_index = torch.empty((2, 0), dtype=torch.long)
-            return
-
-        # Create basin to index mapping
-        basin_to_idx = {basin: idx for idx, basin in enumerate(self.basins)}
-
-        # Build edge list: (source, target) pairs
-        edges = []
-        for downstream_basin, upstream_basins in self.upstream_indices.items():
-            # Get downstream node index
-            if downstream_basin in basin_to_idx:
-                downstream_idx = basin_to_idx[downstream_basin]
-            elif isinstance(downstream_basin, int):
-                downstream_idx = downstream_basin
-            else:
-                continue  # Skip if basin not found
-
-            # Add edges from each upstream basin to downstream
-            if isinstance(upstream_basins, list):
-                for upstream_basin in upstream_basins:
-                    if upstream_basin in basin_to_idx:
-                        upstream_idx = basin_to_idx[upstream_basin]
-                    elif isinstance(upstream_basin, int):
-                        upstream_idx = upstream_basin
-                    else:
-                        continue
-                    edges.append([upstream_idx, downstream_idx])
-
-        if edges:
-            # Convert to PyG edge_index format: [2, num_edges]
-            self.edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
-        else:
-            # No valid edges found
-            self.edge_index = torch.empty((2, 0), dtype=torch.long)
-
-
-class Camels_merge_AEFDataset(BaseDataset):
-    def _read_xyc_specified_time(self, start_date, end_date):
-        """Read x, y, c data from data source with specified time range
-        We set this function as sometimes we need adjust the time range for some specific dataset,
-        such as seq2seq dataset (it needs one more period for the end of the time range)
-
-        Parameters
-        ----------
-        start_date : str
-            start time
-        end_date : str
-            end time
-        """
-        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            [start_date, end_date],
-            self.data_cfgs["relevant_cols"],
-        )
-        # y
-        data_output_ds_ = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            [start_date, end_date],
-            self.data_cfgs["target_cols"],
-        )
-        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
-        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
-        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
-            data_forcing_ds_, data_output_ds_
-        )
-        # c
-        data_attr_ds = self.data_source.read_attr_xrdataset(
-            self.t_s_dict["sites_id"],
-            self.data_cfgs["constant_cols"],
-            all_number=True,
-        )
-
-        csv_path = r"/Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv"
-        df_embeddings = pd.read_csv(csv_path)
-        df_embeddings["hru_id"] = (
-            df_embeddings["hru_id"].astype(int).astype(str).str.lstrip("0")
-        )
-        target_ids = [site_id.lstrip("0") for site_id in self.t_s_dict["sites_id"]]
-        df_filtered = df_embeddings[df_embeddings["hru_id"].isin(target_ids)]
-        df_filtered = df_filtered.set_index("hru_id").reindex(target_ids).reset_index()
-
-        if len(df_filtered) != len(target_ids):
-            print("Warning: Some basin IDs not found in the embeddings CSV.")
-
-        df_indexed = df_filtered.set_index("hru_id")
-        embedding_values = df_indexed.values
-        embedding_vars = {
-            f"A{j:02d}": (("basin"), embedding_values[:, j]) for j in range(64)
-        }
-
-        c_origin = xr.Dataset(
-            embedding_vars, coords={"basin": self.t_s_dict["sites_id"]}
-        )
-        c_origin = c_origin.reindex(basin=data_attr_ds.basin.values)
-        combined_ds = xr.merge([data_attr_ds, c_origin])
-
-        x_origin, y_origin, c_origin_with_unit = self._to_dataarray_with_unit(
-            data_forcing_ds, data_output_ds, combined_ds
         )
         return {
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),

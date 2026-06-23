@@ -72,6 +72,18 @@ def train_and_evaluate(cfgs: Dict):
     )
     if is_train:
         deephydro.model_train()
+        # Explicitly delete optimizer to free its states (momentum, etc.)
+        """if hasattr(deephydro, "optimizer"):
+            del deephydro.optimizer
+        # Note: deephydro.model will be re-initialized in model_evaluate
+        import gc
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            torch.mps.empty_cache()"""
+
     preds, obss = deephydro.model_evaluate()
     resulter.save_cfg(deephydro.cfgs)
     resulter.save_result(preds, obss)

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2025-11-25 17:43:01
-LastEditTime: 2025-11-25 20:37:01
+LastEditTime: 2025-12-07 09:27:14
 LastEditors: Wenyu Ouyang
 Description: Test functions for Diffusion model
 FilePath: \torchhydro\tests\test_diffusion.py
@@ -18,27 +18,24 @@ from torchhydro.models.diffusion import ConditionalDiffusionModel
 def dummy_cfgs() -> dict:
     """Provides a dummy configuration for the LSTM diffusion model."""
     return {
-        "model": {
-            "name": "ConditionalDiffusionModel",
-            "diffusion": {
-                "num_timesteps": 50,
-                "data_dim": 1,
-                "condition_dim": 1,
-                "time_emb_dim": 16,  # Dimension for time embedding
-                "beta_schedule": "linear",
-            },
-            "denoise_net": {
-                "hidden_size": 32,  # LSTM hidden size
-                "num_layers": 2,  # Number of LSTM layers
-            },
-        }
+        "diffusion": {
+            "num_timesteps": 50,
+            "data_dim": 1,
+            "condition_dim": 1,
+            "time_emb_dim": 16,  # Dimension for time embedding
+            "beta_schedule": "linear",
+        },
+        "denoise_net": {
+            "hidden_size": 32,  # LSTM hidden size
+            "num_layers": 2,  # Number of LSTM layers
+        },
     }
 
 
 def test_diffusion_model_instantiation(dummy_cfgs: dict) -> None:
     """Tests if the model can be instantiated without errors."""
     try:
-        model = ConditionalDiffusionModel(dummy_cfgs)
+        model = ConditionalDiffusionModel(**dummy_cfgs)
         assert model is not None
     except Exception as e:
         pytest.fail(f"Failed to instantiate ConditionalDiffusionModel: {e}")
@@ -51,18 +48,16 @@ def test_diffusion_model_dimensions(dummy_cfgs: dict) -> None:
     batch_size = 2
     seq_len = 64
 
-    model = ConditionalDiffusionModel(dummy_cfgs)
+    model = ConditionalDiffusionModel(**dummy_cfgs)
 
-    # Input shapes are (batch_size, num_features, seq_len) for Conv1d
-    runoff = torch.randn(
-        batch_size, dummy_cfgs["model"]["diffusion"]["data_dim"], seq_len
-    )
+    # Input shapes are (batch_size, seq_len, num_features) for LSTM
+    runoff = torch.randn(batch_size, seq_len, dummy_cfgs["diffusion"]["data_dim"])
     rainfall = torch.randn(
-        batch_size, dummy_cfgs["model"]["diffusion"]["condition_dim"], seq_len
+        batch_size, seq_len, dummy_cfgs["diffusion"]["condition_dim"]
     )
 
     # --- Test forward pass (training) ---
-    output = model(runoff, rainfall)
+    output = model(rainfall, runoff)
     assert "loss" in output, "Output dictionary should contain a 'loss' key"
     loss = output["loss"]
     assert isinstance(loss, torch.Tensor), "Loss should be a torch.Tensor"

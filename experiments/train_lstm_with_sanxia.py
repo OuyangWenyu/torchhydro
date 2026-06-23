@@ -34,7 +34,7 @@ for logger_name in logging.root.manager.loggerDict:
 
 sanxia_dir = "/Volumes/Untitled/data/sanxia"
 #camels = CamelsHourly(camels_dir)
-gage_id = ['sanxia_60406350', 'sanxia_60406500', 'sanxia_60406700', 'sanxia_60407100', 'sanxia_60407200', 'sanxia_60701101', 'sanxia_60711600', 'sanxia_60713400', 'sanxia_60713630', 'sanxia_60713800', 'sanxia_60717050']
+gage_id = ['sanxia_60406350', 'sanxia_60406500', 'sanxia_60406700', 'sanxia_60407100', 'sanxia_60407200']
 
 gage_id = sorted(gage_id)
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"
