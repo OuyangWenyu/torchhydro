@@ -13,6 +13,7 @@ import copy
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Dict, Tuple
+import os
 
 import numpy as np
 import xarray as xr
@@ -20,6 +21,7 @@ import torch
 from torch.optim.lr_scheduler import *
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import shap
 
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
@@ -354,95 +356,999 @@ class DeepHydro(DeepHydroInterface):
         model_pth_dir = self.cfgs["data_cfgs"]["case_dir"]
         return read_pth_from_model_loader(model_loader, model_pth_dir)
 
-    def model_evaluate(self) -> Tuple[Dict, np.array, np.array]:
+    def model_evaluate(self):
         """
-        A function to evaluate a model, called at end of training.
+        Evaluate the model, and perform SHAP analysis if needed.
 
         Returns
         -------
-        tuple[dict, np.array, np.array]
-            eval_log, denormalized predictions and observations
+        preds_xr, obss_xr
         """
         self.model = self.load_model(mode="infer").to(self.device)
-        preds_xr, obss_xr = self.inference()
-        return preds_xr, obss_xr
 
-    def inference(self) -> Tuple[xr.Dataset, xr.Dataset]:
-        """infer using trained model and unnormalized results"""
         data_cfgs = self.cfgs["data_cfgs"]
         training_cfgs = self.cfgs["training_cfgs"]
+
+        # Create dataloader in advance as it is used for both inference and SHAP
         test_dataloader = self._get_dataloader(training_cfgs, data_cfgs, mode="infer")
-        seq_first = training_cfgs["which_first_tensor"] == "sequence"
+
+        # Decide whether to perform SHAP analysis based on configuration
+        eval_cfgs = self.cfgs.get("evaluation_cfgs", {})
+        shap_cfgs = eval_cfgs.get("shap_cfgs", {})
+
+        # Inference returns X_all for SHAP analysis only if enabled
+        if shap_cfgs.get("enable", False):
+            pred_xr, obs_xr, X_all = self.inference(test_dataloader, return_inputs=True)
+            print("SHAP analysis enabled.")
+        else:
+            pred_xr, obs_xr = self.inference(test_dataloader, return_inputs=False)
+            X_all = None
+            print("SHAP analysis disabled.")
+
+        if shap_cfgs.get("enable", False):
+            self.run_shap_analysis(
+                X_all=X_all,
+                save_dir=shap_cfgs.get("save_dir", "./shap_results"),
+                max_sample=shap_cfgs.get("max_sample", 3000),
+                background_size=shap_cfgs.get("background_size", 100),
+            )
+
+        return pred_xr, obs_xr
+
+    def inference(self, dataloader, return_inputs=True):
         self.model.eval()
-        # here the batch is just an index of lookup table, so any batch size could be chosen
-        test_preds = []
+
+        preds = []
         obss = []
+        X_all = []
+
         with torch.no_grad():
-            test_preds = []
-            obss = []
-            for i, batch in enumerate(
-                tqdm(test_dataloader, desc="Model inference", unit="batch")
-            ):
-                ys, pred = model_infer(
-                    seq_first,
-                    self.device,
-                    self.model,
-                    batch,
-                    variable_length_cfgs=None,
-                    return_key=(
-                        self.cfgs.get("evaluation_cfgs", {})
-                        .get("evaluator", {})
-                        .get("return_key", None)
-                    ),
+            for batch in dataloader:
+                # Handle Seq2Seq format: batch[0] might be a list [encoder_input, decoder_input]
+                if isinstance(batch[0], list):
+                    # Seq2Seq format: move each element to device and transpose to (seq, batch, feature)
+                    x = [inp.permute(1, 0, 2).to(self.device) for inp in batch[0]]
+                    # if x[0].shape[0] == 0:
+                    # Handle empty batch case
+                    # continue
+                    pred = self.model(*x)
+                    # Transpose prediction back to (batch, seq, feature)
+                    pred = pred.permute(1, 0, 2)
+
+                else:
+                    # Traditional format: single tensor
+                    x = batch[0].to(self.device)
+                    # --- PERMUTE TO SEQ-FIRST IF NEEDED ---
+                    if (
+                        self.cfgs["training_cfgs"].get("which_first_tensor")
+                        == "sequence"
+                        and x.ndim == 3
+                    ):
+                        x = x.transpose(0, 1)
+
+                    pred = self.model(x)
+
+                    # --- TRANSPOSE BACK TO BATCH-FIRST ---
+                    if (
+                        self.cfgs["training_cfgs"].get("which_first_tensor")
+                        == "sequence"
+                        and isinstance(pred, torch.Tensor)
+                        and pred.ndim == 3
+                    ):
+                        pred = pred.transpose(0, 1)
+
+                y = batch[1].to(self.device).cpu()
+
+                # --- DO NOT TRANSPOSE LABELS ---
+                # Labels from _flood_event_collate_fn or default stack are already (Batch, Seq, Feat).
+                # Transposing them here would make them (Seq, Batch, Feat), which breaks concatenation.
+
+                # Handle models that return dict (e.g., Seq2Seq with attention)
+                if isinstance(pred, dict):
+                    # If this was a sequence-first dict, permute its tensors
+                    if (
+                        self.cfgs["training_cfgs"].get("which_first_tensor")
+                        == "sequence"
+                    ):
+                        for k, v in pred.items():
+                            if isinstance(v, torch.Tensor) and v.ndim == 3:
+                                # Avoid double-transposition if it starts with 'f' (frequency branches)
+                                # and we already know where it came from. Actually, safer to check shape.
+                                # seq_first: (Seq, Batch, Feat). Batch size is usually smaller than Seq len.
+                                # But in inference, Seq len (Flood events) can be smaller too.
+                                # Let's assume if it came through model(x) it is Seq-first.
+                                pred[k] = v.transpose(0, 1)
+                    if "f1" in pred:
+                        # Use f1 for 1-hour scale predictions
+                        pred = pred["f1"]
+                    # elif 'f0' in pred:
+                    # Fallback to f0
+                    # pred = pred['f0']
+                    else:
+                        # Generic handling for other dict outputs
+                        pred_tensor = None
+                        for key in ["predictions", "output", "pred", "logits"]:
+                            if key in pred and isinstance(pred[key], torch.Tensor):
+                                pred_tensor = pred[key]
+                                break
+                        if pred_tensor is None:
+                            pred_tensor = next(iter(pred.values()))
+                        pred = pred_tensor
+
+                preds.append(pred.cpu())
+                obss.append(y.cpu())
+
+                if return_inputs:
+                    # Handle both formats for X_all
+                    if isinstance(x, list):
+                        # For Seq2Seq, store the encoder input (first element)
+                        x_for_shap = x[0]
+                    else:
+                        x_for_shap = x
+
+                    # Ensure SHAP input is Batch-first
+                    if (
+                        self.cfgs["training_cfgs"].get("which_first_tensor")
+                        == "sequence"
+                        and x_for_shap.ndim == 3
+                    ):
+                        x_for_shap = x_for_shap.transpose(0, 1)
+
+                    X_all.append(x_for_shap.cpu())
+
+        # Convert to numpy
+        # Pad sequence dimension independently for preds and obss
+        if len(preds) > 0:
+            max_p_s = max(p.shape[1] for p in preds)
+            max_o_s = max(o.shape[1] for o in obss)
+
+            padded_preds = []
+            padded_obss = []
+
+            for p, o in zip(preds, obss):
+                if p.shape[1] < max_p_s:
+                    pad_p = torch.full(
+                        (p.shape[0], max_p_s - p.shape[1], p.shape[2]), np.nan
+                    )
+                    p = torch.cat([p, pad_p], dim=1)
+                if o.shape[1] < max_o_s:
+                    pad_o = torch.full(
+                        (o.shape[0], max_o_s - o.shape[1], o.shape[2]), np.nan
+                    )
+                    o = torch.cat([o, pad_o], dim=1)
+                padded_preds.append(p)
+                padded_obss.append(o)
+
+            pred_np = torch.cat(padded_preds, 0).numpy()
+            obs_np = torch.cat(padded_obss, 0).numpy()
+        else:
+            pred_np = np.array([])
+            obs_np = np.array([])
+
+        # Convert to xarray ---- KEEP THIS (TorchHydro requirement)
+        obs_xr, pred_xr = get_preds_to_be_eval(
+            dataloader, self.cfgs["evaluation_cfgs"], pred_np, obs_np
+        )
+
+        if return_inputs:
+            return pred_xr, obs_xr, X_all
+        else:
+            return pred_xr, obs_xr
+
+    def run_shap_analysis(
+        self, X_all, save_dir, max_sample=3000, feature_names=None, background_size=100
+    ):
+        import torch
+        import numpy as np
+        import shap
+        import matplotlib.pyplot as plt
+        import os
+
+        print("Running FAST SHAP analysis...")
+
+        eval_cfgs = self.cfgs.get("evaluation_cfgs", {}) or {}
+        shap_cfgs = eval_cfgs.get("shap_cfgs", {}) or {}
+        sequence_enable = bool(shap_cfgs.get("sequence_enable", False))
+        plot_mode = shap_cfgs.get("plot_mode")
+        if not isinstance(plot_mode, str):
+            plot_mode = "all"
+        plot_mode = plot_mode.lower()
+
+        plot_fast = True
+        plot_seq = True
+        plot_hybrid = True
+        plot_split = False
+
+        if plot_mode == "split_only":
+            plot_fast = False
+            plot_seq = False
+            plot_hybrid = False
+            plot_split = True
+            sequence_enable = True
+
+        # ======================================================
+        # 1. Optimize Memory & Diversity: Sample sparsely from MANY batches
+        # ======================================================
+        # X_all is a list of tensors, each (B, T, F)
+
+        if not X_all:
+            print("[WARNING] No data for SHAP analysis.")
+            return
+
+        # Get dimensions from first batch
+        _, T, F_total = X_all[0].shape
+
+        # We need max_sample samples.
+        # To ensure spatial diversity (static attributes variation), we must sample from many batches.
+        # Strategy: Randomly select N batches, then sample k items from each batch.
+
+        import random
+
+        n_batches = len(X_all)
+
+        # We want to sample from at least min(50, n_batches) batches to cover different basins
+        target_batch_count = min(50, n_batches)
+
+        # How many samples per batch?
+        # We want total ~ max_sample * 2 (safety margin)
+        samples_per_batch = max(1, (max_sample * 2) // target_batch_count)
+
+        print(
+            f"[INFO] Sampling strategy: {target_batch_count} batches, ~{samples_per_batch} samples/batch"
+        )
+
+        batch_indices = list(range(n_batches))
+        random.shuffle(batch_indices)
+        selected_batch_indices = batch_indices[:target_batch_count]
+
+        collected_subsets = []
+
+        for idx in selected_batch_indices:
+            batch = X_all[idx]  # (B, T, F)
+            B = batch.shape[0]
+
+            # Flatten this batch to (B*T, F)
+            batch_flat = batch.reshape(-1, F_total)
+            M_batch = batch_flat.shape[0]
+
+            # Sample randomly from this batch
+            if M_batch > samples_per_batch:
+                # Random indices
+                indices = torch.randperm(M_batch)[:samples_per_batch]
+                batch_subset = batch_flat[indices]
+            else:
+                batch_subset = batch_flat
+
+            collected_subsets.append(batch_subset)
+
+        # Concatenate subsets
+        X_subset = torch.cat(collected_subsets, dim=0)  # (N_total_subset, F)
+
+        # Handle NaNs: Replace NaNs with 0 (mean of normalized data)
+        if torch.isnan(X_subset).any():
+            print(
+                "[WARNING] Input data contains NaNs. Filling with 0 for SHAP analysis."
+            )
+            X_subset = torch.nan_to_num(X_subset, nan=0.0)
+
+        print(f"[INFO] Collected subset samples: {X_subset.shape[0]}")
+
+        # ======================================================
+        # 2. Flatten to 2D: Already flattened in loop
+        # ======================================================
+        X_flat = X_subset
+        M = X_flat.shape[0]
+        print(f"[INFO] Flattened subset samples: {M}")
+
+        # ======================================================
+        # 3. Sample input data for acceleration
+        # ======================================================
+        # Ensure we don't sample more than we have
+        sample_size = min(max_sample, M)
+        if sample_size < M:
+            # We already shuffled and sampled, but let's do one final random selection to be sure
+            idx = np.random.choice(M, sample_size, replace=False)
+            X_sample = X_flat[idx]
+        else:
+            X_sample = X_flat
+
+        X_sample_np = X_sample.cpu().numpy()  # numpy，shape=(sample_size, F)
+
+        print(f"[INFO] Using {sample_size} samples for SHAP")
+
+        # ======================================================
+        # 4. Select background for SHAP
+        # ======================================================
+        # background_size is passed as argument
+        if M > background_size:
+            idx_bg = np.random.choice(M, background_size, replace=False)
+            background = X_flat[idx_bg]
+        else:
+            background = X_flat
+
+        background_np = background.cpu().numpy()
+        print(f"[INFO] Using {background.shape[0]} samples as SHAP background")
+
+        # ======================================================
+        # 5. Wrap the model: SamplingExplainer uses a python function
+        # ======================================================
+        # Move model to CPU to avoid MPS bugs with SHAP/LSTM
+        original_device = self.device
+        shap_device = torch.device("cpu")
+        print(
+            f"[INFO] Moving model to {shap_device} for SHAP analysis to avoid MPS errors..."
+        )
+        self.model.to(shap_device)
+        self.model.eval()
+
+        def model_predict(x_np):
+            """
+            Args:
+                x_np: numpy array with shape (batch, F).
+
+            Returns:
+                numpy array with shape (batch, 1).
+
+            Note:
+                Converts numpy array to torch.Tensor, feeds it to the model,
+                and reshapes the output to (batch, 1).
+            """
+            x_tensor = torch.tensor(
+                x_np, dtype=torch.float32, device=shap_device
+            )  # shape=(B,F)
+
+            # SimpleLSTM (and default nn.LSTM) expects (Time, Batch, Features) if batch_first=False
+            # We treat SHAP samples as independent time steps (Time=1)
+            x_tensor = x_tensor.unsqueeze(0)  # (1, B, F)
+
+            if torch.isnan(x_tensor).any():
+                print(f"[WARNING] SHAP input x_tensor contains NaNs!")
+
+            with torch.no_grad():
+                out = self.model(x_tensor)  # (1, B, 1)
+
+            if torch.isnan(out).any():
+                print(f"[WARNING] SHAP model output contains NaNs!")
+                # Optional: Replace output NaNs with 0 to allow SHAP to continue (but this hides model issues)
+                # out = torch.nan_to_num(out, nan=0.0)
+
+            # --- SamplingExplainer requires 2D output ---
+            if out.shape[0] == 1:
+                out = out.squeeze(0)
+            else:
+                print(
+                    f"[WARNING] Unexpected output shape {out.shape} in SHAP. Squeezing dim 0."
+                )
+                out = out.squeeze(0)
+
+            # Debug output range
+            # print(f"[DEBUG] SHAP model output range: [{out.min().item():.4f}, {out.max().item():.4f}]")
+
+            return out.cpu().numpy()
+
+        # ======================================================
+        # 6. Run SHAP
+        # ======================================================
+        print(f"[INFO] Computing SHAP values...")
+        explainer = shap.SamplingExplainer(model_predict, background_np)
+
+        # Increased nsamples for stability
+        shap_values = explainer.shap_values(X_sample_np, nsamples=200)
+
+        # Check shap_values
+        if isinstance(shap_values, list):
+            shap_values = shap_values[0]  # Take the first output channel
+
+        print(f"[INFO] SHAP shape = {np.array(shap_values).shape}")
+
+        # Handle NaNs in SHAP values
+        if np.isnan(shap_values).any():
+            nan_count = np.isnan(shap_values).sum()
+            total_count = shap_values.size
+            print(
+                f"[WARNING] SHAP values contain {nan_count}/{total_count} NaNs! Filling with 0."
+            )
+            shap_values = np.nan_to_num(shap_values, nan=0.0)
+
+        # ======================================================
+        # 7. Construct feature names
+        # ======================================================
+        if feature_names is None:
+            # Attempt to retrieve real feature names from configuration and stat file
+            feature_names = self._get_feature_names(F_total)
+
+            if feature_names is not None:
+                print(f"[INFO] Using reconstructed real feature names: {feature_names}")
+            else:
+                print(
+                    f"[WARNING] Could not reconstruct feature names. Using default names."
+                )
+                data_cfgs = self.cfgs.get("data_cfgs", {})
+                relevant_cols = data_cfgs.get("relevant_cols", [])
+                feature_names = [f"DYNAMIC_{i}" for i in range(len(relevant_cols))] + [
+                    f"STATIC_{i}" for i in range(F_total - len(relevant_cols))
+                ]
+
+        # ======================================================
+        # 8. Output plots
+        # ======================================================
+        os.makedirs(save_dir, exist_ok=True)
+
+        shap_values_fast = np.array(shap_values)
+        X_fast_np = X_sample_np
+
+        if plot_fast:
+            plt.figure()
+            shap.summary_plot(
+                shap_values,
+                X_sample_np,
+                feature_names=feature_names,
+                max_display=100,
+                show=False,
+            )
+            plt.savefig(f"{save_dir}/shap_summary_fast.png", dpi=300, bbox_inches="tight")
+            plt.close()
+
+            plt.figure()
+            shap.summary_plot(
+                shap_values,
+                X_sample_np,
+                feature_names=feature_names,
+                plot_type="bar",
+                max_display=100,
+                show=False,
+            )
+            plt.savefig(f"{save_dir}/shap_bar_fast.png", dpi=300, bbox_inches="tight")
+            plt.close()
+
+        print(f"[INFO] SHAP analysis saved to {save_dir}")
+
+        if sequence_enable:
+            training_cfgs = self.cfgs.get("training_cfgs", {}) or {}
+            warmup_length = training_cfgs.get("warmup_length")
+            hindcast_length = training_cfgs.get("hindcast_length")
+            forecast_length = training_cfgs.get("forecast_length")
+
+            seq_len = shap_cfgs.get("sequence_length")
+            if not isinstance(seq_len, int):
+                if (
+                    isinstance(warmup_length, int)
+                    and isinstance(hindcast_length, int)
+                    and isinstance(forecast_length, int)
+                ):
+                    seq_len = warmup_length + hindcast_length + forecast_length
+                else:
+                    seq_len = T
+
+            seq_max_sample = shap_cfgs.get("sequence_max_sample")
+            if not isinstance(seq_max_sample, int):
+                seq_max_sample = min(128, max_sample)
+            seq_max_sample = max(1, seq_max_sample)
+
+            seq_background_size = shap_cfgs.get("sequence_background_size")
+            if not isinstance(seq_background_size, int):
+                seq_background_size = min(32, background_size)
+            seq_background_size = max(1, seq_background_size)
+
+            seq_nsamples = shap_cfgs.get("sequence_nsamples")
+            if not isinstance(seq_nsamples, int):
+                seq_nsamples = 50
+
+            time_agg = shap_cfgs.get("time_agg")
+            if not isinstance(time_agg, str):
+                time_agg = "abs_sum"
+            time_agg = time_agg.lower()
+
+            which_first_tensor = (
+                self.cfgs.get("training_cfgs", {}).get("which_first_tensor") or "batch"
+            )
+
+            import random
+
+            n_batches = len(X_all)
+            target_batch_count = min(50, n_batches)
+            seqs_per_batch = max(1, (seq_max_sample * 2) // max(1, target_batch_count))
+            batch_indices = list(range(n_batches))
+            random.shuffle(batch_indices)
+            selected_batch_indices = batch_indices[:target_batch_count]
+
+            seq_list = []
+            for idx in selected_batch_indices:
+                batch = X_all[idx]  # (B, T, F)
+                if not isinstance(batch, torch.Tensor) or batch.ndim != 3:
+                    continue
+                B = int(batch.shape[0])
+                if B <= 0:
+                    continue
+                take = min(B, seqs_per_batch)
+                seq_indices = torch.randperm(B)[:take]
+                for sidx in seq_indices:
+                    seq = batch[sidx]  # (T, F)
+                    if not isinstance(seq, torch.Tensor) or seq.ndim != 2:
+                        continue
+                    T_seq = int(seq.shape[0])
+                    if T_seq <= 0:
+                        continue
+                    if T_seq >= seq_len:
+                        seq_use = seq[-seq_len:]
+                    else:
+                        pad_len = seq_len - T_seq
+                        pad = torch.zeros(
+                            (pad_len, F_total), dtype=seq.dtype, device=seq.device
+                        )
+                        seq_use = torch.cat([pad, seq], dim=0)
+                    seq_list.append(seq_use)
+
+            if not seq_list:
+                print("[WARNING] sequence_enable=True but no sequences collected; skipping.")
+            else:
+                X_seq = torch.stack(seq_list, dim=0)  # (N, seq_len, F)
+                if torch.isnan(X_seq).any():
+                    X_seq = torch.nan_to_num(X_seq, nan=0.0)
+
+                if X_seq.shape[0] > seq_max_sample:
+                    X_seq = X_seq[torch.randperm(X_seq.shape[0])[:seq_max_sample]]
+
+                N_seq = int(X_seq.shape[0])
+                bg_n = min(seq_background_size, N_seq)
+                if bg_n < N_seq:
+                    idx_bg = np.random.choice(N_seq, bg_n, replace=False)
+                    background_seq = X_seq[idx_bg]
+                else:
+                    background_seq = X_seq
+
+                print(
+                    f"[INFO] SHAP sequence enabled: N={N_seq}, T={seq_len}, F={F_total}, bg={int(background_seq.shape[0])}, nsamples={seq_nsamples}, time_agg={time_agg}"
                 )
 
-                test_preds.append(pred.cpu())
-                obss.append(ys.cpu())
-                if i % 100 == 0:
-                    torch.cuda.empty_cache()
-            pred = torch.cat(test_preds, dim=0).numpy()  # 在最后转换为numpy
-            obs = torch.cat(obss, dim=0).numpy()  # 在最后转换为numpy
-        if pred.ndim == 2:
-            # Check if GNN mode (Time-Major output) by inspecting lookup_table
-            # If basin is None in lookup_table, it indicates GNN/Graph mode where each sample is a full graph at a time step
-            dataset = test_dataloader.dataset
-            is_gnn = False
-            if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
-                 if dataset.lookup_table[0][0] is None:
-                     is_gnn = True
-            
-            num_nodes = dataset.y.shape[0]
-            
-            if is_gnn:
-                # GNN output: [Time * Nodes, Horizon] (Time-Major)
-                # We need to convert to Basin-Major for consistency
-                pred = pred[..., np.newaxis]
-                obs = obs[..., np.newaxis]
-                if pred.shape[0] % num_nodes == 0:
-                    time_steps = pred.shape[0] // num_nodes
-                    
-                    # Reshape to [Time, Nodes, Horizon]
-                    pred = pred.reshape(time_steps, num_nodes, *pred.shape[1:])
-                    obs = obs.reshape(time_steps, num_nodes, *obs.shape[1:])
-                    
-                    # Transpose to [Nodes, Time, Horizon]
-                    pred = pred.transpose(1, 0, 2, 3)
-                    obs = obs.transpose(1, 0, 2, 3)
-                    
+                self.model.to(original_device)
+                self.model.eval()
+
+                try:
+                    from torch.nn.modules.rnn import RNNBase
+                except Exception:
+                    RNNBase = ()
+
+                rnn_modules = []
+                rnn_training_states = []
+                for m in self.model.modules():
+                    if isinstance(m, RNNBase):
+                        rnn_modules.append(m)
+                        rnn_training_states.append(m.training)
+                        m.train()
+
+                class _ShapSeqWrapper(torch.nn.Module):
+                    def __init__(self, model):
+                        super().__init__()
+                        self.model = model
+
+                    def forward(self, x):
+                        if which_first_tensor == "sequence":
+                            x = x.transpose(0, 1)
+                        out = self.model(x)
+                        if isinstance(out, dict):
+                            if "f1" in out:
+                                out = out["f1"]
+                            else:
+                                out = next(iter(out.values()))
+                        if isinstance(out, torch.Tensor) and out.ndim == 3:
+                            out = out[-1] if which_first_tensor == "sequence" else out[:, -1]
+                        if isinstance(out, torch.Tensor) and out.ndim == 1:
+                            out = out.unsqueeze(1)
+                        return out
+
+                wrapper = _ShapSeqWrapper(self.model).to(original_device)
+                background_t = background_seq.to(original_device).float()
+                sample_t = X_seq.to(original_device).float()
+
+                try:
+                    with torch.backends.cudnn.flags(enabled=False):
+                        explainer = shap.GradientExplainer(wrapper, background_t)
+                        shap_values = explainer.shap_values(sample_t, nsamples=seq_nsamples)
+                finally:
+                    for m, st in zip(rnn_modules, rnn_training_states):
+                        m.train(st)
+
+                if isinstance(shap_values, list):
+                    shap_values = shap_values[0]
+                shap_values = np.array(shap_values)
+                if shap_values.ndim == 4 and shap_values.shape[-1] == 1:
+                    shap_values = shap_values[..., 0]
+                if np.isnan(shap_values).any():
+                    shap_values = np.nan_to_num(shap_values, nan=0.0)
+
+                if time_agg == "sum":
+                    shap_values_feat = shap_values.sum(axis=1)
+                else:
+                    shap_values_feat = np.abs(shap_values).sum(axis=1)
+
+                X_feat = sample_t.detach().cpu().numpy().mean(axis=1)
+                suffix = "sum" if time_agg == "sum" else "abs_sum"
+
+                if plot_seq:
+                    plt.figure()
+                    shap.summary_plot(
+                        shap_values_feat,
+                        X_feat,
+                        feature_names=feature_names,
+                        max_display=100,
+                        show=False,
+                    )
+                    plt.savefig(
+                        f"{save_dir}/shap_summary_seq_{suffix}.png",
+                        dpi=300,
+                        bbox_inches="tight",
+                    )
+                    plt.close()
+
+                    plt.figure()
+                    shap.summary_plot(
+                        shap_values_feat,
+                        X_feat,
+                        feature_names=feature_names,
+                        plot_type="bar",
+                        max_display=100,
+                        show=False,
+                    )
+                    plt.savefig(
+                        f"{save_dir}/shap_bar_seq_{suffix}.png",
+                        dpi=300,
+                        bbox_inches="tight",
+                    )
+                    plt.close()
+
+                    print(f"[INFO] SHAP sequence plots saved to {save_dir}")
+
+                data_cfgs = self.cfgs.get("data_cfgs", {}) or {}
+                relevant_cols = data_cfgs.get("relevant_cols", []) or []
+                static_start = int(len(relevant_cols))
+                static_start = max(0, min(static_start, F_total))
+
+                hybrid_n = int(min(512, shap_values_fast.shape[0], shap_values_feat.shape[0]))
+                if hybrid_n > 0 and static_start < F_total:
+                    if shap_values_fast.shape[0] > hybrid_n:
+                        idx_fast = np.random.choice(shap_values_fast.shape[0], hybrid_n, replace=False)
+                    else:
+                        idx_fast = np.arange(shap_values_fast.shape[0])
+
+                    if shap_values_feat.shape[0] > hybrid_n:
+                        idx_seq = np.random.choice(shap_values_feat.shape[0], hybrid_n, replace=False)
+                    else:
+                        idx_seq = np.arange(shap_values_feat.shape[0])
+
+                    hybrid_shap = shap_values_fast[idx_fast].copy()
+                    hybrid_x = X_fast_np[idx_fast].copy()
+
+                    x_seq_last = sample_t.detach().cpu().numpy()[:, -1, :]
+                    seq_shap_sel = shap_values_feat[idx_seq]
+                    seq_x_sel = x_seq_last[idx_seq]
+
+                    hybrid_shap[:, static_start:] = seq_shap_sel[:, static_start:]
+                    hybrid_x[:, static_start:] = seq_x_sel[:, static_start:]
+
+                    hybrid_dynamic_mode = shap_cfgs.get("hybrid_dynamic_mode")
+                    if not isinstance(hybrid_dynamic_mode, str):
+                        hybrid_dynamic_mode = "fast"
+                    hybrid_dynamic_mode = hybrid_dynamic_mode.lower()
+
+                    dyn_seq_idx = []
+                    if hybrid_dynamic_mode == "seq_all":
+                        dyn_seq_idx = list(range(static_start))
+                    elif hybrid_dynamic_mode == "seq_bucket0":
+                        feature_buckets = (
+                            (self.cfgs.get("model_cfgs", {}) or {})
+                            .get("model_hyperparam", {})
+                            .get("feature_buckets")
+                        )
+                        if isinstance(feature_buckets, (list, tuple)) and len(
+                            feature_buckets
+                        ) >= static_start:
+                            dyn_seq_idx = [
+                                i
+                                for i in range(static_start)
+                                if int(feature_buckets[i]) == 0
+                            ]
+
+                    extra_seq_features = shap_cfgs.get("hybrid_dynamic_seq_features")
+                    if isinstance(extra_seq_features, (list, tuple)) and static_start > 0:
+                        name_to_idx = {
+                            str(n): i for i, n in enumerate(feature_names[:static_start])
+                        }
+                        for fn in extra_seq_features:
+                            idx = name_to_idx.get(str(fn))
+                            if idx is not None:
+                                dyn_seq_idx.append(idx)
+
+                    if dyn_seq_idx:
+                        dyn_seq_idx = sorted(set(dyn_seq_idx))
+                        hybrid_shap[:, dyn_seq_idx] = seq_shap_sel[:, dyn_seq_idx]
+                        hybrid_x[:, dyn_seq_idx] = seq_x_sel[:, dyn_seq_idx]
+
+                    if plot_hybrid:
+                        plt.figure()
+                        shap.summary_plot(
+                            hybrid_shap,
+                            hybrid_x,
+                            feature_names=feature_names,
+                            max_display=100,
+                            show=False,
+                        )
+                        plt.savefig(
+                            f"{save_dir}/shap_summary_hybrid.png",
+                            dpi=300,
+                            bbox_inches="tight",
+                        )
+                        plt.close()
+
+                        plt.figure()
+                        shap.summary_plot(
+                            hybrid_shap,
+                            hybrid_x,
+                            feature_names=feature_names,
+                            plot_type="bar",
+                            max_display=100,
+                            show=False,
+                        )
+                        plt.savefig(
+                            f"{save_dir}/shap_bar_hybrid.png",
+                            dpi=300,
+                            bbox_inches="tight",
+                        )
+                        plt.close()
+
+                        print(f"[INFO] SHAP hybrid plots saved to {save_dir}")
+
+                    if plot_split:
+                        feature_buckets = (
+                            (self.cfgs.get("model_cfgs", {}) or {})
+                            .get("model_hyperparam", {})
+                            .get("feature_buckets")
+                        )
+                        fb = None
+                        if isinstance(feature_buckets, (list, tuple)):
+                            if len(feature_buckets) >= F_total:
+                                fb = [int(x) for x in feature_buckets[:F_total]]
+                            elif len(feature_buckets) == static_start:
+                                fb = [int(x) for x in feature_buckets] + [0] * (
+                                    F_total - static_start
+                                )
+
+                        if fb is None:
+                            low_idx = list(range(static_start, F_total))
+                            high_idx = list(range(0, static_start))
+                        else:
+                            low_idx = [i for i in range(F_total) if int(fb[i]) == 0]
+                            high_idx = [i for i in range(F_total) if int(fb[i]) > 0]
+
+                        if low_idx:
+                            low_shap = hybrid_shap[:, low_idx]
+                            low_x = hybrid_x[:, low_idx]
+                            low_names = [feature_names[i] for i in low_idx]
+
+                            plt.figure()
+                            shap.summary_plot(
+                                low_shap,
+                                low_x,
+                                feature_names=low_names,
+                                max_display=100,
+                                show=False,
+                            )
+                            plt.savefig(
+                                f"{save_dir}/shap_summary_hybrid_lowfreq.png",
+                                dpi=300,
+                                bbox_inches="tight",
+                            )
+                            plt.close()
+
+                            plt.figure()
+                            shap.summary_plot(
+                                low_shap,
+                                low_x,
+                                feature_names=low_names,
+                                plot_type="bar",
+                                max_display=100,
+                                show=False,
+                            )
+                            plt.savefig(
+                                f"{save_dir}/shap_bar_hybrid_lowfreq.png",
+                                dpi=300,
+                                bbox_inches="tight",
+                            )
+                            plt.close()
+
+                        if high_idx:
+                            high_shap = hybrid_shap[:, high_idx]
+                            high_x = hybrid_x[:, high_idx]
+                            high_names = [feature_names[i] for i in high_idx]
+
+                            plt.figure()
+                            shap.summary_plot(
+                                high_shap,
+                                high_x,
+                                feature_names=high_names,
+                                max_display=100,
+                                show=False,
+                            )
+                            plt.savefig(
+                                f"{save_dir}/shap_summary_hybrid_highfreq.png",
+                                dpi=300,
+                                bbox_inches="tight",
+                            )
+                            plt.close()
+
+                            plt.figure()
+                            shap.summary_plot(
+                                high_shap,
+                                high_x,
+                                feature_names=high_names,
+                                plot_type="bar",
+                                max_display=100,
+                                show=False,
+                            )
+                            plt.savefig(
+                                f"{save_dir}/shap_bar_hybrid_highfreq.png",
+                                dpi=300,
+                                bbox_inches="tight",
+                            )
+                            plt.close()
+
+                        print(f"[INFO] SHAP hybrid high/low frequency split plots saved to {save_dir}")
+
+                        clean_extra = shap_cfgs.get("clean_extra")
+                        if not isinstance(clean_extra, bool):
+                            clean_extra = True
+                        if clean_extra:
+                            keep = {
+                                "shap_bar_hybrid_lowfreq.png",
+                                "shap_bar_hybrid_highfreq.png",
+                                "shap_summary_hybrid_lowfreq.png",
+                                "shap_summary_hybrid_highfreq.png",
+                            }
+                            for fn in os.listdir(save_dir):
+                                if not (fn.startswith("shap_") and fn.endswith(".png")):
+                                    continue
+                                if fn in keep:
+                                    continue
+                                try:
+                                    os.remove(os.path.join(save_dir, fn))
+                                except Exception:
+                                    pass
+
+        # Restore model to original device
+        self.model.to(original_device)
+        print(f"[INFO] Model restored to {original_device}")
+
+    def _get_feature_names(self, F_total):
+        """
+        Reconstruct feature names, handling One-Hot Encoding and extra features (e.g. embeddings) found in stat_dict.
+        """
+        import json
+
+        data_cfgs = self.cfgs.get("data_cfgs", {})
+        relevant_cols = data_cfgs.get("relevant_cols", [])
+        constant_cols = data_cfgs.get("constant_cols", [])
+        target_cols = data_cfgs.get("target_cols", [])
+
+        # Check for One-Hot Encoding
+        scaler_params = data_cfgs.get("scaler_params", {})
+        one_hot_cols = scaler_params.get("one_hot_cols", [])
+
+        # Try to load stat_dict
+        # Priority 1: Directory of the weight path (best_model.pth)
+        stat_dict = {}
+        stat_file_loaded = False
+
+        search_paths = []
+        if self.weight_path:
+            search_paths.append(
+                os.path.join(
+                    os.path.dirname(self.weight_path), "dapengscaler_stat.json"
+                )
+            )
+        if "case_dir" in data_cfgs:
+            search_paths.append(
+                os.path.join(data_cfgs["case_dir"], "dapengscaler_stat.json")
+            )
+
+        for stat_file in search_paths:
+            if os.path.exists(stat_file):
+                try:
+                    with open(stat_file, "r") as fp:
+                        stat_dict = json.load(fp)
+                    print(f"[INFO] Loaded stat file from {stat_file}")
+                    stat_file_loaded = True
+                    break
+                except Exception as e:
+                    print(f"[WARNING] Failed to load stat file {stat_file}: {e}")
+
+        if not stat_file_loaded:
+            print(
+                "[WARNING] Could not load dapengscaler_stat.json from any expected location."
+            )
+
+        feature_names = []
+
+        # 1. Dynamic features (relevant_cols)
+        feature_names.extend(relevant_cols)
+
+        # 2. Static features (constant_cols) from config
+        # We need to track which keys we have used to identify "extra" ones later
+        used_keys = set(relevant_cols) | set(target_cols)
+
+        for col in constant_cols:
+            used_keys.add(col)
+            if col in one_hot_cols:
+                # Expand One-Hot columns
+                categories = stat_dict.get(f"{col}_categories", [])
+                if categories:
+                    for cat in categories:
+                        feature_names.append(f"{col}_{cat}")
+                else:
+                    # Fallback
+                    feature_names.append(f"{col}_UNKNOWN")
             else:
-                # Standard LSTM: [Nodes * Time, Horizon] (Basin-Major)
-                # Assumes data is ordered by Basin 1 (all times), Basin 2 (all times)...
-                # params of reshape should be (basin size, time length)
-                pred = pred.flatten().reshape(num_nodes, -1, 1)
-                obs = obs.flatten().reshape(num_nodes, -1, 1)
-        evaluation_cfgs = self.cfgs["evaluation_cfgs"]
-        obs_xr, pred_xr = get_preds_to_be_eval(
-            test_dataloader,
-            evaluation_cfgs,
-            pred,
-            obs,
-        )
-        return pred_xr, obs_xr
+                feature_names.append(col)
+
+        # 3. Check for missing features (e.g. AlphaEarth embeddings)
+        if len(feature_names) < F_total and stat_dict:
+            print(
+                f"[INFO] Feature name count ({len(feature_names)}) < Model Input ({F_total}). Searching for extra features in stat_dict..."
+            )
+
+            extra_candidates = []
+            for key in stat_dict.keys():
+                # Skip known columns
+                if key in used_keys:
+                    continue
+                # Skip One-Hot category metadata
+                if key.endswith("_categories"):
+                    continue
+                # Skip One-Hot original columns if they were expanded (already handled by checking used_keys? No, one_hot_cols are in constant_cols, so in used_keys)
+
+                # Add to candidates
+                extra_candidates.append(key)
+
+            # Sort candidates to ensure deterministic order
+            # We assume extra features (like embeddings) are appended in alphabetical or numerical order
+            extra_candidates.sort()
+
+            # Try appending extra candidates
+            # We only append enough to match F_total if possible, or just all of them and see
+
+            # Heuristic: If we need exactly N more features, and we found M extra candidates.
+            needed = F_total - len(feature_names)
+
+            if len(extra_candidates) >= needed:
+                # If we have enough candidates, take them.
+                # If we have MORE than needed, it's ambiguous. But usually embeddings are distinct.
+                # Let's assume all valid extra candidates are part of the input.
+
+                # However, stat_dict might contain other auxiliary variables.
+                # If we match exactly, great.
+                if len(extra_candidates) == needed:
+                    print(
+                        f"[INFO] Found exactly {needed} extra features. Appending them."
+                    )
+                    feature_names.extend(extra_candidates)
+                else:
+                    print(
+                        f"[WARNING] Found {len(extra_candidates)} extra candidates, but needed {needed}. Appending first {needed} sorted keys."
+                    )
+                    feature_names.extend(extra_candidates[:needed])
+            else:
+                print(
+                    f"[WARNING] Found {len(extra_candidates)} extra candidates, but needed {needed}. Appending all available."
+                )
+                feature_names.extend(extra_candidates)
+
+        # Final check
+        if len(feature_names) != F_total:
+            print(
+                f"[WARNING] Reconstructed feature names length ({len(feature_names)}) does not match model input ({F_total})."
+            )
+            return None
+
+        return feature_names
 
     def _get_optimizer(self, training_cfgs):
         params_in_opt = self.model.parameters()
@@ -456,7 +1362,6 @@ class DeepHydro(DeepHydroInterface):
             loss_param = training_cfgs["criterion_params"]
             if loss_param is not None:
                 for key in loss_param.keys():
-                    # Parameters that are loss function names need to be instantiated
                     if key in ("loss_funcs", "eval_loss_func"):
                         criterion_init_params[key] = pytorch_criterion_dict[
                             loss_param[key]
@@ -470,6 +1375,13 @@ class DeepHydro(DeepHydroInterface):
     def _flood_event_collate_fn(self, batch):
         """自定义的洪水事件 collate 函数，确保所有样本长度一致"""
 
+        # Check if this is Seq2Seq format: ([x1, x2, ...], y)
+        if isinstance(batch[0][0], list):
+            # Seq2Seq format: use default collate for list of tensors
+            from torch.utils.data.dataloader import default_collate
+
+            return default_collate(batch)
+
         # 找到这个批次中最长的序列长度
         max_len = max(tensor_data[0].shape[0] for tensor_data in batch)
 
@@ -482,13 +1394,17 @@ class DeepHydro(DeepHydroInterface):
 
             current_len = x.shape[0]
             if current_len < max_len:
-                # 使用最后一个值填充x
-                padding_x = x[-1:].repeat(max_len - current_len, 1)
+                # 使用 NaN 填充 x
+                padding_x = torch.full(
+                    (max_len - current_len, x.shape[1]), np.nan, dtype=x.dtype
+                )
                 padded_x = torch.cat([x, padding_x], dim=0)
 
                 # 如果有y，也进行填充
                 if y is not None:
-                    padding_y = y[-1:].repeat(max_len - current_len, 1)
+                    padding_y = torch.full(
+                        (max_len - current_len, y.shape[1]), np.nan, dtype=y.dtype
+                    )
                     padded_y = torch.cat([y, padding_y], dim=0)
                 else:
                     padded_y = None
@@ -514,10 +1430,13 @@ class DeepHydro(DeepHydroInterface):
     def _get_dataloader(self, training_cfgs, data_cfgs, mode="train"):
         if mode == "infer":
             _collate_fn = None
-            # Use GNN collate function for GNN datasets in inference mode
+            # Use GNN collate function for GNN/graph datasets in inference mode
             if (
                 hasattr(self.testdataset, "__class__")
-                and "GNN" in self.testdataset.__class__.__name__
+                and (
+                    "GNN" in self.testdataset.__class__.__name__
+                    or "TgHydroDataset" in self.testdataset.__class__.__name__
+                )
             ):
                 _collate_fn = gnn_collate_fn
             # 使用自定义的 collate 函数处理 FloodEventDataset
@@ -526,26 +1445,6 @@ class DeepHydro(DeepHydroInterface):
                 and "FloodEvent" in self.testdataset.__class__.__name__
             ):
                 _collate_fn = self._flood_event_collate_fn
-
-            # Check if we should use PyG DataLoader
-            use_pyg_dataloader = training_cfgs.get("use_pyg_dataloader", False)
-            if (
-                use_pyg_dataloader
-                or "TgHydroDataset" in self.testdataset.__class__.__name__
-            ):
-                try:
-                    from torch_geometric.loader import DataLoader as PyGDataLoader
-
-                    print("Using PyG DataLoader for inference")
-                    return PyGDataLoader(
-                        self.testdataset,
-                        batch_size=training_cfgs["batch_size"],
-                        shuffle=False,
-                        drop_last=False,
-                    )
-                except ImportError:
-                    print("PyG not available, falling back to standard DataLoader")
-
             return DataLoader(
                 self.testdataset,
                 batch_size=training_cfgs["batch_size"],
@@ -569,47 +1468,15 @@ class DeepHydro(DeepHydroInterface):
         _collate_fn = None
         if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
             _collate_fn = varied_length_collate_fn
-        # Use GNN collate function for GNN datasets
+        # Use GNN collate function for GNN/graph datasets
         elif (
             hasattr(self.traindataset, "__class__")
-            and "GNN" in self.traindataset.__class__.__name__
+            and (
+                "GNN" in self.traindataset.__class__.__name__
+                or "TgHydroDataset" in self.traindataset.__class__.__name__
+            )
         ):
             _collate_fn = gnn_collate_fn
-
-        # Check if we should use PyG DataLoader
-        use_pyg_dataloader = training_cfgs.get("use_pyg_dataloader", False)
-        if (
-            use_pyg_dataloader
-            or "TgHydroDataset" in self.traindataset.__class__.__name__
-        ):
-            try:
-                from torch_geometric.loader import DataLoader as PyGDataLoader
-
-                print("Using PyG DataLoader for training")
-                data_loader = PyGDataLoader(
-                    self.traindataset,
-                    batch_size=training_cfgs["batch_size"],
-                    shuffle=(sampler is None),
-                    num_workers=(
-                        worker_num if worker_num > 0 else 0
-                    ),  # PyG may not support workers well
-                    pin_memory=pin_memory,
-                )
-
-                # Create validation dataloader if needed
-                if data_cfgs["t_range_valid"] is not None:
-                    validation_data_loader = PyGDataLoader(
-                        self.validdataset,
-                        batch_size=training_cfgs["batch_size"],
-                        shuffle=False,
-                        num_workers=worker_num if worker_num > 0 else 0,
-                        pin_memory=pin_memory,
-                    )
-                    return data_loader, validation_data_loader
-                return data_loader, None
-            except ImportError:
-                print("PyG not available, falling back to standard DataLoader")
-
         data_loader = DataLoader(
             self.traindataset,
             batch_size=training_cfgs["batch_size"],
@@ -627,7 +1494,10 @@ class DeepHydro(DeepHydroInterface):
                 _val_collate_fn = varied_length_collate_fn
             elif (
                 hasattr(self.validdataset, "__class__")
-                and "GNN" in self.validdataset.__class__.__name__
+                and (
+                    "GNN" in self.validdataset.__class__.__name__
+                    or "TgHydroDataset" in self.validdataset.__class__.__name__
+                )
             ):
                 _val_collate_fn = gnn_collate_fn
 
@@ -945,7 +1815,7 @@ class MultiTaskHydro(DeepHydro):
                 criterion_init_params = {
                     key: (
                         pytorch_criterion_dict[loss_param[key]]()
-                        if key in ("loss_funcs", "eval_loss_func")
+                        if key == "loss_funcs"
                         else loss_param[key]
                     )
                     for key in loss_param.keys()

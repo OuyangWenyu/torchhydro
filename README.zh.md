@@ -76,6 +76,17 @@ python examples/lstm_camels_example.py
 
 您可以随时修改这些脚本来试验不同的模型、数据集和参数。
 
+## 基准测试结果
+
+我们提供了在 CAMELS-US 数据集上的基准测试结果，以展示模型的性能表现。下图展示了两种 CAMELS 数据处理方式的 NSE (纳什效率系数) 分布对比:
+
+<img src="docs/images/nse_comparison_camels.png" alt="NSE 对比" width="600"/>
+
+**图示**: 在 CAMELS-US 数据集上训练的 LSTM 模型的 NSE 对比。左侧箱线图(红色)展示了使用 `hydrodataset.Camels` 类进行数据处理的结果，右侧箱线图(黄绿色)展示了使用 `hydrodataset.CamelsUS` 类的结果。两种方法都达到了 0.72 的中位数 NSE，证明了在 671 个流域上稳健且一致的性能表现。
+
+详细的训练结果、方法说明和全面的性能分析，请参阅：
+- **[LSTM 在 CAMELS-US 上的训练结果](docs/examples/lstm_camels_results.md)**: 完整的实验文档，包括模型配置、训练过程和流域级别的性能统计。
+
 ## 探索更多功能
 
 以上示例涵盖了两个主要用例，但 `torchhydro` 的功能远不止于此，它原生支持多种模型、数据集和数据源。您可以通过我们完整的公共 API 文档来探索所有可用的组件：

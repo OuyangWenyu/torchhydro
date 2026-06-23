@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../hydrodataset"
+		},
+		{
+			"path": "../hydrodatasource"
+		},
+		{
+			"path": "../hydroutils"
+		},
+		{
+			"path": "../neuraloperator"
+		}
+	],
+	"settings": {}
+}

@@ -1071,6 +1071,26 @@ def _recover_samples_to_continuous_by_floodevent(
     # Get the actual number of basins
     basin_num = len(dataset.t_s_dict["sites_id"])
 
+    # Normalize input shape to [samples, time, features]
+    if arr_3d is None:
+        raise ValueError("arr_3d cannot be None for flood-event recovery.")
+    if arr_3d.ndim == 1:
+        # [samples] -> assume single feature and single time step
+        arr_3d = arr_3d.reshape(-1, 1, 1)
+    elif arr_3d.ndim == 2:
+        # Heuristic: if second dim equals nf (features), treat as [samples, features]
+        # otherwise treat as [samples, time] with single feature
+        n2 = arr_3d.shape[1]
+        tgt_n = len(getattr(dataset.data_cfgs, "get", lambda *_: [])("target_cols", [])) if isinstance(dataset.data_cfgs, dict) else nf
+        try:
+            expected_features = len(dataset.data_cfgs["target_cols"])
+        except Exception:
+            expected_features = nf
+        if n2 == expected_features or n2 == nf:
+            arr_3d = arr_3d[:, None, :]
+        else:
+            arr_3d = arr_3d[:, :, None]
+
     # Check if this is a FloodEventDataset and handle flood_event column properly
     is_flood_dataset = isinstance(dataset, FloodEventDataset)
 
@@ -1087,24 +1107,30 @@ def _recover_samples_to_continuous_by_floodevent(
             flood_event_data = np.zeros((arr_3d.shape[0], arr_3d.shape[1], 1))
 
             # Try to get the actual flood_event data from the dataset
+            warmup_length = getattr(dataset, "warmup_length", 0)
             for sample_idx in range(arr_3d.shape[0]):
                 basin_idx, start_time, actual_length = dataset.lookup_table[sample_idx]
-                end_time = start_time + actual_length
-                if end_time > dataset.nt:
-                    end_time = dataset.nt
-                    actual_length = end_time - start_time
 
-                # Get the actual flood_event data from the dataset
+                # Get the actual flood_event data from the dataset, starting after warmup
                 if hasattr(dataset, "y") and dataset.flood_event_idx is not None:
-                    sample_length = min(arr_3d.shape[1], actual_length)
+                    y_start = start_time + warmup_length
+                    y_end = start_time + actual_length
+                    if y_end > dataset.nt:
+                        y_end = dataset.nt
+
+                    sample_target_len = arr_3d.shape[1]
                     actual_flood_events = dataset.y[
                         basin_idx,
-                        start_time : start_time + sample_length,
+                        y_start:y_end,
                         dataset.flood_event_idx,
                     ]
-                    flood_event_data[sample_idx, :sample_length, 0] = (
-                        actual_flood_events
-                    )
+
+                    # Fill into flood_event_data, matching the prediction length
+                    fill_len = min(sample_target_len, len(actual_flood_events))
+                    if fill_len > 0:
+                        flood_event_data[sample_idx, :fill_len, 0] = (
+                            actual_flood_events[:fill_len]
+                        )
 
             arr_3d_processed = np.concatenate([arr_3d, flood_event_data], axis=-1)
             # Update nf to match the expected number of features
@@ -1141,15 +1167,40 @@ def _recover_samples_to_continuous_by_floodevent(
         # Place the prediction result in the correct position of the original time series
         # Note: here we need to handle the possible length mismatch problem
         if pred_length > 0:
-            # If the prediction length is greater than the actual length, take the first part
-            if pred_length > actual_length:
+            # Smart Slicing to handle both Preds (with warmup) and Obs (without warmup)
+            warmup_length = getattr(dataset, "warmup_length", 0)
+
+            if sample_prediction.shape[0] >= actual_length + warmup_length:
+                # Case 1: Prediction typically includes warmup. Slice it off.
+                # sample_prediction[warmup:] corresponds to the target period.
+                pred_to_use = sample_prediction[
+                    warmup_length : warmup_length + actual_length, :
+                ]
+            elif sample_prediction.shape[0] >= actual_length:
+                # Case 2: Observation (or target-only pred) typically excludes warmup.
+                # distinct from above if warmup > 0
                 pred_to_use = sample_prediction[:actual_length, :]
             else:
+                # Case 3: Partial/Short data (should not happen normally)
                 pred_to_use = sample_prediction[:pred_length, :]
 
             # Fill the prediction result into the corresponding position
-            end_fill = start_time + pred_to_use.shape[0]
-            result[basin_idx, start_time:end_fill, :] = pred_to_use
+            # Add warmup_length to ensure correct temporal alignment
+            # The result array starts at absolute time 0? No, result usually aligned with dataset.
+            # But earlier comments said output array starts at warmup?
+            # Let's stick to the previous successfully aligned logic for obs:
+            # fill_start = start_time + warmup_length
+
+            fill_start = start_time + warmup_length
+            fill_end = fill_start + pred_to_use.shape[0]
+
+            # Ensure we don't exceed the result array's bounds
+            if fill_end > result.shape[1]:
+                fill_end = result.shape[1]
+                pred_to_use = pred_to_use[: fill_end - fill_start, :]
+
+            if fill_start < result.shape[1]:
+                result[basin_idx, fill_start:fill_end, :] = pred_to_use
 
     return result
 
