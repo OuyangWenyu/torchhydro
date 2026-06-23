@@ -142,7 +142,20 @@ results/
 data/
 scripts/
 pyrightconfig.json
-
+torchhydro.code-workspace
+.trae/
+pth_file/
+check/
+MC-LSTM/
+generated_docs/
+# data_processing/
+Temporary_file/
+test/
+!test/
+test/*
+!test/run_shap_standalone.py
+.gitignore
+pic/
 # Claude
 CLAUDE.md
 .claude/
@@ -154,4 +167,8 @@ torchhydro/_version.py
 # Gemini
 GEMINI.md
 
+# Ignore loss landscape output results
+loss_landscape_output/
 torchhydro.code-workspace
+data_processing/box.py
+data_processing/

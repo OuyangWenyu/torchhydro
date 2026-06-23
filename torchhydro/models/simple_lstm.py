@@ -21,7 +21,12 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 class SimpleLSTM(nn.Module):
     def __init__(
-        self, input_size: int, output_size: int, hidden_size: int, dr: float = 0.0
+        self,
+        input_size: int,
+        output_size: int,
+        hidden_size: int,
+        dr: float = 0.0,
+        **kwargs,
     ):
         super(SimpleLSTM, self).__init__()
         self.linearIn = nn.Linear(input_size, hidden_size)

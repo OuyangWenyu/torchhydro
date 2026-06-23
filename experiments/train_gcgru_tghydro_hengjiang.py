@@ -51,8 +51,8 @@ def main():
     # ================================
     model_config = {
         # Model architecture
-        "gcgru_out_channels": 32,  # GConvGRU output channels
-        "gcgru_K": 3,  # Chebyshev filter size
+        "gclstm_out_channels": 32,  # GConvGRU output channels
+        "gclstm_K": 3,  # Chebyshev filter size
         "mlp_hidden_dim": 128,  # MLP hidden dimension
         "mlp_dropout": 0.1,  # MLP dropout rate
         "forecast_length": 3,  # Must match forecast_length below
@@ -65,7 +65,7 @@ def main():
     # ================================
     args = cmd(
         # Experiment name and output directory
-        sub=os.path.join("results", "gcgru_tghydro"),
+        sub=os.path.join("results", "gclstm_tghydro"),
         # Data source configuration
         source_cfgs={
             "source_name": "tghydrodatasource",
@@ -76,21 +76,21 @@ def main():
             },
         },
         # Device configuration: CPU: [-1], GPU: [0], Multi-GPU: [0, 1]
-        ctx=[0],
+        ctx=[2],
         # model_type="MTL",
         model_type="Normal",
         # Model selection
-        model_name="AutoRegressiveGCGRU",  # Use AutoRegressiveGCGRU
+        model_name="AutoRegressiveGCLSTM",  # Use AutoRegressiveGCGRU
         model_hyperparam=model_config,
         # Dataset configuration - Use TgHydroDataset
         dataset="TgHydroDataset",
         gage_id=basin_id,
         # Training settings
-        batch_size=16,  # Batch size for autoregressive training
-        train_epoch=20,  # Number of training epochs
+        batch_size=2,  # Batch size for autoregressive training
+        train_epoch=2,  # Number of training epochs
         save_epoch=1,  # Save model every N epochs
         # Sequence lengths
-        hindcast_length=30,  # Hindcast/history window length
+        hindcast_length=4,  # Hindcast/history window length
         forecast_length=3,  # Forecast horizon
         warmup_length=0,  # No warmup for this model
         # Time settings
@@ -119,12 +119,12 @@ def main():
             "load_way": "best",  # Load best model (by validation loss)
         },
         # Date ranges
-        train_period=["2021-01-01", "2024-12-31"],
-        valid_period=["2021-01-01", "2024-12-31"],
-        test_period=["2021-01-01", "2024-12-31"],
-        # train_period=["2021-06-01", "2021-6-11"],
-        # valid_period=["2021-06-01", "2021-6-11"],
-        # test_period=["2021-06-01", "2021-6-11"],
+        # train_period=["2021-01-01", "2024-12-31"],
+        # valid_period=["2021-01-01", "2024-12-31"],
+        # test_period=["2021-01-01", "2024-12-31"],
+        train_period=["2021-06-01", "2021-6-11"],
+        valid_period=["2021-06-01", "2021-6-11"],
+        test_period=["2021-06-01", "2021-6-11"],
         # Loss function and optimizer
         loss_func="PyGraphLoss",
         loss_param={
@@ -164,6 +164,7 @@ def main():
                 "p_mean": "intermediate",
                 "sgr_dk_sav": "intermediate",
             },
+            "use_confluence_nodes_only": False,  # 是否只使用汇流节点
             "default_source": "base",
             "prefer_intermediate": False,
             "combine": True,

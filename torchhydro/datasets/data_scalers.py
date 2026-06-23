@@ -91,8 +91,10 @@ class ScalerHub(object):
                 is_tra_val_te,
                 prcp_norm_cols=prcp_norm_cols,
                 gamma_norm_cols=gamma_norm_cols,
+                maxmin_norm_cols='',
                 pbm_norm=pbm_norm,
                 data_source=data_source,
+                global_vars=global_vars,
             )
         elif scaler_type in SCALER_DICT.keys():
             scaler = SklearnScaler(
@@ -285,8 +287,10 @@ class DapengScaler(object):
         other_vars: Optional[dict] = None,
         prcp_norm_cols=None,
         gamma_norm_cols=None,
+        maxmin_norm_cols=None,
         pbm_norm=False,
         data_source: object = None,
+        global_vars: np.array = None,
     ):
         """
         The normalization and denormalization methods from Dapeng's 1st WRR paper.
@@ -323,6 +327,11 @@ class DapengScaler(object):
                 "surface_net_solar_radiation",
                 "sm_surface",
                 "sm_rootzone",
+                "tp",
+            ]
+        if maxmin_norm_cols is not None and global_vars is not None:
+            maxmin_norm_cols = [
+                "streamflow",
             ]
         self.data_target = vars_data["target_cols"]
         self.data_cfgs = data_cfgs
@@ -330,6 +339,7 @@ class DapengScaler(object):
         self.data_other = other_vars
         self.prcp_norm_cols = prcp_norm_cols
         self.gamma_norm_cols = gamma_norm_cols
+        self.maxmin_norm_cols = maxmin_norm_cols
         # both prcp_norm_cols and gamma_norm_cols use log(\sqrt(x)+.1) method to normalize
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
         self.pbm_norm = pbm_norm
@@ -374,9 +384,8 @@ class DapengScaler(object):
         mean_prcp = self.data_source.read_mean_prcp(
             self.t_s_dict["sites_id"], unit=final_unit
         )
-        return mean_prcp.to_array().transpose("basin", "variable").to_numpy()
 
-    def inverse_transform(self, target_values):
+    def inverse_transform(self, target_values, maxmin_norm_cols=None):
         """
         Denormalization for output variables
 
@@ -384,6 +393,8 @@ class DapengScaler(object):
         ----------
         target_values
             output variables
+        maxmin_norm_cols : list, optional
+            data items which use maxmin_norm method to normalize, by default None
 
         Returns
         -------
@@ -401,6 +412,7 @@ class DapengScaler(object):
                 target_vars,
                 stat_dict,
                 log_norm_cols=self.log_norm_cols,
+                maxmin_norm_cols=maxmin_norm_cols,
                 to_norm=False,
             )
             for i in range(len(self.data_cfgs["target_cols"])):
@@ -448,6 +460,12 @@ class DapengScaler(object):
                 else:
                     stat_dict[var_name] = cal_stat(v.sel(variable=var_name).to_numpy())
 
+        if self.data_global is not None:
+            # global data
+            global_data = self.data_global
+            global_lst = list(global_data.coords["variable"].values)
+            for var in global_lst:
+                stat_dict[var] = cal_stat(global_data.sel(variable=var).to_numpy())
         return stat_dict
 
     def get_data_norm(self, data, to_norm: bool = True) -> np.ndarray:
@@ -491,6 +509,7 @@ class DapengScaler(object):
             _vars,
             stat_dict,
             log_norm_cols=self.log_norm_cols,
+            maxmin_norm_cols=self.maxmin_norm_cols,
             to_norm=to_norm,
         )
         return out
@@ -509,6 +528,7 @@ class DapengScaler(object):
             x: 3-d  gages_num*time_num*var_num
             y: 3-d  gages_num*time_num*1
             c: 2-d  gages_num*var_num
+            g: 3-d  gages_num*time_num*var_num
         """
         if vars_data is None:
             return None

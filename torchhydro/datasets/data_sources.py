@@ -8,6 +8,12 @@ FilePath: \torchhydro\torchhydro\datasets\data_sources.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
+from hydrodataset import HydroDataset, Camels
+from hydroutils import (
+    hydro_time,
+    hydro_file,
+    hydro_logger,
+)
 from hydrodataset.camels_us import CamelsUs
 from hydrodataset.camelsh import Camelsh
 from hydrodataset.caravan import Caravan
@@ -20,22 +26,26 @@ from hydrodataset.camels_col import CamelsCol
 from hydrodatasource.reader.data_source import (
     SelfMadeHydroDataset,
     SelfMadeForecastDataset,
+    LongTermDataset,
     StationHydroDataset,
     TgHydroDatasource,
 )
-from hydrodataset.camels import Camels
+# from hydrodataset.camels import Camels
 
 from hydrodatasource.reader.floodevent import FloodEventDatasource
 
+from tqdm import tqdm
+from torchhydro import CACHE_DIR, SETTING
 
 data_sources_dict = {
-    "camels": Camels,
+    # "camels": Camels,
     "camels_us": CamelsUs,
     "camelsh": Camelsh,
     "caravan": Caravan,
     "grdc_caravan": GrdcCaravan,
     "selfmadehydrodataset": SelfMadeHydroDataset,
     "selfmadeforecastdataset": SelfMadeForecastDataset,
+    "longtermdataset": LongTermDataset,
     "floodeventdatasource": FloodEventDatasource,
     "stationhydrodataset": StationHydroDataset,
     "tghydrodatasource": TgHydroDatasource,

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-11-22 11:28:33
+LastEditTime: 2025-12-07 09:07:22
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -177,8 +177,26 @@ def model_infer(
     if batch_vector is not None:
         batch_vector = batch_vector.to(device)
 
+    # --- check if model is a generative model (e.g., Diffusion) ---
+    # Generative models require both input (xs) and target (ys) in forward pass
+    is_generative = getattr(model, "is_generative", False)
+    inner_model = getattr(model, "module", model)
+    # Also check wrapped model (e.g., DistributedDataParallel)
+    if not is_generative:
+        is_generative = getattr(inner_model, "is_generative", False)
+
     # --- forward ---
-    if xs_mask is not None and ys_mask is not None:
+    if is_generative:
+        # Generative models behave differently in train vs eval mode:
+        # - Train mode: forward(x_condition, y_target) returns {'loss': loss}
+        # - Eval mode: sample(x_condition) returns generated samples
+        if model.training:
+            # Training: compute loss with forward pass
+            output = inner_model(*xs, ys)
+        else:
+            # Inference: generate samples using sample method
+            output = inner_model.sample(*xs)
+    elif xs_mask is not None and ys_mask is not None:
         if edge_index is not None and edge_weight is not None:
             output = model(
                 *xs,
@@ -213,21 +231,28 @@ def model_infer(
         output = output[0]
 
     if isinstance(output, dict):
-        # 默认取最高频的输出
-        if return_key is None:
-            return_key = sorted(output.keys())[-1]  # e.g., "f2"
-        if return_key not in output:
-            raise KeyError(
-                f"Model returned keys {list(output.keys())}, but return_key='{return_key}' not found"
-            )
-        output = output[return_key]
+        # Check if this is a generative model that returns loss directly
+        if "loss" in output:
+            # Generative models return {'loss': loss_value}, pass it through
+            output = output
+        else:
+            # Multi-frequency output, pick the specified or highest frequency key
+            if return_key is None:
+                return_key = sorted(output.keys())[-1]  # e.g., "f2"
+            if return_key not in output:
+                raise KeyError(
+                    f"Model returned keys {list(output.keys())}, but return_key='{return_key}' not found"
+                )
+            output = output[return_key]
 
     if ys_mask is not None:
         ys = ys.masked_fill(ys_mask == 0, torch.nan)
 
     # --- seq_first transpose back ---
     if seq_first:
-        output = output.transpose(0, 1)
+        # Don't transpose dict outputs (generative models return {'loss': ...} during training)
+        if isinstance(output, torch.Tensor):
+            output = output.transpose(0, 1)
         if ys is not None:
             ys = ys.transpose(0, 1)
 
@@ -351,15 +376,15 @@ def get_preds_to_be_eval(
     nt = valorte_data_loader.dataset.nt - warmup_length
     basin_num = len(target_data.basin)
     data_shape = (basin_num, nt, nf)
+    # Check if GNN mode (PyG output)
+    is_gnn = False
+    dataset = valorte_data_loader.dataset
+    if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
+         # lookup_table[0] is (basin, time, len). For GNN, basin is None.
+         if dataset.lookup_table[0][0] is None:
+             is_gnn = True
+    
     if evaluator["eval_way"] == "once":
-        # Check if GNN mode (PyG output)
-        is_gnn = False
-        dataset = valorte_data_loader.dataset
-        if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
-             # lookup_table[0] is (basin, time, len). For GNN, basin is None.
-             if dataset.lookup_table[0][0] is None:
-                 is_gnn = True
-        
         if is_gnn:
             raise NotImplementedError(
                 "eval_way='once' is not currently supported for PyG/GNN models. "
@@ -513,12 +538,16 @@ def get_preds_to_be_eval(
             # 创建一个列表存储每个预测步长的结果
             preds_xr_list = []
             obss_xr_list = []
+            if is_gnn:
+                start_idx = rho + 1
+            else:
+                start_idx = rho
             for i in range(pred.shape[2]):
                 pred_3d = pred[:, :, i, :]
                 obs_3d = obs[:, :, i, :]
                 the_array_pred_ = np.full(target_data.shape, np.nan)
                 the_array_obs_ = np.full(target_data.shape, np.nan)
-                start = rho + i  # TODO:need check
+                start = start_idx + i  # TODO:need check
                 end = start + pred_3d.shape[1]
                 assert end <= the_array_pred_.shape[1]
                 the_array_pred_[:, start:end, :] = pred_3d
@@ -1042,6 +1071,26 @@ def _recover_samples_to_continuous_by_floodevent(
     # Get the actual number of basins
     basin_num = len(dataset.t_s_dict["sites_id"])
 
+    # Normalize input shape to [samples, time, features]
+    if arr_3d is None:
+        raise ValueError("arr_3d cannot be None for flood-event recovery.")
+    if arr_3d.ndim == 1:
+        # [samples] -> assume single feature and single time step
+        arr_3d = arr_3d.reshape(-1, 1, 1)
+    elif arr_3d.ndim == 2:
+        # Heuristic: if second dim equals nf (features), treat as [samples, features]
+        # otherwise treat as [samples, time] with single feature
+        n2 = arr_3d.shape[1]
+        tgt_n = len(getattr(dataset.data_cfgs, "get", lambda *_: [])("target_cols", [])) if isinstance(dataset.data_cfgs, dict) else nf
+        try:
+            expected_features = len(dataset.data_cfgs["target_cols"])
+        except Exception:
+            expected_features = nf
+        if n2 == expected_features or n2 == nf:
+            arr_3d = arr_3d[:, None, :]
+        else:
+            arr_3d = arr_3d[:, :, None]
+
     # Check if this is a FloodEventDataset and handle flood_event column properly
     is_flood_dataset = isinstance(dataset, FloodEventDataset)
 
@@ -1058,24 +1107,30 @@ def _recover_samples_to_continuous_by_floodevent(
             flood_event_data = np.zeros((arr_3d.shape[0], arr_3d.shape[1], 1))
 
             # Try to get the actual flood_event data from the dataset
+            warmup_length = getattr(dataset, "warmup_length", 0)
             for sample_idx in range(arr_3d.shape[0]):
                 basin_idx, start_time, actual_length = dataset.lookup_table[sample_idx]
-                end_time = start_time + actual_length
-                if end_time > dataset.nt:
-                    end_time = dataset.nt
-                    actual_length = end_time - start_time
 
-                # Get the actual flood_event data from the dataset
+                # Get the actual flood_event data from the dataset, starting after warmup
                 if hasattr(dataset, "y") and dataset.flood_event_idx is not None:
-                    sample_length = min(arr_3d.shape[1], actual_length)
+                    y_start = start_time + warmup_length
+                    y_end = start_time + actual_length
+                    if y_end > dataset.nt:
+                        y_end = dataset.nt
+
+                    sample_target_len = arr_3d.shape[1]
                     actual_flood_events = dataset.y[
                         basin_idx,
-                        start_time : start_time + sample_length,
+                        y_start:y_end,
                         dataset.flood_event_idx,
                     ]
-                    flood_event_data[sample_idx, :sample_length, 0] = (
-                        actual_flood_events
-                    )
+
+                    # Fill into flood_event_data, matching the prediction length
+                    fill_len = min(sample_target_len, len(actual_flood_events))
+                    if fill_len > 0:
+                        flood_event_data[sample_idx, :fill_len, 0] = (
+                            actual_flood_events[:fill_len]
+                        )
 
             arr_3d_processed = np.concatenate([arr_3d, flood_event_data], axis=-1)
             # Update nf to match the expected number of features
@@ -1112,15 +1167,40 @@ def _recover_samples_to_continuous_by_floodevent(
         # Place the prediction result in the correct position of the original time series
         # Note: here we need to handle the possible length mismatch problem
         if pred_length > 0:
-            # If the prediction length is greater than the actual length, take the first part
-            if pred_length > actual_length:
+            # Smart Slicing to handle both Preds (with warmup) and Obs (without warmup)
+            warmup_length = getattr(dataset, "warmup_length", 0)
+
+            if sample_prediction.shape[0] >= actual_length + warmup_length:
+                # Case 1: Prediction typically includes warmup. Slice it off.
+                # sample_prediction[warmup:] corresponds to the target period.
+                pred_to_use = sample_prediction[
+                    warmup_length : warmup_length + actual_length, :
+                ]
+            elif sample_prediction.shape[0] >= actual_length:
+                # Case 2: Observation (or target-only pred) typically excludes warmup.
+                # distinct from above if warmup > 0
                 pred_to_use = sample_prediction[:actual_length, :]
             else:
+                # Case 3: Partial/Short data (should not happen normally)
                 pred_to_use = sample_prediction[:pred_length, :]
 
             # Fill the prediction result into the corresponding position
-            end_fill = start_time + pred_to_use.shape[0]
-            result[basin_idx, start_time:end_fill, :] = pred_to_use
+            # Add warmup_length to ensure correct temporal alignment
+            # The result array starts at absolute time 0? No, result usually aligned with dataset.
+            # But earlier comments said output array starts at warmup?
+            # Let's stick to the previous successfully aligned logic for obs:
+            # fill_start = start_time + warmup_length
+
+            fill_start = start_time + warmup_length
+            fill_end = fill_start + pred_to_use.shape[0]
+
+            # Ensure we don't exceed the result array's bounds
+            if fill_end > result.shape[1]:
+                fill_end = result.shape[1]
+                pred_to_use = pred_to_use[: fill_end - fill_start, :]
+
+            if fill_start < result.shape[1]:
+                result[basin_idx, fill_start:fill_end, :] = pred_to_use
 
     return result
 
@@ -1204,7 +1284,7 @@ def evaluate_validation(
 
 
 def compute_loss(
-    labels: torch.Tensor, output: torch.Tensor, criterion, **kwargs
+    labels: torch.Tensor, output, criterion, **kwargs
 ) -> torch.Tensor:
     """
     Function for computing the loss
@@ -1214,7 +1294,7 @@ def compute_loss(
     labels
         The real values for the target. Shape can be variable but should follow (batch_size, time)
     output
-        The output of the model
+        The output of the model. Can be a tensor or a dict with 'loss' key for generative models.
     criterion
         loss function
     validation_dataset
@@ -1227,11 +1307,10 @@ def compute_loss(
     torch.Tensor
         the computed loss
     """
-    # a = np.sum(output.cpu().detach().numpy(),axis=1)/len(output)
-    # b=[]
-    # for i in a:
-    #     b.append([i.tolist()])
-    # output = torch.tensor(b, requires_grad=True).to(torch.device("cuda"))
+    # Handle generative models that compute loss internally
+    # These models return a dict with 'loss' key
+    if isinstance(output, dict) and "loss" in output:
+        return output["loss"]
 
     if isinstance(criterion, GaussianLoss):
         if len(output[0].shape) > 2:
@@ -1896,28 +1975,6 @@ def read_pth_from_model_loader(model_loader, model_pth_dir):
     if not os.path.exists(weight_path):
         raise ValueError(f"Model file {weight_path} does not exist.")
     return weight_path
-
-
-def get_lastest_logger_file_in_a_dir(dir_path):
-    """Get the last logger file in a directory
-
-    Parameters
-    ----------
-    dir_path : str
-        the directory
-
-    Returns
-    -------
-    str
-        the path of the logger file
-    """
-    pattern = r"^\d{1,2}_[A-Za-z]+_\d{6}_\d{2}(AM|PM)\.json$"
-    pth_files_lst = [
-        os.path.join(dir_path, file)
-        for file in os.listdir(dir_path)
-        if re.match(pattern, file)
-    ]
-    return get_latest_file_in_a_lst(pth_files_lst)
 
 
 def cellstates_when_inference(seq_first, data_cfgs, pred):
