@@ -9,6 +9,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import copy
+import warnings
 import fnmatch
 import itertools
 import os
@@ -33,7 +34,7 @@ from hydroutils.hydro_file import (
     get_latest_file_in_a_lst,
 )
 from torchhydro.datasets.data_sets import FloodEventDataset
-from torchhydro.models.crits import FloodBaseLoss, GaussianLoss
+from torchhydro.models.crits import FloodBaseLoss, GaussianLoss, MultiOutLoss, PyGraphLoss
 
 
 def _rolling_preds_for_once_eval(
@@ -216,7 +217,14 @@ def model_infer(
                 batch_vector=batch_vector,
             )
         else:
-            output = model(*xs)
+            if edge_index is not None and edge_weight is None:
+                output = model(
+                    *xs,
+                    edge_index=edge_index,
+                    # batch_vector=batch_vector,
+                )
+            else:
+                output = model(*xs)
 
     # --- handle model outputs ---
     if isinstance(output, tuple):
@@ -311,7 +319,9 @@ def calculate_and_record_metrics(
     obs, pred, evaluation_metrics, target_col, fill_nan, eval_log, horizon=1
 ):
     fill_nan_value = fill_nan
-    inds = stat_error(obs, pred, fill_nan_value)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        inds = stat_error(obs, pred, fill_nan_value)
 
     for evaluation_metric in evaluation_metrics:
         if horizon == 1:
@@ -366,7 +376,21 @@ def get_preds_to_be_eval(
     nt = valorte_data_loader.dataset.nt - warmup_length
     basin_num = len(target_data.basin)
     data_shape = (basin_num, nt, nf)
+    # Check if GNN mode (PyG output)
+    is_gnn = False
+    dataset = valorte_data_loader.dataset
+    if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
+         # lookup_table[0] is (basin, time, len). For GNN, basin is None.
+         if dataset.lookup_table[0][0] is None:
+             is_gnn = True
+    
     if evaluator["eval_way"] == "once":
+        if is_gnn:
+            raise NotImplementedError(
+                "eval_way='once' is not currently supported for PyG/GNN models. "
+                "Please use eval_way='rolling' which supports automatic reshaping of GNN outputs."
+            )
+
         stride = evaluator["stride"]
         if stride > 0:
             if horizon != stride:
@@ -514,12 +538,16 @@ def get_preds_to_be_eval(
             # 创建一个列表存储每个预测步长的结果
             preds_xr_list = []
             obss_xr_list = []
+            if is_gnn:
+                start_idx = rho + 1
+            else:
+                start_idx = rho
             for i in range(pred.shape[2]):
                 pred_3d = pred[:, :, i, :]
                 obs_3d = obs[:, :, i, :]
                 the_array_pred_ = np.full(target_data.shape, np.nan)
                 the_array_obs_ = np.full(target_data.shape, np.nan)
-                start = rho + i  # TODO:need check
+                start = start_idx + i  # TODO:need check
                 end = start + pred_3d.shape[1]
                 assert end <= the_array_pred_.shape[1]
                 the_array_pred_[:, start:end, :] = pred_3d
@@ -560,6 +588,18 @@ def get_preds_to_be_eval(
         obss_xr = valte_dataset.denormalize(obs)
 
     def _align_and_order(_obs, _pred):
+        # 先移除重复的 time 坐标，避免 pandas 索引重复导致对齐失败
+        def _ensure_unique_time(ds):
+            if hasattr(ds, "indexes") and "time" in ds.indexes:
+                idx = ds.indexes["time"]
+                if getattr(idx, "has_duplicates", False):
+                    keep = ~idx.duplicated()
+                    ds = ds.isel(time=keep)
+            return ds
+
+        _obs = _ensure_unique_time(_obs)
+        _pred = _ensure_unique_time(_pred)
+
         # 对齐到公共 (basin,time,variable) 的交集，避免 outer 引入 NaN
         _obs, _pred = xr.align(_obs, _pred, join="inner")
         # time 维为空（无交集）时直接抛错，避免进入 nanmean
@@ -632,7 +672,37 @@ def _recover_samples_to_4d_by_forecast(
     forecast_length = dataset.horizon
 
     # 将arr_3d重塑为所需的形状
-    output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
+    # 检测是否为 GNN 模式（通过 lookup_table 结构）
+    # GNN 模式下，lookup_table 只有时间维度，basin 为 None，且数据是 Time-Major 的
+    is_gnn = False
+    if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
+        first_sample = dataset.lookup_table[0]
+        # (basin, time, len) -> basin is None for GNN
+        if first_sample[0] is None:
+            is_gnn = True
+
+    if arr_3d.ndim == 4:
+        # 如果已经是4D [Basin, Time, Horizon, Feat]，直接使用
+        # 这通常是由 compute_validation 针对 PyG 模型预处理过的
+        if arr_3d.shape[0] != basin_num:
+             raise ValueError(f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}")
+        output = arr_3d
+    elif is_gnn:
+        # arr_3d is (Time * Basin, Horizon, Features) (Time-Major)
+        # Reshape to (Time, Basin, ...) then transpose to (Basin, Time, ...)
+        # 注意：这里假设每个时间步都包含完整的 basin_num 个节点
+        # 如果 arr_3d 的第一维长度不是 basin_num 的整数倍，说明有数据丢失或对齐问题
+        if arr_3d.shape[0] % basin_num != 0:
+             print(f"Warning: arr_3d shape {arr_3d.shape} is not divisible by basin_num {basin_num}. Reshape might fail.")
+        
+        # (Time, Basin, Horizon, Features)
+        output = arr_3d.reshape(-1, basin_num, arr_3d.shape[1], nf)
+        # (Basin, Time, Horizon, Features)
+        output = output.transpose(1, 0, 2, 3)
+    else:
+        # Standard mode: Basin-Major
+        output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
+        
     i_e_time_length = output.shape[1]
 
     # 创建结果数组，初始化为NaN
@@ -695,7 +765,17 @@ def _recover_samples_to_4d_by_basins(
     forecast_length = dataset.horizon
 
     # 将arr_3d重塑为所需的形状
-    output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
+    if arr_3d.ndim == 4:
+        # 如果已经是4D [Basin, Time, Horizon, Feat]，直接使用
+        # 验证维度一致性
+        if arr_3d.shape[0] != basin_num:
+             raise ValueError(f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}")
+        output = arr_3d
+    else:
+        # Standard mode: Basin-Major
+        # arr_3d is (Basin*Time, Horizon, Feat)
+        output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
+        
     i_e_time_length = output.shape[1]
 
     # 创建结果数组，初始化为NaN
@@ -710,6 +790,47 @@ def _recover_samples_to_4d_by_basins(
         for j in range(forecast_length):
             # 填充结果数组，注意这里将流域放在第一个维度
             result[basin_idx, :, j, :] = forecast_output[basin_idx, :, j, :]
+
+    return result
+
+
+def _recover_samples_to_3d_by_basins(
+    valorte_data_loader,
+    arr_3d,
+):
+    """将模型输出按照流域和实际起始时间重组为3D数组
+
+    参数
+    -------
+    valorte_data_loader : DataLoader
+        验证或测试数据加载器
+    arr_3d : np.ndarray
+        3D数组，形状为 (样本数, 预测步长, 特征数)
+
+    返回
+    -------
+    np.ndarray
+        重组后的3D数组，形状为 (流域数, 时间长度, 特征数)
+    """
+    dataset = valorte_data_loader.dataset
+    basin_num = len(dataset.t_s_dict["sites_id"])
+    nt = dataset.nt
+    rho = dataset.rho
+    warmup_len = dataset.warmup_length
+    horizon = dataset.horizon
+    nf = dataset.noutputvar
+
+    result = np.full((basin_num, nt, nf), np.nan)
+
+    for sample_idx in range(arr_3d.shape[0]):
+        # lookup_table: (basin_idx, start_idx, seq_len)
+        basin_idx, start_idx, _ = dataset.lookup_table[sample_idx]
+        base_time = start_idx + warmup_len + rho
+        # 将该样本的各预见期写入对应的绝对时间位置
+        for j in range(min(horizon, arr_3d.shape[1])):
+            t_abs = base_time + j
+            if 0 <= t_abs < nt:
+                result[basin_idx, t_abs, :] = arr_3d[sample_idx, j, :]
 
     return result
 
@@ -1152,6 +1273,67 @@ def compute_loss(
         flood_mask = labels[:, :, -1:]  # Extract flood mask from last column
         targets = labels[:, :, :-1]  # Extract targets (remove last column)
         return criterion(output, targets, flood_mask)
+    if isinstance(criterion, PyGraphLoss):
+        node_mask = kwargs.get("node_mask", None)
+        return criterion(output, labels, node_mask=node_mask)
+    # MultiOutLoss: 适配 PyG 批次的 [batch*num_nodes, horizon] 到 [time, batch, num_nodes]
+    if isinstance(criterion, MultiOutLoss):
+        batch_vector = kwargs.get("batch_vector", None)
+        node_mask = kwargs.get("node_mask", None)
+        if output.ndim == 2 and labels.ndim == 2 and batch_vector is not None:
+            # Output/Labels: [B*N_total, H]
+            # PyG batch processing: Directly compute loss on flattened data for efficiency
+            
+            # 1. Apply Node Mask
+            if node_mask is not None:
+                if not isinstance(node_mask, torch.Tensor):
+                    node_mask = torch.tensor(
+                        node_mask, dtype=torch.bool, device=labels.device
+                    )
+                else:
+                    node_mask = node_mask.to(labels.device).bool()
+                
+                # Ensure mask is 1D [B*N_total]
+                if node_mask.dim() > 1:
+                    node_mask = node_mask.flatten()
+                
+                output = output[node_mask]
+                labels = labels[node_mask]
+
+            # 2. Handle NaN in labels (consistent with MultiOutLoss behavior)
+            # Mask out any NaN values in the target
+            mask_nan = ~torch.isnan(labels)
+            output = output[mask_nan]
+            labels = labels[mask_nan]
+
+            # 3. Compute Loss
+            # Assume homogeneous loss function for all nodes in PyG batch
+            loss_func = criterion.loss_funcs
+            if isinstance(loss_func, list):
+                # Use the first loss function if a list is provided
+                loss_func = loss_func[0]
+            
+            return loss_func(output, labels)
+
+        elif output.ndim == 2 and labels.ndim == 2:
+            # 无 batch_vector 情况，退化为 batch=1
+            output = output.transpose(0, 1).unsqueeze(1)
+            labels = labels.transpose(0, 1).unsqueeze(1)
+        n_out = labels.shape[-1]
+        try:
+            iw = criterion.item_weight
+            if not isinstance(iw, list) or len(iw) != n_out:
+                criterion.item_weight = [1.0] * n_out
+        except Exception:
+            pass
+        try:
+            dg = criterion.data_gap
+            if isinstance(dg, list) and len(dg) != n_out:
+                criterion.data_gap = [0] * n_out
+        except Exception:
+            pass
+        return criterion(output, labels.float())
+
     if (
         isinstance(output, torch.Tensor)
         and len(labels.shape) != len(output.shape)
@@ -1494,7 +1676,17 @@ def torch_single_train(
     for _, batch in enumerate(pbar):
         # mask handling is already done inside model_infer function
         trg, output = model_infer(seq_first, device, model, batch, variable_length_cfgs)
-        loss = compute_loss(trg, output, criterion, **kwargs)
+        batch_vector = getattr(batch, "batch", None)
+        node_mask = getattr(batch, "node_mask", None)
+        loss = compute_loss(trg, output, criterion, batch_vector=batch_vector, node_mask=node_mask, **kwargs)
+
+        # Add auxiliary loss from MoE models (if available)
+        if hasattr(model, "get_aux_loss"):
+            aux_loss = model.get_aux_loss()
+            if aux_loss is not None and aux_loss.device != loss.device:
+                aux_loss = aux_loss.to(loss.device)
+            loss = loss + aux_loss
+
         if loss > 100:
             print("Warning: high loss detected")
         if torch.isnan(loss):
@@ -1556,7 +1748,9 @@ def compute_validation(
             trg, output = model_infer(seq_first, device, model, batch)
             obs.append(trg)
             preds.append(output)
-            valid_loss_ = compute_loss(trg, output, criterion)
+            batch_vector = getattr(batch, "batch", None)
+            node_mask = getattr(batch, "node_mask", None)
+            valid_loss_ = compute_loss(trg, output, criterion, batch_vector=batch_vector, node_mask=node_mask)
             if torch.isnan(valid_loss_):
                 # for not-train mode, we may get all nan data for trg
                 # so we skip this batch
@@ -1582,6 +1776,40 @@ def compute_validation(
     valid_loss = valid_loss / iter_num
     y_obs = obs_final.numpy()
     y_pred = pred_final.numpy()
+
+    # Adaptation for PyGraphLoss: Convert Time-Major to Basin-Major
+    if isinstance(criterion, PyGraphLoss):
+        dataset = data_loader.dataset
+        # Assuming the dataset has 'sites_id' in 't_s_dict' which indicates number of nodes/basins
+        if hasattr(dataset, "t_s_dict") and "sites_id" in dataset.t_s_dict:
+            num_nodes = len(dataset.t_s_dict["sites_id"])
+            if y_obs.shape[0] % num_nodes == 0:
+                time_steps = y_obs.shape[0] // num_nodes
+                # Reshape from [Time*Nodes, ...] to [Time, Nodes, ...]
+                # Then transpose to [Nodes, Time, ...]
+                # Then flatten to [Nodes*Time, ...]
+                
+                # Handle arbitrary trailing dimensions
+                # Ensure we have feature dimension. If shape is [Batch, Horizon], add feature dim -> [Batch, Horizon, 1]
+                if y_obs.ndim == 2:
+                    y_obs = y_obs[..., np.newaxis]
+                if y_pred.ndim == 2:
+                    y_pred = y_pred[..., np.newaxis]
+
+                obs_shape = y_obs.shape
+                pred_shape = y_pred.shape
+                
+                # Reshape to [Time, Nodes, Horizon, Features]
+                y_obs = y_obs.reshape(time_steps, num_nodes, *obs_shape[1:])
+                # Transpose to [Nodes, Time, Horizon, Features]
+                permute_dims = [1, 0] + list(range(2, y_obs.ndim))
+                y_obs = y_obs.transpose(permute_dims)
+                
+                # Same for predictions
+                y_pred = y_pred.reshape(time_steps, num_nodes, *pred_shape[1:])
+                y_pred = y_pred.transpose(permute_dims)
+
+
     return y_obs, y_pred, valid_loss
 
 

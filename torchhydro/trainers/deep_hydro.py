@@ -403,12 +403,38 @@ class DeepHydro(DeepHydroInterface):
             pred = torch.cat(test_preds, dim=0).numpy()  # 在最后转换为numpy
             obs = torch.cat(obss, dim=0).numpy()  # 在最后转换为numpy
         if pred.ndim == 2:
-            # TODO: check
-            # the ndim is 2 meaning we use an Nto1 mode
-            # as lookup table is (basin 1's all time length, basin 2's all time length, ...)
-            # params of reshape should be (basin size, time length)
-            pred = pred.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
-            obs = obs.flatten().reshape(test_dataloader.test_data.y.shape[0], -1, 1)
+            # Check if GNN mode (Time-Major output) by inspecting lookup_table
+            # If basin is None in lookup_table, it indicates GNN/Graph mode where each sample is a full graph at a time step
+            dataset = test_dataloader.dataset
+            is_gnn = False
+            if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
+                 if dataset.lookup_table[0][0] is None:
+                     is_gnn = True
+            
+            num_nodes = dataset.y.shape[0]
+            
+            if is_gnn:
+                # GNN output: [Time * Nodes, Horizon] (Time-Major)
+                # We need to convert to Basin-Major for consistency
+                pred = pred[..., np.newaxis]
+                obs = obs[..., np.newaxis]
+                if pred.shape[0] % num_nodes == 0:
+                    time_steps = pred.shape[0] // num_nodes
+                    
+                    # Reshape to [Time, Nodes, Horizon]
+                    pred = pred.reshape(time_steps, num_nodes, *pred.shape[1:])
+                    obs = obs.reshape(time_steps, num_nodes, *obs.shape[1:])
+                    
+                    # Transpose to [Nodes, Time, Horizon]
+                    pred = pred.transpose(1, 0, 2, 3)
+                    obs = obs.transpose(1, 0, 2, 3)
+                    
+            else:
+                # Standard LSTM: [Nodes * Time, Horizon] (Basin-Major)
+                # Assumes data is ordered by Basin 1 (all times), Basin 2 (all times)...
+                # params of reshape should be (basin size, time length)
+                pred = pred.flatten().reshape(num_nodes, -1, 1)
+                obs = obs.flatten().reshape(num_nodes, -1, 1)
         evaluation_cfgs = self.cfgs["evaluation_cfgs"]
         obs_xr, pred_xr = get_preds_to_be_eval(
             test_dataloader,
@@ -505,7 +531,7 @@ class DeepHydro(DeepHydroInterface):
             use_pyg_dataloader = training_cfgs.get("use_pyg_dataloader", False)
             if (
                 use_pyg_dataloader
-                or "MultiFeatureStream" in self.testdataset.__class__.__name__
+                or "TgHydroDataset" in self.testdataset.__class__.__name__
             ):
                 try:
                     from torch_geometric.loader import DataLoader as PyGDataLoader
@@ -554,7 +580,7 @@ class DeepHydro(DeepHydroInterface):
         use_pyg_dataloader = training_cfgs.get("use_pyg_dataloader", False)
         if (
             use_pyg_dataloader
-            or "MultiFeatureStream" in self.traindataset.__class__.__name__
+            or "TgHydroDataset" in self.traindataset.__class__.__name__
         ):
             try:
                 from torch_geometric.loader import DataLoader as PyGDataLoader

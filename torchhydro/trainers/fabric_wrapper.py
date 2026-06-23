@@ -70,7 +70,7 @@ class FabricWrapper:
     def _init_pytorch(self) -> None:
         """Initialize normal PyTorch setup"""
         self.device_num = self.fabric_config["devices"]
-        #self.device_num = [0]
+        # self.device_num = [0]
         self._device = get_the_device(self.device_num)
         print(f"✅ Normal PyTorch initialized, using device: {self._device}")
 
@@ -228,8 +228,13 @@ def create_fabric_wrapper(training_cfgs: Dict) -> FabricWrapper:
         use_fabric = False
 
     # Fabric configuration
+    if devices == "auto" or devices == ["auto"]:
+        final_devices = "auto"
+    else:
+        final_devices = devices if isinstance(devices, list) else [devices]
+
     fabric_config = {
-        "devices": devices if isinstance(devices, list) else [devices],
+        "devices": final_devices,
         "strategy": fabric_strategy,
         "precision": training_cfgs.get("precision", "32-true"),
         "accelerator": training_cfgs.get("accelerator", "auto"),

@@ -8,7 +8,7 @@ FilePath: \torchhydro\torchhydro\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 
-from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU
+from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU, MultiFeatureStreamGCLSTM
 from torchhydro.models.diffusion import ConditionalDiffusionModel
 from torchhydro.models.mtslstm import MTSLSTM
 from torchhydro.models.dpl4hbv import DplLstmHbv, DplAnnHbv
@@ -20,6 +20,7 @@ from torchhydro.models.cudnnlstm import (
     CudnnLstmModelMultiOutput,
     CpuLstmModel,
 )
+from torchhydro.models.fno import HydrologyFNO
 
 from torchhydro.models.simple_lstm import (
     LinearMultiLayerLSTMModel,
@@ -62,12 +63,21 @@ from torchhydro.models.crits import (
     HybridLoss,
     HybridFloodloss,
     GenerativeLoss,
+    PyGraphLoss,
 )
 from torchhydro.models.dpl4xaj import DplLstmXaj, DplAnnXaj
 from torchhydro.models.dpl4xaj_nn4et import DplLstmNnModuleXaj
 from torchhydro.models.spplstm import SPP_LSTM_Model, SPP_LSTM_Model_2
 from torchhydro.models.dpl4gr4j import DplLstmGr4j, DplAnnGr4j
-from torchhydro.models.moe import MoE
+from torchhydro.models.moe import (
+    MoE,
+    DenseMoE,
+    SparseMoE,
+    SwitchMoE,
+    HydrologyTopKMoE,
+    GlobalTopKMoE,
+    GlobalTopKMoE_FastRouting,
+)
 from torchhydro.models.ann import SimpleAnn
 
 """
@@ -78,6 +88,12 @@ pytorch_model_dict = {
     "ConditionalDiffusionModel": ConditionalDiffusionModel,
     # MoE model
     "MoE": MoE,
+    "DenseMoE": DenseMoE,
+    "SparseMoE": SparseMoE,
+    "SwitchMoE": SwitchMoE,
+    "HydrologyTopKMoE": HydrologyTopKMoE,
+    "GlobalTopKMoE": GlobalTopKMoE,
+    "GlobalTopKMoE_FastRouting": GlobalTopKMoE_FastRouting,
     # ANN models
     "SimpleAnn": SimpleAnn,
     # LSTM models from Group MHPI
@@ -119,6 +135,8 @@ pytorch_model_dict = {
     "GCNII": GCNII,
     "ResGAT": ResGAT,
     "AutoRegressiveGCGRU": MultiFeatureStreamGCGRU,
+    "AutoRegressiveGCLSTM": MultiFeatureStreamGCLSTM,
+    "FNO": HydrologyFNO,
 }
 
 pytorch_criterion_dict = {
@@ -140,6 +158,7 @@ pytorch_criterion_dict = {
     "HybridFloodloss": HybridFloodloss,  # Alias for backward compatibility
     # Generative model loss (loss computed inside model, this is a placeholder)
     "GenerativeLoss": GenerativeLoss,
+    "PyGraphLoss": PyGraphLoss,
 }
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}

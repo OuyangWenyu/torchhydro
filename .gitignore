@@ -142,6 +142,7 @@ results/
 data/
 scripts/
 pyrightconfig.json
+.trae/
 
 # Claude
 CLAUDE.md
@@ -153,3 +154,5 @@ torchhydro/_version.py
 
 # Gemini
 GEMINI.md
+
+torchhydro.code-workspace

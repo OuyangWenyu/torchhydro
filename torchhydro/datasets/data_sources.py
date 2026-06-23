@@ -12,6 +12,11 @@ from hydrodataset.camels_us import CamelsUs
 from hydrodataset.camelsh import Camelsh
 from hydrodataset.caravan import Caravan
 from hydrodataset.grdc_caravan import GrdcCaravan
+from hydrodataset.camels_aus import CamelsAus
+from hydrodataset.camels_br import CamelsBr
+from hydrodataset.camels_cl import CamelsCl
+from hydrodataset.camels_gb import CamelsGb
+from hydrodataset.camels_col import CamelsCol
 from hydrodatasource.reader.data_source import (
     SelfMadeHydroDataset,
     SelfMadeForecastDataset,
@@ -34,4 +39,9 @@ data_sources_dict = {
     "floodeventdatasource": FloodEventDatasource,
     "stationhydrodataset": StationHydroDataset,
     "tghydrodatasource": TgHydroDatasource,
+    "camels_aus": CamelsAus,
+    "camels_br": CamelsBr,
+    "camels_cl": CamelsCl,
+    "camels_gb": CamelsGb,
+    "camels_col": CamelsCol,
 }
