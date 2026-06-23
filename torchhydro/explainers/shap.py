@@ -1,12 +1,13 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-10-19 21:34:29
-LastEditTime: 2023-12-29 11:05:57
-LastEditors: Xinzhuo Wu
+LastEditTime: 2025-07-12 11:25:01
+LastEditors: Wenyu Ouyang
 Description: SHAP methods for deep learning models
-FilePath: \torchhydro\torchhydro\explainers\shap.py
+FilePath: /torchhydro/torchhydro/explainers/shap.py
 Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
+
 from typing import List
 import torch
 import numpy as np

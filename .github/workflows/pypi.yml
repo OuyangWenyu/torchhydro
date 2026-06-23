@@ -1,6 +1,4 @@
-# This workflows will upload a Python Package using Twine when a release is created
-# For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
-
+# PyPI publishing workflow using uv
 name: pypi
 
 on:
@@ -10,23 +8,34 @@ on:
 
 jobs:
   deploy:
-
     runs-on: ubuntu-latest
-
+    permissions:
+      id-token: write # This is required for trusted publishing
+    env:
+      UV_NO_SOURCES: "1"
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python
-      uses: actions/setup-python@v2
+    - name: Checkout code
+      uses: actions/checkout@v4
       with:
-        python-version: '3.x'
-    - name: Install dependencies
+        fetch-depth: 0 # Required for hatch-vcs to determine the version
+
+    - name: Setup uv
+      uses: astral-sh/setup-uv@v3
+      with:
+          enable-cache: true
+
+    - name: Setup Python
+      run: uv python install 3.11
+
+    - name: Build package
       run: |
-        python -m pip install --upgrade pip
-        pip install setuptools wheel twine
-    - name: Build and publish
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERS }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: |
-        python setup.py sdist bdist_wheel
-        twine upload dist/*
+        uv build
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/

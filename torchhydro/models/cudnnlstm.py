@@ -38,7 +38,7 @@ class LstmCellTied(nn.Module):
         mode="train",
         dr=0.5,
         dr_method="drX+drW+drC",
-        gpu=1
+        gpu=1,
     ):
         super(LstmCellTied, self).__init__()
 
@@ -616,3 +616,5 @@ class CudnnLstmModelMultiOutput(nn.Module):
         outs = [mod(out_lstm) for mod in self.multi_layers]
         final = torch.cat(outs, dim=-1)
         return (final, (hn, cn)) if return_h_c else final
+
+

@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2023-07-25 16:47:19
-LastEditTime: 2024-05-27 16:22:15
+LastEditTime: 2025-11-08 10:03:04
 LastEditors: Wenyu Ouyang
 Description: Test a full training and evaluating process
 FilePath: \torchhydro\tests\test_caravan_train.py
@@ -10,6 +10,7 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 
 import os
 import pytest
+from hydrodataset.hydro_dataset import StandardVariable
 from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
@@ -23,29 +24,23 @@ def var_c():
 @pytest.fixture()
 def var_t():
     return [
-        "surface_net_solar_radiation_mean",
-        "total_precipitation_sum",
-        "potential_evaporation_sum",
-        "temperature_2m_max",
-        "temperature_2m_min",
-        "surface_pressure_mean",
+        StandardVariable.PRECIPITATION,
+        StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
+        StandardVariable.TEMPERATURE_MAX,
+        StandardVariable.TEMPERATURE_MIN,
+        StandardVariable.SOLAR_RADIATION,
     ]
 
 
 @pytest.fixture()
 def config(var_c, var_t):
-    project_name = "test_caravan/exp5"
+    project_name = os.path.join("test_caravan", "exp5")
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "Caravan",
-            "source_path": os.path.join(
-                SETTING["local_data_path"]["datasets-origin"], "caravan"
-            ),
-            "other_settings": {
-                "source_region": "Global",
-            },
+            "source_name": "caravan",
+            "source_path": SETTING["local_data_path"]["datasets-origin"],
         },
         ctx=[-1],
         model_name="CpuLSTM",
@@ -77,7 +72,6 @@ def config(var_c, var_t):
         scaler="DapengScaler",
         train_epoch=2,
         save_epoch=1,
-        te=2,
         train_period=["2000-10-01", "2001-10-01"],
         valid_period=["2001-10-01", "2002-10-01"],
         test_period=["2002-10-01", "2003-10-01"],
@@ -86,10 +80,12 @@ def config(var_c, var_t):
         # key is epoch, start from 1
         lr_scheduler={1: 1e-2, 2: 5e-3, 3: 1e-3},
         which_first_tensor="sequence",
+        model_loader={"load_way": "specified", "test_epoch": 2},
     )
     update_cfg(config_data, args)
     return config_data
 
 
+@pytest.mark.requires_data
 def test_train_evaluate(config):
     train_and_evaluate(config)

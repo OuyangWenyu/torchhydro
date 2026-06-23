@@ -1,0 +1,36 @@
+# Copy to paths.yaml on each machine and edit. Used by batch automation,
+# refactored experiment scripts, and find_similar_basins.py.
+#
+# Lookup order:
+#   1. env var TORCHHYDRO_PATHS_CFG (absolute path or relative to repo root)
+#   2. configs/paths.yaml at repo root
+#   3. this file (paths.example.yaml) as fallback
+
+# CAMELS data root passed as source_path to Camels()
+camels_dir: /Volumes/Untitled/data
+
+# project_dir for TRAIN scripts. Training writes to <project_dir>/results/.
+# Default convention: repo root (so checkpoints land in <repo>/results/camels/...).
+project_dir: /Users/cylenlc/work/torchhydro
+
+# project_dir for EVAL scripts. Eval writes to <eval_project_dir>/results/.
+# Default convention: <repo>/experiments (so eval output lands in <repo>/experiments/results/camels_test/...).
+eval_project_dir: /Users/cylenlc/work/torchhydro/experiments
+
+# Where batch_runner writes its per-task logs. Created on first run.
+logs_dir: /Users/cylenlc/work/torchhydro/logs
+
+# Where prepare-step caches per-(target, method, k) gage_id files.
+gage_id_cache_dir: /Users/cylenlc/work/torchhydro/gage_id_cache
+
+# Cosine similarity matrices used by find_similar_basins.py
+similarity_matrices:
+  method1: /Users/cylenlc/AlphaEarthViz/data/相似度矩阵/basin_cosine_similarity_method_1.csv
+  method2: /Users/cylenlc/AlphaEarthViz/data/相似度矩阵/basin_cosine_similarity_method_2.csv
+  method3: /Users/cylenlc/AlphaEarthViz/data/相似度矩阵/basin_cosine_similarity_method_3.csv
+
+# AEF embedding CSV consumed by AEFDataset / Camels_merge_AEFDataset
+embedding_csv: /Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv
+
+# Target basins for batch automation. First column must be `gauge_id` (no leading zeros).
+target_basins_csv: /Users/cylenlc/AlphaEarthViz/selected_basins_stratified.csv

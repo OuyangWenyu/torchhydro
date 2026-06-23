@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:26
-LastEditTime: 2025-06-25 15:07:42
+LastEditTime: 2025-12-07 09:07:22
 LastEditors: Wenyu Ouyang
 Description: Some basic functions for training
 FilePath: \torchhydro\torchhydro\trainers\train_utils.py
@@ -9,6 +9,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import copy
+import warnings
 import fnmatch
 import itertools
 import os
@@ -33,7 +34,7 @@ from hydroutils.hydro_file import (
     get_latest_file_in_a_lst,
 )
 from torchhydro.datasets.data_sets import FloodEventDataset
-from torchhydro.models.crits import FloodBaseLoss, GaussianLoss
+from torchhydro.models.crits import FloodBaseLoss, GaussianLoss, MultiOutLoss, PyGraphLoss
 
 
 def _rolling_preds_for_once_eval(
@@ -97,7 +98,9 @@ def _rolling_preds_for_once_eval(
     return the_array_.reshape(ngrid, recover_len, nf)
 
 
-def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
+def model_infer(
+    seq_first, device, model, batch, variable_length_cfgs=None, return_key=None
+):
     """
     Unified model inference function with variable length support
 
@@ -113,62 +116,143 @@ def model_infer(seq_first, device, model, batch, variable_length_cfgs=None):
         batch data from collate_fn or dataset
     variable_length_cfgs : dict, optional
         variable length configuration containing mask settings
-
-    Returns
-    -------
-    tuple[torch.Tensor, torch.Tensor]
-        first is the observed data, second is the predicted data;
-        both tensors are batch first
+    return_key : str, optional
+        when model returns a dict, choose which key (e.g., "f2") to return.
+        if None, defaults to the last frequency (max key).
     """
-    xs, ys, xs_mask, ys_mask, xs_lens, ys_lens = get_masked_tensors(
-        variable_length_cfgs, batch, seq_first
-    )
-    # Process input data
-    if type(xs) is list:
+    result = get_masked_tensors(variable_length_cfgs, batch, seq_first)
+
+    # --- unpack inputs ---
+    if len(result) == 9:
+        (
+            xs,
+            ys,
+            edge_index,
+            edge_weight,
+            batch_vector,
+            xs_mask,
+            ys_mask,
+            xs_lens,
+            ys_lens,
+        ) = result
+    elif len(result) == 8:
+        xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens = result
+        batch_vector = None
+    else:
+        xs, ys, xs_mask, ys_mask, xs_lens, ys_lens = result
+        edge_index = edge_weight = batch_vector = None
+
+    # --- move xs to device ---
+    if isinstance(xs, list):
         xs = [
             (
-                data_tmp.permute([1, 0, 2]).to(device)
-                if seq_first and data_tmp.ndim == 3
-                else data_tmp.to(device)
+                x.permute(1, 0, 2).to(device)
+                if seq_first and x.ndim == 3
+                else x.to(device)
             )
-            for data_tmp in xs
+            for x in xs
         ]
     else:
         xs = [
             (
-                xs.permute([1, 0, 2]).to(device)
+                xs.permute(1, 0, 2).to(device)
                 if seq_first and xs.ndim == 3
                 else xs.to(device)
             )
         ]
 
-    # Process target data
+    # --- move ys to device ---
     if ys is not None:
         ys = (
-            ys.permute([1, 0, 2]).to(device)
+            ys.permute(1, 0, 2).to(device)
             if seq_first and ys.ndim == 3
             else ys.to(device)
         )
 
-    # Process masks if available
-    if xs_mask is not None and ys_mask is not None:
-        xs_mask = xs_mask.to(device)
-        ys_mask = ys_mask.to(device)
-        # Use mask-aware inference with xs masks and lengths
-        output = model(*xs, mask=xs_mask, seq_lengths=xs_lens)
-    else:
-        # Standard inference
-        output = model(*xs)
+    # --- move graph data ---
+    if edge_index is not None:
+        edge_index = edge_index.to(device)
+    if edge_weight is not None:
+        edge_weight = edge_weight.to(device)
+    if batch_vector is not None:
+        batch_vector = batch_vector.to(device)
 
-    if type(output) is tuple:
-        # Convention: y_p must be the first output of model
+    # --- check if model is a generative model (e.g., Diffusion) ---
+    # Generative models require both input (xs) and target (ys) in forward pass
+    is_generative = getattr(model, "is_generative", False)
+    inner_model = getattr(model, "module", model)
+    # Also check wrapped model (e.g., DistributedDataParallel)
+    if not is_generative:
+        is_generative = getattr(inner_model, "is_generative", False)
+
+    # --- forward ---
+    if is_generative:
+        # Generative models behave differently in train vs eval mode:
+        # - Train mode: forward(x_condition, y_target) returns {'loss': loss}
+        # - Eval mode: sample(x_condition) returns generated samples
+        if model.training:
+            # Training: compute loss with forward pass
+            output = inner_model(*xs, ys)
+        else:
+            # Inference: generate samples using sample method
+            output = inner_model.sample(*xs)
+    elif xs_mask is not None and ys_mask is not None:
+        if edge_index is not None and edge_weight is not None:
+            output = model(
+                *xs,
+                edge_index=edge_index,
+                edge_weight=edge_weight,
+                batch_vector=batch_vector,
+                mask=xs_mask,
+                seq_lengths=xs_lens,
+            )
+        else:
+            output = model(*xs, mask=xs_mask, seq_lengths=xs_lens)
+    else:
+        if edge_index is not None and edge_weight is not None:
+            output = model(
+                *xs,
+                edge_index=edge_index,
+                edge_weight=edge_weight,
+                batch_vector=batch_vector,
+            )
+        else:
+            if edge_index is not None and edge_weight is None:
+                output = model(
+                    *xs,
+                    edge_index=edge_index,
+                    # batch_vector=batch_vector,
+                )
+            else:
+                output = model(*xs)
+
+    # --- handle model outputs ---
+    if isinstance(output, tuple):
         output = output[0]
+
+    if isinstance(output, dict):
+        # Check if this is a generative model that returns loss directly
+        if "loss" in output:
+            # Generative models return {'loss': loss_value}, pass it through
+            output = output
+        else:
+            # Multi-frequency output, pick the specified or highest frequency key
+            if return_key is None:
+                return_key = sorted(output.keys())[-1]  # e.g., "f2"
+            if return_key not in output:
+                raise KeyError(
+                    f"Model returned keys {list(output.keys())}, but return_key='{return_key}' not found"
+                )
+            output = output[return_key]
 
     if ys_mask is not None:
         ys = ys.masked_fill(ys_mask == 0, torch.nan)
 
+    # --- seq_first transpose back ---
     if seq_first:
-        output = output.transpose(0, 1)
+        # Don't transpose dict outputs (generative models return {'loss': ...} during training)
+        if isinstance(output, torch.Tensor):
+            output = output.transpose(0, 1)
         if ys is not None:
             ys = ys.transpose(0, 1)
 
@@ -235,11 +319,16 @@ def calculate_and_record_metrics(
     obs, pred, evaluation_metrics, target_col, fill_nan, eval_log, horizon=1
 ):
     fill_nan_value = fill_nan
-    inds = stat_error(obs, pred, fill_nan_value)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        inds = stat_error(obs, pred, fill_nan_value)
 
     for evaluation_metric in evaluation_metrics:
-        # if horizon == 1:
-        eval_log[f"{evaluation_metric} of {target_col}"] = inds[
+        if horizon == 1:
+            eval_log[f"{evaluation_metric} of {target_col}"] = inds[
+                evaluation_metric
+            ].tolist()
+        eval_log[f"{evaluation_metric} of {target_col} in horizon {horizon}"] = inds[
             evaluation_metric
         ].tolist()
 
@@ -287,9 +376,21 @@ def get_preds_to_be_eval(
     nt = valorte_data_loader.dataset.nt - warmup_length
     basin_num = len(target_data.basin)
     data_shape = (basin_num, nt, nf)
-    valte_dataset = valorte_data_loader.dataset
-
+    # Check if GNN mode (PyG output)
+    is_gnn = False
+    dataset = valorte_data_loader.dataset
+    if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
+         # lookup_table[0] is (basin, time, len). For GNN, basin is None.
+         if dataset.lookup_table[0][0] is None:
+             is_gnn = True
+    
     if evaluator["eval_way"] == "once":
+        if is_gnn:
+            raise NotImplementedError(
+                "eval_way='once' is not currently supported for PyG/GNN models. "
+                "Please use eval_way='rolling' which supports automatic reshaping of GNN outputs."
+            )
+
         stride = evaluator["stride"]
         if stride > 0:
             if horizon != stride:
@@ -349,7 +450,7 @@ def get_preds_to_be_eval(
         data_shape = (basin_num, nt, nf)
 
         if recover_mode == "bybasins":
-            # 先获取重组后的数据
+
             pred = _recover_samples_to_4d_by_basins(
                 data_shape,
                 valorte_data_loader,
@@ -364,60 +465,6 @@ def get_preds_to_be_eval(
                 hindcast_output_window,
                 labels,
             )
-
-            # 对于bybasins模式，现在结构为(basin_num, batch_num, forecast_length, nf)
-            # 为每个流域的每个样本创建单独的xarray.Dataset
-            preds_xr_list = []
-            obss_xr_list = []
-
-            # 遍历每个流域
-            for basin_idx in range(pred.shape[0]):
-                basin_preds_list = []
-                basin_obss_list = []
-
-                # 遍历每个样本
-                for sample_idx in range(pred.shape[1]):
-                    # 跳过全为NaN的样本
-                    if np.all(np.isnan(pred[basin_idx, sample_idx])):
-                        continue
-
-                    # 获取当前样本的预测和观测数据
-                    pred_3d = np.zeros((basin_num, pred.shape[2], nf))
-                    obs_3d = np.zeros((basin_num, obs.shape[2], nf))
-
-                    # 只填充当前流域的数据
-                    pred_3d[basin_idx] = pred[basin_idx, sample_idx]
-                    obs_3d[basin_idx] = obs[basin_idx, sample_idx]
-
-                    # 创建完整形状的数组，初始化为NaN
-                    selected_data = target_scaler.data_target
-                    the_array_pred_ = np.full(selected_data.shape, np.nan)
-                    the_array_obs_ = np.full(selected_data.shape, np.nan)
-
-                    # 设置填充位置
-                    start = rho
-                    end = start + pred.shape[2]
-
-                    # 检查是否越界
-                    if end <= the_array_pred_.shape[1]:
-                        # 执行填充
-                        the_array_pred_[:, start:end, :] = pred_3d
-                        the_array_obs_[:, start:end, :] = obs_3d
-
-                        # 反归一化
-                        pred_xr = valte_dataset.denormalize(the_array_pred_, -1)
-                        obs_xr = valte_dataset.denormalize(the_array_obs_, -1)
-
-                        basin_preds_list.append(pred_xr)
-                        basin_obss_list.append(obs_xr)
-
-                # 如果该流域有有效样本，则添加到结果列表
-                if basin_preds_list:
-                    preds_xr_list.extend(basin_preds_list)
-                    obss_xr_list.extend(basin_obss_list)
-
-            # 返回所有流域所有样本的预测和观测结果列表
-            return obss_xr_list, preds_xr_list
         elif recover_mode == "byforecast":
             pred = _recover_samples_to_4d_by_forecast(
                 data_shape,
@@ -491,12 +538,16 @@ def get_preds_to_be_eval(
             # 创建一个列表存储每个预测步长的结果
             preds_xr_list = []
             obss_xr_list = []
+            if is_gnn:
+                start_idx = rho + 1
+            else:
+                start_idx = rho
             for i in range(pred.shape[2]):
                 pred_3d = pred[:, :, i, :]
                 obs_3d = obs[:, :, i, :]
                 the_array_pred_ = np.full(target_data.shape, np.nan)
                 the_array_obs_ = np.full(target_data.shape, np.nan)
-                start = rho + i  # TODO:need check
+                start = start_idx + i  # TODO:need check
                 end = start + pred_3d.shape[1]
                 assert end <= the_array_pred_.shape[1]
                 the_array_pred_[:, start:end, :] = pred_3d
@@ -507,34 +558,83 @@ def get_preds_to_be_eval(
             # preds_xr = xr.concat(preds_xr_list, dim="horizon")
             # obss_xr = xr.concat(obss_xr_list, dim="horizon")
             return obss_xr_list, preds_xr_list
-        else:
-            raise ValueError(
-                f"Unsupported recover_mode: {recover_mode}, must be 'bybasins' or 'byforecast'"
-            )
+        elif evaluator["eval_way"] == "rolling" and recover_mode == "bybasins":
+            # 对于其他情况，可以考虑将四维数据转换为三维
+            # 例如，取最后一个预测步长
+            preds_xr_list = []
+            obss_xr_list = []
+            for i in range(pred.shape[0]):
+                pred_3d = pred[i, :, :, :]
+                obs_3d = obs[i, :, :, :]
+                selected_data = target_scaler.data_target
+                the_array_pred_ = np.full(selected_data.shape, np.nan)
+                the_array_obs_ = np.full(selected_data.shape, np.nan)
+                start = rho  # TODO:need check
+                end = start + pred_3d.shape[1]  # 自动计算填充的结束位置
 
-    # 以下代码只有在1pace模式或者三维数据的情况下才会执行
-    pace_idx = np.nan
-    # 检查数据维度并进行适当处理
-    if pred.ndim == 4:
-        # 如果是四维数据，需要根据评估方式选择合适的处理方法
-        if evaluator["eval_way"] == "1pace" and "pace_idx" in evaluator:
-            # 对于1pace模式，选择特定的预测步长
-            pace_idx = evaluator["pace_idx"]
-            # 选择特定预测步长的数据
-            pred_3d = pred[:, :, pace_idx, :]
-            obs_3d = obs[:, :, pace_idx, :]
-            preds_xr = valte_dataset.denormalize(pred_3d, pace_idx)
-            obss_xr = valte_dataset.denormalize(obs_3d, pace_idx)
-        else:
-            # 其他四维数据情况，可能需要特殊处理
-            raise ValueError("Unsupported 4D data format for this evaluation mode")
+                # 检查是否越界（可选）
+                assert end <= the_array_pred_.shape[1]  # "填充范围超出目标数组的边界"
+
+                # 执行填充
+                the_array_pred_[:, start:end, :] = pred_3d
+                the_array_obs_[:, start:end, :] = obs_3d
+
+                preds_xr = valte_dataset.denormalize(the_array_pred_, -1)
+                obss_xr = valte_dataset.denormalize(the_array_obs_, -1)
     else:
         # for 3d data, directly process
         # TODO: maybe need more test for the pace_idx case
         preds_xr = valte_dataset.denormalize(pred)
         obss_xr = valte_dataset.denormalize(obs)
 
-    return obss_xr, preds_xr
+    def _align_and_order(_obs, _pred):
+        # 先移除重复的 time 坐标，避免 pandas 索引重复导致对齐失败
+        def _ensure_unique_time(ds):
+            if hasattr(ds, "indexes") and "time" in ds.indexes:
+                idx = ds.indexes["time"]
+                if getattr(idx, "has_duplicates", False):
+                    keep = ~idx.duplicated()
+                    ds = ds.isel(time=keep)
+            return ds
+
+        _obs = _ensure_unique_time(_obs)
+        _pred = _ensure_unique_time(_pred)
+
+        # 对齐到公共 (basin,time,variable) 的交集，避免 outer 引入 NaN
+        _obs, _pred = xr.align(_obs, _pred, join="inner")
+        # time 维为空（无交集）时直接抛错，避免进入 nanmean
+        if _obs.sizes.get("time", 0) == 0:
+            raise ValueError(
+                "No overlapping timestamps between observations and predictions "
+                f"(obs.time len={_obs.sizes.get('time',0)}, pred.time len={_pred.sizes.get('time',0)})."
+            )
+        # 按时间排序（保险）
+        if "time" in _obs.dims:
+            _obs = _obs.sortby("time")
+        if "time" in _pred.dims:
+            _pred = _pred.sortby("time")
+        # 规范维度顺序（若存在）
+        wanted = [d for d in ("basin", "time", "variable") if d in _obs.dims]
+        _obs = _obs.transpose(*wanted, missing_dims="ignore")
+        _pred = _pred.transpose(*wanted, missing_dims="ignore")
+        return _obs, _pred
+
+    # 单对象 vs 列表分别处理
+    if preds_xr is not None and obss_xr is not None:
+        obss_xr, preds_xr = _align_and_order(obss_xr, preds_xr)
+        return obss_xr, preds_xr
+
+    elif preds_xr_list is not None and obss_xr_list is not None:
+        obss_aligned, preds_aligned = [], []
+        for _o, _p in zip(obss_xr_list, preds_xr_list):
+            _o2, _p2 = _align_and_order(_o, _p)
+            obss_aligned.append(_o2)
+            preds_aligned.append(_p2)
+        return obss_aligned, preds_aligned
+
+    else:
+        # 理论不应走到这
+        raise RuntimeError("Failed to build preds_xr / obss_xr for evaluation.")
 
 
 def _recover_samples_to_4d_by_forecast(
@@ -572,7 +672,37 @@ def _recover_samples_to_4d_by_forecast(
     forecast_length = dataset.horizon
 
     # 将arr_3d重塑为所需的形状
-    output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
+    # 检测是否为 GNN 模式（通过 lookup_table 结构）
+    # GNN 模式下，lookup_table 只有时间维度，basin 为 None，且数据是 Time-Major 的
+    is_gnn = False
+    if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
+        first_sample = dataset.lookup_table[0]
+        # (basin, time, len) -> basin is None for GNN
+        if first_sample[0] is None:
+            is_gnn = True
+
+    if arr_3d.ndim == 4:
+        # 如果已经是4D [Basin, Time, Horizon, Feat]，直接使用
+        # 这通常是由 compute_validation 针对 PyG 模型预处理过的
+        if arr_3d.shape[0] != basin_num:
+             raise ValueError(f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}")
+        output = arr_3d
+    elif is_gnn:
+        # arr_3d is (Time * Basin, Horizon, Features) (Time-Major)
+        # Reshape to (Time, Basin, ...) then transpose to (Basin, Time, ...)
+        # 注意：这里假设每个时间步都包含完整的 basin_num 个节点
+        # 如果 arr_3d 的第一维长度不是 basin_num 的整数倍，说明有数据丢失或对齐问题
+        if arr_3d.shape[0] % basin_num != 0:
+             print(f"Warning: arr_3d shape {arr_3d.shape} is not divisible by basin_num {basin_num}. Reshape might fail.")
+        
+        # (Time, Basin, Horizon, Features)
+        output = arr_3d.reshape(-1, basin_num, arr_3d.shape[1], nf)
+        # (Basin, Time, Horizon, Features)
+        output = output.transpose(1, 0, 2, 3)
+    else:
+        # Standard mode: Basin-Major
+        output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
+        
     i_e_time_length = output.shape[1]
 
     # 创建结果数组，初始化为NaN
@@ -607,7 +737,7 @@ def _recover_samples_to_4d_by_basins(
     arr_3d,
 ):
     """
-    将模型输出按照流域重组为4D数组，便于计算每个流域的每个样本预见期的指标
+    将模型输出按照流域重组为4D数组，便于计算每个流域的所有样本预见期的指标
 
     Parameters
     ----------
@@ -625,8 +755,8 @@ def _recover_samples_to_4d_by_basins(
     Returns
     -------
     np.ndarray
-        重组后的4D数组，形状为 (basin_num, batch_num, forecast_length, nf)
-        第一个维度表示流域，第二个维度表示每个流域的样本数量，便于计算每个流域的每个样本预见期的指标
+        重组后的4D数组，形状为 (basin_num, i_e_time_length, forecast_length, nf)
+        第一个维度表示流域，便于计算每个流域的所有样本预见期的指标
     """
     # 从数据集获取必要参数
     basin_num, nt, nf = data_shape
@@ -634,26 +764,73 @@ def _recover_samples_to_4d_by_basins(
     basin_num = len(dataset.t_s_dict["sites_id"])
     forecast_length = dataset.horizon
 
-    # 创建一个字典来存储每个流域的样本
-    basin_samples = {basin_idx: [] for basin_idx in range(basin_num)}
-
-    # 遍历所有样本，按流域分组
-    for sample_idx in range(len(dataset.lookup_table)):
-        basin_idx, _ = dataset.lookup_table[sample_idx]
-        # 只取最后forecast_length个时间步的预测结果
-        sample_data = arr_3d[sample_idx, -forecast_length:, :]
-        basin_samples[basin_idx].append(sample_data)
-
-    # 找出每个流域最大的样本数量
-    max_samples = max(len(samples) for samples in basin_samples.values())
+    # 将arr_3d重塑为所需的形状
+    if arr_3d.ndim == 4:
+        # 如果已经是4D [Basin, Time, Horizon, Feat]，直接使用
+        # 验证维度一致性
+        if arr_3d.shape[0] != basin_num:
+             raise ValueError(f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}")
+        output = arr_3d
+    else:
+        # Standard mode: Basin-Major
+        # arr_3d is (Basin*Time, Horizon, Feat)
+        output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
+        
+    i_e_time_length = output.shape[1]
 
     # 创建结果数组，初始化为NaN
-    result = np.full((basin_num, max_samples, forecast_length, nf), np.nan)
+    result = np.full((basin_num, i_e_time_length, forecast_length, nf), np.nan)
 
-    # 填充结果数组
-    for basin_idx, samples in basin_samples.items():
-        for sample_idx, sample_data in enumerate(samples):
-            result[basin_idx, sample_idx, :, :] = sample_data
+    # 提取最后forecast_length个时间步的预测结果
+    forecast_output = output[:, :, -forecast_length:, :]
+
+    # 对每个流域进行处理
+    for basin_idx in range(basin_num):
+        # 对每个预测步长进行处理
+        for j in range(forecast_length):
+            # 填充结果数组，注意这里将流域放在第一个维度
+            result[basin_idx, :, j, :] = forecast_output[basin_idx, :, j, :]
+
+    return result
+
+
+def _recover_samples_to_3d_by_basins(
+    valorte_data_loader,
+    arr_3d,
+):
+    """将模型输出按照流域和实际起始时间重组为3D数组
+
+    参数
+    -------
+    valorte_data_loader : DataLoader
+        验证或测试数据加载器
+    arr_3d : np.ndarray
+        3D数组，形状为 (样本数, 预测步长, 特征数)
+
+    返回
+    -------
+    np.ndarray
+        重组后的3D数组，形状为 (流域数, 时间长度, 特征数)
+    """
+    dataset = valorte_data_loader.dataset
+    basin_num = len(dataset.t_s_dict["sites_id"])
+    nt = dataset.nt
+    rho = dataset.rho
+    warmup_len = dataset.warmup_length
+    horizon = dataset.horizon
+    nf = dataset.noutputvar
+
+    result = np.full((basin_num, nt, nf), np.nan)
+
+    for sample_idx in range(arr_3d.shape[0]):
+        # lookup_table: (basin_idx, start_idx, seq_len)
+        basin_idx, start_idx, _ = dataset.lookup_table[sample_idx]
+        base_time = start_idx + warmup_len + rho
+        # 将该样本的各预见期写入对应的绝对时间位置
+        for j in range(min(horizon, arr_3d.shape[1])):
+            t_abs = base_time + j
+            if 0 <= t_abs < nt:
+                result[basin_idx, t_abs, :] = arr_3d[sample_idx, j, :]
 
     return result
 
@@ -750,10 +927,10 @@ def _recover_samples_to_basin(arr_3d, valorte_data_loader, pace_idx):
         # Calculate the time position in the result array
         if pace_idx < 0:
             value = arr_3d[sample_idx, pace_idx, :]
-            result_time_idx = start_time + rho + horizon + pace_idx
+            result_time_idx = start_time + warmup_len + rho + horizon + pace_idx
         else:
             value = arr_3d[sample_idx, pace_idx - 1, :]
-            result_time_idx = start_time + rho + pace_idx - 1
+            result_time_idx = start_time + warmup_len + rho + pace_idx - 1
         # Fill in the corresponding position
         basin_array[basin, result_time_idx, :] = value
 
@@ -894,6 +1071,26 @@ def _recover_samples_to_continuous_by_floodevent(
     # Get the actual number of basins
     basin_num = len(dataset.t_s_dict["sites_id"])
 
+    # Normalize input shape to [samples, time, features]
+    if arr_3d is None:
+        raise ValueError("arr_3d cannot be None for flood-event recovery.")
+    if arr_3d.ndim == 1:
+        # [samples] -> assume single feature and single time step
+        arr_3d = arr_3d.reshape(-1, 1, 1)
+    elif arr_3d.ndim == 2:
+        # Heuristic: if second dim equals nf (features), treat as [samples, features]
+        # otherwise treat as [samples, time] with single feature
+        n2 = arr_3d.shape[1]
+        tgt_n = len(getattr(dataset.data_cfgs, "get", lambda *_: [])("target_cols", [])) if isinstance(dataset.data_cfgs, dict) else nf
+        try:
+            expected_features = len(dataset.data_cfgs["target_cols"])
+        except Exception:
+            expected_features = nf
+        if n2 == expected_features or n2 == nf:
+            arr_3d = arr_3d[:, None, :]
+        else:
+            arr_3d = arr_3d[:, :, None]
+
     # Check if this is a FloodEventDataset and handle flood_event column properly
     is_flood_dataset = isinstance(dataset, FloodEventDataset)
 
@@ -910,24 +1107,30 @@ def _recover_samples_to_continuous_by_floodevent(
             flood_event_data = np.zeros((arr_3d.shape[0], arr_3d.shape[1], 1))
 
             # Try to get the actual flood_event data from the dataset
+            warmup_length = getattr(dataset, "warmup_length", 0)
             for sample_idx in range(arr_3d.shape[0]):
                 basin_idx, start_time, actual_length = dataset.lookup_table[sample_idx]
-                end_time = start_time + actual_length
-                if end_time > dataset.nt:
-                    end_time = dataset.nt
-                    actual_length = end_time - start_time
 
-                # Get the actual flood_event data from the dataset
+                # Get the actual flood_event data from the dataset, starting after warmup
                 if hasattr(dataset, "y") and dataset.flood_event_idx is not None:
-                    sample_length = min(arr_3d.shape[1], actual_length)
+                    y_start = start_time + warmup_length
+                    y_end = start_time + actual_length
+                    if y_end > dataset.nt:
+                        y_end = dataset.nt
+
+                    sample_target_len = arr_3d.shape[1]
                     actual_flood_events = dataset.y[
                         basin_idx,
-                        start_time : start_time + sample_length,
+                        y_start:y_end,
                         dataset.flood_event_idx,
                     ]
-                    flood_event_data[sample_idx, :sample_length, 0] = (
-                        actual_flood_events
-                    )
+
+                    # Fill into flood_event_data, matching the prediction length
+                    fill_len = min(sample_target_len, len(actual_flood_events))
+                    if fill_len > 0:
+                        flood_event_data[sample_idx, :fill_len, 0] = (
+                            actual_flood_events[:fill_len]
+                        )
 
             arr_3d_processed = np.concatenate([arr_3d, flood_event_data], axis=-1)
             # Update nf to match the expected number of features
@@ -964,15 +1167,40 @@ def _recover_samples_to_continuous_by_floodevent(
         # Place the prediction result in the correct position of the original time series
         # Note: here we need to handle the possible length mismatch problem
         if pred_length > 0:
-            # If the prediction length is greater than the actual length, take the first part
-            if pred_length > actual_length:
+            # Smart Slicing to handle both Preds (with warmup) and Obs (without warmup)
+            warmup_length = getattr(dataset, "warmup_length", 0)
+
+            if sample_prediction.shape[0] >= actual_length + warmup_length:
+                # Case 1: Prediction typically includes warmup. Slice it off.
+                # sample_prediction[warmup:] corresponds to the target period.
+                pred_to_use = sample_prediction[
+                    warmup_length : warmup_length + actual_length, :
+                ]
+            elif sample_prediction.shape[0] >= actual_length:
+                # Case 2: Observation (or target-only pred) typically excludes warmup.
+                # distinct from above if warmup > 0
                 pred_to_use = sample_prediction[:actual_length, :]
             else:
+                # Case 3: Partial/Short data (should not happen normally)
                 pred_to_use = sample_prediction[:pred_length, :]
 
             # Fill the prediction result into the corresponding position
-            end_fill = start_time + pred_to_use.shape[0]
-            result[basin_idx, start_time:end_fill, :] = pred_to_use
+            # Add warmup_length to ensure correct temporal alignment
+            # The result array starts at absolute time 0? No, result usually aligned with dataset.
+            # But earlier comments said output array starts at warmup?
+            # Let's stick to the previous successfully aligned logic for obs:
+            # fill_start = start_time + warmup_length
+
+            fill_start = start_time + warmup_length
+            fill_end = fill_start + pred_to_use.shape[0]
+
+            # Ensure we don't exceed the result array's bounds
+            if fill_end > result.shape[1]:
+                fill_end = result.shape[1]
+                pred_to_use = pred_to_use[: fill_end - fill_start, :]
+
+            if fill_start < result.shape[1]:
+                result[basin_idx, fill_start:fill_end, :] = pred_to_use
 
     return result
 
@@ -1056,7 +1284,7 @@ def evaluate_validation(
 
 
 def compute_loss(
-    labels: torch.Tensor, output: torch.Tensor, criterion, **kwargs
+    labels: torch.Tensor, output, criterion, **kwargs
 ) -> torch.Tensor:
     """
     Function for computing the loss
@@ -1066,7 +1294,7 @@ def compute_loss(
     labels
         The real values for the target. Shape can be variable but should follow (batch_size, time)
     output
-        The output of the model
+        The output of the model. Can be a tensor or a dict with 'loss' key for generative models.
     criterion
         loss function
     validation_dataset
@@ -1079,11 +1307,10 @@ def compute_loss(
     torch.Tensor
         the computed loss
     """
-    # a = np.sum(output.cpu().detach().numpy(),axis=1)/len(output)
-    # b=[]
-    # for i in a:
-    #     b.append([i.tolist()])
-    # output = torch.tensor(b, requires_grad=True).to(torch.device("cuda"))
+    # Handle generative models that compute loss internally
+    # These models return a dict with 'loss' key
+    if isinstance(output, dict) and "loss" in output:
+        return output["loss"]
 
     if isinstance(criterion, GaussianLoss):
         if len(output[0].shape) > 2:
@@ -1097,6 +1324,67 @@ def compute_loss(
         flood_mask = labels[:, :, -1:]  # Extract flood mask from last column
         targets = labels[:, :, :-1]  # Extract targets (remove last column)
         return criterion(output, targets, flood_mask)
+    if isinstance(criterion, PyGraphLoss):
+        node_mask = kwargs.get("node_mask", None)
+        return criterion(output, labels, node_mask=node_mask)
+    # MultiOutLoss: 适配 PyG 批次的 [batch*num_nodes, horizon] 到 [time, batch, num_nodes]
+    if isinstance(criterion, MultiOutLoss):
+        batch_vector = kwargs.get("batch_vector", None)
+        node_mask = kwargs.get("node_mask", None)
+        if output.ndim == 2 and labels.ndim == 2 and batch_vector is not None:
+            # Output/Labels: [B*N_total, H]
+            # PyG batch processing: Directly compute loss on flattened data for efficiency
+            
+            # 1. Apply Node Mask
+            if node_mask is not None:
+                if not isinstance(node_mask, torch.Tensor):
+                    node_mask = torch.tensor(
+                        node_mask, dtype=torch.bool, device=labels.device
+                    )
+                else:
+                    node_mask = node_mask.to(labels.device).bool()
+                
+                # Ensure mask is 1D [B*N_total]
+                if node_mask.dim() > 1:
+                    node_mask = node_mask.flatten()
+                
+                output = output[node_mask]
+                labels = labels[node_mask]
+
+            # 2. Handle NaN in labels (consistent with MultiOutLoss behavior)
+            # Mask out any NaN values in the target
+            mask_nan = ~torch.isnan(labels)
+            output = output[mask_nan]
+            labels = labels[mask_nan]
+
+            # 3. Compute Loss
+            # Assume homogeneous loss function for all nodes in PyG batch
+            loss_func = criterion.loss_funcs
+            if isinstance(loss_func, list):
+                # Use the first loss function if a list is provided
+                loss_func = loss_func[0]
+            
+            return loss_func(output, labels)
+
+        elif output.ndim == 2 and labels.ndim == 2:
+            # 无 batch_vector 情况，退化为 batch=1
+            output = output.transpose(0, 1).unsqueeze(1)
+            labels = labels.transpose(0, 1).unsqueeze(1)
+        n_out = labels.shape[-1]
+        try:
+            iw = criterion.item_weight
+            if not isinstance(iw, list) or len(iw) != n_out:
+                criterion.item_weight = [1.0] * n_out
+        except Exception:
+            pass
+        try:
+            dg = criterion.data_gap
+            if isinstance(dg, list) and len(dg) != n_out:
+                criterion.data_gap = [0] * n_out
+        except Exception:
+            pass
+        return criterion(output, labels.float())
+
     if (
         isinstance(output, torch.Tensor)
         and len(labels.shape) != len(output.shape)
@@ -1173,6 +1461,84 @@ def varied_length_collate_fn(batch):
     ]
 
 
+def gnn_collate_fn(batch):
+    """Custom collate function for GNN datasets that handles variable-sized graphs.
+
+    Args:
+        batch: A list of samples, where each sample is a tuple of
+            (sxc, y, edge_index, edge_weight).
+
+    Returns:
+        A list containing batched tensors:
+        [batched_sxc, batched_y, batched_edge_index, batched_edge_weight, batch_vector]
+    """
+    import torch
+
+    if len(batch) == 0:
+        return []
+
+    # Unpack the batch
+    sxc_list, y_list, edge_index_list, edge_weight_list = zip(*batch)
+
+    # Batch the target values (y) - these should have the same shape
+    batched_y = torch.stack(y_list, dim=0)  # [batch_size, forecast_length, output_dim]
+
+    # Find the maximum number of nodes in this batch
+    max_num_nodes = max(sxc.shape[0] for sxc in sxc_list)
+
+    # Get dimensions
+    batch_size = len(sxc_list)
+    seq_length = sxc_list[0].shape[1]
+    feature_dim = sxc_list[0].shape[2]
+
+    # Create padded tensor for node features
+    batched_sxc = torch.zeros(batch_size, max_num_nodes, seq_length, feature_dim)
+
+    # Create batched edge indices and weights
+    # For each graph in the batch, we need to offset node indices
+    batched_edge_index = []
+    batched_edge_weight = []
+    batch_vector = []
+    node_offset = 0
+    for i, (sxc, edge_index, edge_weight) in enumerate(
+        zip(sxc_list, edge_index_list, edge_weight_list)
+    ):
+        num_nodes = sxc.shape[0]
+        # Fill the padded tensor with actual node features
+        batched_sxc[i, :num_nodes] = sxc
+        # For edge indices, we need to offset by node_offset to make them unique across batch
+        if edge_index.numel() > 0:
+            if edge_index.max() >= num_nodes:
+                print(
+                    f"Warning: Graph {i} has edge indices {edge_index.max().item()} >= num_nodes {num_nodes}"
+                )
+                valid_mask = (edge_index[0] < num_nodes) & (edge_index[1] < num_nodes)
+                edge_index = edge_index[:, valid_mask]
+                edge_weight = edge_weight[valid_mask]
+            if edge_index.numel() > 0:
+                offset_edge_index = edge_index + node_offset
+                batched_edge_index.append(offset_edge_index)
+                batched_edge_weight.append(edge_weight)
+        # batch_vector: for each node in this graph, assign batch index i
+        batch_vector.append(torch.full((num_nodes,), i, dtype=torch.long))
+        node_offset += num_nodes
+    # Concatenate edge indices and weights if they exist
+    if batched_edge_index:
+        batched_edge_index = torch.cat(batched_edge_index, dim=1)  # [2, total_edges]
+        batched_edge_weight = torch.cat(batched_edge_weight, dim=0)  # [total_edges]
+    else:
+        batched_edge_index = torch.empty((2, 0), dtype=torch.long)
+        batched_edge_weight = torch.empty(0)
+    batch_vector = torch.cat(batch_vector, dim=0)  # [total_nodes]
+    return [
+        batched_sxc,
+        batched_y,
+        batched_edge_index,
+        batched_edge_weight,
+        batch_vector,
+    ]
+
+
 def get_masked_tensors(variable_length_cfgs, batch, seq_first):
     """Get the mask for the data
 
@@ -1180,29 +1546,98 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
     ----------
     variable_length_cfgs : dict
         The variable length configuration
-    batch : tuple or list
-        The batch data from collate_fn or dataset
+    batch : tuple or list or torch_geometric.data.Batch
+        The batch data from collate_fn or dataset (can be PyG Batch object)
     seq_first : bool
         Whether the data is in sequence first format
 
     Returns
     -------
     tuple
-        (xs, ys, xs_mask, ys_mask, xs_lens, ys_lens)
+        For standard datasets: (xs, ys, xs_mask, ys_mask, xs_lens, ys_lens)
+        For GNN datasets: (xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens)
+        For GNN with batch vector: (xs, ys, edge_index, edge_weight, batch_vector, xs_mask, ys_mask, xs_lens, ys_lens)
     """
+    # Check if batch is a PyG Batch/Data object
+    try:
+        from torch_geometric.data import Batch as PyGBatch, Data as PyGData
+
+        is_pyg_batch = isinstance(batch, (PyGBatch, PyGData))
+    except ImportError:
+        is_pyg_batch = False
+
     xs_mask = None
     ys_mask = None
     xs_lens = None
     ys_lens = None
+    edge_index = None
+    edge_weight = None
+    batch_vector = None
+
+    # Handle PyG Data/Batch objects
+    if is_pyg_batch:
+        # Extract data from PyG Batch
+        xs = (
+            batch.x
+        )  # Node features: [batch_nodes, hindcast_length, features] or similar
+        ys = batch.y  # Target values: [batch_nodes, forecast_length] or similar
+        edge_index = batch.edge_index  # Edge connectivity: [2, num_edges]
+        edge_weight = batch.edge_attr if hasattr(batch, "edge_attr") else None
+        batch_vector = batch.batch if hasattr(batch, "batch") else None
+
+        # For PyG batch, return appropriate format
+        if batch_vector is not None:
+            return (
+                xs,
+                ys,
+                edge_index,
+                edge_weight,
+                batch_vector,
+                xs_mask,
+                ys_mask,
+                xs_lens,
+                ys_lens,
+            )
+        elif edge_index is not None:
+            return xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens
+        else:
+            return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 
     if variable_length_cfgs is None:
-        xs, ys = batch
-        return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
+        # Check batch length to determine format
+        if len(batch) == 5:
+            # GNN batch with batch_vector: [sxc, y, edge_index, edge_weight, batch_vector]
+            xs, ys, edge_index, edge_weight, batch_vector = batch
+            return (
+                xs,
+                ys,
+                edge_index,
+                edge_weight,
+                batch_vector,
+                xs_mask,
+                ys_mask,
+                xs_lens,
+                ys_lens,
+            )
+        elif len(batch) == 4:
+            # GNN batch: [sxc, y, edge_index, edge_weight]
+            xs, ys, edge_index, edge_weight = batch
+            return xs, ys, edge_index, edge_weight, xs_mask, ys_mask, xs_lens, ys_lens
+        else:
+            # Standard batch: [xs, ys]
+            xs, ys = batch[0], batch[1]
+            return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 
     if variable_length_cfgs.get("use_variable_length", False):
         # When using variable length training, batch comes from varied_length_collate_fn
         # which returns [xs_pad, ys_pad, xs_lens, ys_lens, xs_mask, ys_mask]
-        xs, ys, xs_lens, ys_lens, xs_mask_bool, ys_mask_bool = batch
+        if len(batch) >= 6:
+            xs, ys, xs_lens, ys_lens, xs_mask_bool, ys_mask_bool = batch[:6]
+        else:
+            # Fallback: treat as regular batch with first two elements
+            xs, ys = batch[0], batch[1]
+            xs_lens = ys_lens = xs_mask_bool = ys_mask_bool = None
+
         if xs_mask_bool is None and ys_mask_bool is None:
             # sometime even you choose to use variable length training, the batch data may still be fixed length
             # so we need to return the batch data directly
@@ -1216,10 +1651,32 @@ def get_masked_tensors(variable_length_cfgs, batch, seq_first):
             xs_mask = xs_mask.transpose(0, 1)  # [seq, batch, 1]
             ys_mask = ys_mask.transpose(0, 1)  # [seq, batch, 1]
     else:
-        # Standard fixed-length training
-        xs, ys = batch
+        # Check batch length to determine format
+        if len(batch) == 5:
+            # GNN batch with batch_vector: [sxc, y, edge_index, edge_weight, batch_vector]
+            xs, ys, edge_index, edge_weight, batch_vector = batch
+        elif len(batch) == 4:
+            # GNN batch: [sxc, y, edge_index, edge_weight]
+            xs, ys, edge_index, edge_weight = batch
+        else:
+            # Standard batch: [xs, ys]
+            xs, ys = batch[0], batch[1]
 
-    return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
+    # Return appropriate format based on what we have
+    if edge_index is not None and edge_weight is not None:
+        return (
+            xs,
+            ys,
+            edge_index,
+            edge_weight,
+            batch_vector,
+            xs_mask,
+            ys_mask,
+            xs_lens,
+            ys_lens,
+        )
+    else:
+        return xs, ys, xs_mask, ys_mask, xs_lens, ys_lens
 
 
 def torch_single_train(
@@ -1270,7 +1727,17 @@ def torch_single_train(
     for _, batch in enumerate(pbar):
         # mask handling is already done inside model_infer function
         trg, output = model_infer(seq_first, device, model, batch, variable_length_cfgs)
-        loss = compute_loss(trg, output, criterion, **kwargs)
+        batch_vector = getattr(batch, "batch", None)
+        node_mask = getattr(batch, "node_mask", None)
+        loss = compute_loss(trg, output, criterion, batch_vector=batch_vector, node_mask=node_mask, **kwargs)
+
+        # Add auxiliary loss from MoE models (if available)
+        if hasattr(model, "get_aux_loss"):
+            aux_loss = model.get_aux_loss()
+            if aux_loss is not None and aux_loss.device != loss.device:
+                aux_loss = aux_loss.to(loss.device)
+            loss = loss + aux_loss
+
         if loss > 100:
             print("Warning: high loss detected")
         if torch.isnan(loss):
@@ -1332,7 +1799,9 @@ def compute_validation(
             trg, output = model_infer(seq_first, device, model, batch)
             obs.append(trg)
             preds.append(output)
-            valid_loss_ = compute_loss(trg, output, criterion)
+            batch_vector = getattr(batch, "batch", None)
+            node_mask = getattr(batch, "node_mask", None)
+            valid_loss_ = compute_loss(trg, output, criterion, batch_vector=batch_vector, node_mask=node_mask)
             if torch.isnan(valid_loss_):
                 # for not-train mode, we may get all nan data for trg
                 # so we skip this batch
@@ -1358,6 +1827,40 @@ def compute_validation(
     valid_loss = valid_loss / iter_num
     y_obs = obs_final.numpy()
     y_pred = pred_final.numpy()
+
+    # Adaptation for PyGraphLoss: Convert Time-Major to Basin-Major
+    if isinstance(criterion, PyGraphLoss):
+        dataset = data_loader.dataset
+        # Assuming the dataset has 'sites_id' in 't_s_dict' which indicates number of nodes/basins
+        if hasattr(dataset, "t_s_dict") and "sites_id" in dataset.t_s_dict:
+            num_nodes = len(dataset.t_s_dict["sites_id"])
+            if y_obs.shape[0] % num_nodes == 0:
+                time_steps = y_obs.shape[0] // num_nodes
+                # Reshape from [Time*Nodes, ...] to [Time, Nodes, ...]
+                # Then transpose to [Nodes, Time, ...]
+                # Then flatten to [Nodes*Time, ...]
+                
+                # Handle arbitrary trailing dimensions
+                # Ensure we have feature dimension. If shape is [Batch, Horizon], add feature dim -> [Batch, Horizon, 1]
+                if y_obs.ndim == 2:
+                    y_obs = y_obs[..., np.newaxis]
+                if y_pred.ndim == 2:
+                    y_pred = y_pred[..., np.newaxis]
+
+                obs_shape = y_obs.shape
+                pred_shape = y_pred.shape
+                
+                # Reshape to [Time, Nodes, Horizon, Features]
+                y_obs = y_obs.reshape(time_steps, num_nodes, *obs_shape[1:])
+                # Transpose to [Nodes, Time, Horizon, Features]
+                permute_dims = [1, 0] + list(range(2, y_obs.ndim))
+                y_obs = y_obs.transpose(permute_dims)
+                
+                # Same for predictions
+                y_pred = y_pred.reshape(time_steps, num_nodes, *pred_shape[1:])
+                y_pred = y_pred.transpose(permute_dims)
+
+
     return y_obs, y_pred, valid_loss
 
 
@@ -1472,28 +1975,6 @@ def read_pth_from_model_loader(model_loader, model_pth_dir):
     if not os.path.exists(weight_path):
         raise ValueError(f"Model file {weight_path} does not exist.")
     return weight_path
-
-
-def get_lastest_logger_file_in_a_dir(dir_path):
-    """Get the last logger file in a directory
-
-    Parameters
-    ----------
-    dir_path : str
-        the directory
-
-    Returns
-    -------
-    str
-        the path of the logger file
-    """
-    pattern = r"^\d{1,2}_[A-Za-z]+_\d{6}_\d{2}(AM|PM)\.json$"
-    pth_files_lst = [
-        os.path.join(dir_path, file)
-        for file in os.listdir(dir_path)
-        if re.match(pattern, file)
-    ]
-    return get_latest_file_in_a_lst(pth_files_lst)
 
 
 def cellstates_when_inference(seq_first, data_cfgs, pred):

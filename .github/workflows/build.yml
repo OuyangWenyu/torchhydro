@@ -18,32 +18,77 @@ jobs:
             matrix:
                 config:
                     - { os: ubuntu-latest, py: "3.10" }
+                    - { os: ubuntu-latest, py: "3.11" }
+                    - { os: ubuntu-latest, py: "3.12" }
 
         env:
-            SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+            UV_NO_SOURCES: "1"
+
         steps:
             - name: CHECKOUT CODE
-              uses: actions/checkout@v2
-            - name: SETUP PYTHON
-              uses: actions/setup-python@v1
+              uses: actions/checkout@v4
+
+            - name: Cache pip dependencies
+              uses: actions/cache@v3
               with:
-                  python-version: ${{ matrix.config.py }}
+                path: ~/.cache/pip
+                key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+                restore-keys: |
+                  ${{ runner.os }}-pip-
+
+            - name: SETUP UV
+              uses: astral-sh/setup-uv@v3
+              with:
+                  enable-cache: true
+                  cache-dependency-glob: "uv.lock"
+
+            - name: SETUP PYTHON
+              run: uv python install ${{ matrix.config.py }}
+
             - name: Install dependencies
               run: |
-                  python -m pip install --upgrade pip
-                  pip install --user --no-cache-dir Cython
-                  pip install --user -r requirements.txt
-                  pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-            - name: Add project root to PYTHONPATH
-              run: echo "PYTHONPATH=${PYTHONPATH}$(pwd)" >> $GITHUB_ENV
-            - name: Download Camels data
-              run: |
-                kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/ --unzip
-                kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/ --unzip
-              env:
-                  KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-                  KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+                  # 使用 uv 安装依赖
+                  uv sync --extra dev
+
+                  # 针对 PyTorch Geometric 编译问题的解决方案
+                  uv pip uninstall torch-scatter torch-sparse torch-cluster -y || true
+                  uv pip install torch-geometric
+
+#            - name: Create hydro_setting.yml directly in workflow
+#              run: |
+#                echo "Creating hydro_setting.yml..."
+#                cat <<EOF > /root/hydro_setting.yml
+#                minio:
+#                  server_url: ''
+#                  client_endpoint: ''
+#                  access_key: ''
+#                  secret: ''
+#
+#                local_data_path:
+#                  root: ''
+#                  datasets-origin: '/home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/' # set your path here
+#                  datasets-interim: ''
+#                  basins-origin: ''
+#                  basins-interim: '/home/runner/.hydrodataset/cache/'
+#                  cache: ''
+#
+#                postgres:
+#                  server_url: ''
+#                  port: 0
+#                  username: ''
+#                  password: ''
+#                  database: ''
+#                EOF
+#                cat /root/hydro_setting.yml || echo "Failed to read the file"
+#
+#            - name: Download Camels data
+#              run: |
+#                  uv run kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/waterism/datasets-origin/camels/camels_us/ --unzip
+#                  uv run kaggle datasets download -d headwater/Camels -p /home/runner/.hydrodataset/cache/ --unzip
+#              env:
+#                  KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+#                  KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+#
             - name: PKG-TEST
               run: |
-                  pytest tests/test_train_camels_lstm.py
-                  pytest tests/test_evaluate_model.py
+                  uv run pytest -m "not requires_data and not requires_gpu" tests

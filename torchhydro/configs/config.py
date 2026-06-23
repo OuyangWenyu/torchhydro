@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2021-12-31 11:08:29
-LastEditTime: 2025-06-25 11:58:35
+LastEditTime: 2025-11-22 16:34:42
 LastEditors: Wenyu Ouyang
 Description: Config for hydroDL
 FilePath: \torchhydro\torchhydro\configs\config.py
@@ -13,10 +13,12 @@ import fnmatch
 import json
 import warnings
 import os
+from typing import Dict, List, Any, Optional
 
 import numpy as np
 import pandas as pd
 from hydroutils import hydro_file
+from hydrodataset.hydro_dataset import StandardVariable
 
 DAYMET_NAME = "daymet"
 SSM_SMAP_NAME = "ssm"
@@ -36,7 +38,7 @@ PET_ERA5LAND_NAME = "potential_evaporation"
 DATE_FORMATS = ["%Y-%m-%d-%H", "%Y-%m-%d"]  # 带小时的日期格式  # 不带小时的日期格式
 
 
-def default_config_file():
+def default_config_file() -> Dict[str, Any]:
     """
     Default config file for all models/data/training parameters in this repo
 
@@ -50,7 +52,7 @@ def default_config_file():
         "model_cfgs": {
             # model_type including normal deep learning (Normal), federated learning (FedLearn), transfer learing (TransLearn), multi-task learning (MTL), etc.
             "model_type": "Normal",
-            # supported models can be seen in hydroDL/model_dict_function.py
+            # supported models can be seen in torchhydro/models/model_dict_function.py
             "model_name": "LSTM",
             # the details of model parameters for the "model_name" model
             "model_hyperparam": {
@@ -129,7 +131,7 @@ def default_config_file():
             "constant_cols": [
                 "elev_mean",
                 "slope_mean",
-                "area_gages2",
+                "area",
                 "frac_forest",
                 "lai_max",
                 "lai_diff",
@@ -180,11 +182,14 @@ def default_config_file():
                     "qobs_mm_per_hour",
                 ],
                 "gamma_norm_cols": [
+                    StandardVariable.PRECIPITATION,
                     PRCP_DAYMET_NAME,
                     "pr",
                     # PRCP_ERA5LAND_NAME is same as PRCP_NLDAS_NAME
                     PRCP_NLDAS_NAME,
                     "pre",
+                    StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
+                    StandardVariable.EVAPOTRANSPIRATION,
                     # pet may be negative, but we set negative as 0 because of gamma_norm_cols
                     # https://earthscience.stackexchange.com/questions/12031/does-negative-reference-evapotranspiration-make-sense-using-fao-penman-monteith
                     "pet",
@@ -218,8 +223,45 @@ def default_config_file():
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
+            # station data configurations for GNN models
+            "station_cfgs": {
+                # 站点数据配置 - 使用3h数据中实际存在的变量
+                "station_cols": ["DRP"],  # TM=温度, 从站点数据中选择变量
+                "station_rm_nan": True,
+                "station_time_units": ["3h"],
+                "station_scaler_type": "DapengScaler",
+                # 邻接矩阵配置
+                "use_adjacency": True,
+                "adjacency_src_col": "ID",
+                "adjacency_dst_col": "NEXTDOWNID",
+                "adjacency_edge_attr_cols": ["dist_hdn", "elev_diff", "strm_slope"],
+                "adjacency_weight_col": None,  # 不使用权重，返回边属性
+                "return_edge_weight": False,
+            },
+            # TgHydroDataset 专用配置
+            "tg_cfgs": {
+                # 每个变量的源选择："base" 或 "intermediate"
+                "var_source_map": None,
+                # 默认源选择，如果未在 var_source_map 指定
+                "default_source": None,
+                # 是否在两种源都可用时优先使用中间产品
+                "prefer_intermediate": False,
+                # 是否在读取数据时合并多源时间维度
+                "combine": True,
+                # 图相关可选配置
+                "node_attributes": None,
+                "basin_names": [],
+                "basin_id": None,
+                "use_confluence_nodes_only": True,
+            },
         },
         "training_cfgs": {
+            # for distributed training, we use lightning fabric, it has some different strategies
+            # you can see the following link for more details:
+            # https://lightning.ai/docs/fabric/stable/api/fabric_args.html#strategy
+            # such as "dp", "ddp", "ddp_spawn", "ddp_find_unused_parameters_true", "xla", "deepspeed", "fsdp"
+            # here we use None as default, which means we don't use fabric
+            "fabric_strategy": None,
             "master_addr": "localhost",
             "port": "12335",
             # if train_mode is False, don't train and evaluate
@@ -302,6 +344,7 @@ def default_config_file():
             "device": [0, 1, 2],
             "multi_targets": 1,
             "num_workers": 0,
+            "pin_memory": False,
             "which_first_tensor": "sequence",
             # if we calculate metrics such as RMSE, NSE, etc. during validation
             # metrics will be samed as the config in evaluation_cfgs
@@ -374,89 +417,100 @@ def default_config_file():
 
 
 def cmd(
-    project_dir=None,
-    sub=None,
-    source_cfgs=None,
-    scaler=None,
-    scaler_params=None,
-    dataset=None,
-    model_loader=None,
-    variable_length_cfgs=None,
-    sampler=None,
-    fl_sample=None,
-    fl_num_users=None,
-    fl_local_ep=None,
-    fl_local_bs=None,
-    fl_frac=None,
-    master_addr=None,
-    port=None,
-    ctx=None,
-    rs=None,
-    gage_id_file=None,
-    gage_id=None,
-    train_period=None,
-    valid_period=None,
-    test_period=None,
-    opt=None,
-    lr_scheduler=None,
-    opt_param=None,
-    batch_size=None,
-    warmup_length=None,
+    project_dir: Optional[str] = None,
+    sub: Optional[str] = None,
+    source_cfgs: Optional[Dict[str, Any]] = None,
+    scaler: Optional[str] = None,
+    scaler_params: Optional[Dict[str, Any]] = None,
+    dataset: Optional[str] = None,
+    model_loader: Optional[int] = None,
+    variable_length_cfgs: Optional[Dict[str, Any]] = None,
+    sampler: Optional[str] = None,
+    fl_sample: Optional[str] = None,
+    fl_num_users: Optional[int] = None,
+    fl_local_ep: Optional[int] = None,
+    fl_local_bs: Optional[float] = None,
+    fl_frac: Optional[float] = None,
+    master_addr: Optional[List[str]] = None,
+    port: Optional[List[str]] = None,
+    ctx: Optional[List[str]] = None,
+    rs: Optional[int] = None,
+    gage_id_file: Optional[str] = None,
+    gage_id: Optional[List[str]] = None,
+    train_period: Optional[List[str]] = None,
+    valid_period: Optional[List[str]] = None,
+    test_period: Optional[List[str]] = None,
+    opt: Optional[str] = None,
+    lr_scheduler: Optional[Dict[str, Any]] = None,
+    opt_param: Optional[Dict[str, Any]] = None,
+    batch_size: Optional[int] = None,
+    warmup_length: Optional[int] = None,
     # forecast_history will be deprecated in the future
-    forecast_history=None,
-    hindcast_length=None,
-    forecast_length=None,
-    lead_time_type=None,
-    lead_time_start=None,
-    train_mode=None,
-    train_epoch=None,
-    save_epoch=None,
-    save_iter=None,
-    model_type=None,
-    model_name=None,
-    weight_path=None,
-    continue_train=None,
-    var_c=None,
-    c_rm_nan=None,
-    var_t=None,
-    t_rm_nan=None,
-    n_output=None,
-    loss_func=None,
-    model_hyperparam=None,
-    dropout=None,
-    weight_path_add=None,
-    var_t_type=None,
-    var_f=None,
-    f_rm_nan=None,
-    feature_mapping=None,
-    var_g=None,
-    var_out=None,
-    var_to_source_map=None,
-    out_rm_nan=None,
-    target_as_input=None,
-    constant_only=None,
-    gage_id_screen=None,
-    loss_param=None,
-    metrics=None,
-    fill_nan=None,
-    explainer=None,
-    rolling=None,
-    hrwin=None,
-    frwin=None,
-    calc_metrics=None,
-    start_epoch=None,
-    stat_dict_file=None,
-    num_workers=None,
-    which_first_tensor=None,
-    ensemble=None,
-    ensemble_items=None,
-    early_stopping=None,
-    patience=None,
-    min_time_unit=None,
-    min_time_interval=None,
-    valid_batch_mode=None,
-    evaluator=None,
-):
+    forecast_history: Optional[int] = None,
+    hindcast_length: Optional[int] = None,
+    forecast_length: Optional[int] = None,
+    lead_time_type: Optional[str] = None,
+    lead_time_start: Optional[int] = None,
+    train_mode: Optional[int] = None,
+    train_epoch: Optional[int] = None,
+    save_epoch: Optional[int] = None,
+    save_iter: Optional[int] = None,
+    model_type: Optional[str] = None,
+    model_name: Optional[str] = None,
+    weight_path: Optional[str] = None,
+    continue_train: Optional[int] = None,
+    var_c: Optional[List[str]] = None,
+    c_rm_nan: Optional[int] = None,
+    var_t: Optional[List[str]] = None,
+    t_rm_nan: Optional[int] = None,
+    n_output: Optional[int] = None,
+    loss_func: Optional[str] = None,
+    model_hyperparam: Optional[Dict[str, Any]] = None,
+    dropout: Optional[float] = None,
+    weight_path_add: Optional[Dict[str, Any]] = None,
+    var_t_type: Optional[List[str]] = None,
+    var_f: Optional[Dict[str, Any]] = None,
+    f_rm_nan: Optional[int] = None,
+    feature_mapping: Optional[Dict[str, Any]] = None,
+    var_g: Optional[Dict[str, Any]] = None,
+    var_out: Optional[List[str]] = None,
+    var_to_source_map: Optional[Dict[str, Any]] = None,
+    out_rm_nan: Optional[int] = None,
+    target_as_input: Optional[int] = None,
+    constant_only: Optional[int] = None,
+    gage_id_screen: Optional[Dict[str, Any]] = None,
+    loss_param: Optional[Dict[str, Any]] = None,
+    metrics: Optional[List[str]] = None,
+    fill_nan: Optional[List[str]] = None,
+    explainer: Optional[List[str]] = None,
+    rolling: Optional[int] = None,
+    hrwin: Optional[int] = None,
+    frwin: Optional[int] = None,
+    calc_metrics: Optional[bool] = None,
+    start_epoch: Optional[int] = None,
+    stat_dict_file: Optional[str] = None,
+    num_workers: Optional[int] = None,
+    pin_memory: Optional[bool] = None,
+    which_first_tensor: Optional[str] = None,
+    ensemble: Optional[int] = None,
+    ensemble_items: Optional[Dict[str, Any]] = None,
+    early_stopping: Optional[bool] = None,
+    patience: Optional[int] = None,
+    min_time_unit: Optional[str] = None,
+    min_time_interval: Optional[int] = None,
+    valid_batch_mode: Optional[str] = None,
+    evaluator: Optional[Dict[str, Any]] = None,
+    fabric_strategy: Optional[str] = None,
+    # station data configurations for GNN models
+    station_cfgs: Optional[Dict[str, Any]] = None,
+    # PyG DataLoader specific configurations
+    use_pyg_dataloader: Optional[bool] = None,
+    # TgHydroDataset 专用配置
+    tg_cfgs: Optional[Dict[str, Any]] = None,
+    shap_cfgs: Optional[Dict[str, Any]] = None,
+    # peak-aligned sampling configuration for FloodEventDataset
+    peak_aligned_sampling: Optional[Dict[str, Any]] = None,
+) -> argparse.Namespace:
     """input args from cmd"""
     parser = argparse.ArgumentParser(
         description="Train a Time-Series Deep Learning Model for Basins"
@@ -935,6 +989,13 @@ def cmd(
         type=int,
     )
     parser.add_argument(
+        "--pin_memory",
+        dest="pin_memory",
+        help="use pin_memory parameter in Pytorch DataLoader of not",
+        default=pin_memory,
+        type=bool,
+    )
+    parser.add_argument(
         "--which_first_tensor",
         dest="which_first_tensor",
         help="sequence_first or batch_first",
@@ -1003,13 +1064,59 @@ def cmd(
         default=evaluator,
         type=json.loads,
     )
+    parser.add_argument(
+        "--fabric_strategy",
+        dest="fabric_strategy",
+        help="fabric strategy",
+        default=fabric_strategy,
+        type=str,
+    )
+    # Station data configurations for GNN models
+    parser.add_argument(
+        "--station_cfgs",
+        dest="station_cfgs",
+        help="station data configurations for GNN models (as JSON)",
+        default=station_cfgs,
+        type=json.loads,
+    )
+    # TG-GNN specific configurations
+    parser.add_argument(
+        "--use_pyg_dataloader",
+        dest="use_pyg_dataloader",
+        help="Whether to use PyTorch Geometric DataLoader for graph datasets",
+        default=use_pyg_dataloader,
+        type=bool,
+    )
+    parser.add_argument(
+        "--tg_cfgs",
+        dest="tg_cfgs",
+        help="TgHydroDataset specific configurations (as JSON)",
+        default=tg_cfgs,
+        type=json.loads,
+    )
+    parser.add_argument(
+        "--shap_cfgs",
+        dest="shap_cfgs",
+        help="SHAP analysis configurations (as JSON)",
+        default=shap_cfgs,
+        type=json.loads,
+    )
+    parser.add_argument(
+        "--peak_aligned_sampling",
+        dest="peak_aligned_sampling",
+        help="Peak-aligned sampling configurations for FloodEventDataset (as JSON)",
+        default=peak_aligned_sampling,
+        type=json.loads,
+    )
+        type=json.loads,
+    )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
     # https://blog.csdn.net/u014742995/article/details/100119905
     args, unknown = parser.parse_known_args()
     return args
 
 
-def update_nested_dict(d, keys, value):
+def update_nested_dict(d: Dict[str, Any], keys: List[str], value: Any) -> None:
     """update nested dict
 
     Parameters
@@ -1027,7 +1134,7 @@ def update_nested_dict(d, keys, value):
         update_nested_dict(d[keys[0]], keys[1:], value)
 
 
-def update_cfg(cfg_file, new_args):
+def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
     """
     Update default config with new arguments
 
@@ -1162,6 +1269,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["save_epoch"] = new_args.save_epoch
     if new_args.save_iter is not None:
         cfg_file["training_cfgs"]["save_iter"] = new_args.save_iter
+    if new_args.fabric_strategy is not None:
+        cfg_file["training_cfgs"]["fabric_strategy"] = new_args.fabric_strategy
     if new_args.model_type is not None:
         cfg_file["model_cfgs"]["model_type"] = new_args.model_type
     if new_args.model_name is not None:
@@ -1234,7 +1343,8 @@ def update_cfg(cfg_file, new_args):
     if new_args.warmup_length is not None:
         cfg_file["training_cfgs"]["warmup_length"] = new_args.warmup_length
         if (
-            "warmup_length" in new_args.model_hyperparam.keys()
+            new_args.model_hyperparam is not None
+            and "warmup_length" in new_args.model_hyperparam.keys()
             and new_args.warmup_length != new_args.model_hyperparam["warmup_length"]
         ):
             raise RuntimeError(
@@ -1271,6 +1381,8 @@ def update_cfg(cfg_file, new_args):
         cfg_file["data_cfgs"]["stat_dict_file"] = stat_dict_file
     if new_args.num_workers is not None and new_args.num_workers > 0:
         cfg_file["training_cfgs"]["num_workers"] = new_args.num_workers
+    if new_args.pin_memory is not None:
+        cfg_file["training_cfgs"]["pin_memory"] = new_args.pin_memory
     if new_args.which_first_tensor is not None:
         cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
     if new_args.ensemble == 0:
@@ -1289,10 +1401,30 @@ def update_cfg(cfg_file, new_args):
         cfg_file["training_cfgs"]["valid_batch_mode"] = new_args.valid_batch_mode
     if new_args.evaluator is not None:
         cfg_file["evaluation_cfgs"]["evaluator"] = new_args.evaluator
+
+    # Station data configurations for GNN models
+    if new_args.station_cfgs is not None:
+        cfg_file["data_cfgs"]["station_cfgs"] = new_args.station_cfgs
+
+    # PyG DataLoader specific configurations
+    if new_args.use_pyg_dataloader is not None:
+        cfg_file["training_cfgs"]["use_pyg_dataloader"] = new_args.use_pyg_dataloader
+
+    # TgHydroDataset 专用配置透传
+    if hasattr(new_args, "tg_cfgs") and new_args.tg_cfgs is not None:
+        cfg_file["data_cfgs"]["tg_cfgs"] = new_args.tg_cfgs
+
+    if new_args.shap_cfgs is not None:
+        cfg_file["evaluation_cfgs"]["shap_cfgs"] = new_args.shap_cfgs
+
+    # Peak-aligned sampling configuration for FloodEventDataset
+    if new_args.peak_aligned_sampling is not None:
+        cfg_file["data_cfgs"]["peak_aligned_sampling"] = new_args.peak_aligned_sampling
+
     # print("the updated config:\n", json.dumps(cfg_file, indent=4, ensure_ascii=False))
 
 
-def get_config_file(cfg_dir):
+def get_config_file(cfg_dir: str) -> Dict[str, Any]:
     json_files_lst = []
     json_files_ctime = []
     for file in os.listdir(cfg_dir):

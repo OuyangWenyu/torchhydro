@@ -11,10 +11,28 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 import pytest
 
 from hydroutils.hydro_plot import plot_ts
-from torchhydro.configs.config import update_cfg
+from torchhydro.configs.config import update_cfg, default_config_file, cmd
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed
 
+
+@pytest.fixture()
+def config_data():
+    return default_config_file()
+
+@pytest.fixture()
+def args(config_data):
+    # A basic config, but it's not enough as it needs a real model path
+    project_name = "test_evaluate_model/camels_lstm"
+    args = cmd(sub=project_name, train_mode=False)
+    return args
+
+@pytest.fixture()
+def mtl_args(config_data):
+    # A basic config, but it's not enough as it needs a real model path
+    project_name = "test_evaluate_model/camels_mtl_lstm"
+    args = cmd(sub=project_name, train_mode=False)
+    return args
 
 @pytest.fixture()
 def camelslstm_config(args, config_data):
@@ -37,6 +55,7 @@ def _config(request):
     return request.getfixturevalue(request.param)
 
 
+@pytest.mark.skip(reason="TODO: Integration test requiring pre-trained models, skipping.")
 @pytest.mark.parametrize(
     "_config", ["camelslstm_config", "camelsmtllstm_config"], indirect=True
 )

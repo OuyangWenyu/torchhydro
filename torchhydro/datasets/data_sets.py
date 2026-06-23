@@ -1,7 +1,7 @@
 """
 Author: Wenyu Ouyang
 Date: 2024-04-08 18:16:53
-LastEditTime: 2025-06-25 16:46:18
+LastEditTime: 2025-11-22 10:46:49
 LastEditors: Wenyu Ouyang
 Description: A pytorch dataset class; references to https://github.com/neuralhydrology/neuralhydrology
 FilePath: \torchhydro\torchhydro\datasets\data_sets.py
@@ -9,6 +9,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import logging
+import os
 import re
 import sys
 import torch
@@ -19,12 +20,17 @@ from datetime import datetime, timedelta
 from typing import Optional
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from hydrodatasource.utils.utils import streamflow_unit_conv
+from hydroutils.hydro_units import streamflow_unit_conv
+from hydrodataset.multi_dataset_reader import MultiDatasetReader, DATASET_MAPPING
 
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
+from torch_geometric.data import Data
 from tqdm import tqdm
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 from torchhydro.datasets.data_utils import (
     set_unit_to_var,
@@ -70,9 +76,53 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
                 filled_data  # update the original dataarray with the filled data
             )
     elif fill_nan == "interpolate":
-        # fill interpolation
-        for i in range(da.shape[0]):
-            da[i] = da[i].interpolate_na(dim="time", fill_value="extrapolate")
+        # Check if this is a station-based DataArray (has 'station' dimension)
+        if "station" in da.dims:
+            # Create a copy of the DataArray to modify
+            result_da = da.copy(deep=True)
+
+            # Handle station data: interpolate along time for each basin and each station
+            for i in range(da.shape[0]):  # For each basin
+                # Get the number of stations for this basin
+                n_stations = da[i].shape[1] if da[i].ndim > 1 else 1
+
+                # For each station, interpolate along time dimension
+                for s in range(n_stations):
+                    # Get data for this station
+                    station_data = da[i, :, s, :]
+
+                    # Check if the entire station has all NaN values
+                    if np.isnan(station_data.values).all():
+                        # If all values are NaN, fill with 0 or a small value
+                        # This prevents the training from crashing
+                        result_da[i, :, s, :] = 0.0
+                        # print(f"Warning: Station {s} in basin {i} has all NaN values, filled with 0.0")
+                    else:
+                        # Try to interpolate along time for this station
+                        try:
+                            filled_station_data = station_data.interpolate_na(
+                                dim="time", fill_value="extrapolate"
+                            )
+                            result_da[i, :, s, :] = filled_station_data
+                        except Exception as e:
+                            # If interpolation fails, use forward fill + backward fill
+                            print(
+                                f"Warning: Interpolation failed for station {s} in basin {i}: {e}"
+                            )
+                            filled_data = station_data.fillna(method="ffill").fillna(
+                                method="bfill"
+                            )
+                            if np.isnan(filled_data.values).any():
+                                # If still has NaN after forward/backward fill, use 0
+                                filled_data = filled_data.fillna(0.0)
+                            result_da[i, :, s, :] = filled_data
+
+            # Return the modified copy
+            return result_da
+        else:
+            # Original behavior for non-station data: interpolate along time for each basin
+            for i in range(da.shape[0]):
+                da[i] = da[i].interpolate_na(dim="time", fill_value="extrapolate")
     elif fill_nan == "lead_step":
         # for forecast data, we use interpolation to fill NaN values for lead step small than the maximum lead step of each forecast performing
         for i in tqdm(range(da.shape[0]), desc="Processing basins", unit="basin"):
@@ -113,12 +163,39 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
 
 
 def detect_date_format(date_str):
+    """
+    检测日期格式，支持单个字符串或字符串列表
+
+    Parameters
+    ----------
+    date_str : str or list
+        日期字符串或日期字符串列表
+
+    Returns
+    -------
+    str
+        检测到的日期格式
+    """
+    # 如果输入是列表，使用第一个元素
+    if isinstance(date_str, (list, tuple)):
+        if not date_str:  # 如果列表为空
+            raise ValueError("Empty date list")
+        date_str = date_str[0]  # 使用第一个日期字符串
+
+    # 确保输入是字符串
+    if not isinstance(date_str, str):
+        raise ValueError(
+            f"Date must be string or list of strings, got {type(date_str)}"
+        )
+
+    # 尝试不同的日期格式
     for date_format in DATE_FORMATS:
         try:
             datetime.strptime(date_str, date_format)
             return date_format
         except ValueError:
             continue
+
     raise ValueError(f"Unknown date format: {date_str}")
 
 
@@ -196,7 +273,16 @@ class BaseDataset(Dataset):
     def data_source(self):
         source_name = self.data_cfgs["source_cfgs"]["source_name"]
         source_path = self.data_cfgs["source_cfgs"]["source_path"]
+
+        # 传递除了 source_name 和 source_path 之外的所有参数
+
+        # 先获取所有参数
         other_settings = self.data_cfgs["source_cfgs"].get("other_settings", {})
+
+        # 排除 source_name, source_path
+        other_settings.pop("source_name", None)
+        other_settings.pop("source_path", None)
+
         return data_sources_dict[source_name](source_path, **other_settings)
 
     @property
@@ -266,11 +352,47 @@ class BaseDataset(Dataset):
             latest_date = self.t_s_dict["t_final_range"][1]
         min_time_unit = self.data_cfgs["min_time_unit"]
         min_time_interval = self.data_cfgs["min_time_interval"]
-        time_step = f"{min_time_interval}{min_time_unit}"
-        s_date = pd.to_datetime(earliest_date)
-        e_date = pd.to_datetime(latest_date)
-        time_series = pd.date_range(start=s_date, end=e_date, freq=time_step)
-        return len(time_series)
+
+        # 计算时间步长（以小时为单位）
+        unit_to_hours = {
+            "h": 1,
+            "H": 1,
+            "d": 24,
+            "D": 24,
+            "m": 1 / 60,
+            "M": 1 / 60,
+            "s": 1 / 3600,
+            "S": 1 / 3600,
+        }
+        hours_per_step = min_time_interval * unit_to_hours.get(min_time_unit, 1)
+
+        # 解析时间字符串
+        date_format = detect_date_format(
+            earliest_date[0]
+            if isinstance(earliest_date, (list, tuple))
+            else earliest_date
+        )
+
+        # 获取开始和结束时间
+        if isinstance(earliest_date, (list, tuple)):
+            s_date = datetime.strptime(
+                earliest_date[0], date_format
+            )  # 使用第一个元素作为开始时间
+        else:
+            s_date = datetime.strptime(earliest_date, date_format)
+
+        if isinstance(latest_date, (list, tuple)):
+            e_date = datetime.strptime(
+                latest_date[-1], date_format
+            )  # 使用最后一个元素作为结束时间
+        else:
+            e_date = datetime.strptime(latest_date, date_format)
+
+        # 计算总小时数
+        total_hours = (e_date - s_date).total_seconds() / 3600
+
+        # 计算时间步数
+        return int(total_hours / hours_per_step) + 1
 
     @property
     def basins(self):
@@ -314,12 +436,14 @@ class BaseDataset(Dataset):
         return self.num_samples
 
     def __getitem__(self, item: int):
-        """Get one sample from the dataset with unified return format
+        """Get one sample from the dataset with a unified return format.
+
+        Args:
+            item: The index of the sample to retrieve.
 
         Returns:
-        --------
-        tuple[torch.Tensor, torch.Tensor]
-            (input_data, output_data)
+            A tuple of (input_data, output_data), where input_data is a tensor
+            of input features and output_data is a tensor of target values.
         """
         basin, idx, actual_length = self.lookup_table[item]
         warmup_length = self.warmup_length
@@ -336,7 +460,9 @@ class BaseDataset(Dataset):
         origin_data = self._read_xyc()
         # normalization
         norm_data = self._normalize(origin_data)
+        # 启用 NaN 处理以确保数据清洁
         origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
+        # origin_data_wonan, norm_data_wonan = origin_data, norm_data  # 备用：跳过 NaN 处理
         self._trans2nparr(origin_data_wonan, norm_data_wonan)
         self._create_lookup_table()
 
@@ -368,10 +494,14 @@ class BaseDataset(Dataset):
             elif key == "global_cols":
                 self.g_origin = origin_arr
                 self.g = norm_arr
+            elif key == "station_cols":
+                # GNN特有的站点数据
+                self.station_cols_origin = origin_arr
+                self.station_cols = norm_arr
             else:
                 raise ValueError(
                     f"Unknown data type {key} in origin_data, "
-                    "it should be one of relevant_cols, target_cols, constant_cols"
+                    "it should be one of relevant_cols, target_cols, constant_cols, forecast_cols, global_cols, station_cols"
                 )
 
     def _normalize(
@@ -430,14 +560,36 @@ class BaseDataset(Dataset):
         target_data = target_scaler.data_target
         # the units are dimensionless for pure DL models
         units = {k: "dimensionless" for k in target_data.attrs["units"].keys()}
-        if target_scaler.pbm_norm:
-            units = {**units, **target_data.attrs["units"]}
         # mainly to get information about the time points of norm_data
         selected_time_points = self._selected_time_points_for_denorm()
         selected_data = target_data.sel(time=selected_time_points)
 
+        # 处理三维数据 (basin, time, variable)
+        if norm_data.ndim == 3:
+            all_times = selected_data.coords["time"].values
+            T = norm_data.shape[1]
+            if all_times.shape[0] >= T:
+                time_coords = all_times[-T:]
+            else:
+                if all_times.shape[0] == 0:
+                    raise ValueError(
+                        "No time coordinates available for denormalization."
+                    )
+                last_time = all_times[-1]
+                pad = np.array(
+                    [last_time] * (T - all_times.shape[0]), dtype=all_times.dtype
+                )
+                time_coords = np.concatenate([all_times, pad])
+            norm_data_3d = norm_data
+            coords = {
+                "basin": selected_data.coords["basin"],
+                "time": time_coords,
+                "variable": selected_data.coords["variable"],
+            }
+            dims = ["basin", "time", "variable"]
+
         # 处理四维数据
-        if norm_data.ndim == 4:
+        elif norm_data.ndim == 4:
             # Check if the data is organized by basins
             if self.evaluation_cfgs["evaluator"]["recover_mode"] == "bybasins":
                 # Shape: (basin_num, i_e_time_length, forecast_length, nf)
@@ -469,26 +621,16 @@ class BaseDataset(Dataset):
                     norm_data_3d = norm_data.reshape(
                         basin_num, i_e_time_length * forecast_length, nf
                     )
-                    # 创建新的时间坐标，重复i_e_time_length次
-                    new_times = []
-                    for i in range(forecast_length):
-                        if i < len(selected_data.coords["time"]):
-                            new_times.extend(
-                                selected_data.coords["time"][:i_e_time_length]
-                            )
-
-                    # 确保时间坐标长度与数据匹配
-                    if len(new_times) > i_e_time_length * forecast_length:
-                        new_times = new_times[: i_e_time_length * forecast_length]
-                    elif len(new_times) < i_e_time_length * forecast_length:
-                        # 如果时间坐标不足，使用最后一个时间点填充
-                        last_time = (
-                            new_times[-1]
-                            if new_times
-                            else selected_data.coords["time"][0]
+                    # 创建新的时间坐标：取连续的 time 切片再按 forecast_length 平铺，避免重复索引错误
+                    base_times = list(
+                        selected_data.coords["time"][:i_e_time_length].values
+                    )
+                    if not base_times:
+                        base_times = list(
+                            target_data.coords["time"][:i_e_time_length].values
                         )
-                        while len(new_times) < i_e_time_length * forecast_length:
-                            new_times.append(last_time)
+                    tiled = base_times * forecast_length
+                    new_times = tiled[: i_e_time_length * forecast_length]
 
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
@@ -531,26 +673,16 @@ class BaseDataset(Dataset):
                         basin_num, forecast_length * i_e_time_length, nf
                     )
 
-                    # 创建新的时间坐标
-                    new_times = []
-                    for i in range(forecast_length):
-                        if i < len(selected_data.coords["time"]):
-                            new_times.extend(
-                                selected_data.coords["time"][:i_e_time_length]
-                            )
-
-                    # 确保时间坐标长度与数据匹配
-                    if len(new_times) > forecast_length * i_e_time_length:
-                        new_times = new_times[: forecast_length * i_e_time_length]
-                    elif len(new_times) < forecast_length * i_e_time_length:
-                        # 如果时间坐标不足，使用最后一个时间点填充
-                        last_time = (
-                            new_times[-1]
-                            if new_times
-                            else selected_data.coords["time"][0]
+                    # 创建新的时间坐标：按 i_e_time_length 切片后平铺，避免重复索引错误
+                    base_times = list(
+                        selected_data.coords["time"][:i_e_time_length].values
+                    )
+                    if not base_times:
+                        base_times = list(
+                            target_data.coords["time"][:i_e_time_length].values
                         )
-                        while len(new_times) < forecast_length * i_e_time_length:
-                            new_times.append(last_time)
+                    tiled = base_times * forecast_length
+                    new_times = tiled[: forecast_length * i_e_time_length]
 
                     # 修改这里：确保basin坐标长度与数据维度匹配
                     if basin_num == 1 and len(selected_data.coords["basin"]) > 1:
@@ -630,6 +762,7 @@ class BaseDataset(Dataset):
                 streamflow_dataset,
                 self.data_source.read_area(self.t_s_dict["sites_id"]),
                 target_unit=prcp_unit,
+                source_unit=streamflow_unit,
             )
             data_output_ds[self.streamflow_name] = converted_streamflow_dataset[
                 self.streamflow_name
@@ -647,10 +780,81 @@ class BaseDataset(Dataset):
             the dim must be (basin, time, variable) for 3-d xr array;
             the dim must be (basin, variable) for 2-d xr array;
         """
-        # x
-        start_date = self.t_s_dict["t_final_range"][0]
-        end_date = self.t_s_dict["t_final_range"][1]
+        # Check if we have multiple time periods (for multi-period training)
+        t_range = self.t_s_dict["t_final_range"]
+
+        # Check if first element is a list/tuple (indicating multiple periods)
+        if isinstance(t_range[0], (list, tuple)):
+            # Validate multi-period format
+            self._validate_multi_period_format(t_range)
+
+            # Multiple periods case - can be any number of periods
+            all_data = None
+            for start_date, end_date in t_range:
+                period_data = self._read_xyc_period(start_date, end_date)
+                if all_data is None:
+                    all_data = period_data
+                else:
+                    # Concatenate along time dimension
+                    for key in period_data:
+                        # 确保两个数据集的时间维度都是字符串类型
+                        if all_data[key] is not None and period_data[key] is not None:
+                            if not isinstance(all_data[key].time.values[0], str):
+                                all_data[key]["time"] = all_data[key].time.astype(str)
+                            if not isinstance(period_data[key].time.values[0], str):
+                                period_data[key]["time"] = period_data[key].time.astype(
+                                    str
+                                )
+
+                            all_data[key] = xr.concat(
+                                [all_data[key], period_data[key]], dim="time"
+                            )
+            return all_data
+        else:
+            # Single period case (existing behavior)
+            start_date = t_range[0]
+            end_date = t_range[1]
+            return self._read_xyc_period(start_date, end_date)
+
+    def _read_xyc_period(self, start_date, end_date):
+        """Template method for reading x, y, c data for a specific time period
+
+        This method can be overridden by subclasses to customize how data is read
+        for each time period while keeping the multi-period handling logic in the parent class.
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+
+        Returns
+        -------
+        dict
+            Dictionary containing relevant_cols, target_cols, and constant_cols data
+        """
+        # Default implementation: delegate to the original method
         return self._read_xyc_specified_time(start_date, end_date)
+
+    def _validate_multi_period_format(self, t_range):
+        """Validate format of multi-period time ranges
+
+        Parameters
+        ----------
+        t_range : list
+            List of time periods, where each period should be [start_date, end_date]
+
+        Raises
+        ------
+        ValueError
+            If any period doesn't have exactly 2 elements (start_date, end_date)
+        """
+        for i, period in enumerate(t_range):
+            if not isinstance(period, (list, tuple)) or len(period) != 2:
+                raise ValueError(
+                    f"Period {i} must be a list/tuple with exactly 2 elements (start_date, end_date), got: {period}"
+                )
 
     def _rm_timeunit_key(self, ds_):
         """this means the data source return a dict with key as time_unit
@@ -767,10 +971,12 @@ class BaseDataset(Dataset):
                 kill_way = "lead_step"
             elif key == "global_cols":
                 rm_nan = data_cfgs["global_rm_nan"]
+            elif key == "station_cols":
+                rm_nan = data_cfgs.get("station_rm_nan")
             else:
                 raise ValueError(
                     f"Unknown data type {key} in origin_data, "
-                    "it should be one of relevant_cols, target_cols, constant_cols, forecast_cols and global_cols"
+                    "it should be one of relevant_cols, target_cols, constant_cols, forecast_cols, global_cols and station_cols"
                 )
 
             if rm_nan:
@@ -815,13 +1021,14 @@ class BaseDataset(Dataset):
         rho = self.rho
         warmup_length = self.warmup_length
         horizon = self.horizon
-        seq_len = warmup_length + rho + horizon
+        # NOTE: we set seq_len to rho + horizon instead of warmup_length + rho + horizon
+        seq_len = rho + horizon
         max_time_length = self.nt
         variable_length_cfgs = self.training_cfgs.get("variable_length_cfgs", {})
         use_variable_length = variable_length_cfgs.get("use_variable_length", False)
         variable_length_type = variable_length_cfgs.get(
             "variable_length_type", "dynamic"
-        )
+        )  # only used for case when use_variable_length is True
         fixed_lengths = variable_length_cfgs.get("fixed_lengths", [365, 1095, 1825])
         # Use fixed type variable length if enabled and type is fixed
         is_fixed_length_train = use_variable_length and variable_length_type == "fixed"
@@ -1155,6 +1362,436 @@ class DplDataset(BaseDataset):
         ), torch.from_numpy(y_train).float()
 
 
+class MultiDataSourceWrapper:
+    """Wrapper that presents multiple data sources as a unified interface for scalers."""
+
+    def __init__(self, sources, datasets_config=None):
+        self.sources = sources
+        self.datasets_config = datasets_config
+        self._reader = MultiDatasetReader(datasets=datasets_config)
+        # Cache unique IDs mapping
+        self._unique_ids_map, _ = self._reader.get_global_unique_ids()
+
+    def _group_ids(self, gage_id_lst):
+        ids_by_dataset = {}
+        for gage_id in gage_id_lst:
+            # Handle duplicates logic if needed, but here we likely want unique source per ID
+            # Use cached map
+            if gage_id in self._unique_ids_map:
+                ds_name = self._unique_ids_map[gage_id]
+                if ds_name not in ids_by_dataset:
+                    ids_by_dataset[ds_name] = []
+                ids_by_dataset[ds_name].append(gage_id)
+            else:
+                # Fallback/retry or warn
+                pass
+        return ids_by_dataset
+
+    def read_mean_prcp(self, gage_id_lst: list, unit: str = "mm/d"):
+        ids_by_ds = self._group_ids(gage_id_lst)
+        results = []
+        for ds_name, ids in ids_by_ds.items():
+            if ds_name in self.sources:
+                ds_obj = self.sources[ds_name]
+                if hasattr(ds_obj, "read_mean_prcp"):
+                    results.append(ds_obj.read_mean_prcp(ids, unit))
+
+        if not results:
+            return None
+        return xr.concat(results, dim="basin")
+
+    def read_area(self, gage_id_lst: list):
+        ids_by_ds = self._group_ids(gage_id_lst)
+        results = []
+        for ds_name, ids in ids_by_ds.items():
+            if ds_name in self.sources:
+                ds_obj = self.sources[ds_name]
+                if hasattr(ds_obj, "read_area"):
+                    results.append(ds_obj.read_area(ids))
+
+        if not results:
+            return None
+        return xr.concat(results, dim="basin")
+
+    def read_attr_xrdataset(self, gage_id_lst, var_lst, **kwargs):
+        ids_by_ds = self._group_ids(gage_id_lst)
+        results = []
+        for ds_name, ids in ids_by_ds.items():
+            if ds_name in self.sources:
+                ds_obj = self.sources[ds_name]
+                if hasattr(ds_obj, "read_attr_xrdataset"):
+                    results.append(ds_obj.read_attr_xrdataset(ids, var_lst, **kwargs))
+
+        if not results:
+            return None
+        return xr.concat(results, dim="basin")
+
+
+class MultiSourceDataset(BaseDataset):
+    """A dataset that supports reading from multiple hydrological datasets simultaneously.
+
+    This class uses MultiDatasetReader to handle IDs and data loading from multiple sources.
+    It automatically groups stations by dataset, reads data using the appropriate data source,
+    and merges the results.
+    """
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        super(MultiSourceDataset, self).__init__(cfgs, is_tra_val_te)
+
+    @property
+    def data_source(self):
+        """
+        For MultiSourceDataset, we returns a wrapper that aggregates all sources.
+        """
+        from torchhydro.datasets.data_sources import data_sources_dict
+
+        # Initialize all required data sources
+        sources = {}
+        # Get datasets from config, or default to all available in DATASET_MAPPING
+        if "source_cfgs" in self.data_cfgs:
+            datasets_config = self.data_cfgs["source_cfgs"].get("datasets", None)
+            if isinstance(datasets_config, list):
+                req_datasets = datasets_config
+            else:
+                # Default to all if not specified list
+                req_datasets = list(DATASET_MAPPING.keys())
+        else:
+            req_datasets = list(DATASET_MAPPING.keys())
+
+        for ds_name in req_datasets:
+            if ds_name in DATASET_MAPPING:
+                _, class_name = DATASET_MAPPING[ds_name]
+                if ds_name in data_sources_dict:
+                    source_constructor = data_sources_dict[ds_name]
+                    # source_path = SETTING["local_data_path"]["datasets-origin"]
+                    source_path = self.data_cfgs["source_cfgs"]["source_path"]
+                    sources[ds_name] = source_constructor(source_path)
+
+        return MultiDataSourceWrapper(sources, datasets_config)
+
+    def _read_xyc(self):
+        """Read x, y, c data from multiple data sources and merge them."""
+
+        # 1. Collect IDs and their source datasets
+        # use MultiDatasetReader logic to identify which dataset each ID belongs to
+        # We assume self.t_s_dict["sites_id"] contains the list of all IDs we want to read
+        target_ids = self.t_s_dict["sites_id"]
+
+        # Initialize reader just for ID mapping (cache might be used)
+        datasets_config = self.data_cfgs.get("source_cfgs", {}).get("datasets", None)
+        reader = MultiDatasetReader(datasets=datasets_config)
+
+        # Use reader to get global unique IDs to find where each ID comes from
+        # Note: this might be slow if we have many datasets and didn't cache IDs
+        unique_ids_map, duplicates_map = reader.get_global_unique_ids()
+
+        # Group target IDs by dataset
+        ids_by_dataset = {}
+
+        for gage_id in target_ids:
+            if gage_id in unique_ids_map:
+                ds_name = unique_ids_map[gage_id]
+                if ds_name not in ids_by_dataset:
+                    ids_by_dataset[ds_name] = []
+                ids_by_dataset[ds_name].append(gage_id)
+            else:
+                # Log warning or handle missing ID
+                print(f"Warning: ID {gage_id} not found in any configured dataset.")
+
+        # 2. Read data for each group
+        x_list, y_list, c_list = [], [], []
+
+        t_range = self.t_s_dict["t_final_range"]
+
+        # Need to instantiate data sources on the fly or use the property
+        # Since we need to pass specific paths or args, better to do it here or use a helper
+
+        for ds_name, ids in ids_by_dataset.items():
+            if ds_name not in DATASET_MAPPING:
+                continue
+
+            # Get the data source instance for this dataset
+            # We assume data_sources_dict has entries for these datasets
+            # If not, we might need to rely on hydrodataset readers directly?
+            # But torchhydro pipeline expects xarray from its own data_sources.
+            # Let's assume we have corresponding wrappers in torchhydro.
+
+            # Construct the data source
+            # This relies on torchhydro.datasets.data_sources having wrappers for these datasets
+            # which usually wrap hydrodataset classes.
+            if ds_name in data_sources_dict:
+                source_cls = data_sources_dict[ds_name]
+                # source_path = SETTING["local_data_path"]["datasets-origin"]
+                source_path = self.data_cfgs["source_cfgs"]["source_path"]
+                # Some data sources might need extra config
+                ds_instance = source_cls(source_path)
+
+                # Read x (forcing)
+                if self.data_cfgs["relevant_cols"]:
+                    x_ds = ds_instance.read_ts_xrdataset(
+                        ids, t_range, self.data_cfgs["relevant_cols"]
+                    )
+                    x_ds = self._rm_timeunit_key(x_ds)
+                    x_list.append(x_ds)
+
+                # Read y (streamflow/target)
+                if self.data_cfgs["target_cols"]:
+                    y_ds = ds_instance.read_ts_xrdataset(
+                        ids, t_range, self.data_cfgs["target_cols"]
+                    )
+                    y_ds = self._rm_timeunit_key(y_ds)
+                    y_list.append(y_ds)
+
+                # Read c (attributes)
+                if self.data_cfgs["constant_cols"]:
+                    c_ds = ds_instance.read_attr_xrdataset(
+                        ids, self.data_cfgs["constant_cols"], all_number=True
+                    )
+                    c_list.append(c_ds)
+            else:
+                print(f"Warning: No torchhydro data source found for {ds_name}")
+
+        # 3. Merge datasets
+        # We need to concatenate along the 'basin' dimension.
+        # xarray's concat or merge should handle this if dimensions match (time, variable)
+
+        if not x_list and not y_list:
+            raise ValueError("No data read from any source.")
+
+        # Helper to merge list of datasets
+        def safe_concat(ds_list):
+            if not ds_list:
+                return None
+            # Prepare for concatenation: ensure they have the same variables and time index
+            # This might be tricky if time ranges slightly differ or if variables are missing
+            # Assuming standard read_ts_xrdataset returns aligned time series for the requested t_range
+            return xr.concat(ds_list, dim="basin")
+
+        x_merged = safe_concat(x_list)
+        y_merged = safe_concat(y_list)
+        c_merged = safe_concat(c_list)
+
+        # Ensure units are consistent/handled if needed (e.g., using unit conversion logic from BaseDataset)
+        # For now, we assume _check_ts_xrds_unit might need to be called on the merged result
+        # OR iteratively before merging.
+        # Since _check_ts_xrds_unit takes (forcing, output), let's try running it on merged result.
+        # But wait, unit conversion depends on each dataset's metadata.
+        # Merging first might lose that per-dataset metadata if attributes aren't preserved per basin.
+        # However, xr.concat typically preserves attributes of the first object or drops them.
+        # Ideally, we should unify units BEFORE merging.
+        # Let's skip complex unit unification for now and assume standard units (mm/d, m3/s) or handle it simply.
+        # BaseDataset._check_ts_xrds_unit handles streamflow unit conversion based on attrs.
+        # If we concat, we might lose individual attrs.
+
+        # Let's try to convert units PER DATASET before merging
+        # But _check_ts_xrds_unit logic is a bit coupled.
+        # Let's rely on standard hydrodataset behavior which tries to standardize to mm/d or m3/s.
+
+        if x_merged is not None and y_merged is not None:
+            # Just ensures variable names match what's expected
+            pass
+
+        # Check if any flow variable exists in y dataset and convert units if needed
+        # We try to use streamflow name attribute or fallback to target cols
+        flow_var_name = getattr(self, "streamflow_name", None)
+        if flow_var_name is None:
+            # fallback: check if any target variable is in y
+            for target_var in self.data_cfgs["target_cols"]:
+                if y_merged is not None and target_var in y_merged:
+                    flow_var_name = target_var
+                    break
+
+        if flow_var_name and y_merged is not None and flow_var_name in y_merged:
+            # We need to read area for ALL basins in y_merged to perform conversion
+            # self.data_source is now a MultiDataSourceWrapper which handles this
+            area = self.data_source.read_area(y_merged["basin"].values.tolist())
+
+            # Use precipitation unit as target unit if available
+            prcp_unit = "mm/d"
+            if x_merged is not None and self.data_cfgs.get("relevant_cols"):
+                prcp_name = self.precipitation_name
+                if prcp_name in x_merged:
+                    prcp_unit = x_merged[prcp_name].attrs.get("units", "mm/d")
+
+            if area is not None:
+                y_merged.update(
+                    streamflow_unit_conv(
+                        y_merged[[flow_var_name]], area, target_unit=prcp_unit
+                    )
+                )
+        # Validate and sync basin IDs
+        # We must ensure self.t_s_dict["sites_id"] matches the basins actually present in the merged data
+        # created by xarray. The order and count must match for BaseDataset lookup table generation.
+        loaded_basins = None
+        if y_merged is not None:
+            loaded_basins = y_merged["basin"].values.astype(str).tolist()
+        elif x_merged is not None:
+            loaded_basins = x_merged["basin"].values.astype(str).tolist()
+
+        if loaded_basins is not None:
+            if len(loaded_basins) != len(self.t_s_dict["sites_id"]):
+                print(
+                    f"Warning: Requested {len(self.t_s_dict['sites_id'])} stations, but only {len(loaded_basins)} were successfully loaded. Updating sites_id list."
+                )
+                # Update the list in place
+                self.t_s_dict["sites_id"] = loaded_basins
+            else:
+                # Ensure order matches if count is same (though xarray concat usually preserves order of concat/input,
+                # but merged might reorder if not aligned? Let's force update to be safe)
+                self.t_s_dict["sites_id"] = loaded_basins
+
+        # Convert to DataArrays with units
+        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
+            x_merged, y_merged, c_merged
+        )
+
+        return {
+            "relevant_cols": (
+                x_origin.transpose("basin", "time", "variable")
+                if x_origin is not None
+                else None
+            ),
+            "target_cols": (
+                y_origin.transpose("basin", "time", "variable")
+                if y_origin is not None
+                else None
+            ),
+            "constant_cols": (
+                c_origin.transpose("basin", "variable")
+                if c_origin is not None
+                else None
+            ),
+        }
+
+
+class MultiSourceAEFDataset(MultiSourceDataset):
+    """
+    仿照MultiSourceDataset编写的一个类，
+    读取x和y即动态属性和观测值的方式不变（继承自MultiSourceDataset），
+    读取c即静态属性改为从指定路径的csv中读取。
+    source_cfgs["attributes_paths"] 应该是一个字典: {dataset_name: csv_path}，
+    为每个数据集指定对应的静态属性CSV文件。
+    CSV文件格式第一列为流域id（hru_id），第一行是列名。
+    """
+
+    def _read_xyc(self):
+        # 1. 暂存并清空 constant_cols 配置，避免父类 _read_xyc 方法从数据源读取静态属性
+        original_constant_cols = self.data_cfgs.get("constant_cols")
+        self.data_cfgs["constant_cols"] = None
+
+        try:
+            # 2. 调用父类方法读取 X 和 Y
+            # 父类会处理 ID 对齐、多源数据读取和合并
+            data_dict = super()._read_xyc()
+        finally:
+            # 3. 恢复 constant_cols 配置
+            self.data_cfgs["constant_cols"] = original_constant_cols
+
+        # 4. 获取属性文件配置字典
+        attributes_paths = self.data_cfgs.get("source_cfgs", {}).get("attributes_paths")
+        if not attributes_paths or not isinstance(attributes_paths, dict):
+            raise ValueError(
+                "MultiSourceCsvStaticDataset requires 'attributes_paths' dict in source_cfgs mapping dataset names to csv paths"
+            )
+
+        # 5. 对此时的 basins 进行分组（确定属于哪个数据集）
+        # 此时的 sites_id 是经过父类 _read_xyc 可能更新过的（剔除了无数据的basin）
+        target_ids = self.t_s_dict["sites_id"]
+        datasets_config = self.data_cfgs.get("source_cfgs", {}).get("datasets", None)
+        reader = MultiDatasetReader(datasets=datasets_config)
+        unique_ids_map, _ = reader.get_global_unique_ids()
+
+        ids_by_dataset = {}
+        for gage_id in target_ids:
+            if gage_id in unique_ids_map:
+                ds_name = unique_ids_map[gage_id]
+                if ds_name not in ids_by_dataset:
+                    ids_by_dataset[ds_name] = []
+                ids_by_dataset[ds_name].append(gage_id)
+            else:
+                # 如果找不到归属的数据集，打印警告
+                print(
+                    f"Warning: ID {gage_id} not found in any configured dataset for attribute loading."
+                )
+
+        c_list = []
+
+        # 6. 遍历每个数据集读取 CSV
+        for ds_name, ids in ids_by_dataset.items():
+            csv_path = attributes_paths.get(ds_name)
+            if not csv_path:
+                print(
+                    f"Error: No attributes CSV path defined for dataset {ds_name} which contains {len(ids)} basins."
+                )
+                raise ValueError(
+                    f"Missing attributes_paths entry for dataset: {ds_name}"
+                )
+
+            # 读取 CSV
+            df = pd.read_csv(csv_path)
+            # 仿照 AEFDataset 的逻辑，将 ID 转换为去掉前导零的字符串
+            # 假设第一列是 ID
+            id_col = df.columns[0]
+            df[id_col] = df[id_col].astype(int).astype(str).str.lstrip("0")
+            df.set_index(id_col, inplace=True)
+
+            # 对请求的 ids 也做同样的处理
+            target_ids_stripped = [str(gid).lstrip("0") for gid in ids]
+
+            # 筛选 Basin
+            # reindex 会引入 NaN 如果有缺失 ID
+            df_subset = df.reindex(target_ids_stripped)
+
+            # 恢复原始 ID 作为索引
+            df_subset.index = ids
+
+            # 检查是否有完全缺失的行
+            if df_subset.isnull().all(axis=1).any():
+                missing_ids = df_subset.index[df_subset.isnull().all(axis=1)].tolist()
+                print(
+                    f"Warning: {len(missing_ids)} basins in dataset {ds_name} match no static attributes in CSV (first 5: {missing_ids[:5]})"
+                )
+
+            # 选择列
+            if original_constant_cols:
+                # 这种方式会保留所有 original_constant_cols，缺失的列会变成 NaN
+                # 如果不需要严格对齐，可以用 intersection
+                # df_subset = df_subset[df_subset.columns.intersection(original_constant_cols)]
+                # 但一般要求所有属性都存在，故直接 reindex
+                df_subset = df_subset.reindex(columns=original_constant_cols)
+
+            # 转换为 Dataset/DataArray
+            df_subset.index.name = "basin"
+            ds_c = xr.Dataset.from_dataframe(df_subset)
+
+            # 设置默认单位
+            for var in ds_c.data_vars:
+                ds_c[var].attrs["units"] = "dimensionless"
+
+            c_da_part = self._trans2da_and_setunits(ds_c)
+            # 确保维度顺序 (basin, variable)
+            if "basin" in c_da_part.dims and "variable" in c_da_part.dims:
+                c_da_part = c_da_part.transpose("basin", "variable")
+
+            c_list.append(c_da_part)
+
+        # 7. 合并所有数据集的静态属性
+        if not c_list:
+            data_dict["constant_cols"] = None
+        else:
+            # 按 basin 维度合并
+            c_merged = xr.concat(c_list, dim="basin")
+
+            # 8. 重新按照 target_ids 排序，确保与 X, Y 顺序一致
+            if "basin" in c_merged.coords:
+                # 必须确保所有 basin 都在 merged 中（reindexing 会引入 NaN 如果没有）
+                c_merged = c_merged.sel(basin=target_ids)
+
+            data_dict["constant_cols"] = c_merged
+
+        return data_dict
+
+
 class FlexibleDataset(BaseDataset):
     """A dataset whose datasources are from multiple sources according to the configuration"""
 
@@ -1238,26 +1875,55 @@ class Seq2SeqDataset(BaseDataset):
     def __init__(self, cfgs: dict, is_tra_val_te: str):
         super(Seq2SeqDataset, self).__init__(cfgs, is_tra_val_te)
 
-    def _read_xyc(self):
-        """
-        NOTE: the lookup table is same as BaseDataset,
-        but the data retrieved from datasource should has one more period,
-        because we include the concepts of start and end moment of the period
+    def _read_xyc_period(self, start_date, end_date):
+        """Override template method to adjust start date for Seq2Seq requirements
+
+        NOTE: Seq2SeqDataset needs one more time period at the beginning
+        because it includes the concepts of start and end moment of the period.
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
 
         Returns
         -------
-        tuple[xr.Dataset, xr.Dataset, xr.Dataset]
-            x, y, c data
+        dict
+            Dictionary containing relevant_cols, target_cols, and constant_cols data
         """
-        start_date = self.t_s_dict["t_final_range"][0]
-        end_date = self.t_s_dict["t_final_range"][1]
         interval = self.data_cfgs["min_time_interval"]
         time_unit = self.data_cfgs["min_time_unit"]
 
+        # Adjust start date by subtracting one interval
+        adjusted_start_date = self._adjust_start_date_by_interval(
+            start_date, interval, time_unit
+        )
+
+        return self._read_xyc_specified_time(adjusted_start_date, end_date)
+
+    def _adjust_start_date_by_interval(self, start_date, interval, time_unit):
+        """Adjust start date by subtracting specified interval
+
+        Parameters
+        ----------
+        start_date : str
+            Original start date string
+        interval : int
+            Time interval to subtract
+        time_unit : str
+            Time unit ('h' for hours, 'D' for days)
+
+        Returns
+        -------
+        str
+            Adjusted start date string
+        """
         # Determine the date format
         date_format = detect_date_format(start_date)
 
-        # Adjust the end date based on the time unit
+        # Adjust the start date based on the time unit
         start_date_dt = datetime.strptime(start_date, date_format)
         if time_unit == "h":
             adjusted_start_date = (start_date_dt - timedelta(hours=interval)).strftime(
@@ -1269,7 +1935,8 @@ class Seq2SeqDataset(BaseDataset):
             )
         else:
             raise ValueError(f"Unsupported time unit: {time_unit}")
-        return self._read_xyc_specified_time(adjusted_start_date, end_date)
+
+        return adjusted_start_date
 
     def _selected_time_points_for_denorm(self):
         # because we have time start and end for each period, similar reason to why we need to override _read_xyc
@@ -1393,10 +2060,11 @@ class HFDataset(BaseDataset):
     def streamflow_input_name(self):
         return self.data_cfgs["relevant_cols"][-1]
 
-    def _read_xyc_specified_time(self, start_date, end_date):
-        """Read x, y, c data from data source with specified time range
-        We set this function as sometimes we need adjust the time range for some specific dataset,
-        such as seq2seq dataset (it needs one more period for the end of the time range)
+    def _read_xyc_period(self, start_date, end_date):
+        """Override template method to handle HFDataset's specific time adjustment needs
+
+        HFDataset needs to adjust forcing data time range (extend backward) while keeping
+        target data time range unchanged for high-frequency forecasting scenarios.
 
         Parameters
         ----------
@@ -1404,57 +2072,63 @@ class HFDataset(BaseDataset):
             start time
         end_date : str
             end time
+
+        Returns
+        -------
+        dict
+            Dictionary containing relevant_cols, target_cols, and constant_cols data
         """
+        # Calculate adjusted start date for forcing data
         date_format = detect_date_format(start_date)
         time_unit = self.data_cfgs["min_time_unit"]
         start_date_dt = datetime.strptime(start_date, date_format)
+
         if time_unit == "h":
             adjusted_start_date = (start_date_dt - timedelta(hours=1)).strftime(
                 date_format
             )
-            adjusted_start_date_y = (
-                start_date_dt
-                + timedelta(hours=self.horizon * self.data_cfgs["min_time_interval"])
-            ).strftime(date_format)
         elif time_unit == "D":
             adjusted_start_date = (
                 start_date_dt - timedelta(days=self.data_cfgs["min_time_interval"])
             ).strftime(date_format)
-            adjusted_start_date_y = (
-                start_date_dt
-                + timedelta(days=self.horizon * self.data_cfgs["min_time_interval"])
-            ).strftime(date_format)
         else:
             raise ValueError(f"Unsupported time unit: {time_unit}")
+
+        # Read forcing data with adjusted start date
         data_forcing_ds_ = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             [adjusted_start_date, end_date],
             self.data_cfgs["relevant_cols"],
         )
-        # y
+
+        # Read target data with original time range
         data_output_ds_ = self.data_source.read_ts_xrdataset(
             self.t_s_dict["sites_id"],
             [start_date, end_date],
             self.data_cfgs["target_cols"],
         )
-        if isinstance(data_output_ds_, dict) or isinstance(data_forcing_ds_, dict):
-            # this means the data source return a dict with key as time_unit
-            # in this BaseDataset, we only support unified time range for all basins, so we chose the first key
-            # TODO: maybe this could be refactored better
-            data_forcing_ds_ = data_forcing_ds_[list(data_forcing_ds_.keys())[0]]
-            data_output_ds_ = data_output_ds_[list(data_output_ds_.keys())[0]]
+
+        # Handle dict format data sources (time_unit as key)
+        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
+        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
+
+        # Process unit conversion
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
             data_forcing_ds_, data_output_ds_
         )
-        # c
+
+        # Read attribute data
         data_attr_ds = self.data_source.read_attr_xrdataset(
             self.t_s_dict["sites_id"],
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
+
+        # Convert to DataArray with units
         x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
             data_forcing_ds, data_output_ds, data_attr_ds
         )
+
         return {
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
             "target_cols": y_origin.transpose("basin", "time", "variable"),
@@ -1995,3 +2669,1862 @@ class FloodEventDplDataset(FloodEventDataset):
         y_train = torch.from_numpy(y_origin_with_mask).float()
 
         return (x_train, z_train), y_train
+
+
+class GNNDataset(FloodEventDataset):
+    """Optimized GNN Dataset for hydrological Graph Neural Network tasks.
+
+    This dataset extends FloodEventDataset to support Graph Neural Networks by:
+    1. Integrating station data via StationHydroDataset
+    2. Processing adjacency matrices with flexible edge weight and attribute handling
+    3. Merging basin-level features (xc) with station-level features (sxc) per node
+    4. Returning GNN-ready format: (sxc, y, edge_index, edge_attr)
+
+    Key Features:
+    - Leverages BaseDataset's universal normalization and NaN handling for station data
+    - Supports flexible edge weight selection (specify column or default to binary)
+    - Always constructs edge_index and edge_attr for each basin
+    - Merges basin and station features to create comprehensive node representations
+
+    Configuration keys in data_cfgs.gnn_cfgs:
+    - station_cols: List of station variable names to load
+    - station_rm_nan: Whether to remove/interpolate NaN values (default: True)
+    - station_scaler_type: Scaler type for station data normalization
+    - use_adjacency: Whether to load adjacency matrices (default: True)
+    - adjacency_src_col: Source node column name (default: "ID")
+    - adjacency_dst_col: Destination node column name (default: "NEXTDOWNID")
+    - adjacency_edge_attr_cols: Columns for edge attributes (default: ["dist_hdn", "elev_diff", "strm_slope"])
+    - adjacency_weight_col: Column to use as edge weights (default: None for binary weights)
+    - return_edge_weight: Whether to return edge_weight instead of edge_attr (default: False)
+
+    edge_attr : torch.Tensor
+        Edge attributes [num_edges, edge_attr_dim]
+    """
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        # Extract and extend configuration for station data
+        self._extend_data_cfgs_for_stations(cfgs)
+
+        # Store GNN-specific settings
+        self.gnn_cfgs = cfgs["data_cfgs"].get("station_cfgs", {})
+
+        # Initialize parent (this will call BaseDataset._load_data() automatically)
+        super(GNNDataset, self).__init__(cfgs, is_tra_val_te)
+
+        # Load adjacency data after main data processing
+        self.adjacency_data = self._load_adjacency_data()
+
+    def _extend_data_cfgs_for_stations(self, cfgs):
+        """Extend data configuration to include station data as a standard data type
+
+        This allows BaseDataset to handle station data using its universal processing pipeline.
+        """
+        data_cfgs = cfgs["data_cfgs"]
+        gnn_cfgs = data_cfgs.get("station_cfgs", {})
+
+        # Add station_cols to data configuration if specified（这个不见得非得有gnn_cfgs,正常应该是data_cfgs里面继续扩充的）
+        if gnn_cfgs.get("station_cols"):
+            data_cfgs["station_cols"] = gnn_cfgs["station_cols"]
+            # Add station data processing settings to leverage BaseDataset pipeline
+            data_cfgs["station_rm_nan"] = gnn_cfgs.get("station_rm_nan", True)
+
+    def _read_xyc(self):
+        """Read X, Y, C data including station data using unified approach
+
+        This is the ONLY method we need to override from BaseDataset.
+        All other processing (normalization, NaN handling, array conversion)
+        is handled automatically by BaseDataset's pipeline.
+        """
+        # Read standard basin data using parent's logic
+        data_dict = super(GNNDataset, self)._read_xyc()
+
+        # Add station data if configured
+        if self.data_cfgs.get("station_cols"):
+            station_data = self._read_all_station_data()
+            data_dict["station_cols"] = station_data
+
+        return data_dict
+
+    def _read_all_station_data(self):
+        """Read station data for all basins using StationHydroDataset
+
+        Creates xr.DataArray with the same structure as other data types
+        so that BaseDataset can process it using the universal pipeline.
+        """
+        if not hasattr(self.data_source, "get_stations_by_basin"):
+            LOGGER.warning(
+                "Data source does not support station data, skipping station data reading"
+            )
+            return None
+
+        # Convert basin IDs from "songliao_21100150" to "21100150" for StationHydroDataset
+        basin_ids_with_prefix = self.t_s_dict["sites_id"]
+        basin_ids = self._convert_basin_to_station_ids(basin_ids_with_prefix)
+        t_range = self.t_s_dict["t_final_range"]
+
+        # Collect station data for all basins
+        all_station_data = []
+
+        for basin_id in basin_ids:
+            basin_station_data = self._read_basin_station_data(basin_id, t_range)
+            all_station_data.append(basin_station_data)
+
+        # Combine into unified xr.DataArray structure
+        if all_station_data and any(data is not None for data in all_station_data):
+            combined_station_data = self._combine_station_data_arrays(
+                all_station_data, basin_ids
+            )
+            return combined_station_data
+        else:
+            return None
+
+    def _read_basin_station_data(self, basin_id, t_range):
+        """Read station data for a single basin, supporting multi-period case"""
+        try:
+            # Get stations for this basin
+            station_ids = self.data_source.get_stations_by_basin(basin_id)
+
+            if not station_ids:
+                return None
+
+            # Handle multi-period case
+            if isinstance(t_range[0], (list, tuple)):
+                # Validate that each period has exactly 2 elements (start and end date)
+                for i, period in enumerate(t_range):
+                    if not isinstance(period, (list, tuple)) or len(period) != 2:
+                        raise ValueError(
+                            f"Period {i} must be a list/tuple with exactly 2 elements (start_date, end_date), got: {period}"
+                        )
+
+                # Multi-period case - read and concatenate data
+                all_station_data = None
+
+                for start_date, end_date in t_range:
+                    period_station_data = self.data_source.read_station_ts_xrdataset(
+                        station_id_lst=station_ids,
+                        t_range=[start_date, end_date],
+                        var_lst=self.data_cfgs["station_cols"],
+                        time_units=self.gnn_cfgs.get("station_time_units", ["1D"]),
+                    )
+
+                    if all_station_data is None:
+                        all_station_data = period_station_data
+                    else:
+                        all_station_data = xr.concat(
+                            [all_station_data, period_station_data], dim="time"
+                        )
+
+                station_data = all_station_data
+            else:
+                # Single period case (existing behavior)
+                station_data = self.data_source.read_station_ts_xrdataset(
+                    station_id_lst=station_ids,
+                    t_range=t_range,
+                    var_lst=self.data_cfgs["station_cols"],
+                    time_units=self.gnn_cfgs.get("station_time_units", ["1D"]),
+                )
+
+            return self._process_station_xr_data(station_data)
+
+        except Exception as e:
+            LOGGER.warning(f"Could not read station data for basin {basin_id}: {e}")
+            return None
+
+    def _process_station_xr_data(self, station_data):
+        """Process xarray station data into standard format"""
+        if not station_data:
+            return None
+
+        # Handle multiple time units
+        if isinstance(station_data, dict):
+            # Use first available time unit
+            time_unit = list(station_data.keys())[0]
+            station_ds = station_data[time_unit]
+        else:
+            station_ds = station_data
+
+        if not station_ds or not station_ds.sizes:
+            return None
+
+        # Convert to DataArray with standard format
+        if isinstance(station_ds, xr.Dataset):
+            station_da = station_ds.to_array(dim="variable")
+            # Transpose to [time, station, variable]
+            station_da = station_da.transpose("time", "station", "variable")
+        else:
+            station_da = station_ds
+
+        return station_da
+
+    def _combine_station_data_arrays(self, station_data_list, basin_ids):
+        """Combine station data from all basins into a unified structure
+
+        Creates an xr.DataArray with dimensions [basin, time, station, variable]
+        similar to how other data types are structured in BaseDataset.
+        """
+        # Find common time dimension and data structure
+        valid_data = [data for data in station_data_list if data is not None]
+        if not valid_data:
+            return None
+
+        # Use time dimension from first valid dataset
+        common_time = valid_data[0].coords["time"]
+
+        # Find maximum number of stations and variables across all basins
+        max_stations = max(data.sizes.get("station", 0) for data in valid_data)
+        max_variables = max(data.sizes.get("variable", 0) for data in valid_data)
+
+        # Create unified data array
+        n_basins = len(basin_ids)
+        n_time = len(common_time)
+
+        # Initialize with NaN (BaseDataset will handle NaN processing)
+        unified_data = np.full(
+            (n_basins, n_time, max_stations, max_variables), np.nan, dtype=np.float32
+        )
+
+        # Fill with actual data
+        for i, (basin_id, station_data) in enumerate(zip(basin_ids, station_data_list)):
+            if station_data is not None:
+                # Align time dimension
+                try:
+                    aligned_data = station_data.reindex(
+                        time=common_time, method="nearest"
+                    )
+                    data_array = aligned_data.values
+
+                    # Insert into unified array
+                    n_stations_basin = data_array.shape[1]
+                    n_vars_basin = data_array.shape[2]
+                    unified_data[i, :, :n_stations_basin, :n_vars_basin] = data_array
+                except Exception as e:
+                    LOGGER.warning(
+                        f"Failed to align station data for basin {basin_id}: {e}"
+                    )
+                    continue
+
+        # Create xr.DataArray with proper coordinates
+        station_coords = [f"station_{j}" for j in range(max_stations)]
+        variable_coords = self.data_cfgs["station_cols"][:max_variables]
+
+        station_da = xr.DataArray(
+            unified_data,
+            dims=["basin", "time", "station", "variable"],
+            coords={
+                "basin": basin_ids,
+                "time": common_time,
+                "station": station_coords,
+                "variable": variable_coords,
+            },
+        )
+
+        return station_da
+
+    def _load_adjacency_data(self):
+        """Load and process adjacency data from .nc files
+
+        Returns
+        -------
+        dict
+            Dictionary containing edge_index, edge_attr for each basin
+        """
+        if not self.gnn_cfgs.get("use_adjacency", True):
+            return None
+
+        if not hasattr(self.data_source, "read_adjacency_xrdataset"):
+            LOGGER.warning("Data source does not support adjacency data")
+            return None
+
+        adjacency_data = {}
+        # basin_ids = self.t_s_dict["sites_id"]
+        # Convert basin IDs from "songliao_21100150" to "21100150" for StationHydroDataset
+        basin_ids_with_prefix = self.t_s_dict["sites_id"]
+        basin_ids = self._convert_basin_to_station_ids(basin_ids_with_prefix)
+
+        for basin_id in basin_ids:
+            try:
+                # Read adjacency data from .nc file
+                adj_df = self.data_source.read_adjacency_xrdataset(basin_id)
+
+                if adj_df is None:
+                    LOGGER.warning(
+                        f"No adjacency data for basin {basin_id}, using self-loops"
+                    )
+                    adjacency_data[basin_id] = self._create_self_loop_adjacency(
+                        basin_id
+                    )
+                else:
+                    # Let _process_adjacency_dataframe handle the format checking and processing
+                    adjacency_data[basin_id] = self._process_adjacency_dataframe(
+                        adj_df, basin_id
+                    )
+
+            except Exception as e:
+                LOGGER.warning(
+                    f"Failed to load adjacency data for basin {basin_id}: {e}"
+                )
+                adjacency_data[basin_id] = self._create_self_loop_adjacency(basin_id)
+
+        return adjacency_data
+
+    def _process_adjacency_dataframe(self, adj_df, basin_id):
+        """Process adjacency DataFrame into edge_index and edge_attr tensors
+
+        Standard GNN processing: extract edges and their attributes from DataFrame or xarray Dataset.
+
+        Parameters
+        ----------
+        adj_df : pd.DataFrame or xr.Dataset
+            Adjacency DataFrame/Dataset with columns like ID, NEXTDOWNID, dist_hdn, elev_diff, strm_slope
+        basin_id : str
+            Basin identifier
+
+        Returns
+        -------
+        dict
+            Dictionary containing edge_index, edge_attr, edge_weight, num_nodes
+        """
+        import torch
+        import pandas as pd
+        import xarray as xr
+        import numpy as np
+
+        # Convert xarray Dataset to pandas DataFrame if needed
+        if isinstance(adj_df, xr.Dataset):
+            try:
+                # Convert xarray Dataset to pandas DataFrame
+                adj_df = adj_df.to_dataframe().reset_index()
+                # LOGGER.info(f"Basin {basin_id}: Converted xarray Dataset to DataFrame with shape {adj_df.shape}")
+                # LOGGER.info(f"Basin {basin_id}: DataFrame columns = {list(adj_df.columns)}")
+            except Exception as e:
+                LOGGER.error(
+                    f"Basin {basin_id}: Failed to convert xarray Dataset to DataFrame: {e}"
+                )
+                return self._create_self_loop_adjacency(basin_id)
+
+        # Configuration (simplified)
+        src_col = self.gnn_cfgs.get("adjacency_src_col", "ID")
+        dst_col = self.gnn_cfgs.get("adjacency_dst_col", "NEXTDOWNID")
+        edge_attr_cols = self.gnn_cfgs.get(
+            "adjacency_edge_attr_cols", ["dist_hdn", "elev_diff", "strm_slope"]
+        )
+        weight_col = self.gnn_cfgs.get("adjacency_weight_col", None)  # 新增：指定权重列
+        # Check if required columns exist
+        if src_col not in adj_df.columns:
+            LOGGER.warning(
+                f"Basin {basin_id}: Source column '{src_col}' not found in adjacency data. Available columns: {list(adj_df.columns)}"
+            )
+            return self._create_self_loop_adjacency(basin_id)
+
+        if dst_col not in adj_df.columns:
+            LOGGER.warning(
+                f"Basin {basin_id}: Destination column '{dst_col}' not found in adjacency data. Available columns: {list(adj_df.columns)}"
+            )
+            return self._create_self_loop_adjacency(basin_id)
+
+        # Clean and convert numeric columns to proper dtypes in batch
+        # Handle string "nan" values that may come from NetCDF files
+        numeric_cols = [
+            col
+            for col in edge_attr_cols + ([weight_col] if weight_col else [])
+            if col in adj_df.columns
+        ]
+        if numeric_cols:
+            # Batch replace string "nan" with actual NaN and convert to numeric
+            adj_df[numeric_cols] = adj_df[numeric_cols].replace(
+                ["nan", "NaN", "NAN"], np.nan
+            )
+            adj_df[numeric_cols] = adj_df[numeric_cols].apply(
+                pd.to_numeric, errors="coerce"
+            )
+            LOGGER.debug(
+                f"Basin {basin_id}: Converted {len(numeric_cols)} numeric columns in batch"
+            )
+
+        # Create comprehensive node mapping including all stations in the basin
+        # First get all nodes that appear in adjacency matrix (connected nodes)
+        connected_nodes = set(adj_df[src_col].dropna()) | set(adj_df[dst_col].dropna())
+
+        # Then get all stations in this basin (including isolated nodes)
+        try:
+            if hasattr(self.data_source, "get_stations_by_basin"):
+                all_basin_stations = self.data_source.get_stations_by_basin(basin_id)
+                if all_basin_stations:
+                    # Convert station IDs to strings to match adjacency data format
+                    all_basin_nodes = set(
+                        str(station_id) for station_id in all_basin_stations
+                    )
+                    # Combine connected nodes with all basin nodes
+                    all_nodes = connected_nodes | all_basin_nodes
+                    isolated_nodes = all_basin_nodes - connected_nodes
+                    if isolated_nodes:
+                        LOGGER.info(
+                            f"Basin {basin_id}: Found {len(isolated_nodes)} isolated nodes: {isolated_nodes}"
+                        )
+                else:
+                    all_nodes = connected_nodes
+            else:
+                # Fallback to only connected nodes if station data unavailable
+                all_nodes = connected_nodes
+        except Exception as e:
+            LOGGER.warning(
+                f"Basin {basin_id}: Failed to get all basin stations: {e}, using connected nodes only"
+            )
+            all_nodes = connected_nodes
+
+        if len(all_nodes) == 0:
+            LOGGER.warning(f"Basin {basin_id}: No valid nodes found")
+            return self._create_self_loop_adjacency(basin_id)
+
+        node_to_idx = {node: idx for idx, node in enumerate(sorted(all_nodes))}
+        LOGGER.info(
+            f"Basin {basin_id}: Found {len(all_nodes)} total nodes ({len(connected_nodes)} connected, {len(all_nodes) - len(connected_nodes)} isolated)"
+        )
+
+        # Extract edges and attributes using vectorized operations
+        # First process edges from adjacency matrix
+        valid_rows = adj_df.dropna(subset=[src_col, dst_col])
+        edges_from_adj = []
+        edge_attrs_from_adj = []
+        edge_weights_from_adj = []
+
+        if len(valid_rows) > 0:
+            # Vectorized edge creation from adjacency matrix
+            src_nodes = valid_rows[src_col].map(node_to_idx).values
+            dst_nodes = valid_rows[dst_col].map(node_to_idx).values
+            edges_from_adj = np.column_stack([src_nodes, dst_nodes])
+
+            # Vectorized edge attributes extraction
+            edge_attrs_list = []
+            for col in edge_attr_cols:
+                if col in valid_rows.columns:
+                    attrs = valid_rows[col].fillna(0.0).values
+                else:
+                    attrs = np.zeros(len(valid_rows))
+                edge_attrs_list.append(attrs)
+            edge_attrs_from_adj = (
+                np.column_stack(edge_attrs_list)
+                if edge_attrs_list
+                else np.zeros((len(valid_rows), len(edge_attr_cols)))
+            )
+
+            # Vectorized edge weights extraction
+            if weight_col and weight_col in valid_rows.columns:
+                edge_weights_from_adj = valid_rows[weight_col].fillna(1.0).values
+            else:
+                edge_weights_from_adj = np.ones(len(valid_rows))
+
+        # Add self-loops for isolated nodes (nodes not in adjacency matrix)
+        isolated_nodes = all_nodes - connected_nodes
+        edges_from_isolated = []
+        edge_attrs_from_isolated = []
+        edge_weights_from_isolated = []
+
+        if isolated_nodes:
+            # Create self-loops for isolated nodes
+            isolated_indices = [node_to_idx[node] for node in isolated_nodes]
+            edges_from_isolated = np.column_stack([isolated_indices, isolated_indices])
+            edge_attrs_from_isolated = np.zeros(
+                (len(isolated_nodes), len(edge_attr_cols))
+            )
+            edge_weights_from_isolated = np.ones(len(isolated_nodes))
+
+        # Combine edges from adjacency matrix and self-loops for isolated nodes
+        if len(edges_from_adj) > 0 and len(edges_from_isolated) > 0:
+            all_edges = np.vstack([edges_from_adj, edges_from_isolated])
+            all_edge_attrs = np.vstack([edge_attrs_from_adj, edge_attrs_from_isolated])
+            all_edge_weights = np.concatenate(
+                [edge_weights_from_adj, edge_weights_from_isolated]
+            )
+        elif len(edges_from_adj) > 0:
+            all_edges = edges_from_adj
+            all_edge_attrs = edge_attrs_from_adj
+            all_edge_weights = edge_weights_from_adj
+        elif len(edges_from_isolated) > 0:
+            all_edges = edges_from_isolated
+            all_edge_attrs = edge_attrs_from_isolated
+            all_edge_weights = edge_weights_from_isolated
+        else:
+            # Fallback: create self-loops for all nodes
+            # LOGGER.warning(f"Basin {basin_id}: No edges found, creating self-loops for all nodes")
+            n_nodes = len(all_nodes)
+            node_indices = list(range(n_nodes))
+            all_edges = np.column_stack([node_indices, node_indices])
+            all_edge_attrs = np.zeros((n_nodes, len(edge_attr_cols)))
+            all_edge_weights = np.ones(n_nodes)
+
+        # Convert to tensors
+        edge_index = torch.tensor(all_edges.T, dtype=torch.long).contiguous()
+        edge_attr = (
+            torch.tensor(all_edge_attrs, dtype=torch.float)
+            if all_edge_attrs is not None
+            else None
+        )
+        edge_weight = torch.tensor(all_edge_weights, dtype=torch.float)
+
+        return {
+            "edge_index": edge_index,
+            "edge_attr": edge_attr,
+            "edge_weight": edge_weight,  # 新增：单独的边权重张量
+            "num_nodes": len(all_nodes),
+            "node_to_idx": node_to_idx,
+            "weight_col": weight_col,  # 记录使用的权重列
+        }
+
+    def _create_self_loop_adjacency(self, basin_id):
+        """Create self-loop adjacency as fallback"""
+        import torch
+
+        try:
+            # Try to get station count for this basin
+            if hasattr(self.data_source, "get_stations_by_basin"):
+                station_ids = self.data_source.get_stations_by_basin(basin_id)
+                n_nodes = len(station_ids) if station_ids else 1
+            else:
+                n_nodes = 1
+        except Exception:
+            n_nodes = 1
+
+        # Create self-loops: edge_index = [[0,1,2,...], [0,1,2,...]]
+        edge_index = torch.arange(n_nodes).repeat(2, 1)
+
+        # Create default edge attributes
+        edge_attr_cols = self.gnn_cfgs.get(
+            "adjacency_edge_attr_cols", ["dist_hdn", "elev_diff", "strm_slope"]
+        )
+        if edge_attr_cols:
+            edge_attr = torch.zeros((n_nodes, len(edge_attr_cols)), dtype=torch.float)
+        else:
+            edge_attr = None
+
+        # Create default edge weights (1.0 for self-loops)
+        edge_weight = torch.ones(n_nodes, dtype=torch.float)
+
+        return {
+            "edge_index": edge_index,
+            "edge_attr": edge_attr,
+            "edge_weight": edge_weight,  # 新增：边权重
+            "num_nodes": n_nodes,
+            "node_to_idx": {i: i for i in range(n_nodes)},
+            "weight_col": None,  # 自环情况下没有指定权重列
+        }
+
+    # GNN-specific utility methods
+    def get_station_data(self, basin_idx):
+        """Get station data for a specific basin
+
+        Since station data is now processed by BaseDataset pipeline,
+        it's available as self.station_cols (converted to numpy array).
+        """
+        if hasattr(self, "station_cols") and self.station_cols is not None:
+            return self.station_cols[basin_idx]
+        return None
+
+    def get_adjacency_data(self, basin_idx):
+        """Get adjacency data for a specific basin
+
+        Returns
+        -------
+        dict or None
+            Dictionary containing edge_index, edge_attr, edge_weight, etc. or None
+        """
+        if self.adjacency_data is None:
+            return None
+
+        # Get the specific basin ID for this basin index
+        basin_id_with_prefix = self.t_s_dict["sites_id"][basin_idx]
+        # Convert single basin ID to station ID (without prefix)
+        basin_id = self._convert_basin_to_station_ids([basin_id_with_prefix])[0]
+        return self.adjacency_data.get(basin_id)
+
+    def get_edge_weight(self, basin_idx):
+        """Get edge weights for a specific basin
+
+        Parameters
+        ----------
+        basin_idx : int
+            Basin index
+
+        Returns
+        -------
+        torch.Tensor or None
+            Edge weights tensor [num_edges] or None
+        """
+        adjacency_data = self.get_adjacency_data(basin_idx)
+        if adjacency_data is not None:
+            return adjacency_data.get("edge_weight")
+        return None
+
+    def _convert_basin_to_station_ids(self, basin_ids):
+        """Convert basin IDs (with prefix) to station IDs (without prefix) for StationHydroDataset
+
+        Parameters
+        ----------
+        basin_ids : list
+            List of basin IDs with prefix (e.g., ["songliao_21100150"])
+
+        Returns
+        -------
+        list
+            List of station IDs without prefix (e.g., ["21100150"])
+        """
+        station_ids = []
+        for basin_id in basin_ids:
+            # Remove common prefixes
+            if "_" in basin_id:
+                # Extract the part after the last underscore
+                station_id = basin_id.split("_")[-1]
+            else:
+                # If no underscore, use the original ID
+                station_id = basin_id
+            station_ids.append(station_id)
+        return station_ids
+
+    def _convert_station_to_basin_ids(self, station_ids, prefix="songliao"):
+        """Convert station IDs (without prefix) to basin IDs (with prefix) for consistency
+
+        Parameters
+        ----------
+        station_ids : list
+            List of station IDs without prefix (e.g., ["21100150"])
+        prefix : str
+            Prefix to add (default: "songliao")
+
+        Returns
+        -------
+        list
+            List of basin IDs with prefix (e.g., ["songliao_21100150"])
+        """
+        basin_ids = []
+        for station_id in station_ids:
+            basin_id = f"{prefix}_{station_id}"
+            basin_ids.append(basin_id)
+        return basin_ids
+
+    def __getitem__(self, item: int):
+        """Get one sample with GNN-specific data format.
+
+        This method merges basin-level features (xc) into each station node's
+        features (sxc), so each node's input includes both station and basin
+        attributes.
+
+        Args:
+            item: The index of the sample to retrieve.
+
+        Returns:
+            A tuple of (sxc, y, edge_index, edge_weight) where:
+            - sxc: Station features merged with basin features.
+                   Shape: [num_stations, seq_length, feature_dim]
+            - y: Target values for prediction.
+                 Shape: [forecast_length, output_dim]
+            - edge_index: Edge connectivity.
+                          Shape: [2, num_edges]
+            - edge_weight: Edge weights.
+                           Shape: [num_edges]
+        """
+        import torch
+        import numpy as np
+
+        # Get basic sample from parent (includes flood mask if FloodEventDataset)
+        basic_sample = super(GNNDataset, self).__getitem__(item)
+
+        # Extract x, y from parent's output
+        if isinstance(basic_sample, tuple):
+            x, y = (
+                basic_sample  # x: [seq_length, x_feature_dim], y_full: [full_length, y_feature_dim]
+            )
+        elif isinstance(basic_sample, dict):
+            x = basic_sample.get("x")
+            y = basic_sample.get("y")
+        else:
+            raise ValueError(f"Unexpected basic_sample format: {type(basic_sample)}")
+
+        # Get sample metadata
+        basin, time_idx, actual_length = self.lookup_table[item]
+
+        # For GNN prediction, we only need the forecast part of y as target
+        # The structure should be: warmup + hindcast (rho) + forecast (horizon)
+        # We only predict the forecast (horizon) part
+
+        # Get station data for current basin and time window
+        station_data = self.get_station_data(basin)  # [time, station, variable]
+        adjacency_data = self.get_adjacency_data(basin)
+
+        # Extract station data for the time window (input sequence)
+        if station_data is not None:
+            # For station data, we need the input sequence (not just forecast part)
+            seq_end = time_idx + actual_length
+            sxc_raw = station_data[
+                time_idx:seq_end
+            ]  # [seq_length, num_stations, station_feature_dim]
+        else:
+            # If no station data, create dummy station data
+            LOGGER.warning(
+                f"No station data for basin {basin}, using single dummy station"
+            )
+            dummy_station_features = 1  # Number of dummy features
+            sxc_raw = np.zeros(
+                (actual_length, 1, dummy_station_features)
+            )  # [seq_length, 1, 1]
+
+        # Get basin-level features (xc) for merging
+        # x contains basin-level features, we need to replicate it for each station
+        if x is not None and x.ndim >= 2:
+            xc = x  # [seq_length, basin_feature_dim]
+            basin_feature_dim = xc.shape[-1]
+            seq_length, num_stations, station_feature_dim = sxc_raw.shape
+
+            # Replicate basin features for each station and concatenate with station features
+            # xc expanded: [seq_length, 1, basin_feature_dim] -> [seq_length, num_stations, basin_feature_dim]
+            xc_expanded = np.tile(xc[:, np.newaxis, :], (1, num_stations, 1))
+
+            # Concatenate station features with basin features
+            # sxc_temp: [seq_length, num_stations, station_feature_dim + basin_feature_dim]
+            sxc_temp = np.concatenate([sxc_raw, xc_expanded], axis=-1)
+
+            # Transpose to get desired shape: [num_stations, seq_length, feature_dim]
+            sxc = sxc_temp.transpose(1, 0, 2)
+        else:
+            # If no basin features, use only station features and transpose
+            # sxc: [num_stations, seq_length, station_feature_dim]
+            sxc = sxc_raw.transpose(1, 0, 2)
+
+        # Process adjacency data (GNN edge orientation handled here)
+        # Edge orientation logic: support 'upstream', 'downstream', 'bidirectional' (default: downstream)
+        edge_orientation = self.gnn_cfgs.get("edge_orientation", "downstream")
+        if adjacency_data is not None:
+            edge_index = adjacency_data["edge_index"]  # [2, num_edges]
+            edge_attr = adjacency_data[
+                "edge_attr"
+            ]  # [num_edges, edge_attr_dim] or None
+            edge_weight = adjacency_data.get("edge_weight")  # [num_edges]
+            # If edge_weight is None, fill with ones (all edges weight=1)
+            if edge_weight is None:
+                num_edges = edge_index.shape[1]
+                edge_weight = torch.ones(num_edges, dtype=torch.float)
+
+            # Edge orientation handling
+            if edge_orientation == "downstream":
+                # Reverse all edges: swap source and target
+                edge_index = edge_index[[1, 0], :]
+            elif edge_orientation == "bidirectional":
+                # Add reversed edges to make bidirectional
+                edge_index_rev = edge_index[[1, 0], :]
+                edge_index = torch.cat([edge_index, edge_index_rev], dim=1)
+                if edge_attr is not None:
+                    edge_attr = torch.cat([edge_attr, edge_attr], dim=0)
+                if edge_weight is not None:
+                    edge_weight = torch.cat([edge_weight, edge_weight], dim=0)
+            # else: downstream (default), do nothing
+
+        else:
+            # Default: self-loops for each station
+            num_stations = sxc.shape[
+                0
+            ]  # Now sxc is [num_stations, seq_length, feature_dim]
+            edge_index = torch.arange(num_stations).repeat(2, 1)
+            edge_attr = None
+            edge_weight = torch.ones(num_stations, dtype=torch.float)  # 默认权重为1
+
+        # Ensure edge_attr has proper shape
+        if edge_attr is None:
+            num_edges = edge_index.shape[1]
+            edge_attr_dim = len(
+                self.gnn_cfgs.get(
+                    "adjacency_edge_attr_cols", ["dist_hdn", "elev_diff", "strm_slope"]
+                )
+            )
+            edge_attr = torch.zeros((num_edges, edge_attr_dim), dtype=torch.float)
+
+        # Convert to tensors if needed
+        if not isinstance(sxc, torch.Tensor):
+            sxc = torch.tensor(sxc, dtype=torch.float)
+        if not isinstance(y, torch.Tensor):
+            y = torch.tensor(y, dtype=torch.float)
+
+        return sxc, y, edge_index, edge_weight  # edge_attr
+
+
+class AugmentedFloodEventDataset(FloodEventDataset):
+    """Dataset class for augmented flood event data with discontinuous time ranges.
+
+    This dataset is designed to handle flood event data that includes augmented
+    (generated) future data alongside historical data, where time ranges may be
+    discontinuous (e.g., historical data 1990-2010, then augmented data 2026+).
+
+    It connects to hydrodatasource.reader.floodevent.FloodEventDatasource
+    and uses the read_ts_xrdataset_augmented method to read augmented data.
+    """
+
+    def __init__(self, cfgs: dict, is_tra_val_te: str):
+        """Initialize AugmentedFloodEventDataset
+
+        Parameters
+        ----------
+        cfgs : dict
+            Configuration dictionary containing data_cfgs, training_cfgs, evaluation_cfgs
+        is_tra_val_te : str
+            One of 'train', 'valid', or 'test'
+        """
+        super(AugmentedFloodEventDataset, self).__init__(cfgs, is_tra_val_te)
+
+        if not hasattr(self.data_source, "read_ts_xrdataset_augmented"):
+            raise ValueError(
+                "Data source must support read_ts_xrdataset_augmented method"
+            )
+
+    def _read_xyc_period(self, start_date, end_date):
+        """Override template method to read augmented flood event data for a specific period
+
+        This method leverages the parent class's multi-period handling while using
+        augmented data reading methods for generated future data.
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+
+        Returns
+        -------
+        dict
+            Dictionary containing relevant_cols, target_cols, and constant_cols data
+        """
+        return self._read_xyc_specified_time_augmented(start_date, end_date)
+
+    def _read_xyc_specified_time_augmented(self, start_date, end_date):
+        """Read x, y, c data from both historical and augmented data sources
+
+        This method reads both historical observed data (using read_ts_xrdataset)
+        and augmented future data (using read_ts_xrdataset_augmented), then
+        concatenates them along the time dimension to provide a complete dataset.
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+
+        Returns
+        -------
+        dict
+            Dictionary containing relevant_cols, target_cols, and constant_cols data
+        """
+
+        # Read historical observed data using standard method
+        relevant_cols = self.data_cfgs.get("relevant_cols", ["rain"])
+        target_cols = self.data_cfgs.get("target_cols", ["inflow", "flood_event"])
+
+        try:
+            data_forcing_hist_ = self.data_source.read_ts_xrdataset(
+                self.t_s_dict["sites_id"],
+                [start_date, end_date],
+                relevant_cols,
+            )
+            data_output_hist_ = self.data_source.read_ts_xrdataset(
+                self.t_s_dict["sites_id"],
+                [start_date, end_date],
+                target_cols,
+            )
+
+            # Process historical data
+            data_forcing_hist_ = self._rm_timeunit_key(data_forcing_hist_)
+            data_output_hist_ = self._rm_timeunit_key(data_output_hist_)
+
+        except Exception as e:
+            LOGGER.info(f"无法读取历史数据，可能是时间范围不在历史数据中: {e}")
+            data_forcing_hist_ = None
+            data_output_hist_ = None
+
+        # Read augmented data using augmented method
+        try:
+            data_forcing_aug_ = self.data_source.read_ts_xrdataset_augmented(
+                self.t_s_dict["sites_id"],
+                [start_date, end_date],
+                relevant_cols,
+            )
+            data_output_aug_ = self.data_source.read_ts_xrdataset_augmented(
+                self.t_s_dict["sites_id"],
+                [start_date, end_date],
+                target_cols,
+            )
+
+            # Process augmented data
+            data_forcing_aug_ = self._rm_timeunit_key(data_forcing_aug_)
+            data_output_aug_ = self._rm_timeunit_key(data_output_aug_)
+
+        except Exception as e:
+            LOGGER.info(f"无法读取增强数据，可能是时间范围不在增强数据中: {e}")
+            data_forcing_aug_ = None
+            data_output_aug_ = None
+
+        # Combine historical and augmented data
+        data_forcing_ds = self._combine_historical_and_augmented_data(
+            data_forcing_hist_, data_forcing_aug_, "forcing"
+        )
+        data_output_ds = self._combine_historical_and_augmented_data(
+            data_output_hist_, data_output_aug_, "target"
+        )
+
+        # Check and process combined data
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds, data_output_ds
+        )
+
+        # Read constant/attribute data (same as parent class)
+        data_attr_ds = self.data_source.read_attr_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.data_cfgs["constant_cols"],
+            all_number=True,
+        )
+
+        # Convert to DataArray with units
+        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
+            data_forcing_ds, data_output_ds, data_attr_ds
+        )
+
+        return {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": (
+                c_origin.transpose("basin", "variable")
+                if c_origin is not None
+                else None
+            ),
+        }
+
+    def _combine_historical_and_augmented_data(self, hist_data, aug_data, data_type):
+        """Combine historical observed data and augmented generated data
+
+        This method concatenates historical and augmented data along the time dimension,
+        handling cases where data may be discontinuous or overlapping.
+
+        Parameters
+        ----------
+        hist_data : xr.Dataset or None
+            Historical observed data
+        aug_data : xr.Dataset or None
+            Augmented generated data
+        data_type : str
+            Type of data ("forcing" or "target") for logging purposes
+
+        Returns
+        -------
+        xr.Dataset
+            Combined dataset with historical and augmented data concatenated
+        """
+        import xarray as xr
+
+        # Handle cases where one or both data sources are None
+        if hist_data is None and aug_data is None:
+            raise ValueError(f"Both historical and augmented {data_type} data are None")
+        elif hist_data is None:
+            LOGGER.info(
+                f"No historical {data_type} data found, using only augmented data"
+            )
+            return aug_data
+        elif aug_data is None:
+            LOGGER.info(
+                f"No augmented {data_type} data found, using only historical data"
+            )
+            return hist_data
+
+        # Both datasets exist - need to combine them
+        try:
+            # Check if there's time overlap between datasets
+            hist_times = hist_data.time.values if "time" in hist_data.dims else []
+            aug_times = aug_data.time.values if "time" in aug_data.dims else []
+
+            if len(hist_times) == 0:
+                LOGGER.info(
+                    f"Historical {data_type} data has no time dimension, using only augmented data"
+                )
+                return aug_data
+            elif len(aug_times) == 0:
+                LOGGER.info(
+                    f"Augmented {data_type} data has no time dimension, using only historical data"
+                )
+                return hist_data
+
+            # Find overlap period
+            hist_start, hist_end = hist_times[0], hist_times[-1]
+            aug_start, aug_end = aug_times[0], aug_times[-1]
+
+            # Check for overlap
+            if hist_end < aug_start:
+                # No overlap - historical data ends before augmented data starts
+                LOGGER.info(
+                    f"No temporal overlap for {data_type} data, concatenating sequentially"
+                )
+                combined_data = xr.concat([hist_data, aug_data], dim="time")
+            elif aug_end < hist_start:
+                # No overlap - augmented data ends before historical data starts
+                LOGGER.info(
+                    f"Augmented {data_type} data precedes historical data, concatenating"
+                )
+                combined_data = xr.concat([aug_data, hist_data], dim="time")
+            else:
+                # There is overlap - need to handle carefully
+                LOGGER.info(
+                    f"Temporal overlap detected for {data_type} data, "
+                    f"merging with priority to historical data"
+                )
+
+                # Create time index for the full range
+                all_times = sorted(set(list(hist_times) + list(aug_times)))
+
+                # Reindex both datasets to the full time range
+                hist_reindexed = hist_data.reindex(time=all_times, method=None)
+                aug_reindexed = aug_data.reindex(time=all_times, method=None)
+
+                # Combine: use historical data where available, fill with augmented data
+                combined_data = hist_reindexed.where(
+                    ~hist_reindexed.isnull(), aug_reindexed
+                )
+
+            # Sort by time to ensure proper ordering
+            combined_data = combined_data.sortby("time")
+
+            LOGGER.info(
+                f"Successfully combined {data_type} data: "
+                f"historical shape {hist_data.dims if hasattr(hist_data, 'dims') else 'N/A'}, "
+                f"augmented shape {aug_data.dims if hasattr(aug_data, 'dims') else 'N/A'}, "
+                f"combined shape {combined_data.dims}"
+            )
+
+            return combined_data
+
+        except Exception as e:
+            LOGGER.error(f"Failed to combine {data_type} data: {e}")
+            # Fallback: prefer historical data if combination fails
+            LOGGER.warning(f"Falling back to historical {data_type} data only")
+            return hist_data
+
+    def _handle_discontinuous_time_ranges(self, data_dict, start_date, end_date):
+        """Handle discontinuous time ranges by filling gaps with NaN values
+
+        This method creates a continuous time index and fills missing periods
+        with NaN values, handling cases such as training data covers 1990-2010,
+        augmented data starts from 2026+, and test data covers 2011-2025.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Dictionary containing xarray data with keys 'relevant_cols',
+            'target_cols', 'constant_cols'
+        start_date : str
+            Overall start date for the continuous timeline
+        end_date : str
+            Overall end date for the continuous timeline
+
+        Returns
+        -------
+        dict
+            Dictionary with continuous time index and NaN-filled gaps
+        """
+        # Create continuous daily time index from start_date to end_date
+        try:
+            continuous_time = pd.date_range(start=start_date, end=end_date, freq="D")
+        except Exception as e:
+            LOGGER.warning(f"Failed to create continuous time index: {e}")
+            return data_dict
+
+        # Process each data type (relevant_cols, target_cols)
+        processed_dict = {}
+
+        for data_key in ["relevant_cols", "target_cols"]:
+            if data_key in data_dict and data_dict[data_key] is not None:
+                original_data = data_dict[data_key]
+
+                try:
+                    # Check if data has time dimension
+                    if "time" not in original_data.dims:
+                        LOGGER.warning(
+                            f"{data_key} has no time dimension, skipping time alignment"
+                        )
+                        processed_dict[data_key] = original_data
+                        continue
+
+                    # Reindex to continuous time, filling gaps with NaN
+                    aligned_data = original_data.reindex(
+                        time=continuous_time,
+                        method=None,  # No interpolation, fill with NaN
+                        fill_value=float("nan"),
+                    )
+
+                    processed_dict[data_key] = aligned_data
+
+                    # Log information about the alignment
+                    original_time_points = len(original_data.time)
+                    aligned_time_points = len(aligned_data.time)
+                    nan_points = aligned_data.isnull().sum().sum().values
+
+                    LOGGER.info(
+                        f"{data_key}: aligned from {original_time_points} to "
+                        f"{aligned_time_points} time points, with {nan_points} "
+                        f"NaN values for discontinuous periods"
+                    )
+
+                except Exception as e:
+                    LOGGER.error(
+                        f"Failed to align {data_key} to continuous timeline: {e}"
+                    )
+                    processed_dict[data_key] = original_data
+            else:
+                processed_dict[data_key] = data_dict.get(data_key)
+
+        # Constant cols don't need time alignment
+        processed_dict["constant_cols"] = data_dict.get("constant_cols")
+
+        return processed_dict
+
+
+class AEFDataset(BaseDataset):
+    def _read_xyc_specified_time(self, start_date, end_date):
+        """Read x, y, c data from data source with specified time range
+        We set this function as sometimes we need adjust the time range for some specific dataset,
+        such as seq2seq dataset (it needs one more period for the end of the time range)
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+        """
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["relevant_cols"],
+        )
+        # y
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["target_cols"],
+        )
+        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
+        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
+        )
+        # c
+        csv_path = os.environ.get("TORCHHYDRO_EMBEDDING_CSV") or r"/Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv"
+        df_embeddings = pd.read_csv(csv_path)
+        df_embeddings["hru_id"] = (
+            df_embeddings["hru_id"].astype(int).astype(str).str.lstrip("0")
+        )
+        target_ids = [site_id.lstrip("0") for site_id in self.t_s_dict["sites_id"]]
+        df_filtered = df_embeddings[df_embeddings["hru_id"].isin(target_ids)]
+        df_filtered = df_filtered.set_index("hru_id").reindex(target_ids).reset_index()
+        if len(df_filtered) != len(target_ids):
+            print(
+                "Warning: Not all basin IDs from self.t_s_dict['sites_id'] were found in the CSV."
+            )
+        df_with_index = df_filtered.set_index("hru_id")
+        embeddings_data = df_with_index.values
+        c_data_vars = {
+            col: (("basin"), embeddings_data[:, i])
+            for i, col in enumerate([f"A{j:02d}" for j in range(64)])
+        }
+        c_origin = xr.Dataset(c_data_vars, coords={"basin": self.t_s_dict["sites_id"]})
+
+        x_origin, y_origin, c_origin_with_unit = self._to_dataarray_with_unit(
+            data_forcing_ds, data_output_ds, c_origin
+        )
+        return {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": (
+                c_origin_with_unit.transpose("basin", "variable")
+                if c_origin_with_unit is not None
+                else None
+            ),
+        }
+
+
+class TgHydroDataset(BaseDataset):
+    def __init__(self, cfgs: dict, is_tra_val_te: str, upstream_indices: dict = None):
+        super().__init__(cfgs, is_tra_val_te)
+        self.upstream_indices = upstream_indices or {}
+        self.hindcast_length = self.rho
+        self.forecast_length = self.horizon
+        tg_cfgs = self.data_cfgs.get("tg_cfgs", {})
+        self.node_attributes = tg_cfgs.get("node_attributes", None)
+        self.basin_names = tg_cfgs.get("basin_names", [])
+        self.basin_id = tg_cfgs.get("basin_id", None)
+        self.use_confluence_nodes_only = tg_cfgs.get("use_confluence_nodes_only", True)
+        self.node_mask = None
+        self.edge_index = None
+        self.num_nodes = len(self.basins)
+        rels = self.data_cfgs.get("relevant_cols", [])
+
+        def _find_first_index(names):
+            for n in names:
+                if n in rels:
+                    return rels.index(n)
+            return None
+
+        self._var_idx_precip = _find_first_index(
+            [
+                "precipitation",
+                "total_precipitation",
+                "total_precipitation_hourly",
+                "total_precipitation_surface",
+                "prcp",
+                "pr",
+            ]
+        )
+        self._var_idx_lstm = _find_first_index(
+            [
+                "lstm_streamflow",
+                "lstm_pred",
+                "lstm_prediction",
+            ]
+        )
+        self._var_idx_obs = _find_first_index(
+            [
+                "observed_streamflow",
+                "streamflow",
+                "qobs",
+            ]
+        )
+        self._var_idx_discharge = _find_first_index(["discharge"])
+        self._load_graph_from_datasource()
+        if self.node_mask is None:
+            self._init_node_mask()
+        if self.edge_index is None:
+            self._init_edge_index()
+
+    def _create_lookup_table(self):
+        """
+        Create lookup table for Graph Dataset.
+        For GNNs, each sample represents the state of ALL nodes at a specific time step.
+        So we only iterate over time, not basins.
+        """
+        lookup = []
+        rho = self.rho
+        warmup_length = self.warmup_length
+        horizon = self.horizon
+        seq_len = rho + horizon
+        max_time_length = self.nt
+
+        # We only iterate over time, not basins
+        # Validation/Test: maintain full sequence
+        # Training: Currently we also maintain full sequence to keep graph structure fixed.
+        # Handling of NaN targets should be done via loss masking, not by skipping samples here,
+        # unless all nodes are NaN at that time step.
+
+        # Check for time steps where ALL basins are NaN (optional optimization)
+        # nan_array_all = np.isnan(self.y[:, :, 0]).all(axis=0) # [time]
+
+        for f in range(warmup_length, max_time_length - rho - horizon):
+            # We use basin=None to indicate "all basins/nodes"
+            lookup.append((None, f, seq_len))
+
+        self.lookup_table = dict(enumerate(lookup))
+        self.num_samples = len(self.lookup_table)
+
+    def __getitem__(self, item: int):
+        """Get one sample from the dataset as a PyG Data object.
+
+        Parameters
+        ----------
+        item : int
+            Sample index
+
+        Returns
+        -------
+        torch_geometric.data.Data
+            PyG Data object containing:
+            - x: node features [num_nodes, hindcast_length, num_features]
+            - y: target values [num_nodes, forecast_length]
+            - edge_index: graph connectivity [2, num_edges]
+            - node_mask: (optional) mask for confluence nodes [num_nodes]
+        """
+
+        basin, idx, actual_length = self.lookup_table[item]
+        warmup_length = self.warmup_length
+        M = self.rho
+        F = self.horizon
+        # 若数据源提供了 node_ids，并且与 basins 顺序不一致，则按 node_ids 重排 x/y
+        node_ids = getattr(self, "node_ids", None)
+        if node_ids is not None and isinstance(node_ids, (list, np.ndarray)):
+            # 构建 basin->index 的映射并重排
+            basin_to_idx = {basin: i for i, basin in enumerate(self.basins)}
+            reorder_idx = [basin_to_idx.get(b, None) for b in node_ids]
+            if all(i is not None for i in reorder_idx):
+                x_all = self.x[
+                    reorder_idx, idx - warmup_length : idx + actual_length + 1, :
+                ]
+                y_all = self.y[reorder_idx, idx : idx + actual_length, :]
+            else:
+                x_all = self.x[:, idx - warmup_length : idx + actual_length + 1, :]
+                y_all = self.y[:, idx : idx + actual_length, :]
+        else:
+            x_all = self.x[:, idx - warmup_length : idx + actual_length + 1, :]
+            y_all = self.y[:, idx : idx + actual_length, :]
+        start_obs_rel = warmup_length
+        end_obs_rel = warmup_length + M
+        end_future_rel = warmup_length + M + F
+        if self._var_idx_precip is None or self._var_idx_lstm is None:
+            raise ValueError(
+                "relevant_cols 需包含 'precipitation' 与 'lstm_streamflow'"
+            )
+        # Extend to include horizon F
+        past_rain = x_all[
+            :, start_obs_rel + 1 : end_future_rel + 1, self._var_idx_precip
+        ]
+        past_lstm = x_all[:, start_obs_rel + 1 : end_future_rel + 1, self._var_idx_lstm]
+
+        # Obs only up to M, then NaN for F
+        if self._var_idx_obs is not None:
+            real_obs = x_all[:, start_obs_rel:end_obs_rel, self._var_idx_obs]
+        else:
+            real_obs = y_all[:, :M, 0]
+
+        if self._var_idx_discharge is not None:
+            discharge_vals = x_all[
+                :, start_obs_rel:end_obs_rel, self._var_idx_discharge
+            ]
+            mask = ~np.isnan(discharge_vals)
+            real_obs = np.where(mask, discharge_vals, real_obs)
+
+        # Create placeholder for future obs (filled with NaN or 0)
+        # Using 0 or NaN? NaN is safer to detect leakage, but model needs to handle it if not overwritten immediately.
+        # But we will overwrite it in the model before use.
+        future_obs_placeholder = np.full(
+            (real_obs.shape[0], F), np.nan, dtype=real_obs.dtype
+        )
+        past_obs = np.concatenate([real_obs, future_obs_placeholder], axis=1)
+
+        time_series = np.stack(
+            [
+                past_rain.transpose(0, 1),
+                past_lstm.transpose(0, 1),
+                past_obs.transpose(0, 1),
+            ],
+            axis=-1,
+        )
+        if self.c is None or self.c.shape[-1] == 0:
+            input_features = time_series
+        else:
+            if node_ids is not None and isinstance(node_ids, (list, np.ndarray)):
+                basin_to_idx = {basin: i for i, basin in enumerate(self.basins)}
+                reorder_idx = [basin_to_idx.get(b, None) for b in node_ids]
+                if all(i is not None for i in reorder_idx):
+                    c = self.c[reorder_idx, :]
+                else:
+                    c = self.c
+            else:
+                c = self.c
+            # Extend c repetition to M + F
+            c_exp = np.repeat(c[:, np.newaxis, :], M + F, axis=1)
+            input_features = np.concatenate((time_series, c_exp), axis=-1)
+        # For PyG, we want [num_nodes, M+F, num_features]
+        future_targets = self.y[:, idx + M : idx + M + F, 0]
+        # output_data = future_targets.transpose(1, 0)
+
+        # Create PyG Data object
+        data = Data(
+            x=torch.from_numpy(
+                input_features
+            ).float(),  # [num_nodes, M+F, num_features]
+            y=torch.from_numpy(future_targets).float(),  # [num_nodes, F]
+            edge_index=self.edge_index,  # [2, num_edges]
+        )
+
+        # Add node mask if using confluence nodes only
+        if self.use_confluence_nodes_only and self.node_mask is not None:
+            data.node_mask = torch.from_numpy(self.node_mask.astype(np.bool_))
+
+        return data
+
+    def _read_xyc_specified_time(self, start_date, end_date):
+        tg_cfgs = self.data_cfgs.get("tg_cfgs", {})
+        var_source_map = tg_cfgs.get(
+            "var_source_map", tg_cfgs.get("source_selection", {})
+        )
+        default_choice = tg_cfgs.get("default_source", None)
+        source_kwargs = {}
+        combine = tg_cfgs.get("combine", True)
+        if combine:
+            source_kwargs["combine"] = True
+
+        def _split_source(ds):
+            base, inter = None, None
+            if isinstance(ds, dict):
+                keys = {k.lower(): k for k in ds.keys()}
+                if "base" in keys:
+                    base = ds[keys["base"]]
+                if "intermediate" in keys:
+                    inter = ds[keys["intermediate"]]
+            elif isinstance(ds, xr.Dataset):
+                if "source" in ds.data_vars:
+                    src_da = ds["source"]
+                    if "basin" in src_da.dims:
+                        basins = (
+                            ds["basin"].values
+                            if "basin" in ds.coords
+                            else src_da["basin"].values
+                        )
+                        src_vals = src_da.values.astype(str)
+                        base_mask = np.isin(src_vals, ["base", "Base", "BASE"])
+                        inter_mask = np.isin(
+                            src_vals,
+                            ["intermediate", "Intermediate", "INTERMEDIATE", "inter"],
+                        )
+                        base_idx = np.where(base_mask)[0]
+                        inter_idx = np.where(inter_mask)[0]
+                        if base_idx.size > 0:
+                            base = ds.isel(basin=base_idx)
+                        if inter_idx.size > 0:
+                            inter = ds.isel(basin=inter_idx)
+                elif "source" in ds.coords or "source" in ds.dims:
+                    try:
+                        base = ds.sel(source="base")
+                    except Exception:
+                        base = None
+                    try:
+                        inter = ds.sel(source="intermediate")
+                    except Exception:
+                        inter = None
+            if base is None and inter is None:
+                base = ds
+            return base, inter
+
+        def _select_timeseries(ds_raw, var_list):
+            ds_base, ds_inter = _split_source(ds_raw)
+            if ds_base is not None:
+                ds_base = self._rm_timeunit_key(ds_base)
+            if ds_inter is not None:
+                ds_inter = self._rm_timeunit_key(ds_inter)
+            if ds_base is None and ds_inter is None:
+                return None
+            if ds_inter is None:
+                return ds_base[var_list]
+            if ds_base is None:
+                return ds_inter[var_list]
+            base_basins = (
+                ds_base["basin"].values if "basin" in ds_base.coords else np.array([])
+            )
+            inter_basins = (
+                ds_inter["basin"].values if "basin" in ds_inter.coords else np.array([])
+            )
+            basins_union = np.union1d(base_basins, inter_basins)
+            union_time = None
+            if "time" in ds_base.dims and "time" in ds_inter.dims:
+                union_time = np.union1d(ds_base.time.values, ds_inter.time.values)
+                ds_base = ds_base.reindex(time=union_time)
+                ds_inter = ds_inter.reindex(time=union_time)
+            if basins_union.size > 0:
+                if "basin" in ds_base.dims:
+                    ds_base = ds_base.reindex(basin=basins_union)
+                if "basin" in ds_inter.dims:
+                    ds_inter = ds_inter.reindex(basin=basins_union)
+            data_vars = {}
+            suffix_map = tg_cfgs.get(
+                "source_suffix", {"base": "_base", "intermediate": "_inter"}
+            )
+            for v in var_list:
+                choice = var_source_map.get(v, default_choice)
+                if isinstance(choice, (list, tuple)) or choice == "both":
+                    if ds_inter is not None and v in ds_inter:
+                        data_vars[f"{v}{suffix_map.get('intermediate', '_inter')}"] = (
+                            ds_inter[v]
+                        )
+                    if ds_base is not None and v in ds_base:
+                        data_vars[f"{v}{suffix_map.get('base', '_base')}"] = ds_base[v]
+                else:
+                    if choice == "intermediate" and v in ds_inter:
+                        data_vars[v] = ds_inter[v]
+                    elif v in ds_base:
+                        data_vars[v] = ds_base[v]
+                    elif v in ds_inter:
+                        data_vars[v] = ds_inter[v]
+            coords = {}
+            if basins_union.size > 0:
+                coords["basin"] = basins_union
+            if union_time is not None:
+                coords["time"] = union_time
+            return xr.Dataset(data_vars, coords=coords)
+
+        def _select_attributes(ds_raw, var_list):
+            ds_base, ds_inter = _split_source(ds_raw)
+            if ds_base is not None:
+                ds_base = self._rm_timeunit_key(ds_base)
+            if ds_inter is not None:
+                ds_inter = self._rm_timeunit_key(ds_inter)
+            if ds_base is None and ds_inter is None:
+                return None
+            if ds_inter is None:
+                return ds_base[var_list]
+            if ds_base is None:
+                return ds_inter[var_list]
+            base_basins = (
+                ds_base["basin"].values if "basin" in ds_base.coords else np.array([])
+            )
+            inter_basins = (
+                ds_inter["basin"].values if "basin" in ds_inter.coords else np.array([])
+            )
+            basins_union = np.union1d(base_basins, inter_basins)
+            if basins_union.size > 0:
+                if "basin" in ds_base.dims:
+                    ds_base = ds_base.reindex(basin=basins_union)
+                if "basin" in ds_inter.dims:
+                    ds_inter = ds_inter.reindex(basin=basins_union)
+            data_vars = {}
+            suffix_map = tg_cfgs.get(
+                "source_suffix", {"base": "_base", "intermediate": "_inter"}
+            )
+            for v in var_list:
+                choice = var_source_map.get(v, default_choice)
+                if isinstance(choice, (list, tuple)) or choice == "both":
+                    if ds_inter is not None and v in ds_inter:
+                        data_vars[f"{v}{suffix_map.get('intermediate', '_inter')}"] = (
+                            ds_inter[v]
+                        )
+                    if ds_base is not None and v in ds_base:
+                        data_vars[f"{v}{suffix_map.get('base', '_base')}"] = ds_base[v]
+                else:
+                    if choice == "intermediate" and v in ds_inter:
+                        data_vars[v] = ds_inter[v]
+                    elif v in ds_base:
+                        data_vars[v] = ds_base[v]
+                    elif v in ds_inter:
+                        data_vars[v] = ds_inter[v]
+            coords = {"basin": basins_union} if basins_union.size > 0 else {}
+            return xr.Dataset(data_vars, coords=coords)
+
+        data_forcing_ds_raw = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["relevant_cols"],
+            **source_kwargs,
+        )
+        data_output_ds_raw = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["target_cols"],
+            **source_kwargs,
+        )
+        data_attr_ds_raw = self.data_source.read_attr_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.data_cfgs["constant_cols"],
+            all_number=True,
+            **source_kwargs,
+        )
+
+        data_forcing_ds_raw = self._rm_timeunit_key(data_forcing_ds_raw)
+        data_output_ds_raw = self._rm_timeunit_key(data_output_ds_raw)
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_raw, data_output_ds_raw
+        )
+
+        data_forcing_ds_sel = _select_timeseries(
+            data_forcing_ds, self.data_cfgs["relevant_cols"]
+        )
+        data_output_ds_sel = _select_timeseries(
+            data_output_ds, self.data_cfgs["target_cols"]
+        )
+        data_attr_ds_sel = _select_attributes(
+            data_attr_ds_raw, self.data_cfgs["constant_cols"]
+        )
+
+        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
+            data_forcing_ds_sel, data_output_ds_sel, data_attr_ds_sel
+        )
+        return {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": (
+                c_origin.transpose("basin", "variable")
+                if c_origin is not None
+                else None
+            ),
+        }
+
+    def _init_node_mask(self):
+        """Initialize node mask for identifying confluence nodes.
+
+        A confluence node is defined as having 2 or more upstream nodes.
+        """
+        mask = None
+        upstream = None
+        if self.upstream_indices:
+            upstream = self.upstream_indices
+        else:
+            if hasattr(self.data_source, "read_upstream_indices"):
+                try:
+                    upstream = self.data_source.read_upstream_indices(
+                        self.basin_id, self.basins
+                    )
+                except Exception:
+                    upstream = None
+            elif hasattr(self.data_source, "get_upstream_indices"):
+                try:
+                    upstream = self.data_source.get_upstream_indices(
+                        self.basin_id, self.basins
+                    )
+                except Exception:
+                    upstream = None
+        if upstream is not None:
+            mask_list = []
+            for i, b in enumerate(self.basins):
+                u = upstream.get(b)
+                if u is None:
+                    u = upstream.get(i)
+                if u is None:
+                    u = upstream.get(str(b))
+                mask_list.append(bool(u) and len(u) >= 2)
+            mask = np.array(mask_list, dtype=bool)
+        self.node_mask = mask
+
+    def _init_edge_index(self):
+        """Initialize edge_index from upstream_indices for PyG graph structure.
+
+        Converts the upstream_indices dict to PyG edge_index format [2, num_edges].
+        Edge direction: from upstream to downstream.
+        """
+        if not self.upstream_indices:
+            # No edges if upstream_indices is empty
+            self.edge_index = torch.empty((2, 0), dtype=torch.long)
+            return
+
+        # Create basin to index mapping
+        basin_to_idx = {basin: idx for idx, basin in enumerate(self.basins)}
+
+        # Build edge list: (source, target) pairs
+        edges = []
+        for downstream_basin, upstream_basins in self.upstream_indices.items():
+            # Get downstream node index
+            if downstream_basin in basin_to_idx:
+                downstream_idx = basin_to_idx[downstream_basin]
+            elif isinstance(downstream_basin, int):
+                downstream_idx = downstream_basin
+            else:
+                continue  # Skip if basin not found
+
+            # Add edges from each upstream basin to downstream
+            if isinstance(upstream_basins, list):
+                for upstream_basin in upstream_basins:
+                    if upstream_basin in basin_to_idx:
+                        upstream_idx = basin_to_idx[upstream_basin]
+                    elif isinstance(upstream_basin, int):
+                        upstream_idx = upstream_basin
+                    else:
+                        continue
+                    edges.append([upstream_idx, downstream_idx])
+
+        if edges:
+            # Convert to PyG edge_index format: [2, num_edges]
+            self.edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
+        else:
+            # No valid edges found
+            self.edge_index = torch.empty((2, 0), dtype=torch.long)
+
+    def _load_graph_from_datasource(self):
+        graph = None
+        if hasattr(self.data_source, "read_graph_data"):
+            try:
+                graph = self.data_source.read_graph_data(self.basin_id, self.basins)
+            except Exception:
+                graph = None
+        elif hasattr(self.data_source, "get_graph_data"):
+            try:
+                graph = self.data_source.get_graph_data(self.basin_id, self.basins)
+            except Exception:
+                graph = None
+        if graph is None:
+            if hasattr(self.data_source, "read_upstream_indices"):
+                try:
+                    self.upstream_indices = self.data_source.read_upstream_indices(
+                        self.basin_id, self.basins
+                    )
+                except Exception:
+                    self.upstream_indices = {}
+            elif hasattr(self.data_source, "get_upstream_indices"):
+                try:
+                    self.upstream_indices = self.data_source.get_upstream_indices(
+                        self.basin_id, self.basins
+                    )
+                except Exception:
+                    self.upstream_indices = {}
+            return
+        if isinstance(graph, dict):
+            ei = graph.get("edge_index")
+            nm = graph.get("node_mask")
+            node_ids = graph.get("node_ids")
+            if ei is not None:
+                if isinstance(ei, torch.Tensor):
+                    self.edge_index = ei
+                else:
+                    try:
+                        self.edge_index = torch.tensor(ei, dtype=torch.long)
+                        if self.edge_index.dim() == 2 and self.edge_index.shape[0] != 2:
+                            self.edge_index = self.edge_index.t().contiguous()
+                    except Exception:
+                        self.edge_index = None
+            if nm is not None:
+                try:
+                    self.node_mask = np.array(nm, dtype=bool)
+                except Exception:
+                    self.node_mask = None
+            if node_ids is not None:
+                try:
+                    self.node_ids = list(node_ids)
+                except Exception:
+                    self.node_ids = None
+            if not self.upstream_indices and "upstream_indices" in graph:
+                self.upstream_indices = graph.get("upstream_indices")
+
+
+class Camels_merge_AEFDataset(BaseDataset):
+    def _read_xyc_specified_time(self, start_date, end_date):
+        """Read x, y, c data from data source with specified time range
+        We set this function as sometimes we need adjust the time range for some specific dataset,
+        such as seq2seq dataset (it needs one more period for the end of the time range)
+
+        Parameters
+        ----------
+        start_date : str
+            start time
+        end_date : str
+            end time
+        """
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["relevant_cols"],
+        )
+        # y
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            self.data_cfgs["target_cols"],
+        )
+        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
+        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
+        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
+            data_forcing_ds_, data_output_ds_
+        )
+        # c
+        data_attr_ds = self.data_source.read_attr_xrdataset(
+            self.t_s_dict["sites_id"],
+            self.data_cfgs["constant_cols"],
+            all_number=True,
+        )
+
+        csv_path = os.environ.get("TORCHHYDRO_EMBEDDING_CSV") or r"/Users/cylenlc/AlphaEarthViz/data/向量csv/BasinEmbeddings_2017_2024_avg_method_2.csv"
+        df_embeddings = pd.read_csv(csv_path)
+        df_embeddings["hru_id"] = (
+            df_embeddings["hru_id"].astype(int).astype(str).str.lstrip("0")
+        )
+        target_ids = [site_id.lstrip("0") for site_id in self.t_s_dict["sites_id"]]
+        df_filtered = df_embeddings[df_embeddings["hru_id"].isin(target_ids)]
+        df_filtered = df_filtered.set_index("hru_id").reindex(target_ids).reset_index()
+
+        if len(df_filtered) != len(target_ids):
+            print("Warning: Some basin IDs not found in the embeddings CSV.")
+
+        df_indexed = df_filtered.set_index("hru_id")
+        embedding_values = df_indexed.values
+        embedding_vars = {
+            f"A{j:02d}": (("basin"), embedding_values[:, j]) for j in range(64)
+        }
+
+        c_origin = xr.Dataset(
+            embedding_vars, coords={"basin": self.t_s_dict["sites_id"]}
+        )
+        c_origin = c_origin.reindex(basin=data_attr_ds.basin.values)
+        combined_ds = xr.merge([data_attr_ds, c_origin])
+
+        x_origin, y_origin, c_origin_with_unit = self._to_dataarray_with_unit(
+            data_forcing_ds, data_output_ds, combined_ds
+        )
+        return {
+            "relevant_cols": x_origin.transpose("basin", "time", "variable"),
+            "target_cols": y_origin.transpose("basin", "time", "variable"),
+            "constant_cols": (
+                c_origin_with_unit.transpose("basin", "variable")
+                if c_origin_with_unit is not None
+                else None
+            ),
+        }
+
+
+class FNODataset(BaseDataset):
+    def _load_data(self):
+        origin_data = self._read_xyc()
+        # normalization
+        norm_data = self._normalize(origin_data)
+        # 启用 NaN 处理以确保数据清洁
+        origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
+        origin_data_wonan, norm_data_wonan = self._add_absolute_time_axis(
+            origin_data_wonan,
+            norm_data_wonan,
+        )
+        self._trans2nparr(origin_data_wonan, norm_data_wonan)
+        self._create_lookup_table()
+
+    def _add_absolute_time_axis(self, origin_data, norm_data):
+        """
+        Add absolute time coordinate normalized to [0, 1] as an extra dynamic feature.
+
+        Parameters
+        ----------
+        origin_data : dict
+            output of _kill_nan, contains xarray DataArrays
+        norm_data : dict
+            normalized version of origin_data
+
+        Returns
+        -------
+        origin_data_new, norm_data_new : dict
+            same structure as input, but relevant_cols has +1 variable (time)
+        """
+
+        # -------- 1. Extract time coordinate --------
+        time_coord = origin_data["relevant_cols"].coords["time"]
+        # datetime64[ns] → int64
+        time_ns = time_coord.values.astype("datetime64[ns]").astype("int64")
+
+        t_min = time_ns.min()
+        t_max = time_ns.max()
+
+        time_norm = (time_ns - t_min) / (t_max - t_min)
+        time_norm = time_norm.astype("float32")  # (T,)
+
+        # -------- 2. Expand to (basin, time, 1) --------
+        n_basins = origin_data["relevant_cols"].sizes["basin"]
+        n_time = origin_data["relevant_cols"].sizes["time"]
+
+        time_feat = np.broadcast_to(time_norm[None, :, None], (n_basins, n_time, 1))
+
+        # -------- 3. Wrap as xarray.DataArray --------
+        time_da = xr.DataArray(
+            time_feat,
+            dims=("basin", "time", "variable"),
+            coords={
+                "basin": origin_data["relevant_cols"].coords["basin"],
+                "time": origin_data["relevant_cols"].coords["time"],
+                "variable": ["absolute_time"],
+            },
+            attrs={"description": "absolute time normalized to [0,1]"},
+        )
+
+        # -------- 4. Concatenate to relevant_cols --------
+        origin_data = origin_data.copy()
+        norm_data = norm_data.copy()
+
+        origin_data["relevant_cols"] = xr.concat(
+            [origin_data["relevant_cols"], time_da], dim="variable"
+        )
+
+        norm_data["relevant_cols"] = xr.concat(
+            [norm_data["relevant_cols"], time_da], dim="variable"
+        )
+
+        return origin_data, norm_data
