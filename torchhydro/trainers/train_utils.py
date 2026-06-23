@@ -1170,28 +1170,25 @@ def _recover_samples_to_continuous_by_floodevent(
             # Smart Slicing to handle both Preds (with warmup) and Obs (without warmup)
             warmup_length = getattr(dataset, "warmup_length", 0)
 
-            if sample_prediction.shape[0] >= actual_length + warmup_length:
-                # Case 1: Prediction typically includes warmup. Slice it off.
-                # sample_prediction[warmup:] corresponds to the target period.
-                pred_to_use = sample_prediction[
-                    warmup_length : warmup_length + actual_length, :
-                ]
-            elif sample_prediction.shape[0] >= actual_length:
-                # Case 2: Observation (or target-only pred) typically excludes warmup.
-                # distinct from above if warmup > 0
-                pred_to_use = sample_prediction[:actual_length, :]
+            # 计算有效长度（不含 warmup）
+            # result 数组的时间维度已经减去了 warmup_length（见第341行）
+            # 所以 result 的索引 0 对应原始时间序列的索引 warmup_length
+            valid_length = actual_length - warmup_length
+
+            if sample_prediction.shape[0] == actual_length:
+                # Case 1: pred - 模型输出包含 warmup，需要裁剪掉前 warmup_length
+                pred_to_use = sample_prediction[warmup_length:, :]
+            elif sample_prediction.shape[0] == valid_length:
+                # Case 2: obs - 已在 __getitem__ 中去掉 warmup，直接使用
+                pred_to_use = sample_prediction
             else:
-                # Case 3: Partial/Short data (should not happen normally)
-                pred_to_use = sample_prediction[:pred_length, :]
+                # Case 3: 其他情况 - 取可用部分
+                pred_to_use = sample_prediction[:min(pred_length, valid_length), :]
 
-            # Fill the prediction result into the corresponding position
-            # Add warmup_length to ensure correct temporal alignment
-            # The result array starts at absolute time 0? No, result usually aligned with dataset.
-            # But earlier comments said output array starts at warmup?
-            # Let's stick to the previous successfully aligned logic for obs:
-            # fill_start = start_time + warmup_length
-
-            fill_start = start_time + warmup_length
+            # 填充位置：直接使用 start_time
+            # 因为 result 数组已经从 warmup_length 开始（见第341行：nt = dataset.nt - warmup_length）
+            # start_time 是相对于 result 数组的索引，不需要再加 warmup_length
+            fill_start = start_time
             fill_end = fill_start + pred_to_use.shape[0]
 
             # Ensure we don't exceed the result array's bounds

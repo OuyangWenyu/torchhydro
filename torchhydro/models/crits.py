@@ -862,8 +862,8 @@ class FloodLoss(FloodBaseLoss):
     def __init__(
         self,
         loss_func: Union[torch.nn.Module, str] = "MSELoss",
-        flood_weight: float = 1.0,    
-        non_flood_weight: float = 0.5,
+        flood_weight: float = 1.0,
+        non_flood_weight: float = 0,
         flood_strategy: str = "weight",
         flood_focus_factor: float = 2.0,
         use_score_weighting: bool = False,
