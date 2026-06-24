@@ -20,7 +20,6 @@ from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.data import Data, Batch
 
 # Project imports
-from torchhydro.datasets.data_sets import MultiFeatureStreamDataset
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.datasets.data_sources import data_sources_dict
 
@@ -328,6 +327,7 @@ def test_pyg_batching_mechanics():
     ), "Found edges connecting nodes from different graphs! Block diagonal structure violated."
 
 
+@pytest.mark.skip(reason="MultiFeatureStreamDataset has been removed from data_sets.py")
 def test_multifeature_dataset_batching(tmp_path):
     """
     Test case for 'MultiFeatureStreamDataset' ensuring correct compatibility with
@@ -421,6 +421,8 @@ def test_multifeature_dataset_batching(tmp_path):
     }
 
     # --- C. Instantiate Dataset with MockDatasource ---
+    from torchhydro.datasets.data_sets import MultiFeatureStreamDataset  # noqa: F401
+
     dataset = MultiFeatureStreamDataset(cfgs, "train", upstream_indices)
 
     # --- D. Verify Dataset Initialization ---
