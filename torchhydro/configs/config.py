@@ -92,9 +92,7 @@ def default_config_file() -> Dict[str, Any]:
         },
         "data_cfgs": {
             "source_cfgs": {
-                # the name of data source, such as CAMELS
-                "source_names": ["CAMELS"],
-                "source_paths": ["../../example/camels_us"],
+                "dataset_id": "camels_us",
             },
             "case_dir": None,
             # the min time step of the input data
@@ -1106,8 +1104,6 @@ def cmd(
         dest="peak_aligned_sampling",
         help="Peak-aligned sampling configurations for FloodEventDataset (as JSON)",
         default=peak_aligned_sampling,
-        type=json.loads,
-    )
         type=json.loads,
     )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":

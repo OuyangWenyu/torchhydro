@@ -94,7 +94,6 @@ class ScalerHub(object):
                 maxmin_norm_cols='',
                 pbm_norm=pbm_norm,
                 data_source=data_source,
-                global_vars=global_vars,
             )
         elif scaler_type in SCALER_DICT.keys():
             scaler = SklearnScaler(
@@ -344,6 +343,7 @@ class DapengScaler(object):
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
         self.pbm_norm = pbm_norm
         self.data_source = data_source
+        self.data_global = global_vars
         # save stat_dict of training period in case_dir for valid/test
         stat_file = os.path.join(data_cfgs["case_dir"], "dapengscaler_stat.json")
         # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
@@ -384,6 +384,19 @@ class DapengScaler(object):
         mean_prcp = self.data_source.read_mean_prcp(
             self.t_s_dict["sites_id"], unit=final_unit
         )
+        # read_mean_prcp returns xarray Dataset; extract p_mean as numpy array
+        if hasattr(mean_prcp, "data_vars"):
+            # xarray Dataset — extract the p_mean variable
+            arr = mean_prcp["p_mean"].to_numpy()
+        elif hasattr(mean_prcp, "to_numpy"):
+            # xarray DataArray or other
+            arr = mean_prcp.to_numpy()
+        else:
+            arr = mean_prcp
+        # cal_stat_prcp_norm expects shape (N, 1) for broadcasting with (N, T) data
+        if arr.ndim == 1:
+            return arr.reshape(-1, 1)
+        return arr
 
     def inverse_transform(self, target_values, maxmin_norm_cols=None):
         """

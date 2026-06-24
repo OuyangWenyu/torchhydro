@@ -202,10 +202,14 @@ class Resulter:
         -------
         """
         data_cfgs = self.cfgs["data_cfgs"]
-        source_name = data_cfgs["source_cfgs"]["source_name"]
-        source_path = data_cfgs["source_cfgs"]["source_path"]
-        other_settings = data_cfgs["source_cfgs"].get("other_settings", {})
-        data_source = data_sources_dict[source_name](source_path, **other_settings)
+        from torchhydro.configs.data_resolver import normalize_source_cfgs
+
+        source_cfgs = data_cfgs["source_cfgs"]
+        resolved = normalize_source_cfgs(source_cfgs)
+        source_name = resolved["source_name"]
+        source_path = resolved["source_path"]
+        other_settings = source_cfgs.get("other_settings", {})
+        data_source = data_sources_dict[source_name](uri=source_path, **other_settings)
         basin_id = data_cfgs["object_ids"]
         # NOTE: all datasource should have read_area method
         basin_area = data_source.read_area(basin_id)

@@ -21,7 +21,15 @@ from typing import Optional
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from hydroutils.hydro_units import streamflow_unit_conv
-from hydrodataset.multi_dataset_reader import MultiDatasetReader, DATASET_MAPPING
+# MultiDatasets loader — may fail if hydrodataset version is too new (0.3+)
+# Fallback gracefully for CAMELS-US single-source use cases
+try:
+    from hydrodataset.multi_datasets import MultiDatasets
+except ImportError:
+    MultiDatasets = None
+
+# DATASET_MAPPING removed from hydrodataset; define locally for MultiSourceDataset
+DATASET_MAPPING = {}
 
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
@@ -271,19 +279,15 @@ class BaseDataset(Dataset):
 
     @property
     def data_source(self):
-        source_name = self.data_cfgs["source_cfgs"]["source_name"]
-        source_path = self.data_cfgs["source_cfgs"]["source_path"]
+        from torchhydro.configs.data_resolver import normalize_source_cfgs
 
-        # 传递除了 source_name 和 source_path 之外的所有参数
+        source_cfgs = self.data_cfgs["source_cfgs"]
+        resolved = normalize_source_cfgs(source_cfgs)
+        source_name = resolved["source_name"]
+        source_path = resolved["source_path"]
 
-        # 先获取所有参数
-        other_settings = self.data_cfgs["source_cfgs"].get("other_settings", {})
-
-        # 排除 source_name, source_path
-        other_settings.pop("source_name", None)
-        other_settings.pop("source_path", None)
-
-        return data_sources_dict[source_name](source_path, **other_settings)
+        other_settings = source_cfgs.get("other_settings", {})
+        return data_sources_dict[source_name](uri=source_path, **other_settings)
 
     @property
     def streamflow_name(self):
@@ -1368,7 +1372,7 @@ class MultiDataSourceWrapper:
     def __init__(self, sources, datasets_config=None):
         self.sources = sources
         self.datasets_config = datasets_config
-        self._reader = MultiDatasetReader(datasets=datasets_config)
+        self._reader = MultiDatasets(datasets=datasets_config)
         # Cache unique IDs mapping
         self._unique_ids_map, _ = self._reader.get_global_unique_ids()
 
@@ -1479,7 +1483,7 @@ class MultiSourceDataset(BaseDataset):
 
         # Initialize reader just for ID mapping (cache might be used)
         datasets_config = self.data_cfgs.get("source_cfgs", {}).get("datasets", None)
-        reader = MultiDatasetReader(datasets=datasets_config)
+        reader = MultiDatasets(datasets=datasets_config)
 
         # Use reader to get global unique IDs to find where each ID comes from
         # Note: this might be slow if we have many datasets and didn't cache IDs
@@ -1698,7 +1702,7 @@ class MultiSourceAEFDataset(MultiSourceDataset):
         # 此时的 sites_id 是经过父类 _read_xyc 可能更新过的（剔除了无数据的basin）
         target_ids = self.t_s_dict["sites_id"]
         datasets_config = self.data_cfgs.get("source_cfgs", {}).get("datasets", None)
-        reader = MultiDatasetReader(datasets=datasets_config)
+        reader = MultiDatasets(datasets=datasets_config)
         unique_ids_map, _ = reader.get_global_unique_ids()
 
         ids_by_dataset = {}

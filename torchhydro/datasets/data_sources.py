@@ -24,10 +24,11 @@ import xarray as xr
 import pint_xarray  # noqa but it is used in the code
 from tqdm import tqdm
 
-from hydrodataset import HydroDataset, Camels
+from hydrodataset import HydroDataset
+from hydrodataset.camels import Camels  # deprecated, kept for SupData4Camels legacy classes
+from hydrodataset.camels_us import CamelsUs
 from hydroutils import (
     hydro_time,
-    hydro_arithmetric,
     hydro_file,
     hydro_logger,
 )
@@ -1296,9 +1297,8 @@ class Gages(HydroDataset):
             if key == "flowrec":
                 data_temp = data_temp.iloc[:, range(0, data_temp.shape[1] - 1)]
             var_lst_temp = list(data_temp.columns[1:])
-            do_exist, idx_lst = hydro_arithmetric.is_any_elem_in_a_lst(
-                attr_lst, var_lst_temp, return_index=True
-            )
+            idx_lst = [i for i, attr in enumerate(attr_lst) if attr in var_lst_temp]
+            do_exist = len(idx_lst) > 0
             if do_exist:
                 for idx in idx_lst:
                     idx_in_var = (
@@ -2210,9 +2210,7 @@ def get_diversion(gages: Gages, usgs_id) -> np.array:
     )
     data_attr_lower = np.vstack((data_attr0_lower, data_attr1_lower)).T
     diversions = [
-        hydro_arithmetric.is_any_elem_in_a_lst(
-            diversion_strs_lower, data_attr_lower[i], include=True
-        )
+        any(d in str(elem) for elem in data_attr_lower[i] for d in diversion_strs_lower)
         for i in range(len(usgs_id))
     ]
     return np.array(diversions)
@@ -2932,7 +2930,7 @@ class Reservoir(HydroDataset):
 
 
 data_sources_dict = {
-    "camels_us": Camels,
+    "camels_us": CamelsUs,
     "camelsh": Camelsh,
     "caravan": Caravan,
     "grdc_caravan": GrdcCaravan,

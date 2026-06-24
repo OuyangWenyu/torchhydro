@@ -72,7 +72,7 @@ class FabricWrapper:
         self.device_num = self.fabric_config["devices"]
         # self.device_num = [0]
         self._device = get_the_device(self.device_num)
-        print(f"✅ Normal PyTorch initialized, using device: {self._device}")
+        print(f"[OK] Normal PyTorch initialized, using device: {self._device}")
 
     def setup_module(self, model: torch.nn.Module) -> torch.nn.Module:
         """Setup model for training"""
