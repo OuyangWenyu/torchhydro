@@ -159,6 +159,9 @@ pic/
 # Claude
 CLAUDE.md
 .claude/
+
+# CodeGraph
+.codegraph/
 .DS_Store
 
 # version file
@@ -180,3 +183,7 @@ logs/
 gage_id_cache/
 batch_state/
 shap/
+
+# VS Code workspace file (machine-specific)
+torchhydro.code-workspace
+*.code-workspace
