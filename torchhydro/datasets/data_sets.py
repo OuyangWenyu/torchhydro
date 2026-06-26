@@ -35,7 +35,6 @@ from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
 from torch_geometric.data import Data
-from tqdm import tqdm
 import warnings
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -279,15 +278,18 @@ class BaseDataset(Dataset):
 
     @property
     def data_source(self):
-        from torchhydro.configs.data_resolver import normalize_source_cfgs
+        from torchhydro.configs.data_resolver import open_dataset, DatasetResolutionError
 
-        source_cfgs = self.data_cfgs["source_cfgs"]
-        resolved = normalize_source_cfgs(source_cfgs)
-        source_name = resolved["source_name"]
-        source_path = resolved["source_path"]
-
-        other_settings = source_cfgs.get("other_settings", {})
-        return data_sources_dict[source_name](uri=source_path, **other_settings)
+        sc = self.data_cfgs["source_cfgs"]
+        dataset_id = sc.get("dataset_id")
+        if dataset_id is None:
+            raise DatasetResolutionError(
+                "source_cfgs must contain 'dataset_id' "
+                "(e.g. {'dataset_id': 'camels_us'}). "
+                "If you are using the old format with 'source_name', "
+                "switch to 'dataset_id'."
+            )
+        return open_dataset(dataset_id, **sc.get("other_settings", {}))
 
     @property
     def streamflow_name(self):
@@ -1293,7 +1295,7 @@ class BasinSingleFlowDataset(BaseDataset):
     """one time length output for each grid in a batch"""
 
     def __init__(self, cfgs: dict, is_tra_val_te: str):
-        super(BasinSingleFlowDataset, self).__init__(cfgs, is_tra_val_te, **kwargs)
+        super(BasinSingleFlowDataset, self).__init__(cfgs, is_tra_val_te)
 
     def __getitem__(self, index):
         xc, ys = super(BasinSingleFlowDataset, self).__getitem__(index)

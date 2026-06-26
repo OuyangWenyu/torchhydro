@@ -14,8 +14,6 @@ from tbparse import SummaryReader
 from hydroutils.hydro_stat import stat_error
 from hydrodatasource.utils.utils import streamflow_unit_conv
 
-from torchhydro.configs.model_config import MODEL_PARAM_TEST_WAY
-from torchhydro.datasets.data_sources import data_sources_dict
 from torchhydro.trainers.train_logger import save_model_params_log
 from torchhydro.explainers.shap import (
     deep_explain_model_heatmap,
@@ -150,7 +148,7 @@ class Resulter:
         #           elif it is a list, each for a var
         fill_nan = self.cfgs["evaluation_cfgs"]["fill_nan"]
         #  Then evaluate the model metrics
-        if type(fill_nan) is list and len(fill_nan) != len(target_col):
+        if isinstance(fill_nan, list) and len(fill_nan) != len(target_col):
             raise ValueError("length of fill_nan must be equal to target_col's")
         for i, col in enumerate(target_col):
             eval_log = {}
@@ -195,28 +193,35 @@ class Resulter:
 
         Parameters
         ----------
-        pred : np.array
-            predictions
+        ds : xr.Dataset
+            xarray Dataset containing predictions or observations
 
         Returns
         -------
+        xr.Dataset
         """
         data_cfgs = self.cfgs["data_cfgs"]
-        from torchhydro.configs.data_resolver import normalize_source_cfgs
+        from torchhydro.configs.data_resolver import open_dataset
 
-        source_cfgs = data_cfgs["source_cfgs"]
-        resolved = normalize_source_cfgs(source_cfgs)
-        source_name = resolved["source_name"]
-        source_path = resolved["source_path"]
-        other_settings = source_cfgs.get("other_settings", {})
-        data_source = data_sources_dict[source_name](uri=source_path, **other_settings)
+        sc = data_cfgs["source_cfgs"]
+        data_source = open_dataset(sc["dataset_id"], **sc.get("other_settings", {}))
         basin_id = data_cfgs["object_ids"]
-        # NOTE: all datasource should have read_area method
-        basin_area = data_source.read_area(basin_id)
+        try:
+            basin_area = data_source.read_area(basin_id)
+        except (AttributeError, NotImplementedError) as e:
+            raise AttributeError(
+                f"Data source '{sc.get('dataset_id')}' does not implement "
+                f"read_area(), which is required for streamflow unit conversion."
+            ) from e
         target_unit = "m^3/s"
-        # Get the flow variable name dynamically from config instead of hardcoding "streamflow"
-        # NOTE: the first target variable must be the flow variable
-        var_flow = self.cfgs["data_cfgs"]["target_cols"][0]
+        target_cols = data_cfgs["target_cols"]
+        if not target_cols:
+            raise ValueError(
+                "target_cols is empty — cannot determine the flow variable "
+                "for unit conversion. Add a flow variable (e.g. 'streamflow') "
+                "to target_cols."
+            )
+        var_flow = target_cols[0]
         streamflow_ds = ds[[var_flow]]
         ds_ = streamflow_unit_conv(
             streamflow_ds, basin_area, target_unit=target_unit, inverse=True
