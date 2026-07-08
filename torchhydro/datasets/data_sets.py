@@ -78,6 +78,18 @@ def static_attr_batch_collate_fn(batch):
     return torch.stack(xs, dim=0), torch.stack(ys, dim=0)
 
 
+def prebatched_collate_fn(batch):
+    """Return a batch that has already been assembled by ``Dataset.__getitems__``.
+
+    PyTorch's map-style DataLoader calls ``dataset.__getitems__(indices)`` when
+    available for auto-collated batches. TorchHydro uses this hook for the
+    optional batch-level loading path, where the dataset returns an already
+    stacked ``(xs, ys)`` tuple. The collate function must therefore pass that
+    tuple through unchanged instead of applying the default per-sample stack.
+    """
+    return batch
+
+
 def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataArray:
     """Fill gaps in a DataArray"""
     if fill_nan is None or da is None:
@@ -493,6 +505,88 @@ class BaseDataset(Dataset):
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
         xc = np.concatenate((x, c), axis=1)
         return torch.from_numpy(xc), torch.from_numpy(y)
+
+    def __getitems__(self, items):
+        """Get a list of samples or one pre-assembled batch.
+
+        PyTorch DataLoader calls this method with a list of indices when it is
+        present on a map-style dataset. The default-compatible path returns the
+        same list of samples that repeated ``__getitem__`` calls would produce.
+
+        When ``training_cfgs["batch_level_dataloader"]`` is true, TorchHydro
+        assembles the full batch in one dataset call and returns a batched
+        ``(xs, ys)`` tuple. This avoids millions of per-sample
+        ``__getitem__`` calls in large sliding-window training jobs while
+        preserving the model-facing tensor shapes.
+        """
+        if self._use_batch_level_getitems():
+            return self._get_batch_level_items(items)
+        return [self.__getitem__(int(item)) for item in items]
+
+    def _use_batch_level_getitems(self) -> bool:
+        """Whether this dataset instance should use batch-level assembly."""
+        return bool(getattr(self, "_batch_level_dataloader_enabled", False)) and (
+            self.__class__ is BaseDataset
+        )
+
+    def _get_batch_level_items(self, items):
+        """Assemble one DataLoader batch from sample indices.
+
+        This method intentionally supports the standard fixed-length
+        ``BaseDataset`` path only. Variable-length, graph, forecast, and flood
+        event datasets override ``__getitem__`` with different semantics and
+        should continue using their existing collate paths.
+        """
+        item_indices = [int(item) for item in items]
+        if not item_indices:
+            return torch.empty(0), torch.empty(0)
+
+        lookup_rows = [self.lookup_table[item] for item in item_indices]
+        basins = np.asarray([row[0] for row in lookup_rows], dtype=np.int64)
+        start_indices = np.asarray([row[1] for row in lookup_rows], dtype=np.int64)
+        actual_lengths = np.asarray([row[2] for row in lookup_rows], dtype=np.int64)
+
+        actual_length = int(actual_lengths[0])
+        if not np.all(actual_lengths == actual_length):
+            raise ValueError(
+                "batch_level_dataloader only supports fixed-length batches. "
+                "Disable it for variable-length training."
+            )
+
+        warmup_length = self.warmup_length
+        x_length = actual_length
+        y_length = actual_length - warmup_length
+        if y_length <= 0:
+            raise ValueError(
+                "Invalid batch window: actual_length must be larger than "
+                f"warmup_length, got {actual_length=} and {warmup_length=}."
+            )
+
+        batch_size = len(item_indices)
+        x_feature_count = self.x.shape[-1]
+        y_feature_count = self.y.shape[-1]
+        c_feature_count = (
+            0 if self.c is None or self.c.shape[-1] == 0 else self.c.shape[-1]
+        )
+
+        xs = np.empty(
+            (batch_size, x_length, x_feature_count + c_feature_count),
+            dtype=self.x.dtype,
+        )
+        ys = np.empty((batch_size, y_length, y_feature_count), dtype=self.y.dtype)
+
+        for batch_pos, (basin, idx) in enumerate(zip(basins, start_indices)):
+            x_start = idx - warmup_length
+            x_end = idx + actual_length - warmup_length
+            y_start = idx
+            y_end = idx + actual_length - warmup_length
+
+            xs[batch_pos, :, :x_feature_count] = self.x[basin, x_start:x_end, :]
+            if c_feature_count:
+                xs[batch_pos, :, x_feature_count:] = self.c[basin, :]
+            ys[batch_pos, :, :] = self.y[basin, y_start:y_end, :]
+
+        return torch.from_numpy(xs), torch.from_numpy(ys)
 
     def _load_data(self):
         origin_data = self._read_xyc()

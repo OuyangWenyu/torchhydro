@@ -10,6 +10,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 
 import bisect
 import copy
+import warnings
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Dict, Tuple
@@ -25,7 +26,11 @@ import shap
 
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
-from torchhydro.datasets.data_sets import BaseDataset, static_attr_batch_collate_fn
+from torchhydro.datasets.data_sets import (
+    BaseDataset,
+    prebatched_collate_fn,
+    static_attr_batch_collate_fn,
+)
 from torchhydro.datasets.sampler import (
     fl_sample_basin,
     fl_sample_region,
@@ -1479,15 +1484,33 @@ class DeepHydro(DeepHydroInterface):
             )
         ):
             _collate_fn = gnn_collate_fn
+
+        use_batch_level_dataloader = bool(
+            training_cfgs.get("batch_level_dataloader", False)
+        )
         if hasattr(self.traindataset, "_return_static_attrs_separately"):
             self.traindataset._return_static_attrs_separately = False
+        if hasattr(self.traindataset, "_batch_level_dataloader_enabled"):
+            self.traindataset._batch_level_dataloader_enabled = False
         if (
             sampler is None
             and _collate_fn is None
             and self.traindataset.__class__ is BaseDataset
         ):
-            self.traindataset._return_static_attrs_separately = True
-            _collate_fn = static_attr_batch_collate_fn
+            if use_batch_level_dataloader and hasattr(
+                self.traindataset, "_get_batch_level_items"
+            ):
+                self.traindataset._batch_level_dataloader_enabled = True
+                _collate_fn = prebatched_collate_fn
+            else:
+                self.traindataset._return_static_attrs_separately = True
+                _collate_fn = static_attr_batch_collate_fn
+        elif use_batch_level_dataloader:
+            warnings.warn(
+                "batch_level_dataloader=True was ignored because this "
+                "dataset uses a custom sampler/collate path or is not the "
+                "standard BaseDataset."
+            )
         data_loader = DataLoader(
             self.traindataset,
             batch_size=training_cfgs["batch_size"],
@@ -1509,16 +1532,30 @@ class DeepHydro(DeepHydroInterface):
                     "GNN" in self.validdataset.__class__.__name__
                     or "TgHydroDataset" in self.validdataset.__class__.__name__
                 )
-                ):
-                    _val_collate_fn = gnn_collate_fn
+            ):
+                _val_collate_fn = gnn_collate_fn
             if hasattr(self.validdataset, "_return_static_attrs_separately"):
                 self.validdataset._return_static_attrs_separately = False
+            if hasattr(self.validdataset, "_batch_level_dataloader_enabled"):
+                self.validdataset._batch_level_dataloader_enabled = False
             if (
                 _val_collate_fn is None
                 and self.validdataset.__class__ is BaseDataset
             ):
-                self.validdataset._return_static_attrs_separately = True
-                _val_collate_fn = static_attr_batch_collate_fn
+                if use_batch_level_dataloader and hasattr(
+                    self.validdataset, "_get_batch_level_items"
+                ):
+                    self.validdataset._batch_level_dataloader_enabled = True
+                    _val_collate_fn = prebatched_collate_fn
+                else:
+                    self.validdataset._return_static_attrs_separately = True
+                    _val_collate_fn = static_attr_batch_collate_fn
+            elif use_batch_level_dataloader:
+                warnings.warn(
+                    "batch_level_dataloader=True was ignored for validation "
+                    "because this dataset uses a custom collate path or is "
+                    "not the standard BaseDataset."
+                )
 
             validation_data_loader = DataLoader(
                 self.validdataset,
