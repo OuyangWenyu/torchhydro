@@ -48,6 +48,20 @@ from torchhydro.datasets.data_utils import (
 LOGGER = logging.getLogger(__name__)
 
 
+def _is_dask_backed_xarray(obj) -> bool:
+    """Return True when an Xarray object contains Dask-backed arrays."""
+    if obj is None:
+        return False
+    if hasattr(getattr(obj, "data", None), "chunks"):
+        return True
+    if hasattr(obj, "data_vars"):
+        return any(
+            hasattr(getattr(var, "data", None), "chunks")
+            for var in obj.data_vars.values()
+        )
+    return False
+
+
 def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataArray:
     """Fill gaps in a DataArray"""
     if fill_nan is None or da is None:
@@ -464,13 +478,60 @@ class BaseDataset(Dataset):
 
     def _load_data(self):
         origin_data = self._read_xyc()
+        origin_data = self._eager_load_cloud_xarray_data(origin_data)
         # normalization
         norm_data = self._normalize(origin_data)
+        norm_data = self._eager_load_cloud_xarray_data(norm_data)
         # 启用 NaN 处理以确保数据清洁
         origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
         # origin_data_wonan, norm_data_wonan = origin_data, norm_data  # 备用：跳过 NaN 处理
         self._trans2nparr(origin_data_wonan, norm_data_wonan)
         self._create_lookup_table()
+
+    def _eager_load_cloud_xarray_data(self, data):
+        """Load cloud Dask-backed Xarray data before NaN filling.
+
+        Cloud Zarr reads return dask-backed Xarray objects. Later NaN handling
+        calls ``interpolate_na(dim="time")``, which requires the core dimension
+        to be contained in one chunk. The current TorchHydro Dataset setup
+        converts all Xarray data to NumPy anyway, so loading here keeps local
+        behavior unchanged while avoiding Dask rechunk errors for cloud data.
+        """
+        if not self._should_eager_load_cloud_data() or data is None:
+            return data
+        return {
+            key: self._eager_load_cloud_xarray_value(value, key)
+            for key, value in data.items()
+        }
+
+    def _eager_load_cloud_xarray_value(self, value, key):
+        if value is not None and _is_dask_backed_xarray(value):
+            LOGGER.info(
+                "Eager loading cloud Xarray data before NaN handling: %s", key
+            )
+            return value.load()
+        return value
+
+    def _should_eager_load_cloud_data(self) -> bool:
+        return bool(
+            self.data_cfgs.get("cloud_eager_load", True)
+        ) and self._is_cloud_source()
+
+    def _is_cloud_source(self) -> bool:
+        source_cfgs = self.data_cfgs.get("source_cfgs") or {}
+        other_settings = source_cfgs.get("other_settings") or {}
+        source = other_settings.get("source") or source_cfgs.get("source")
+        if source is None:
+            try:
+                from hydrodataset.configs.settings import (
+                    get_default_source,
+                    load_settings,
+                )
+
+                source = get_default_source(load_settings())
+            except Exception:
+                source = None
+        return source == "cloud"
 
     def _trans2nparr(self, origin_data, norm_data):
         """To make __getitem__ more efficient,
