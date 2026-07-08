@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import sys
+import time
 import torch
 import xarray as xr
 import numpy as np
@@ -656,16 +657,47 @@ class BaseDataset(Dataset):
         self.num_samples = len(self.lookup_table)
 
     def _load_data(self):
-        origin_data = self._read_xyc()
-        origin_data = self._eager_load_cloud_xarray_data(origin_data)
+        total_start = time.perf_counter()
+        origin_data = self._profile_dataset_setup_step("_read_xyc", self._read_xyc)
+        origin_data = self._profile_dataset_setup_step(
+            "origin cloud .load()",
+            self._eager_load_cloud_xarray_data,
+            origin_data,
+        )
         # normalization
-        norm_data = self._normalize(origin_data)
-        norm_data = self._eager_load_cloud_xarray_data(norm_data)
+        norm_data = self._profile_dataset_setup_step(
+            "_normalize", self._normalize, origin_data
+        )
+        norm_data = self._profile_dataset_setup_step(
+            "norm .load()", self._eager_load_cloud_xarray_data, norm_data
+        )
         # 启用 NaN 处理以确保数据清洁
-        origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
+        origin_data_wonan, norm_data_wonan = self._profile_dataset_setup_step(
+            "_kill_nan", self._kill_nan, origin_data, norm_data
+        )
         # origin_data_wonan, norm_data_wonan = origin_data, norm_data  # 备用：跳过 NaN 处理
-        self._trans2nparr(origin_data_wonan, norm_data_wonan)
-        self._create_lookup_table()
+        self._profile_dataset_setup_step(
+            "_trans2nparr", self._trans2nparr, origin_data_wonan, norm_data_wonan
+        )
+        self._profile_dataset_setup_step("_create_lookup_table", self._create_lookup_table)
+        self._profile_dataset_setup_total(total_start)
+
+    def _should_profile_dataset_setup(self) -> bool:
+        return bool(self.data_cfgs.get("profile_dataset_setup", False))
+
+    def _profile_dataset_setup_step(self, name, func, *args, **kwargs):
+        if not self._should_profile_dataset_setup():
+            return func(*args, **kwargs)
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        seconds = time.perf_counter() - start
+        print(f"[dataset setup profile] {name:24s}: {seconds:10.3f} s")
+        return result
+
+    def _profile_dataset_setup_total(self, total_start):
+        if self._should_profile_dataset_setup():
+            seconds = time.perf_counter() - total_start
+            print(f"[dataset setup profile] {'total':24s}: {seconds:10.3f} s")
 
     def _eager_load_cloud_xarray_data(self, data):
         """Load cloud Dask-backed Xarray data before NaN filling.

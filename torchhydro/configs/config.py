@@ -99,6 +99,9 @@ def default_config_file() -> Dict[str, Any]:
             # eager loading cloud arrays before NaN filling avoids Dask core
             # dimension chunk errors without changing the training data flow.
             "cloud_eager_load": True,
+            # Print setup stage timings for Dataset construction when enabled.
+            # This is diagnostic-only and does not change data flow.
+            "profile_dataset_setup": False,
             "case_dir": None,
             # the min time step of the input data
             "min_time_unit": "D",
