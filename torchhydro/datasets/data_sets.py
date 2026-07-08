@@ -48,6 +48,20 @@ from torchhydro.datasets.data_utils import (
 LOGGER = logging.getLogger(__name__)
 
 
+def _is_dask_backed_xarray(obj) -> bool:
+    """Return True when an Xarray object contains Dask-backed arrays."""
+    if obj is None:
+        return False
+    if hasattr(getattr(obj, "data", None), "chunks"):
+        return True
+    if hasattr(obj, "data_vars"):
+        return any(
+            hasattr(getattr(var, "data", None), "chunks")
+            for var in obj.data_vars.values()
+        )
+    return False
+
+
 def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataArray:
     """Fill gaps in a DataArray"""
     if fill_nan is None or da is None:
@@ -456,21 +470,68 @@ class BaseDataset(Dataset):
         x = self.x[basin, idx - warmup_length : idx + actual_length - warmup_length, :]
         y = self.y[basin, idx : idx + actual_length - warmup_length, :]
         if self.c is None or self.c.shape[-1] == 0:
-            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            return torch.from_numpy(x), torch.from_numpy(y)
         c = self.c[basin, :]
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
         xc = np.concatenate((x, c), axis=1)
-        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        return torch.from_numpy(xc), torch.from_numpy(y)
 
     def _load_data(self):
         origin_data = self._read_xyc()
+        origin_data = self._eager_load_cloud_xarray_data(origin_data)
         # normalization
         norm_data = self._normalize(origin_data)
+        norm_data = self._eager_load_cloud_xarray_data(norm_data)
         # 启用 NaN 处理以确保数据清洁
         origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
         # origin_data_wonan, norm_data_wonan = origin_data, norm_data  # 备用：跳过 NaN 处理
         self._trans2nparr(origin_data_wonan, norm_data_wonan)
         self._create_lookup_table()
+
+    def _eager_load_cloud_xarray_data(self, data):
+        """Load cloud Dask-backed Xarray data before NaN filling.
+
+        Cloud Zarr reads return dask-backed Xarray objects. Later NaN handling
+        calls ``interpolate_na(dim="time")``, which requires the core dimension
+        to be contained in one chunk. The current TorchHydro Dataset setup
+        converts all Xarray data to NumPy anyway, so loading here keeps local
+        behavior unchanged while avoiding Dask rechunk errors for cloud data.
+        """
+        if not self._should_eager_load_cloud_data() or data is None:
+            return data
+        return {
+            key: self._eager_load_cloud_xarray_value(value, key)
+            for key, value in data.items()
+        }
+
+    def _eager_load_cloud_xarray_value(self, value, key):
+        if value is not None and _is_dask_backed_xarray(value):
+            LOGGER.info(
+                "Eager loading cloud Xarray data before NaN handling: %s", key
+            )
+            return value.load()
+        return value
+
+    def _should_eager_load_cloud_data(self) -> bool:
+        return bool(
+            self.data_cfgs.get("cloud_eager_load", True)
+        ) and self._is_cloud_source()
+
+    def _is_cloud_source(self) -> bool:
+        source_cfgs = self.data_cfgs.get("source_cfgs") or {}
+        other_settings = source_cfgs.get("other_settings") or {}
+        source = other_settings.get("source") or source_cfgs.get("source")
+        if source is None:
+            try:
+                from hydrodataset.configs.settings import (
+                    get_default_source,
+                    load_settings,
+                )
+
+                source = get_default_source(load_settings())
+            except Exception:
+                source = None
+        return source == "cloud"
 
     def _trans2nparr(self, origin_data, norm_data):
         """To make __getitem__ more efficient,
@@ -483,8 +544,8 @@ class BaseDataset(Dataset):
                 norm_arr = None
                 origin_arr = None
             else:
-                norm_arr = _norm.to_numpy()
-                origin_arr = _origin.to_numpy()
+                norm_arr = self._to_float32_numpy(_norm.to_numpy())
+                origin_arr = self._to_float32_numpy(_origin.to_numpy())
             if key == "relevant_cols":
                 self.x_origin = origin_arr
                 self.x = norm_arr
@@ -509,6 +570,19 @@ class BaseDataset(Dataset):
                     f"Unknown data type {key} in origin_data, "
                     "it should be one of relevant_cols, target_cols, constant_cols, forecast_cols, global_cols, station_cols"
                 )
+
+    @staticmethod
+    def _to_float32_numpy(arr):
+        """Convert numeric numpy arrays to float32 once during dataset setup.
+
+        TorchHydro models consume float32 tensors. Converting here avoids doing
+        float64 -> float32 copies for every sample in ``__getitem__``.
+        """
+        if arr is None:
+            return None
+        if np.issubdtype(arr.dtype, np.number) and arr.dtype != np.float32:
+            return arr.astype(np.float32, copy=False)
+        return arr
 
     def _normalize(
         self,
@@ -775,6 +849,24 @@ class BaseDataset(Dataset):
             ]
         return data_forcing_ds, data_output_ds
 
+    def _mask_negative_streamflow(self, data_output_ds):
+        """Treat negative streamflow values as missing observations.
+
+        CAMELS-US local NetCDF caches store invalid negative streamflow sentinel
+        values as NaN. Cloud Zarr data can still contain those negative values,
+        which break DapengScaler's sqrt/log normalization for streamflow and can
+        make all normalized targets NaN. Mask them before scaling so local and
+        cloud data sources follow the same missing-data semantics.
+        """
+        if data_output_ds is None or self.streamflow_name not in data_output_ds:
+            return data_output_ds
+        streamflow = data_output_ds[self.streamflow_name]
+        attrs = streamflow.attrs.copy()
+        data_output_ds = data_output_ds.copy()
+        data_output_ds[self.streamflow_name] = streamflow.where(streamflow >= 0)
+        data_output_ds[self.streamflow_name].attrs.update(attrs)
+        return data_output_ds
+
     def _read_xyc(self):
         """Read x, y, c data from data source
 
@@ -909,6 +1001,7 @@ class BaseDataset(Dataset):
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
             data_forcing_ds_, data_output_ds_
         )
+        data_output_ds = self._mask_negative_streamflow(data_output_ds)
         # c
         data_attr_ds = self.data_source.read_attr_xrdataset(
             self.t_s_dict["sites_id"],
