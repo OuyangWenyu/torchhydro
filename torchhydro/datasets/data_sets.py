@@ -62,6 +62,22 @@ def _is_dask_backed_xarray(obj) -> bool:
     return False
 
 
+def static_attr_batch_collate_fn(batch):
+    """Assemble static attributes once per batch instead of once per sample."""
+    if not batch:
+        return batch
+    first = batch[0]
+    if len(first) == 3:
+        xs, ys, cs = zip(*batch)
+        x_batch = torch.stack(xs, dim=0)
+        y_batch = torch.stack(ys, dim=0)
+        c_batch = torch.stack(cs, dim=0)
+        c_expanded = c_batch.unsqueeze(1).expand(-1, x_batch.shape[1], -1)
+        return torch.cat((x_batch, c_expanded), dim=-1), y_batch
+    xs, ys = zip(*batch)
+    return torch.stack(xs, dim=0), torch.stack(ys, dim=0)
+
+
 def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataArray:
     """Fill gaps in a DataArray"""
     if fill_nan is None or da is None:
@@ -472,6 +488,8 @@ class BaseDataset(Dataset):
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x), torch.from_numpy(y)
         c = self.c[basin, :]
+        if getattr(self, "_return_static_attrs_separately", False):
+            return torch.from_numpy(x), torch.from_numpy(y), torch.from_numpy(c)
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
         xc = np.concatenate((x, c), axis=1)
         return torch.from_numpy(xc), torch.from_numpy(y)

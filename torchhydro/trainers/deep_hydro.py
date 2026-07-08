@@ -25,7 +25,7 @@ import shap
 
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
-from torchhydro.datasets.data_sets import BaseDataset
+from torchhydro.datasets.data_sets import BaseDataset, static_attr_batch_collate_fn
 from torchhydro.datasets.sampler import (
     fl_sample_basin,
     fl_sample_region,
@@ -1479,6 +1479,15 @@ class DeepHydro(DeepHydroInterface):
             )
         ):
             _collate_fn = gnn_collate_fn
+        if hasattr(self.traindataset, "_return_static_attrs_separately"):
+            self.traindataset._return_static_attrs_separately = False
+        if (
+            sampler is None
+            and _collate_fn is None
+            and self.traindataset.__class__ is BaseDataset
+        ):
+            self.traindataset._return_static_attrs_separately = True
+            _collate_fn = static_attr_batch_collate_fn
         data_loader = DataLoader(
             self.traindataset,
             batch_size=training_cfgs["batch_size"],
@@ -1500,8 +1509,16 @@ class DeepHydro(DeepHydroInterface):
                     "GNN" in self.validdataset.__class__.__name__
                     or "TgHydroDataset" in self.validdataset.__class__.__name__
                 )
+                ):
+                    _val_collate_fn = gnn_collate_fn
+            if hasattr(self.validdataset, "_return_static_attrs_separately"):
+                self.validdataset._return_static_attrs_separately = False
+            if (
+                _val_collate_fn is None
+                and self.validdataset.__class__ is BaseDataset
             ):
-                _val_collate_fn = gnn_collate_fn
+                self.validdataset._return_static_attrs_separately = True
+                _val_collate_fn = static_attr_batch_collate_fn
 
             validation_data_loader = DataLoader(
                 self.validdataset,
