@@ -537,14 +537,23 @@ class BaseDataset(Dataset):
         event datasets override ``__getitem__`` with different semantics and
         should continue using their existing collate paths.
         """
-        item_indices = [int(item) for item in items]
-        if not item_indices:
+        item_indices = np.asarray(items, dtype=np.int64)
+        if item_indices.size == 0:
             return torch.empty(0), torch.empty(0)
 
-        lookup_rows = [self.lookup_table[item] for item in item_indices]
-        basins = np.asarray([row[0] for row in lookup_rows], dtype=np.int64)
-        start_indices = np.asarray([row[1] for row in lookup_rows], dtype=np.int64)
-        actual_lengths = np.asarray([row[2] for row in lookup_rows], dtype=np.int64)
+        if hasattr(self, "_lookup_basins"):
+            basins = self._lookup_basins[item_indices].astype(np.int64, copy=False)
+            start_indices = self._lookup_starts[item_indices].astype(
+                np.int64, copy=False
+            )
+            actual_lengths = self._lookup_lengths[item_indices].astype(
+                np.int64, copy=False
+            )
+        else:
+            lookup_rows = [self.lookup_table[int(item)] for item in item_indices]
+            basins = np.asarray([row[0] for row in lookup_rows], dtype=np.int64)
+            start_indices = np.asarray([row[1] for row in lookup_rows], dtype=np.int64)
+            actual_lengths = np.asarray([row[2] for row in lookup_rows], dtype=np.int64)
 
         actual_length = int(actual_lengths[0])
         if not np.all(actual_lengths == actual_length):
@@ -582,11 +591,23 @@ class BaseDataset(Dataset):
             y_end = idx + actual_length - warmup_length
 
             xs[batch_pos, :, :x_feature_count] = self.x[basin, x_start:x_end, :]
-            if c_feature_count:
-                xs[batch_pos, :, x_feature_count:] = self.c[basin, :]
             ys[batch_pos, :, :] = self.y[basin, y_start:y_end, :]
+        if c_feature_count:
+            xs[:, :, x_feature_count:] = self.c[basins, :][:, None, :]
 
         return torch.from_numpy(xs), torch.from_numpy(ys)
+
+    def _cache_lookup_arrays(self, lookup):
+        """Keep compact lookup arrays for vectorized batch-level indexing."""
+        self._lookup_basins = np.fromiter(
+            (row[0] for row in lookup), dtype=np.int32, count=len(lookup)
+        )
+        self._lookup_starts = np.fromiter(
+            (row[1] for row in lookup), dtype=np.int32, count=len(lookup)
+        )
+        self._lookup_lengths = np.fromiter(
+            (row[2] for row in lookup), dtype=np.int32, count=len(lookup)
+        )
 
     def _load_data(self):
         origin_data = self._read_xyc()
@@ -1276,6 +1297,7 @@ class BaseDataset(Dataset):
                         # if all nan in rho + horizon window, we skip this sample
                         if not np.all(nan_array[f : f + rho + horizon])
                     )
+        self._cache_lookup_arrays(lookup)
         self.lookup_table = dict(enumerate(lookup))
         self.num_samples = len(self.lookup_table)
 
