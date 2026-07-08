@@ -456,11 +456,11 @@ class BaseDataset(Dataset):
         x = self.x[basin, idx - warmup_length : idx + actual_length - warmup_length, :]
         y = self.y[basin, idx : idx + actual_length - warmup_length, :]
         if self.c is None or self.c.shape[-1] == 0:
-            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            return torch.from_numpy(x), torch.from_numpy(y)
         c = self.c[basin, :]
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
         xc = np.concatenate((x, c), axis=1)
-        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        return torch.from_numpy(xc), torch.from_numpy(y)
 
     def _load_data(self):
         origin_data = self._read_xyc()
@@ -483,8 +483,8 @@ class BaseDataset(Dataset):
                 norm_arr = None
                 origin_arr = None
             else:
-                norm_arr = _norm.to_numpy()
-                origin_arr = _origin.to_numpy()
+                norm_arr = self._to_float32_numpy(_norm.to_numpy())
+                origin_arr = self._to_float32_numpy(_origin.to_numpy())
             if key == "relevant_cols":
                 self.x_origin = origin_arr
                 self.x = norm_arr
@@ -509,6 +509,19 @@ class BaseDataset(Dataset):
                     f"Unknown data type {key} in origin_data, "
                     "it should be one of relevant_cols, target_cols, constant_cols, forecast_cols, global_cols, station_cols"
                 )
+
+    @staticmethod
+    def _to_float32_numpy(arr):
+        """Convert numeric numpy arrays to float32 once during dataset setup.
+
+        TorchHydro models consume float32 tensors. Converting here avoids doing
+        float64 -> float32 copies for every sample in ``__getitem__``.
+        """
+        if arr is None:
+            return None
+        if np.issubdtype(arr.dtype, np.number) and arr.dtype != np.float32:
+            return arr.astype(np.float32, copy=False)
+        return arr
 
     def _normalize(
         self,
