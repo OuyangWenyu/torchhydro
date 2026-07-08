@@ -849,6 +849,24 @@ class BaseDataset(Dataset):
             ]
         return data_forcing_ds, data_output_ds
 
+    def _mask_negative_streamflow(self, data_output_ds):
+        """Treat negative streamflow values as missing observations.
+
+        CAMELS-US local NetCDF caches store invalid negative streamflow sentinel
+        values as NaN. Cloud Zarr data can still contain those negative values,
+        which break DapengScaler's sqrt/log normalization for streamflow and can
+        make all normalized targets NaN. Mask them before scaling so local and
+        cloud data sources follow the same missing-data semantics.
+        """
+        if data_output_ds is None or self.streamflow_name not in data_output_ds:
+            return data_output_ds
+        streamflow = data_output_ds[self.streamflow_name]
+        attrs = streamflow.attrs.copy()
+        data_output_ds = data_output_ds.copy()
+        data_output_ds[self.streamflow_name] = streamflow.where(streamflow >= 0)
+        data_output_ds[self.streamflow_name].attrs.update(attrs)
+        return data_output_ds
+
     def _read_xyc(self):
         """Read x, y, c data from data source
 
@@ -983,6 +1001,7 @@ class BaseDataset(Dataset):
         data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
             data_forcing_ds_, data_output_ds_
         )
+        data_output_ds = self._mask_negative_streamflow(data_output_ds)
         # c
         data_attr_ds = self.data_source.read_attr_xrdataset(
             self.t_s_dict["sites_id"],
