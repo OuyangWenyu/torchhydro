@@ -48,6 +48,30 @@ from torchhydro.datasets.data_utils import (
 LOGGER = logging.getLogger(__name__)
 
 
+class LookupTableView:
+    """Tuple-compatible lookup table backed by compact NumPy arrays.
+
+    This preserves the existing ``lookup_table[item] -> (basin, start, length)``
+    interface for Dataset subclasses while allowing the standard BaseDataset
+    path to use the underlying arrays directly.
+    """
+
+    def __init__(self, basins, starts, lengths):
+        self.basins = basins
+        self.starts = starts
+        self.lengths = lengths
+
+    def __len__(self):
+        return len(self.basins)
+
+    def __getitem__(self, item: int):
+        return (
+            int(self.basins[item]),
+            int(self.starts[item]),
+            int(self.lengths[item]),
+        )
+
+
 def _is_dask_backed_xarray(obj) -> bool:
     """Return True when an Xarray object contains Dask-backed arrays."""
     if obj is None:
@@ -493,7 +517,12 @@ class BaseDataset(Dataset):
             A tuple of (input_data, output_data), where input_data is a tensor
             of input features and output_data is a tensor of target values.
         """
-        basin, idx, actual_length = self.lookup_table[item]
+        if hasattr(self, "_lookup_basins"):
+            basin = self._lookup_basins[item]
+            idx = self._lookup_starts[item]
+            actual_length = self._lookup_lengths[item]
+        else:
+            basin, idx, actual_length = self.lookup_table[item]
         warmup_length = self.warmup_length
         x = self.x[basin, idx - warmup_length : idx + actual_length - warmup_length, :]
         y = self.y[basin, idx : idx + actual_length - warmup_length, :]
@@ -542,12 +571,12 @@ class BaseDataset(Dataset):
             return torch.empty(0), torch.empty(0)
 
         if hasattr(self, "_lookup_basins"):
-            basins = self._lookup_basins[item_indices].astype(np.int64, copy=False)
+            basins = self._lookup_basins[item_indices].astype(np.intp, copy=False)
             start_indices = self._lookup_starts[item_indices].astype(
-                np.int64, copy=False
+                np.intp, copy=False
             )
             actual_lengths = self._lookup_lengths[item_indices].astype(
-                np.int64, copy=False
+                np.intp, copy=False
             )
         else:
             lookup_rows = [self.lookup_table[int(item)] for item in item_indices]
@@ -597,17 +626,34 @@ class BaseDataset(Dataset):
 
         return torch.from_numpy(xs), torch.from_numpy(ys)
 
-    def _cache_lookup_arrays(self, lookup):
-        """Keep compact lookup arrays for vectorized batch-level indexing."""
-        self._lookup_basins = np.fromiter(
-            (row[0] for row in lookup), dtype=np.int32, count=len(lookup)
+    @staticmethod
+    def _lookup_dtype(max_value, default=np.int32):
+        if max_value <= np.iinfo(np.int16).max:
+            return np.int16
+        return default
+
+    @staticmethod
+    def _valid_window_mask(nan_array, starts, window):
+        """Return starts whose target window contains at least one observation."""
+        if starts.size == 0:
+            return np.zeros(0, dtype=bool)
+        time_has_value = ~np.all(nan_array, axis=1)
+        counts = np.concatenate(([0], np.cumsum(time_has_value, dtype=np.int32)))
+        return (counts[starts + window] - counts[starts]) > 0
+
+    def _set_lookup_arrays(self, basins, starts, lengths):
+        """Store compact lookup arrays and a tuple-compatible view."""
+        max_basin = int(basins.max()) if basins.size else 0
+        max_length = int(lengths.max()) if lengths.size else 0
+        self._lookup_basins = basins.astype(self._lookup_dtype(max_basin), copy=False)
+        self._lookup_starts = starts.astype(np.int32, copy=False)
+        self._lookup_lengths = lengths.astype(
+            self._lookup_dtype(max_length), copy=False
         )
-        self._lookup_starts = np.fromiter(
-            (row[1] for row in lookup), dtype=np.int32, count=len(lookup)
+        self.lookup_table = LookupTableView(
+            self._lookup_basins, self._lookup_starts, self._lookup_lengths
         )
-        self._lookup_lengths = np.fromiter(
-            (row[2] for row in lookup), dtype=np.int32, count=len(lookup)
-        )
+        self.num_samples = len(self.lookup_table)
 
     def _load_data(self):
         origin_data = self._read_xyc()
@@ -1247,7 +1293,9 @@ class BaseDataset(Dataset):
         return the_filled_data
 
     def _create_lookup_table(self):
-        lookup = []
+        basin_chunks = []
+        start_chunks = []
+        length_chunks = []
         # list to collect basins ids of basins without a single training sample
         basin_coordinates = len(self.t_s_dict["sites_id"])
         rho = self.rho
@@ -1264,14 +1312,24 @@ class BaseDataset(Dataset):
         fixed_lengths = variable_length_cfgs.get("fixed_lengths", [365, 1095, 1825])
         # Use fixed type variable length if enabled and type is fixed
         is_fixed_length_train = use_variable_length and variable_length_type == "fixed"
+
+        def append_lookup_arrays(basin, starts, length):
+            if starts.size == 0:
+                return
+            basin_chunks.append(np.full(starts.shape, basin, dtype=np.int32))
+            start_chunks.append(starts.astype(np.int32, copy=False))
+            length_chunks.append(np.full(starts.shape, length, dtype=np.int32))
+
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
             if not self.train_mode:
                 # we don't need to ignore those with full nan in target vars for prediction without loss calculation
                 # all samples should be included so that we can recover results to specified basins easily
-                lookup.extend(
-                    (basin, f, seq_len)
-                    for f in range(warmup_length, max_time_length - rho - horizon + 1)
+                starts = np.arange(
+                    warmup_length,
+                    max_time_length - rho - horizon + 1,
+                    dtype=np.int32,
                 )
+                append_lookup_arrays(basin, starts, seq_len)
             else:
                 # some dataloader load data with warmup period, so leave some periods for it
                 # [warmup_len] -> time_start -> [rho] -> [horizon]
@@ -1279,27 +1337,35 @@ class BaseDataset(Dataset):
                 nan_array = np.isnan(self.y[basin, :, :])
                 if is_fixed_length_train:
                     for window in fixed_lengths:
-                        lookup.extend(
-                            (basin, f, window)
-                            for f in range(
-                                warmup_length,
-                                max_time_length - window + 1,
-                            )
-                            # if all nan in window, we skip this sample
-                            if not np.all(nan_array[f : f + window])
+                        starts = np.arange(
+                            warmup_length,
+                            max_time_length - window + 1,
+                            dtype=np.int32,
                         )
+                        starts = starts[
+                            self._valid_window_mask(nan_array, starts, window)
+                        ]
+                        append_lookup_arrays(basin, starts, window)
                 else:
-                    lookup.extend(
-                        (basin, f, seq_len)
-                        for f in range(
-                            warmup_length, max_time_length - rho - horizon + 1
-                        )
-                        # if all nan in rho + horizon window, we skip this sample
-                        if not np.all(nan_array[f : f + rho + horizon])
+                    starts = np.arange(
+                        warmup_length,
+                        max_time_length - rho - horizon + 1,
+                        dtype=np.int32,
                     )
-        self._cache_lookup_arrays(lookup)
-        self.lookup_table = dict(enumerate(lookup))
-        self.num_samples = len(self.lookup_table)
+                    starts = starts[
+                        self._valid_window_mask(nan_array, starts, rho + horizon)
+                    ]
+                    append_lookup_arrays(basin, starts, seq_len)
+
+        if start_chunks:
+            basins = np.concatenate(basin_chunks)
+            starts = np.concatenate(start_chunks)
+            lengths = np.concatenate(length_chunks)
+        else:
+            basins = np.empty(0, dtype=np.int32)
+            starts = np.empty(0, dtype=np.int32)
+            lengths = np.empty(0, dtype=np.int32)
+        self._set_lookup_arrays(basins, starts, lengths)
 
     def _create_multi_len_lookup_table(self):
         """
