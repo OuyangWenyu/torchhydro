@@ -94,6 +94,11 @@ def default_config_file() -> Dict[str, Any]:
             "source_cfgs": {
                 "dataset_id": "camels_us",
             },
+            # Cloud Zarr data is dask-backed after open_zarr. The current
+            # Dataset pipeline converts Xarray data to NumPy during setup, so
+            # eager loading cloud arrays before NaN filling avoids Dask core
+            # dimension chunk errors without changing the training data flow.
+            "cloud_eager_load": True,
             "case_dir": None,
             # the min time step of the input data
             "min_time_unit": "D",
