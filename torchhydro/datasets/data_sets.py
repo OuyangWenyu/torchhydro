@@ -1196,31 +1196,43 @@ class BaseDataset(Dataset):
         end_date : str
             end time
         """
-        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            [start_date, end_date],
-            self.data_cfgs["relevant_cols"],
+        data_forcing_ds_, data_output_ds_ = self._profile_dataset_setup_step(
+            "_read_xyc.read_ts",
+            self._read_relevant_and_target_xrdatasets,
+            start_date,
+            end_date,
         )
-        # y
-        data_output_ds_ = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            [start_date, end_date],
-            self.data_cfgs["target_cols"],
+        data_forcing_ds_, data_output_ds_ = self._profile_dataset_setup_step(
+            "_read_xyc.rm_timeunit",
+            self._rm_timeunit_keys,
+            data_forcing_ds_,
+            data_output_ds_,
         )
-        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
-        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
-        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
-            data_forcing_ds_, data_output_ds_
+        data_forcing_ds, data_output_ds = self._profile_dataset_setup_step(
+            "_read_xyc.unit_check",
+            self._check_ts_xrds_unit,
+            data_forcing_ds_,
+            data_output_ds_,
         )
-        data_output_ds = self._mask_negative_streamflow(data_output_ds)
+        data_output_ds = self._profile_dataset_setup_step(
+            "_read_xyc.mask_negative_streamflow",
+            self._mask_negative_streamflow,
+            data_output_ds,
+        )
         # c
-        data_attr_ds = self.data_source.read_attr_xrdataset(
+        data_attr_ds = self._profile_dataset_setup_step(
+            "_read_xyc.read_attr",
+            self.data_source.read_attr_xrdataset,
             self.t_s_dict["sites_id"],
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
-        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
-            data_forcing_ds, data_output_ds, data_attr_ds
+        x_origin, y_origin, c_origin = self._profile_dataset_setup_step(
+            "_read_xyc.to_dataarray",
+            self._to_dataarray_with_unit,
+            data_forcing_ds,
+            data_output_ds,
+            data_attr_ds,
         )
         return {
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
@@ -1231,6 +1243,43 @@ class BaseDataset(Dataset):
                 else None
             ),
         }
+
+    def _read_relevant_and_target_xrdatasets(self, start_date, end_date):
+        relevant_cols = self.data_cfgs["relevant_cols"]
+        target_cols = self.data_cfgs["target_cols"]
+        if self.data_cfgs.get("combine_relevant_target_read", True):
+            try:
+                all_cols = list(dict.fromkeys([*relevant_cols, *target_cols]))
+                data_ts_ds = self.data_source.read_ts_xrdataset(
+                    self.t_s_dict["sites_id"],
+                    [start_date, end_date],
+                    all_cols,
+                )
+                data_ts_ds = self._rm_timeunit_key(data_ts_ds)
+                return data_ts_ds[relevant_cols], data_ts_ds[target_cols]
+            except Exception as exc:
+                if self._should_profile_dataset_setup():
+                    print(
+                        "[dataset setup profile] "
+                        "combined relevant/target read failed; fallback to "
+                        f"separate reads: {type(exc).__name__}: {exc}"
+                    )
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            relevant_cols,
+        )
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            target_cols,
+        )
+        return data_forcing_ds_, data_output_ds_
+
+    def _rm_timeunit_keys(self, data_forcing_ds_, data_output_ds_):
+        return self._rm_timeunit_key(data_forcing_ds_), self._rm_timeunit_key(
+            data_output_ds_
+        )
 
     def _trans2da_and_setunits(self, ds):
         """Set units for dataarray transfromed from dataset"""

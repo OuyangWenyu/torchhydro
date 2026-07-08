@@ -102,6 +102,10 @@ def default_config_file() -> Dict[str, Any]:
             # Print setup stage timings for Dataset construction when enabled.
             # This is diagnostic-only and does not change data flow.
             "profile_dataset_setup": False,
+            # Try reading relevant and target time-series variables in one
+            # datasource call. This reduces repeated cloud Zarr open/selection
+            # overhead when both variable groups live in the same store.
+            "combine_relevant_target_read": True,
             "case_dir": None,
             # the min time step of the input data
             "min_time_unit": "D",
