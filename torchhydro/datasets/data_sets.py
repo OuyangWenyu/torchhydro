@@ -92,6 +92,17 @@ def static_attr_batch_collate_fn(batch):
     if not batch:
         return batch
     first = batch[0]
+    if (
+        len(first) == 2
+        and isinstance(first[0], (tuple, list))
+        and len(first[0]) == 2
+    ):
+        xcs, ys = zip(*batch)
+        xs, cs = zip(*xcs)
+        return (
+            torch.stack(xs, dim=0),
+            torch.stack(cs, dim=0),
+        ), torch.stack(ys, dim=0)
     if len(first) == 3:
         xs, ys, cs = zip(*batch)
         x_batch = torch.stack(xs, dim=0)
@@ -530,6 +541,8 @@ class BaseDataset(Dataset):
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x), torch.from_numpy(y)
         c = self.c[basin, :]
+        if getattr(self, "_separate_static_input", False):
+            return (torch.from_numpy(x), torch.from_numpy(c)), torch.from_numpy(y)
         if getattr(self, "_return_static_attrs_separately", False):
             return torch.from_numpy(x), torch.from_numpy(y), torch.from_numpy(c)
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
@@ -618,6 +631,12 @@ class BaseDataset(Dataset):
         # materializing a large basin x time-index matrix.
         x_dynamic = x_window_view[basins, start_indices - warmup_length]
         ys = y_window_view[basins, start_indices]
+
+        if getattr(self, "_separate_static_input", False) and c_feature_count:
+            return (
+                torch.from_numpy(x_dynamic),
+                torch.from_numpy(self.c[basins, :]),
+            ), torch.from_numpy(ys)
 
         if c_feature_count:
             xs = np.empty(

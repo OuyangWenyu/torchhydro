@@ -144,22 +144,9 @@ def model_infer(
 
     # --- move xs to device ---
     if isinstance(xs, list):
-        xs = [
-            (
-                x.permute(1, 0, 2).to(device)
-                if seq_first and x.ndim == 3
-                else x.to(device)
-            )
-            for x in xs
-        ]
+        xs = [_move_batch_value_to_device(x, device, seq_first) for x in xs]
     else:
-        xs = [
-            (
-                xs.permute(1, 0, 2).to(device)
-                if seq_first and xs.ndim == 3
-                else xs.to(device)
-            )
-        ]
+        xs = [_move_batch_value_to_device(xs, device, seq_first)]
 
     # --- move ys to device ---
     if ys is not None:
@@ -257,6 +244,31 @@ def model_infer(
             ys = ys.transpose(0, 1)
 
     return ys, output
+
+
+def _move_batch_value_to_device(value, device, seq_first):
+    """Move nested batch values to device and transpose time-series tensors.
+
+    Standard TorchHydro sequence models use sequence-first tensors
+    ``[T, B, F]``. Static attributes in the separated-input path are 2-D
+    ``[B, C]`` tensors and must not be transposed.
+    """
+    if torch.is_tensor(value):
+        return (
+            value.permute(1, 0, 2).to(device)
+            if seq_first and value.ndim == 3
+            else value.to(device)
+        )
+    if isinstance(value, tuple):
+        return tuple(_move_batch_value_to_device(v, device, seq_first) for v in value)
+    if isinstance(value, list):
+        return [_move_batch_value_to_device(v, device, seq_first) for v in value]
+    if isinstance(value, dict):
+        return {
+            key: _move_batch_value_to_device(val, device, seq_first)
+            for key, val in value.items()
+        }
+    return value
 
 
 class EarlyStopper(object):

@@ -294,6 +294,10 @@ def default_config_file() -> Dict[str, Any]:
             # if train_mode is False, don't train and evaluate
             "train_mode": True,
             "batch_size": 100,
+            # Return dynamic time-series inputs and static attributes
+            # separately as ``((x_dynamic, c_static), y)`` instead of repeating
+            # static attributes over the time dimension in the DataLoader.
+            "separate_static_input": False,
             # we generally have three times: [warmup, hindcast_length, forecast_length]
             # warmup period means no observation will be used to calculate loss for it.
             # For physics-based models, we generally need warmup to get a better initial state
