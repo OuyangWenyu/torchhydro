@@ -179,8 +179,12 @@ def _trans_norm(
     out = xr.full_like(x, np.nan)
     for item in var_lst:
         stat = stat_dict[item]
-        arr = x.sel(variable=item).to_numpy()
-        print(f"[DEBUG] {item}: mean={stat[2]}, std={stat[3]}, arr_sample={arr[:10]}")
+        if kwargs.get("debug", False):
+            arr = x.sel(variable=item).to_numpy()
+            print(
+                f"[DEBUG] {item}: mean={stat[2]}, std={stat[3]}, "
+                f"arr_sample={arr[:10]}"
+            )
         if to_norm:
             if item in maxmin_norm_cols:
                 out.loc[dict(variable=item)] = (x.sel(variable=item) - stat[0]) / (stat[1] - stat[0])
@@ -251,8 +255,10 @@ def _prcp_norm(x: np.array, mean_prep: np.array, to_norm: bool) -> np.array:
     np.array
         normalized or denormalized data
     """
-    tempprep = np.tile(mean_prep, (1, x.shape[1]))
-    return x / tempprep if to_norm else x * tempprep
+    prep = mean_prep
+    while prep.ndim < x.ndim:
+        prep = np.expand_dims(prep, axis=-1)
+    return x / prep if to_norm else x * prep
 
 
 def dor_reservoirs_chosen(gages, usgs_id, dor_chosen) -> list:

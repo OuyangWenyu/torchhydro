@@ -106,6 +106,13 @@ def default_config_file() -> Dict[str, Any]:
             # datasource call. This reduces repeated cloud Zarr open/selection
             # overhead when both variable groups live in the same store.
             "combine_relevant_target_read": True,
+            # Use a NumPy-based DapengScaler path that converts each DataArray
+            # once, then calculates statistics and normalized values by
+            # variable. This avoids repeated Xarray sel/loc/to_numpy overhead.
+            "fast_dapeng_scaler": True,
+            # Optional verbose scaler diagnostics. Disabled by default because
+            # printing array samples during normalization is expensive.
+            "scaler_debug": False,
             "case_dir": None,
             # the min time step of the input data
             "min_time_unit": "D",
