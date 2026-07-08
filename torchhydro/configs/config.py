@@ -99,9 +99,19 @@ def default_config_file() -> Dict[str, Any]:
             # eager loading cloud arrays before NaN filling avoids Dask core
             # dimension chunk errors without changing the training data flow.
             "cloud_eager_load": True,
+            # Load all Dask-backed Xarray objects in a setup stage with one
+            # dask.compute call instead of sequential value.load() calls.
+            "cloud_eager_load_concurrent": True,
+            # Dask scheduler used by concurrent cloud eager load.
+            "cloud_eager_load_scheduler": "threads",
+            # Optional num_workers passed to dask.compute. None lets Dask pick.
+            "cloud_eager_load_num_workers": None,
             # Print setup stage timings for Dataset construction when enabled.
             # This is diagnostic-only and does not change data flow.
             "profile_dataset_setup": False,
+            # Print shape/chunk/task details for cloud eager loading. This is
+            # also enabled when profile_dataset_setup is true.
+            "profile_cloud_load_details": False,
             # Try reading relevant and target time-series variables in one
             # datasource call. This reduces repeated cloud Zarr open/selection
             # overhead when both variable groups live in the same store.

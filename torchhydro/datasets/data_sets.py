@@ -710,10 +710,64 @@ class BaseDataset(Dataset):
         """
         if not self._should_eager_load_cloud_data() or data is None:
             return data
-        return {
-            key: self._eager_load_cloud_xarray_value(value, key)
+        loaded_data = dict(data)
+        dask_items = [
+            (key, value)
             for key, value in data.items()
-        }
+            if value is not None and _is_dask_backed_xarray(value)
+        ]
+        if not dask_items:
+            return loaded_data
+
+        if self._should_profile_cloud_load_details():
+            for key, value in dask_items:
+                self._print_cloud_xarray_load_plan(key, value)
+
+        if (
+            self.data_cfgs.get("cloud_eager_load_concurrent", True)
+            and len(dask_items) > 1
+        ):
+            return self._eager_load_cloud_xarray_values_concurrently(
+                loaded_data, dask_items
+            )
+
+        for key, value in dask_items:
+            loaded_data[key] = self._eager_load_cloud_xarray_value(value, key)
+        return loaded_data
+
+    def _eager_load_cloud_xarray_values_concurrently(self, loaded_data, dask_items):
+        """Load multiple Dask-backed Xarray objects in one Dask compute call."""
+        try:
+            import dask
+        except ImportError:
+            for key, value in dask_items:
+                loaded_data[key] = self._eager_load_cloud_xarray_value(value, key)
+            return loaded_data
+
+        compute_kwargs = {}
+        scheduler = self.data_cfgs.get("cloud_eager_load_scheduler", "threads")
+        if scheduler is not None:
+            compute_kwargs["scheduler"] = scheduler
+        num_workers = self.data_cfgs.get("cloud_eager_load_num_workers")
+        if num_workers is not None:
+            compute_kwargs["num_workers"] = num_workers
+
+        if self._should_profile_cloud_load_details():
+            keys = ", ".join(key for key, _ in dask_items)
+            scheduler_name = compute_kwargs.get("scheduler", "default")
+            workers_text = compute_kwargs.get("num_workers", "default")
+            print(
+                "[dataset setup profile] "
+                f"cloud load concurrent: keys=[{keys}], "
+                f"scheduler={scheduler_name}, num_workers={workers_text}"
+            )
+
+        loaded_values = dask.compute(
+            *(value for _, value in dask_items), **compute_kwargs
+        )
+        for (key, _), loaded_value in zip(dask_items, loaded_values):
+            loaded_data[key] = loaded_value
+        return loaded_data
 
     def _eager_load_cloud_xarray_value(self, value, key):
         if value is not None and _is_dask_backed_xarray(value):
@@ -722,6 +776,57 @@ class BaseDataset(Dataset):
             )
             return value.load()
         return value
+
+    def _should_profile_cloud_load_details(self) -> bool:
+        return self._should_profile_dataset_setup() or bool(
+            self.data_cfgs.get("profile_cloud_load_details", False)
+        )
+
+    def _print_cloud_xarray_load_plan(self, key, value):
+        dims = getattr(value, "dims", None)
+        shape = getattr(value, "shape", None)
+        chunks = getattr(value, "chunks", None)
+        dtype = getattr(value, "dtype", None)
+        nbytes = getattr(value, "nbytes", None)
+        task_count = self._dask_task_count(value)
+        nbytes_text = self._format_bytes(nbytes)
+        print(
+            "[dataset setup profile] "
+            f"cloud load plan {key}: dims={dims}, shape={shape}, "
+            f"chunks={chunks}, dtype={dtype}, bytes={nbytes_text}, "
+            f"dask_tasks={task_count}"
+        )
+
+    @staticmethod
+    def _dask_task_count(value):
+        try:
+            graph = value.__dask_graph__()
+        except Exception:
+            graph = None
+        if graph is None:
+            return None
+        try:
+            return len(graph)
+        except TypeError:
+            try:
+                return len(graph.to_dict())
+            except Exception:
+                return None
+
+    @staticmethod
+    def _format_bytes(nbytes):
+        if nbytes is None:
+            return "unknown"
+        try:
+            nbytes = float(nbytes)
+        except (TypeError, ValueError):
+            return str(nbytes)
+        units = ["B", "KiB", "MiB", "GiB", "TiB"]
+        unit_idx = 0
+        while nbytes >= 1024 and unit_idx < len(units) - 1:
+            nbytes /= 1024
+            unit_idx += 1
+        return f"{nbytes:.3f} {units[unit_idx]}"
 
     def _should_eager_load_cloud_data(self) -> bool:
         return bool(
