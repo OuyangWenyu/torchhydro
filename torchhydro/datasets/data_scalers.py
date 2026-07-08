@@ -338,12 +338,13 @@ class DapengScaler(object):
         self.data_other = other_vars
         self.prcp_norm_cols = prcp_norm_cols
         self.gamma_norm_cols = gamma_norm_cols
-        self.maxmin_norm_cols = maxmin_norm_cols
+        self.maxmin_norm_cols = [] if maxmin_norm_cols is None else maxmin_norm_cols
         # both prcp_norm_cols and gamma_norm_cols use log(\sqrt(x)+.1) method to normalize
         self.log_norm_cols = gamma_norm_cols + prcp_norm_cols
         self.pbm_norm = pbm_norm
         self.data_source = data_source
         self.data_global = global_vars
+        self._mean_prcp_cache = None
         # save stat_dict of training period in case_dir for valid/test
         stat_file = os.path.join(data_cfgs["case_dir"], "dapengscaler_stat.json")
         # for testing sometimes such as pub cases, we need stat_dict_file from trained dataset
@@ -381,22 +382,26 @@ class DapengScaler(object):
         # Get the first target variable (usually flow variable) instead of hardcoding "streamflow"
         flow_var_name = self.data_cfgs["target_cols"][0]
         final_unit = self.data_target.attrs["units"][flow_var_name]
-        mean_prcp = self.data_source.read_mean_prcp(
-            self.t_s_dict["sites_id"], unit=final_unit
-        )
-        # read_mean_prcp returns xarray Dataset; extract p_mean as numpy array
-        if hasattr(mean_prcp, "data_vars"):
-            # xarray Dataset — extract the p_mean variable
-            arr = mean_prcp["p_mean"].to_numpy()
-        elif hasattr(mean_prcp, "to_numpy"):
-            # xarray DataArray or other
-            arr = mean_prcp.to_numpy()
-        else:
-            arr = mean_prcp
-        # cal_stat_prcp_norm expects shape (N, 1) for broadcasting with (N, T) data
-        if arr.ndim == 1:
-            return arr.reshape(-1, 1)
-        return arr
+        if self._mean_prcp_cache is None:
+            mean_prcp = self.data_source.read_mean_prcp(
+                self.t_s_dict["sites_id"], unit=final_unit
+            )
+            # read_mean_prcp returns xarray Dataset; extract p_mean as numpy array
+            if hasattr(mean_prcp, "data_vars"):
+                # xarray Dataset — extract the p_mean variable
+                arr = mean_prcp["p_mean"].to_numpy()
+            elif hasattr(mean_prcp, "to_numpy"):
+                # xarray DataArray or other
+                arr = mean_prcp.to_numpy()
+            else:
+                arr = mean_prcp
+            # cal_stat_prcp_norm expects shape (N, 1) for broadcasting with
+            # (N, T) data. Keep the cached array in that shape so both stat
+            # calculation and normalization reuse it.
+            if arr.ndim == 1:
+                arr = arr.reshape(-1, 1)
+            self._mean_prcp_cache = arr
+        return self._mean_prcp_cache
 
     def inverse_transform(self, target_values, maxmin_norm_cols=None):
         """
@@ -455,6 +460,8 @@ class DapengScaler(object):
         dict
             a dict with statistic values
         """
+        if self.data_cfgs.get("fast_dapeng_scaler", True):
+            return self._cal_stat_all_fast(vars_data)
         stat_dict = {}
         for k, v in vars_data.items():
             if v is None:
@@ -481,6 +488,32 @@ class DapengScaler(object):
                 stat_dict[var] = cal_stat(global_data.sel(variable=var).to_numpy())
         return stat_dict
 
+    def _cal_stat_all_fast(self, vars_data):
+        """Calculate scaler statistics with one NumPy conversion per DataArray."""
+        stat_dict = {}
+        for _, data_array in vars_data.items():
+            if data_array is None:
+                continue
+            variable_names = data_array.coords["variable"].values
+            data_np = data_array.to_numpy()
+            for i, var_name in enumerate(variable_names):
+                arr = data_np[..., i]
+                if var_name in self.prcp_norm_cols:
+                    stat_dict[var_name] = cal_stat_gamma(
+                        self._apply_prcp_norm(arr)
+                    )
+                elif var_name in self.gamma_norm_cols:
+                    stat_dict[var_name] = cal_stat_gamma(arr)
+                else:
+                    stat_dict[var_name] = cal_stat(arr)
+
+        if self.data_global is not None:
+            global_data = self.data_global
+            global_np = global_data.to_numpy()
+            for i, var in enumerate(global_data.coords["variable"].values):
+                stat_dict[var] = cal_stat(global_np[..., i])
+        return stat_dict
+
     def get_data_norm(self, data, to_norm: bool = True) -> np.ndarray:
         """
         Get normalized values
@@ -498,6 +531,8 @@ class DapengScaler(object):
         np.array
             the output value for modeling
         """
+        if self.data_cfgs.get("fast_dapeng_scaler", True):
+            return self._get_data_norm_fast(data, to_norm=to_norm)
         stat_dict = self.stat_dict
         out = xr.full_like(data, np.nan)
         # if we don't set a copy() here, the attrs of data will be changed, which is not our wish
@@ -524,8 +559,54 @@ class DapengScaler(object):
             log_norm_cols=self.log_norm_cols,
             maxmin_norm_cols=self.maxmin_norm_cols,
             to_norm=to_norm,
+            debug=self.data_cfgs.get("scaler_debug", False),
         )
         return out
+
+    def _get_data_norm_fast(self, data, to_norm: bool = True):
+        """Normalize a DataArray through NumPy to avoid repeated Xarray indexing."""
+        stat_dict = self.stat_dict
+        variable_names = data.coords["variable"].values
+        data_np = data.to_numpy()
+        out_np = np.empty_like(data_np, dtype=np.float32)
+        for i, var in enumerate(variable_names):
+            stat = stat_dict[var]
+            arr = data_np[..., i]
+            if var in self.prcp_norm_cols:
+                arr = self._apply_prcp_norm(arr)
+            if to_norm:
+                if var in self.maxmin_norm_cols:
+                    out_np[..., i] = (arr - stat[0]) / (stat[1] - stat[0])
+                elif var in self.log_norm_cols:
+                    out_np[..., i] = (
+                        np.log10(np.sqrt(np.abs(arr)) + 0.1) - stat[2]
+                    ) / stat[3]
+                else:
+                    out_np[..., i] = (arr - stat[2]) / stat[3]
+            else:
+                if var in self.maxmin_norm_cols:
+                    out_np[..., i] = arr * (stat[1] - stat[0]) + stat[0]
+                elif var in self.log_norm_cols:
+                    out_np[..., i] = (
+                        np.power(10, arr * stat[3] + stat[2]) - 0.1
+                    ) ** 2
+                else:
+                    out_np[..., i] = arr * stat[3] + stat[2]
+
+        attrs = {} if to_norm else copy.deepcopy(data.attrs)
+        return xr.DataArray(
+            out_np,
+            coords=data.coords,
+            dims=data.dims,
+            attrs=attrs,
+        )
+
+    def _apply_prcp_norm(self, arr):
+        """Normalize by mean precipitation using broadcasting, not np.tile."""
+        mean_prcp = self.mean_prcp
+        while mean_prcp.ndim < arr.ndim:
+            mean_prcp = np.expand_dims(mean_prcp, axis=-1)
+        return arr / mean_prcp
 
     def load_norm_data(self, vars_data):
         """
