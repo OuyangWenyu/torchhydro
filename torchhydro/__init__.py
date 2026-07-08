@@ -26,6 +26,7 @@ from hydrodataset.configs.settings import (
     load_settings,
     get_local_root,
     get_cache_dir,
+    get_default_source,
 )
 
 # Load settings from ~/hydro_setting.yml (shared with hydrodataset)
@@ -34,12 +35,13 @@ _settings = load_settings()
 # Extract resolved paths using the public API
 LOCAL_ROOT = get_local_root(_settings)
 CACHE_DIR = get_cache_dir(_settings)
+DEFAULT_SOURCE = get_default_source(_settings)
 
 # Raw settings dict (exported for code that needs e.g. minio/postgres config)
 SETTING = _settings
 
-# Validate the one required setting
-if LOCAL_ROOT is None:
+# Local storage needs a root, but cloud-only configurations do not.
+if DEFAULT_SOURCE == "local" and LOCAL_ROOT is None:
     raise RuntimeError(
         "storage.local.root is not configured.\n"
         "Create ~/hydro_setting.yml with:\n"
