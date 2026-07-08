@@ -608,24 +608,48 @@ class BaseDataset(Dataset):
             0 if self.c is None or self.c.shape[-1] == 0 else self.c.shape[-1]
         )
 
-        xs = np.empty(
-            (batch_size, x_length, x_feature_count + c_feature_count),
-            dtype=self.x.dtype,
+        x_window_view, y_window_view = self._get_batch_level_window_views(
+            x_length, y_length
         )
-        ys = np.empty((batch_size, y_length, y_feature_count), dtype=self.y.dtype)
 
-        for batch_pos, (basin, idx) in enumerate(zip(basins, start_indices)):
-            x_start = idx - warmup_length
-            x_end = idx + actual_length - warmup_length
-            y_start = idx
-            y_end = idx + actual_length - warmup_length
+        # Gather complete sliding windows by (basin, start) in one NumPy
+        # operation per tensor. ``sliding_window_view`` itself is a strided view,
+        # so this avoids the per-sample Python slicing loop without first
+        # materializing a large basin x time-index matrix.
+        x_dynamic = x_window_view[basins, start_indices - warmup_length]
+        ys = y_window_view[basins, start_indices]
 
-            xs[batch_pos, :, :x_feature_count] = self.x[basin, x_start:x_end, :]
-            ys[batch_pos, :, :] = self.y[basin, y_start:y_end, :]
+        if c_feature_count:
+            xs = np.empty(
+                (batch_size, x_length, x_feature_count + c_feature_count),
+                dtype=self.x.dtype,
+            )
+            xs[:, :, :x_feature_count] = x_dynamic
+        else:
+            xs = x_dynamic
         if c_feature_count:
             xs[:, :, x_feature_count:] = self.c[basins, :][:, None, :]
 
         return torch.from_numpy(xs), torch.from_numpy(ys)
+
+    def _get_batch_level_window_views(self, x_length, y_length):
+        """Return cached sliding-window views for batch-level assembly."""
+        cache_key = (x_length, y_length)
+        if getattr(self, "_batch_window_view_key", None) != cache_key:
+            from numpy.lib.stride_tricks import sliding_window_view
+
+            self._batch_x_window_view = np.moveaxis(
+                sliding_window_view(self.x, window_shape=x_length, axis=1),
+                -1,
+                2,
+            )
+            self._batch_y_window_view = np.moveaxis(
+                sliding_window_view(self.y, window_shape=y_length, axis=1),
+                -1,
+                2,
+            )
+            self._batch_window_view_key = cache_key
+        return self._batch_x_window_view, self._batch_y_window_view
 
     @staticmethod
     def _lookup_dtype(max_value, default=np.int32):
