@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader
 from torchhydro.configs.config import default_config_file
 from torchhydro.datasets.cloud_zarr_lazy_dataset import CloudZarrLazyDataset
 from torchhydro.datasets.cloud_zarr_sampler import CloudZarrChunkBatchSampler
+from torchhydro.trainers.cuda_prefetcher import CudaPrefetcher
 
 
 def prebatched_collate_fn(batch):
@@ -207,6 +208,7 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
     dataset = CloudZarrLazyDataset(cfg, "train")
     loader = make_loader(dataset, args)
     device = torch.device(args.device)
+    use_cuda_prefetch = bool(args.cuda_prefetch and device.type == "cuda")
     model = None
     optimizer = None
     if not args.no_train:
@@ -228,7 +230,12 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
     batch_sizes = []
     gpu_samples = []
     peak_rss = process_rss()
-    iterator = iter(loader)
+    iterable = (
+        CudaPrefetcher(loader, device, non_blocking=args.pin_memory)
+        if use_cuda_prefetch
+        else loader
+    )
+    iterator = iter(iterable)
     started = time.perf_counter()
     for step in range(args.steps):
         wait_start = time.perf_counter()
@@ -240,8 +247,9 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
         batch_sizes.append(int(x.shape[0]))
 
         compute_start = time.perf_counter()
-        x = x.to(device, non_blocking=args.pin_memory)
-        y = y.to(device, non_blocking=args.pin_memory)
+        if not use_cuda_prefetch:
+            x = x.to(device, non_blocking=args.pin_memory)
+            y = y.to(device, non_blocking=args.pin_memory)
         if model is not None and optimizer is not None and head is not None:
             optimizer.zero_grad(set_to_none=True)
             out, _ = model(x.float())
@@ -270,19 +278,33 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
         "samples_per_second": total_samples / elapsed if elapsed else 0.0,
         "avg_dataloader_wait_seconds": float(sum(wait_times) / len(wait_times)) if wait_times else None,
         "avg_compute_seconds": float(sum(compute_times) / len(compute_times)) if compute_times else None,
+        "max_dataloader_wait_seconds": max(wait_times) if wait_times else None,
+        "max_compute_seconds": max(compute_times) if compute_times else None,
         "rss": human_bytes(process_rss()),
         "peak_rss": human_bytes(peak_rss),
         "x_feature_count": dataset.x_feature_count,
         "y_feature_count": dataset.y_feature_count,
         "num_workers": args.num_workers,
         "pin_memory": args.pin_memory,
+        "cuda_prefetch": use_cuda_prefetch,
         "prefetch_factor": args.prefetch_factor if args.num_workers > 0 else None,
         "persistent_workers": args.persistent_workers if args.num_workers > 0 else None,
         "chunk_sampler": args.chunk_sampler,
         "sampling": args.sampling if args.chunk_sampler else None,
         "time_chunk_size": args.time_chunk_size if args.chunk_sampler else None,
+        "effective_time_chunk_size": (
+            getattr(loader.batch_sampler, "time_chunk_size", None)
+            if args.chunk_sampler
+            else None
+        ),
         "basin_chunk_size": args.basin_chunk_size if args.chunk_sampler else None,
+        "loader_batches": len(loader),
     }
+    if len(batch_sizes) == 0:
+        result["warning"] = (
+            "No batches were produced. Check batch_size, time_chunk_size, "
+            "basin_chunk_size and drop_last."
+        )
     if device.type == "cuda":
         result["torch_cuda_peak_allocated"] = human_bytes(torch.cuda.max_memory_allocated(device))
     if gpu_samples:
@@ -324,6 +346,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--basin-chunk-size", type=int, default=1)
     parser.add_argument("--max-batches-per-epoch", type=int, default=None)
     parser.add_argument("--no-pin-memory", dest="pin_memory", action="store_false")
+    parser.add_argument("--cuda-prefetch", action="store_true")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--hidden-size", type=int, default=64)
     parser.add_argument("--no-train", action="store_true")

@@ -39,9 +39,8 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
             raise ValueError("batch_size must be positive.")
         self.dataset = dataset
         self.batch_size = int(batch_size)
-        self.time_chunk_size = int(
-            time_chunk_size or max(1, dataset.rho + dataset.horizon)
-        )
+        seq_len = int(dataset.rho + dataset.horizon)
+        self.time_chunk_size = int(time_chunk_size or max(1, seq_len, self.batch_size))
         self.basin_chunk_size = int(max(1, basin_chunk_size))
         self.drop_last = drop_last
         self.shuffle = shuffle
@@ -52,6 +51,14 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
         self.seed = seed
         self._epoch = 0
         self._batches_by_source = self._build_batches_by_source()
+        if len(dataset) > 0 and self.drop_last and len(self) == 0:
+            raise ValueError(
+                "CloudZarrChunkBatchSampler produced zero batches. "
+                f"batch_size={self.batch_size}, "
+                f"time_chunk_size={self.time_chunk_size}, "
+                f"basin_chunk_size={self.basin_chunk_size}. "
+                "Increase time_chunk_size/basin_chunk_size or disable drop_last."
+            )
 
     def _build_batches_by_source(self) -> dict[int, list[list[int]]]:
         groups: dict[tuple[int, int, int], list[int]] = defaultdict(list)

@@ -240,6 +240,23 @@ def test_cloud_zarr_lazy_dataset_multi_source_global_schema(tmp_path):
     assert tuple(yb.shape) == (2, 4, 1)
 
 
+def test_cloud_zarr_chunk_sampler_default_chunk_can_fill_batch(tmp_path, tiny_zarr_stores):
+    ts_uri, attr_uri = tiny_zarr_stores
+    dataset = CloudZarrLazyDataset(_base_cfg(tmp_path, ts_uri, attr_uri), "train")
+    sampler = CloudZarrChunkBatchSampler(
+        dataset,
+        batch_size=5,
+        time_chunk_size=None,
+        drop_last=True,
+        shuffle=False,
+    )
+
+    first_batch = next(iter(sampler))
+    assert sampler.time_chunk_size == 5
+    assert len(first_batch) == 5
+    assert len(sampler) == 2
+
+
 def test_cloud_zarr_lazy_dataset_torch_single_train(tmp_path, tiny_zarr_stores):
     ts_uri, attr_uri = tiny_zarr_stores
     cfg = _base_cfg(tmp_path, ts_uri, attr_uri)

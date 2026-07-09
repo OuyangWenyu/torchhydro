@@ -90,3 +90,36 @@ lazy reader 需要同时保存两类名字：
 - 完整时间维插值
 - 多频率模型
 - 训练时动态展开多个变量来源
+
+## Benchmark 建议
+
+先用同一组参数各跑一次普通 GPU 拷贝和 CUDA prefetch，对比
+`avg_dataloader_wait_seconds`、`samples_per_second` 和
+`avg_gpu_util_percent`：
+
+```bash
+python experiments/benchmark_cloud_zarr_lazy_dataset.py \
+  --dataset-id camels_us \
+  --source cloud \
+  --max-basins 64 \
+  --steps 100 \
+  --batch-size 128 \
+  --num-workers 8 \
+  --prefetch-factor 4 \
+  --json-out /tmp/camels_us_lazy_no_cuda_prefetch.json
+
+python experiments/benchmark_cloud_zarr_lazy_dataset.py \
+  --dataset-id camels_us \
+  --source cloud \
+  --max-basins 64 \
+  --steps 100 \
+  --batch-size 128 \
+  --num-workers 8 \
+  --prefetch-factor 4 \
+  --cuda-prefetch \
+  --json-out /tmp/camels_us_lazy_cuda_prefetch.json
+```
+
+如果 `avg_dataloader_wait_seconds` 仍然明显高于 `avg_compute_seconds`，
+优先调大 `num_workers`、`prefetch_factor`，并检查 chunk sampler 的
+`time_chunk_size` 和 `basin_chunk_size` 是否和 Zarr chunk 形状接近。
