@@ -201,10 +201,10 @@ class Resulter:
         xr.Dataset
         """
         data_cfgs = self.cfgs["data_cfgs"]
-        from torchhydro.configs.data_resolver import open_dataset
+        from torchhydro.configs.data_resolver import open_dataset_from_source_cfgs
 
         sc = data_cfgs["source_cfgs"]
-        data_source = open_dataset(sc["dataset_id"], **sc.get("other_settings", {}))
+        data_source = open_dataset_from_source_cfgs(sc)
         basin_id = data_cfgs["object_ids"]
         try:
             basin_area = data_source.read_area(basin_id)

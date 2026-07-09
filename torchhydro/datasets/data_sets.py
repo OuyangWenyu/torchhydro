@@ -356,18 +356,9 @@ class BaseDataset(Dataset):
 
     @property
     def data_source(self):
-        from torchhydro.configs.data_resolver import open_dataset, DatasetResolutionError
+        from torchhydro.configs.data_resolver import open_dataset_from_source_cfgs
 
-        sc = self.data_cfgs["source_cfgs"]
-        dataset_id = sc.get("dataset_id")
-        if dataset_id is None:
-            raise DatasetResolutionError(
-                "source_cfgs must contain 'dataset_id' "
-                "(e.g. {'dataset_id': 'camels_us'}). "
-                "If you are using the old format with 'source_name', "
-                "switch to 'dataset_id'."
-            )
-        return open_dataset(dataset_id, **sc.get("other_settings", {}))
+        return open_dataset_from_source_cfgs(self.data_cfgs.get("source_cfgs") or {})
 
     @property
     def streamflow_name(self):

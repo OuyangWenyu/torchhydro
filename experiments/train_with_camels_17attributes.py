@@ -15,7 +15,6 @@ import sys
 from pathlib import Path
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-from hydrodataset.camels import Camels
 
 sys.path.append(os.path.dirname(Path(os.path.abspath(__file__)).parent))
 
@@ -36,6 +35,8 @@ def _parse_cli():
                    help="project dir for results/; default from paths.yaml")
     p.add_argument("--camels-dir", default=None,
                    help="CAMELS data root; default from paths.yaml")
+    p.add_argument("--data-source", choices=["cloud", "local"], default="cloud",
+                   help="read data from cloud zarr or local CAMELS files")
     p.add_argument("--train-epoch", type=int, default=None,
                    help="override training epochs (debug)")
     args, _ = p.parse_known_args()
@@ -59,8 +60,12 @@ for logger_name in logging.root.manager.loggerDict:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
 
-camels_dir = CLI.camels_dir or _PATHS.get("camels_dir") or os.path.join("/Volumes/Untitled/data")
-camels = Camels(camels_dir)
+camels_dir = CLI.camels_dir or _PATHS.get("camels_dir")
+if CLI.data_source == "local":
+    from hydrodataset.camels import Camels
+
+    camels_dir = camels_dir or os.path.join("/Volumes/Untitled/data")
+    camels = Camels(camels_dir)
 
 if CLI.gage_id_file:
     with open(CLI.gage_id_file, "r", encoding="utf-8") as _f:
@@ -92,9 +97,12 @@ def config():
         project_dir=CLI.project_dir or _PATHS.get("project_dir"),
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_us",
-            "source_path": camels_dir,
-            "other_settings": {"download": False, "region": "US"},
+            "dataset_id": "camels_us",
+            "other_settings": {
+                "source": CLI.data_source,
+                "download": False,
+                "region": "US",
+            },
         },
         ctx=[int(x) for x in CLI.ctx.split(",")] if CLI.ctx else [0],
         model_name="SimpleLSTM",
