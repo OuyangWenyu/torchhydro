@@ -47,6 +47,7 @@ from torchhydro.trainers.train_utils import (
     average_weights,
     evaluate_validation,
     compute_validation,
+    create_amp_grad_scaler,
     model_infer,
     read_pth_from_model_loader,
     torch_single_train,
@@ -244,6 +245,8 @@ class DeepHydro(DeepHydroInterface):
         criterion = self._get_loss_func(training_cfgs)
         opt = self._get_optimizer(training_cfgs)
         scheduler = self._get_scheduler(training_cfgs, opt)
+        mixed_precision = training_cfgs.get("mixed_precision", "off")
+        amp_scaler = create_amp_grad_scaler(self.device, mixed_precision)
         max_epochs = training_cfgs["epochs"]
         start_epoch = training_cfgs["start_epoch"]
         # use PyTorch's DataLoader to load the data into batches in each epoch
@@ -260,6 +263,8 @@ class DeepHydro(DeepHydroInterface):
                     data_loader,
                     device=self.device,
                     which_first_tensor=training_cfgs["which_first_tensor"],
+                    mixed_precision=mixed_precision,
+                    amp_scaler=amp_scaler,
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
@@ -340,6 +345,7 @@ class DeepHydro(DeepHydroInterface):
             validation_data_loader,
             device=self.device,
             which_first_tensor=training_cfgs["which_first_tensor"],
+            mixed_precision=training_cfgs.get("mixed_precision", "off"),
         )
         valid_logs["valid_loss"] = valid_loss
         if (

@@ -15,6 +15,7 @@ import itertools
 import os
 import re
 import shutil
+from contextlib import nullcontext
 from functools import reduce
 from pathlib import Path
 import pandas as pd
@@ -35,6 +36,70 @@ from hydroutils.hydro_file import (
 )
 from torchhydro.datasets.data_sets import FloodEventDataset
 from torchhydro.models.crits import FloodBaseLoss, GaussianLoss, MultiOutLoss, PyGraphLoss
+
+
+def _normalize_mixed_precision_mode(mixed_precision) -> str:
+    """Normalize mixed precision config to one of ``off``, ``bf16`` or ``fp16``."""
+    if mixed_precision is None or mixed_precision is False:
+        return "off"
+    if mixed_precision is True:
+        return "fp16"
+    mode = str(mixed_precision).lower()
+    aliases = {
+        "none": "off",
+        "false": "off",
+        "0": "off",
+        "no": "off",
+        "amp": "fp16",
+        "float16": "fp16",
+        "bfloat16": "bf16",
+    }
+    mode = aliases.get(mode, mode)
+    if mode not in {"off", "bf16", "fp16"}:
+        raise ValueError(
+            "training_cfgs['mixed_precision'] must be one of "
+            "'off', 'bf16' or 'fp16', got "
+            f"{mixed_precision!r}."
+        )
+    return mode
+
+
+def get_mixed_precision_dtype(device: torch.device | None, mixed_precision) -> torch.dtype | None:
+    """Return autocast dtype for the requested mixed precision mode."""
+    mode = _normalize_mixed_precision_mode(mixed_precision)
+    if mode == "off":
+        return None
+    if device is None:
+        raise ValueError("mixed precision requires an explicit torch.device.")
+    if device.type not in {"cuda", "cpu"}:
+        raise ValueError(
+            f"mixed precision mode {mode!r} is not supported on device {device}."
+        )
+    if mode == "bf16":
+        if device.type == "cuda" and not torch.cuda.is_bf16_supported():
+            raise RuntimeError("CUDA device does not report BF16 support.")
+        return torch.bfloat16
+    return torch.float16
+
+
+def mixed_precision_autocast(device: torch.device | None, mixed_precision):
+    """Create an autocast context for training/validation."""
+    dtype = get_mixed_precision_dtype(device, mixed_precision)
+    if dtype is None:
+        return nullcontext()
+    return torch.autocast(device_type=device.type, dtype=dtype)
+
+
+def create_amp_grad_scaler(device: torch.device | None, mixed_precision):
+    """Create a GradScaler for CUDA FP16 training; BF16 does not need scaling."""
+    mode = _normalize_mixed_precision_mode(mixed_precision)
+    enabled = bool(mode == "fp16" and device is not None and device.type == "cuda")
+    if hasattr(torch, "amp") and hasattr(torch.amp, "GradScaler"):
+        try:
+            return torch.amp.GradScaler("cuda", enabled=enabled)
+        except TypeError:
+            return torch.amp.GradScaler(enabled=enabled)
+    return torch.cuda.amp.GradScaler(enabled=enabled)
 
 
 def _rolling_preds_for_once_eval(
@@ -1727,6 +1792,10 @@ def torch_single_train(
     n_iter_ep = 0
     running_loss = 0.0
     which_first_tensor = kwargs["which_first_tensor"]
+    mixed_precision = kwargs.get("mixed_precision", "off")
+    amp_scaler = kwargs.get("amp_scaler")
+    if amp_scaler is None:
+        amp_scaler = create_amp_grad_scaler(device, mixed_precision)
     seq_first = which_first_tensor != "batch"
     variable_length_cfgs = data_loader.dataset.training_cfgs.get(
         "variable_length_cfgs", None
@@ -1735,25 +1804,40 @@ def torch_single_train(
 
     for _, batch in enumerate(pbar):
         # mask handling is already done inside model_infer function
-        trg, output = model_infer(seq_first, device, model, batch, variable_length_cfgs)
-        batch_vector = getattr(batch, "batch", None)
-        node_mask = getattr(batch, "node_mask", None)
-        loss = compute_loss(trg, output, criterion, batch_vector=batch_vector, node_mask=node_mask, **kwargs)
+        with mixed_precision_autocast(device, mixed_precision):
+            trg, output = model_infer(
+                seq_first, device, model, batch, variable_length_cfgs
+            )
+            batch_vector = getattr(batch, "batch", None)
+            node_mask = getattr(batch, "node_mask", None)
+            loss = compute_loss(
+                trg,
+                output,
+                criterion,
+                batch_vector=batch_vector,
+                node_mask=node_mask,
+                **kwargs,
+            )
 
-        # Add auxiliary loss from MoE models (if available)
-        if hasattr(model, "get_aux_loss"):
-            aux_loss = model.get_aux_loss()
-            if aux_loss is not None and aux_loss.device != loss.device:
-                aux_loss = aux_loss.to(loss.device)
-            loss = loss + aux_loss
+            # Add auxiliary loss from MoE models (if available)
+            if hasattr(model, "get_aux_loss"):
+                aux_loss = model.get_aux_loss()
+                if aux_loss is not None and aux_loss.device != loss.device:
+                    aux_loss = aux_loss.to(loss.device)
+                loss = loss + aux_loss
 
         if loss > 100:
             print("Warning: high loss detected")
         if torch.isnan(loss):
             raise ValueError("nan loss detected")
             # continue
-        loss.backward()  # Backpropagate to compute the current gradient
-        opt.step()  # Update network parameters based on gradients
+        if amp_scaler.is_enabled():
+            amp_scaler.scale(loss).backward()
+            amp_scaler.step(opt)
+            amp_scaler.update()
+        else:
+            loss.backward()  # Backpropagate to compute the current gradient
+            opt.step()  # Update network parameters based on gradients
         model.zero_grad()  # clear gradient
         if loss == float("inf"):
             raise ValueError(
@@ -1797,6 +1881,7 @@ def compute_validation(
     """
     model.eval()
     seq_first = kwargs["which_first_tensor"] != "batch"
+    mixed_precision = kwargs.get("mixed_precision", "off")
     obs = []
     preds = []
     valid_loss = 0.0
@@ -1805,12 +1890,19 @@ def compute_validation(
     with torch.no_grad():
         iter_num = 0
         for batch in tqdm(data_loader, desc="Evaluating", total=len(data_loader)):
-            trg, output = model_infer(seq_first, device, model, batch)
-            obs.append(trg)
-            preds.append(output)
             batch_vector = getattr(batch, "batch", None)
             node_mask = getattr(batch, "node_mask", None)
-            valid_loss_ = compute_loss(trg, output, criterion, batch_vector=batch_vector, node_mask=node_mask)
+            with mixed_precision_autocast(device, mixed_precision):
+                trg, output = model_infer(seq_first, device, model, batch)
+                valid_loss_ = compute_loss(
+                    trg,
+                    output,
+                    criterion,
+                    batch_vector=batch_vector,
+                    node_mask=node_mask,
+                )
+            obs.append(trg)
+            preds.append(output)
             if torch.isnan(valid_loss_):
                 # for not-train mode, we may get all nan data for trg
                 # so we skip this batch
@@ -1826,11 +1918,15 @@ def compute_validation(
             )
             # clear memory to save GPU memory
             if obs_final is None:
-                obs_final = trg_for_eval.detach().cpu()
-                pred_final = output.detach().cpu()
+                obs_final = trg_for_eval.detach().float().cpu()
+                pred_final = output.detach().float().cpu()
             else:
-                obs_final = torch.cat([obs_final, trg_for_eval.detach().cpu()], dim=0)
-                pred_final = torch.cat([pred_final, output.detach().cpu()], dim=0)
+                obs_final = torch.cat(
+                    [obs_final, trg_for_eval.detach().float().cpu()], dim=0
+                )
+                pred_final = torch.cat(
+                    [pred_final, output.detach().float().cpu()], dim=0
+                )
             del trg, output
             torch.cuda.empty_cache()
     valid_loss = valid_loss / iter_num
