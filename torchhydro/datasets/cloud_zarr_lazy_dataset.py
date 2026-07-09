@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -145,6 +146,7 @@ class CloudZarrLazyDataset(Dataset):
         self.warmup_length = int(self.training_cfgs["warmup_length"])
         self.horizon = int(self.training_cfgs["forecast_length"])
         self._batch_level_dataloader_enabled = False
+        self._open_pid = os.getpid()
 
         self._data_sources: dict[str, Any] = {}
         self.sources = self._build_sources()
@@ -167,6 +169,7 @@ class CloudZarrLazyDataset(Dataset):
     def __getstate__(self):
         state = self.__dict__.copy()
         state["_data_sources"] = {}
+        state["_open_pid"] = None
         state["source_states"] = [
             LazySourceState(
                 source=source_state.source,
@@ -423,10 +426,27 @@ class CloudZarrLazyDataset(Dataset):
                     fill_value=fill_value,
                     required=required,
                 )
-            )
+        )
         return variables
 
+    def _reset_open_handles_after_fork(self) -> None:
+        current_pid = os.getpid()
+        if getattr(self, "_open_pid", None) == current_pid:
+            return
+        for source_state in self.source_states:
+            for attr in ("ts_ds", "attr_ds"):
+                ds = getattr(source_state, attr)
+                if ds is not None:
+                    try:
+                        ds.close()
+                    except Exception:
+                        pass
+                    setattr(source_state, attr, None)
+        self._data_sources = {}
+        self._open_pid = current_pid
+
     def _ensure_open(self, source_idx: int | None = None) -> None:
+        self._reset_open_handles_after_fork()
         if source_idx is None:
             for idx in range(len(self.source_states)):
                 self._ensure_open(idx)

@@ -133,6 +133,20 @@ def test_cloud_zarr_lazy_dataset_prebatched_shape(tmp_path, tiny_zarr_stores):
     assert len(dataset) == 14
 
 
+def test_cloud_zarr_lazy_dataset_reopens_handles_after_fork(tmp_path, tiny_zarr_stores):
+    ts_uri, attr_uri = tiny_zarr_stores
+    dataset = CloudZarrLazyDataset(_base_cfg(tmp_path, ts_uri, attr_uri), "train")
+    old_ts = dataset.source_states[0].ts_ds
+    assert old_ts is not None
+
+    dataset._open_pid = -1
+    dataset._ensure_open(0)
+
+    assert dataset._open_pid != -1
+    assert dataset.source_states[0].ts_ds is not None
+    assert dataset.source_states[0].ts_ds is not old_ts
+
+
 def test_cloud_zarr_lazy_dataset_missing_variable_mask(tmp_path, tiny_zarr_stores):
     ts_uri, attr_uri = tiny_zarr_stores
     cfg = _base_cfg(
