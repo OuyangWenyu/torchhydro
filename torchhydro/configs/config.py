@@ -226,6 +226,7 @@ def default_config_file() -> Dict[str, Any]:
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
+            "sampler_hyperparam": {},
             # station data configurations for GNN models
             "station_cfgs": {
                 # 站点数据配置 - 使用3h数据中实际存在的变量
@@ -348,6 +349,10 @@ def default_config_file() -> Dict[str, Any]:
             "multi_targets": 1,
             "num_workers": 0,
             "pin_memory": False,
+            "persistent_workers": False,
+            "prefetch_factor": 2,
+            "non_blocking_transfer": False,
+            "cuda_prefetch": False,
             "which_first_tensor": "sequence",
             # if we calculate metrics such as RMSE, NSE, etc. during validation
             # metrics will be samed as the config in evaluation_cfgs

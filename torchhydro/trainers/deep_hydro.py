@@ -259,6 +259,11 @@ class DeepHydro(DeepHydroInterface):
                     data_loader,
                     device=self.device,
                     which_first_tensor=training_cfgs["which_first_tensor"],
+                    non_blocking_transfer=training_cfgs.get(
+                        "non_blocking_transfer",
+                        bool(training_cfgs.get("pin_memory", False)),
+                    ),
+                    cuda_prefetch=bool(training_cfgs.get("cuda_prefetch", False)),
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
@@ -1471,7 +1476,19 @@ class DeepHydro(DeepHydroInterface):
         if "pin_memory" in training_cfgs:
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
+        dataloader_extra_kwargs = {}
+        if worker_num > 0:
+            if "persistent_workers" in training_cfgs:
+                dataloader_extra_kwargs["persistent_workers"] = training_cfgs[
+                    "persistent_workers"
+                ]
+            if "prefetch_factor" in training_cfgs:
+                dataloader_extra_kwargs["prefetch_factor"] = training_cfgs[
+                    "prefetch_factor"
+                ]
         sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
+        batch_sampler = sampler if getattr(sampler, "is_batch_sampler", False) else None
+        sampler_arg = None if batch_sampler is not None else sampler
         _collate_fn = None
         if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
             _collate_fn = varied_length_collate_fn
@@ -1492,17 +1509,20 @@ class DeepHydro(DeepHydroInterface):
             self.traindataset._return_static_attrs_separately = False
         if hasattr(self.traindataset, "_batch_level_dataloader_enabled"):
             self.traindataset._batch_level_dataloader_enabled = False
+        train_supports_prebatched = bool(
+            getattr(self.traindataset, "supports_prebatched_getitems", False)
+        )
         if (
-            sampler is None
+            (sampler is None or batch_sampler is not None)
             and _collate_fn is None
-            and self.traindataset.__class__ is BaseDataset
+            and (self.traindataset.__class__ is BaseDataset or train_supports_prebatched)
         ):
-            if use_batch_level_dataloader and hasattr(
+            if (use_batch_level_dataloader or train_supports_prebatched) and hasattr(
                 self.traindataset, "_get_batch_level_items"
             ):
                 self.traindataset._batch_level_dataloader_enabled = True
                 _collate_fn = prebatched_collate_fn
-            else:
+            elif self.traindataset.__class__ is BaseDataset:
                 self.traindataset._return_static_attrs_separately = True
                 _collate_fn = static_attr_batch_collate_fn
         elif use_batch_level_dataloader:
@@ -1511,16 +1531,24 @@ class DeepHydro(DeepHydroInterface):
                 "dataset uses a custom sampler/collate path or is not the "
                 "standard BaseDataset."
             )
-        data_loader = DataLoader(
-            self.traindataset,
-            batch_size=training_cfgs["batch_size"],
-            shuffle=(sampler is None),
-            sampler=sampler,
-            num_workers=worker_num,
-            pin_memory=pin_memory,
-            timeout=0,
-            collate_fn=_collate_fn,
-        )
+        loader_kwargs = {
+            "num_workers": worker_num,
+            "pin_memory": pin_memory,
+            "timeout": 0,
+            "collate_fn": _collate_fn,
+            **dataloader_extra_kwargs,
+        }
+        if batch_sampler is not None:
+            loader_kwargs["batch_sampler"] = batch_sampler
+        else:
+            loader_kwargs.update(
+                {
+                    "batch_size": training_cfgs["batch_size"],
+                    "shuffle": sampler_arg is None,
+                    "sampler": sampler_arg,
+                }
+            )
+        data_loader = DataLoader(self.traindataset, **loader_kwargs)
         if data_cfgs["t_range_valid"] is not None:
             # Use the same collate function for validation dataset
             _val_collate_fn = None
@@ -1538,16 +1566,19 @@ class DeepHydro(DeepHydroInterface):
                 self.validdataset._return_static_attrs_separately = False
             if hasattr(self.validdataset, "_batch_level_dataloader_enabled"):
                 self.validdataset._batch_level_dataloader_enabled = False
+            valid_supports_prebatched = bool(
+                getattr(self.validdataset, "supports_prebatched_getitems", False)
+            )
             if (
                 _val_collate_fn is None
-                and self.validdataset.__class__ is BaseDataset
+                and (self.validdataset.__class__ is BaseDataset or valid_supports_prebatched)
             ):
-                if use_batch_level_dataloader and hasattr(
+                if (use_batch_level_dataloader or valid_supports_prebatched) and hasattr(
                     self.validdataset, "_get_batch_level_items"
                 ):
                     self.validdataset._batch_level_dataloader_enabled = True
                     _val_collate_fn = prebatched_collate_fn
-                else:
+                elif self.validdataset.__class__ is BaseDataset:
                     self.validdataset._return_static_attrs_separately = True
                     _val_collate_fn = static_attr_batch_collate_fn
             elif use_batch_level_dataloader:
@@ -1565,6 +1596,7 @@ class DeepHydro(DeepHydroInterface):
                 pin_memory=pin_memory,
                 timeout=0,
                 collate_fn=_val_collate_fn,
+                **dataloader_extra_kwargs,
             )
             return data_loader, validation_data_loader
 
@@ -1614,7 +1646,7 @@ class DeepHydro(DeepHydroInterface):
         if sampler_name not in data_sampler_dict:
             raise NotImplementedError(f"Sampler {sampler_name} not implemented yet")
         sampler_class = data_sampler_dict[sampler_name]
-        sampler_hyperparam = {}
+        sampler_hyperparam = dict(data_cfgs.get("sampler_hyperparam") or {})
         if sampler_name == "KuaiSampler":
             sampler_hyperparam |= {
                 "batch_size": batch_size,
@@ -1624,6 +1656,10 @@ class DeepHydro(DeepHydroInterface):
                 "nt": nt,
             }
         elif sampler_name == "WindowLenBatchSampler":
+            sampler_hyperparam |= {
+                "batch_size": batch_size,
+            }
+        elif sampler_name == "CloudZarrChunkBatchSampler":
             sampler_hyperparam |= {
                 "batch_size": batch_size,
             }

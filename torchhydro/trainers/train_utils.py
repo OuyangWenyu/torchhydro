@@ -33,8 +33,8 @@ from hydroutils.hydro_file import (
     unserialize_json,
     get_latest_file_in_a_lst,
 )
-from torchhydro.datasets.data_sets import FloodEventDataset
 from torchhydro.models.crits import FloodBaseLoss, GaussianLoss, MultiOutLoss, PyGraphLoss
+from torchhydro.trainers.cuda_prefetcher import CudaPrefetcher
 
 
 def _rolling_preds_for_once_eval(
@@ -99,7 +99,13 @@ def _rolling_preds_for_once_eval(
 
 
 def model_infer(
-    seq_first, device, model, batch, variable_length_cfgs=None, return_key=None
+    seq_first,
+    device,
+    model,
+    batch,
+    variable_length_cfgs=None,
+    return_key=None,
+    non_blocking=False,
 ):
     """
     Unified model inference function with variable length support
@@ -146,36 +152,36 @@ def model_infer(
     if isinstance(xs, list):
         xs = [
             (
-                x.permute(1, 0, 2).to(device)
+                x.permute(1, 0, 2).to(device, non_blocking=non_blocking)
                 if seq_first and x.ndim == 3
-                else x.to(device)
+                else x.to(device, non_blocking=non_blocking)
             )
             for x in xs
         ]
     else:
         xs = [
             (
-                xs.permute(1, 0, 2).to(device)
+                xs.permute(1, 0, 2).to(device, non_blocking=non_blocking)
                 if seq_first and xs.ndim == 3
-                else xs.to(device)
+                else xs.to(device, non_blocking=non_blocking)
             )
         ]
 
     # --- move ys to device ---
     if ys is not None:
         ys = (
-            ys.permute(1, 0, 2).to(device)
+            ys.permute(1, 0, 2).to(device, non_blocking=non_blocking)
             if seq_first and ys.ndim == 3
-            else ys.to(device)
+            else ys.to(device, non_blocking=non_blocking)
         )
 
     # --- move graph data ---
     if edge_index is not None:
-        edge_index = edge_index.to(device)
+        edge_index = edge_index.to(device, non_blocking=non_blocking)
     if edge_weight is not None:
-        edge_weight = edge_weight.to(device)
+        edge_weight = edge_weight.to(device, non_blocking=non_blocking)
     if batch_vector is not None:
-        batch_vector = batch_vector.to(device)
+        batch_vector = batch_vector.to(device, non_blocking=non_blocking)
 
     # --- check if model is a generative model (e.g., Diffusion) ---
     # Generative models require both input (xs) and target (ys) in forward pass
@@ -1092,7 +1098,7 @@ def _recover_samples_to_continuous_by_floodevent(
             arr_3d = arr_3d[:, :, None]
 
     # Check if this is a FloodEventDataset and handle flood_event column properly
-    is_flood_dataset = isinstance(dataset, FloodEventDataset)
+    is_flood_dataset = "FloodEventDataset" in dataset.__class__.__name__
 
     # For flood datasets, we need to ensure consistency between predictions and observations
     # If arr_3d is predictions and missing flood_event column, we need to add it
@@ -1719,11 +1725,26 @@ def torch_single_train(
     variable_length_cfgs = data_loader.dataset.training_cfgs.get(
         "variable_length_cfgs", None
     )
-    pbar = tqdm(data_loader)
+    non_blocking_transfer = bool(kwargs.get("non_blocking_transfer", False))
+    torch_device = torch.device(device) if device is not None else torch.device("cpu")
+    use_cuda_prefetch = bool(kwargs.get("cuda_prefetch", False)) and torch_device.type == "cuda"
+    train_iterable = (
+        CudaPrefetcher(data_loader, torch_device, non_blocking=non_blocking_transfer)
+        if use_cuda_prefetch
+        else data_loader
+    )
+    pbar = tqdm(train_iterable, total=len(data_loader))
 
     for _, batch in enumerate(pbar):
         # mask handling is already done inside model_infer function
-        trg, output = model_infer(seq_first, device, model, batch, variable_length_cfgs)
+        trg, output = model_infer(
+            seq_first,
+            device,
+            model,
+            batch,
+            variable_length_cfgs,
+            non_blocking=non_blocking_transfer,
+        )
         batch_vector = getattr(batch, "batch", None)
         node_mask = getattr(batch, "node_mask", None)
         loss = compute_loss(trg, output, criterion, batch_vector=batch_vector, node_mask=node_mask, **kwargs)
