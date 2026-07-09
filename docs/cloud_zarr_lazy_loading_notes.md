@@ -120,6 +120,17 @@ python experiments/benchmark_cloud_zarr_lazy_dataset.py \
   --json-out /tmp/camels_us_lazy_cuda_prefetch.json
 ```
 
+benchmark 默认使用 `--normalization none`，并且不做 target 全 NaN 窗口过滤，
+目的是先测 DataLoader、Zarr window 读取和 GPU copy/compute 的速度。如果要测
+更接近正式训练的完整初始化成本，再显式加：
+
+```bash
+--normalization standard --valid-target-filter
+```
+
+这会在 benchmark 计时前扫描云端变量计算统计量，并扫描 target 构造有效窗口，
+首次运行可能明显变慢。
+
 如果 `avg_dataloader_wait_seconds` 仍然明显高于 `avg_compute_seconds`，
 优先调大 `num_workers`、`prefetch_factor`，并检查 chunk sampler 的
 `time_chunk_size` 和 `basin_chunk_size` 是否和 Zarr chunk 形状接近。

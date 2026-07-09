@@ -27,6 +27,12 @@ def prebatched_collate_fn(batch):
     return batch
 
 
+def log_progress(args: argparse.Namespace, message: str) -> None:
+    if args.quiet:
+        return
+    print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
+
+
 def process_rss() -> int | None:
     try:
         import psutil
@@ -130,9 +136,10 @@ def build_cfg(args: argparse.Namespace) -> dict[str, Any]:
             "min_time_unit": "D",
             "min_time_interval": 1,
             "lazy_zarr": {
-                "normalization": "standard",
+                "normalization": args.normalization,
                 "stat_cache_dir": str(case_dir / "lazy_zarr_stat_cache"),
-                "skip_all_nan_target_windows": not args.no_valid_target_filter,
+                "cache_stats": not args.no_cache_stats,
+                "skip_all_nan_target_windows": args.valid_target_filter,
                 "missing_policy": args.missing_policy,
             },
         }
@@ -189,6 +196,7 @@ def make_loader(dataset: CloudZarrLazyDataset, args: argparse.Namespace) -> Data
             batch_sampler=batch_sampler,
             num_workers=args.num_workers,
             pin_memory=args.pin_memory,
+            timeout=args.dataloader_timeout,
             collate_fn=prebatched_collate_fn,
             **kwargs,
         )
@@ -198,20 +206,36 @@ def make_loader(dataset: CloudZarrLazyDataset, args: argparse.Namespace) -> Data
         shuffle=True,
         num_workers=args.num_workers,
         pin_memory=args.pin_memory,
+        timeout=args.dataloader_timeout,
         collate_fn=prebatched_collate_fn,
         **kwargs,
     )
 
 
 def benchmark(args: argparse.Namespace) -> dict[str, Any]:
+    log_progress(args, "building config")
     cfg = build_cfg(args)
+    log_progress(args, "initializing CloudZarrLazyDataset")
+    init_start = time.perf_counter()
     dataset = CloudZarrLazyDataset(cfg, "train")
+    init_seconds = time.perf_counter() - init_start
+    log_progress(
+        args,
+        (
+            "dataset initialized: "
+            f"length={len(dataset)}, basins={dataset.ngrid}, "
+            f"nt={dataset.nt}, seconds={init_seconds:.2f}"
+        ),
+    )
+    log_progress(args, "building DataLoader")
     loader = make_loader(dataset, args)
+    log_progress(args, f"DataLoader ready: batches={len(loader)}")
     device = torch.device(args.device)
     use_cuda_prefetch = bool(args.cuda_prefetch and device.type == "cuda")
     model = None
     optimizer = None
     if not args.no_train:
+        log_progress(args, f"initializing benchmark model on {device}")
         model = torch.nn.LSTM(
             input_size=dataset.x_feature_count,
             hidden_size=args.hidden_size,
@@ -236,6 +260,7 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
         else loader
     )
     iterator = iter(iterable)
+    log_progress(args, f"starting benchmark loop for up to {args.steps} steps")
     started = time.perf_counter()
     for step in range(args.steps):
         wait_start = time.perf_counter()
@@ -244,6 +269,15 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
         except StopIteration:
             break
         wait_times.append(time.perf_counter() - wait_start)
+        if step == 0:
+            log_progress(
+                args,
+                (
+                    "first batch loaded: "
+                    f"x={tuple(x.shape)}, y={tuple(y.shape)}, "
+                    f"wait={wait_times[-1]:.2f}s"
+                ),
+            )
         batch_sizes.append(int(x.shape[0]))
 
         compute_start = time.perf_counter()
@@ -272,6 +306,7 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
     result = {
         "dataset_id": args.dataset_id,
         "dataset_length": len(dataset),
+        "dataset_init_seconds": init_seconds,
         "steps": len(batch_sizes),
         "total_samples": total_samples,
         "elapsed_seconds": elapsed,
@@ -287,6 +322,9 @@ def benchmark(args: argparse.Namespace) -> dict[str, Any]:
         "num_workers": args.num_workers,
         "pin_memory": args.pin_memory,
         "cuda_prefetch": use_cuda_prefetch,
+        "normalization": args.normalization,
+        "valid_target_filter": args.valid_target_filter,
+        "dataloader_timeout": args.dataloader_timeout,
         "prefetch_factor": args.prefetch_factor if args.num_workers > 0 else None,
         "persistent_workers": args.persistent_workers if args.num_workers > 0 else None,
         "chunk_sampler": args.chunk_sampler,
@@ -326,6 +364,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-cols", default="streamflow")
     parser.add_argument("--constant-cols", default="")
     parser.add_argument("--missing-policy", default="fill_zero")
+    parser.add_argument(
+        "--normalization",
+        default="none",
+        help=(
+            "Normalization used by CloudZarrLazyDataset. The benchmark default "
+            "is 'none' to avoid a full cloud stat scan before timing batches. "
+            "Use 'standard' when measuring normalized training."
+        ),
+    )
+    parser.add_argument("--no-cache-stats", action="store_true")
+    parser.add_argument(
+        "--valid-target-filter",
+        action="store_true",
+        help=(
+            "Filter windows whose target is all NaN. Disabled by default for "
+            "benchmark startup speed because it scans target data before the "
+            "timed loop."
+        ),
+    )
     parser.add_argument("--max-basins", type=int, default=64)
     parser.add_argument("--steps", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=128)
@@ -334,6 +391,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--warmup-length", type=int, default=0)
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--prefetch-factor", type=int, default=4)
+    parser.add_argument(
+        "--dataloader-timeout",
+        type=float,
+        default=0.0,
+        help="DataLoader worker timeout in seconds. Use 120 to fail fast on worker hangs.",
+    )
     parser.add_argument("--persistent-workers", action="store_true", default=True)
     parser.add_argument(
         "--no-persistent-workers",
@@ -350,7 +413,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--hidden-size", type=int, default=64)
     parser.add_argument("--no-train", action="store_true")
-    parser.add_argument("--no-valid-target-filter", action="store_true")
+    parser.add_argument(
+        "--no-valid-target-filter",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--json-out", type=Path, default=None)
     return parser.parse_args()
 
