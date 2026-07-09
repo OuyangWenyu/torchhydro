@@ -41,7 +41,8 @@ class SimpleLSTM(nn.Module):
         """Forward pass of the SimpleLSTM model.
 
         Args:
-            x: Input tensor.
+            x: Input tensor, or ``(x_dynamic, c_static)`` when static basin
+                attributes are kept separate by the DataLoader.
             **kwargs: Optional keyword arguments:
                 - seq_lengths: Sequence lengths for PackedSequence.
                 - mask: Mask tensor for manual masking.
@@ -50,6 +51,7 @@ class SimpleLSTM(nn.Module):
         Returns:
             The output tensor from the model.
         """
+        x = self._concat_static_input(x)
         x0 = F.relu(self.linearIn(x))
 
         # Extract parameters from kwargs
@@ -96,6 +98,38 @@ class SimpleLSTM(nn.Module):
 
         out_lstm_dr = self.dropout(out_lstm)
         return self.linearOut(out_lstm_dr)
+
+    @staticmethod
+    def _concat_static_input(x):
+        """Concatenate separated static attributes inside the model.
+
+        The Dataset can return ``(x_dynamic, c_static)`` to avoid transferring
+        repeated static attributes as ``[B, T, C]``. SimpleLSTM keeps its
+        original computation by expanding ``c_static`` on the model device just
+        before the input projection.
+        """
+        if not isinstance(x, (tuple, list)):
+            return x
+        if len(x) != 2:
+            return x
+        x_dynamic, c_static = x
+        if not torch.is_tensor(x_dynamic) or not torch.is_tensor(c_static):
+            return x
+        if x_dynamic.ndim != 3 or c_static.ndim != 2:
+            return x
+        if x_dynamic.shape[1] == c_static.shape[0]:
+            # Sequence-first: [T, B, F] and [B, C].
+            c_expanded = c_static.unsqueeze(0).expand(x_dynamic.shape[0], -1, -1)
+        elif x_dynamic.shape[0] == c_static.shape[0]:
+            # Batch-first fallback: [B, T, F] and [B, C].
+            c_expanded = c_static.unsqueeze(1).expand(-1, x_dynamic.shape[1], -1)
+        else:
+            raise ValueError(
+                "Cannot align separated static attributes with dynamic input: "
+                f"x_dynamic shape={tuple(x_dynamic.shape)}, "
+                f"c_static shape={tuple(c_static.shape)}"
+            )
+        return torch.cat((x_dynamic, c_expanded), dim=-1)
 
 
 class HFLSTM(nn.Module):

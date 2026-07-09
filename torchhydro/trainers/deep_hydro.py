@@ -51,6 +51,7 @@ from torchhydro.trainers.train_utils import (
     read_pth_from_model_loader,
     torch_single_train,
     get_preds_to_be_eval,
+    _move_batch_value_to_device,
     varied_length_collate_fn,
     gnn_collate_fn,
 )
@@ -423,15 +424,13 @@ class DeepHydro(DeepHydroInterface):
                     pred = pred.permute(1, 0, 2)
 
                 else:
-                    # Traditional format: single tensor
-                    x = batch[0].to(self.device)
-                    # --- PERMUTE TO SEQ-FIRST IF NEEDED ---
-                    if (
+                    # Traditional tensor or separated static-input tuple.
+                    x = _move_batch_value_to_device(
+                        batch[0],
+                        self.device,
                         self.cfgs["training_cfgs"].get("which_first_tensor")
-                        == "sequence"
-                        and x.ndim == 3
-                    ):
-                        x = x.transpose(0, 1)
+                        == "sequence",
+                    )
 
                     pred = self.model(x)
 
@@ -1488,15 +1487,21 @@ class DeepHydro(DeepHydroInterface):
         use_batch_level_dataloader = bool(
             training_cfgs.get("batch_level_dataloader", False)
         )
+        separate_static_input = bool(
+            training_cfgs.get("separate_static_input", False)
+        )
         if hasattr(self.traindataset, "_return_static_attrs_separately"):
             self.traindataset._return_static_attrs_separately = False
         if hasattr(self.traindataset, "_batch_level_dataloader_enabled"):
             self.traindataset._batch_level_dataloader_enabled = False
+        if hasattr(self.traindataset, "_separate_static_input"):
+            self.traindataset._separate_static_input = False
         if (
             sampler is None
             and _collate_fn is None
             and self.traindataset.__class__ is BaseDataset
         ):
+            self.traindataset._separate_static_input = separate_static_input
             if use_batch_level_dataloader and hasattr(
                 self.traindataset, "_get_batch_level_items"
             ):
@@ -1538,10 +1543,13 @@ class DeepHydro(DeepHydroInterface):
                 self.validdataset._return_static_attrs_separately = False
             if hasattr(self.validdataset, "_batch_level_dataloader_enabled"):
                 self.validdataset._batch_level_dataloader_enabled = False
+            if hasattr(self.validdataset, "_separate_static_input"):
+                self.validdataset._separate_static_input = False
             if (
                 _val_collate_fn is None
                 and self.validdataset.__class__ is BaseDataset
             ):
+                self.validdataset._separate_static_input = separate_static_input
                 if use_batch_level_dataloader and hasattr(
                     self.validdataset, "_get_batch_level_items"
                 ):

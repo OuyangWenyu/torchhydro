@@ -92,6 +92,17 @@ def static_attr_batch_collate_fn(batch):
     if not batch:
         return batch
     first = batch[0]
+    if (
+        len(first) == 2
+        and isinstance(first[0], (tuple, list))
+        and len(first[0]) == 2
+    ):
+        xcs, ys = zip(*batch)
+        xs, cs = zip(*xcs)
+        return (
+            torch.stack(xs, dim=0),
+            torch.stack(cs, dim=0),
+        ), torch.stack(ys, dim=0)
     if len(first) == 3:
         xs, ys, cs = zip(*batch)
         x_batch = torch.stack(xs, dim=0)
@@ -530,6 +541,8 @@ class BaseDataset(Dataset):
         if self.c is None or self.c.shape[-1] == 0:
             return torch.from_numpy(x), torch.from_numpy(y)
         c = self.c[basin, :]
+        if getattr(self, "_separate_static_input", False):
+            return (torch.from_numpy(x), torch.from_numpy(c)), torch.from_numpy(y)
         if getattr(self, "_return_static_attrs_separately", False):
             return torch.from_numpy(x), torch.from_numpy(y), torch.from_numpy(c)
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
@@ -608,24 +621,54 @@ class BaseDataset(Dataset):
             0 if self.c is None or self.c.shape[-1] == 0 else self.c.shape[-1]
         )
 
-        xs = np.empty(
-            (batch_size, x_length, x_feature_count + c_feature_count),
-            dtype=self.x.dtype,
+        x_window_view, y_window_view = self._get_batch_level_window_views(
+            x_length, y_length
         )
-        ys = np.empty((batch_size, y_length, y_feature_count), dtype=self.y.dtype)
 
-        for batch_pos, (basin, idx) in enumerate(zip(basins, start_indices)):
-            x_start = idx - warmup_length
-            x_end = idx + actual_length - warmup_length
-            y_start = idx
-            y_end = idx + actual_length - warmup_length
+        # Gather complete sliding windows by (basin, start) in one NumPy
+        # operation per tensor. ``sliding_window_view`` itself is a strided view,
+        # so this avoids the per-sample Python slicing loop without first
+        # materializing a large basin x time-index matrix.
+        x_dynamic = x_window_view[basins, start_indices - warmup_length]
+        ys = y_window_view[basins, start_indices]
 
-            xs[batch_pos, :, :x_feature_count] = self.x[basin, x_start:x_end, :]
-            ys[batch_pos, :, :] = self.y[basin, y_start:y_end, :]
+        if getattr(self, "_separate_static_input", False) and c_feature_count:
+            return (
+                torch.from_numpy(x_dynamic),
+                torch.from_numpy(self.c[basins, :]),
+            ), torch.from_numpy(ys)
+
+        if c_feature_count:
+            xs = np.empty(
+                (batch_size, x_length, x_feature_count + c_feature_count),
+                dtype=self.x.dtype,
+            )
+            xs[:, :, :x_feature_count] = x_dynamic
+        else:
+            xs = x_dynamic
         if c_feature_count:
             xs[:, :, x_feature_count:] = self.c[basins, :][:, None, :]
 
         return torch.from_numpy(xs), torch.from_numpy(ys)
+
+    def _get_batch_level_window_views(self, x_length, y_length):
+        """Return cached sliding-window views for batch-level assembly."""
+        cache_key = (x_length, y_length)
+        if getattr(self, "_batch_window_view_key", None) != cache_key:
+            from numpy.lib.stride_tricks import sliding_window_view
+
+            self._batch_x_window_view = np.moveaxis(
+                sliding_window_view(self.x, window_shape=x_length, axis=1),
+                -1,
+                2,
+            )
+            self._batch_y_window_view = np.moveaxis(
+                sliding_window_view(self.y, window_shape=y_length, axis=1),
+                -1,
+                2,
+            )
+            self._batch_window_view_key = cache_key
+        return self._batch_x_window_view, self._batch_y_window_view
 
     @staticmethod
     def _lookup_dtype(max_value, default=np.int32):
@@ -710,10 +753,64 @@ class BaseDataset(Dataset):
         """
         if not self._should_eager_load_cloud_data() or data is None:
             return data
-        return {
-            key: self._eager_load_cloud_xarray_value(value, key)
+        loaded_data = dict(data)
+        dask_items = [
+            (key, value)
             for key, value in data.items()
-        }
+            if value is not None and _is_dask_backed_xarray(value)
+        ]
+        if not dask_items:
+            return loaded_data
+
+        if self._should_profile_cloud_load_details():
+            for key, value in dask_items:
+                self._print_cloud_xarray_load_plan(key, value)
+
+        if (
+            self.data_cfgs.get("cloud_eager_load_concurrent", True)
+            and len(dask_items) > 1
+        ):
+            return self._eager_load_cloud_xarray_values_concurrently(
+                loaded_data, dask_items
+            )
+
+        for key, value in dask_items:
+            loaded_data[key] = self._eager_load_cloud_xarray_value(value, key)
+        return loaded_data
+
+    def _eager_load_cloud_xarray_values_concurrently(self, loaded_data, dask_items):
+        """Load multiple Dask-backed Xarray objects in one Dask compute call."""
+        try:
+            import dask
+        except ImportError:
+            for key, value in dask_items:
+                loaded_data[key] = self._eager_load_cloud_xarray_value(value, key)
+            return loaded_data
+
+        compute_kwargs = {}
+        scheduler = self.data_cfgs.get("cloud_eager_load_scheduler", "threads")
+        if scheduler is not None:
+            compute_kwargs["scheduler"] = scheduler
+        num_workers = self.data_cfgs.get("cloud_eager_load_num_workers")
+        if num_workers is not None:
+            compute_kwargs["num_workers"] = num_workers
+
+        if self._should_profile_cloud_load_details():
+            keys = ", ".join(key for key, _ in dask_items)
+            scheduler_name = compute_kwargs.get("scheduler", "default")
+            workers_text = compute_kwargs.get("num_workers", "default")
+            print(
+                "[dataset setup profile] "
+                f"cloud load concurrent: keys=[{keys}], "
+                f"scheduler={scheduler_name}, num_workers={workers_text}"
+            )
+
+        loaded_values = dask.compute(
+            *(value for _, value in dask_items), **compute_kwargs
+        )
+        for (key, _), loaded_value in zip(dask_items, loaded_values):
+            loaded_data[key] = loaded_value
+        return loaded_data
 
     def _eager_load_cloud_xarray_value(self, value, key):
         if value is not None and _is_dask_backed_xarray(value):
@@ -722,6 +819,57 @@ class BaseDataset(Dataset):
             )
             return value.load()
         return value
+
+    def _should_profile_cloud_load_details(self) -> bool:
+        return self._should_profile_dataset_setup() or bool(
+            self.data_cfgs.get("profile_cloud_load_details", False)
+        )
+
+    def _print_cloud_xarray_load_plan(self, key, value):
+        dims = getattr(value, "dims", None)
+        shape = getattr(value, "shape", None)
+        chunks = getattr(value, "chunks", None)
+        dtype = getattr(value, "dtype", None)
+        nbytes = getattr(value, "nbytes", None)
+        task_count = self._dask_task_count(value)
+        nbytes_text = self._format_bytes(nbytes)
+        print(
+            "[dataset setup profile] "
+            f"cloud load plan {key}: dims={dims}, shape={shape}, "
+            f"chunks={chunks}, dtype={dtype}, bytes={nbytes_text}, "
+            f"dask_tasks={task_count}"
+        )
+
+    @staticmethod
+    def _dask_task_count(value):
+        try:
+            graph = value.__dask_graph__()
+        except Exception:
+            graph = None
+        if graph is None:
+            return None
+        try:
+            return len(graph)
+        except TypeError:
+            try:
+                return len(graph.to_dict())
+            except Exception:
+                return None
+
+    @staticmethod
+    def _format_bytes(nbytes):
+        if nbytes is None:
+            return "unknown"
+        try:
+            nbytes = float(nbytes)
+        except (TypeError, ValueError):
+            return str(nbytes)
+        units = ["B", "KiB", "MiB", "GiB", "TiB"]
+        unit_idx = 0
+        while nbytes >= 1024 and unit_idx < len(units) - 1:
+            nbytes /= 1024
+            unit_idx += 1
+        return f"{nbytes:.3f} {units[unit_idx]}"
 
     def _should_eager_load_cloud_data(self) -> bool:
         return bool(
