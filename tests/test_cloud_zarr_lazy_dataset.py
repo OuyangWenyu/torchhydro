@@ -271,6 +271,29 @@ def test_cloud_zarr_chunk_sampler_default_chunk_can_fill_batch(tmp_path, tiny_za
     assert len(sampler) == 2
 
 
+def test_cloud_zarr_lazy_dataset_reads_grouped_windows(tmp_path, tiny_zarr_stores, monkeypatch):
+    ts_uri, attr_uri = tiny_zarr_stores
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    cfg["data_cfgs"]["lazy_zarr"]["normalization"] = "none"
+    cfg["data_cfgs"]["lazy_zarr"]["skip_all_nan_target_windows"] = False
+    dataset = CloudZarrLazyDataset(cfg, "train")
+    dataset._batch_level_dataloader_enabled = True
+
+    calls = []
+    original = dataset._read_window_array
+
+    def counted_read_window_array(*args, **kwargs):
+        calls.append((args, kwargs))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(dataset, "_read_window_array", counted_read_window_array)
+    x, y = dataset.__getitems__([0, 1, 2, 3, 4])
+
+    assert tuple(x.shape) == (5, 4, 2)
+    assert tuple(y.shape) == (5, 4, 1)
+    assert len(calls) == 2
+
+
 def test_cloud_zarr_lazy_dataset_torch_single_train(tmp_path, tiny_zarr_stores):
     ts_uri, attr_uri = tiny_zarr_stores
     cfg = _base_cfg(tmp_path, ts_uri, attr_uri)

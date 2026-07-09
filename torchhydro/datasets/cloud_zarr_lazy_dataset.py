@@ -776,55 +776,81 @@ class CloudZarrLazyDataset(Dataset):
         )
         ys = np.empty((batch_size, y_length, len(self.target_schema)), dtype=np.float32)
 
-        for row, (source_idx, basin_pos, start) in enumerate(zip(sources, basins, starts)):
+        group_keys: dict[tuple[int, int], list[int]] = {}
+        for row, (source_idx, basin_pos) in enumerate(zip(sources, basins)):
+            group_keys.setdefault((int(source_idx), int(basin_pos)), []).append(row)
+
+        for (source_idx, basin_pos), rows in group_keys.items():
             source_idx = int(source_idx)
             state = self.source_states[source_idx]
             source = state.source
             self._ensure_open(source_idx)
-            x_start = int(start) - self.warmup_length
-            y_start = int(start)
-            x_arr = self._read_window_array(
+
+            row_array = np.asarray(rows, dtype=np.int64)
+            group_starts = starts[row_array].astype(np.int32, copy=False)
+            x_starts = group_starts - self.warmup_length
+            y_starts = group_starts
+            x_block_start = int(x_starts.min())
+            x_block_stop = int((x_starts + length).max())
+            y_block_start = int(y_starts.min())
+            y_block_stop = int((y_starts + y_length).max())
+
+            x_block = self._read_window_array(
                 source_idx,
                 source.relevant_vars,
-                int(basin_pos),
-                x_start=x_start,
-                length=length,
+                basin_pos,
+                x_start=x_block_start,
+                length=x_block_stop - x_block_start,
                 kind="relevant_cols",
             )
-            y_arr = self._read_window_array(
+            y_block = self._read_window_array(
                 source_idx,
                 source.target_vars,
-                int(basin_pos),
-                x_start=y_start,
-                length=y_length,
+                basin_pos,
+                x_start=y_block_start,
+                length=y_block_stop - y_block_start,
                 kind="target_cols",
             )
-            x_arr = self._normalize_array(
-                x_arr,
+            x_block = self._normalize_array(
+                x_block,
                 source.relevant_vars,
                 "relevant_cols",
                 state.stats or {"enabled": False},
             )
-            y_arr = self._normalize_array(
-                y_arr,
+            y_block = self._normalize_array(
+                y_block,
                 source.target_vars,
                 "target_cols",
                 state.stats or {"enabled": False},
             )
-            xs[row, :, :dyn_feature_count] = x_arr
-            next_col = dyn_feature_count
-            if self._append_missing_masks:
-                xs[row, :, next_col : next_col + mask_count] = self._missing_mask_values(
-                    source_idx,
-                    length
-                )
-                next_col += mask_count
+
+            missing_mask = (
+                self._missing_mask_values(source_idx, length)
+                if self._append_missing_masks
+                else None
+            )
+            static_values = None
             if static_feature_count:
                 assert state.static_values is not None
-                c = state.static_values[int(basin_pos), :]
-                c = self._normalize_static(c, source_idx)
-                xs[row, :, next_col:] = c[None, :]
-            ys[row, :, :] = y_arr
+                static_values = self._normalize_static(
+                    state.static_values[basin_pos, :],
+                    source_idx,
+                )
+
+            for row, start in zip(rows, group_starts):
+                x_offset = int(start - self.warmup_length - x_block_start)
+                y_offset = int(start - y_block_start)
+                xs[row, :, :dyn_feature_count] = x_block[
+                    x_offset : x_offset + length,
+                    :,
+                ]
+                next_col = dyn_feature_count
+                if missing_mask is not None:
+                    xs[row, :, next_col : next_col + mask_count] = missing_mask
+                    next_col += mask_count
+                if static_values is not None:
+                    xs[row, :, next_col:] = static_values[None, :]
+                ys[row, :, :] = y_block[y_offset : y_offset + y_length, :]
 
         return torch.from_numpy(xs), torch.from_numpy(ys)
 
