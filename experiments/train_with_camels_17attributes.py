@@ -87,6 +87,27 @@ seeds = 111
 ens = True
 
 
+def _resolve_project_dir():
+    """Return a writable project directory for server/local runs.
+
+    ``scripts/path_config.py`` may contain a path from another machine (for
+    example a macOS ``/Users/...`` path).  Use it only when it exists and is
+    writable; otherwise fall back to the current working directory.
+    """
+    candidate = CLI.project_dir or _PATHS.get("project_dir") or os.getcwd()
+    candidate = os.path.abspath(os.path.expanduser(candidate))
+    if os.path.isdir(candidate) and os.access(candidate, os.W_OK):
+        return candidate
+    fallback = os.getcwd()
+    logging.warning(
+        "Configured project_dir %s does not exist or is not writable; "
+        "falling back to %s",
+        candidate,
+        fallback,
+    )
+    return fallback
+
+
 def config():
     project_name = os.path.join(
         f"camels", f"simplelstm_{scaler}_{dim}_{dr}_ens_{hru_delete}"
@@ -94,7 +115,7 @@ def config():
     config_data = default_config_file()
 
     args = cmd(
-        project_dir=CLI.project_dir or _PATHS.get("project_dir"),
+        project_dir=_resolve_project_dir(),
         sub=project_name,
         source_cfgs={
             "dataset_id": "camels_us",
