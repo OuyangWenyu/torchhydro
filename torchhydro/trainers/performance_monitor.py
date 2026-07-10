@@ -53,6 +53,8 @@ class TrainingPerformanceMonitor:
         self.loader_fetch_seconds = 0.0
         self.batch_count = 0
         self.sample_count = 0
+        self.batch_size_min: int | None = None
+        self.batch_size_max = 0
         self.compute_cuda_ms = 0.0
         self.transfer_cuda_ms = 0.0
         self._gpu_samples = []
@@ -76,8 +78,15 @@ class TrainingPerformanceMonitor:
             self.loader_fetch_seconds += float(seconds)
 
     def record_batch(self, batch: Any, host_seconds: float) -> None:
+        batch_size = _batch_size(batch)
         self.batch_count += 1
-        self.sample_count += _batch_size(batch)
+        self.sample_count += batch_size
+        self.batch_size_min = (
+            batch_size
+            if self.batch_size_min is None
+            else min(self.batch_size_min, batch_size)
+        )
+        self.batch_size_max = max(self.batch_size_max, batch_size)
         self.compute_host_seconds += float(host_seconds)
         self._drain_cuda_events(complete=False)
 
@@ -113,6 +122,11 @@ class TrainingPerformanceMonitor:
             "batches": self.batch_count,
             "samples": self.sample_count,
             "samples_per_second": self.sample_count / elapsed if elapsed else 0.0,
+            "batch_size_avg": (
+                self.sample_count / self.batch_count if self.batch_count else None
+            ),
+            "batch_size_min": self.batch_size_min,
+            "batch_size_max": self.batch_size_max if self.batch_count else None,
             "avg_dataloader_wait_seconds": (
                 self.data_wait_seconds / self.batch_count if self.batch_count else None
             ),

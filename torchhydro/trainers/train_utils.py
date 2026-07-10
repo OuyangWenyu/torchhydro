@@ -1757,6 +1757,12 @@ def torch_single_train(
     )
     pbar = tqdm(train_iterable, total=len(data_loader))
     performance_monitor = kwargs.get("performance_monitor")
+    use_amp = bool(kwargs.get("amp", False)) and torch_device.type == "cuda"
+    amp_dtype_name = kwargs.get("amp_dtype", "bfloat16")
+    amp_dtype = torch.bfloat16 if amp_dtype_name == "bfloat16" else torch.float16
+    grad_scaler = torch.amp.GradScaler(
+        "cuda", enabled=use_amp and amp_dtype == torch.float16
+    )
     train_iterator = iter(pbar)
 
     while True:
@@ -1773,40 +1779,46 @@ def torch_single_train(
         else:
             compute_events = None
         compute_started = time.perf_counter()
-        # mask handling is already done inside model_infer function
-        trg, output = model_infer(
-            seq_first,
-            device,
-            model,
-            batch,
-            variable_length_cfgs,
-            non_blocking=non_blocking_transfer,
-        )
-        batch_vector = getattr(batch, "batch", None)
-        node_mask = getattr(batch, "node_mask", None)
-        loss = compute_loss(
-            trg,
-            output,
-            criterion,
-            batch_vector=batch_vector,
-            node_mask=node_mask,
-            **kwargs,
-        )
+        with torch.autocast(
+            device_type=torch_device.type,
+            dtype=amp_dtype,
+            enabled=use_amp,
+        ):
+            # mask handling is already done inside model_infer function
+            trg, output = model_infer(
+                seq_first,
+                device,
+                model,
+                batch,
+                variable_length_cfgs,
+                non_blocking=non_blocking_transfer,
+            )
+            batch_vector = getattr(batch, "batch", None)
+            node_mask = getattr(batch, "node_mask", None)
+            loss = compute_loss(
+                trg,
+                output,
+                criterion,
+                batch_vector=batch_vector,
+                node_mask=node_mask,
+                **kwargs,
+            )
 
-        # Add auxiliary loss from MoE models (if available)
-        if hasattr(model, "get_aux_loss"):
-            aux_loss = model.get_aux_loss()
-            if aux_loss is not None and aux_loss.device != loss.device:
-                aux_loss = aux_loss.to(loss.device)
-            loss = loss + aux_loss
+            # Add auxiliary loss from MoE models (if available)
+            if hasattr(model, "get_aux_loss"):
+                aux_loss = model.get_aux_loss()
+                if aux_loss is not None and aux_loss.device != loss.device:
+                    aux_loss = aux_loss.to(loss.device)
+                loss = loss + aux_loss
 
         if loss > 100:
             print("Warning: high loss detected")
         if torch.isnan(loss):
             raise ValueError("nan loss detected")
             # continue
-        loss.backward()  # Backpropagate to compute the current gradient
-        opt.step()  # Update network parameters based on gradients
+        grad_scaler.scale(loss).backward()
+        grad_scaler.step(opt)
+        grad_scaler.update()
         model.zero_grad()  # clear gradient
         if compute_events is not None:
             compute_events[1].record(torch.cuda.current_stream(torch_device))

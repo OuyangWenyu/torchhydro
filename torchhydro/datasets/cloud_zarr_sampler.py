@@ -239,6 +239,9 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
             ]
             if self.shuffle:
                 rng.shuffle(groups)
+            if not self.drop_last:
+                yield from self._coalesced_group_batches(groups, np_rng)
+                return
             yielded = 0
             for group in groups:
                 for batch in self._group_batches(group, np_rng):
@@ -302,6 +305,55 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
             if len(batch) == self.batch_size or not self.drop_last:
                 yield batch.tolist()
 
+    def _coalesced_group_batches(
+        self,
+        groups: list[_ChunkGroup],
+        rng: np.random.Generator,
+    ) -> Iterator[list[int]]:
+        """Merge per-chunk tails so full epochs do not create many tiny batches."""
+
+        pending = np.empty(0, dtype=np.int64)
+        yielded = 0
+        for group in groups:
+            indices = self._index_order[group.start : group.stop].astype(
+                np.int64, copy=True
+            )
+            if self.shuffle:
+                rng.shuffle(indices)
+            if pending.size:
+                needed = self.batch_size - pending.size
+                take = min(needed, indices.size)
+                pending = np.concatenate((pending, indices[:take]))
+                indices = indices[take:]
+                if pending.size == self.batch_size:
+                    if self._batch_limit_reached(yielded):
+                        return
+                    batch = pending.tolist()
+                    self._record_batch_sources(batch)
+                    yielded += 1
+                    yield batch
+                    pending = np.empty(0, dtype=np.int64)
+            full_stop = indices.size - indices.size % self.batch_size
+            for start in range(0, full_stop, self.batch_size):
+                if self._batch_limit_reached(yielded):
+                    return
+                batch = indices[start : start + self.batch_size].tolist()
+                self._record_batch_sources(batch)
+                yielded += 1
+                yield batch
+            if full_stop < indices.size:
+                pending = indices[full_stop:]
+        if pending.size and not self._batch_limit_reached(yielded):
+            batch = pending.tolist()
+            self._record_batch_sources(batch)
+            yield batch
+
+    def _batch_limit_reached(self, yielded: int) -> bool:
+        return (
+            self.max_batches_per_epoch is not None
+            and yielded >= self.max_batches_per_epoch
+        )
+
     def _target_batches_by_source(self) -> dict[int, int]:
         sources = [
             source
@@ -348,6 +400,8 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
     def __len__(self) -> int:
         natural = sum(self._natural_batches_by_source.values())
         if self.sampling == "weighted_by_sample":
+            if not self.drop_last:
+                natural = math.ceil(len(self.dataset) / self.batch_size)
             if self.max_batches_per_epoch is None:
                 return natural
             return min(natural, self.max_batches_per_epoch)

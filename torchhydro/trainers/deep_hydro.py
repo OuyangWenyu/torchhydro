@@ -24,6 +24,7 @@ import torch
 from torch.optim.lr_scheduler import *
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+
 try:
     import shap
 except ImportError:
@@ -293,6 +294,8 @@ class DeepHydro(DeepHydroInterface):
                         training_cfgs.get("cuda_prefetch_batches", 2)
                     ),
                     performance_monitor=performance_monitor,
+                    amp=bool(training_cfgs.get("amp", False)),
+                    amp_dtype=training_cfgs.get("amp_dtype", "bfloat16"),
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model

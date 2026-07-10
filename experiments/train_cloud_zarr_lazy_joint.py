@@ -295,6 +295,8 @@ def build_cfg(args: argparse.Namespace) -> dict[str, Any]:
             "performance_gpu_idle_threshold": getattr(
                 args, "performance_gpu_idle_threshold", 5.0
             ),
+            "amp": getattr(args, "amp", False),
+            "amp_dtype": getattr(args, "amp_dtype", "bfloat16"),
             "which_first_tensor": "sequence",
             "device": [args.device],
             "criterion": "RMSE",
@@ -469,6 +471,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-pin-memory", dest="pin_memory", action="store_false")
     parser.add_argument("--cuda-prefetch", action="store_true")
     parser.add_argument("--cuda-prefetch-batches", type=int, default=2)
+    parser.add_argument(
+        "--amp",
+        action="store_true",
+        help="Enable CUDA automatic mixed precision for training.",
+    )
+    parser.add_argument(
+        "--amp-dtype",
+        choices=("bfloat16", "float16"),
+        default="bfloat16",
+        help="AMP dtype; bfloat16 is recommended for RTX 40-series GPUs.",
+    )
     parser.add_argument(
         "--performance-monitor",
         action="store_true",

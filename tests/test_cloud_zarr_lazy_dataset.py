@@ -912,7 +912,32 @@ def test_training_performance_monitor_writes_epoch_json(tmp_path):
 
     assert result["epoch"] == 3
     assert result["samples"] == 4
+    assert result["batch_size_avg"] == 4
+    assert result["batch_size_min"] == 4
+    assert result["batch_size_max"] == 4
     assert result["avg_dataloader_wait_seconds"] == pytest.approx(0.2)
     assert result["loader_fetch_seconds"] == pytest.approx(0.15)
     output = json.loads((tmp_path / "performance_epoch_0003.json").read_text())
     assert output["samples"] == 4
+
+
+def test_weighted_sample_sampler_coalesces_chunk_tails(tmp_path):
+    dataset = CloudZarrLazyDataset(
+        _multi_source_cfg(tmp_path, normalization="none"), "train"
+    )
+    sampler = CloudZarrChunkBatchSampler(
+        dataset,
+        batch_size=7,
+        drop_last=False,
+        shuffle=False,
+        sampling="weighted_by_sample",
+    )
+
+    batches = list(sampler)
+    flattened = [index for batch in batches for index in batch]
+
+    assert all(len(batch) == 7 for batch in batches[:-1])
+    assert 1 <= len(batches[-1]) <= 7
+    assert len(flattened) == len(dataset)
+    assert len(set(flattened)) == len(dataset)
+    assert len(batches) == len(sampler)
