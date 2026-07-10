@@ -766,17 +766,20 @@ class CloudZarrLazyDataset(Dataset):
             state.ts_ds,
             source.relevant_vars,
             "input",
+            source.dataset_id,
         )
         state.target_names = self._resolve_existing_names(
             state.ts_ds,
             source.target_vars,
             "target",
+            source.dataset_id,
         )
         if source.constant_vars and state.attr_ds is not None:
             state.constant_names = self._resolve_existing_names(
                 state.attr_ds,
                 source.constant_vars,
                 "static",
+                source.dataset_id,
             )
         else:
             state.constant_names = [None] * len(source.constant_vars)
@@ -820,14 +823,16 @@ class CloudZarrLazyDataset(Dataset):
         ds: xr.Dataset,
         variables: list[LazyVariable],
         kind: str,
+        dataset_id: str,
     ) -> list[str | None]:
         names = []
         for var in variables:
             physical = self._existing_var_name(ds, var) if var.configured else None
             if physical is None and var.required:
                 raise ValueError(
-                    f"Required {kind} variable {var.canonical} ({var.physical}) "
-                    "is missing from its Zarr store."
+                    f"Dataset {dataset_id!r}: required {kind} variable "
+                    f"{var.canonical} ({var.physical}) is missing from its Zarr "
+                    f"store. Available variables: {sorted(ds.data_vars)}"
                 )
             names.append(physical)
         return names

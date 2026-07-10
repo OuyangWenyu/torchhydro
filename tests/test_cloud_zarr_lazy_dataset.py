@@ -365,6 +365,22 @@ def test_cloud_zarr_lazy_dataset_missing_variable_mask(tmp_path, tiny_zarr_store
     assert np.allclose(x[:, :, 2].numpy(), 1.0)
 
 
+def test_missing_required_target_reports_dataset_and_available_variables(
+    tmp_path, tiny_zarr_stores
+):
+    ts_uri, attr_uri = tiny_zarr_stores
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    cfg["data_cfgs"]["target_cols"] = {"streamflow": "missing_streamflow"}
+
+    with pytest.raises(ValueError) as exc_info:
+        CloudZarrLazyDataset(cfg, "train")
+
+    message = str(exc_info.value)
+    assert "Dataset 'camels_us'" in message
+    assert "missing_streamflow" in message
+    assert "q_cms_obs" in message
+
+
 def test_cloud_zarr_lazy_dataset_drop_any_nan_keeps_targets_finite(
     tmp_path, tiny_zarr_stores
 ):
