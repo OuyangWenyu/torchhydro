@@ -262,7 +262,7 @@ def build_cfg(args: argparse.Namespace) -> dict[str, Any]:
                 "basin_chunk_size": args.basin_chunk_size,
                 "sampling": args.sampling,
                 "max_batches_per_epoch": args.max_batches_per_epoch,
-                "drop_last": True,
+                "drop_last": getattr(args, "drop_last", False),
             },
             "min_time_unit": "D",
             "min_time_interval": 1,
@@ -474,6 +474,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--time-chunk-size", type=int, default=None)
     parser.add_argument("--basin-chunk-size", type=int, default=None)
     parser.add_argument("--max-batches-per-epoch", type=int, default=None)
+    parser.add_argument(
+        "--drop-last",
+        action="store_true",
+        help="Drop the final incomplete batch. Disabled by default so a full epoch keeps every sample.",
+    )
     parser.add_argument("--save-epoch", type=int, default=0)
     parser.add_argument("--config-out", type=Path, default=None)
     parser.add_argument("--dry-run", action="store_true")

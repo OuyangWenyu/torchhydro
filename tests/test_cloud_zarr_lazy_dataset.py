@@ -778,6 +778,7 @@ def test_train_cloud_zarr_lazy_joint_reads_dataset_manifest(tmp_path):
     )
 
     train_cfg = build_cfg(args)
+    assert train_cfg["data_cfgs"]["sampler_hyperparam"]["drop_last"] is False
     dataset = CloudZarrLazyDataset(train_cfg, "train")
     sampler = CloudZarrChunkBatchSampler(
         dataset,
