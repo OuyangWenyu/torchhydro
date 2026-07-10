@@ -383,6 +383,10 @@ def default_config_file() -> Dict[str, Any]:
             # and "fp16". FP16 uses GradScaler on CUDA; BF16 uses autocast
             # without gradient scaling.
             "mixed_precision": "off",
+            # Reading a CUDA loss scalar synchronizes CPU and GPU. Check every
+            # batch by default for backward compatibility; larger values reduce
+            # synchronization, and 0 checks only at the end of the epoch.
+            "loss_check_interval": 1,
             "which_first_tensor": "sequence",
             # if we calculate metrics such as RMSE, NSE, etc. during validation
             # metrics will be samed as the config in evaluation_cfgs
@@ -532,6 +536,7 @@ def cmd(
     num_workers: Optional[int] = None,
     pin_memory: Optional[bool] = None,
     mixed_precision: Optional[str] = None,
+    loss_check_interval: Optional[int] = None,
     which_first_tensor: Optional[str] = None,
     ensemble: Optional[int] = None,
     ensemble_items: Optional[Dict[str, Any]] = None,
@@ -1044,6 +1049,17 @@ def cmd(
         type=str,
     )
     parser.add_argument(
+        "--loss_check_interval",
+        "--loss-check-interval",
+        dest="loss_check_interval",
+        help=(
+            "Check training loss finiteness every N batches. Use 0 to check "
+            "only at epoch end and minimize CUDA synchronization."
+        ),
+        default=loss_check_interval,
+        type=int,
+    )
+    parser.add_argument(
         "--batch_level_dataloader",
         dest="batch_level_dataloader",
         help="Enable batch-level Dataset.__getitems__ for fixed-length training",
@@ -1448,6 +1464,12 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
         if mixed_precision not in ["off", "bf16", "fp16"]:
             raise ValueError("mixed_precision must be one of: off, bf16, fp16")
         cfg_file["training_cfgs"]["mixed_precision"] = mixed_precision
+    if new_args.loss_check_interval is not None:
+        if new_args.loss_check_interval < 0:
+            raise ValueError("loss_check_interval must be greater than or equal to 0")
+        cfg_file["training_cfgs"]["loss_check_interval"] = (
+            new_args.loss_check_interval
+        )
     if new_args.batch_level_dataloader is not None:
         cfg_file["training_cfgs"]["batch_level_dataloader"] = bool(
             new_args.batch_level_dataloader

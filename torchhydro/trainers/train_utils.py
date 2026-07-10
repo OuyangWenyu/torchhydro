@@ -9,6 +9,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import copy
+import math
 import warnings
 import fnmatch
 import itertools
@@ -1806,10 +1807,14 @@ def torch_single_train(
     model.train()
     n_iter_ep = 0
     running_loss = 0.0
+    running_loss_tensor = None
     which_first_tensor = kwargs["which_first_tensor"]
     mixed_precision = kwargs.get("mixed_precision", "off")
     amp_scaler = kwargs.get("amp_scaler")
     non_blocking = bool(kwargs.get("non_blocking", False))
+    loss_check_interval = int(kwargs.get("loss_check_interval", 1))
+    if loss_check_interval < 0:
+        raise ValueError("loss_check_interval must be greater than or equal to 0")
     if amp_scaler is None:
         amp_scaler = create_amp_grad_scaler(device, mixed_precision)
     seq_first = which_first_tensor != "batch"
@@ -1848,11 +1853,16 @@ def torch_single_train(
                     aux_loss = aux_loss.to(loss.device)
                 loss = loss + aux_loss
 
-        if loss > 100:
-            print("Warning: high loss detected")
-        if torch.isnan(loss):
-            raise ValueError("nan loss detected")
-            # continue
+        loss_value = None
+        should_check_loss = loss_check_interval > 0 and (
+            (n_iter_ep + 1) % loss_check_interval == 0
+        )
+        if should_check_loss:
+            # One scalar read handles all checks. Calling bool() or item() on
+            # several CUDA tensors separately introduces repeated host/device
+            # synchronization in every training step.
+            loss_value = loss.detach().item()
+            _validate_training_loss_value(loss_value)
         if amp_scaler.is_enabled():
             amp_scaler.scale(loss).backward()
             amp_scaler.step(opt)
@@ -1860,18 +1870,38 @@ def torch_single_train(
         else:
             loss.backward()  # Backpropagate to compute the current gradient
             opt.step()  # Update network parameters based on gradients
-        if loss == float("inf"):
-            raise ValueError(
-                "Error infinite loss detected. Try normalizing data or performing interpolation"
-            )
-        running_loss += loss.item()
+        if loss_check_interval == 1:
+            running_loss += loss_value
+        else:
+            detached_loss = loss.detach()
+            if running_loss_tensor is None:
+                running_loss_tensor = detached_loss.clone()
+            else:
+                running_loss_tensor.add_(detached_loss)
         n_iter_ep += 1
     if n_iter_ep == 0:
         raise ValueError(
             "All batch computations of loss result in NAN. Please check the data."
         )
-    total_loss = running_loss / float(n_iter_ep)
+    if loss_check_interval == 1:
+        total_loss = running_loss / float(n_iter_ep)
+    else:
+        total_loss = running_loss_tensor.item() / float(n_iter_ep)
+        _validate_training_loss_value(total_loss, warn_high=False)
     return total_loss, n_iter_ep
+
+
+def _validate_training_loss_value(loss_value: float, warn_high: bool = True) -> None:
+    """Validate a synchronized scalar loss without additional CUDA reads."""
+    if math.isnan(loss_value):
+        raise ValueError("nan loss detected")
+    if math.isinf(loss_value):
+        raise ValueError(
+            "Error infinite loss detected. Try normalizing data or performing "
+            "interpolation"
+        )
+    if warn_high and loss_value > 100:
+        print("Warning: high loss detected")
 
 
 def compute_validation(
