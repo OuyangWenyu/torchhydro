@@ -1494,12 +1494,24 @@ class BaseDataset(Dataset):
             else:
                 norm = _norm
                 origin = _origin
-            if key == "target_cols" or not rm_nan:
-                warn_if_nan(origin, nan_mode="all", data_name="nan_filled target data")
-                warn_if_nan(norm, nan_mode="all", data_name="nan_filled target data")
-            else:
-                warn_if_nan(origin, nan_mode="any", data_name="nan_filled input data")
-                warn_if_nan(norm, nan_mode="any", data_name="nan_filled input data")
+            # _kill_1type_nan already validates filled arrays. Only validate
+            # here when filling was disabled, avoiding a third full scan of
+            # every large input array.
+            if not rm_nan:
+                if key == "target_cols":
+                    warn_if_nan(
+                        origin, nan_mode="all", data_name="nan_filled target data"
+                    )
+                    warn_if_nan(
+                        norm, nan_mode="all", data_name="nan_filled target data"
+                    )
+                else:
+                    warn_if_nan(
+                        origin, nan_mode="any", data_name="nan_filled input data"
+                    )
+                    warn_if_nan(
+                        norm, nan_mode="any", data_name="nan_filled input data"
+                    )
             origins_wonan[key] = origin
             norms_wonan[key] = norm
         return origins_wonan, norms_wonan
