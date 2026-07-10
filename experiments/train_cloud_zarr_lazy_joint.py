@@ -102,7 +102,12 @@ def dataset_entries(
     manifest = manifest or {}
     selected = parse_csv(args.datasets)
     if manifest:
-        raw_entries = [dict(entry) for entry in manifest["datasets"]]
+        dataset_defaults = manifest.get("dataset_defaults") or {}
+        if not isinstance(dataset_defaults, dict):
+            raise ValueError("dataset_defaults must be a mapping.")
+        raw_entries = [
+            {**dataset_defaults, **dict(entry)} for entry in manifest["datasets"]
+        ]
         if selected and selected != ["all"]:
             selected_set = set(selected)
             raw_entries = [
@@ -129,16 +134,25 @@ def dataset_entries(
         if not dataset_id:
             raise ValueError("Each dataset config entry requires dataset_id.")
         variables = raw_entry.get("variables") or {}
+        configured_time_range = raw_entry.get(
+            "time_range", [args.time_start, args.time_end]
+        )
+        if configured_time_range in (None, "all"):
+            time_range: str | list[str] = "all"
+        else:
+            if (
+                not isinstance(configured_time_range, (list, tuple))
+                or len(configured_time_range) != 2
+            ):
+                raise ValueError(
+                    f"{dataset_id} time_range must be 'all' or [start, end]."
+                )
+            time_range = [str(value) for value in configured_time_range]
         entry: dict[str, Any] = {
             **raw_entry,
             "dataset_id": dataset_id,
             "basins": raw_entry.get("basins", "all"),
-            "time_range": [
-                str(value)
-                for value in raw_entry.get(
-                    "time_range", [args.time_start, args.time_end]
-                )
-            ],
+            "time_range": time_range,
             "relevant_cols": raw_entry.get(
                 "relevant_cols",
                 variables.get("inputs", parse_variable_spec(args.relevant_cols)),
@@ -328,6 +342,10 @@ def inspect_lazy_dataset(cfg: dict[str, Any]) -> dict[str, Any]:
                     "dataset_id": state.source.dataset_id,
                     "basins": len(state.source.basins),
                     "time_steps": state.time_length,
+                    "time_range": [
+                        state.times[0].isoformat(),
+                        state.times[-1].isoformat(),
+                    ],
                     "time_step": probe.source_time_steps[state.source.dataset_id],
                     "samples": int(sample_counts[source_idx]),
                     "weight": state.source.weight,

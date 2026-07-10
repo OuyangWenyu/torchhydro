@@ -815,3 +815,62 @@ def test_train_cloud_zarr_lazy_joint_reads_dataset_manifest(tmp_path):
     assert dataset.x_feature_count == 4
     assert n_iter == 4
     assert np.isfinite(loss)
+
+
+def test_manifest_defaults_and_full_time_range(tmp_path):
+    from experiments.train_cloud_zarr_lazy_joint import dataset_entries
+
+    manifest = {
+        "dataset_defaults": {
+            "basins": "all",
+            "time_range": "all",
+            "relevant_cols": ["precipitation"],
+            "target_cols": ["streamflow"],
+        },
+        "datasets": [
+            {"dataset_id": "camels_us"},
+            {"dataset_id": "camels_gb", "weight": 2.0},
+        ],
+    }
+    args = SimpleNamespace(
+        datasets="all",
+        time_start="2000-01-01",
+        time_end="2000-01-10",
+        relevant_cols="unused",
+        target_cols="unused",
+        constant_cols="",
+        timeseries_uri=None,
+        attributes_uri=None,
+        max_basins=None,
+    )
+
+    entries = dataset_entries(args, manifest)
+
+    assert [entry["time_range"] for entry in entries] == ["all", "all"]
+    assert [entry["basins"] for entry in entries] == ["all", "all"]
+    assert entries[0]["relevant_cols"] == ["precipitation"]
+    assert entries[1]["weight"] == 2.0
+
+
+def test_dataset_full_time_range_uses_entire_store(tmp_path):
+    ts_uri, attr_uri = _write_tiny_zarr(tmp_path, "camels_us", ["01013500", "01022500"])
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    cfg["data_cfgs"]["lazy_zarr"]["normalization"] = "none"
+    cfg["data_cfgs"]["lazy_zarr"]["datasets"] = [
+        {
+            "dataset_id": "camels_us",
+            "basins": ["01013500", "01022500"],
+            "time_range": "all",
+            "relevant_cols": {"precipitation": "pcp_mm"},
+            "target_cols": {"streamflow": "q_cms_obs"},
+            "constant_cols": {"area": "area_km2"},
+            "timeseries_uri": str(ts_uri),
+            "attributes_uri": str(attr_uri),
+        }
+    ]
+
+    dataset = CloudZarrLazyDataset(cfg, "train")
+
+    assert dataset.source_states[0].time_length == 10
+    assert dataset.source_states[0].times[0] == pd.Timestamp("2000-01-01")
+    assert dataset.source_states[0].times[-1] == pd.Timestamp("2000-01-10")

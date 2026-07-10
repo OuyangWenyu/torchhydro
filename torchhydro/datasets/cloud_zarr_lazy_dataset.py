@@ -72,7 +72,7 @@ class LazyDatasetSource:
 
     dataset_id: str
     basins: list[str]
-    time_range: list[str]
+    time_range: list[str] | str
     relevant_vars: list[LazyVariable]
     target_vars: list[LazyVariable]
     constant_vars: list[LazyVariable]
@@ -359,7 +359,12 @@ class CloudZarrLazyDataset(Dataset):
                 basins = basins[: max(0, int(max_basins))]
             if not basins:
                 raise ValueError(f"{dataset_id} does not contain any selected basins.")
-            time_range = entry.get("time_range") or self.t_s_dict["t_final_range"]
+            configured_time_range = entry.get("time_range")
+            time_range = (
+                "all"
+                if configured_time_range in (None, "all")
+                else list(configured_time_range)
+            )
             relevant_cols = entry.get(
                 "relevant_cols", self.data_cfgs.get("relevant_cols") or []
             )
@@ -373,7 +378,7 @@ class CloudZarrLazyDataset(Dataset):
                 LazyDatasetSource(
                     dataset_id=dataset_id,
                     basins=basins,
-                    time_range=list(time_range),
+                    time_range=time_range,
                     relevant_vars=self._resolve_dynamic_variables(
                         reader, relevant_cols
                     ),
@@ -673,10 +678,12 @@ class CloudZarrLazyDataset(Dataset):
         )
 
         full_times = pd.DatetimeIndex(pd.to_datetime(state.ts_ds["time"].values))
-        start = pd.to_datetime(source.time_range[0])
-        end = pd.to_datetime(source.time_range[1])
-        mask = (full_times >= start) & (full_times <= end)
-        positions = np.flatnonzero(mask)
+        if source.time_range == "all":
+            positions = np.arange(len(full_times), dtype=np.int64)
+        else:
+            start = pd.to_datetime(source.time_range[0])
+            end = pd.to_datetime(source.time_range[1])
+            positions = np.flatnonzero((full_times >= start) & (full_times <= end))
         if positions.size == 0:
             raise ValueError(
                 f"No time points found for {source.dataset_id} in {source.time_range}."
