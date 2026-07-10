@@ -14,6 +14,7 @@ from torchhydro.datasets.cloud_zarr_sampler import CloudZarrChunkBatchSampler
 from torchhydro.models.crits import RMSELoss
 from torchhydro.models.simple_lstm import SimpleLSTM
 from torchhydro.trainers.train_utils import torch_single_train
+from torchhydro.trainers.performance_monitor import TrainingPerformanceMonitor
 from experiments.train_cloud_zarr_lazy_joint import build_cfg, infer_model_sizes
 
 
@@ -663,6 +664,8 @@ def test_cloud_zarr_lazy_dataset_torch_single_train(tmp_path, tiny_zarr_stores):
         hidden_size=8,
     )
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    monitor = TrainingPerformanceMonitor(tmp_path / "performance", torch.device("cpu"))
+    monitor.start_epoch(1)
 
     loss, n_iter = torch_single_train(
         model,
@@ -671,10 +674,15 @@ def test_cloud_zarr_lazy_dataset_torch_single_train(tmp_path, tiny_zarr_stores):
         loader,
         device=torch.device("cpu"),
         which_first_tensor="sequence",
+        performance_monitor=monitor,
     )
+    performance = monitor.finish_epoch(sampler=sampler, dataset=dataset)
 
     assert n_iter == 2
     assert np.isfinite(loss)
+    assert performance["batches"] == 2
+    assert performance["samples"] == 8
+    assert performance["per_dataset_samples"] == {"camels_us": 8}
 
 
 def test_train_cloud_zarr_lazy_joint_dry_run_config(tmp_path, tiny_zarr_stores):
@@ -891,3 +899,20 @@ def test_dataset_full_time_range_uses_entire_store(tmp_path):
     assert dataset.source_states[0].time_length == 10
     assert dataset.source_states[0].times[0] == pd.Timestamp("2000-01-01")
     assert dataset.source_states[0].times[-1] == pd.Timestamp("2000-01-10")
+
+
+def test_training_performance_monitor_writes_epoch_json(tmp_path):
+    monitor = TrainingPerformanceMonitor(tmp_path, torch.device("cpu"))
+    monitor.start_epoch(3)
+    monitor.record_data_wait(0.2)
+    monitor.record_loader_fetch(0.15)
+    monitor.record_batch((torch.zeros(4, 3, 1), torch.zeros(4, 1, 1)), 0.1)
+
+    result = monitor.finish_epoch()
+
+    assert result["epoch"] == 3
+    assert result["samples"] == 4
+    assert result["avg_dataloader_wait_seconds"] == pytest.approx(0.2)
+    assert result["loader_fetch_seconds"] == pytest.approx(0.15)
+    output = json.loads((tmp_path / "performance_epoch_0003.json").read_text())
+    assert output["samples"] == 4

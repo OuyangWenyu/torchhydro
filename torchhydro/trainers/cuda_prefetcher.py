@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import queue
 import threading
+import time
 from typing import Any
 
 import torch
@@ -51,6 +52,7 @@ class CudaPrefetcher:
         device: torch.device,
         non_blocking: bool = True,
         prefetch_batches: int = 2,
+        performance_monitor=None,
     ):
         if device.type != "cuda":
             raise ValueError("CudaPrefetcher requires a CUDA device.")
@@ -59,6 +61,7 @@ class CudaPrefetcher:
         self.non_blocking = non_blocking
         self.prefetch_batches = max(1, int(prefetch_batches))
         self.stream = torch.cuda.Stream(device=device)
+        self.performance_monitor = performance_monitor
 
     def __len__(self):
         return len(self.loader)
@@ -83,10 +86,26 @@ class CudaPrefetcher:
         def produce() -> None:
             try:
                 with torch.cuda.device(self.device):
-                    for cpu_batch in iterator:
+                    while not stop.is_set():
+                        fetch_started = time.perf_counter()
+                        try:
+                            cpu_batch = next(iterator)
+                        except StopIteration:
+                            break
+                        if self.performance_monitor is not None:
+                            self.performance_monitor.record_loader_fetch(
+                                time.perf_counter() - fetch_started
+                            )
                         if stop.is_set():
                             break
                         with torch.cuda.stream(self.stream):
+                            events = (
+                                self.performance_monitor.cuda_event_pair()
+                                if self.performance_monitor is not None
+                                else None
+                            )
+                            if events is not None:
+                                events[0].record(self.stream)
                             cuda_batch = move_to_device(
                                 cpu_batch,
                                 self.device,
@@ -94,6 +113,9 @@ class CudaPrefetcher:
                             )
                             ready = torch.cuda.Event()
                             ready.record(self.stream)
+                            if events is not None:
+                                events[1].record(self.stream)
+                                self.performance_monitor.record_transfer_events(events)
                         if not put((cuda_batch, ready, None)):
                             return
             except BaseException as exc:

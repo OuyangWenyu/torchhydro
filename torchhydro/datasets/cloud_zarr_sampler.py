@@ -80,6 +80,7 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
             source: sum(group.batch_count for group in groups)
             for source, groups in self._groups_by_source.items()
         }
+        self.epoch_sample_counts: dict[int, int] = {}
         if len(dataset) > 0 and self.drop_last and len(self) == 0:
             raise ValueError(
                 "CloudZarrChunkBatchSampler produced zero batches. "
@@ -222,6 +223,7 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
         return values.astype(dtype, copy=False)
 
     def __iter__(self) -> Iterator[list[int]]:
+        self.epoch_sample_counts = {}
         epoch_seed = (
             random.randrange(2**32) if self.seed is None else self.seed + self._epoch
         )
@@ -246,6 +248,7 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
                     ):
                         return
                     yielded += 1
+                    self._record_batch_sources(batch)
                     yield batch
             return
 
@@ -270,7 +273,18 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
             for batch_pos, batch in enumerate(self._group_batches(group, np_rng)):
                 if batch_pos >= take:
                     break
+                self._record_batch_sources(batch)
                 yield batch
+
+    def _record_batch_sources(self, batch: list[int]) -> None:
+        sources, counts = np.unique(
+            np.asarray(self.dataset._lookup_sources)[batch], return_counts=True
+        )
+        for source, count in zip(sources, counts):
+            source = int(source)
+            self.epoch_sample_counts[source] = self.epoch_sample_counts.get(
+                source, 0
+            ) + int(count)
 
     def _group_batches(
         self,

@@ -288,6 +288,13 @@ def build_cfg(args: argparse.Namespace) -> dict[str, Any]:
             "non_blocking_transfer": args.pin_memory,
             "cuda_prefetch": args.cuda_prefetch,
             "cuda_prefetch_batches": getattr(args, "cuda_prefetch_batches", 2),
+            "performance_monitor": getattr(args, "performance_monitor", False),
+            "performance_gpu_sample_interval": getattr(
+                args, "performance_gpu_sample_interval", 1.0
+            ),
+            "performance_gpu_idle_threshold": getattr(
+                args, "performance_gpu_idle_threshold", 5.0
+            ),
             "which_first_tensor": "sequence",
             "device": [args.device],
             "criterion": "RMSE",
@@ -462,6 +469,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-pin-memory", dest="pin_memory", action="store_false")
     parser.add_argument("--cuda-prefetch", action="store_true")
     parser.add_argument("--cuda-prefetch-batches", type=int, default=2)
+    parser.add_argument(
+        "--performance-monitor",
+        action="store_true",
+        help="Write per-epoch loader, compute, throughput and GPU metrics as JSON.",
+    )
+    parser.add_argument("--performance-gpu-sample-interval", type=float, default=1.0)
+    parser.add_argument("--performance-gpu-idle-threshold", type=float, default=5.0)
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument(
         "--no-chunk-sampler", dest="chunk_sampler", action="store_false"

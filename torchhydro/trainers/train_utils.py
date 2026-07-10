@@ -15,6 +15,7 @@ import itertools
 import os
 import re
 import shutil
+import time
 from functools import reduce
 from pathlib import Path
 import pandas as pd
@@ -33,7 +34,12 @@ from hydroutils.hydro_file import (
     unserialize_json,
     get_latest_file_in_a_lst,
 )
-from torchhydro.models.crits import FloodBaseLoss, GaussianLoss, MultiOutLoss, PyGraphLoss
+from torchhydro.models.crits import (
+    FloodBaseLoss,
+    GaussianLoss,
+    MultiOutLoss,
+    PyGraphLoss,
+)
 from torchhydro.trainers.cuda_prefetcher import CudaPrefetcher
 
 
@@ -386,10 +392,10 @@ def get_preds_to_be_eval(
     is_gnn = False
     dataset = valorte_data_loader.dataset
     if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
-         # lookup_table[0] is (basin, time, len). For GNN, basin is None.
-         if dataset.lookup_table[0][0] is None:
-             is_gnn = True
-    
+        # lookup_table[0] is (basin, time, len). For GNN, basin is None.
+        if dataset.lookup_table[0][0] is None:
+            is_gnn = True
+
     if evaluator["eval_way"] == "once":
         if is_gnn:
             raise NotImplementedError(
@@ -691,7 +697,9 @@ def _recover_samples_to_4d_by_forecast(
         # 如果已经是4D [Basin, Time, Horizon, Feat]，直接使用
         # 这通常是由 compute_validation 针对 PyG 模型预处理过的
         if arr_3d.shape[0] != basin_num:
-             raise ValueError(f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}")
+            raise ValueError(
+                f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}"
+            )
         output = arr_3d
     elif is_gnn:
         # arr_3d is (Time * Basin, Horizon, Features) (Time-Major)
@@ -699,8 +707,10 @@ def _recover_samples_to_4d_by_forecast(
         # 注意：这里假设每个时间步都包含完整的 basin_num 个节点
         # 如果 arr_3d 的第一维长度不是 basin_num 的整数倍，说明有数据丢失或对齐问题
         if arr_3d.shape[0] % basin_num != 0:
-             print(f"Warning: arr_3d shape {arr_3d.shape} is not divisible by basin_num {basin_num}. Reshape might fail.")
-        
+            print(
+                f"Warning: arr_3d shape {arr_3d.shape} is not divisible by basin_num {basin_num}. Reshape might fail."
+            )
+
         # (Time, Basin, Horizon, Features)
         output = arr_3d.reshape(-1, basin_num, arr_3d.shape[1], nf)
         # (Basin, Time, Horizon, Features)
@@ -708,7 +718,7 @@ def _recover_samples_to_4d_by_forecast(
     else:
         # Standard mode: Basin-Major
         output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
-        
+
     i_e_time_length = output.shape[1]
 
     # 创建结果数组，初始化为NaN
@@ -775,13 +785,15 @@ def _recover_samples_to_4d_by_basins(
         # 如果已经是4D [Basin, Time, Horizon, Feat]，直接使用
         # 验证维度一致性
         if arr_3d.shape[0] != basin_num:
-             raise ValueError(f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}")
+            raise ValueError(
+                f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}"
+            )
         output = arr_3d
     else:
         # Standard mode: Basin-Major
         # arr_3d is (Basin*Time, Horizon, Feat)
         output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
-        
+
     i_e_time_length = output.shape[1]
 
     # 创建结果数组，初始化为NaN
@@ -1087,7 +1099,11 @@ def _recover_samples_to_continuous_by_floodevent(
         # Heuristic: if second dim equals nf (features), treat as [samples, features]
         # otherwise treat as [samples, time] with single feature
         n2 = arr_3d.shape[1]
-        tgt_n = len(getattr(dataset.data_cfgs, "get", lambda *_: [])("target_cols", [])) if isinstance(dataset.data_cfgs, dict) else nf
+        tgt_n = (
+            len(getattr(dataset.data_cfgs, "get", lambda *_: [])("target_cols", []))
+            if isinstance(dataset.data_cfgs, dict)
+            else nf
+        )
         try:
             expected_features = len(dataset.data_cfgs["target_cols"])
         except Exception:
@@ -1189,7 +1205,7 @@ def _recover_samples_to_continuous_by_floodevent(
                 pred_to_use = sample_prediction
             else:
                 # Case 3: 其他情况 - 取可用部分
-                pred_to_use = sample_prediction[:min(pred_length, valid_length), :]
+                pred_to_use = sample_prediction[: min(pred_length, valid_length), :]
 
             # 填充位置：直接使用 start_time
             # 因为 result 数组已经从 warmup_length 开始（见第341行：nt = dataset.nt - warmup_length）
@@ -1286,9 +1302,7 @@ def evaluate_validation(
     return eval_log
 
 
-def compute_loss(
-    labels: torch.Tensor, output, criterion, **kwargs
-) -> torch.Tensor:
+def compute_loss(labels: torch.Tensor, output, criterion, **kwargs) -> torch.Tensor:
     """
     Function for computing the loss
 
@@ -1337,7 +1351,7 @@ def compute_loss(
         if output.ndim == 2 and labels.ndim == 2 and batch_vector is not None:
             # Output/Labels: [B*N_total, H]
             # PyG batch processing: Directly compute loss on flattened data for efficiency
-            
+
             # 1. Apply Node Mask
             if node_mask is not None:
                 if not isinstance(node_mask, torch.Tensor):
@@ -1346,11 +1360,11 @@ def compute_loss(
                     )
                 else:
                     node_mask = node_mask.to(labels.device).bool()
-                
+
                 # Ensure mask is 1D [B*N_total]
                 if node_mask.dim() > 1:
                     node_mask = node_mask.flatten()
-                
+
                 output = output[node_mask]
                 labels = labels[node_mask]
 
@@ -1366,7 +1380,7 @@ def compute_loss(
             if isinstance(loss_func, list):
                 # Use the first loss function if a list is provided
                 loss_func = loss_func[0]
-            
+
             return loss_func(output, labels)
 
         elif output.ndim == 2 and labels.ndim == 2:
@@ -1727,20 +1741,38 @@ def torch_single_train(
     )
     non_blocking_transfer = bool(kwargs.get("non_blocking_transfer", False))
     torch_device = torch.device(device) if device is not None else torch.device("cpu")
-    use_cuda_prefetch = bool(kwargs.get("cuda_prefetch", False)) and torch_device.type == "cuda"
+    use_cuda_prefetch = (
+        bool(kwargs.get("cuda_prefetch", False)) and torch_device.type == "cuda"
+    )
     train_iterable = (
         CudaPrefetcher(
             data_loader,
             torch_device,
             non_blocking=non_blocking_transfer,
             prefetch_batches=int(kwargs.get("cuda_prefetch_batches", 2)),
+            performance_monitor=kwargs.get("performance_monitor"),
         )
         if use_cuda_prefetch
         else data_loader
     )
     pbar = tqdm(train_iterable, total=len(data_loader))
+    performance_monitor = kwargs.get("performance_monitor")
+    train_iterator = iter(pbar)
 
-    for _, batch in enumerate(pbar):
+    while True:
+        wait_started = time.perf_counter()
+        try:
+            batch = next(train_iterator)
+        except StopIteration:
+            break
+        if performance_monitor is not None:
+            performance_monitor.record_data_wait(time.perf_counter() - wait_started)
+            compute_events = performance_monitor.cuda_event_pair()
+            if compute_events is not None:
+                compute_events[0].record(torch.cuda.current_stream(torch_device))
+        else:
+            compute_events = None
+        compute_started = time.perf_counter()
         # mask handling is already done inside model_infer function
         trg, output = model_infer(
             seq_first,
@@ -1752,7 +1784,14 @@ def torch_single_train(
         )
         batch_vector = getattr(batch, "batch", None)
         node_mask = getattr(batch, "node_mask", None)
-        loss = compute_loss(trg, output, criterion, batch_vector=batch_vector, node_mask=node_mask, **kwargs)
+        loss = compute_loss(
+            trg,
+            output,
+            criterion,
+            batch_vector=batch_vector,
+            node_mask=node_mask,
+            **kwargs,
+        )
 
         # Add auxiliary loss from MoE models (if available)
         if hasattr(model, "get_aux_loss"):
@@ -1769,6 +1808,13 @@ def torch_single_train(
         loss.backward()  # Backpropagate to compute the current gradient
         opt.step()  # Update network parameters based on gradients
         model.zero_grad()  # clear gradient
+        if compute_events is not None:
+            compute_events[1].record(torch.cuda.current_stream(torch_device))
+            performance_monitor.record_compute_events(compute_events)
+        if performance_monitor is not None:
+            performance_monitor.record_batch(
+                batch, time.perf_counter() - compute_started
+            )
         if loss == float("inf"):
             raise ValueError(
                 "Error infinite loss detected. Try normalizing data or performing interpolation"
@@ -1824,7 +1870,9 @@ def compute_validation(
             preds.append(output)
             batch_vector = getattr(batch, "batch", None)
             node_mask = getattr(batch, "node_mask", None)
-            valid_loss_ = compute_loss(trg, output, criterion, batch_vector=batch_vector, node_mask=node_mask)
+            valid_loss_ = compute_loss(
+                trg, output, criterion, batch_vector=batch_vector, node_mask=node_mask
+            )
             if torch.isnan(valid_loss_):
                 # for not-train mode, we may get all nan data for trg
                 # so we skip this batch
@@ -1862,7 +1910,7 @@ def compute_validation(
                 # Reshape from [Time*Nodes, ...] to [Time, Nodes, ...]
                 # Then transpose to [Nodes, Time, ...]
                 # Then flatten to [Nodes*Time, ...]
-                
+
                 # Handle arbitrary trailing dimensions
                 # Ensure we have feature dimension. If shape is [Batch, Horizon], add feature dim -> [Batch, Horizon, 1]
                 if y_obs.ndim == 2:
@@ -1872,17 +1920,16 @@ def compute_validation(
 
                 obs_shape = y_obs.shape
                 pred_shape = y_pred.shape
-                
+
                 # Reshape to [Time, Nodes, Horizon, Features]
                 y_obs = y_obs.reshape(time_steps, num_nodes, *obs_shape[1:])
                 # Transpose to [Nodes, Time, Horizon, Features]
                 permute_dims = [1, 0] + list(range(2, y_obs.ndim))
                 y_obs = y_obs.transpose(permute_dims)
-                
+
                 # Same for predictions
                 y_pred = y_pred.reshape(time_steps, num_nodes, *pred_shape[1:])
                 y_pred = y_pred.transpose(permute_dims)
-
 
     return y_obs, y_pred, valid_loss
 
