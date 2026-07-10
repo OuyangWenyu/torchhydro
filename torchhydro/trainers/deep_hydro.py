@@ -24,7 +24,11 @@ import torch
 from torch.optim.lr_scheduler import *
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import shap
+try:
+    import shap
+except ImportError:
+    shap = None
+    print("Warning: shap not available")
 
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
