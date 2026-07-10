@@ -1729,7 +1729,12 @@ def torch_single_train(
     torch_device = torch.device(device) if device is not None else torch.device("cpu")
     use_cuda_prefetch = bool(kwargs.get("cuda_prefetch", False)) and torch_device.type == "cuda"
     train_iterable = (
-        CudaPrefetcher(data_loader, torch_device, non_blocking=non_blocking_transfer)
+        CudaPrefetcher(
+            data_loader,
+            torch_device,
+            non_blocking=non_blocking_transfer,
+            prefetch_batches=int(kwargs.get("cuda_prefetch_batches", 2)),
+        )
         if use_cuda_prefetch
         else data_loader
     )

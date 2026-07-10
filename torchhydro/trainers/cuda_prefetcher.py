@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import queue
+import threading
 from typing import Any
 
 import torch
@@ -48,42 +50,75 @@ class CudaPrefetcher:
         loader,
         device: torch.device,
         non_blocking: bool = True,
+        prefetch_batches: int = 2,
     ):
         if device.type != "cuda":
             raise ValueError("CudaPrefetcher requires a CUDA device.")
         self.loader = loader
         self.device = device
         self.non_blocking = non_blocking
+        self.prefetch_batches = max(1, int(prefetch_batches))
         self.stream = torch.cuda.Stream(device=device)
 
     def __len__(self):
         return len(self.loader)
 
     def __iter__(self):
+        # Create DataLoader workers on the caller's main thread. Forking worker
+        # processes from the producer thread is unsafe on Linux.
         iterator = iter(self.loader)
-        next_batch = None
-        exhausted = False
+        output: queue.Queue = queue.Queue(maxsize=self.prefetch_batches)
+        stop = threading.Event()
+        sentinel = object()
 
-        def preload():
-            nonlocal next_batch, exhausted
+        def put(item) -> bool:
+            while not stop.is_set():
+                try:
+                    output.put(item, timeout=0.1)
+                    return True
+                except queue.Full:
+                    continue
+            return False
+
+        def produce() -> None:
             try:
-                batch = next(iterator)
-            except StopIteration:
-                exhausted = True
-                next_batch = None
-                return
-            with torch.cuda.stream(self.stream):
-                next_batch = move_to_device(
-                    batch,
-                    self.device,
-                    non_blocking=self.non_blocking,
-                )
+                with torch.cuda.device(self.device):
+                    for cpu_batch in iterator:
+                        if stop.is_set():
+                            break
+                        with torch.cuda.stream(self.stream):
+                            cuda_batch = move_to_device(
+                                cpu_batch,
+                                self.device,
+                                non_blocking=self.non_blocking,
+                            )
+                            ready = torch.cuda.Event()
+                            ready.record(self.stream)
+                        if not put((cuda_batch, ready, None)):
+                            return
+            except BaseException as exc:
+                put((None, None, exc))
+            finally:
+                put(sentinel)
 
-        preload()
-        while not exhausted:
-            current_stream = torch.cuda.current_stream(self.device)
-            current_stream.wait_stream(self.stream)
-            batch = next_batch
-            preload()
-            record_stream(batch, current_stream)
-            yield batch
+        producer = threading.Thread(
+            target=produce,
+            name="torchhydro-cuda-prefetch",
+            daemon=True,
+        )
+        producer.start()
+        try:
+            while True:
+                item = output.get()
+                if item is sentinel:
+                    break
+                batch, ready, error = item
+                if error is not None:
+                    raise error
+                current_stream = torch.cuda.current_stream(self.device)
+                current_stream.wait_event(ready)
+                record_stream(batch, current_stream)
+                yield batch
+        finally:
+            stop.set()
+            producer.join(timeout=0.2)

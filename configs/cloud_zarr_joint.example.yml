@@ -1,0 +1,42 @@
+# 联合训练的全局模型特征顺序。每个数据集都会对齐到这个顺序。
+input_schema:
+  - precipitation
+target_schema:
+  - streamflow
+constant_schema:
+  - area
+
+unit_mismatch_policy: warn
+allow_mixed_time_steps: false
+
+datasets:
+  - dataset_id: camels_us
+    basins: all
+    time_range: ["1980-01-01", "1999-12-31"]
+    relevant_cols:
+      - precipitation
+    target_cols:
+      - streamflow
+    constant_cols:
+      - area
+    weight: 1.0
+
+  - dataset_id: camels_gb
+    basins: all
+    time_range: ["1980-01-01", "1999-12-31"]
+    relevant_cols:
+      - precipitation
+    target_cols:
+      - streamflow
+    constant_cols:
+      - area
+    weight: 1.0
+
+# 原始变量需要显式换算时，可以把上面的简写改成下面的形式：
+# relevant_cols:
+#   precipitation:
+#     physical: raw_precipitation
+#     scale: 0.1
+#     offset: 0.0
+#     unit: mm/day
+#     required: true

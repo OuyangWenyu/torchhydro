@@ -10,6 +10,7 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 
 import bisect
 import copy
+import inspect
 import warnings
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -264,6 +265,9 @@ class DeepHydro(DeepHydroInterface):
                         bool(training_cfgs.get("pin_memory", False)),
                     ),
                     cuda_prefetch=bool(training_cfgs.get("cuda_prefetch", False)),
+                    cuda_prefetch_batches=int(
+                        training_cfgs.get("cuda_prefetch_batches", 2)
+                    ),
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
@@ -1486,6 +1490,15 @@ class DeepHydro(DeepHydroInterface):
                 dataloader_extra_kwargs["prefetch_factor"] = training_cfgs[
                     "prefetch_factor"
                 ]
+            multiprocessing_context = training_cfgs.get("multiprocessing_context")
+            if multiprocessing_context not in (None, "auto"):
+                dataloader_extra_kwargs["multiprocessing_context"] = (
+                    multiprocessing_context
+                )
+            if "in_order" in inspect.signature(DataLoader).parameters:
+                dataloader_extra_kwargs["in_order"] = bool(
+                    training_cfgs.get("dataloader_in_order", False)
+                )
         sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
         batch_sampler = sampler if getattr(sampler, "is_batch_sampler", False) else None
         sampler_arg = None if batch_sampler is not None else sampler
@@ -1534,7 +1547,11 @@ class DeepHydro(DeepHydroInterface):
         loader_kwargs = {
             "num_workers": worker_num,
             "pin_memory": pin_memory,
-            "timeout": 0,
+            "timeout": (
+                float(training_cfgs.get("dataloader_timeout", 0.0))
+                if worker_num > 0
+                else 0
+            ),
             "collate_fn": _collate_fn,
             **dataloader_extra_kwargs,
         }
@@ -1594,7 +1611,11 @@ class DeepHydro(DeepHydroInterface):
                 shuffle=False,
                 num_workers=worker_num,
                 pin_memory=pin_memory,
-                timeout=0,
+                timeout=(
+                    float(training_cfgs.get("dataloader_timeout", 0.0))
+                    if worker_num > 0
+                    else 0
+                ),
                 collate_fn=_val_collate_fn,
                 **dataloader_extra_kwargs,
             )

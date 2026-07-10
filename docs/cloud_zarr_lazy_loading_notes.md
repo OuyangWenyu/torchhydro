@@ -29,9 +29,9 @@
 1. 内存里只保留元数据、站点 id、时间坐标、静态属性和紧凑 lookup table。
 2. 实现 `__getitems__(indices)`，并把它作为 DataLoader 主路径。
 3. 把样本索引解析成 `(dataset_id, basin_index, start_time, length)`。
-4. 按 `(dataset_id, zarr_store, variable_set, basin)` 对 batch 内窗口分组。
-5. 合并同组中重叠或相邻的时间片段。
-6. 从 Zarr 中读取最小必要 xarray slice。
+4. 从 Zarr 编码元数据读取真实 `(basin, time)` chunk 形状。
+5. 按 `(dataset_id, basin_chunk, time_chunk)` 对 batch 内窗口分组。
+6. 一次读取整个二维物理块，并在 worker 内使用有界 LRU 缓存复用。
 7. 只把当前 batch 物化成 NumPy/Torch tensor。
 8. 使用预先计算好的统计量对 batch 做归一化。
 
@@ -70,6 +70,50 @@ lazy reader 需要同时保存两类名字：
 
 - 模型侧使用的标准变量名
 - Zarr store 中实际存在的变量名
+
+每个数据集可以独立配置 `physical`、`scale`、`offset`、`unit`、
+`required` 和 `fill_value`。变换发生在统计量计算与 batch 归一化之前。
+`fill_and_mask` 会同时为缺失的动态变量和静态变量追加 mask；未配置的可选静态
+变量不会触发 attributes store 读取。
+当相同标准变量在不同数据集声明了不同单位时，默认给出警告；正式训练可把
+`unit_mismatch_policy` 设为 `error`，避免把物理量不一致的数据静默混合。
+
+联合训练还要求时间步长一致。日尺度和小时尺度数据默认不能进入同一训练任务；
+应先离线重采样，而不是仅设置 `allow_mixed_time_steps: true`。
+
+## 多数据集配置
+
+推荐通过 `configs/cloud_zarr_joint.example.yml` 管理每个数据集自己的流域、
+时间范围、变量映射、URI 和采样权重。使用 hydrodataset 云端 reader 时可以省略
+URI；直接访问指定 Zarr 时，在每个数据集条目中设置 `timeseries_uri` 和
+`attributes_uri`。
+
+```bash
+PYTHONPATH=. python experiments/train_cloud_zarr_lazy_joint.py \
+  --dataset-config configs/cloud_zarr_joint.example.yml \
+  --datasets all \
+  --source cloud \
+  --sampling weighted_by_dataset \
+  --normalization standard \
+  --normalization-scope global \
+  --missing-policy fill_and_mask \
+  --target-nan-policy drop_any_nan \
+  --batch-size 512 \
+  --hidden-size 256 \
+  --num-workers 4 \
+  --prefetch-factor 4 \
+  --worker-cache-size-mb 128 \
+  --cuda-prefetch \
+  --cuda-prefetch-batches 2 \
+  --dataloader-timeout 300
+```
+
+`weighted_by_sample` 按各数据集的自然样本量训练；`balanced_by_dataset` 让每个
+数据集贡献相同 batch 数；`weighted_by_dataset` 使用清单中的 `weight` 分配
+batch。若使用后两种模式，建议设置 `max_batches_per_epoch` 明确每个 epoch 的长度。
+
+不要默认传入 `time_chunk_size` 或 `basin_chunk_size`。代码会读取每个 Zarr 变量的
+真实 chunk 元数据并自动对齐；只有确认存储编码错误或做对照实验时才手工覆盖。
 
 ## 第一版实现范围
 
@@ -132,5 +176,23 @@ benchmark 默认使用 `--normalization none`，并且不做 target 全 NaN 窗�
 首次运行可能明显变慢。
 
 如果 `avg_dataloader_wait_seconds` 仍然明显高于 `avg_compute_seconds`，
-优先调大 `num_workers`、`prefetch_factor`，并检查 chunk sampler 的
-`time_chunk_size` 和 `basin_chunk_size` 是否和 Zarr chunk 形状接近。
+先从 `num_workers=2/4`、`prefetch_factor=2/4` 做矩阵测试。对象存储连接数过多
+也可能降低吞吐，因此不要直接把 worker 数开到 CPU 逻辑核心数。输出中的
+`effective_chunk_shapes` 应与 Zarr 编码一致。`dataloader_in_order=false` 是云端
+训练默认值，某个 worker 网络抖动时不会阻塞其他已经完成的 batch。
+
+正式训练使用 `drop_any_nan`，会分块扫描 target 并缓存压缩后的有效性索引，避免
+把部分缺测 target 静默填成 0。统计量和有效性索引首次构建较慢，后续运行直接
+使用 `lazy_zarr_stat_cache` 与 `lazy_zarr_index_cache`。
+
+## 本地性能回归
+
+在 Mac 本地使用 64 个 basin、1096 天、物理 chunk `(64, 365)` 的合成 Zarr，
+读取 100 个 batch、每批 128 个样本：
+
+- 自动物理 chunk + 64 MiB LRU：约 370,456 samples/s，平均等待 0.332 ms。
+- `(1, 128)` + 无缓存：约 51,373 samples/s，平均等待 2.465 ms。
+
+本地磁盘数值不能替代服务器 OSS/S3 基准，但说明连续 chunk 调度和缓存可避免
+同一对象的重复读取。服务器仍应以 `samples_per_second`、batch 等待时间、GPU
+利用率和 RSS 为最终判断依据。

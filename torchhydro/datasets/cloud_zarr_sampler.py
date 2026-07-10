@@ -1,34 +1,47 @@
-"""Samplers for cloud Zarr lazy datasets."""
+"""Chunk-aware batch sampling for cloud Zarr datasets."""
 
 from __future__ import annotations
 
-import itertools
 import math
 import random
-from collections import defaultdict
+from dataclasses import dataclass
 from typing import Iterator
 
 import numpy as np
 from torch.utils.data import Sampler
 
 
-class CloudZarrChunkBatchSampler(Sampler[list[int]]):
-    """Build batches that stay near source/basin/time chunks.
+@dataclass(frozen=True)
+class _ChunkGroup:
+    source: int
+    basin_chunk: int
+    time_chunk: int
+    start: int
+    stop: int
+    batch_count: int
 
-    The sampler expects a ``CloudZarrLazyDataset``-like object exposing
-    ``_lookup_sources``, ``_lookup_basins`` and ``_lookup_starts``.  Keeping a
-    batch close to one source/time chunk avoids pathological cloud Zarr random
-    reads while still shuffling chunk groups each epoch.
+
+class CloudZarrChunkBatchSampler(Sampler[list[int]]):
+    """Yield batches aligned with physical basin/time chunks.
+
+    A single compact sorted index is retained instead of one Python list per
+    sample. Chunk groups are shuffled between epochs, while all batches from a
+    chunk stay adjacent so persistent DataLoader workers can reuse cached data.
     """
 
     is_batch_sampler = True
+    _SAMPLING_MODES = {
+        "weighted_by_sample",
+        "balanced_by_dataset",
+        "weighted_by_dataset",
+    }
 
     def __init__(
         self,
         dataset,
         batch_size: int,
         time_chunk_size: int | None = None,
-        basin_chunk_size: int = 1,
+        basin_chunk_size: int | None = None,
         drop_last: bool = True,
         shuffle: bool = True,
         sampling: str | None = None,
@@ -37,104 +50,291 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
     ):
         if batch_size <= 0:
             raise ValueError("batch_size must be positive.")
+        if max_batches_per_epoch is not None and max_batches_per_epoch <= 0:
+            raise ValueError("max_batches_per_epoch must be positive when set.")
         self.dataset = dataset
         self.batch_size = int(batch_size)
-        seq_len = int(dataset.rho + dataset.horizon)
-        self.time_chunk_size = int(time_chunk_size or max(1, seq_len, self.batch_size))
-        self.basin_chunk_size = int(max(1, basin_chunk_size))
-        self.drop_last = drop_last
-        self.shuffle = shuffle
+        self.drop_last = bool(drop_last)
+        self.shuffle = bool(shuffle)
         self.sampling = sampling or getattr(dataset, "lazy_cfg", {}).get(
             "sampling", "weighted_by_sample"
         )
+        if self.sampling not in self._SAMPLING_MODES:
+            supported = ", ".join(sorted(self._SAMPLING_MODES))
+            raise ValueError(
+                f"Unsupported sampling mode {self.sampling!r}: {supported}."
+            )
         self.max_batches_per_epoch = max_batches_per_epoch
         self.seed = seed
         self._epoch = 0
-        self._batches_by_source = self._build_batches_by_source()
+        self._requested_time_chunk_size = time_chunk_size
+        self._requested_basin_chunk_size = basin_chunk_size
+        self.effective_chunk_shapes = self._resolve_chunk_shapes()
+        first_shape = self.effective_chunk_shapes.get(0, (1, self.batch_size))
+        self.basin_chunk_size = (
+            int(basin_chunk_size) if basin_chunk_size is not None else first_shape[0]
+        )
+        self.time_chunk_size = first_shape[1]
+        self._index_order, self._groups_by_source = self._build_compact_groups()
+        self._natural_batches_by_source = {
+            source: sum(group.batch_count for group in groups)
+            for source, groups in self._groups_by_source.items()
+        }
         if len(dataset) > 0 and self.drop_last and len(self) == 0:
             raise ValueError(
                 "CloudZarrChunkBatchSampler produced zero batches. "
                 f"batch_size={self.batch_size}, "
-                f"time_chunk_size={self.time_chunk_size}, "
-                f"basin_chunk_size={self.basin_chunk_size}. "
-                "Increase time_chunk_size/basin_chunk_size or disable drop_last."
+                f"effective_chunk_shapes={self.effective_chunk_shapes}. "
+                "Increase chunk sizes or disable drop_last."
             )
 
-    def _build_batches_by_source(self) -> dict[int, list[list[int]]]:
-        groups: dict[tuple[int, int, int], list[int]] = defaultdict(list)
+    @property
+    def _sequence_length(self) -> int:
+        return int(self.dataset.rho + self.dataset.horizon)
+
+    @property
+    def index_storage_nbytes(self) -> int:
+        return self._index_order.nbytes
+
+    def _resolve_chunk_shapes(self) -> dict[int, tuple[int, int]]:
+        inferred = getattr(self.dataset, "source_chunk_shapes", {})
+        shapes = {}
+        for source_idx in range(len(self.dataset.sources)):
+            inferred_basin, inferred_time = inferred.get(source_idx, (1, 1))
+            basin_size = (
+                int(self._requested_basin_chunk_size)
+                if self._requested_basin_chunk_size is not None
+                else int(inferred_basin)
+            )
+            time_size = (
+                int(self._requested_time_chunk_size)
+                if self._requested_time_chunk_size is not None
+                else int(inferred_time)
+            )
+            state = self.dataset.source_states[source_idx]
+            assert state.basin_positions is not None
+            selected_chunk_ids = state.basin_positions // max(1, basin_size)
+            _, selected_counts = np.unique(selected_chunk_ids, return_counts=True)
+            max_selected_basins = (
+                int(selected_counts.max()) if selected_counts.size else 1
+            )
+            minimum_time_for_batch = math.ceil(self.batch_size / max_selected_basins)
+            shapes[source_idx] = (
+                max(1, basin_size),
+                max(
+                    1,
+                    time_size,
+                    minimum_time_for_batch,
+                    self._sequence_length,
+                ),
+            )
+        return shapes
+
+    def chunk_key(self, index: int) -> tuple[int, int, int]:
+        source = int(self.dataset._lookup_sources[index])
+        local_basin = int(self.dataset._lookup_basins[index])
+        start = int(self.dataset._lookup_starts[index])
+        state = self.dataset.source_states[source]
+        assert state.basin_positions is not None
+        global_basin = int(state.basin_positions[local_basin])
+        global_time = state.time_offset + start - int(self.dataset.warmup_length)
+        basin_size, time_size = self.effective_chunk_shapes[source]
+        return source, global_basin // basin_size, global_time // time_size
+
+    def _build_compact_groups(
+        self,
+    ) -> tuple[np.ndarray, dict[int, list[_ChunkGroup]]]:
+        sample_count = len(self.dataset)
+        if sample_count == 0:
+            return np.empty(0, dtype=np.uint8), {}
+
         sources = np.asarray(self.dataset._lookup_sources)
         basins = np.asarray(self.dataset._lookup_basins)
         starts = np.asarray(self.dataset._lookup_starts)
-        for idx in range(len(self.dataset)):
-            key = (
-                int(sources[idx]),
-                int(basins[idx]) // self.basin_chunk_size,
-                int(starts[idx]) // self.time_chunk_size,
-            )
-            groups[key].append(idx)
+        basin_chunk_ids = np.empty(sample_count, dtype=np.uint32)
+        time_chunk_ids = np.empty(sample_count, dtype=np.uint32)
 
-        rng = random.Random(self.seed)
-        batches_by_source: dict[int, list[list[int]]] = defaultdict(list)
-        for key, indices in groups.items():
-            if self.shuffle:
-                rng.shuffle(indices)
-            for start in range(0, len(indices), self.batch_size):
-                batch = indices[start : start + self.batch_size]
-                if len(batch) == self.batch_size or not self.drop_last:
-                    batches_by_source[key[0]].append(batch)
-        return dict(batches_by_source)
+        for source_idx, state in enumerate(self.dataset.source_states):
+            left = int(np.searchsorted(sources, source_idx, side="left"))
+            right = int(np.searchsorted(sources, source_idx, side="right"))
+            if left == right:
+                continue
+            assert state.basin_positions is not None
+            basin_size, time_size = self.effective_chunk_shapes[source_idx]
+            local_basins = basins[left:right].astype(np.int64, copy=False)
+            global_basins = state.basin_positions[local_basins]
+            global_times = (
+                state.time_offset
+                + starts[left:right].astype(np.int64, copy=False)
+                - int(self.dataset.warmup_length)
+            )
+            basin_chunk_ids[left:right] = global_basins // basin_size
+            time_chunk_ids[left:right] = global_times // time_size
+
+        order = np.lexsort((time_chunk_ids, basin_chunk_ids, sources))
+        sorted_sources = sources[order]
+        sorted_basins = basin_chunk_ids[order]
+        sorted_times = time_chunk_ids[order]
+        changes = (
+            np.flatnonzero(
+                (sorted_sources[1:] != sorted_sources[:-1])
+                | (sorted_basins[1:] != sorted_basins[:-1])
+                | (sorted_times[1:] != sorted_times[:-1])
+            )
+            + 1
+        )
+        boundaries = np.concatenate(([0], changes, [sample_count]))
+        compact_order = self._compact_index(order)
+        groups_by_source: dict[int, list[_ChunkGroup]] = {}
+        for start, stop in zip(boundaries[:-1], boundaries[1:]):
+            size = int(stop - start)
+            batch_count = (
+                size // self.batch_size
+                if self.drop_last
+                else math.ceil(size / self.batch_size)
+            )
+            if batch_count == 0:
+                continue
+            source = int(sorted_sources[start])
+            groups_by_source.setdefault(source, []).append(
+                _ChunkGroup(
+                    source=source,
+                    basin_chunk=int(sorted_basins[start]),
+                    time_chunk=int(sorted_times[start]),
+                    start=int(start),
+                    stop=int(stop),
+                    batch_count=batch_count,
+                )
+            )
+        return compact_order, groups_by_source
+
+    @staticmethod
+    def _compact_index(values: np.ndarray) -> np.ndarray:
+        maximum = int(values.max()) if values.size else 0
+        if maximum <= np.iinfo(np.uint8).max:
+            dtype = np.uint8
+        elif maximum <= np.iinfo(np.uint16).max:
+            dtype = np.uint16
+        elif maximum <= np.iinfo(np.uint32).max:
+            dtype = np.uint32
+        else:
+            dtype = np.uint64
+        return values.astype(dtype, copy=False)
 
     def __iter__(self) -> Iterator[list[int]]:
-        rng = random.Random(None if self.seed is None else self.seed + self._epoch)
+        epoch_seed = (
+            random.randrange(2**32) if self.seed is None else self.seed + self._epoch
+        )
         self._epoch += 1
-        batches_by_source = {
-            source: [batch.copy() for batch in batches]
-            for source, batches in self._batches_by_source.items()
-        }
-        for batches in batches_by_source.values():
+        rng = random.Random(epoch_seed)
+        np_rng = np.random.default_rng(epoch_seed)
+
+        if self.sampling == "weighted_by_sample":
+            groups = [
+                group
+                for source_groups in self._groups_by_source.values()
+                for group in source_groups
+            ]
             if self.shuffle:
-                rng.shuffle(batches)
+                rng.shuffle(groups)
+            yielded = 0
+            for group in groups:
+                for batch in self._group_batches(group, np_rng):
+                    if (
+                        self.max_batches_per_epoch is not None
+                        and yielded >= self.max_batches_per_epoch
+                    ):
+                        return
+                    yielded += 1
+                    yield batch
+            return
 
-        if self.sampling == "balanced_by_dataset":
-            batches = self._balanced_batches(batches_by_source, rng)
-        else:
-            batches = list(itertools.chain.from_iterable(batches_by_source.values()))
-            if self.shuffle:
-                rng.shuffle(batches)
-
-        if self.max_batches_per_epoch is not None:
-            batches = batches[: self.max_batches_per_epoch]
-        return iter(batches)
-
-    def _balanced_batches(
-        self,
-        batches_by_source: dict[int, list[list[int]]],
-        rng: random.Random,
-    ) -> list[list[int]]:
-        non_empty = {k: v for k, v in batches_by_source.items() if v}
-        if not non_empty:
-            return []
-        target = max(len(batches) for batches in non_empty.values())
-        balanced = []
-        for source, batches in non_empty.items():
-            if len(batches) < target:
-                repeats = math.ceil(target / len(batches))
-                expanded = (batches * repeats)[:target]
-            else:
-                expanded = batches[:target]
-            balanced.extend(expanded)
+        targets = self._target_batches_by_source()
+        runs: list[tuple[_ChunkGroup, int]] = []
+        for source, target in targets.items():
+            remaining = target
+            groups = self._groups_by_source.get(source, [])
+            while remaining > 0 and groups:
+                cycle = groups.copy()
+                if self.shuffle:
+                    rng.shuffle(cycle)
+                for group in cycle:
+                    take = min(group.batch_count, remaining)
+                    runs.append((group, take))
+                    remaining -= take
+                    if remaining == 0:
+                        break
         if self.shuffle:
-            rng.shuffle(balanced)
-        return balanced
+            rng.shuffle(runs)
+        for group, take in runs:
+            for batch_pos, batch in enumerate(self._group_batches(group, np_rng)):
+                if batch_pos >= take:
+                    break
+                yield batch
+
+    def _group_batches(
+        self,
+        group: _ChunkGroup,
+        rng: np.random.Generator,
+    ) -> Iterator[list[int]]:
+        indices = self._index_order[group.start : group.stop].astype(
+            np.int64,
+            copy=True,
+        )
+        if self.shuffle:
+            rng.shuffle(indices)
+        for start in range(0, len(indices), self.batch_size):
+            batch = indices[start : start + self.batch_size]
+            if len(batch) == self.batch_size or not self.drop_last:
+                yield batch.tolist()
+
+    def _target_batches_by_source(self) -> dict[int, int]:
+        sources = [
+            source
+            for source, count in self._natural_batches_by_source.items()
+            if count > 0
+        ]
+        if not sources:
+            return {}
+        if self.sampling == "balanced_by_dataset":
+            if self.max_batches_per_epoch is None:
+                target = max(self._natural_batches_by_source.values())
+                return {source: target for source in sources}
+            weights = {source: 1.0 for source in sources}
+            return self._allocate_batches(self.max_batches_per_epoch, weights)
+
+        total = self.max_batches_per_epoch
+        if total is None:
+            total = sum(self._natural_batches_by_source.values())
+        weights = {
+            source: max(0.0, float(self.dataset.sources[source].weight))
+            for source in sources
+        }
+        if sum(weights.values()) <= 0:
+            raise ValueError("At least one lazy Zarr dataset weight must be positive.")
+        return self._allocate_batches(total, weights)
+
+    @staticmethod
+    def _allocate_batches(total: int, weights: dict[int, float]) -> dict[int, int]:
+        weight_sum = sum(weights.values())
+        raw = {
+            source: total * weight / weight_sum for source, weight in weights.items()
+        }
+        allocated = {source: int(math.floor(value)) for source, value in raw.items()}
+        remainder = total - sum(allocated.values())
+        ranked = sorted(
+            weights,
+            key=lambda source: (raw[source] - allocated[source], weights[source]),
+            reverse=True,
+        )
+        for source in ranked[:remainder]:
+            allocated[source] += 1
+        return allocated
 
     def __len__(self) -> int:
-        if self.sampling == "balanced_by_dataset":
-            non_empty = [batches for batches in self._batches_by_source.values() if batches]
-            if not non_empty:
-                return 0
-            length = max(len(batches) for batches in non_empty) * len(non_empty)
-        else:
-            length = sum(len(batches) for batches in self._batches_by_source.values())
-        if self.max_batches_per_epoch is not None:
-            return min(length, self.max_batches_per_epoch)
-        return length
+        natural = sum(self._natural_batches_by_source.values())
+        if self.sampling == "weighted_by_sample":
+            if self.max_batches_per_epoch is None:
+                return natural
+            return min(natural, self.max_batches_per_epoch)
+        return sum(self._target_batches_by_source().values())
