@@ -15,11 +15,15 @@ from hydroutils.hydro_stat import stat_error
 from hydrodatasource.utils.utils import streamflow_unit_conv
 
 from torchhydro.trainers.train_logger import save_model_params_log
-from torchhydro.explainers.shap import (
-    deep_explain_model_heatmap,
-    deep_explain_model_summary_plot,
-    shap_summary_plot,
-)
+try:
+    from torchhydro.explainers.shap import (
+        deep_explain_model_heatmap,
+        deep_explain_model_summary_plot,
+        shap_summary_plot,
+    )
+except (ImportError, OSError) as e:
+    SHAP_AVAILABLE = False
+    print(f"Warning: SHAP not available, skipping explainer functionality: {e}")
 from torchhydro.trainers.train_utils import (
     calculate_and_record_metrics,
     cellstates_when_inference,
