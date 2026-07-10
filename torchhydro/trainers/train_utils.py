@@ -164,7 +164,13 @@ def _rolling_preds_for_once_eval(
 
 
 def model_infer(
-    seq_first, device, model, batch, variable_length_cfgs=None, return_key=None
+    seq_first,
+    device,
+    model,
+    batch,
+    variable_length_cfgs=None,
+    return_key=None,
+    non_blocking: bool = False,
 ):
     """
     Unified model inference function with variable length support
@@ -209,25 +215,28 @@ def model_infer(
 
     # --- move xs to device ---
     if isinstance(xs, list):
-        xs = [_move_batch_value_to_device(x, device, seq_first) for x in xs]
+        xs = [
+            _move_batch_value_to_device(x, device, seq_first, non_blocking)
+            for x in xs
+        ]
     else:
-        xs = [_move_batch_value_to_device(xs, device, seq_first)]
+        xs = [_move_batch_value_to_device(xs, device, seq_first, non_blocking)]
 
     # --- move ys to device ---
     if ys is not None:
         ys = (
-            ys.permute(1, 0, 2).to(device)
+            ys.permute(1, 0, 2).to(device, non_blocking=non_blocking)
             if seq_first and ys.ndim == 3
-            else ys.to(device)
+            else ys.to(device, non_blocking=non_blocking)
         )
 
     # --- move graph data ---
     if edge_index is not None:
-        edge_index = edge_index.to(device)
+        edge_index = edge_index.to(device, non_blocking=non_blocking)
     if edge_weight is not None:
-        edge_weight = edge_weight.to(device)
+        edge_weight = edge_weight.to(device, non_blocking=non_blocking)
     if batch_vector is not None:
-        batch_vector = batch_vector.to(device)
+        batch_vector = batch_vector.to(device, non_blocking=non_blocking)
 
     # --- check if model is a generative model (e.g., Diffusion) ---
     # Generative models require both input (xs) and target (ys) in forward pass
@@ -311,7 +320,7 @@ def model_infer(
     return ys, output
 
 
-def _move_batch_value_to_device(value, device, seq_first):
+def _move_batch_value_to_device(value, device, seq_first, non_blocking: bool = False):
     """Move nested batch values to device and transpose time-series tensors.
 
     Standard TorchHydro sequence models use sequence-first tensors
@@ -320,14 +329,20 @@ def _move_batch_value_to_device(value, device, seq_first):
     """
     if torch.is_tensor(value):
         return (
-            value.permute(1, 0, 2).to(device)
+            value.permute(1, 0, 2).to(device, non_blocking=non_blocking)
             if seq_first and value.ndim == 3
-            else value.to(device)
+            else value.to(device, non_blocking=non_blocking)
         )
     if isinstance(value, tuple):
-        return tuple(_move_batch_value_to_device(v, device, seq_first) for v in value)
+        return tuple(
+            _move_batch_value_to_device(v, device, seq_first, non_blocking)
+            for v in value
+        )
     if isinstance(value, list):
-        return [_move_batch_value_to_device(v, device, seq_first) for v in value]
+        return [
+            _move_batch_value_to_device(v, device, seq_first, non_blocking)
+            for v in value
+        ]
     if isinstance(value, dict):
         return {
             key: _move_batch_value_to_device(val, device, seq_first)
@@ -1794,6 +1809,7 @@ def torch_single_train(
     which_first_tensor = kwargs["which_first_tensor"]
     mixed_precision = kwargs.get("mixed_precision", "off")
     amp_scaler = kwargs.get("amp_scaler")
+    non_blocking = bool(kwargs.get("non_blocking", False))
     if amp_scaler is None:
         amp_scaler = create_amp_grad_scaler(device, mixed_precision)
     seq_first = which_first_tensor != "batch"
@@ -1803,10 +1819,16 @@ def torch_single_train(
     pbar = tqdm(data_loader)
 
     for _, batch in enumerate(pbar):
+        opt.zero_grad(set_to_none=True)
         # mask handling is already done inside model_infer function
         with mixed_precision_autocast(device, mixed_precision):
             trg, output = model_infer(
-                seq_first, device, model, batch, variable_length_cfgs
+                seq_first,
+                device,
+                model,
+                batch,
+                variable_length_cfgs,
+                non_blocking=non_blocking,
             )
             batch_vector = getattr(batch, "batch", None)
             node_mask = getattr(batch, "node_mask", None)
@@ -1838,7 +1860,6 @@ def torch_single_train(
         else:
             loss.backward()  # Backpropagate to compute the current gradient
             opt.step()  # Update network parameters based on gradients
-        model.zero_grad()  # clear gradient
         if loss == float("inf"):
             raise ValueError(
                 "Error infinite loss detected. Try normalizing data or performing interpolation"
@@ -1882,18 +1903,27 @@ def compute_validation(
     model.eval()
     seq_first = kwargs["which_first_tensor"] != "batch"
     mixed_precision = kwargs.get("mixed_precision", "off")
-    obs = []
-    preds = []
+    non_blocking = bool(kwargs.get("non_blocking", False))
+    empty_cache_during_validation = bool(
+        kwargs.get(
+            "empty_cache_during_validation",
+            getattr(data_loader.dataset, "training_cfgs", {}).get(
+                "empty_cache_during_validation", False
+            ),
+        )
+    )
     valid_loss = 0.0
-    obs_final = None
-    pred_final = None
+    obs_parts = []
+    pred_parts = []
     with torch.no_grad():
         iter_num = 0
         for batch in tqdm(data_loader, desc="Evaluating", total=len(data_loader)):
             batch_vector = getattr(batch, "batch", None)
             node_mask = getattr(batch, "node_mask", None)
             with mixed_precision_autocast(device, mixed_precision):
-                trg, output = model_infer(seq_first, device, model, batch)
+                trg, output = model_infer(
+                    seq_first, device, model, batch, non_blocking=non_blocking
+                )
                 valid_loss_ = compute_loss(
                     trg,
                     output,
@@ -1901,8 +1931,6 @@ def compute_validation(
                     batch_vector=batch_vector,
                     node_mask=node_mask,
                 )
-            obs.append(trg)
-            preds.append(output)
             if torch.isnan(valid_loss_):
                 # for not-train mode, we may get all nan data for trg
                 # so we skip this batch
@@ -1916,20 +1944,14 @@ def compute_validation(
             trg_for_eval = (
                 trg[:, :, :-1] if isinstance(criterion, FloodBaseLoss) else trg
             )
-            # clear memory to save GPU memory
-            if obs_final is None:
-                obs_final = trg_for_eval.detach().float().cpu()
-                pred_final = output.detach().float().cpu()
-            else:
-                obs_final = torch.cat(
-                    [obs_final, trg_for_eval.detach().float().cpu()], dim=0
-                )
-                pred_final = torch.cat(
-                    [pred_final, output.detach().float().cpu()], dim=0
-                )
+            obs_parts.append(trg_for_eval.detach().float().cpu())
+            pred_parts.append(output.detach().float().cpu())
             del trg, output
-            torch.cuda.empty_cache()
+            if empty_cache_during_validation and torch.cuda.is_available():
+                torch.cuda.empty_cache()
     valid_loss = valid_loss / iter_num
+    obs_final = torch.cat(obs_parts, dim=0)
+    pred_final = torch.cat(pred_parts, dim=0)
     y_obs = obs_final.numpy()
     y_pred = pred_final.numpy()
 

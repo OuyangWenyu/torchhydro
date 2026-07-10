@@ -246,6 +246,11 @@ class DeepHydro(DeepHydroInterface):
         scheduler = self._get_scheduler(training_cfgs, opt)
         mixed_precision = training_cfgs.get("mixed_precision", "off")
         amp_scaler = create_amp_grad_scaler(self.device, mixed_precision)
+        non_blocking_transfer = bool(
+            training_cfgs.get(
+                "non_blocking_transfer", training_cfgs.get("pin_memory", False)
+            )
+        )
         max_epochs = training_cfgs["epochs"]
         start_epoch = training_cfgs["start_epoch"]
         # use PyTorch's DataLoader to load the data into batches in each epoch
@@ -264,6 +269,7 @@ class DeepHydro(DeepHydroInterface):
                     which_first_tensor=training_cfgs["which_first_tensor"],
                     mixed_precision=mixed_precision,
                     amp_scaler=amp_scaler,
+                    non_blocking=non_blocking_transfer,
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
@@ -345,6 +351,14 @@ class DeepHydro(DeepHydroInterface):
             device=self.device,
             which_first_tensor=training_cfgs["which_first_tensor"],
             mixed_precision=training_cfgs.get("mixed_precision", "off"),
+            non_blocking=bool(
+                training_cfgs.get(
+                    "non_blocking_transfer", training_cfgs.get("pin_memory", False)
+                )
+            ),
+            empty_cache_during_validation=bool(
+                training_cfgs.get("empty_cache_during_validation", False)
+            ),
         )
         valid_logs["valid_loss"] = valid_loss
         if (
