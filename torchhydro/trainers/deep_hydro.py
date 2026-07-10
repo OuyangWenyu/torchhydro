@@ -270,9 +270,6 @@ class DeepHydro(DeepHydroInterface):
                     mixed_precision=mixed_precision,
                     amp_scaler=amp_scaler,
                     non_blocking=non_blocking_transfer,
-                    loss_check_interval=training_cfgs.get(
-                        "loss_check_interval", 1
-                    ),
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
