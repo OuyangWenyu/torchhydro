@@ -205,9 +205,10 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
             # Return the modified copy
             return result_da
         else:
-            # Original behavior for non-station data: interpolate along time for each basin
-            for i in range(da.shape[0]):
-                da[i] = da[i].interpolate_na(dim="time", fill_value="extrapolate")
+            # Xarray vectorizes interpolation over every non-core dimension.
+            # Processing all basins and variables in one call preserves the
+            # per-series result while avoiding one Python/Xarray call per basin.
+            return da.interpolate_na(dim="time", fill_value="extrapolate")
     elif fill_nan == "lead_step":
         # for forecast data, we use interpolation to fill NaN values for lead step small than the maximum lead step of each forecast performing
         for i in tqdm(range(da.shape[0]), desc="Processing basins", unit="basin"):
