@@ -12,6 +12,8 @@ import hashlib
 import json
 import math
 import os
+import random
+import time
 import warnings
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -1579,19 +1581,111 @@ class CloudZarrLazyDataset(Dataset):
             if physical is None:
                 values[:, :, col] = var.fill_value
                 continue
-            da = state.ts_ds[physical]
-            if "basin" not in da.dims or "time" not in da.dims or len(da.dims) != 2:
-                raise ValueError(
-                    f"{source_idx}:{physical} must have exactly basin/time dimensions."
-                )
-            block = da.isel(
-                basin=slice(basin_start, basin_stop),
-                time=slice(time_start, time_stop),
-            ).transpose("basin", "time")
-            values[:, :, col] = np.asarray(block.to_numpy(), dtype=np.float32)
+            values[:, :, col] = self._read_physical_block_with_retry(
+                source_idx,
+                physical,
+                basin_start,
+                basin_stop,
+                time_start,
+                time_stop,
+            )
             if var.scale != 1.0 or var.offset != 0.0:
                 values[:, :, col] = values[:, :, col] * var.scale + var.offset
         return values
+
+    def _read_physical_block_with_retry(
+        self,
+        source_idx: int,
+        physical: str,
+        basin_start: int,
+        basin_stop: int,
+        time_start: int,
+        time_stop: int,
+    ) -> np.ndarray:
+        max_retries = max(0, int(self.lazy_cfg.get("cloud_read_max_retries", 8)))
+        base_delay = max(
+            0.0, float(self.lazy_cfg.get("cloud_read_retry_base_seconds", 1.0))
+        )
+        max_delay = max(
+            base_delay,
+            float(self.lazy_cfg.get("cloud_read_retry_max_seconds", 30.0)),
+        )
+        dataset_id = self.source_states[source_idx].source.dataset_id
+        for attempt in range(max_retries + 1):
+            try:
+                self._ensure_open(source_idx)
+                state = self.source_states[source_idx]
+                assert state.ts_ds is not None
+                da = state.ts_ds[physical]
+                if "basin" not in da.dims or "time" not in da.dims or len(da.dims) != 2:
+                    raise ValueError(
+                        f"{dataset_id}:{physical} must have exactly basin/time dimensions."
+                    )
+                block = da.isel(
+                    basin=slice(basin_start, basin_stop),
+                    time=slice(time_start, time_stop),
+                ).transpose("basin", "time")
+                return np.asarray(block.to_numpy(), dtype=np.float32)
+            except Exception as exc:
+                if attempt >= max_retries or not self._is_retryable_cloud_error(exc):
+                    raise
+                self._reset_timeseries_connection(source_idx)
+                delay = min(max_delay, base_delay * (2**attempt))
+                if delay:
+                    delay *= random.uniform(0.8, 1.2)
+                warnings.warn(
+                    f"{dataset_id}:{physical} cloud read failed with "
+                    f"{type(exc).__name__}; retry {attempt + 1}/{max_retries} "
+                    f"in {delay:.1f}s.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                time.sleep(delay)
+        raise RuntimeError("Unreachable cloud read retry state.")
+
+    def _reset_timeseries_connection(self, source_idx: int) -> None:
+        state = self.source_states[source_idx]
+        if state.ts_ds is not None:
+            try:
+                state.ts_ds.close()
+            except Exception:
+                pass
+            state.ts_ds = None
+        self._data_sources.pop(state.source.dataset_id, None)
+
+    @staticmethod
+    def _is_retryable_cloud_error(exc: Exception) -> bool:
+        retryable_names = {
+            "ClientConnectorDNSError",
+            "ClientConnectorError",
+            "ConnectionClosedError",
+            "ConnectTimeoutError",
+            "EndpointConnectionError",
+            "ReadTimeoutError",
+            "ResponseStreamingError",
+        }
+        current: BaseException | None = exc
+        seen = set()
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            if isinstance(current, (TimeoutError, ConnectionError)):
+                return True
+            if type(current).__name__ in retryable_names:
+                return True
+            message = str(current).lower()
+            if any(
+                marker in message
+                for marker in (
+                    "dns",
+                    "endpoint url",
+                    "name resolution",
+                    "temporary failure in name resolution",
+                    "timeout while contacting dns servers",
+                )
+            ):
+                return True
+            current = current.__cause__ or current.__context__
+        return False
 
     def _normalize_array(
         self,

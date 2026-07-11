@@ -224,6 +224,13 @@ def build_cfg(args: argparse.Namespace) -> dict[str, Any]:
         ),
         "missing_policy": args.missing_policy,
         "worker_cache_size_mb": getattr(args, "worker_cache_size_mb", 64),
+        "cloud_read_max_retries": getattr(args, "cloud_read_max_retries", 8),
+        "cloud_read_retry_base_seconds": getattr(
+            args, "cloud_read_retry_base_seconds", 1.0
+        ),
+        "cloud_read_retry_max_seconds": getattr(
+            args, "cloud_read_retry_max_seconds", 30.0
+        ),
         "unit_mismatch_policy": manifest.get(
             "unit_mismatch_policy", getattr(args, "unit_mismatch_policy", "warn")
         ),
@@ -450,6 +457,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=8)
     parser.add_argument("--prefetch-factor", type=int, default=4)
     parser.add_argument("--worker-cache-size-mb", type=float, default=64)
+    parser.add_argument("--cloud-read-max-retries", type=int, default=8)
+    parser.add_argument("--cloud-read-retry-base-seconds", type=float, default=1.0)
+    parser.add_argument("--cloud-read-retry-max-seconds", type=float, default=30.0)
     parser.add_argument(
         "--unit-mismatch-policy",
         choices=("ignore", "warn", "error"),

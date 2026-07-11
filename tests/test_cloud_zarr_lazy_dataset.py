@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
+import xarray as xr
 from torch.utils.data import DataLoader
 
 from torchhydro.datasets.cloud_zarr_lazy_dataset import CloudZarrLazyDataset
@@ -380,6 +381,41 @@ def test_missing_required_target_reports_dataset_and_available_variables(
     assert "Dataset 'camels_us'" in message
     assert "missing_streamflow" in message
     assert "q_cms_obs" in message
+
+
+def test_cloud_block_read_retries_transient_endpoint_error(
+    tmp_path, tiny_zarr_stores, monkeypatch
+):
+    ts_uri, attr_uri = tiny_zarr_stores
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    cfg["data_cfgs"]["lazy_zarr"].update(
+        {
+            "normalization": "none",
+            "skip_all_nan_target_windows": False,
+            "cloud_read_max_retries": 3,
+            "cloud_read_retry_base_seconds": 0.0,
+            "cloud_read_retry_max_seconds": 0.0,
+        }
+    )
+    dataset = CloudZarrLazyDataset(cfg, "train")
+    original = xr.DataArray.to_numpy
+    calls = {"count": 0}
+    endpoint_error = type("EndpointConnectionError", (OSError,), {})
+
+    def flaky_to_numpy(array):
+        if array.name == "pcp_mm" and calls["count"] < 2:
+            calls["count"] += 1
+            raise endpoint_error("Timeout while contacting DNS servers")
+        return original(array)
+
+    monkeypatch.setattr(xr.DataArray, "to_numpy", flaky_to_numpy)
+
+    with pytest.warns(RuntimeWarning, match="cloud read failed"):
+        block = dataset._read_physical_block_with_retry(0, "pcp_mm", 0, 2, 0, 3)
+
+    assert calls["count"] == 2
+    assert block.shape == (2, 3)
+    assert not dataset._is_retryable_cloud_error(ValueError("bad dimensions"))
 
 
 def test_cloud_zarr_lazy_dataset_drop_any_nan_keeps_targets_finite(
