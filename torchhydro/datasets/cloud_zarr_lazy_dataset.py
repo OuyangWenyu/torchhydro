@@ -1329,23 +1329,9 @@ class CloudZarrLazyDataset(Dataset):
         )
         ys = np.empty((batch_size, y_length, len(self.target_schema)), dtype=np.float32)
 
-        group_keys: dict[tuple[int, int, int], list[int]] = {}
-        for row, (source_idx, basin_pos, start) in enumerate(
-            zip(sources, basins, starts)
+        for source_idx, basin_chunk, time_chunk, row_array in self._batch_chunk_groups(
+            sources, basins, starts
         ):
-            state = self.source_states[int(source_idx)]
-            assert state.basin_positions is not None
-            global_basin = int(state.basin_positions[int(basin_pos)])
-            global_x_start = state.time_offset + int(start) - self.warmup_length
-            basin_chunk_size, time_chunk_size = state.chunk_shape
-            key = (
-                int(source_idx),
-                global_basin // basin_chunk_size,
-                global_x_start // time_chunk_size,
-            )
-            group_keys.setdefault(key, []).append(row)
-
-        for (source_idx, basin_chunk, time_chunk), rows in group_keys.items():
             source_idx = int(source_idx)
             state = self.source_states[source_idx]
             source = state.source
@@ -1353,7 +1339,6 @@ class CloudZarrLazyDataset(Dataset):
             assert state.ts_ds is not None
             assert state.basin_positions is not None
 
-            row_array = np.asarray(rows, dtype=np.int64)
             group_basins = basins[row_array].astype(np.int64, copy=False)
             group_starts = starts[row_array].astype(np.int32, copy=False)
             global_basins = state.basin_positions[group_basins].astype(
@@ -1402,37 +1387,73 @@ class CloudZarrLazyDataset(Dataset):
                 else None
             )
 
-            for row, basin_pos, global_basin, global_x_start, global_y_start in zip(
-                rows,
-                group_basins,
-                global_basins,
+            basin_offsets = global_basins - basin_block_start
+            xs[row_array, :, :dyn_feature_count] = self._gather_cached_windows(
+                x_blocks,
+                basin_offsets,
                 global_x_starts,
+                length,
+            )
+            next_col = dyn_feature_count
+            if missing_mask is not None:
+                xs[row_array, :, next_col : next_col + mask_count] = missing_mask
+                next_col += mask_count
+            if static_feature_count:
+                assert state.normalized_static_values is not None
+                xs[row_array, :, next_col:] = state.normalized_static_values[
+                    group_basins
+                ][:, None, :]
+            ys[row_array, :, :] = self._gather_cached_windows(
+                y_blocks,
+                basin_offsets,
                 global_y_starts,
-            ):
-                basin_offset = int(global_basin - basin_block_start)
-                xs[row, :, :dyn_feature_count] = self._slice_cached_blocks(
-                    x_blocks,
-                    basin_offset,
-                    int(global_x_start),
-                    length,
-                )
-                next_col = dyn_feature_count
-                if missing_mask is not None:
-                    xs[row, :, next_col : next_col + mask_count] = missing_mask
-                    next_col += mask_count
-                if static_feature_count:
-                    assert state.normalized_static_values is not None
-                    xs[row, :, next_col:] = state.normalized_static_values[
-                        int(basin_pos),
-                    ][None, :]
-                ys[row, :, :] = self._slice_cached_blocks(
-                    y_blocks,
-                    basin_offset,
-                    int(global_y_start),
-                    y_length,
-                )
+                y_length,
+            )
 
         return torch.from_numpy(xs), torch.from_numpy(ys)
+
+    def _batch_chunk_groups(
+        self,
+        sources: np.ndarray,
+        basins: np.ndarray,
+        starts: np.ndarray,
+    ) -> list[tuple[int, int, int, np.ndarray]]:
+        basin_chunks = np.empty(len(sources), dtype=np.int64)
+        time_chunks = np.empty(len(sources), dtype=np.int64)
+        for source_idx in np.unique(sources):
+            rows = np.flatnonzero(sources == source_idx)
+            state = self.source_states[int(source_idx)]
+            assert state.basin_positions is not None
+            global_basins = state.basin_positions[basins[rows].astype(np.int64)]
+            global_starts = (
+                state.time_offset + starts[rows].astype(np.int64) - self.warmup_length
+            )
+            basin_chunk_size, time_chunk_size = state.chunk_shape
+            basin_chunks[rows] = global_basins // basin_chunk_size
+            time_chunks[rows] = global_starts // time_chunk_size
+
+        order = np.lexsort((time_chunks, basin_chunks, sources))
+        sorted_sources = sources[order]
+        sorted_basins = basin_chunks[order]
+        sorted_times = time_chunks[order]
+        changes = (
+            np.flatnonzero(
+                (sorted_sources[1:] != sorted_sources[:-1])
+                | (sorted_basins[1:] != sorted_basins[:-1])
+                | (sorted_times[1:] != sorted_times[:-1])
+            )
+            + 1
+        )
+        boundaries = np.concatenate(([0], changes, [len(order)]))
+        return [
+            (
+                int(sorted_sources[left]),
+                int(sorted_basins[left]),
+                int(sorted_times[left]),
+                order[left:right],
+            )
+            for left, right in zip(boundaries[:-1], boundaries[1:])
+        ]
 
     def _read_cached_normalized_blocks(
         self,
@@ -1501,6 +1522,55 @@ class CloudZarrLazyDataset(Dataset):
         if destination != length:
             raise RuntimeError(
                 f"Cached Zarr chunks covered {destination} of {length} requested steps."
+            )
+        return output
+
+    @classmethod
+    def _gather_cached_windows(
+        cls,
+        blocks: list[tuple[int, np.ndarray]],
+        basin_offsets: np.ndarray,
+        time_starts: np.ndarray,
+        length: int,
+    ) -> np.ndarray:
+        if len(basin_offsets) < 32:
+            return np.stack(
+                [
+                    cls._slice_cached_blocks(
+                        blocks,
+                        int(basin_offset),
+                        int(time_start),
+                        length,
+                    )
+                    for basin_offset, time_start in zip(basin_offsets, time_starts)
+                ]
+            )
+        feature_count = blocks[0][1].shape[-1]
+        output = np.empty((len(basin_offsets), length, feature_count), dtype=np.float32)
+        pending = np.ones(len(basin_offsets), dtype=bool)
+        steps = np.arange(length, dtype=np.int64)
+        for block_start, block in blocks:
+            relative_starts = time_starts - block_start
+            fits = (
+                pending
+                & (relative_starts >= 0)
+                & (relative_starts + length <= block.shape[1])
+            )
+            if not fits.any():
+                continue
+            rows = np.flatnonzero(fits)
+            time_indices = relative_starts[rows, None] + steps[None, :]
+            output[rows] = block[
+                basin_offsets[rows, None],
+                time_indices,
+            ]
+            pending[rows] = False
+        for row in np.flatnonzero(pending):
+            output[row] = cls._slice_cached_blocks(
+                blocks,
+                int(basin_offsets[row]),
+                int(time_starts[row]),
+                length,
             )
         return output
 

@@ -1733,7 +1733,6 @@ def torch_single_train(
     # we will set model.eval() in the validation function so here we should set model.train()
     model.train()
     n_iter_ep = 0
-    running_loss = 0.0
     which_first_tensor = kwargs["which_first_tensor"]
     seq_first = which_first_tensor != "batch"
     variable_length_cfgs = data_loader.dataset.training_cfgs.get(
@@ -1741,6 +1740,7 @@ def torch_single_train(
     )
     non_blocking_transfer = bool(kwargs.get("non_blocking_transfer", False))
     torch_device = torch.device(device) if device is not None else torch.device("cpu")
+    running_loss = torch.zeros((), device=torch_device, dtype=torch.float32)
     use_cuda_prefetch = (
         bool(kwargs.get("cuda_prefetch", False)) and torch_device.type == "cuda"
     )
@@ -1763,6 +1763,7 @@ def torch_single_train(
     grad_scaler = torch.amp.GradScaler(
         "cuda", enabled=use_amp and amp_dtype == torch.float16
     )
+    nonfinite_check_interval = max(0, int(kwargs.get("nonfinite_check_interval", 100)))
     train_iterator = iter(pbar)
 
     while True:
@@ -1779,6 +1780,7 @@ def torch_single_train(
         else:
             compute_events = None
         compute_started = time.perf_counter()
+        opt.zero_grad(set_to_none=True)
         with torch.autocast(
             device_type=torch_device.type,
             dtype=amp_dtype,
@@ -1811,15 +1813,9 @@ def torch_single_train(
                     aux_loss = aux_loss.to(loss.device)
                 loss = loss + aux_loss
 
-        if loss > 100:
-            print("Warning: high loss detected")
-        if torch.isnan(loss):
-            raise ValueError("nan loss detected")
-            # continue
         grad_scaler.scale(loss).backward()
         grad_scaler.step(opt)
         grad_scaler.update()
-        model.zero_grad()  # clear gradient
         if compute_events is not None:
             compute_events[1].record(torch.cuda.current_stream(torch_device))
             performance_monitor.record_compute_events(compute_events)
@@ -1827,17 +1823,26 @@ def torch_single_train(
             performance_monitor.record_batch(
                 batch, time.perf_counter() - compute_started
             )
-        if loss == float("inf"):
-            raise ValueError(
-                "Error infinite loss detected. Try normalizing data or performing interpolation"
-            )
-        running_loss += loss.item()
+        running_loss.add_(loss.detach().float())
         n_iter_ep += 1
+        if (
+            nonfinite_check_interval
+            and n_iter_ep % nonfinite_check_interval == 0
+            and not torch.isfinite(running_loss).item()
+        ):
+            raise ValueError(
+                "Non-finite training loss detected. Check normalization and input data."
+            )
     if n_iter_ep == 0:
         raise ValueError(
             "All batch computations of loss result in NAN. Please check the data."
         )
-    total_loss = running_loss / float(n_iter_ep)
+    total_loss_tensor = running_loss / float(n_iter_ep)
+    if not torch.isfinite(total_loss_tensor).item():
+        raise ValueError(
+            "Non-finite training loss detected. Check normalization and input data."
+        )
+    total_loss = total_loss_tensor.item()
     return total_loss, n_iter_ep
 
 

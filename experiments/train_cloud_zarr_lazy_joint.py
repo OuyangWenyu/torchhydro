@@ -304,6 +304,7 @@ def build_cfg(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "amp": getattr(args, "amp", False),
             "amp_dtype": getattr(args, "amp_dtype", "bfloat16"),
+            "nonfinite_check_interval": getattr(args, "nonfinite_check_interval", 100),
             "which_first_tensor": "sequence",
             "device": [args.device],
             "criterion": "RMSE",
@@ -491,6 +492,12 @@ def parse_args() -> argparse.Namespace:
         choices=("bfloat16", "float16"),
         default="bfloat16",
         help="AMP dtype; bfloat16 is recommended for RTX 40-series GPUs.",
+    )
+    parser.add_argument(
+        "--nonfinite-check-interval",
+        type=int,
+        default=100,
+        help="Check accumulated loss for NaN/Inf every N batches; 0 checks only at epoch end.",
     )
     parser.add_argument(
         "--performance-monitor",

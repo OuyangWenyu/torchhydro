@@ -296,6 +296,9 @@ class DeepHydro(DeepHydroInterface):
                     performance_monitor=performance_monitor,
                     amp=bool(training_cfgs.get("amp", False)),
                     amp_dtype=training_cfgs.get("amp_dtype", "bfloat16"),
+                    nonfinite_check_interval=int(
+                        training_cfgs.get("nonfinite_check_interval", 100)
+                    ),
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
@@ -1753,6 +1756,9 @@ class DeepHydro(DeepHydroInterface):
         elif sampler_name == "CloudZarrChunkBatchSampler":
             sampler_hyperparam |= {
                 "batch_size": batch_size,
+                "worker_affinity_count": max(
+                    1, int(training_cfgs.get("num_workers", 0))
+                ),
             }
 
         return sampler_class(train_dataset, **sampler_hyperparam)

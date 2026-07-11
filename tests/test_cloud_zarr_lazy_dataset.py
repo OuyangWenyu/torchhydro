@@ -977,3 +977,30 @@ def test_weighted_sample_sampler_coalesces_chunk_tails(tmp_path):
     assert len(flattened) == len(dataset)
     assert len(set(flattened)) == len(dataset)
     assert len(batches) == len(sampler)
+
+
+def test_chunk_sampler_interleaves_worker_affinity_lanes(tmp_path):
+    dataset = CloudZarrLazyDataset(
+        _multi_source_cfg(tmp_path, normalization="none"), "train"
+    )
+    sampler = CloudZarrChunkBatchSampler(
+        dataset,
+        batch_size=2,
+        drop_last=False,
+        shuffle=False,
+        sampling="weighted_by_sample",
+        worker_affinity_count=2,
+    )
+
+    batches = list(sampler)
+    flattened = [index for batch in batches for index in batch]
+    lanes_by_chunk: dict[tuple[int, int, int], set[int]] = {}
+    for batch_pos, batch in enumerate(batches[:-2]):
+        for index in batch:
+            lanes_by_chunk.setdefault(sampler.chunk_key(index), set()).add(
+                batch_pos % 2
+            )
+
+    assert len(flattened) == len(dataset)
+    assert len(set(flattened)) == len(dataset)
+    assert all(len(lanes) == 1 for lanes in lanes_by_chunk.values())

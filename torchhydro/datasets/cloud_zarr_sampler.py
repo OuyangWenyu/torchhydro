@@ -47,6 +47,7 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
         sampling: str | None = None,
         max_batches_per_epoch: int | None = None,
         seed: int | None = None,
+        worker_affinity_count: int = 1,
     ):
         if batch_size <= 0:
             raise ValueError("batch_size must be positive.")
@@ -66,6 +67,7 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
             )
         self.max_batches_per_epoch = max_batches_per_epoch
         self.seed = seed
+        self.worker_affinity_count = max(1, int(worker_affinity_count))
         self._epoch = 0
         self._requested_time_chunk_size = time_chunk_size
         self._requested_basin_chunk_size = basin_chunk_size
@@ -240,7 +242,10 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
             if self.shuffle:
                 rng.shuffle(groups)
             if not self.drop_last:
-                yield from self._coalesced_group_batches(groups, np_rng)
+                if self.worker_affinity_count > 1:
+                    yield from self._affinity_group_batches(groups, np_rng)
+                else:
+                    yield from self._coalesced_group_batches(groups, np_rng)
                 return
             yielded = 0
             for group in groups:
@@ -312,8 +317,20 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
     ) -> Iterator[list[int]]:
         """Merge per-chunk tails so full epochs do not create many tiny batches."""
 
-        pending = np.empty(0, dtype=np.int64)
         yielded = 0
+        for batch in self._iter_coalesced_group_batches(groups, rng):
+            if self._batch_limit_reached(yielded):
+                return
+            self._record_batch_sources(batch)
+            yielded += 1
+            yield batch
+
+    def _iter_coalesced_group_batches(
+        self,
+        groups: list[_ChunkGroup],
+        rng: np.random.Generator,
+    ) -> Iterator[list[int]]:
+        pending = np.empty(0, dtype=np.int64)
         for group in groups:
             indices = self._index_order[group.start : group.stop].astype(
                 np.int64, copy=True
@@ -326,27 +343,50 @@ class CloudZarrChunkBatchSampler(Sampler[list[int]]):
                 pending = np.concatenate((pending, indices[:take]))
                 indices = indices[take:]
                 if pending.size == self.batch_size:
-                    if self._batch_limit_reached(yielded):
-                        return
-                    batch = pending.tolist()
-                    self._record_batch_sources(batch)
-                    yielded += 1
-                    yield batch
+                    yield pending.tolist()
                     pending = np.empty(0, dtype=np.int64)
             full_stop = indices.size - indices.size % self.batch_size
             for start in range(0, full_stop, self.batch_size):
+                yield indices[start : start + self.batch_size].tolist()
+            if full_stop < indices.size:
+                pending = indices[full_stop:]
+        if pending.size:
+            yield pending.tolist()
+
+    def _affinity_group_batches(
+        self,
+        groups: list[_ChunkGroup],
+        rng: np.random.Generator,
+    ) -> Iterator[list[int]]:
+        """Interleave balanced chunk lanes to encourage per-worker cache reuse."""
+
+        lane_count = min(self.worker_affinity_count, max(1, len(groups)))
+        lanes: list[list[_ChunkGroup]] = [[] for _ in range(lane_count)]
+        lane_samples = [0] * lane_count
+        for group in groups:
+            lane = min(range(lane_count), key=lane_samples.__getitem__)
+            lanes[lane].append(group)
+            lane_samples[lane] += group.stop - group.start
+
+        iterators = [
+            iter(self._iter_coalesced_group_batches(lane, rng)) for lane in lanes
+        ]
+        active = [True] * lane_count
+        yielded = 0
+        while any(active):
+            for lane, iterator in enumerate(iterators):
+                if not active[lane]:
+                    continue
+                try:
+                    batch = next(iterator)
+                except StopIteration:
+                    active[lane] = False
+                    continue
                 if self._batch_limit_reached(yielded):
                     return
-                batch = indices[start : start + self.batch_size].tolist()
                 self._record_batch_sources(batch)
                 yielded += 1
                 yield batch
-            if full_stop < indices.size:
-                pending = indices[full_stop:]
-        if pending.size and not self._batch_limit_reached(yielded):
-            batch = pending.tolist()
-            self._record_batch_sources(batch)
-            yield batch
 
     def _batch_limit_reached(self, yielded: int) -> bool:
         return (
