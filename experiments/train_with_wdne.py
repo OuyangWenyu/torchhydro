@@ -25,21 +25,21 @@ warnings.filterwarnings("ignore")
 
 
 def _build_model_hyperparam(current_config, in_channels, output_size, seq_len, output_time,
-                            num_static_features):
+                            num_static_features, use_basin_features=False):
     """根据模型类型构建对应的超参数字典"""
     model_type = current_config.get("model_type", "")
 
     common = {
-        "in_channels": in_channels,
         "output_size": output_size,
         "seq_len": seq_len,
         "output_time": output_time,
         "hidden_channels": current_config.get("hidden_channels", 32),
-        "dropout": current_config.get("dropout", 0.2),
+        "dropout": current_config.get("dropout", 0.3),
     }
 
     if model_type in ("wdne", "wdne_adaptive"):
         common.update({
+            "in_channels": in_channels,  # 只含动态特征
             "model_type": model_type,
             "num_static_features": num_static_features,
             "structure_embedding_dim": current_config.get("structure_embedding_dim", 16),
@@ -47,15 +47,17 @@ def _build_model_hyperparam(current_config, in_channels, output_size, seq_len, o
             "topology_encoder_type": "mlp",
             "use_structure_embedding": current_config.get("use_structure_embedding", True),
             "local_lstm_layers": 1,
-            "route_steps": current_config.get("route_steps", 2),
-            "route_decay": current_config.get("route_decay", 0.7),
+            "route_steps": current_config.get("route_steps", 4),
+            "route_decay": current_config.get("route_decay", 0.5),
             "graph_output_mode": current_config.get("graph_output_mode", "residual"),
             "root_output_mode": current_config.get("root_output_mode", "root"),
         })
     else:
-        # Baseline SpatioTemporalFloodNet3D 参数
+        # Baseline SpatioTemporalFloodNet3D 参数 — 需要全量输入维度
+        total_in = in_channels + num_static_features if use_basin_features else in_channels
         common.update({
-            "num_features": in_channels,
+            "in_channels": total_in,
+            "num_features": total_in,
             "st_blocks": 1,
             "temporal_kind": "gru",
             "temporal_kernel_size": 3,
@@ -75,14 +77,14 @@ def _build_model_hyperparam(current_config, in_channels, output_size, seq_len, o
     return common
 
 
-def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet"):
+def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet", basins=None, use_static=False):
     """创建WDNE自适应图网络模型配置
 
     Args:
         test_mode: 测试模式 ("normal", "sim1", "sim2", "sim3")
         model_name: 模型名称
-            - "WDNEInspiredFloodNet": 结构感知洪水预测 (拓扑嵌入+局部LSTM+GCN)
-            - "WDNEAdaptiveRoutingNet": 自适应路由洪水预测 (动态边权重+门控传播)
+        basins: 流域列表, None=全部6个, 可指定单个如["songliao_21401550"]
+        use_static: 是否加入流域静态属性
     """
     config_data = default_config_file()
 
@@ -98,7 +100,7 @@ def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet"):
             "aggregation": "mean",
             "gnn_type": "gcn2",
             "num_hidden": 2,
-            "dropout": 0.2,
+            "dropout": 0.3,
         },
         "Baseline_LSTM_GNN": {
             "model_name": "SpatioTemporalFloodNet3D",
@@ -111,7 +113,7 @@ def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet"):
             "aggregation": "mean",
             "gnn_type": "gcn2",
             "num_hidden": 2,
-            "dropout": 0.2,
+            "dropout": 0.3,
         },
         "WDNEInspiredFloodNet": {
             "model_name": "WDNEInspiredFloodNet",
@@ -120,11 +122,11 @@ def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet"):
             "model_type": "wdne",
             "hidden_channels": 32,
             "structure_embedding_dim": 16,
-            "route_steps": 2,
-            "route_decay": 0.7,
+            "route_steps": 4,
+            "route_decay": 0.5,
             "graph_output_mode": "residual",
             "root_output_mode": "root",
-            "dropout": 0.2,
+            "dropout": 0.3,
         },
         "WDNEAdaptiveRoutingNet": {
             "model_name": "WDNEAdaptiveRoutingNet",
@@ -133,11 +135,11 @@ def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet"):
             "model_type": "wdne_adaptive",
             "hidden_channels": 32,
             "structure_embedding_dim": 16,
-            "route_steps": 2,
-            "route_decay": 0.7,
+            "route_steps": 4,
+            "route_decay": 0.5,
             "graph_output_mode": "residual",
             "root_output_mode": "root",
-            "dropout": 0.2,
+            "dropout": 0.3,
         },
         # === 实验变体: 关结构嵌入 + mean pool ===
         "WDNE_NoStruct_Mean": {
@@ -148,11 +150,11 @@ def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet"):
             "hidden_channels": 32,
             "structure_embedding_dim": 4,
             "use_structure_embedding": False,
-            "route_steps": 2,
-            "route_decay": 0.7,
+            "route_steps": 4,
+            "route_decay": 0.5,
             "graph_output_mode": "residual",
             "root_output_mode": "mean",
-            "dropout": 0.2,
+            "dropout": 0.3,
         },
         "WDNE_Mean": {
             "model_name": "WDNEAdaptiveRoutingNet",
@@ -161,16 +163,47 @@ def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet"):
             "model_type": "wdne_adaptive",
             "hidden_channels": 32,
             "structure_embedding_dim": 16,
-            "route_steps": 2,
-            "route_decay": 0.7,
+            "route_steps": 4,
+            "route_decay": 0.5,
             "graph_output_mode": "residual",
             "root_output_mode": "mean",
-            "dropout": 0.2,
+            "dropout": 0.3,
+        },
+        # === 实验2: 加静态属性(5流域, 去掉21100150) ===
+        "LSTM_only_static": {
+            "model_name": "SpatioTemporalFloodNet3D",
+            "experiment_dir": "static_5basins_lstm_only",
+            "description": "LSTM-only + 静态属性(5流域)",
+            "model_type": "baseline",
+            "hidden_channels": 32, "use_gnn": False, "use_lstm": True,
+            "aggregation": "mean", "gnn_type": "gcn2", "num_hidden": 2, "dropout": 0.3,
+        },
+        "LSTM_GNN_static": {
+            "model_name": "SpatioTemporalFloodNet3D",
+            "experiment_dir": "static_5basins_lstm_gnn",
+            "description": "LSTM+GNN + 静态属性(5流域)",
+            "model_type": "baseline",
+            "hidden_channels": 32, "use_gnn": True, "use_lstm": True,
+            "aggregation": "mean", "gnn_type": "gcn2", "num_hidden": 2, "dropout": 0.3,
+        },
+        "WDNE_static": {
+            "model_name": "WDNEAdaptiveRoutingNet",
+            "experiment_dir": "static_5basins_wdne",
+            "description": "WDNE + 静态属性(5流域)",
+            "model_type": "wdne_adaptive",
+            "hidden_channels": 32, "structure_embedding_dim": 16,
+            "route_steps": 4, "route_decay": 0.5,
+            "graph_output_mode": "residual", "root_output_mode": "root", "dropout": 0.3,
         },
     }
 
     if model_name not in model_configs:
         raise ValueError(f"不支持的模型: {model_name}, 可选: {list(model_configs.keys())}")
+
+    # 静态属性实验: 自动设置 basins + use_static
+    if model_name.endswith("_static") and basins is None:
+        basins = [b for b in ["songliao_20800900","songliao_20810200","songliao_21110150","songliao_21401050","songliao_21401550"]]
+        use_static = True
 
     current_config = model_configs[model_name]
 
@@ -182,29 +215,41 @@ def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet"):
     print(f"🎯 当前测试模式: {test_mode}")
 
     # 流域配置
-    example_gage_ids = [
-        "songliao_20800900",
-        "songliao_20810200",
-        "songliao_21100150",
-        "songliao_21110150",
-        "songliao_21401050",
-        "songliao_21401550"
-    ]
+    if basins is None:
+        example_gage_ids = [
+            "songliao_20800900",
+            "songliao_20810200",
+            "songliao_21100150",
+            "songliao_21110150",
+            "songliao_21401050",
+            "songliao_21401550"
+        ]
+    else:
+        example_gage_ids = basins
 
     # 时间窗口: 72*3h历史 → 预测12*3h (仅降雨特征，不宜过长)
     warmup_length, hindcast_length, forecast_length = 72, 0, 12
     seq_len = warmup_length + hindcast_length + forecast_length
     output_time = hindcast_length + forecast_length
 
-    # 特征: 只用站点降雨，不用 inflow（数据泄露），不用流域静态属性
+    # 特征配置
     var_t = ["rain"]
-    var_c = ["None"]
     station_cols = ["DRP"]
-    use_basin_features = False
-    num_features = len([c for c in station_cols if c != "None"])
-    in_channels = num_features  # = 1
-    num_static_features = len([c for c in var_c if c != "None"])  # = 0
     output_size = 1
+
+    if use_static:
+        # 5流域 + 静态属性(排除area极端值)
+        var_c = ["ele_mt_sav", "slp_dg_sav", "for_pc_sse", "pre_mm_syr", "run_mm_syr"]
+        use_basin_features = True
+        num_features = len([c for c in station_cols if c != "None"])
+        in_channels = num_features + len(var_t)  # = 1 + 1 = 2
+        num_static_features = len(var_c)  # = 5
+    else:
+        var_c = ["None"]
+        use_basin_features = False
+        num_features = len([c for c in station_cols if c != "None"])
+        in_channels = num_features  # = 1
+        num_static_features = 0
 
     print(f"📊 参数: seq_len={seq_len}, in_channels={in_channels}, "
           f"num_static_features={num_static_features}, output_time={output_time}")
@@ -233,7 +278,8 @@ def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet"):
         gage_id=example_gage_ids,
         model_name=current_config["model_name"],
         model_hyperparam=_build_model_hyperparam(current_config, in_channels, output_size,
-                                                  seq_len, output_time, num_static_features),
+                                                  seq_len, output_time, num_static_features,
+                                                  use_basin_features),
         dataset="GNNDataset", scaler="DapengScaler", batch_size=2,
         warmup_length=warmup_length, hindcast_length=hindcast_length, forecast_length=forecast_length,
         min_time_unit="h", min_time_interval=3,
@@ -292,7 +338,7 @@ def main():
         test_mode = sys.argv[2] if len(sys.argv) > 2 else "normal"
 
         valid_models = ["Baseline_LSTM_only", "Baseline_LSTM_GNN", "WDNEInspiredFloodNet", "WDNEAdaptiveRoutingNet",
-                       "WDNE_NoStruct_Mean", "WDNE_Mean"]
+                       "WDNE_NoStruct_Mean", "WDNE_Mean", "LSTM_only_static", "LSTM_GNN_static", "WDNE_static"]
 
         if model_name in valid_models:
             train_wdne_model(test_mode=test_mode, model_name=model_name)

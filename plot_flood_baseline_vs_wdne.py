@@ -26,7 +26,7 @@ OUTPUT_ROOT = Path("/home/lizilin/code/torchhydro/results/comparison_plots/flood
 import pandas as pd
 _attr_df = pd.read_csv(ATTR_FILE)
 _attr_df["basin_id_full"] = "songliao_" + _attr_df["basin_id"].astype(str)
-BASIN_AREA = dict(zip(_attr_df["basin_id_full"], _attr_df["area"]))
+BASIN_AREA = dict(zip(_attr_df["basin_id"].astype(str), _attr_df["area"]))
 print(f"已加载 {len(BASIN_AREA)} 个流域的面积数据")
 
 def mm3h_to_m3s(flow_mm3h, area_km2):

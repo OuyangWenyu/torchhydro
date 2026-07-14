@@ -2780,8 +2780,11 @@ class GNNDataset(FloodEventDataset):
                 edge_weight = torch.ones(num_edges, dtype=torch.float)
 
             # Edge orientation handling
-            if edge_orientation == 'downstream':
-                # Reverse all edges: swap source and target
+            # 原始边: src_col(ID) → dst_col(NEXTDOWNID) = 上游 → 下游
+            # downstream(默认): 边指向下游 = 保持原始方向, root=出口节点
+            # upstream: 边指向上游 = 反转方向, root=最上游源头节点
+            if edge_orientation == 'upstream':
+                # Reverse all edges: swap source and target (变为 下游→上游)
                 edge_index = edge_index[[1, 0], :]
             elif edge_orientation == 'bidirectional':
                 # Add reversed edges to make bidirectional
@@ -2791,7 +2794,7 @@ class GNNDataset(FloodEventDataset):
                     edge_attr = torch.cat([edge_attr, edge_attr], dim=0)
                 if edge_weight is not None:
                     edge_weight = torch.cat([edge_weight, edge_weight], dim=0)
-            # else: downstream (default), do nothing
+            # else: downstream (default), keep original upstream→downstream
 
         else:
             # Default: self-loops for each station
