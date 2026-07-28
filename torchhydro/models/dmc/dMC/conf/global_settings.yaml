@@ -1,0 +1,9 @@
+defaults:
+  - config: 03_train_usgs_period_1a
+  - hydra_settings: settings
+  - _self_
+# Global ------------------------------------------------------------------------
+cwd: /path/to/your/codefolder/dMC-Juniata-hydroDL2
+data_dir: /path/to/your/data/dx-2000dis1_non_merge
+name: 03_train_usgs_period_1a
+device: cpu

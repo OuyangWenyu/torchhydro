@@ -1,0 +1,90 @@
+# service_locator -----------------------------------------------------------------------
+service_locator:
+  experiment: train_mlp.TrainModel
+  data: nhd_srb.NHDSRB
+  observations: usgs.USGS
+  physics: explicit_mc.ExplicitMC
+  neural_network: mlp.MLP
+# Data --------------------------------------------------------------------------
+data:
+  processed_dir: ${cwd}/flat_files
+  end_node: 4809
+  time:
+    start: 11/01/2001 00:00:00
+    end: 09/18/2010 23:00:00
+    steps: 1344
+    batch_size: ${config.data.time.steps}
+    tau: 9
+  observations:
+    loss_nodes:
+#      - 1053
+#      - 1280
+#      - 2662
+#      - 2689
+#      - 2799
+#      - 4780
+#      - 4801
+      - 4809
+    dir: ${data_dir}/inflow_interpolated/
+    file_name: ???
+  save_paths:
+    edges: ${config.data.processed_dir}/${config.data.end_node}_edges.csv
+    nodes: ${config.data.processed_dir}/${config.data.end_node}_nodes.csv
+    areas: ${config.data.processed_dir}/${config.data.end_node}_areas.npy
+    q_prime: ${config.data.processed_dir}/${config.data.end_node}_tau${config.data.time.tau}_{}_{}_q_prime.csv
+    network: ${config.data.processed_dir}/${config.data.end_node}_network_matrix.csv
+    gage_locations: ${config.data.processed_dir}/gages_II_locations.csv
+    q_prime_sum:  ${config.data.processed_dir}/${config.data.end_node}_q_prime_sum.npy
+  csv:
+    edges: ${data_dir}/graphs/edges_NaNFix.csv
+    nodes: ${data_dir}/graphs/node.csv
+    q_prime: ${data_dir}/graphs/srb_post_process.csv
+    mass_transfer_matrix: ${data_dir}/graphs/TM.csv
+# Experiment-- ---------------------------------------------------------------------
+experiment:
+  alpha: 3e3
+  areas:
+    lb: 0
+    ub: 500
+  learning_rate: 0.01
+  epochs: 50
+  warmup: 72
+  lb: [ 0.001, 0.001 ]
+  ub: [ 0.15, 1.0 ]
+  factor: 100
+  name: ${name}
+  save_path: ${cwd}/output/final_paper_output/
+  tensorboard_dir: ${cwd}/logs/${name}/${now:%Y-%m-%d}/
+# Models ---------------------------------------------------------------------------
+model:
+  train_q: True
+  seed: 0
+  mlp:
+    initialization: xavier_normal
+    fan: fan_in
+    gain: 0.7
+    hidden_size: 6
+    input_size: 8
+    output_size: 2
+  length:
+    idx: 8
+  slope:
+    idx: 2
+    min: 1e-4
+    max: 0.3
+  velocity:
+    min: 0.3
+    max: 15
+  q_prime:
+    min: 0
+  variables:
+    n: ???
+    p: 21.0
+    q: ???
+    t: 3600.0
+    x: 0.3
+  transformations:
+    n: [ 0.01, 0.3 ]
+    q_spatial: [ 0, 3 ]
+  save_paths:
+    areas: ${config.data.save_paths.areas}
