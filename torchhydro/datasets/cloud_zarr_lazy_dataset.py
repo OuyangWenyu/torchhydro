@@ -75,6 +75,7 @@ class LazyDatasetSource:
     dataset_id: str
     basins: list[str]
     time_range: list[str] | str
+    training_time_range: list[str] | str
     relevant_vars: list[LazyVariable]
     target_vars: list[LazyVariable]
     constant_vars: list[LazyVariable]
@@ -112,7 +113,8 @@ class CloudZarrStatCache:
     extended to emit TorchHydro-compatible stat dictionaries.
     """
 
-    version = 2
+    # Bumped when target QC became part of canonical statistics.
+    version = 3
 
     def __init__(self, cache_dir: str | Path, enabled: bool = True):
         self.cache_dir = Path(cache_dir)
@@ -203,10 +205,8 @@ class CloudZarrLazyDataset(Dataset):
             self._prepare_variable_layout(source_idx)
             self._prepare_static_attributes(source_idx)
         self._validate_source_compatibility()
-        for source_idx in range(len(self.source_states)):
-            self.source_states[source_idx].stats = self._load_or_build_stats(source_idx)
+        self._initialize_normalization_stats()
         self._finalize_missing_schema()
-        self._apply_normalization_scope()
         self._prepare_normalized_static_values()
         self.source = self.sources[0]
         self.basins = [
@@ -257,6 +257,80 @@ class CloudZarrLazyDataset(Dataset):
 
     def _get_batch_level_items(self, items):
         return self._load_batch([int(item) for item in items])
+
+    def load_final_target_values(self, items: list[int]) -> np.ndarray:
+        """Read raw physical targets at each window's final forecast step.
+
+        Evaluation must distinguish missing observations from the zero values
+        used in normalized model tensors. This method therefore bypasses
+        normalization and reads only one target timestamp per requested window.
+        """
+        item_indices = np.asarray(items, dtype=np.int64)
+        if item_indices.size == 0:
+            return np.empty((0, len(self.target_schema)), dtype=np.float32)
+        sources = self._lookup_sources[item_indices].astype(np.int16, copy=False)
+        basins = self._lookup_basins[item_indices].astype(np.int32, copy=False)
+        starts = self._lookup_starts[item_indices].astype(np.int32, copy=False)
+        lengths = self._lookup_lengths[item_indices].astype(np.int32, copy=False)
+        output = np.empty((len(item_indices), len(self.target_schema)), dtype=np.float32)
+
+        global_basins = np.empty(len(item_indices), dtype=np.int64)
+        final_times = np.empty(len(item_indices), dtype=np.int64)
+        basin_chunks = np.empty(len(item_indices), dtype=np.int64)
+        time_chunks = np.empty(len(item_indices), dtype=np.int64)
+        for source_idx in np.unique(sources):
+            rows = np.flatnonzero(sources == source_idx)
+            state = self.source_states[int(source_idx)]
+            assert state.basin_positions is not None
+            basin_chunk_size, time_chunk_size = state.chunk_shape
+            global_basins[rows] = state.basin_positions[basins[rows]]
+            final_times[rows] = (
+                state.time_offset
+                + starts[rows].astype(np.int64)
+                + lengths[rows].astype(np.int64)
+                - self.warmup_length
+                - 1
+            )
+            basin_chunks[rows] = global_basins[rows] // basin_chunk_size
+            time_chunks[rows] = final_times[rows] // time_chunk_size
+
+        order = np.lexsort((time_chunks, basin_chunks, sources))
+        sorted_sources = sources[order]
+        sorted_basins = basin_chunks[order]
+        sorted_times = time_chunks[order]
+        changes = (
+            np.flatnonzero(
+                (sorted_sources[1:] != sorted_sources[:-1])
+                | (sorted_basins[1:] != sorted_basins[:-1])
+                | (sorted_times[1:] != sorted_times[:-1])
+            )
+            + 1
+        )
+        boundaries = np.concatenate(([0], changes, [len(order)]))
+        for left, right in zip(boundaries[:-1], boundaries[1:]):
+            rows = order[left:right]
+            source_idx = int(sources[rows[0]])
+            state = self.source_states[source_idx]
+            assert state.ts_ds is not None
+            basin_chunk_size, time_chunk_size = state.chunk_shape
+            basin_start = int(basin_chunks[rows[0]] * basin_chunk_size)
+            basin_stop = min(basin_start + basin_chunk_size, int(state.ts_ds.sizes["basin"]))
+            time_start = int(time_chunks[rows[0]] * time_chunk_size)
+            time_stop = min(time_start + time_chunk_size, int(state.ts_ds.sizes["time"]))
+            block = self._read_block_array(
+                source_idx,
+                state.source.target_vars,
+                basin_start,
+                basin_stop,
+                time_start,
+                time_stop,
+                "target_cols",
+            )
+            output[rows] = block[
+                global_basins[rows] - basin_start,
+                final_times[rows] - time_start,
+            ]
+        return output
 
     @property
     def x_feature_count(self) -> int:
@@ -361,12 +435,8 @@ class CloudZarrLazyDataset(Dataset):
                 basins = basins[: max(0, int(max_basins))]
             if not basins:
                 raise ValueError(f"{dataset_id} does not contain any selected basins.")
-            configured_time_range = entry.get("time_range")
-            time_range = (
-                "all"
-                if configured_time_range in (None, "all")
-                else list(configured_time_range)
-            )
+            time_range = self._source_time_range(entry, self.is_tra_val_te)
+            training_time_range = self._source_time_range(entry, "train")
             relevant_cols = entry.get(
                 "relevant_cols", self.data_cfgs.get("relevant_cols") or []
             )
@@ -381,6 +451,7 @@ class CloudZarrLazyDataset(Dataset):
                     dataset_id=dataset_id,
                     basins=basins,
                     time_range=time_range,
+                    training_time_range=training_time_range,
                     relevant_vars=self._resolve_dynamic_variables(
                         reader, relevant_cols
                     ),
@@ -392,6 +463,32 @@ class CloudZarrLazyDataset(Dataset):
                 )
             )
         return sources
+
+    def _source_time_range(
+        self, entry: dict[str, Any], split: str
+    ) -> list[str] | str:
+        """Resolve one source's requested range for a train/valid/test split."""
+        entry_periods = entry.get("periods") or {}
+        configured_time_range = entry_periods.get(split)
+        if configured_time_range is None:
+            configured_time_range = entry.get(f"{split}_period")
+        if configured_time_range is None:
+            configured_time_range = (self.lazy_cfg.get("split_periods") or {}).get(
+                split
+            )
+        if configured_time_range is None:
+            configured_time_range = entry.get("time_range")
+        if configured_time_range in (None, "all"):
+            return "all"
+        if (
+            not isinstance(configured_time_range, (list, tuple))
+            or len(configured_time_range) != 2
+        ):
+            raise ValueError(
+                f"{entry.get('dataset_id', 'dataset')} {split} period must be "
+                "'all' or [start, end]."
+            )
+        return [str(value) for value in configured_time_range]
 
     def _open_data_source(self, dataset_id: str):
         if dataset_id in self._data_sources:
@@ -685,6 +782,14 @@ class CloudZarrLazyDataset(Dataset):
         else:
             start = pd.to_datetime(source.time_range[0])
             end = pd.to_datetime(source.time_range[1])
+            if full_times[0] > start or full_times[-1] < end:
+                raise ValueError(
+                    f"{source.dataset_id} does not cover the requested "
+                    f"{self.is_tra_val_te} period {source.time_range}. Its Zarr "
+                    f"time coordinate covers [{full_times[0].isoformat()}, "
+                    f"{full_times[-1].isoformat()}]. Adjust the split, remove this "
+                    "dataset explicitly, or configure a dataset-specific period."
+                )
             positions = np.flatnonzero((full_times >= start) & (full_times <= end))
         if positions.size == 0:
             raise ValueError(
@@ -894,6 +999,7 @@ class CloudZarrLazyDataset(Dataset):
     def _load_or_build_stats(self, source_idx: int) -> dict[str, Any]:
         state = self.source_states[source_idx]
         source = state.source
+        assert state.ts_ds is not None
         normalization = self.lazy_cfg.get("normalization", "standard")
         if normalization in (None, "none", False):
             return {"enabled": False}
@@ -915,6 +1021,14 @@ class CloudZarrLazyDataset(Dataset):
             "time_range": source.time_range,
             "relevant": [var.__dict__ for var in source.relevant_vars],
             "target": [var.__dict__ for var in source.target_vars],
+            "target_missing_values": [
+                (
+                    self._metadata_missing_values(state.ts_ds[physical])
+                    if physical is not None
+                    else ()
+                )
+                for physical in state.target_names
+            ],
             "constant": [var.__dict__ for var in source.constant_vars],
             "normalization": normalization,
         }
@@ -922,6 +1036,125 @@ class CloudZarrLazyDataset(Dataset):
             key_payload,
             lambda: self._build_standard_stats(source_idx),
         )
+
+    def _initialize_normalization_stats(self) -> None:
+        """Build train statistics once, then reuse them for validation and test.
+
+        Dynamic normalization is intentionally split-aware: deriving statistics
+        from validation or test windows would leak future observations into the
+        model input transformation.  The persisted payload also lets an
+        evaluation-only process fail clearly when its matching train statistics
+        have not been created.
+        """
+        normalization = self.lazy_cfg.get("normalization", "standard")
+        if normalization in (None, "none", False):
+            for state in self.source_states:
+                state.stats = {"enabled": False}
+            return
+
+        if self.train_mode:
+            for source_idx in range(len(self.source_states)):
+                self.source_states[source_idx].stats = self._load_or_build_stats(
+                    source_idx
+                )
+            self._apply_normalization_scope()
+            self._save_training_stats()
+            return
+
+        training_stats = self._load_training_stats()
+        stats_by_dataset = training_stats["sources"]
+        for state in self.source_states:
+            dataset_id = state.source.dataset_id
+            if dataset_id not in stats_by_dataset:
+                raise ValueError(
+                    f"Training normalization statistics do not contain {dataset_id!r}. "
+                    "Run the matching training split first or use a new case_dir."
+                )
+            state.stats = stats_by_dataset[dataset_id]
+
+    def _training_stats_path(self) -> Path:
+        configured = self.lazy_cfg.get("training_stats_path")
+        if configured:
+            return Path(configured)
+        return Path(self.data_cfgs["case_dir"]) / "lazy_zarr_training_stats.json"
+
+    def _training_stats_signature(self) -> str:
+        payload = {
+            "version": 2,
+            "normalization": self.lazy_cfg.get("normalization", "standard"),
+            "normalization_scope": self.lazy_cfg.get("normalization_scope", "global"),
+            "input_schema": self.relevant_schema,
+            "target_schema": self.target_schema,
+            "constant_schema": self.constant_schema,
+            "sources": [
+                {
+                    "dataset_id": source.dataset_id,
+                    "timeseries_uri": source.timeseries_uri,
+                    "attributes_uri": source.attributes_uri,
+                    "basins": source.basins,
+                    "training_time_range": source.training_time_range,
+                    "relevant": [var.__dict__ for var in source.relevant_vars],
+                    "target": [var.__dict__ for var in source.target_vars],
+                    "target_missing_values": [
+                        (
+                            self._metadata_missing_values(
+                                self.source_states[source_idx].ts_ds[physical]
+                            )
+                            if physical is not None
+                            else ()
+                        )
+                        for physical in self.source_states[source_idx].target_names
+                    ],
+                    "constant": [var.__dict__ for var in source.constant_vars],
+                }
+                for source_idx, source in enumerate(self.sources)
+            ],
+        }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
+
+    def _save_training_stats(self) -> None:
+        path = self._training_stats_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "version": 2,
+            "signature": self._training_stats_signature(),
+            "sources": {
+                state.source.dataset_id: state.stats for state in self.source_states
+            },
+        }
+        temporary = path.with_suffix(f".{os.getpid()}.tmp")
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        os.replace(temporary, path)
+
+    def _load_training_stats(self) -> dict[str, Any]:
+        path = self._training_stats_path()
+        if not path.exists():
+            raise ValueError(
+                f"Training normalization statistics are required for the "
+                f"{self.is_tra_val_te} split but were not found at {path}. "
+                "Construct or run the matching train split first."
+            )
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(
+                f"Cannot read training normalization statistics from {path}."
+            ) from exc
+        if payload.get("version") != 2 or not isinstance(payload.get("sources"), dict):
+            raise ValueError(
+                f"Training normalization statistics at {path} have an unsupported format."
+            )
+        if payload.get("signature") != self._training_stats_signature():
+            raise ValueError(
+                f"Training normalization statistics at {path} do not match this "
+                "dataset configuration or train_period. Use a separate case_dir "
+                "or rebuild the training split."
+            )
+        return payload
 
     def _build_standard_stats(self, source_idx: int) -> dict[str, Any]:
         self._ensure_open(source_idx)
@@ -962,6 +1195,11 @@ class CloudZarrLazyDataset(Dataset):
                     state.basin_positions,
                     state.time_length,
                     state.chunk_shape[0],
+                    scale=var.scale,
+                    offset=var.offset,
+                    variable=var,
+                    physical=physical,
+                    target_qc=kind == "target_cols",
                 )
         if state.static_values is not None:
             for col, (var, physical) in enumerate(
@@ -980,6 +1218,12 @@ class CloudZarrLazyDataset(Dataset):
         basin_positions: np.ndarray,
         time_length: int,
         storage_basin_chunk_size: int,
+        *,
+        scale: float = 1.0,
+        offset: float = 0.0,
+        variable: LazyVariable | None = None,
+        physical: str | None = None,
+        target_qc: bool = False,
     ) -> dict[str, float]:
         time_chunk_size = int(self.lazy_cfg.get("stat_time_chunk_size", 3650))
         time_chunk_size = max(1, time_chunk_size)
@@ -1001,6 +1245,20 @@ class CloudZarrLazyDataset(Dataset):
                     time=slice(time_start, time_stop),
                 ).to_numpy()
                 arr = np.asarray(block, dtype=np.float64)[selected_offsets]
+                # Fit on canonical values, matching the transform used at read time.
+                if target_qc:
+                    if variable is None or physical is None:
+                        raise ValueError(
+                            "Target statistics require the configured target variable."
+                        )
+                    arr = self._canonicalize_target_values(
+                        arr,
+                        variable,
+                        physical,
+                        da,
+                    )
+                elif scale != 1.0 or offset != 0.0:
+                    arr = arr * scale + offset
                 valid = np.isfinite(arr)
                 if not valid.any():
                     continue
@@ -1161,14 +1419,23 @@ class CloudZarrLazyDataset(Dataset):
             cache_dir = Path(self.data_cfgs["case_dir"]) / "lazy_zarr_index_cache"
         cache_dir = Path(cache_dir)
         cache_enabled = bool(self.lazy_cfg.get("cache_target_index", True))
+        assert state.ts_ds is not None
         payload = {
-            "version": 1,
+            "version": 2,
             "dataset_id": source.dataset_id,
             "timeseries_uri": source.timeseries_uri,
             "reader_kwargs": self.lazy_cfg.get("reader_kwargs"),
             "basins": source.basins,
             "time_range": source.time_range,
             "target": [var.__dict__ for var in source.target_vars],
+            "target_missing_values": [
+                (
+                    self._metadata_missing_values(state.ts_ds[physical])
+                    if physical is not None
+                    else ()
+                )
+                for physical in state.target_names
+            ],
             "time_length": state.time_length,
             "target_nan_policy": self.target_nan_policy,
         }
@@ -1649,9 +1916,9 @@ class CloudZarrLazyDataset(Dataset):
         )
         for col, (var, physical) in enumerate(zip(variables, names)):
             if physical is None:
-                values[:, :, col] = var.fill_value
+                values[:, :, col] = np.nan if kind == "target_cols" else var.fill_value
                 continue
-            values[:, :, col] = self._read_physical_block_with_retry(
+            raw_values = self._read_physical_block_with_retry(
                 source_idx,
                 physical,
                 basin_start,
@@ -1659,9 +1926,81 @@ class CloudZarrLazyDataset(Dataset):
                 time_start,
                 time_stop,
             )
-            if var.scale != 1.0 or var.offset != 0.0:
-                values[:, :, col] = values[:, :, col] * var.scale + var.offset
+            if kind == "target_cols":
+                state = self.source_states[source_idx]
+                assert state.ts_ds is not None
+                values[:, :, col] = self._canonicalize_target_values(
+                    raw_values,
+                    var,
+                    physical,
+                    state.ts_ds[physical],
+                )
+            else:
+                values[:, :, col] = raw_values
+                if var.scale != 1.0 or var.offset != 0.0:
+                    values[:, :, col] = values[:, :, col] * var.scale + var.offset
         return values
+
+    @staticmethod
+    def _metadata_missing_values(data_array: xr.DataArray) -> tuple[float, ...]:
+        values: list[float] = []
+        for metadata in (data_array.attrs, data_array.encoding):
+            for key in ("_FillValue", "missing_value"):
+                value = metadata.get(key)
+                if value is None:
+                    continue
+                try:
+                    candidates = np.asarray(value).reshape(-1)
+                except (TypeError, ValueError):
+                    continue
+                for candidate in candidates:
+                    try:
+                        candidate_float = float(candidate)
+                    except (TypeError, ValueError):
+                        continue
+                    # Zarr exposes its default storage fill value (0) through
+                    # xarray even when the source did not declare zero as a
+                    # missing observation. Preserve physical zero streamflow.
+                    if key == "_FillValue" and candidate_float == 0.0:
+                        continue
+                    if math.isfinite(candidate_float) and candidate_float not in values:
+                        values.append(candidate_float)
+        return tuple(values)
+
+    @staticmethod
+    def _is_streamflow_target(variable: LazyVariable, physical: str) -> bool:
+        names = (variable.canonical, physical)
+        return any(
+            token in name.lower()
+            for name in names
+            for token in ("streamflow", "discharge", "q_cms", "qobs", "q_obs")
+        )
+
+    def _canonicalize_target_values(
+        self,
+        values: np.ndarray,
+        variable: LazyVariable,
+        physical: str,
+        data_array: xr.DataArray,
+    ) -> np.ndarray:
+        """Decode target missing values and apply physical-domain QC.
+
+        Missing metadata is interpreted in the raw storage domain.  Only values
+        that survive that check receive the configured scale/offset transform;
+        streamflow domain QC then rejects negative canonical values.
+        """
+        raw = np.asarray(values, dtype=np.float64)
+        invalid = ~np.isfinite(raw)
+        for missing_value in self._metadata_missing_values(data_array):
+            invalid |= raw == missing_value
+
+        canonical = raw.copy()
+        valid = ~invalid
+        canonical[valid] = canonical[valid] * variable.scale + variable.offset
+        if self._is_streamflow_target(variable, physical):
+            invalid |= canonical < 0.0
+        canonical[invalid] = np.nan
+        return canonical.astype(np.float32, copy=False)
 
     def _read_physical_block_with_retry(
         self,
@@ -1766,14 +2105,16 @@ class CloudZarrLazyDataset(Dataset):
         physical_names: list[str | None],
     ) -> np.ndarray:
         if not stats.get("enabled"):
-            return np.nan_to_num(values, nan=0.0)
+            return values.astype(np.float32, copy=False)
         out = values.copy()
         for col, (var, physical) in enumerate(zip(variables, physical_names)):
             if physical is None:
-                out[..., col] = var.fill_value
+                out[..., col] = np.nan if kind == "target_cols" else var.fill_value
                 continue
             stat = stats.get(kind, {}).get(var.canonical, {"mean": 0.0, "std": 1.0})
             out[..., col] = (out[..., col] - float(stat["mean"])) / float(stat["std"])
+        if kind == "target_cols":
+            return out.astype(np.float32, copy=False)
         return np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
 
     def _normalize_static(self, values: np.ndarray, source_idx: int) -> np.ndarray:

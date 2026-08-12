@@ -1412,6 +1412,12 @@ def compute_loss(labels: torch.Tensor, output, criterion, **kwargs) -> torch.Ten
         else:
             labels = labels.unsqueeze(0)
     assert labels.shape == output.shape
+    valid_target = torch.isfinite(labels)
+    if not valid_target.all():
+        if not valid_target.any():
+            return output.sum() * 0.0
+        output = output[valid_target]
+        labels = labels[valid_target]
     return criterion(output, labels.float())
 
 

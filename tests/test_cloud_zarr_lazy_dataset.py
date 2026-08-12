@@ -1,3 +1,4 @@
+import csv
 import json
 import multiprocessing as mp
 import pickle
@@ -14,8 +15,9 @@ from torchhydro.datasets.cloud_zarr_lazy_dataset import CloudZarrLazyDataset
 from torchhydro.datasets.cloud_zarr_sampler import CloudZarrChunkBatchSampler
 from torchhydro.models.crits import RMSELoss
 from torchhydro.models.simple_lstm import SimpleLSTM
-from torchhydro.trainers.train_utils import torch_single_train
+from torchhydro.trainers.train_utils import compute_loss, torch_single_train
 from torchhydro.trainers.performance_monitor import TrainingPerformanceMonitor
+from torchhydro.trainers.streaming_evaluation import evaluate_cloud_zarr_lazy_nse
 from experiments.train_cloud_zarr_lazy_joint import build_cfg, infer_model_sizes
 
 
@@ -166,6 +168,45 @@ def _write_tiny_zarr(tmp_path, name, basins, include_temperature=False, offset=0
     return ts_uri, attr_uri
 
 
+def _target_qc_cfg(tmp_path, *, normalization="none"):
+    import zarr
+
+    ts_uri, attr_uri = _write_tiny_zarr(tmp_path, "target_qc", ["01013500"])
+    target_values = np.array(
+        [[1.0, 0.0, 2.0, 3.0, -1.0, 4.0, 5.0, np.nan, -9999.0, 6.0]],
+        dtype=np.float32,
+    )
+    root = zarr.open_group(ts_uri, mode="r+")
+    del root["q_cms_obs"]
+    target = root.create_array(
+        "q_cms_obs",
+        shape=target_values.shape,
+        chunks=(1, 5),
+        dtype="float32",
+        fill_value=-9999.0,
+    )
+    target[:] = target_values
+    target.attrs.update(
+        {
+            "_ARRAY_DIMENSIONS": ["basin", "time"],
+            "units": "m^3/s",
+            "_FillValue": -9999.0,
+            "missing_value": -9999.0,
+        }
+    )
+
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    cfg["data_cfgs"]["object_ids"] = ["01013500"]
+    cfg["data_cfgs"]["lazy_zarr"].update(
+        {
+            "normalization": normalization,
+            "target_nan_policy": "keep",
+            "skip_all_nan_target_windows": False,
+        }
+    )
+    return cfg, target_values
+
+
 def _multi_source_cfg(tmp_path, *, normalization="standard"):
     ts_us, attr_us = _write_tiny_zarr(
         tmp_path,
@@ -240,6 +281,112 @@ def test_cloud_zarr_lazy_dataset_prebatched_shape(tmp_path, tiny_zarr_stores):
     assert tuple(y.shape) == (3, 4, 1)
     assert x.dtype == y.dtype
     assert len(dataset) == 14
+
+
+def test_split_datasets_reuse_train_normalization_stats(tmp_path, tiny_zarr_stores):
+    ts_uri, attr_uri = tiny_zarr_stores
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    cfg["data_cfgs"]["t_range_train"] = ["2000-01-01", "2000-01-05"]
+    cfg["data_cfgs"]["t_range_valid"] = ["2000-01-06", "2000-01-10"]
+    cfg["data_cfgs"]["t_range_test"] = ["2000-01-06", "2000-01-10"]
+    cfg["data_cfgs"]["lazy_zarr"]["split_periods"] = {
+        "train": ["2000-01-01", "2000-01-05"],
+        "valid": ["2000-01-06", "2000-01-10"],
+        "test": ["2000-01-06", "2000-01-10"],
+    }
+
+    train = CloudZarrLazyDataset(cfg, "train")
+    valid = CloudZarrLazyDataset(cfg, "valid")
+    test = CloudZarrLazyDataset(cfg, "test")
+    try:
+        train_stats = train.source_states[0].stats
+        assert train.source_states[0].times[0] == pd.Timestamp("2000-01-01")
+        assert valid.source_states[0].times[0] == pd.Timestamp("2000-01-06")
+        assert test.source_states[0].times[-1] == pd.Timestamp("2000-01-10")
+        assert valid.source_states[0].stats == train_stats
+        assert test.source_states[0].stats == train_stats
+        assert train_stats["relevant_cols"]["precipitation"]["mean"] < 10.0
+    finally:
+        train.close()
+        valid.close()
+        test.close()
+
+
+def test_split_period_requires_full_zarr_coverage(tmp_path, tiny_zarr_stores):
+    ts_uri, attr_uri = tiny_zarr_stores
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    cfg["data_cfgs"]["lazy_zarr"]["split_periods"] = {
+        "train": ["1999-12-31", "2000-01-05"],
+        "valid": None,
+        "test": ["2000-01-01", "2000-01-10"],
+    }
+
+    with pytest.raises(ValueError, match="does not cover the requested train period"):
+        CloudZarrLazyDataset(cfg, "train")
+
+
+def test_validation_requires_persisted_training_stats(tmp_path, tiny_zarr_stores):
+    ts_uri, attr_uri = tiny_zarr_stores
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    cfg["data_cfgs"]["lazy_zarr"]["split_periods"] = {
+        "train": ["2000-01-01", "2000-01-05"],
+        "valid": ["2000-01-06", "2000-01-10"],
+        "test": ["2000-01-06", "2000-01-10"],
+    }
+
+    with pytest.raises(
+        ValueError, match="Training normalization statistics are required"
+    ):
+        CloudZarrLazyDataset(cfg, "valid")
+
+
+@pytest.mark.parametrize("split", ["valid", "test"])
+def test_non_train_split_cannot_fit_normalization_stats(
+    tmp_path, tiny_zarr_stores, split
+):
+    ts_uri, attr_uri = tiny_zarr_stores
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    cfg["data_cfgs"]["lazy_zarr"]["split_periods"] = {
+        "train": ["2000-01-01", "2000-01-05"],
+        "valid": ["2000-01-06", "2000-01-10"],
+        "test": ["2000-01-06", "2000-01-10"],
+    }
+
+    with pytest.raises(
+        ValueError, match="Training normalization statistics are required"
+    ):
+        CloudZarrLazyDataset(cfg, split)
+
+
+def test_training_stats_signature_rejects_changed_variable_mapping(
+    tmp_path, tiny_zarr_stores
+):
+    ts_uri, attr_uri = tiny_zarr_stores
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    cfg["data_cfgs"]["lazy_zarr"]["split_periods"] = {
+        "train": ["2000-01-01", "2000-01-05"],
+        "valid": ["2000-01-06", "2000-01-10"],
+        "test": ["2000-01-06", "2000-01-10"],
+    }
+    train = CloudZarrLazyDataset(cfg, "train")
+    train.close()
+
+    changed_cfg = json.loads(json.dumps(cfg))
+    changed_cfg["data_cfgs"]["lazy_zarr"]["datasets"] = [
+        {
+            "dataset_id": "camels_us",
+            "timeseries_uri": str(ts_uri),
+            "attributes_uri": str(attr_uri),
+            "basins": ["01013500", "01022500"],
+            "time_range": ["2000-01-06", "2000-01-10"],
+            "relevant_cols": {"precipitation": {"physical": "pcp_mm", "scale": 2.0}},
+            "target_cols": {"streamflow": "q_cms_obs"},
+            "constant_cols": {"area": "area_km2"},
+        }
+    ]
+
+    with pytest.raises(ValueError, match="do not match"):
+        CloudZarrLazyDataset(changed_cfg, "valid")
 
 
 def test_cloud_zarr_lazy_dataset_reopens_handles_after_fork(tmp_path, tiny_zarr_stores):
@@ -438,6 +585,117 @@ def test_cloud_zarr_lazy_dataset_drop_any_nan_keeps_targets_finite(
     assert torch.isfinite(y).all()
 
 
+def test_negative_streamflow_is_invalid(tmp_path):
+    cfg, _ = _target_qc_cfg(tmp_path)
+    dataset = CloudZarrLazyDataset(cfg, "test")
+    dataset._batch_level_dataloader_enabled = True
+
+    _, y = dataset.__getitems__([1])
+
+    assert torch.isnan(y[0, -1, 0])
+
+
+def test_zero_streamflow_remains_valid(tmp_path):
+    cfg, _ = _target_qc_cfg(tmp_path)
+    dataset = CloudZarrLazyDataset(cfg, "test")
+    dataset._batch_level_dataloader_enabled = True
+
+    _, y = dataset.__getitems__([0])
+
+    assert y[0, 1, 0].item() == pytest.approx(0.0)
+    assert torch.isfinite(y[0, 1, 0])
+
+
+def test_missing_target_is_not_converted_to_zero(tmp_path):
+    cfg, _ = _target_qc_cfg(tmp_path)
+    dataset = CloudZarrLazyDataset(cfg, "test")
+    dataset._batch_level_dataloader_enabled = True
+
+    _, y = dataset.__getitems__([5])
+
+    assert torch.isnan(y[0, 2:, 0]).all()
+    assert not torch.eq(y[0, 2:, 0], 0.0).any()
+
+
+def test_target_qc_runs_after_scale_offset(tmp_path):
+    cfg, _ = _target_qc_cfg(tmp_path)
+    cfg["data_cfgs"]["target_cols"] = {
+        "streamflow": {
+            "physical": "q_cms_obs",
+            "scale": 0.1,
+            "offset": 2.0,
+        }
+    }
+    dataset = CloudZarrLazyDataset(cfg, "test")
+    dataset._batch_level_dataloader_enabled = True
+
+    _, y = dataset.__getitems__([5])
+    _, negative_window = dataset.__getitems__([1])
+
+    assert y[0, :2, 0].numpy() == pytest.approx([2.4, 2.5])
+    assert torch.isnan(y[0, 2:, 0]).all()
+    assert negative_window[0, -1, 0].item() == pytest.approx(1.9)
+
+
+def test_invalid_target_is_excluded_from_scaler_statistics(tmp_path):
+    cfg, _ = _target_qc_cfg(tmp_path, normalization="standard")
+    dataset = CloudZarrLazyDataset(cfg, "train")
+
+    stat = dataset.source_states[0].stats["target_cols"]["streamflow"]
+
+    assert stat["count"] == 7
+    assert stat["mean"] == pytest.approx(3.0)
+
+
+def test_training_lookup_excludes_invalid_target_windows(tmp_path):
+    cfg, _ = _target_qc_cfg(tmp_path, normalization="none")
+    cfg["data_cfgs"]["lazy_zarr"]["target_nan_policy"] = "drop_any_nan"
+    dataset = CloudZarrLazyDataset(cfg, "train")
+    dataset._batch_level_dataloader_enabled = True
+
+    assert len(dataset) == 1
+    _, y = dataset.__getitems__([0])
+    assert torch.isfinite(y).all()
+    assert y[0, :, 0].numpy() == pytest.approx([1.0, 0.0, 2.0, 3.0])
+
+
+def test_training_loss_ignores_invalid_target():
+    output = torch.tensor([[2.0, 100.0, 0.0]], requires_grad=True)
+    target = torch.tensor([[1.0, float("nan"), 0.0]])
+
+    loss = RMSELoss()(output, target)
+    loss.backward()
+
+    assert loss.item() == pytest.approx(np.sqrt(0.5))
+    assert torch.isfinite(output.grad).all()
+
+
+def test_generic_training_loss_ignores_invalid_target():
+    output = torch.tensor([[2.0, 100.0, 0.0]], requires_grad=True)
+    target = torch.tensor([[1.0, float("nan"), 0.0]])
+
+    loss = compute_loss(target, output, torch.nn.MSELoss())
+    loss.backward()
+
+    assert loss.item() == pytest.approx(0.5)
+    assert torch.isfinite(output.grad).all()
+
+
+def test_validation_metric_ignores_missing_target(tmp_path):
+    cfg, _ = _target_qc_cfg(tmp_path)
+    dataset = CloudZarrLazyDataset(cfg, "test")
+
+    class ZeroModel(torch.nn.Module):
+        def forward(self, x):
+            return x[..., :1] * 0.0
+
+    result = evaluate_cloud_zarr_lazy_nse(
+        ZeroModel(), dataset, torch.device("cpu"), batch_size=len(dataset)
+    )
+
+    assert result["global"]["streamflow"]["count"] == 4
+
+
 def test_cloud_zarr_lazy_dataset_multi_source_global_schema(tmp_path):
     cfg = _multi_source_cfg(tmp_path)
     dataset = CloudZarrLazyDataset(cfg, "train")
@@ -501,6 +759,36 @@ def test_cloud_zarr_lazy_dataset_applies_per_dataset_scale_and_offset(tmp_path):
     x, _ = dataset.__getitems__([first_gb])
 
     assert x[0, :, 0].numpy() == pytest.approx([102.0, 102.1, 102.2, 102.3])
+
+
+def test_cloud_zarr_lazy_dataset_applies_scale_offset_before_fitting_stats(tmp_path):
+    cfg = _multi_source_cfg(tmp_path)
+    cfg["data_cfgs"]["lazy_zarr"]["normalization_scope"] = "per_dataset"
+    cfg["data_cfgs"]["lazy_zarr"]["datasets"][1]["relevant_cols"] = {
+        "precipitation": {
+            "physical": "pcp_mm",
+            "scale": 0.1,
+            "offset": 2.0,
+            "unit": "mm/day",
+        }
+    }
+
+    dataset = CloudZarrLazyDataset(cfg, "train")
+    try:
+        stat = dataset.source_states[1].stats["relevant_cols"]["precipitation"]
+        transformed = np.arange(1000.0, 1010.0) * 0.1 + 2.0
+
+        assert stat["mean"] == pytest.approx(float(transformed.mean()))
+        assert stat["std"] == pytest.approx(float(transformed.std()))
+        assert stat["count"] == transformed.size
+
+        dataset._batch_level_dataloader_enabled = True
+        first_gb = int(np.flatnonzero(dataset._lookup_sources == 1)[0])
+        x, _ = dataset.__getitems__([first_gb])
+        expected = (transformed[:4] - transformed.mean()) / transformed.std()
+        assert x[0, :, 0].numpy() == pytest.approx(expected, abs=5e-5)
+    finally:
+        dataset.close()
 
 
 def test_cloud_zarr_lazy_dataset_fills_and_masks_unconfigured_static_variable(
@@ -719,6 +1007,78 @@ def test_cloud_zarr_lazy_dataset_torch_single_train(tmp_path, tiny_zarr_stores):
     assert performance["batches"] == 2
     assert performance["samples"] == 8
     assert performance["per_dataset_samples"] == {"camels_us": 8}
+
+
+def test_streaming_nse_evaluation_uses_final_window_step(tmp_path, tiny_zarr_stores):
+    ts_uri, attr_uri = tiny_zarr_stores
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    train = CloudZarrLazyDataset(cfg, "train")
+    test = CloudZarrLazyDataset(cfg, "test")
+
+    class ZeroModel(torch.nn.Module):
+        def forward(self, x):
+            return x[..., :1] * 0.0
+
+    output_path = tmp_path / "streaming_metrics.json"
+    try:
+        result = evaluate_cloud_zarr_lazy_nse(
+            ZeroModel(),
+            test,
+            torch.device("cpu"),
+            batch_size=3,
+            output_path=output_path,
+        )
+        stats = test.source_states[0].stats["target_cols"]["streamflow"]
+        _, y = test._load_batch(list(range(len(test))))
+        observed = y[:, -1, 0].numpy() * stats["std"] + stats["mean"]
+        predicted = np.full_like(observed, stats["mean"], dtype=np.float64)
+        expected_nse = 1.0 - np.square(observed - predicted).sum() / np.square(
+            observed - observed.mean()
+        ).sum()
+        streamflow = result["global"]["streamflow"]
+        assert result["prediction_policy"] == "last_step_per_window"
+        assert streamflow["count"] == len(test)
+        assert streamflow["nse"] == pytest.approx(expected_nse)
+        basin_metrics = result["per_basin"]["camels_us"]
+        assert set(basin_metrics) == {"01013500", "01022500"}
+        assert sum(
+            basin["streamflow"]["count"] for basin in basin_metrics.values()
+        ) == len(test)
+        assert json.loads(output_path.read_text())["global"] == result["global"]
+        with output_path.with_suffix(".csv").open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+        assert {row["scope"] for row in rows} == {"global", "dataset", "basin"}
+        assert sum(row["scope"] == "basin" for row in rows) == 2
+    finally:
+        train.close()
+        test.close()
+
+
+def test_streaming_nse_ignores_missing_raw_targets(tmp_path, tiny_zarr_stores):
+    import zarr
+
+    ts_uri, attr_uri = tiny_zarr_stores
+    root = zarr.open_group(ts_uri, mode="r+")
+    root["q_cms_obs"][0, 3] = np.nan
+    cfg = _base_cfg(tmp_path, ts_uri, attr_uri)
+    train = CloudZarrLazyDataset(cfg, "train")
+    test = CloudZarrLazyDataset(cfg, "test")
+
+    class ZeroModel(torch.nn.Module):
+        def forward(self, x):
+            return x[..., :1] * 0.0
+
+    try:
+        result = evaluate_cloud_zarr_lazy_nse(
+            ZeroModel(), test, torch.device("cpu"), batch_size=3
+        )
+        raw_targets = test.load_final_target_values(list(range(len(test))))
+        expected_count = int(np.isfinite(raw_targets[:, 0]).sum())
+        assert expected_count < len(test)
+        assert result["global"]["streamflow"]["count"] == expected_count
+    finally:
+        train.close()
+        test.close()
 
 
 def test_train_cloud_zarr_lazy_joint_dry_run_config(tmp_path, tiny_zarr_stores):
