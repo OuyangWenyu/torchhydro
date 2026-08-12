@@ -135,7 +135,7 @@ def dataset_entries(
             raise ValueError("Each dataset config entry requires dataset_id.")
         variables = raw_entry.get("variables") or {}
         configured_time_range = raw_entry.get(
-            "time_range", [args.time_start, args.time_end]
+            "source_time_range", raw_entry.get("time_range", "all")
         )
         if configured_time_range in (None, "all"):
             time_range: str | list[str] = "all"
@@ -198,6 +198,35 @@ def build_cfg(args: argparse.Namespace) -> dict[str, Any]:
     case_dir.mkdir(parents=True, exist_ok=True)
     manifest = load_dataset_manifest(getattr(args, "dataset_config", None))
     entries = dataset_entries(args, manifest)
+    manifest_periods = manifest.get("split_periods") or {}
+    allow_split_overlap = bool(
+        manifest.get(
+            "allow_split_overlap", getattr(args, "allow_split_overlap", False)
+        )
+    )
+
+    def split_period(split: str, fallback=None):
+        start = getattr(args, f"{split}_time_start", None)
+        end = getattr(args, f"{split}_time_end", None)
+        if start is None and end is None:
+            configured = manifest_periods.get(split, fallback)
+            if configured in (None, "all"):
+                return configured
+            return [str(value) for value in configured]
+        if start is None or end is None:
+            raise ValueError(
+                f"{split} split requires both --{split}-time-start and "
+                f"--{split}-time-end."
+            )
+        return [str(start), str(end)]
+
+    train_period = split_period(
+        "train", [args.time_start, args.time_end]
+    )
+    # Keeping the legacy one-period invocation produces an explicit overlap
+    # that DeepHydro rejects unless the user opts into in-sample evaluation.
+    test_period = split_period("test", train_period)
+    valid_period = split_period("valid", None)
     top_object_ids = (
         entries[0]["basins"]
         if isinstance(entries[0].get("basins"), list)
@@ -241,6 +270,11 @@ def build_cfg(args: argparse.Namespace) -> dict[str, Any]:
         "reader_kwargs": {"source": args.source},
         "use_hydrodataset_reader": args.use_hydrodataset_reader,
         "sampling": args.sampling,
+        "split_periods": {
+            "train": train_period,
+            "valid": valid_period,
+            "test": test_period,
+        },
     }
     cfg["data_cfgs"].update(
         {
@@ -251,9 +285,10 @@ def build_cfg(args: argparse.Namespace) -> dict[str, Any]:
                 "other_settings": {"source": args.source},
             },
             "object_ids": top_object_ids,
-            "t_range_train": [args.time_start, args.time_end],
-            "t_range_valid": None,
-            "t_range_test": [args.time_start, args.time_end],
+            "t_range_train": train_period,
+            "t_range_valid": valid_period,
+            "t_range_test": test_period,
+            "allow_split_overlap": allow_split_overlap,
             "target_cols": lazy_zarr["target_schema"],
             "relevant_cols": lazy_zarr["input_schema"],
             "constant_cols": lazy_zarr["constant_schema"],
@@ -363,6 +398,14 @@ def inspect_lazy_dataset(cfg: dict[str, Any]) -> dict[str, Any]:
                         state.times[0].isoformat(),
                         state.times[-1].isoformat(),
                     ],
+                    "source_time_range": [
+                        state.times[0].isoformat(),
+                        state.times[-1].isoformat(),
+                    ],
+                    "target_time_range": [
+                        state.target_times[0].isoformat(),
+                        state.target_times[-1].isoformat(),
+                    ],
                     "time_step": probe.source_time_steps[state.source.dataset_id],
                     "samples": int(sample_counts[source_idx]),
                     "weight": state.source.weight,
@@ -420,6 +463,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--case-dir", default="/tmp/torchhydro_lazy_zarr_train")
     parser.add_argument("--time-start", default="2000-01-01")
     parser.add_argument("--time-end", default="2002-12-31")
+    parser.add_argument("--train-time-start", default=None)
+    parser.add_argument("--train-time-end", default=None)
+    parser.add_argument("--valid-time-start", default=None)
+    parser.add_argument("--valid-time-end", default=None)
+    parser.add_argument("--test-time-start", default=None)
+    parser.add_argument("--test-time-end", default=None)
+    parser.add_argument(
+        "--allow-split-overlap",
+        action="store_true",
+        help="Explicitly evaluate overlapping target periods as in-sample.",
+    )
     parser.add_argument("--relevant-cols", default="precipitation")
     parser.add_argument("--target-cols", default="streamflow")
     parser.add_argument("--constant-cols", default="")

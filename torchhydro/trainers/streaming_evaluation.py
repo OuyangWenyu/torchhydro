@@ -229,6 +229,9 @@ def evaluate_cloud_zarr_lazy_nse(
 
     result: dict[str, Any] = {
         "split": getattr(dataset, "is_tra_val_te", "test"),
+        "evaluation_semantics": getattr(
+            dataset, "split_evaluation_semantics", "out_of_sample"
+        ),
         "prediction_policy": "last_step_per_window",
         "batches": batch_count,
         "windows": window_count,

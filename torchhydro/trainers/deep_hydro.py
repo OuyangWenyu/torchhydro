@@ -32,6 +32,7 @@ except ImportError:
     print("Warning: shap not available")
 
 from torchhydro.configs.config import update_nested_dict
+from torchhydro.datasets.data_utils import validate_split_ranges
 from torchhydro.datasets.data_dict import datasets_dict
 from torchhydro.datasets.data_sets import (
     BaseDataset,
@@ -156,15 +157,25 @@ class DeepHydro(DeepHydroInterface):
             by default None
         """
         super().__init__(cfgs)
+        self.split_validation = validate_split_ranges(self.cfgs)
         # Initialize fabric based on configuration
         self.fabric = create_fabric_wrapper(cfgs.get("training_cfgs", {}))
         self.pre_model = pre_model
         self.model = self.fabric.setup_module(self.load_model())
         if cfgs["training_cfgs"]["train_mode"]:
             self.traindataset = self.make_dataset("train")
+            self.traindataset.split_evaluation_semantics = self.split_validation[
+                "evaluation_semantics"
+            ]
             if cfgs["data_cfgs"]["t_range_valid"] is not None:
                 self.validdataset = self.make_dataset("valid")
+                self.validdataset.split_evaluation_semantics = self.split_validation[
+                    "evaluation_semantics"
+                ]
         self.testdataset: BaseDataset = self.make_dataset("test")
+        self.testdataset.split_evaluation_semantics = self.split_validation[
+            "evaluation_semantics"
+        ]
 
     @property
     def device(self):

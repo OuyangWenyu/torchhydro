@@ -301,8 +301,8 @@ def test_split_datasets_reuse_train_normalization_stats(tmp_path, tiny_zarr_stor
     try:
         train_stats = train.source_states[0].stats
         assert train.source_states[0].times[0] == pd.Timestamp("2000-01-01")
-        assert valid.source_states[0].times[0] == pd.Timestamp("2000-01-06")
-        assert test.source_states[0].times[-1] == pd.Timestamp("2000-01-10")
+        assert valid.source_states[0].target_times[0] == pd.Timestamp("2000-01-06")
+        assert test.source_states[0].target_times[-1] == pd.Timestamp("2000-01-10")
         assert valid.source_states[0].stats == train_stats
         assert test.source_states[0].stats == train_stats
         assert train_stats["relevant_cols"]["precipitation"]["mean"] < 10.0
@@ -1037,6 +1037,7 @@ def test_streaming_nse_evaluation_uses_final_window_step(tmp_path, tiny_zarr_sto
         ).sum()
         streamflow = result["global"]["streamflow"]
         assert result["prediction_policy"] == "last_step_per_window"
+        assert result["evaluation_semantics"] == "out_of_sample"
         assert streamflow["count"] == len(test)
         assert streamflow["nse"] == pytest.approx(expected_nse)
         basin_metrics = result["per_basin"]["camels_us"]

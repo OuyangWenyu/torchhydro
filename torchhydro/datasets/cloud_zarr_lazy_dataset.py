@@ -74,11 +74,15 @@ class LazyDatasetSource:
 
     dataset_id: str
     basins: list[str]
+    # ``time_range`` is the source-access range.  ``target_time_range`` is the
+    # experiment split range and may be narrower, allowing context history to
+    # be read without turning it into a target sample.
     time_range: list[str] | str
     training_time_range: list[str] | str
     relevant_vars: list[LazyVariable]
     target_vars: list[LazyVariable]
     constant_vars: list[LazyVariable]
+    target_time_range: list[str] | str = "all"
     timeseries_uri: str | None = None
     attributes_uri: str | None = None
     weight: float = 1.0
@@ -95,6 +99,9 @@ class LazySourceState:
     time_offset: int = 0
     time_length: int = 0
     times: pd.DatetimeIndex | None = None
+    target_time_offset: int = 0
+    target_time_length: int = 0
+    target_times: pd.DatetimeIndex | None = None
     time_step_ns: int | None = None
     static_values: np.ndarray | None = None
     normalized_static_values: np.ndarray | None = None
@@ -230,6 +237,9 @@ class CloudZarrLazyDataset(Dataset):
                 time_offset=source_state.time_offset,
                 time_length=source_state.time_length,
                 times=source_state.times,
+                target_time_offset=source_state.target_time_offset,
+                target_time_length=source_state.target_time_length,
+                target_times=source_state.target_times,
                 time_step_ns=source_state.time_step_ns,
                 static_values=source_state.static_values,
                 normalized_static_values=source_state.normalized_static_values,
@@ -387,7 +397,7 @@ class CloudZarrLazyDataset(Dataset):
                 {
                     "dataset_id": source_cfgs.get("dataset_id"),
                     "basins": self.data_cfgs.get("object_ids"),
-                    "time_range": self.t_s_dict["t_final_range"],
+                    "time_range": self.lazy_cfg.get("source_time_range", "all"),
                     "relevant_cols": self.data_cfgs.get("relevant_cols") or [],
                     "target_cols": self.data_cfgs.get("target_cols") or [],
                     "constant_cols": self.data_cfgs.get("constant_cols") or [],
@@ -435,8 +445,9 @@ class CloudZarrLazyDataset(Dataset):
                 basins = basins[: max(0, int(max_basins))]
             if not basins:
                 raise ValueError(f"{dataset_id} does not contain any selected basins.")
-            time_range = self._source_time_range(entry, self.is_tra_val_te)
-            training_time_range = self._source_time_range(entry, "train")
+            time_range = self._source_time_range(entry)
+            target_time_range = self._target_time_range(entry, self.is_tra_val_te)
+            training_time_range = self._target_time_range(entry, "train")
             relevant_cols = entry.get(
                 "relevant_cols", self.data_cfgs.get("relevant_cols") or []
             )
@@ -451,6 +462,7 @@ class CloudZarrLazyDataset(Dataset):
                     dataset_id=dataset_id,
                     basins=basins,
                     time_range=time_range,
+                    target_time_range=target_time_range,
                     training_time_range=training_time_range,
                     relevant_vars=self._resolve_dynamic_variables(
                         reader, relevant_cols
@@ -464,10 +476,27 @@ class CloudZarrLazyDataset(Dataset):
             )
         return sources
 
-    def _source_time_range(
+    def _source_time_range(self, entry: dict[str, Any]) -> list[str] | str:
+        """Resolve the source-access range, independent of target splits."""
+        configured_time_range = entry.get("source_time_range")
+        if configured_time_range is None:
+            configured_time_range = entry.get("time_range")
+        if configured_time_range in (None, "all"):
+            return "all"
+        if (
+            not isinstance(configured_time_range, (list, tuple))
+            or len(configured_time_range) != 2
+        ):
+            raise ValueError(
+                f"{entry.get('dataset_id', 'dataset')} source_time_range must be "
+                "'all' or [start, end]."
+            )
+        return [str(value) for value in configured_time_range]
+
+    def _target_time_range(
         self, entry: dict[str, Any], split: str
     ) -> list[str] | str:
-        """Resolve one source's requested range for a train/valid/test split."""
+        """Resolve one source's target range for a train/valid/test split."""
         entry_periods = entry.get("periods") or {}
         configured_time_range = entry_periods.get(split)
         if configured_time_range is None:
@@ -477,7 +506,9 @@ class CloudZarrLazyDataset(Dataset):
                 split
             )
         if configured_time_range is None:
-            configured_time_range = entry.get("time_range")
+            configured_time_range = self.data_cfgs.get(f"t_range_{split}")
+        if configured_time_range is None:
+            configured_time_range = entry.get("target_time_range")
         if configured_time_range in (None, "all"):
             return "all"
         if (
@@ -798,6 +829,38 @@ class CloudZarrLazyDataset(Dataset):
         state.time_offset = int(positions[0])
         state.time_length = int(positions.size)
         state.times = full_times[positions]
+        target_range = source.target_time_range
+        if target_range == "all":
+            target_positions = positions
+        else:
+            target_start = pd.to_datetime(target_range[0])
+            target_end = pd.to_datetime(target_range[1])
+            if full_times[0] > target_start or full_times[-1] < target_end:
+                raise ValueError(
+                    f"{source.dataset_id} does not cover the requested "
+                    f"{self.is_tra_val_te} period {target_range}. Its Zarr time "
+                    f"coordinate covers [{full_times[0].isoformat()}, "
+                    f"{full_times[-1].isoformat()}]."
+                )
+            target_positions = np.flatnonzero(
+                (full_times >= target_start) & (full_times <= target_end)
+            )
+            if target_positions.size == 0:
+                raise ValueError(
+                    f"No target time points found for {source.dataset_id} in "
+                    f"{target_range}."
+                )
+            if (
+                target_positions[0] < positions[0]
+                or target_positions[-1] > positions[-1]
+            ):
+                raise ValueError(
+                    f"{source.dataset_id} source range {source.time_range} does not "
+                    f"cover target range {target_range}."
+                )
+        state.target_time_offset = int(target_positions[0] - positions[0])
+        state.target_time_length = int(target_positions.size)
+        state.target_times = full_times[target_positions]
         if positions.size > 1:
             time_deltas = np.diff(state.times.asi8)
             if not np.all(time_deltas == time_deltas[0]):
@@ -1019,6 +1082,7 @@ class CloudZarrLazyDataset(Dataset):
             "reader_kwargs": self.lazy_cfg.get("reader_kwargs"),
             "basins": source.basins,
             "time_range": source.time_range,
+            "target_time_range": source.target_time_range,
             "relevant": [var.__dict__ for var in source.relevant_vars],
             "target": [var.__dict__ for var in source.target_vars],
             "target_missing_values": [
@@ -1092,6 +1156,7 @@ class CloudZarrLazyDataset(Dataset):
                     "timeseries_uri": source.timeseries_uri,
                     "attributes_uri": source.attributes_uri,
                     "basins": source.basins,
+                    "source_time_range": source.time_range,
                     "training_time_range": source.training_time_range,
                     "relevant": [var.__dict__ for var in source.relevant_vars],
                     "target": [var.__dict__ for var in source.target_vars],
@@ -1193,8 +1258,9 @@ class CloudZarrLazyDataset(Dataset):
                 stats[kind][var.canonical] = self._mean_std_dynamic(
                     da,
                     state.basin_positions,
-                    state.time_length,
+                    state.target_time_length,
                     state.chunk_shape[0],
+                    start_offset=state.time_offset + state.target_time_offset,
                     scale=var.scale,
                     offset=var.offset,
                     variable=var,
@@ -1219,6 +1285,7 @@ class CloudZarrLazyDataset(Dataset):
         time_length: int,
         storage_basin_chunk_size: int,
         *,
+        start_offset: int = 0,
         scale: float = 1.0,
         offset: float = 0.0,
         variable: LazyVariable | None = None,
@@ -1242,7 +1309,10 @@ class CloudZarrLazyDataset(Dataset):
                 time_stop = min(time_start + time_chunk_size, time_length)
                 block = da.isel(
                     basin=slice(basin_start, basin_stop),
-                    time=slice(time_start, time_stop),
+                    time=slice(
+                        start_offset + time_start,
+                        start_offset + time_stop,
+                    ),
                 ).to_numpy()
                 arr = np.asarray(block, dtype=np.float64)[selected_offsets]
                 # Fit on canonical values, matching the transform used at read time.
@@ -1368,10 +1438,14 @@ class CloudZarrLazyDataset(Dataset):
         length_chunks = []
         filter_targets = self.target_nan_policy != "keep"
         for source_idx, state in enumerate(self.source_states):
-            max_start = state.time_length - seq_len + 1
-            if max_start <= warmup:
+            target_start = state.target_time_offset
+            target_end = target_start + state.target_time_length
+            target_length = seq_len - warmup
+            first_start = max(warmup, target_start)
+            max_start = target_end - target_length + 1
+            if max_start <= first_start:
                 continue
-            starts_template = np.arange(warmup, max_start, dtype=np.int32)
+            starts_template = np.arange(first_start, max_start, dtype=np.int32)
             packed_target_validity = (
                 self._load_or_build_target_validity(source_idx)
                 if filter_targets and self.train_mode

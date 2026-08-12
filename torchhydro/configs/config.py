@@ -131,9 +131,14 @@ def default_config_file() -> Dict[str, Any]:
             # modeled objects
             "object_ids": "ALL",
             # modeling time range
-            "t_range_train": ["1992-01-01", "1993-01-01"],
+            # Split endpoints are inclusive throughout the existing Dataset
+            # code, so keep adjacent OOS periods from sharing a boundary day.
+            "t_range_train": ["1992-01-01", "1992-12-31"],
             "t_range_valid": None,
             "t_range_test": ["1993-01-01", "1994-01-01"],
+            # Overlap is only valid for an explicitly requested in-sample
+            # evaluation.  The default must remain safe for OOS experiments.
+            "allow_split_overlap": False,
             # the output
             "target_cols": [Q_CAMELS_US_NAME],
             "target_rm_nan": False,

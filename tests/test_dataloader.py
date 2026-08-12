@@ -145,9 +145,10 @@ def complete_config(tmp_path):
         },
         "case_dir": str(temp_test_path),
         "object_ids": ["01013500", "01013501"],
-        "t_range_train": ["2001-01-01", "2002-01-01"],
-        "t_range_valid": ["2002-01-01", "2003-01-01"],
-        "t_range_test": ["2003-01-01", "2004-01-01"],
+        # Split endpoints are inclusive; keep adjacent OOS periods disjoint.
+        "t_range_train": ["2001-01-01", "2001-12-31"],
+        "t_range_valid": ["2002-01-01", "2002-12-31"],
+        "t_range_test": ["2003-01-01", "2003-12-31"],
         "dataset": "StreamflowDataset",
         "relevant_cols": ["prcp", "pet"],
         "target_cols": ["streamflow"],
