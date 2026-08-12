@@ -38,28 +38,20 @@ def warn_if_nan(dataarray, max_display=5, nan_mode="any", data_name=""):
     if nan_mode not in ["any", "all"]:
         raise ValueError("nan_mode must be 'any' or 'all'")
 
-    if np.all(np.isnan(dataarray.values)):
+    # Build the NaN mask once. The previous implementation evaluated
+    # ``np.isnan`` repeatedly and materialized every NaN coordinate with
+    # ``argwhere``, even though detailed warning output is disabled. That is
+    # expensive for basin x time x variable arrays and can allocate a large
+    # temporary integer array.
+    nan_mask = np.isnan(dataarray.values)
+    if not np.any(nan_mask):
+        return False
+
+    if np.all(nan_mask):
         if nan_mode == "any":
             raise ValueError("The dataarray contains only NaN values!")
         else:
             return True
-
-    nan_indices = np.argwhere(np.isnan(dataarray.values))
-    total_nans = len(nan_indices)
-
-    if total_nans <= 0:
-        return False
-    message = f"The {data_name} dataarray contains {total_nans} NaN values!"
-
-    # Displaying only the first few NaN locations if there are too many
-    display_indices = nan_indices[:max_display].tolist()
-    message += (
-        f" Here are the indices of the first {max_display} NaNs: {display_indices}..."
-        if total_nans > max_display
-        else f" Here are the indices of the NaNs: {display_indices}"
-    )
-    # warnings.warn(message)  # 注释掉NaN警告，减少训练时的详细输出
-
     return True
 
 

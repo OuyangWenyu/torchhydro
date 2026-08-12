@@ -298,6 +298,9 @@ def default_config_file() -> Dict[str, Any]:
             # separately as ``((x_dynamic, c_static), y)`` instead of repeating
             # static attributes over the time dimension in the DataLoader.
             "separate_static_input": False,
+            # Assemble fixed-length sliding-window batches in Dataset.__getitems__
+            # instead of calling __getitem__ once per sample.
+            "batch_level_dataloader": False,
             # we generally have three times: [warmup, hindcast_length, forecast_length]
             # warmup period means no observation will be used to calculate loss for it.
             # For physics-based models, we generally need warmup to get a better initial state
@@ -376,6 +379,10 @@ def default_config_file() -> Dict[str, Any]:
             "multi_targets": 1,
             "num_workers": 0,
             "pin_memory": False,
+            # Mixed precision training mode. Supported values: "off", "bf16",
+            # and "fp16". FP16 uses GradScaler on CUDA; BF16 uses autocast
+            # without gradient scaling.
+            "mixed_precision": "off",
             "which_first_tensor": "sequence",
             # if we calculate metrics such as RMSE, NSE, etc. during validation
             # metrics will be samed as the config in evaluation_cfgs
@@ -475,6 +482,8 @@ def cmd(
     lr_scheduler: Optional[Dict[str, Any]] = None,
     opt_param: Optional[Dict[str, Any]] = None,
     batch_size: Optional[int] = None,
+    batch_level_dataloader: Optional[bool] = None,
+    separate_static_input: Optional[bool] = None,
     warmup_length: Optional[int] = None,
     # forecast_history will be deprecated in the future
     forecast_history: Optional[int] = None,
@@ -522,6 +531,7 @@ def cmd(
     stat_dict_file: Optional[str] = None,
     num_workers: Optional[int] = None,
     pin_memory: Optional[bool] = None,
+    mixed_precision: Optional[str] = None,
     which_first_tensor: Optional[str] = None,
     ensemble: Optional[int] = None,
     ensemble_items: Optional[Dict[str, Any]] = None,
@@ -1027,6 +1037,27 @@ def cmd(
         type=bool,
     )
     parser.add_argument(
+        "--mixed_precision",
+        dest="mixed_precision",
+        help="Mixed precision training mode: off, bf16, or fp16",
+        default=mixed_precision,
+        type=str,
+    )
+    parser.add_argument(
+        "--batch_level_dataloader",
+        dest="batch_level_dataloader",
+        help="Enable batch-level Dataset.__getitems__ for fixed-length training",
+        default=batch_level_dataloader,
+        action="store_true",
+    )
+    parser.add_argument(
+        "--separate_static_input",
+        dest="separate_static_input",
+        help="Return dynamic inputs and static attributes separately",
+        default=separate_static_input,
+        action="store_true",
+    )
+    parser.add_argument(
         "--which_first_tensor",
         dest="which_first_tensor",
         help="sequence_first or batch_first",
@@ -1412,6 +1443,19 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
         cfg_file["training_cfgs"]["num_workers"] = new_args.num_workers
     if new_args.pin_memory is not None:
         cfg_file["training_cfgs"]["pin_memory"] = new_args.pin_memory
+    if new_args.mixed_precision is not None:
+        mixed_precision = str(new_args.mixed_precision).lower()
+        if mixed_precision not in ["off", "bf16", "fp16"]:
+            raise ValueError("mixed_precision must be one of: off, bf16, fp16")
+        cfg_file["training_cfgs"]["mixed_precision"] = mixed_precision
+    if new_args.batch_level_dataloader is not None:
+        cfg_file["training_cfgs"]["batch_level_dataloader"] = bool(
+            new_args.batch_level_dataloader
+        )
+    if new_args.separate_static_input is not None:
+        cfg_file["training_cfgs"]["separate_static_input"] = bool(
+            new_args.separate_static_input
+        )
     if new_args.which_first_tensor is not None:
         cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
     if new_args.ensemble == 0:

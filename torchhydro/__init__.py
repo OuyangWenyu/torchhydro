@@ -19,9 +19,6 @@ except ImportError:
     # For instance, when the code is just cloned and not installed.
     __version__ = "0.0.0+unknown"
 
-from pathlib import Path
-import warnings
-
 from hydrodataset.configs.settings import (
     load_settings,
     get_local_root,
@@ -39,16 +36,6 @@ DEFAULT_SOURCE = get_default_source(_settings)
 
 # Raw settings dict (exported for code that needs e.g. minio/postgres config)
 SETTING = _settings
-
-# Local storage needs a root, but cloud-only configurations do not.
-if DEFAULT_SOURCE == "local" and LOCAL_ROOT is None:
-    raise RuntimeError(
-        "storage.local.root is not configured.\n"
-        "Create ~/hydro_setting.yml with:\n"
-        "  storage:\n"
-        "    local:\n"
-        "      root: D:/data/hydrodatasets"
-    )
 
 
 from .configs import *

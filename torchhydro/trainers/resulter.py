@@ -15,11 +15,15 @@ from hydroutils.hydro_stat import stat_error
 from hydrodatasource.utils.utils import streamflow_unit_conv
 
 from torchhydro.trainers.train_logger import save_model_params_log
-from torchhydro.explainers.shap import (
-    deep_explain_model_heatmap,
-    deep_explain_model_summary_plot,
-    shap_summary_plot,
-)
+try:
+    from torchhydro.explainers.shap import (
+        deep_explain_model_heatmap,
+        deep_explain_model_summary_plot,
+        shap_summary_plot,
+    )
+except (ImportError, OSError) as e:
+    SHAP_AVAILABLE = False
+    print(f"Warning: SHAP not available, skipping explainer functionality: {e}")
 from torchhydro.trainers.train_utils import (
     calculate_and_record_metrics,
     cellstates_when_inference,
@@ -201,10 +205,10 @@ class Resulter:
         xr.Dataset
         """
         data_cfgs = self.cfgs["data_cfgs"]
-        from torchhydro.configs.data_resolver import open_dataset
+        from torchhydro.configs.data_resolver import open_dataset_from_source_cfgs
 
         sc = data_cfgs["source_cfgs"]
-        data_source = open_dataset(sc["dataset_id"], **sc.get("other_settings", {}))
+        data_source = open_dataset_from_source_cfgs(sc)
         basin_id = data_cfgs["object_ids"]
         try:
             basin_area = data_source.read_area(basin_id)

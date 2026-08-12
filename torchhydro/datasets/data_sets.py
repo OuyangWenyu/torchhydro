@@ -205,9 +205,10 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
             # Return the modified copy
             return result_da
         else:
-            # Original behavior for non-station data: interpolate along time for each basin
-            for i in range(da.shape[0]):
-                da[i] = da[i].interpolate_na(dim="time", fill_value="extrapolate")
+            # Xarray vectorizes interpolation over every non-core dimension.
+            # Processing all basins and variables in one call preserves the
+            # per-series result while avoiding one Python/Xarray call per basin.
+            return da.interpolate_na(dim="time", fill_value="extrapolate")
     elif fill_nan == "lead_step":
         # for forecast data, we use interpolation to fill NaN values for lead step small than the maximum lead step of each forecast performing
         for i in tqdm(range(da.shape[0]), desc="Processing basins", unit="basin"):
@@ -356,18 +357,9 @@ class BaseDataset(Dataset):
 
     @property
     def data_source(self):
-        from torchhydro.configs.data_resolver import open_dataset, DatasetResolutionError
+        from torchhydro.configs.data_resolver import open_dataset_from_source_cfgs
 
-        sc = self.data_cfgs["source_cfgs"]
-        dataset_id = sc.get("dataset_id")
-        if dataset_id is None:
-            raise DatasetResolutionError(
-                "source_cfgs must contain 'dataset_id' "
-                "(e.g. {'dataset_id': 'camels_us'}). "
-                "If you are using the old format with 'source_name', "
-                "switch to 'dataset_id'."
-            )
-        return open_dataset(dataset_id, **sc.get("other_settings", {}))
+        return open_dataset_from_source_cfgs(self.data_cfgs.get("source_cfgs") or {})
 
     @property
     def streamflow_name(self):
@@ -1502,12 +1494,24 @@ class BaseDataset(Dataset):
             else:
                 norm = _norm
                 origin = _origin
-            if key == "target_cols" or not rm_nan:
-                warn_if_nan(origin, nan_mode="all", data_name="nan_filled target data")
-                warn_if_nan(norm, nan_mode="all", data_name="nan_filled target data")
-            else:
-                warn_if_nan(origin, nan_mode="any", data_name="nan_filled input data")
-                warn_if_nan(norm, nan_mode="any", data_name="nan_filled input data")
+            # _kill_1type_nan already validates filled arrays. Only validate
+            # here when filling was disabled, avoiding a third full scan of
+            # every large input array.
+            if not rm_nan:
+                if key == "target_cols":
+                    warn_if_nan(
+                        origin, nan_mode="all", data_name="nan_filled target data"
+                    )
+                    warn_if_nan(
+                        norm, nan_mode="all", data_name="nan_filled target data"
+                    )
+                else:
+                    warn_if_nan(
+                        origin, nan_mode="any", data_name="nan_filled input data"
+                    )
+                    warn_if_nan(
+                        norm, nan_mode="any", data_name="nan_filled input data"
+                    )
             origins_wonan[key] = origin
             norms_wonan[key] = norm
         return origins_wonan, norms_wonan
