@@ -212,6 +212,12 @@ class RMSELoss(torch.nn.Module):
         self.variance_penalty = variance_penalty
 
     def forward(self, output: torch.Tensor, target: torch.Tensor):
+        valid = torch.isfinite(target) & torch.isfinite(output)
+        if not valid.all():
+            if not valid.any():
+                return output.new_zeros(())
+            output = output[valid]
+            target = target[valid]
         if len(output) <= 1 or self.variance_penalty <= 0.0:
             return torch.sqrt(self.mse(target, output))
         diff = torch.sub(target, output)

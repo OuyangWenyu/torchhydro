@@ -250,6 +250,7 @@ def default_config_file() -> Dict[str, Any]:
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
+            "sampler_hyperparam": {},
             # station data configurations for GNN models
             "station_cfgs": {
                 # 站点数据配置 - 使用3h数据中实际存在的变量
@@ -383,6 +384,14 @@ def default_config_file() -> Dict[str, Any]:
             # and "fp16". FP16 uses GradScaler on CUDA; BF16 uses autocast
             # without gradient scaling.
             "mixed_precision": "off",
+            "persistent_workers": False,
+            "prefetch_factor": 2,
+            "dataloader_timeout": 0.0,
+            "dataloader_in_order": True,
+            "multiprocessing_context": "auto",
+            "non_blocking_transfer": False,
+            "cuda_prefetch": False,
+            "cuda_prefetch_batches": 2,
             "which_first_tensor": "sequence",
             # if we calculate metrics such as RMSE, NSE, etc. during validation
             # metrics will be samed as the config in evaluation_cfgs

@@ -10,9 +10,11 @@ Copyright (c) 2024-2024 Wenyu Ouyang. All rights reserved.
 
 import bisect
 import copy
+import inspect
 import warnings
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, Tuple
 import os
 
@@ -22,6 +24,12 @@ import torch
 from torch.optim.lr_scheduler import *
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+
+try:
+    import shap
+except ImportError:
+    shap = None
+    print("Warning: shap not available")
 
 from torchhydro.configs.config import update_nested_dict
 from torchhydro.datasets.data_dict import datasets_dict
@@ -41,6 +49,7 @@ from torchhydro.models.model_dict_function import (
     pytorch_opt_dict,
 )
 from torchhydro.trainers.train_logger import TrainLogger
+from torchhydro.trainers.performance_monitor import TrainingPerformanceMonitor
 from torchhydro.trainers.train_utils import (
     EarlyStopper,
     average_weights,
@@ -201,7 +210,9 @@ class DeepHydro(DeepHydroInterface):
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
         model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
-        checkpoint = torch.load(weight_path, map_location=self.device, weights_only=False)
+        checkpoint = torch.load(
+            weight_path, map_location=self.device, weights_only=False
+        )
         model.load_state_dict(checkpoint)
         print("Weights sucessfully loaded")
         return model
@@ -258,7 +269,23 @@ class DeepHydro(DeepHydroInterface):
             training_cfgs, data_cfgs
         )
         logger = TrainLogger(model_filepath, self.cfgs, opt)
+        performance_monitor = (
+            TrainingPerformanceMonitor(
+                Path(model_filepath) / "performance",
+                self.device,
+                gpu_sample_interval=float(
+                    training_cfgs.get("performance_gpu_sample_interval", 1.0)
+                ),
+                gpu_idle_threshold=float(
+                    training_cfgs.get("performance_gpu_idle_threshold", 5.0)
+                ),
+            )
+            if training_cfgs.get("performance_monitor", False)
+            else None
+        )
         for epoch in range(start_epoch, max_epochs + 1):
+            if performance_monitor is not None:
+                performance_monitor.start_epoch(epoch)
             with logger.log_epoch_train(epoch) as train_logs:
                 total_loss, n_iter_ep = torch_single_train(
                     self.model,
@@ -267,12 +294,49 @@ class DeepHydro(DeepHydroInterface):
                     data_loader,
                     device=self.device,
                     which_first_tensor=training_cfgs["which_first_tensor"],
-                    mixed_precision=mixed_precision,
-                    amp_scaler=amp_scaler,
-                    non_blocking=non_blocking_transfer,
+                    non_blocking_transfer=training_cfgs.get(
+                        "non_blocking_transfer",
+                        bool(training_cfgs.get("pin_memory", False)),
+                    ),
+                    cuda_prefetch=bool(training_cfgs.get("cuda_prefetch", False)),
+                    cuda_prefetch_batches=int(
+                        training_cfgs.get("cuda_prefetch_batches", 2)
+                    ),
+                    performance_monitor=performance_monitor,
+                    amp=bool(training_cfgs.get("amp", False)),
+                    amp_dtype=training_cfgs.get("amp_dtype"),
+                    mixed_precision=training_cfgs.get("mixed_precision", "off"),
+                    nonfinite_check_interval=int(
+                        training_cfgs.get("nonfinite_check_interval", 100)
+                    ),
                 )
                 train_logs["train_loss"] = total_loss
                 train_logs["model"] = self.model
+
+            if performance_monitor is not None:
+                performance = performance_monitor.finish_epoch(
+                    sampler=getattr(data_loader, "batch_sampler", None),
+                    dataset=self.traindataset,
+                )
+                print(
+                    "Performance epoch {epoch}: {rate:.1f} samples/s, "
+                    "loader wait {wait:.4f}s/batch, GPU util {gpu}, "
+                    "GPU idle {idle}".format(
+                        epoch=epoch,
+                        rate=performance["samples_per_second"],
+                        wait=performance["avg_dataloader_wait_seconds"] or 0.0,
+                        gpu=(
+                            f'{performance["gpu_util_avg_percent"]:.1f}%'
+                            if performance["gpu_util_avg_percent"] is not None
+                            else "n/a"
+                        ),
+                        idle=(
+                            f'{performance["gpu_idle_percent"]:.1f}%'
+                            if performance["gpu_idle_percent"] is not None
+                            else "n/a"
+                        ),
+                    )
+                )
 
             valid_loss = None
             valid_metrics = None
@@ -305,7 +369,9 @@ class DeepHydro(DeepHydroInterface):
 
         if "lr" in lr_scheduler_cfg and "lr_factor" not in lr_scheduler_cfg:
             target_lr = lr_scheduler_cfg["lr"]
-            scheduler = LambdaLR(opt, lr_lambda=lambda epoch: target_lr / opt.param_groups[0]['lr'])
+            scheduler = LambdaLR(
+                opt, lr_lambda=lambda epoch: target_lr / opt.param_groups[0]["lr"]
+            )
             # scheduler = LambdaLR(opt, lr_lambda=lambda epoch: 1.0)
         elif isinstance(lr_scheduler_cfg, dict) and all(
             isinstance(epoch, int) for epoch in lr_scheduler_cfg
@@ -811,7 +877,9 @@ class DeepHydro(DeepHydroInterface):
                 max_display=100,
                 show=False,
             )
-            plt.savefig(f"{save_dir}/shap_summary_fast.png", dpi=300, bbox_inches="tight")
+            plt.savefig(
+                f"{save_dir}/shap_summary_fast.png", dpi=300, bbox_inches="tight"
+            )
             plt.close()
 
             plt.figure()
@@ -905,7 +973,9 @@ class DeepHydro(DeepHydroInterface):
                     seq_list.append(seq_use)
 
             if not seq_list:
-                print("[WARNING] sequence_enable=True but no sequences collected; skipping.")
+                print(
+                    "[WARNING] sequence_enable=True but no sequences collected; skipping."
+                )
             else:
                 X_seq = torch.stack(seq_list, dim=0)  # (N, seq_len, F)
                 if torch.isnan(X_seq).any():
@@ -957,7 +1027,11 @@ class DeepHydro(DeepHydroInterface):
                             else:
                                 out = next(iter(out.values()))
                         if isinstance(out, torch.Tensor) and out.ndim == 3:
-                            out = out[-1] if which_first_tensor == "sequence" else out[:, -1]
+                            out = (
+                                out[-1]
+                                if which_first_tensor == "sequence"
+                                else out[:, -1]
+                            )
                         if isinstance(out, torch.Tensor) and out.ndim == 1:
                             out = out.unsqueeze(1)
                         return out
@@ -969,7 +1043,9 @@ class DeepHydro(DeepHydroInterface):
                 try:
                     with torch.backends.cudnn.flags(enabled=False):
                         explainer = shap.GradientExplainer(wrapper, background_t)
-                        shap_values = explainer.shap_values(sample_t, nsamples=seq_nsamples)
+                        shap_values = explainer.shap_values(
+                            sample_t, nsamples=seq_nsamples
+                        )
                 finally:
                     for m, st in zip(rnn_modules, rnn_training_states):
                         m.train(st)
@@ -1029,15 +1105,21 @@ class DeepHydro(DeepHydroInterface):
                 static_start = int(len(relevant_cols))
                 static_start = max(0, min(static_start, F_total))
 
-                hybrid_n = int(min(512, shap_values_fast.shape[0], shap_values_feat.shape[0]))
+                hybrid_n = int(
+                    min(512, shap_values_fast.shape[0], shap_values_feat.shape[0])
+                )
                 if hybrid_n > 0 and static_start < F_total:
                     if shap_values_fast.shape[0] > hybrid_n:
-                        idx_fast = np.random.choice(shap_values_fast.shape[0], hybrid_n, replace=False)
+                        idx_fast = np.random.choice(
+                            shap_values_fast.shape[0], hybrid_n, replace=False
+                        )
                     else:
                         idx_fast = np.arange(shap_values_fast.shape[0])
 
                     if shap_values_feat.shape[0] > hybrid_n:
-                        idx_seq = np.random.choice(shap_values_feat.shape[0], hybrid_n, replace=False)
+                        idx_seq = np.random.choice(
+                            shap_values_feat.shape[0], hybrid_n, replace=False
+                        )
                     else:
                         idx_seq = np.arange(shap_values_feat.shape[0])
 
@@ -1065,9 +1147,10 @@ class DeepHydro(DeepHydroInterface):
                             .get("model_hyperparam", {})
                             .get("feature_buckets")
                         )
-                        if isinstance(feature_buckets, (list, tuple)) and len(
-                            feature_buckets
-                        ) >= static_start:
+                        if (
+                            isinstance(feature_buckets, (list, tuple))
+                            and len(feature_buckets) >= static_start
+                        ):
                             dyn_seq_idx = [
                                 i
                                 for i in range(static_start)
@@ -1075,9 +1158,13 @@ class DeepHydro(DeepHydroInterface):
                             ]
 
                     extra_seq_features = shap_cfgs.get("hybrid_dynamic_seq_features")
-                    if isinstance(extra_seq_features, (list, tuple)) and static_start > 0:
+                    if (
+                        isinstance(extra_seq_features, (list, tuple))
+                        and static_start > 0
+                    ):
                         name_to_idx = {
-                            str(n): i for i, n in enumerate(feature_names[:static_start])
+                            str(n): i
+                            for i, n in enumerate(feature_names[:static_start])
                         }
                         for fn in extra_seq_features:
                             idx = name_to_idx.get(str(fn))
@@ -1217,7 +1304,9 @@ class DeepHydro(DeepHydroInterface):
                             )
                             plt.close()
 
-                        print(f"[INFO] SHAP hybrid high/low frequency split plots saved to {save_dir}")
+                        print(
+                            f"[INFO] SHAP hybrid high/low frequency split plots saved to {save_dir}"
+                        )
 
                         clean_extra = shap_cfgs.get("clean_extra")
                         if not isinstance(clean_extra, bool):
@@ -1456,12 +1545,9 @@ class DeepHydro(DeepHydroInterface):
         if mode == "infer":
             _collate_fn = None
             # Use GNN collate function for GNN/graph datasets in inference mode
-            if (
-                hasattr(self.testdataset, "__class__")
-                and (
-                    "GNN" in self.testdataset.__class__.__name__
-                    or "TgHydroDataset" in self.testdataset.__class__.__name__
-                )
+            if hasattr(self.testdataset, "__class__") and (
+                "GNN" in self.testdataset.__class__.__name__
+                or "TgHydroDataset" in self.testdataset.__class__.__name__
             ):
                 _collate_fn = gnn_collate_fn
             # 使用自定义的 collate 函数处理 FloodEventDataset
@@ -1489,17 +1575,35 @@ class DeepHydro(DeepHydroInterface):
         if "pin_memory" in training_cfgs:
             pin_memory = training_cfgs["pin_memory"]
             print(f"Pin memory set to {str(pin_memory)}")
+        dataloader_extra_kwargs = {}
+        if worker_num > 0:
+            if "persistent_workers" in training_cfgs:
+                dataloader_extra_kwargs["persistent_workers"] = training_cfgs[
+                    "persistent_workers"
+                ]
+            if "prefetch_factor" in training_cfgs:
+                dataloader_extra_kwargs["prefetch_factor"] = training_cfgs[
+                    "prefetch_factor"
+                ]
+            multiprocessing_context = training_cfgs.get("multiprocessing_context")
+            if multiprocessing_context not in (None, "auto"):
+                dataloader_extra_kwargs["multiprocessing_context"] = (
+                    multiprocessing_context
+                )
+            if "in_order" in inspect.signature(DataLoader).parameters:
+                dataloader_extra_kwargs["in_order"] = bool(
+                    training_cfgs.get("dataloader_in_order", False)
+                )
         sampler = self._get_sampler(data_cfgs, training_cfgs, self.traindataset)
+        batch_sampler = sampler if getattr(sampler, "is_batch_sampler", False) else None
+        sampler_arg = None if batch_sampler is not None else sampler
         _collate_fn = None
         if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
             _collate_fn = varied_length_collate_fn
         # Use GNN collate function for GNN/graph datasets
-        elif (
-            hasattr(self.traindataset, "__class__")
-            and (
-                "GNN" in self.traindataset.__class__.__name__
-                or "TgHydroDataset" in self.traindataset.__class__.__name__
-            )
+        elif hasattr(self.traindataset, "__class__") and (
+            "GNN" in self.traindataset.__class__.__name__
+            or "TgHydroDataset" in self.traindataset.__class__.__name__
         ):
             _collate_fn = gnn_collate_fn
 
@@ -1515,18 +1619,23 @@ class DeepHydro(DeepHydroInterface):
             self.traindataset._batch_level_dataloader_enabled = False
         if hasattr(self.traindataset, "_separate_static_input"):
             self.traindataset._separate_static_input = False
+        train_supports_prebatched = bool(
+            getattr(self.traindataset, "supports_prebatched_getitems", False)
+        )
         if (
-            sampler is None
+            (sampler is None or batch_sampler is not None)
             and _collate_fn is None
-            and self.traindataset.__class__ is BaseDataset
+            and (
+                self.traindataset.__class__ is BaseDataset or train_supports_prebatched
+            )
         ):
             self.traindataset._separate_static_input = separate_static_input
-            if use_batch_level_dataloader and hasattr(
+            if (use_batch_level_dataloader or train_supports_prebatched) and hasattr(
                 self.traindataset, "_get_batch_level_items"
             ):
                 self.traindataset._batch_level_dataloader_enabled = True
                 _collate_fn = prebatched_collate_fn
-            else:
+            elif self.traindataset.__class__ is BaseDataset:
                 self.traindataset._return_static_attrs_separately = True
                 _collate_fn = static_attr_batch_collate_fn
         elif use_batch_level_dataloader:
@@ -1535,27 +1644,36 @@ class DeepHydro(DeepHydroInterface):
                 "dataset uses a custom sampler/collate path or is not the "
                 "standard BaseDataset."
             )
-        data_loader = DataLoader(
-            self.traindataset,
-            batch_size=training_cfgs["batch_size"],
-            shuffle=(sampler is None),
-            sampler=sampler,
-            num_workers=worker_num,
-            pin_memory=pin_memory,
-            timeout=0,
-            collate_fn=_collate_fn,
-        )
+        loader_kwargs = {
+            "num_workers": worker_num,
+            "pin_memory": pin_memory,
+            "timeout": (
+                float(training_cfgs.get("dataloader_timeout", 0.0))
+                if worker_num > 0
+                else 0
+            ),
+            "collate_fn": _collate_fn,
+            **dataloader_extra_kwargs,
+        }
+        if batch_sampler is not None:
+            loader_kwargs["batch_sampler"] = batch_sampler
+        else:
+            loader_kwargs.update(
+                {
+                    "batch_size": training_cfgs["batch_size"],
+                    "shuffle": sampler_arg is None,
+                    "sampler": sampler_arg,
+                }
+            )
+        data_loader = DataLoader(self.traindataset, **loader_kwargs)
         if data_cfgs["t_range_valid"] is not None:
             # Use the same collate function for validation dataset
             _val_collate_fn = None
             if training_cfgs["variable_length_cfgs"]["use_variable_length"]:
                 _val_collate_fn = varied_length_collate_fn
-            elif (
-                hasattr(self.validdataset, "__class__")
-                and (
-                    "GNN" in self.validdataset.__class__.__name__
-                    or "TgHydroDataset" in self.validdataset.__class__.__name__
-                )
+            elif hasattr(self.validdataset, "__class__") and (
+                "GNN" in self.validdataset.__class__.__name__
+                or "TgHydroDataset" in self.validdataset.__class__.__name__
             ):
                 _val_collate_fn = gnn_collate_fn
             if hasattr(self.validdataset, "_return_static_attrs_separately"):
@@ -1564,17 +1682,19 @@ class DeepHydro(DeepHydroInterface):
                 self.validdataset._batch_level_dataloader_enabled = False
             if hasattr(self.validdataset, "_separate_static_input"):
                 self.validdataset._separate_static_input = False
-            if (
-                _val_collate_fn is None
-                and self.validdataset.__class__ is BaseDataset
+            valid_supports_prebatched = bool(
+                getattr(self.validdataset, "supports_prebatched_getitems", False)
+            )
+            if _val_collate_fn is None and (
+                self.validdataset.__class__ is BaseDataset or valid_supports_prebatched
             ):
                 self.validdataset._separate_static_input = separate_static_input
-                if use_batch_level_dataloader and hasattr(
-                    self.validdataset, "_get_batch_level_items"
-                ):
+                if (
+                    use_batch_level_dataloader or valid_supports_prebatched
+                ) and hasattr(self.validdataset, "_get_batch_level_items"):
                     self.validdataset._batch_level_dataloader_enabled = True
                     _val_collate_fn = prebatched_collate_fn
-                else:
+                elif self.validdataset.__class__ is BaseDataset:
                     self.validdataset._return_static_attrs_separately = True
                     _val_collate_fn = static_attr_batch_collate_fn
             elif use_batch_level_dataloader:
@@ -1590,8 +1710,13 @@ class DeepHydro(DeepHydroInterface):
                 shuffle=False,
                 num_workers=worker_num,
                 pin_memory=pin_memory,
-                timeout=0,
+                timeout=(
+                    float(training_cfgs.get("dataloader_timeout", 0.0))
+                    if worker_num > 0
+                    else 0
+                ),
                 collate_fn=_val_collate_fn,
+                **dataloader_extra_kwargs,
             )
             return data_loader, validation_data_loader
 
@@ -1641,7 +1766,7 @@ class DeepHydro(DeepHydroInterface):
         if sampler_name not in data_sampler_dict:
             raise NotImplementedError(f"Sampler {sampler_name} not implemented yet")
         sampler_class = data_sampler_dict[sampler_name]
-        sampler_hyperparam = {}
+        sampler_hyperparam = dict(data_cfgs.get("sampler_hyperparam") or {})
         if sampler_name == "KuaiSampler":
             sampler_hyperparam |= {
                 "batch_size": batch_size,
@@ -1653,6 +1778,13 @@ class DeepHydro(DeepHydroInterface):
         elif sampler_name == "WindowLenBatchSampler":
             sampler_hyperparam |= {
                 "batch_size": batch_size,
+            }
+        elif sampler_name == "CloudZarrChunkBatchSampler":
+            sampler_hyperparam |= {
+                "batch_size": batch_size,
+                "worker_affinity_count": max(
+                    1, int(training_cfgs.get("num_workers", 0))
+                ),
             }
 
         return sampler_class(train_dataset, **sampler_hyperparam)
@@ -1859,7 +1991,9 @@ class TransLearnHydro(DeepHydro):
         model_cfgs = self.cfgs["model_cfgs"]
         model_name = model_cfgs["model_name"]
         model = pytorch_model_dict[model_name](**model_cfgs["model_hyperparam"])
-        checkpoint = torch.load(weight_path, map_location=self.device, weights_only=False)
+        checkpoint = torch.load(
+            weight_path, map_location=self.device, weights_only=False
+        )
         if "weight_path_add" in model_cfgs:
             if "excluded_layers" in model_cfgs["weight_path_add"]:
                 # delete some layers from source model if we don't need them

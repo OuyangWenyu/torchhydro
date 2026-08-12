@@ -12,6 +12,7 @@ from collections import defaultdict
 import numpy as np
 from torch.utils.data import RandomSampler, Sampler
 from torchhydro.datasets.data_sets import BaseDataset
+from torchhydro.datasets.cloud_zarr_sampler import CloudZarrChunkBatchSampler
 from typing import Iterator, Optional
 import torch
 import random
@@ -298,4 +299,5 @@ data_sampler_dict = {
     # TODO: DistributedSampler need more test
     # TODO: WindowLenBatchSampler need more test
     "WindowLenBatchSampler": WindowLenBatchSampler,
+    "CloudZarrChunkBatchSampler": CloudZarrChunkBatchSampler,
 }

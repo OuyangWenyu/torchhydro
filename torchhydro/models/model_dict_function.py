@@ -221,5 +221,13 @@ pytorch_criterion_dict = {
     "PyGraphLoss": PyGraphLoss,
     "PeakShapeLoss": PeakShapeLoss,
 }
+if FNO is not None:
+    pytorch_model_dict["FNO"] = FNO
+
+if MultiFeatureStreamGCGRU is not None:
+    pytorch_model_dict["AutoRegressiveGCGRU"] = MultiFeatureStreamGCGRU
+
+if MultiFeatureStreamGCLSTM is not None:
+    pytorch_model_dict["AutoRegressiveGCLSTM"] = MultiFeatureStreamGCLSTM
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}

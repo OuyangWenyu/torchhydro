@@ -17,6 +17,7 @@ import os
 import re
 import shutil
 from contextlib import nullcontext
+import time
 from functools import reduce
 from pathlib import Path
 import pandas as pd
@@ -35,8 +36,13 @@ from hydroutils.hydro_file import (
     unserialize_json,
     get_latest_file_in_a_lst,
 )
-from torchhydro.datasets.data_sets import FloodEventDataset
-from torchhydro.models.crits import FloodBaseLoss, GaussianLoss, MultiOutLoss, PyGraphLoss
+from torchhydro.models.crits import (
+    FloodBaseLoss,
+    GaussianLoss,
+    MultiOutLoss,
+    PyGraphLoss,
+)
+from torchhydro.trainers.cuda_prefetcher import CudaPrefetcher
 
 
 def _normalize_mixed_precision_mode(mixed_precision) -> str:
@@ -473,10 +479,10 @@ def get_preds_to_be_eval(
     is_gnn = False
     dataset = valorte_data_loader.dataset
     if hasattr(dataset, "lookup_table") and len(dataset.lookup_table) > 0:
-         # lookup_table[0] is (basin, time, len). For GNN, basin is None.
-         if dataset.lookup_table[0][0] is None:
-             is_gnn = True
-    
+        # lookup_table[0] is (basin, time, len). For GNN, basin is None.
+        if dataset.lookup_table[0][0] is None:
+            is_gnn = True
+
     if evaluator["eval_way"] == "once":
         if is_gnn:
             raise NotImplementedError(
@@ -778,7 +784,9 @@ def _recover_samples_to_4d_by_forecast(
         # 如果已经是4D [Basin, Time, Horizon, Feat]，直接使用
         # 这通常是由 compute_validation 针对 PyG 模型预处理过的
         if arr_3d.shape[0] != basin_num:
-             raise ValueError(f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}")
+            raise ValueError(
+                f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}"
+            )
         output = arr_3d
     elif is_gnn:
         # arr_3d is (Time * Basin, Horizon, Features) (Time-Major)
@@ -786,8 +794,10 @@ def _recover_samples_to_4d_by_forecast(
         # 注意：这里假设每个时间步都包含完整的 basin_num 个节点
         # 如果 arr_3d 的第一维长度不是 basin_num 的整数倍，说明有数据丢失或对齐问题
         if arr_3d.shape[0] % basin_num != 0:
-             print(f"Warning: arr_3d shape {arr_3d.shape} is not divisible by basin_num {basin_num}. Reshape might fail.")
-        
+            print(
+                f"Warning: arr_3d shape {arr_3d.shape} is not divisible by basin_num {basin_num}. Reshape might fail."
+            )
+
         # (Time, Basin, Horizon, Features)
         output = arr_3d.reshape(-1, basin_num, arr_3d.shape[1], nf)
         # (Basin, Time, Horizon, Features)
@@ -795,7 +805,7 @@ def _recover_samples_to_4d_by_forecast(
     else:
         # Standard mode: Basin-Major
         output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
-        
+
     i_e_time_length = output.shape[1]
 
     # 创建结果数组，初始化为NaN
@@ -862,13 +872,15 @@ def _recover_samples_to_4d_by_basins(
         # 如果已经是4D [Basin, Time, Horizon, Feat]，直接使用
         # 验证维度一致性
         if arr_3d.shape[0] != basin_num:
-             raise ValueError(f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}")
+            raise ValueError(
+                f"Expected dim 0 to be basin_num={basin_num}, but got {arr_3d.shape[0]}"
+            )
         output = arr_3d
     else:
         # Standard mode: Basin-Major
         # arr_3d is (Basin*Time, Horizon, Feat)
         output = arr_3d.reshape(basin_num, -1, arr_3d.shape[1], nf)
-        
+
     i_e_time_length = output.shape[1]
 
     # 创建结果数组，初始化为NaN
@@ -1174,7 +1186,11 @@ def _recover_samples_to_continuous_by_floodevent(
         # Heuristic: if second dim equals nf (features), treat as [samples, features]
         # otherwise treat as [samples, time] with single feature
         n2 = arr_3d.shape[1]
-        tgt_n = len(getattr(dataset.data_cfgs, "get", lambda *_: [])("target_cols", [])) if isinstance(dataset.data_cfgs, dict) else nf
+        tgt_n = (
+            len(getattr(dataset.data_cfgs, "get", lambda *_: [])("target_cols", []))
+            if isinstance(dataset.data_cfgs, dict)
+            else nf
+        )
         try:
             expected_features = len(dataset.data_cfgs["target_cols"])
         except Exception:
@@ -1185,7 +1201,7 @@ def _recover_samples_to_continuous_by_floodevent(
             arr_3d = arr_3d[:, :, None]
 
     # Check if this is a FloodEventDataset and handle flood_event column properly
-    is_flood_dataset = isinstance(dataset, FloodEventDataset)
+    is_flood_dataset = "FloodEventDataset" in dataset.__class__.__name__
 
     # For flood datasets, we need to ensure consistency between predictions and observations
     # If arr_3d is predictions and missing flood_event column, we need to add it
@@ -1276,7 +1292,7 @@ def _recover_samples_to_continuous_by_floodevent(
                 pred_to_use = sample_prediction
             else:
                 # Case 3: 其他情况 - 取可用部分
-                pred_to_use = sample_prediction[:min(pred_length, valid_length), :]
+                pred_to_use = sample_prediction[: min(pred_length, valid_length), :]
 
             # 填充位置：直接使用 start_time
             # 因为 result 数组已经从 warmup_length 开始（见第341行：nt = dataset.nt - warmup_length）
@@ -1373,9 +1389,7 @@ def evaluate_validation(
     return eval_log
 
 
-def compute_loss(
-    labels: torch.Tensor, output, criterion, **kwargs
-) -> torch.Tensor:
+def compute_loss(labels: torch.Tensor, output, criterion, **kwargs) -> torch.Tensor:
     """
     Function for computing the loss
 
@@ -1424,7 +1438,7 @@ def compute_loss(
         if output.ndim == 2 and labels.ndim == 2 and batch_vector is not None:
             # Output/Labels: [B*N_total, H]
             # PyG batch processing: Directly compute loss on flattened data for efficiency
-            
+
             # 1. Apply Node Mask
             if node_mask is not None:
                 if not isinstance(node_mask, torch.Tensor):
@@ -1433,11 +1447,11 @@ def compute_loss(
                     )
                 else:
                     node_mask = node_mask.to(labels.device).bool()
-                
+
                 # Ensure mask is 1D [B*N_total]
                 if node_mask.dim() > 1:
                     node_mask = node_mask.flatten()
-                
+
                 output = output[node_mask]
                 labels = labels[node_mask]
 
@@ -1453,7 +1467,7 @@ def compute_loss(
             if isinstance(loss_func, list):
                 # Use the first loss function if a list is provided
                 loss_func = loss_func[0]
-            
+
             return loss_func(output, labels)
 
         elif output.ndim == 2 and labels.ndim == 2:
@@ -1485,6 +1499,12 @@ def compute_loss(
         else:
             labels = labels.unsqueeze(0)
     assert labels.shape == output.shape
+    valid_target = torch.isfinite(labels)
+    if not valid_target.all():
+        if not valid_target.any():
+            return output.sum() * 0.0
+        output = output[valid_target]
+        labels = labels[valid_target]
     return criterion(output, labels.float())
 
 
@@ -1806,30 +1826,82 @@ def torch_single_train(
     # we will set model.eval() in the validation function so here we should set model.train()
     model.train()
     n_iter_ep = 0
-    running_loss = 0.0
     which_first_tensor = kwargs["which_first_tensor"]
     mixed_precision = kwargs.get("mixed_precision", "off")
-    amp_scaler = kwargs.get("amp_scaler")
-    non_blocking = bool(kwargs.get("non_blocking", False))
-    if amp_scaler is None:
-        amp_scaler = create_amp_grad_scaler(device, mixed_precision)
     seq_first = which_first_tensor != "batch"
     variable_length_cfgs = data_loader.dataset.training_cfgs.get(
         "variable_length_cfgs", None
     )
-    pbar = tqdm(data_loader)
+    non_blocking_transfer = bool(
+        kwargs.get("non_blocking_transfer", kwargs.get("non_blocking", False))
+    )
+    torch_device = torch.device(device) if device is not None else torch.device("cpu")
+    running_loss = 0.0
+    use_cuda_prefetch = (
+        bool(kwargs.get("cuda_prefetch", False)) and torch_device.type == "cuda"
+    )
+    train_iterable = (
+        CudaPrefetcher(
+            data_loader,
+            torch_device,
+            non_blocking=non_blocking_transfer,
+            prefetch_batches=int(kwargs.get("cuda_prefetch_batches", 2)),
+            performance_monitor=kwargs.get("performance_monitor"),
+        )
+        if use_cuda_prefetch
+        else data_loader
+    )
+    pbar = tqdm(train_iterable, total=len(data_loader))
+    performance_monitor = kwargs.get("performance_monitor")
+    amp_dtype_name = kwargs.get("amp_dtype")
+    mixed_mode = _normalize_mixed_precision_mode(mixed_precision)
+    if amp_dtype_name is None:
+        amp_dtype_name = "float16" if mixed_mode == "fp16" else "bfloat16"
+    amp_dtype_name = str(amp_dtype_name).lower()
+    if amp_dtype_name in {"bfloat16", "bf16"}:
+        amp_dtype = torch.bfloat16
+    elif amp_dtype_name in {"float16", "fp16"}:
+        amp_dtype = torch.float16
+    else:
+        raise ValueError("amp_dtype must be bfloat16/bf16 or float16/fp16")
+    use_amp = (bool(kwargs.get("amp", False)) or mixed_mode != "off") and (
+        torch_device.type in {"cuda", "cpu"}
+    )
+    grad_scaler = torch.amp.GradScaler(
+        "cuda",
+        enabled=use_amp and amp_dtype == torch.float16 and torch_device.type == "cuda",
+    )
+    nonfinite_check_interval = max(0, int(kwargs.get("nonfinite_check_interval", 100)))
+    train_iterator = iter(pbar)
 
-    for _, batch in enumerate(pbar):
+    while True:
+        wait_started = time.perf_counter()
+        try:
+            batch = next(train_iterator)
+        except StopIteration:
+            break
+        if performance_monitor is not None:
+            performance_monitor.record_data_wait(time.perf_counter() - wait_started)
+            compute_events = performance_monitor.cuda_event_pair()
+            if compute_events is not None:
+                compute_events[0].record(torch.cuda.current_stream(torch_device))
+        else:
+            compute_events = None
+        compute_started = time.perf_counter()
         opt.zero_grad(set_to_none=True)
-        # mask handling is already done inside model_infer function
-        with mixed_precision_autocast(device, mixed_precision):
+        with torch.autocast(
+            device_type=torch_device.type,
+            dtype=amp_dtype,
+            enabled=use_amp,
+        ):
+            # mask handling is already done inside model_infer function
             trg, output = model_infer(
                 seq_first,
                 device,
                 model,
                 batch,
                 variable_length_cfgs,
-                non_blocking=non_blocking,
+                non_blocking=non_blocking_transfer,
             )
             batch_vector = getattr(batch, "batch", None)
             node_mask = getattr(batch, "node_mask", None)
@@ -1854,21 +1926,35 @@ def torch_single_train(
         # separately introduces repeated host/device synchronization.
         loss_value = loss.detach().item()
         _validate_training_loss_value(loss_value)
-        if amp_scaler.is_enabled():
-            amp_scaler.scale(loss).backward()
-            amp_scaler.step(opt)
-            amp_scaler.update()
-        else:
-            loss.backward()  # Backpropagate to compute the current gradient
-            opt.step()  # Update network parameters based on gradients
+        grad_scaler.scale(loss).backward()
+        grad_scaler.step(opt)
+        grad_scaler.update()
+        if compute_events is not None:
+            compute_events[1].record(torch.cuda.current_stream(torch_device))
+            performance_monitor.record_compute_events(compute_events)
+        if performance_monitor is not None:
+            performance_monitor.record_batch(
+                batch, time.perf_counter() - compute_started
+            )
         running_loss += loss_value
         n_iter_ep += 1
+        if (
+            nonfinite_check_interval
+            and n_iter_ep % nonfinite_check_interval == 0
+            and not math.isfinite(running_loss)
+        ):
+            raise ValueError(
+                "Non-finite training loss detected. Check normalization and input data."
+            )
     if n_iter_ep == 0:
         raise ValueError(
             "All batch computations of loss result in NAN. Please check the data."
         )
-    total_loss = running_loss / float(n_iter_ep)
-    return total_loss, n_iter_ep
+    if not math.isfinite(running_loss):
+        raise ValueError(
+            "Non-finite training loss detected. Check normalization and input data."
+        )
+    return running_loss / float(n_iter_ep), n_iter_ep
 
 
 def _validate_training_loss_value(loss_value: float, warn_high: bool = True) -> None:
@@ -1976,7 +2062,7 @@ def compute_validation(
                 # Reshape from [Time*Nodes, ...] to [Time, Nodes, ...]
                 # Then transpose to [Nodes, Time, ...]
                 # Then flatten to [Nodes*Time, ...]
-                
+
                 # Handle arbitrary trailing dimensions
                 # Ensure we have feature dimension. If shape is [Batch, Horizon], add feature dim -> [Batch, Horizon, 1]
                 if y_obs.ndim == 2:
@@ -1986,17 +2072,16 @@ def compute_validation(
 
                 obs_shape = y_obs.shape
                 pred_shape = y_pred.shape
-                
+
                 # Reshape to [Time, Nodes, Horizon, Features]
                 y_obs = y_obs.reshape(time_steps, num_nodes, *obs_shape[1:])
                 # Transpose to [Nodes, Time, Horizon, Features]
                 permute_dims = [1, 0] + list(range(2, y_obs.ndim))
                 y_obs = y_obs.transpose(permute_dims)
-                
+
                 # Same for predictions
                 y_pred = y_pred.reshape(time_steps, num_nodes, *pred_shape[1:])
                 y_pred = y_pred.transpose(permute_dims)
-
 
     return y_obs, y_pred, valid_loss
 

@@ -1,6 +1,5 @@
 import math
 
-import pytest
 import torch
 from torch.utils.data import DataLoader, Dataset
 
@@ -51,28 +50,19 @@ def test_training_returns_finite_epoch_loss_and_iteration_count():
     assert loss > 0
 
 
-def test_training_rejects_nan_loss_before_parameter_update():
+def test_training_ignores_nan_target_before_parameter_update():
     model, optimizer, loader = _make_training_objects(nan_target=True)
-    parameters_before = {
-        name: value.detach().clone() for name, value in model.named_parameters()
-    }
-
-    with pytest.raises(ValueError, match="nan loss detected"):
-        torch_single_train(
-            model,
-            optimizer,
-            torch.nn.MSELoss(),
-            loader,
-            device=torch.device("cpu"),
-            which_first_tensor="batch",
-            mixed_precision="off",
-        )
-
-    # The first three finite batches update the model, while the final NaN
-    # batch is rejected before backward/optimizer.step.
-    assert any(
-        not torch.equal(value, parameters_before[name])
-        for name, value in model.named_parameters()
+    loss, iterations = torch_single_train(
+        model,
+        optimizer,
+        torch.nn.MSELoss(),
+        loader,
+        device=torch.device("cpu"),
+        which_first_tensor="batch",
+        mixed_precision="off",
     )
+
+    assert iterations == len(loader)
+    assert math.isfinite(loss)
     for value in model.parameters():
         assert torch.isfinite(value).all()
