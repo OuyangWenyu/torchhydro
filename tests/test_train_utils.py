@@ -99,9 +99,6 @@ class DummyDataLoader:
         self.batch_size = batch_size
 
 
-@pytest.mark.skip(
-    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
-)
 def test_recover_samples_to_4d_by_basins_basic():
     # Setup
     basin_num = 2
@@ -147,9 +144,6 @@ def test_recover_samples_to_4d_by_basins_basic():
             assert np.allclose(actual, expected)
 
 
-@pytest.mark.skip(
-    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
-)
 def test_recover_samples_to_4d_by_basins_nan_fill():
     # Setup for a case where not all positions are filled
     basin_num = 1
@@ -163,7 +157,9 @@ def test_recover_samples_to_4d_by_basins_nan_fill():
 
     class DummyDataset:
         def __init__(self):
-            self.t_s_dict = {"sites_id": [0]}
+            # basin count must match data_shape; the recover function uses the
+            # dataset's sites_id to determine basin_num
+            self.t_s_dict = {"sites_id": list(range(basin_num))}
             self.horizon = forecast_length
 
     class DummyDataLoader:
@@ -187,9 +183,6 @@ def test_recover_samples_to_4d_by_basins_nan_fill():
     assert np.all(np.isnan(result[0, 1, 1, :]))
 
 
-@pytest.mark.skip(
-    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
-)
 def test_recover_samples_to_4d_by_basins_empty():
     basin_num = 5
     nt = 7
@@ -202,7 +195,9 @@ def test_recover_samples_to_4d_by_basins_empty():
 
     class DummyDataset:
         def __init__(self):
-            self.t_s_dict = {"sites_id": [0]}
+            # basin count must match data_shape; the recover function uses the
+            # dataset's sites_id to determine basin_num
+            self.t_s_dict = {"sites_id": list(range(basin_num))}
             self.horizon = forecast_length
 
     class DummyDataLoader:
@@ -221,9 +216,6 @@ def test_recover_samples_to_4d_by_basins_empty():
     assert result.shape == (basin_num, 0, forecast_length, nf)
 
 
-@pytest.mark.skip(
-    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
-)
 def test_recover_samples_to_4d_by_forecast_basic():
     basin_num = 2
     nt = 6
@@ -268,9 +260,6 @@ def test_recover_samples_to_4d_by_forecast_basic():
             assert np.allclose(actual, expected)
 
 
-@pytest.mark.skip(
-    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
-)
 def test_recover_samples_to_4d_by_forecast_nan_fill():
     basin_num = 1
     nt = 5
@@ -283,7 +272,9 @@ def test_recover_samples_to_4d_by_forecast_nan_fill():
 
     class DummyDataset:
         def __init__(self):
-            self.t_s_dict = {"sites_id": [0]}
+            # basin count must match data_shape; the recover function uses the
+            # dataset's sites_id to determine basin_num
+            self.t_s_dict = {"sites_id": list(range(basin_num))}
             self.horizon = forecast_length
 
     class DummyDataLoader:
@@ -307,9 +298,6 @@ def test_recover_samples_to_4d_by_forecast_nan_fill():
     assert np.all(np.isnan(result[1, 0, 1, :]))
 
 
-@pytest.mark.skip(
-    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
-)
 def test_recover_samples_to_4d_by_forecast_multiple_features():
     basin_num = 2
     nt = 6
@@ -353,9 +341,6 @@ def test_recover_samples_to_4d_by_forecast_multiple_features():
             assert np.allclose(actual, expected)
 
 
-@pytest.mark.skip(
-    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
-)
 def test_recover_samples_to_4d_by_forecast_empty():
     basin_num = 1
     nt = 3
@@ -368,7 +353,9 @@ def test_recover_samples_to_4d_by_forecast_empty():
 
     class DummyDataset:
         def __init__(self):
-            self.t_s_dict = {"sites_id": [0]}
+            # basin count must match data_shape; the recover function uses the
+            # dataset's sites_id to determine basin_num
+            self.t_s_dict = {"sites_id": list(range(basin_num))}
             self.horizon = forecast_length
 
     class DummyDataLoader:
@@ -444,7 +431,9 @@ def test_recover_samples_to_3d_by_4d_ensembles_averaging():
 
     class DummyDataset:
         def __init__(self):
-            self.t_s_dict = {"sites_id": [0]}
+            # basin count must match data_shape; the recover function uses the
+            # dataset's sites_id to determine basin_num
+            self.t_s_dict = {"sites_id": list(range(basin_num))}
             self.horizon = forecast_length
             self.rho = rho
 
@@ -482,7 +471,9 @@ def test_recover_samples_to_3d_by_4d_ensembles_with_nan():
 
     class DummyDataset:
         def __init__(self):
-            self.t_s_dict = {"sites_id": [0]}
+            # basin count must match data_shape; the recover function uses the
+            # dataset's sites_id to determine basin_num
+            self.t_s_dict = {"sites_id": list(range(basin_num))}
             self.horizon = forecast_length
             self.rho = rho
 
@@ -562,7 +553,9 @@ def test_recover_samples_to_3d_by_4d_ensembles_edge_cases():
 
     class DummyDataset:
         def __init__(self):
-            self.t_s_dict = {"sites_id": [0]}
+            # basin count must match data_shape; the recover function uses the
+            # dataset's sites_id to determine basin_num
+            self.t_s_dict = {"sites_id": list(range(basin_num))}
             self.horizon = forecast_length
             self.rho = rho
 
@@ -597,7 +590,9 @@ def test_recover_samples_to_3d_by_4d_ensembles_empty_input():
 
     class DummyDataset:
         def __init__(self):
-            self.t_s_dict = {"sites_id": [0]}
+            # basin count must match data_shape; the recover function uses the
+            # dataset's sites_id to determine basin_num
+            self.t_s_dict = {"sites_id": list(range(basin_num))}
             self.horizon = forecast_length
             self.rho = rho
 

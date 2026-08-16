@@ -808,28 +808,19 @@ def _recover_samples_to_4d_by_forecast(
 
     i_e_time_length = output.shape[1]
 
-    # 创建结果数组，初始化为NaN
-    result = np.full((basin_num, i_e_time_length, forecast_length, nf), np.nan)
-
     # 提取最后forecast_length个时间步的预测结果
     forecast_output = output[:, :, -forecast_length:, :]
 
-    # 并行处理所有流域
-    # results = []
-    # for j in range(forecast_length):
-    #     # 计算有效索引范围
-    #     # valid_indices = np.arange(i_e_time_length - j)
-
-    #     # 对所有流域同时处理
-    #     for basin_idx in range(basin_num):
-    #         # 填充结果数组
-    #         result[basin_idx, :, j, :] = forecast_output[basin_idx, :, j, :]
-    #         # result[j, basin_idx, :, nf] = forecast_output[basin_idx, :, j, :]
-    result = forecast_output
+    # 按预见期优先布局 [forecast_length, basin_num, i_e_time_length, nf]:
+    # 样本 i 的第 j 步预见期对应输出中第 i+j 个时间步。
+    # 最后 j 行没有足够的未来输出,保持 NaN。
+    result = np.full((forecast_length, basin_num, i_e_time_length, nf), np.nan)
+    for j in range(min(forecast_length, forecast_output.shape[2])):
+        for basin_idx in range(basin_num):
+            result[j, basin_idx, : i_e_time_length - j, :] = forecast_output[
+                basin_idx, j:, j, :
+            ]
     return result
-    # dict / array
-    # [第几个预见期，流域，总长，变量个数]
-    # {“1”: [流域，总长，变量个数], "2":……}
 
 
 def _recover_samples_to_4d_by_basins(
@@ -891,10 +882,13 @@ def _recover_samples_to_4d_by_basins(
 
     # 对每个流域进行处理
     for basin_idx in range(basin_num):
-        # 对每个预测步长进行处理
-        for j in range(forecast_length):
-            # 填充结果数组，注意这里将流域放在第一个维度
-            result[basin_idx, :, j, :] = forecast_output[basin_idx, :, j, :]
+        # 对每个预测步长进行处理(实际 horizon 可能小于 forecast_length)
+        for j in range(min(forecast_length, forecast_output.shape[2])):
+            # 滚动预测对齐:样本 i 的第 j 步预见期对应输出中第 i+j 个时间步。
+            # 最后 j 行没有足够的未来输出,保持 NaN。
+            result[basin_idx, : i_e_time_length - j, j, :] = forecast_output[
+                basin_idx, j:, j, :
+            ]
 
     return result
 
