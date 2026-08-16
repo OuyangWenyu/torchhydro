@@ -8,7 +8,6 @@ from torch.nn import functional as F
 import opt_einsum
 import tensorly as tl
 from tensorly.plugins import use_opt_einsum
-from numbers import Number
 
 tl.set_backend("pytorch")
 use_opt_einsum("optimal")
@@ -21,19 +20,6 @@ class CGELU(nn.Module):
     def forward(self, x):
         return torch.complex(F.gelu(x.real), F.gelu(x.imag))
 Number = Union[int, float]
-
-
-def _contract_dense(x, weight, separable=False):
-    """
-    x: (S_modes, B, F_in)
-    weight: (F_in, F_out, S_modes) 或 (F_in, S_modes) if separable
-    """
-    if separable:
-        # x: (S, B, F), weight: (F, S) -> (S, B, F)
-        return torch.einsum("sbf,fs->sbf", x, weight)
-    else:
-        # x: (S, B, F_in), weight: (F_in, F_out, S) -> (S, B, F_out)
-        return torch.einsum("sbf,fos->sbo", x, weight)
 
 
 def get_contract_fun(weight, implementation="reconstructed", separable=False):
@@ -161,32 +147,6 @@ def _contract_dense(x, weight, separable=False):
         return einsum_complexhalf(eq, x, weight)
     else:
         return torch.einsum(eq, x, weight)
-
-
-class BaseSpectralConv(nn.Module):
-    def __init__(self, device=None, dtype=None):
-        """Base Class for Spectral Convolutions
-
-        Use it when you want to build your own FNO-type Neural Operators
-        """
-        super().__init__()
-
-        self.dtype = dtype
-        self.device = device
-
-    def transform(self, x):
-        """Transforms an input x for a skip connection, by default just an identity map
-
-        If your function transforms the input then you should also implement this transform method
-        so the skip connection can also work.
-
-        Typical usecases are:
-
-        * Your upsample or downsample the input in the Spectral conv: the skip connection has to be similarly scaled.
-          This allows you to deal with it however you want (e.g. avoid aliasing)
-        * You perform a change of basis in your Spectral Conv, again, this needs to be applied to the skip connection too.
-        """
-        return x
 
 
 class DomainPadding(nn.Module):
