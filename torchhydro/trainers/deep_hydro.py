@@ -265,12 +265,6 @@ class DeepHydro(DeepHydroInterface):
         criterion = self._get_loss_func(training_cfgs)
         opt = self._get_optimizer(training_cfgs)
         scheduler = self._get_scheduler(training_cfgs, opt)
-        mixed_precision = training_cfgs.get("mixed_precision", "off")
-        non_blocking_transfer = bool(
-            training_cfgs.get(
-                "non_blocking_transfer", training_cfgs.get("pin_memory", False)
-            )
-        )
         max_epochs = training_cfgs["epochs"]
         start_epoch = training_cfgs["start_epoch"]
         # use PyTorch's DataLoader to load the data into batches in each epoch
