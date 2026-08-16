@@ -54,6 +54,7 @@ def test_multiout_loss_nan_gap():
 @pytest.mark.skip(
     reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
 )
+@pytest.mark.skip(reason="Gages/Mopex/SupData4Camels data sources removed from torchhydro (moved to hydrodatasource)")
 def test_flow_et_mtl(mtl_args, config_data):
     """
     Test for data augmentation of flow -> et with KuaiLSTM

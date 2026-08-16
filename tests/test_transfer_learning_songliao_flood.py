@@ -19,6 +19,7 @@ from torchhydro.trainers.trainer import train_and_evaluate
 DEVICE = 1
   
 @pytest.mark.requires_data
+@pytest.mark.skip(reason="Gages/Mopex/SupData4Camels data sources removed from torchhydro (moved to hydrodatasource)")
 def test_transfer_gages_lstm_model():
     weight_dir = os.path.join(
         os.getcwd(),

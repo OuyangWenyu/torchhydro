@@ -14,8 +14,6 @@ import hydrodataset as hds
 from hydrodataset.camels_us import CamelsUs
 from hydrodataset.caravan import Caravan
 from torch.utils.data import Dataset
-from torchhydro.datasets.data_sources import Gages
-from torchhydro.datasets.data_sources import Mopex
 
 from torchhydro import SETTING
 from torchhydro.datasets.sampler import KuaiSampler
@@ -89,6 +87,10 @@ def test_cache_caravan():
     )
     caravan.cache_xrdataset()
 
+@pytest.mark.skip(
+    reason="Gages/Mopex data sources were removed from torchhydro "
+    "(moved to hydrodatasource)"
+)
 @pytest.mark.requires_data
 def test_cache_fusion():
     """

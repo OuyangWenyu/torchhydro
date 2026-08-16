@@ -9,6 +9,9 @@ import pandas as pd
 import torch
 import matplotlib.pyplot as plt
 
+pytestmark = pytest.mark.skip(reason="Gages/Mopex/SupData4Camels data sources removed from torchhydro (moved to hydrodatasource)")
+
+
 def find_common_files_in_subdirs(main_dir, compare_dir):
     # 创建一个集合来存储找到的公共文件基本名称
     common_files = set()

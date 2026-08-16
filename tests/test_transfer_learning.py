@@ -12,6 +12,9 @@ import pytest
 from torchhydro.configs.config import default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
+pytestmark = pytest.mark.skip(reason="Gages/Mopex/SupData4Camels data sources removed from torchhydro (moved to hydrodatasource)")
+
+
 
 @pytest.mark.requires_data
 @pytest.mark.skip(
