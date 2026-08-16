@@ -143,7 +143,11 @@ def open_dataset_from_source_cfgs(
     reader_kwargs.update(extra_reader_kwargs)
     try:
         return open_dataset(dataset_id, source=source, **reader_kwargs)
-    except DatasetResolutionError:
+    except DatasetResolutionError as e:
+        # Only fall back for a genuinely unknown dataset id.  Storage/path
+        # errors (root not configured, s3 bucket missing, ...) must propagate.
+        if "Unknown dataset id" not in str(e):
+            raise
         # torchhydro-specific sources (self-made datasets, reservoirs, ...) are
         # not in the hydrodatasource resolver registry; fall back to the
         # torchhydro data_sources_dict registry.
@@ -162,7 +166,7 @@ def _open_from_data_sources_dict(
             f"Unknown dataset id {dataset_id!r}. Neither the hydrodataset/"
             "hydrodatasource resolver nor torchhydro's data_sources_dict "
             "recognises it."
-        )
+        ) from None
     constructor = data_sources_dict[dataset_id]
     # self-made sources locate their data via the legacy source_path/path key
     path = source_cfgs.get("source_path") or source_cfgs.get("path")

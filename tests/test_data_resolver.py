@@ -6,6 +6,7 @@ from torchhydro.configs.data_resolver import open_dataset_from_source_cfgs
 import torchhydro.datasets.data_sources as ds_mod
 
 
+@pytest.mark.requires_data
 def test_open_standard_dataset_via_resolver():
     """camels_us is in the hydrodataset registry -> resolved, not raised."""
     ds = open_dataset_from_source_cfgs({"dataset_id": "camels_us"})
