@@ -86,23 +86,3 @@ def test_cache_caravan():
         os.path.join(SETTING["local_data_path"]["datasets-origin"], "caravan")
     )
     caravan.cache_xrdataset()
-
-@pytest.mark.skip(
-    reason="Gages/Mopex data sources were removed from torchhydro "
-    "(moved to hydrodatasource)"
-)
-@pytest.mark.requires_data
-def test_cache_fusion():
-    """
-    Test whether the cache file is generated correctly
-    """
-    gages_dir = os.path.join(
-        SETTING["local_data_path"]["datasets-origin"], "gages"
-    )
-    mopex_dir = os.path.join(
-        SETTING["local_data_path"]["datasets-origin"], "mopex"
-    )
-    gages = Gages(gages_dir)
-    mopex = Mopex(mopex_dir)
-    gages.cache_xrdataset()
-    mopex.cache_xrdataset()
