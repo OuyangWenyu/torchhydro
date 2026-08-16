@@ -250,6 +250,15 @@ wheels = [
 ]
 
 [[package]]
+name = "annotated-doc"
+version = "0.0.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5a/8e/38aa427ed5402449e226975b649c5dc73ccadfefeb95e6aecb8f8ea4b6b6/annotated_doc-0.0.5.tar.gz", hash = "sha256:c7e58ce09192557605d8bbd92836d7e1d520ac9580096042c0bfd197efacf1bb", size = 10758, upload-time = "2026-07-28T13:50:58.129Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl", hash = "sha256:117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101", size = 5302, upload-time = "2026-07-28T13:50:57.239Z" },
+]
+
+[[package]]
 name = "anyio"
 version = "4.11.0"
 source = { registry = "https://pypi.org/simple" }
@@ -275,15 +284,15 @@ wheels = [
 
 [[package]]
 name = "aqua-fetch"
-version = "1.0.1"
+version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pandas" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a9/7e/b4343a680a1f0b2356f6cf9371dded8141c0d8ea61ec7b41c6cdbedab3fe/aqua_fetch-1.0.1.tar.gz", hash = "sha256:7991a7fa2ab6592ff23dd0f8b9c2e2280b7aca20b01e4731bc3b6f974ded9578", size = 274826, upload-time = "2026-02-11T08:02:55.734Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a6/17/9f5669133e37314f8f6613f39bc02d03729f1faeb02c116f59e2aec893d1/aqua_fetch-1.1.0.tar.gz", hash = "sha256:bf4eb8dfeaba8b520640bb316a55877a5caf53dc887f01fd7a97704c551e1ceb", size = 352261, upload-time = "2026-07-29T14:53:04.314Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/1d/f3803f12c8827cc1846eb79a2e2ddccf164d90833b9d56c829dc14b9f3e8/aqua_fetch-1.0.1-py3-none-any.whl", hash = "sha256:053ce30fcf9c76564a83dba1ded39e254f629a2d1cc08b3989093b7612a5a6aa", size = 289114, upload-time = "2026-02-11T08:02:54.233Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/1a/e8efe904da305ff7ca403c100a6fcaee9a417084b9f3c9e11d67ab27a4d4/aqua_fetch-1.1.0-py3-none-any.whl", hash = "sha256:e1f81b80db541591fdbcd0608cc48da9957053a9d4f07116662edb0decdbaf1d", size = 365775, upload-time = "2026-07-29T14:53:02.538Z" },
 ]
 
 [package.optional-dependencies]
@@ -2106,8 +2115,10 @@ dependencies = [
     { name = "pint-xarray" },
     { name = "py7zr" },
     { name = "requests" },
+    { name = "s3fs" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scipy", version = "1.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "typer" },
     { name = "tzfpy" },
     { name = "xarray" },
     { name = "xlrd" },
@@ -2117,7 +2128,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aqua-fetch", extras = ["all"], specifier = ">=1.0.1" },
+    { name = "aqua-fetch", extras = ["all"], specifier = ">=1.1.0" },
     { name = "black", marker = "extra == 'dev'" },
     { name = "black", marker = "extra == 'lint'" },
     { name = "bokeh", specifier = ">=2.4.2" },
@@ -2133,7 +2144,7 @@ requires-dist = [
     { name = "grip", marker = "extra == 'docs'" },
     { name = "hatch-vcs", marker = "extra == 'release'" },
     { name = "hatchling", marker = "extra == 'release'" },
-    { name = "hydroutils" },
+    { name = "hydroutils", specifier = ">=0.2.0" },
     { name = "ipykernel", marker = "extra == 'docs'" },
     { name = "mkdocs-git-revision-date-plugin", marker = "extra == 'docs'" },
     { name = "mkdocs-jupyter", marker = "extra == 'docs'" },
@@ -2149,12 +2160,14 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=3" },
     { name = "pytest-runner", marker = "extra == 'dev'" },
     { name = "requests", specifier = ">=2.32.4" },
+    { name = "s3fs", specifier = ">=2024.12" },
     { name = "scipy" },
     { name = "sphinx", marker = "extra == 'dev'" },
     { name = "sphinx", marker = "extra == 'docs'" },
     { name = "tox", marker = "extra == 'dev'" },
     { name = "twine", marker = "extra == 'dev'" },
     { name = "twine", marker = "extra == 'release'" },
+    { name = "typer", specifier = ">=0.26.8" },
     { name = "tzfpy" },
     { name = "watchdog", marker = "extra == 'dev'" },
     { name = "wheel", marker = "extra == 'dev'" },
@@ -2210,10 +2223,10 @@ requires-dist = [
     { name = "eccodes" },
     { name = "flake8", marker = "extra == 'dev'" },
     { name = "geopandas" },
-    { name = "h5py" },
+    { name = "h5py", specifier = "<3.15" },
     { name = "hydrodataset", editable = "../hydrodataset" },
     { name = "hydrotopo" },
-    { name = "hydroutils", specifier = ">=0.1.0" },
+    { name = "hydroutils", specifier = ">=0.2.0" },
     { name = "intake" },
     { name = "ipykernel", marker = "extra == 'docs'" },
     { name = "kerchunk" },
@@ -2248,6 +2261,7 @@ requires-dist = [
     { name = "scipy" },
     { name = "sphinx", marker = "extra == 'docs'" },
     { name = "sqlalchemy" },
+    { name = "tomli", marker = "python_full_version < '3.11' and extra == 'dev'" },
     { name = "tox", marker = "extra == 'dev'" },
     { name = "twine", marker = "extra == 'dev'" },
     { name = "watchdog", marker = "extra == 'dev'" },
@@ -2312,11 +2326,9 @@ name = "hydroutils"
 source = { editable = "../hydroutils" }
 dependencies = [
     { name = "async-retriever" },
-    { name = "boto3" },
     { name = "cartopy" },
     { name = "hydroerr" },
     { name = "matplotlib" },
-    { name = "minio" },
     { name = "mkdocs-git-revision-date-localized-plugin" },
     { name = "mkdocs-git-revision-date-plugin" },
     { name = "mkdocstrings-python" },
@@ -2325,9 +2337,11 @@ dependencies = [
     { name = "pandas" },
     { name = "pint" },
     { name = "pint-xarray" },
+    { name = "pytz" },
     { name = "requests" },
     { name = "rich" },
-    { name = "s3fs" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "seaborn" },
     { name = "tqdm" },
     { name = "tzfpy" },
@@ -2343,12 +2357,8 @@ requires-dist = [
     { name = "async-retriever" },
     { name = "black", extras = ["jupyter"], marker = "extra == 'all'" },
     { name = "black", extras = ["jupyter"], marker = "extra == 'dev'" },
-    { name = "boto3", specifier = ">=1.34.34" },
     { name = "build", marker = "extra == 'all'" },
     { name = "build", marker = "extra == 'release'" },
-    { name = "bump2version", marker = "extra == 'all'" },
-    { name = "bump2version", marker = "extra == 'dev'" },
-    { name = "bump2version", marker = "extra == 'release'" },
     { name = "cartopy" },
     { name = "coverage", extras = ["toml"], marker = "extra == 'all'" },
     { name = "coverage", extras = ["toml"], marker = "extra == 'dev'" },
@@ -2361,7 +2371,6 @@ requires-dist = [
     { name = "ipykernel", marker = "extra == 'docs'" },
     { name = "ipykernel", marker = "extra == 'docs'", specifier = ">=6.30.1" },
     { name = "matplotlib" },
-    { name = "minio" },
     { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.4.7" },
     { name = "mkdocs-git-revision-date-plugin", specifier = ">=0.3.2" },
     { name = "mkdocs-git-revision-date-plugin", marker = "extra == 'all'", specifier = ">=0.3.2" },
@@ -2400,11 +2409,12 @@ requires-dist = [
     { name = "pytest-runner", marker = "extra == 'dev'" },
     { name = "pytest-xdist", marker = "extra == 'all'" },
     { name = "pytest-xdist", marker = "extra == 'test'" },
+    { name = "pytz" },
     { name = "requests" },
     { name = "rich" },
     { name = "ruff", marker = "extra == 'all'" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "s3fs", specifier = ">=2024.2" },
+    { name = "scipy" },
     { name = "seaborn" },
     { name = "sphinx", marker = "extra == 'all'", specifier = ">=4.0" },
     { name = "sphinx", marker = "extra == 'dev'", specifier = ">=4.0" },
@@ -2434,7 +2444,6 @@ provides-extras = ["all", "dev", "docs", "release", "test"]
 [package.metadata.requires-dev]
 dev = [
     { name = "black", extras = ["jupyter"] },
-    { name = "bump2version" },
     { name = "coverage", extras = ["toml"] },
     { name = "mypy" },
     { name = "pre-commit" },
@@ -7593,6 +7602,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/2e/757d2280d4fefe7d33af7615124e7e298ae7b8e3bc4446cdb8e88b0f9bab/triton-3.2.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8009a1fb093ee8546495e96731336a33fb8856a38e45bb4ab6affd6dbc3ba220", size = 253157636, upload-time = "2025-01-22T19:12:51.322Z" },
     { url = "https://files.pythonhosted.org/packages/06/00/59500052cb1cf8cf5316be93598946bc451f14072c6ff256904428eaf03c/triton-3.2.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8d9b215efc1c26fa7eefb9a157915c92d52e000d2bf83e5f69704047e63f125c", size = 253159365, upload-time = "2025-01-22T19:13:24.648Z" },
     { url = "https://files.pythonhosted.org/packages/c7/30/37a3384d1e2e9320331baca41e835e90a3767303642c7a80d4510152cbcf/triton-3.2.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e5dfa23ba84541d7c0a531dfce76d8bcd19159d50a4a8b14ad01e91734a5c1b0", size = 253154278, upload-time = "2025-01-22T19:13:54.221Z" },
+]
+
+[[package]]
+name = "typer"
+version = "0.27.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "annotated-doc" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "rich" },
+    { name = "shellingham" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ae/40/4a3db7990d1f62a53182aa96eaef57aeb2886a27f90a195bc66713565d31/typer-0.27.1.tar.gz", hash = "sha256:a79bef8469a79c45498e7b814ecf8d603cc7644e9acbd9e19cac0334240b18df", size = 203994, upload-time = "2026-08-03T14:41:03.438Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/43/89/9518bc0c3929bee36b3a4a8e3daddd6e03f92f9961c66d4983b837160543/typer-0.27.1-py3-none-any.whl", hash = "sha256:53150287edd11baeb4e4722c8e394fcdf8181c0ae89485cba8d25c778d5edd56", size = 122874, upload-time = "2026-08-03T14:41:04.391Z" },
 ]
 
 [[package]]

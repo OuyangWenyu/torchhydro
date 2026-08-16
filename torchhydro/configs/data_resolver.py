@@ -138,3 +138,17 @@ def open_dataset_from_source_cfgs(
     dataset_id, source, reader_kwargs = normalize_source_cfgs(source_cfgs)
     reader_kwargs.update(extra_reader_kwargs)
     return open_dataset(dataset_id, source=source, **reader_kwargs)
+
+
+def resolve_dataset(dataset_id: str):
+    """Return a callable that opens *dataset_id* via the resolver.
+
+    The returned factory accepts the legacy ``data_sources_dict[name](path)``
+    call convention: positional path arguments are intentionally ignored
+    because dataset locations are resolved centrally from ``hydro_setting.yml``.
+    """
+
+    def _factory(*args: Any, **kwargs: Any):
+        return open_dataset(dataset_id, **kwargs)
+
+    return _factory

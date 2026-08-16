@@ -29,9 +29,6 @@ try:
 except ImportError:
     MultiDatasets = None
 
-# DATASET_MAPPING removed from hydrodataset; define locally for MultiSourceDataset
-DATASET_MAPPING = {}
-
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
@@ -1979,25 +1976,23 @@ class MultiSourceDataset(BaseDataset):
 
         # Initialize all required data sources
         sources = {}
-        # Get datasets from config, or default to all available in DATASET_MAPPING
+        # Get datasets from config, or default to all registered sources
         if "source_cfgs" in self.data_cfgs:
             datasets_config = self.data_cfgs["source_cfgs"].get("datasets", None)
             if isinstance(datasets_config, list):
                 req_datasets = datasets_config
             else:
                 # Default to all if not specified list
-                req_datasets = list(DATASET_MAPPING.keys())
+                req_datasets = list(data_sources_dict.keys())
         else:
-            req_datasets = list(DATASET_MAPPING.keys())
+            req_datasets = list(data_sources_dict.keys())
 
         for ds_name in req_datasets:
-            if ds_name in DATASET_MAPPING:
-                _, class_name = DATASET_MAPPING[ds_name]
-                if ds_name in data_sources_dict:
-                    source_constructor = data_sources_dict[ds_name]
-                    # source_path = SETTING["local_data_path"]["datasets-origin"]
-                    source_path = self.data_cfgs["source_cfgs"]["source_path"]
-                    sources[ds_name] = source_constructor(source_path)
+            if ds_name in data_sources_dict:
+                source_constructor = data_sources_dict[ds_name]
+                # source_path = SETTING["local_data_path"]["datasets-origin"]
+                source_path = self.data_cfgs["source_cfgs"]["source_path"]
+                sources[ds_name] = source_constructor(source_path)
 
         return MultiDataSourceWrapper(sources, datasets_config)
 
@@ -2039,7 +2034,7 @@ class MultiSourceDataset(BaseDataset):
         # Since we need to pass specific paths or args, better to do it here or use a helper
 
         for ds_name, ids in ids_by_dataset.items():
-            if ds_name not in DATASET_MAPPING:
+            if ds_name not in data_sources_dict:
                 continue
 
             # Get the data source instance for this dataset

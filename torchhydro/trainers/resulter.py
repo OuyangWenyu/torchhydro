@@ -12,7 +12,7 @@ from torch.nn import functional as F
 from tbparse import SummaryReader
 
 from hydroutils.hydro_stat import stat_error
-from hydrodatasource.utils.utils import streamflow_unit_conv
+from hydroutils.hydro_units import streamflow_unit_conv
 
 from torchhydro.trainers.train_logger import save_model_params_log
 try:

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from torchhydro.datasets.data_scalers import DapengScaler
-from torchhydro.datasets.data_sources import CamelsUs
+from hydrodataset.camels_us import CamelsUs
 
 @pytest.fixture
 def camels_source():

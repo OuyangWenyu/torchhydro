@@ -27,19 +27,10 @@ from tqdm import tqdm
 
 from hydrodataset import HydroDataset
 from hydrodataset.camels import Camels  # deprecated, kept for SupData4Camels legacy classes
-from hydrodataset.camels_us import CamelsUs
 from hydroutils import (
     hydro_time,
     hydro_file,
 )
-from hydrodataset.grdc_caravan import GrdcCaravan
-from hydrodataset.camelsh import Camelsh
-from hydrodataset.caravan import Caravan
-from hydrodataset.camels_aus import CamelsAus
-from hydrodataset.camels_br import CamelsBr
-from hydrodataset.camels_cl import CamelsCl
-from hydrodataset.camels_gb import CamelsGb
-from hydrodataset.camels_col import CamelsCol
 from hydrodatasource.reader.data_source import (
     SelfMadeHydroDataset,
     SelfMadeForecastDataset,
@@ -50,6 +41,7 @@ from hydrodatasource.reader.data_source import (
 from hydrodatasource.reader.floodevent import FloodEventDatasource
 
 from torchhydro import CACHE_DIR, SETTING
+from torchhydro.configs.data_resolver import resolve_dataset
 
 
 class SupData4Camels:
@@ -2980,21 +2972,23 @@ class Reservoir(HydroDataset):
 
 
 data_sources_dict = {
-    "camels_us": CamelsUs,
-    "camelsh": Camelsh,
-    "caravan": Caravan,
-    "grdc_caravan": GrdcCaravan,
+    # Standard hydrodataset datasets resolve through the unified hydrodatasource
+    # resolver; torchhydro-specific sources below keep their own classes.
+    "camels_us": resolve_dataset("camels_us"),
+    "camelsh": resolve_dataset("camelsh"),
+    "caravan": resolve_dataset("caravan"),
+    "grdc_caravan": resolve_dataset("grdc_caravan"),
     "selfmadehydrodataset": SelfMadeHydroDataset,
     "selfmadeforecastdataset": SelfMadeForecastDataset,
     "longtermdataset": LongTermDataset,
     "floodeventdatasource": FloodEventDatasource,
     "stationhydrodataset": StationHydroDataset,
     "tghydrodatasource": TgHydroDatasource,
-    "camels_aus": CamelsAus,
-    "camels_br": CamelsBr,
-    "camels_cl": CamelsCl,
-    "camels_gb": CamelsGb,
-    "camels_col": CamelsCol,
+    "camels_aus": resolve_dataset("camels_aus"),
+    "camels_br": resolve_dataset("camels_br"),
+    "camels_cl": resolve_dataset("camels_cl"),
+    "camels_gb": resolve_dataset("camels_gb"),
+    "camels_col": resolve_dataset("camels_col"),
     "usgs4camels": SupData4Camels,
     "modiset4camels": ModisEt4Camels,
     "nldas4camels": Nldas4Camels,
