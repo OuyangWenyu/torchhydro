@@ -27,9 +27,6 @@ gage_id = [
 
 
 @pytest.mark.requires_data
-@pytest.mark.skip(
-    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
-)
 def test_seq2seq(seq2seq_config):
     # world_size = len(config["training_cfgs"]["device"])
     # mp.spawn(train_worker, args=(world_size, config), nprocs=world_size, join=True)
@@ -51,7 +48,7 @@ def model():
 
 
 @pytest.mark.skip(
-    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
+    reason="TODO: early-version test; GeneralSeq2Seq forward contract changed, needs updating"
 )
 def test_forward_no_teacher_forcing(model):
     src1 = torch.randn(3, 10, 2)
@@ -61,7 +58,7 @@ def test_forward_no_teacher_forcing(model):
 
 
 @pytest.mark.skip(
-    reason="TODO: This is an early-version test function, need to be updated, and then run it, now skipping."
+    reason="TODO: early-version test; GeneralSeq2Seq forward contract changed, needs updating"
 )
 def test_forward_with_teacher_forcing(model):
     src1 = torch.randn(3, 10, 2)
