@@ -813,14 +813,12 @@ def _recover_samples_to_4d_by_forecast(
 
     # 流域优先布局 (basin, time, forecast_length, nf) —— 与
     # compute_validation 的 byforecast 处理(按 pred.shape[2] 遍历预见期)一致。
-    # 滚动预测对齐:样本 i 的第 j 步预见期对应输出中第 i+j 个时间步。
-    # 最后 j 行没有足够的未来输出,保持 NaN。
+    # 无移位填充:forecast_output[s, j] 对应绝对时间 warmup + s + rho + j,
+    # consumer 的 start = start_idx + i 放置要求 result[τ, j] = forecast_output[τ, j]。
     result = np.full((basin_num, i_e_time_length, forecast_length, nf), np.nan)
     for basin_idx in range(basin_num):
         for j in range(min(forecast_length, forecast_output.shape[2])):
-            result[basin_idx, : i_e_time_length - j, j, :] = forecast_output[
-                basin_idx, j:, j, :
-            ]
+            result[basin_idx, :, j, :] = forecast_output[basin_idx, :, j, :]
     return result
 
 
@@ -885,11 +883,11 @@ def _recover_samples_to_4d_by_basins(
     for basin_idx in range(basin_num):
         # 对每个预测步长进行处理(实际 horizon 可能小于 forecast_length)
         for j in range(min(forecast_length, forecast_output.shape[2])):
-            # 滚动预测对齐:样本 i 的第 j 步预见期对应输出中第 i+j 个时间步。
-            # 最后 j 行没有足够的未来输出,保持 NaN。
-            result[basin_idx, : i_e_time_length - j, j, :] = forecast_output[
-                basin_idx, j:, j, :
-            ]
+            # forecast_output[s, j] 是样本 s 第 j 步预见期的预测,绝对时间为
+            # warmup + s + rho + j;consumer 把它放到 target[rho + i + τ]。
+            # 无移位填充 result[τ, j] = forecast_output[τ, j] 才能与 consumer
+            # 的 start = start_idx + i 放置精确对齐(见 compute_validation)。
+            result[basin_idx, :, j, :] = forecast_output[basin_idx, :, j, :]
 
     return result
 

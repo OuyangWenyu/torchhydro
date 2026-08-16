@@ -43,6 +43,15 @@ from torchhydro.datasets.data_utils import (
     wrap_t_s_dict,
 )
 
+
+def _pandas_freq(min_time_interval, min_time_unit):
+    """Build a pandas frequency string from torchhydro interval/unit.
+
+    Normalizes the legacy month-end ``"M"`` to pandas 2.x ``"ME"``.
+    """
+    unit = "ME" if min_time_unit == "M" else min_time_unit
+    return f"{int(min_time_interval)}{unit}"
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -465,7 +474,7 @@ class BaseDataset(Dataset):
         # 直接用 pandas frequency 数周期。
         if min_time_unit in ("ME", "MS", "M"):
             periods = pd.date_range(
-                s_date, e_date, freq=f"{int(min_time_interval)}{min_time_unit}"
+                s_date, e_date, freq=_pandas_freq(min_time_interval, min_time_unit)
             )
             return len(periods)
 
@@ -490,7 +499,7 @@ class BaseDataset(Dataset):
         """
         min_time_unit = self.data_cfgs["min_time_unit"]
         min_time_interval = self.data_cfgs["min_time_interval"]
-        time_step = f"{min_time_interval}{min_time_unit}"
+        time_step = _pandas_freq(min_time_interval, min_time_unit)
         if isinstance(self.t_s_dict["t_final_range"][0], tuple):
             times_ = []
             trange_type_num = len(self.t_s_dict["t_final_range"])

@@ -139,7 +139,7 @@ def test_recover_samples_to_4d_by_basins_basic():
     for j in range(forecast_length):
         valid_indices = np.arange(i_e_time_length - j)
         for basin_idx in range(basin_num):
-            expected = forecast_output[basin_idx, valid_indices + j, j, :]
+            expected = forecast_output[basin_idx, valid_indices, j, :]
             actual = result[basin_idx, valid_indices, j, :]
             assert np.allclose(actual, expected)
 
@@ -175,12 +175,9 @@ def test_recover_samples_to_4d_by_basins_nan_fill():
         data_shape, data_loader, stride, hindcast_output_window, arr_3d
     )
 
-    # Only certain positions should be filled, others should be nan
-    # For j=0, valid_indices = [0,1], for j=1, valid_indices = [0]
-    assert not np.any(np.isnan(result[0, 0, 0, :]))
-    assert not np.any(np.isnan(result[0, 1, 0, :]))
-    assert not np.any(np.isnan(result[0, 0, 1, :]))
-    assert np.all(np.isnan(result[0, 1, 1, :]))
+    # No-shift recovery fills every (time, forecast) position from the last
+    # forecast_length outputs; nothing remains NaN.
+    assert not np.any(np.isnan(result))
 
 
 def test_recover_samples_to_4d_by_basins_empty():
@@ -255,7 +252,7 @@ def test_recover_samples_to_4d_by_forecast_basic():
     for j in range(forecast_length):
         valid_indices = np.arange(i_e_time_length - j)
         for basin_idx in range(basin_num):
-            expected = forecast_output[basin_idx, valid_indices + j, j, :]
+            expected = forecast_output[basin_idx, valid_indices, j, :]
             actual = result[basin_idx, valid_indices, j, :]
             assert np.allclose(actual, expected)
 
@@ -290,12 +287,8 @@ def test_recover_samples_to_4d_by_forecast_nan_fill():
         data_shape, data_loader, stride, hindcast_output_window, arr_3d
     )
 
-    # Only certain positions should be filled, others should be nan
-    # For j=0, valid_indices = [0,1], for j=1, valid_indices = [0]
-    assert not np.any(np.isnan(result[0, 0, 0, :]))
-    assert not np.any(np.isnan(result[0, 1, 0, :]))
-    assert not np.any(np.isnan(result[0, 0, 1, :]))
-    assert np.all(np.isnan(result[0, 1, 1, :]))
+    # No-shift recovery fills every (time, forecast) position; nothing is NaN.
+    assert not np.any(np.isnan(result))
 
 
 def test_recover_samples_to_4d_by_forecast_multiple_features():
@@ -336,7 +329,7 @@ def test_recover_samples_to_4d_by_forecast_multiple_features():
     for j in range(forecast_length):
         valid_indices = np.arange(i_e_time_length - j)
         for basin_idx in range(basin_num):
-            expected = forecast_output[basin_idx, valid_indices + j, j, :]
+            expected = forecast_output[basin_idx, valid_indices, j, :]
             actual = result[basin_idx, valid_indices, j, :]
             assert np.allclose(actual, expected)
 
