@@ -811,13 +811,14 @@ def _recover_samples_to_4d_by_forecast(
     # 提取最后forecast_length个时间步的预测结果
     forecast_output = output[:, :, -forecast_length:, :]
 
-    # 按预见期优先布局 [forecast_length, basin_num, i_e_time_length, nf]:
-    # 样本 i 的第 j 步预见期对应输出中第 i+j 个时间步。
+    # 流域优先布局 (basin, time, forecast_length, nf) —— 与
+    # compute_validation 的 byforecast 处理(按 pred.shape[2] 遍历预见期)一致。
+    # 滚动预测对齐:样本 i 的第 j 步预见期对应输出中第 i+j 个时间步。
     # 最后 j 行没有足够的未来输出,保持 NaN。
-    result = np.full((forecast_length, basin_num, i_e_time_length, nf), np.nan)
-    for j in range(min(forecast_length, forecast_output.shape[2])):
-        for basin_idx in range(basin_num):
-            result[j, basin_idx, : i_e_time_length - j, :] = forecast_output[
+    result = np.full((basin_num, i_e_time_length, forecast_length, nf), np.nan)
+    for basin_idx in range(basin_num):
+        for j in range(min(forecast_length, forecast_output.shape[2])):
+            result[basin_idx, : i_e_time_length - j, j, :] = forecast_output[
                 basin_idx, j:, j, :
             ]
     return result

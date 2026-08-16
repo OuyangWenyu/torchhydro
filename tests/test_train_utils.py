@@ -247,7 +247,7 @@ def test_recover_samples_to_4d_by_forecast_basic():
     )
 
     # Check shape
-    assert result.shape == (forecast_length, basin_num, i_e_time_length, nf)
+    assert result.shape == (basin_num, i_e_time_length, forecast_length, nf)
 
     # Check that the filled values match the expected forecast_output
     output = arr_3d.reshape(basin_num, i_e_time_length, arr_3d_time_steps, nf)
@@ -256,7 +256,7 @@ def test_recover_samples_to_4d_by_forecast_basic():
         valid_indices = np.arange(i_e_time_length - j)
         for basin_idx in range(basin_num):
             expected = forecast_output[basin_idx, valid_indices + j, j, :]
-            actual = result[j, basin_idx, valid_indices, :]
+            actual = result[basin_idx, valid_indices, j, :]
             assert np.allclose(actual, expected)
 
 
@@ -293,9 +293,9 @@ def test_recover_samples_to_4d_by_forecast_nan_fill():
     # Only certain positions should be filled, others should be nan
     # For j=0, valid_indices = [0,1], for j=1, valid_indices = [0]
     assert not np.any(np.isnan(result[0, 0, 0, :]))
+    assert not np.any(np.isnan(result[0, 1, 0, :]))
     assert not np.any(np.isnan(result[0, 0, 1, :]))
-    assert not np.any(np.isnan(result[1, 0, 0, :]))
-    assert np.all(np.isnan(result[1, 0, 1, :]))
+    assert np.all(np.isnan(result[0, 1, 1, :]))
 
 
 def test_recover_samples_to_4d_by_forecast_multiple_features():
@@ -329,7 +329,7 @@ def test_recover_samples_to_4d_by_forecast_multiple_features():
     )
 
     # Check shape
-    assert result.shape == (forecast_length, basin_num, i_e_time_length, nf)
+    assert result.shape == (basin_num, i_e_time_length, forecast_length, nf)
     # Check that the values are correct for all features
     output = arr_3d.reshape(basin_num, i_e_time_length, arr_3d_time_steps, nf)
     forecast_output = output[:, :, -forecast_length:, :]
@@ -337,7 +337,7 @@ def test_recover_samples_to_4d_by_forecast_multiple_features():
         valid_indices = np.arange(i_e_time_length - j)
         for basin_idx in range(basin_num):
             expected = forecast_output[basin_idx, valid_indices + j, j, :]
-            actual = result[j, basin_idx, valid_indices, :]
+            actual = result[basin_idx, valid_indices, j, :]
             assert np.allclose(actual, expected)
 
 
@@ -371,7 +371,7 @@ def test_recover_samples_to_4d_by_forecast_empty():
         data_shape, data_loader, stride, hindcast_output_window, arr_3d
     )
 
-    assert result.shape == (forecast_length, basin_num, 0, nf)
+    assert result.shape == (basin_num, 0, forecast_length, nf)
     assert np.all(np.isnan(result))
 
 
