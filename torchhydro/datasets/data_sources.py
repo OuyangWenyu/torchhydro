@@ -9,6 +9,7 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 """
 
 import json
+import logging
 import warnings
 import collections
 import os
@@ -30,7 +31,6 @@ from hydrodataset.camels_us import CamelsUs
 from hydroutils import (
     hydro_time,
     hydro_file,
-    hydro_logger,
 )
 from hydrodataset.grdc_caravan import GrdcCaravan
 from hydrodataset.camelsh import Camelsh
@@ -2130,7 +2130,9 @@ def map_string_vars(ds):
 def prepare_usgs_data(
     data_source_description: Dict, t_download_range: Union[tuple, list]
 ):
-    hydro_logger.info("NOT all data_source could be downloaded from website directly!")
+    logging.getLogger(__name__).info(
+        "NOT all data_source could be downloaded from website directly!"
+    )
     # download zip files
     [
         hydro_file.download_one_zip(attr_url, data_source_description["GAGES_DIR"])
