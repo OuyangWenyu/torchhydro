@@ -4,7 +4,6 @@ Reference: Spatio-Temporal Graph Convolutional Networks (Yu et al., 2018)
 """
 
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import Parameter

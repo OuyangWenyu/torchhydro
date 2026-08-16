@@ -481,13 +481,6 @@ class MinLSTM(nn.Module):
         return torch.where(x >= 0, (F.relu(x) + 0.5).log(), -F.softplus(-x))
 
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from typing import Any, Tuple
-
-
 class DeepGEVLSTM(nn.Module):
     def __init__(self, input_size: int, hidden_size: int, dr: float = 0.0):
         super(DeepGEVLSTM, self).__init__()
