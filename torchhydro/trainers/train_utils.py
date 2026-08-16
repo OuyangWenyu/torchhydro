@@ -165,7 +165,10 @@ def _rolling_preds_for_once_eval(
     the_array_4d = the_array.reshape(ngrid, samples, window_size, nf)
     for i in range(ngrid):
         for j in range(0, recover_len - window_size + 1, window_size):
-            the_array_[i, j : j + window_size, :] = the_array_4d[i, j, :, :]
+            # j 是时间偏移(0, window_size, ...),样本索引是 j // window_size
+            the_array_[i, j : j + window_size, :] = the_array_4d[
+                i, j // window_size, :, :
+            ]
     return the_array_.reshape(ngrid, recover_len, nf)
 
 

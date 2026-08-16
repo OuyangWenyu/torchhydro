@@ -661,3 +661,36 @@ def test_bybasins_offset_matches_last_forecast_step():
     assert np.allclose(target[0, start : start + T, :], expected)
     # nothing before the offset
     assert np.all(np.isnan(target[0, :start, :]))
+
+
+def test_rolling_preds_for_once_eval_places_each_window():
+    """For stride == forecast_length, each non-overlapping rolling window goes
+    into its own block of the recovered array. Regression: the sample index was
+    the time offset j instead of j // window_size, misplacing windows and going
+    out of bounds when there is more than one window."""
+    from torchhydro.trainers.train_utils import _rolling_preds_for_once_eval
+
+    ngrid, nt, nf = 2, 6, 1
+    forecast_length = 2
+    stride = forecast_length
+    hindcast_output_window = 0
+    rho = 0
+    window_size = hindcast_output_window + forecast_length  # 2
+    samples = (nt - rho + hindcast_output_window) // window_size  # 3
+
+    # the_array: (ngrid * samples, window_size, nf)
+    the_array = np.arange(ngrid * samples * window_size * nf).reshape(
+        ngrid * samples, window_size, nf
+    )
+    result = _rolling_preds_for_once_eval(
+        (ngrid, nt, nf), rho, forecast_length, stride, hindcast_output_window, the_array
+    )
+
+    # reshape to the window layout and verify each window lands in its block
+    arr4 = the_array.reshape(ngrid, samples, window_size, nf)
+    for i in range(ngrid):
+        for s in range(samples):
+            start = s * window_size
+            assert np.allclose(
+                result[i, start : start + window_size, :], arr4[i, s, :, :]
+            ), f"window {s} of grid {i} misplaced"
