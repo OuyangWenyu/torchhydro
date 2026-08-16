@@ -159,6 +159,13 @@ pic/
 # Claude
 CLAUDE.md
 .claude/
+
+# Specify (spec-kit)
+.specify/
+
+# CodeGraph
+.codegraph/
+
 .DS_Store
 
 # version file
