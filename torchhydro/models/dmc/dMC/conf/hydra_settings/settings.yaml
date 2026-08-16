@@ -1,0 +1,19 @@
+override hydra/hydra_logging: colorlog
+override hydra/job_logging: colorlog
+hydra:
+  help:
+    app_name: dMC-Juniata-hydroDL2
+    header: == ${hydra.help.app_name} ==
+    template: |-
+      ${hydra.help.header}
+
+      A novel differentiable modeling framework to perform routing and to learn a "parameterization scheme."
+
+      ${hydra.help.footer}
+    footer: |-
+      Powered by Hydra (https://hydra.cc)
+      Use --hydra-help to view Hydra specific help
+  job:
+    name: ${name}
+  run:
+    dir: ${cwd}/output/${now:%Y-%m-%d}_${hydra.job.name}/${now:%H-%M-%S}
