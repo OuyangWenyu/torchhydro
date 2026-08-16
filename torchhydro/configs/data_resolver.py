@@ -168,7 +168,12 @@ def _open_from_data_sources_dict(
             "recognises it."
         ) from None
     constructor = data_sources_dict[dataset_id]
-    # self-made sources locate their data via the legacy source_path/path key
+    # Self-made sources locate their data via the legacy source_path/path key,
+    # which must point directly at the dataset root.  The legacy dataset_name
+    # sub-directory selector is intentionally dropped: the new unified uri=
+    # readers derive the dataset name from the uri's own path (see
+    # SelfMadeHydroDataset).  Old configs that pass a parent dir + dataset_name
+    # must be updated to point source_path at the dataset root.
     path = source_cfgs.get("source_path") or source_cfgs.get("path")
     if path is not None:
         return constructor(path, **reader_kwargs)
