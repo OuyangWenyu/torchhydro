@@ -15,7 +15,6 @@ from torchhydro.datasets.data_sets import BaseDataset
 from torchhydro.datasets.cloud_zarr_sampler import CloudZarrChunkBatchSampler
 from typing import Iterator, Optional
 import torch
-import random
 
 
 class KuaiSampler(RandomSampler):

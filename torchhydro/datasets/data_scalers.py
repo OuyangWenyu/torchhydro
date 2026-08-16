@@ -29,14 +29,12 @@ from hydroutils.hydro_stat import (
     cal_stat_prcp_norm,
     cal_stat_gamma,
     cal_stat,
-    cal_4_stat_inds,
 )
 
 from torchhydro.datasets.data_utils import (
     _trans_norm,
     _prcp_norm,
     wrap_t_s_dict,
-    unify_streamflow_unit,
 )
 
 SCALER_DICT = {
