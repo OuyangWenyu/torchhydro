@@ -56,7 +56,6 @@ from torchhydro.trainers.train_utils import (
     average_weights,
     evaluate_validation,
     compute_validation,
-    create_amp_grad_scaler,
     model_infer,
     read_pth_from_model_loader,
     torch_single_train,
@@ -267,7 +266,6 @@ class DeepHydro(DeepHydroInterface):
         opt = self._get_optimizer(training_cfgs)
         scheduler = self._get_scheduler(training_cfgs, opt)
         mixed_precision = training_cfgs.get("mixed_precision", "off")
-        amp_scaler = create_amp_grad_scaler(self.device, mixed_precision)
         non_blocking_transfer = bool(
             training_cfgs.get(
                 "non_blocking_transfer", training_cfgs.get("pin_memory", False)
