@@ -146,7 +146,9 @@ def test_model_train(deep_hydro):
 
 
 @pytest.mark.skip(
-    reason="Plotting logic is complex and incompatible with the mock model's forward pass."
+    reason="plot_model_structure is marked TODO-broken; add_graph passes 3 "
+    "tensors to the mock CpuLSTM.forward (takes 2-3 positional args). "
+    "Rewriting the plotting function is a separate task."
 )
 def test_plot_model_structure(deep_hydro, dummy_train_cfgs):
     opt = torch.optim.SGD(deep_hydro.model.parameters(), lr=0.01)
