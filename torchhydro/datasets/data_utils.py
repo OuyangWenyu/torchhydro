@@ -131,13 +131,19 @@ def wrap_t_s_dict(data_cfgs: dict, is_tra_val_te: str) -> OrderedDict:
 
 
 def validate_split_ranges(config: dict) -> dict:
-    """Validate inclusive train/validation/test target intervals.
+    """Validate train/validation/test target intervals.
 
-    ``t_range_*`` values describe target timestamps, not the source's full
-    available time span.  TorchHydro currently uses inclusive endpoints, so a
-    validation period beginning on the train end date is an overlap.  Explicit
-    overlap is retained for in-sample evaluation only when
-    ``data_cfgs.allow_split_overlap`` is true.
+    ``t_range_*`` values describe target timestamps under TorchHydro's
+    left-closed right-open convention: adjacent periods that share a boundary
+    timestamp (train ends 2001-10-01, valid starts 2001-10-01) are **not** an
+    overlap.  Only a strictly nested period (one split starting before the
+    previous split's end) is flagged.
+
+    A strict overlap is reported as an advisory ``UserWarning`` and the result
+    is labelled ``in_sample`` — it never blocks a run, because overlap commonly
+    comes from reusing train data as warmup/hindcast input history, which is
+    legitimate.  Set ``data_cfgs.allow_split_overlap`` to true to suppress the
+    advisory warning when the in-sample intent is explicit.
 
     The function is deliberately small and side-effect free apart from adding
     the derived evaluation metadata to the supplied normalized config when it
@@ -173,23 +179,19 @@ def validate_split_ranges(config: dict) -> dict:
                 continue
             left_start, left_end = ranges[left]
             right_start, right_end = ranges[right]
-            if max(left_start, right_start) <= min(left_end, right_end):
+            # Left-closed right-open semantics: only a strictly nested period
+            # (one starting before the previous split's end) counts as overlap.
+            if max(left_start, right_start) < min(left_end, right_end):
                 overlaps.append((left, right))
 
     allow_overlap = bool(data_cfgs.get("allow_split_overlap", False))
     semantics = "in_sample" if overlaps else "out_of_sample"
     if overlaps and not allow_overlap:
         overlap_text = ", ".join(f"{left}/{right}" for left, right in overlaps)
-        raise ValueError(
-            "Overlapping target split ranges detected for "
-            f"{overlap_text}. Set data_cfgs.allow_split_overlap=true only "
-            "for explicit in-sample evaluation."
-        )
-    if overlaps and allow_overlap:
         warnings.warn(
-            "Overlapping target split ranges are enabled explicitly; results "
-            "are in-sample and must not be interpreted as out-of-sample "
-            "generalization performance.",
+            f"Overlapping target split ranges detected for {overlap_text}. "
+            "Results will be treated as in-sample and must not be interpreted "
+            "as out-of-sample generalization performance.",
             UserWarning,
             stacklevel=2,
         )

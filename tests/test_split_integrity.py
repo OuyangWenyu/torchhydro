@@ -29,40 +29,86 @@ def _ranges(train, valid, test):
     }
 
 
-def test_train_test_oos_overlap_is_rejected():
-    with pytest.raises(ValueError, match="train.*test"):
-        validate_split_ranges(
-            _ranges(["2000-01-01", "2000-01-10"], None, ["2000-01-10", "2000-01-20"])
+def test_strict_train_test_overlap_warns_in_sample():
+    # test starts strictly inside train -> flagged as in-sample overlap
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = validate_split_ranges(
+            _ranges(["2000-01-01", "2000-01-10"], None, ["2000-01-05", "2000-01-20"])
         )
+    assert result["evaluation_semantics"] == "in_sample"
+    assert result["overlaps"] == (("train", "test"),)
+    assert any("Overlapping" in str(item.message) for item in caught)
 
 
-def test_train_valid_oos_overlap_is_rejected():
-    with pytest.raises(ValueError, match="train.*valid"):
-        validate_split_ranges(
+def test_strict_train_valid_overlap_warns_in_sample():
+    # valid starts strictly inside train -> warned, never blocks
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = validate_split_ranges(
             _ranges(
                 ["2000-01-01", "2000-01-10"],
-                ["2000-01-10", "2000-01-20"],
+                ["2000-01-05", "2000-01-20"],
                 ["2000-01-21", "2000-01-30"],
             )
         )
+    assert result["evaluation_semantics"] == "in_sample"
+    assert result["overlaps"] == (("train", "valid"),)
+    assert any("Overlapping" in str(item.message) for item in caught)
 
 
-def test_valid_test_oos_overlap_is_rejected():
-    with pytest.raises(ValueError, match="valid.*test"):
-        validate_split_ranges(
+def test_strict_valid_test_overlap_warns_in_sample():
+    # test starts strictly inside valid -> warned, never blocks
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = validate_split_ranges(
             _ranges(
                 ["2000-01-01", "2000-01-10"],
                 ["2000-01-11", "2000-01-20"],
-                ["2000-01-20", "2000-01-30"],
+                ["2000-01-15", "2000-01-30"],
             )
         )
+    assert result["evaluation_semantics"] == "in_sample"
+    assert result["overlaps"] == (("valid", "test"),)
+    assert any("Overlapping" in str(item.message) for item in caught)
 
 
-def test_touching_inclusive_boundaries_are_detected():
-    with pytest.raises(ValueError, match="train.*test"):
-        validate_split_ranges(
-            _ranges(["2000-01-01", "2000-01-10"], None, ["2000-01-10", "2000-01-20"])
+def test_touching_boundaries_are_accepted():
+    # train end == test start -> left-closed right-open: not an overlap
+    result = validate_split_ranges(
+        _ranges(["2000-01-01", "2000-01-10"], None, ["2000-01-10", "2000-01-20"])
+    )
+    assert result["evaluation_semantics"] == "out_of_sample"
+    assert result["overlaps"] == ()
+
+
+def test_adjacent_train_valid_test_are_accepted():
+    # the standard adjacent-split pattern used across torchhydro configs
+    result = validate_split_ranges(
+        _ranges(
+            ["2000-01-01", "2000-01-10"],
+            ["2000-01-10", "2000-01-20"],
+            ["2000-01-20", "2000-01-30"],
         )
+    )
+    assert result["evaluation_semantics"] == "out_of_sample"
+    assert result["overlaps"] == ()
+
+
+def test_valid_test_identical_overlap_warns_in_sample():
+    # valid == test (and inside train) is warmup/history reuse: warned, runs
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = validate_split_ranges(
+            _ranges(
+                ["2000-01-01", "2000-01-10"],
+                ["2000-01-05", "2000-01-10"],
+                ["2000-01-05", "2000-01-10"],
+            )
+        )
+    assert result["evaluation_semantics"] == "in_sample"
+    assert ("valid", "test") in result["overlaps"]
+    assert any("Overlapping" in str(item.message) for item in caught)
 
 
 def test_non_overlapping_oos_splits_are_accepted():
@@ -77,7 +123,7 @@ def test_non_overlapping_oos_splits_are_accepted():
     assert result["overlaps"] == ()
 
 
-def test_explicit_in_sample_evaluation_is_allowed():
+def test_explicit_in_sample_suppresses_warning():
     cfg = _ranges(
         ["2000-01-01", "2000-01-10"],
         None,
@@ -90,7 +136,7 @@ def test_explicit_in_sample_evaluation_is_allowed():
         result = validate_split_ranges(cfg)
     assert result["evaluation_semantics"] == "in_sample"
     assert result["overlaps"] == (("train", "test"),)
-    assert any("in-sample" in str(item.message) for item in caught)
+    assert not any("Overlapping" in str(item.message) for item in caught)
     assert cfg["evaluation_cfgs"]["split_evaluation_semantics"] == "in_sample"
 
 
