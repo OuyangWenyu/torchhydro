@@ -51,3 +51,14 @@ def test_cmd_default_args() -> None:
     assert args.batch_size is None
     assert args.dropout is None
     assert args.warmup_length is None
+
+
+def test_monthly_min_time_unit_is_accepted():
+    """BALSTM-style monthly configs use min_time_unit='ME'; update_cfg must
+    accept monthly frequencies instead of rejecting everything outside h/D."""
+    from torchhydro.configs.config import update_cfg
+
+    cfg = default_config_file()
+    args = cmd(min_time_unit="ME")
+    update_cfg(cfg, args)
+    assert cfg["data_cfgs"]["min_time_unit"] == "ME"

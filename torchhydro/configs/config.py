@@ -1398,8 +1398,11 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
     if new_args.batch_size is not None:
         cfg_file["training_cfgs"]["batch_size"] = new_args.batch_size
     if new_args.min_time_unit is not None:
-        if new_args.min_time_unit not in ["h", "D"]:
-            raise ValueError("min_time_unit must be 'h' (HOURLY) or 'D' (DAILY)")
+        if new_args.min_time_unit not in ["h", "H", "d", "D", "ME", "MS", "M"]:
+            raise ValueError(
+                "min_time_unit must be an hourly/daily/monthly frequency "
+                "('h', 'H', 'd', 'D', 'ME', 'MS', 'M')"
+            )
         cfg_file["data_cfgs"]["min_time_unit"] = new_args.min_time_unit
     if new_args.min_time_interval is not None:
         cfg_file["data_cfgs"]["min_time_interval"] = new_args.min_time_interval

@@ -461,6 +461,14 @@ class BaseDataset(Dataset):
         else:
             e_date = datetime.strptime(latest_date, date_format)
 
+        # 月度单位是日历感知的(每月天数不固定),不能用固定小时数换算,
+        # 直接用 pandas frequency 数周期。
+        if min_time_unit in ("ME", "MS", "M"):
+            periods = pd.date_range(
+                s_date, e_date, freq=f"{int(min_time_interval)}{min_time_unit}"
+            )
+            return len(periods)
+
         # 计算总小时数
         total_hours = (e_date - s_date).total_seconds() / 3600
 
@@ -2452,14 +2460,18 @@ class Seq2SeqDataset(BaseDataset):
 
         # Adjust the start date based on the time unit
         start_date_dt = datetime.strptime(start_date, date_format)
-        if time_unit == "h":
+        if time_unit in ("h", "H"):
             adjusted_start_date = (start_date_dt - timedelta(hours=interval)).strftime(
                 date_format
             )
-        elif time_unit == "D":
+        elif time_unit in ("d", "D"):
             adjusted_start_date = (start_date_dt - timedelta(days=interval)).strftime(
                 date_format
             )
+        elif time_unit in ("ME", "MS", "M"):
+            adjusted_start_date = (
+                start_date_dt - pd.DateOffset(months=int(interval))
+            ).strftime(date_format)
         else:
             raise ValueError(f"Unsupported time unit: {time_unit}")
 
