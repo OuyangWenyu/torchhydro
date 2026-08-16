@@ -663,20 +663,20 @@ def get_preds_to_be_eval(
             preds_xr_list = []
             obss_xr_list = []
             for i in range(pred.shape[0]):
-                pred_3d = pred[i, :, :, :]
+                pred_3d = pred[i, :, :, :]  # (T, forecast_length, nf)
                 obs_3d = obs[i, :, :, :]
                 selected_data = target_scaler.data_target
                 the_array_pred_ = np.full(selected_data.shape, np.nan)
                 the_array_obs_ = np.full(selected_data.shape, np.nan)
                 start = rho  # TODO:need check
-                end = start + pred_3d.shape[1]  # 自动计算填充的结束位置
 
-                # 检查是否越界（可选）
-                assert end <= the_array_pred_.shape[1]  # "填充范围超出目标数组的边界"
+                # 每个流域取最后一个预测步长的时间序列,放置到该流域的 target 区间
+                assert (
+                    start + pred_3d.shape[0] <= the_array_pred_.shape[1]
+                ), "填充范围超出目标数组的边界"
 
-                # 执行填充
-                the_array_pred_[:, start:end, :] = pred_3d
-                the_array_obs_[:, start:end, :] = obs_3d
+                _place_bybasins_last_forecast(the_array_pred_, i, start, pred_3d)
+                _place_bybasins_last_forecast(the_array_obs_, i, start, obs_3d)
 
                 preds_xr = valte_dataset.denormalize(the_array_pred_, -1)
                 obss_xr = valte_dataset.denormalize(the_array_obs_, -1)
@@ -890,6 +890,20 @@ def _recover_samples_to_4d_by_basins(
             result[basin_idx, :, j, :] = forecast_output[basin_idx, :, j, :]
 
     return result
+
+
+def _place_bybasins_last_forecast(the_array, basin_idx, start, pred_3d):
+    """Place basin *basin_idx*'s LAST forecast step time series into the array.
+
+    ``pred_3d`` is ``(T, forecast_length, nf)`` for one basin; the bybasins
+    evaluation keeps only the last forecast step per basin, so the placed
+    slice is ``pred_3d[:, -1, :]`` (length ``T``) at
+    ``the_array[basin_idx, start : start + T, :]``.  This avoids the old shape
+    mismatch where a ``(T, forecast, nf)`` block was assigned to a
+    ``(basin, forecast, nf)`` slice (only broadcast when ``T == basin``).
+    """
+    end = start + pred_3d.shape[0]  # T (time length), not forecast_length
+    the_array[basin_idx, start:end, :] = pred_3d[:, -1, :]
 
 
 def _recover_samples_to_3d_by_basins(

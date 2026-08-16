@@ -607,3 +607,33 @@ def test_recover_samples_to_3d_by_4d_ensembles_empty_input():
     expected_time_length = nt - rho + hindcast_output_window
     assert result.shape == (basin_num, expected_time_length, nf)
     assert np.all(np.isnan(result))
+
+
+def test_place_bybasins_last_forecast_step():
+    """The bybasins evaluation places each basin's LAST forecast step into the
+    target array at offset rho. Regression for the old code that assigned the
+    whole (T, forecast, nf) block to a (basin, forecast, nf) slice (only
+    broadcast when T == basin)."""
+    from torchhydro.trainers.train_utils import _place_bybasins_last_forecast
+
+    basin_num, T, forecast, nf = 2, 3, 2, 1
+    rho = 2
+    T_total = rho + T  # target time length
+
+    # pred shape (basin, T, forecast, nf)
+    pred = np.arange(basin_num * T * forecast * nf).reshape(
+        basin_num, T, forecast, nf
+    )
+    target = np.full((basin_num, T_total, nf), np.nan)
+
+    for i in range(basin_num):
+        _place_bybasins_last_forecast(target, i, rho, pred[i])
+
+    # last forecast step of basin 0, times 0..2 -> target[0, 2:5]
+    expected_0 = pred[0, :, -1, :]  # (T, nf)
+    assert np.allclose(target[0, rho : rho + T, :], expected_0)
+    assert np.all(np.isnan(target[0, :rho, :]))  # before rho stays NaN
+
+    # different basin -> its own last forecast step
+    expected_1 = pred[1, :, -1, :]
+    assert np.allclose(target[1, rho : rho + T, :], expected_1)
