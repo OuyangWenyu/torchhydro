@@ -179,7 +179,6 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "--strict-markers"
-collect_ignore = []  # 之前setup.py已删除，保留配置项以备将来使用
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "requires_data: marks tests that require downloading external data",

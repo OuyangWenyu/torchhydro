@@ -31,6 +31,7 @@ from torchhydro.datasets.data_sets import (
     MultiSourceAEFDataset,
     FNODataset,
 )
+from torchhydro.datasets.cloud_zarr_lazy_dataset import CloudZarrLazyDataset
 
 
 datasets_dict = {
@@ -55,4 +56,5 @@ datasets_dict = {
     "MultiSourceDataset": MultiSourceDataset,
     "MultiSourceAEFDataset": MultiSourceAEFDataset,
     "FNODataset": FNODataset,
+    "CloudZarrLazyDataset": CloudZarrLazyDataset,
 }

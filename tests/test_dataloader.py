@@ -20,7 +20,6 @@ from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.data import Data, Batch
 
 # Project imports
-from torchhydro.datasets.data_sets import MultiFeatureStreamDataset
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.datasets.data_sources import data_sources_dict
 
@@ -146,9 +145,10 @@ def complete_config(tmp_path):
         },
         "case_dir": str(temp_test_path),
         "object_ids": ["01013500", "01013501"],
-        "t_range_train": ["2001-01-01", "2002-01-01"],
-        "t_range_valid": ["2002-01-01", "2003-01-01"],
-        "t_range_test": ["2003-01-01", "2004-01-01"],
+        # Split endpoints are inclusive; keep adjacent OOS periods disjoint.
+        "t_range_train": ["2001-01-01", "2001-12-31"],
+        "t_range_valid": ["2002-01-01", "2002-12-31"],
+        "t_range_test": ["2003-01-01", "2003-12-31"],
         "dataset": "StreamflowDataset",
         "relevant_cols": ["prcp", "pet"],
         "target_cols": ["streamflow"],
@@ -328,6 +328,7 @@ def test_pyg_batching_mechanics():
     ), "Found edges connecting nodes from different graphs! Block diagonal structure violated."
 
 
+@pytest.mark.skip(reason="MultiFeatureStreamDataset has been removed from data_sets.py")
 def test_multifeature_dataset_batching(tmp_path):
     """
     Test case for 'MultiFeatureStreamDataset' ensuring correct compatibility with
@@ -421,6 +422,8 @@ def test_multifeature_dataset_batching(tmp_path):
     }
 
     # --- C. Instantiate Dataset with MockDatasource ---
+    from torchhydro.datasets.data_sets import MultiFeatureStreamDataset  # noqa: F401
+
     dataset = MultiFeatureStreamDataset(cfgs, "train", upstream_indices)
 
     # --- D. Verify Dataset Initialization ---

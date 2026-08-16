@@ -92,10 +92,37 @@ def default_config_file() -> Dict[str, Any]:
         },
         "data_cfgs": {
             "source_cfgs": {
-                # the name of data source, such as CAMELS
-                "source_names": ["CAMELS"],
-                "source_paths": ["../../example/camels_us"],
+                "dataset_id": "camels_us",
             },
+            # Cloud Zarr data is dask-backed after open_zarr. The current
+            # Dataset pipeline converts Xarray data to NumPy during setup, so
+            # eager loading cloud arrays before NaN filling avoids Dask core
+            # dimension chunk errors without changing the training data flow.
+            "cloud_eager_load": True,
+            # Load all Dask-backed Xarray objects in a setup stage with one
+            # dask.compute call instead of sequential value.load() calls.
+            "cloud_eager_load_concurrent": True,
+            # Dask scheduler used by concurrent cloud eager load.
+            "cloud_eager_load_scheduler": "threads",
+            # Optional num_workers passed to dask.compute. None lets Dask pick.
+            "cloud_eager_load_num_workers": None,
+            # Print setup stage timings for Dataset construction when enabled.
+            # This is diagnostic-only and does not change data flow.
+            "profile_dataset_setup": False,
+            # Print shape/chunk/task details for cloud eager loading. This is
+            # also enabled when profile_dataset_setup is true.
+            "profile_cloud_load_details": False,
+            # Try reading relevant and target time-series variables in one
+            # datasource call. This reduces repeated cloud Zarr open/selection
+            # overhead when both variable groups live in the same store.
+            "combine_relevant_target_read": True,
+            # Use a NumPy-based DapengScaler path that converts each DataArray
+            # once, then calculates statistics and normalized values by
+            # variable. This avoids repeated Xarray sel/loc/to_numpy overhead.
+            "fast_dapeng_scaler": True,
+            # Optional verbose scaler diagnostics. Disabled by default because
+            # printing array samples during normalization is expensive.
+            "scaler_debug": False,
             "case_dir": None,
             # the min time step of the input data
             "min_time_unit": "D",
@@ -104,9 +131,14 @@ def default_config_file() -> Dict[str, Any]:
             # modeled objects
             "object_ids": "ALL",
             # modeling time range
-            "t_range_train": ["1992-01-01", "1993-01-01"],
+            # Split endpoints are inclusive throughout the existing Dataset
+            # code, so keep adjacent OOS periods from sharing a boundary day.
+            "t_range_train": ["1992-01-01", "1992-12-31"],
             "t_range_valid": None,
             "t_range_test": ["1993-01-01", "1994-01-01"],
+            # Overlap is only valid for an explicitly requested in-sample
+            # evaluation.  The default must remain safe for OOS experiments.
+            "allow_split_overlap": False,
             # the output
             "target_cols": [Q_CAMELS_US_NAME],
             "target_rm_nan": False,
@@ -223,6 +255,7 @@ def default_config_file() -> Dict[str, Any]:
             "dataset": "StreamflowDataset",
             # sampler for pytorch dataloader, here we mainly use it for Kuai Fang's sampler in all his DL papers
             "sampler": None,
+            "sampler_hyperparam": {},
             # station data configurations for GNN models
             "station_cfgs": {
                 # 站点数据配置 - 使用3h数据中实际存在的变量
@@ -267,6 +300,13 @@ def default_config_file() -> Dict[str, Any]:
             # if train_mode is False, don't train and evaluate
             "train_mode": True,
             "batch_size": 100,
+            # Return dynamic time-series inputs and static attributes
+            # separately as ``((x_dynamic, c_static), y)`` instead of repeating
+            # static attributes over the time dimension in the DataLoader.
+            "separate_static_input": False,
+            # Assemble fixed-length sliding-window batches in Dataset.__getitems__
+            # instead of calling __getitem__ once per sample.
+            "batch_level_dataloader": False,
             # we generally have three times: [warmup, hindcast_length, forecast_length]
             # warmup period means no observation will be used to calculate loss for it.
             # For physics-based models, we generally need warmup to get a better initial state
@@ -345,6 +385,18 @@ def default_config_file() -> Dict[str, Any]:
             "multi_targets": 1,
             "num_workers": 0,
             "pin_memory": False,
+            # Mixed precision training mode. Supported values: "off", "bf16",
+            # and "fp16". FP16 uses GradScaler on CUDA; BF16 uses autocast
+            # without gradient scaling.
+            "mixed_precision": "off",
+            "persistent_workers": False,
+            "prefetch_factor": 2,
+            "dataloader_timeout": 0.0,
+            "dataloader_in_order": True,
+            "multiprocessing_context": "auto",
+            "non_blocking_transfer": False,
+            "cuda_prefetch": False,
+            "cuda_prefetch_batches": 2,
             "which_first_tensor": "sequence",
             # if we calculate metrics such as RMSE, NSE, etc. during validation
             # metrics will be samed as the config in evaluation_cfgs
@@ -444,6 +496,8 @@ def cmd(
     lr_scheduler: Optional[Dict[str, Any]] = None,
     opt_param: Optional[Dict[str, Any]] = None,
     batch_size: Optional[int] = None,
+    batch_level_dataloader: Optional[bool] = None,
+    separate_static_input: Optional[bool] = None,
     warmup_length: Optional[int] = None,
     # forecast_history will be deprecated in the future
     forecast_history: Optional[int] = None,
@@ -491,6 +545,7 @@ def cmd(
     stat_dict_file: Optional[str] = None,
     num_workers: Optional[int] = None,
     pin_memory: Optional[bool] = None,
+    mixed_precision: Optional[str] = None,
     which_first_tensor: Optional[str] = None,
     ensemble: Optional[int] = None,
     ensemble_items: Optional[Dict[str, Any]] = None,
@@ -996,6 +1051,27 @@ def cmd(
         type=bool,
     )
     parser.add_argument(
+        "--mixed_precision",
+        dest="mixed_precision",
+        help="Mixed precision training mode: off, bf16, or fp16",
+        default=mixed_precision,
+        type=str,
+    )
+    parser.add_argument(
+        "--batch_level_dataloader",
+        dest="batch_level_dataloader",
+        help="Enable batch-level Dataset.__getitems__ for fixed-length training",
+        default=batch_level_dataloader,
+        action="store_true",
+    )
+    parser.add_argument(
+        "--separate_static_input",
+        dest="separate_static_input",
+        help="Return dynamic inputs and static attributes separately",
+        default=separate_static_input,
+        action="store_true",
+    )
+    parser.add_argument(
         "--which_first_tensor",
         dest="which_first_tensor",
         help="sequence_first or batch_first",
@@ -1106,8 +1182,6 @@ def cmd(
         dest="peak_aligned_sampling",
         help="Peak-aligned sampling configurations for FloodEventDataset (as JSON)",
         default=peak_aligned_sampling,
-        type=json.loads,
-    )
         type=json.loads,
     )
     # To make pytest work in PyCharm, here we use the following code instead of "args = parser.parse_args()":
@@ -1383,6 +1457,19 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
         cfg_file["training_cfgs"]["num_workers"] = new_args.num_workers
     if new_args.pin_memory is not None:
         cfg_file["training_cfgs"]["pin_memory"] = new_args.pin_memory
+    if new_args.mixed_precision is not None:
+        mixed_precision = str(new_args.mixed_precision).lower()
+        if mixed_precision not in ["off", "bf16", "fp16"]:
+            raise ValueError("mixed_precision must be one of: off, bf16, fp16")
+        cfg_file["training_cfgs"]["mixed_precision"] = mixed_precision
+    if new_args.batch_level_dataloader is not None:
+        cfg_file["training_cfgs"]["batch_level_dataloader"] = bool(
+            new_args.batch_level_dataloader
+        )
+    if new_args.separate_static_input is not None:
+        cfg_file["training_cfgs"]["separate_static_input"] = bool(
+            new_args.separate_static_input
+        )
     if new_args.which_first_tensor is not None:
         cfg_file["training_cfgs"]["which_first_tensor"] = new_args.which_first_tensor
     if new_args.ensemble == 0:

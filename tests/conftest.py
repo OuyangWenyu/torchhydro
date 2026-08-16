@@ -6,6 +6,11 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro import SETTING
 import logging
 
+# test_resnet_cifar10.py was moved to experiments/ (hardcoded developer paths, unrelated to torchhydro).
+# test_dataloader.py: test_multifeature_dataset_batching is marked @pytest.mark.skip
+#   (MultiFeatureStreamDataset removed); the remaining tests run normally.
+# test_fno.py and test_gconv_gru.py: APIs updated to match current implementations.
+
 
 @pytest.fixture(scope="session", autouse=True)
 def configure_logging() -> None:
@@ -35,12 +40,10 @@ def config_data() -> Dict[str, Any]:
 @pytest.fixture()
 def args() -> Any:
     project_name = os.path.join("test_camels", "exp1")
-    source_path = SETTING["local_data_path"]["datasets-origin"]
     return cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "camels_us",
-            "source_path": source_path,
+            "dataset_id": "camels_us",
         },
         ctx=[-1],
         model_name="CpuLSTM",

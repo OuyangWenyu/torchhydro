@@ -1,0 +1,21 @@
+# 三数据集 Cloud Zarr 联合训练测试配置。
+# 保留全部流域和完整时间范围，用于在全量训练前验证加载、采样和训练性能。
+input_schema: [precipitation]
+target_schema: [streamflow]
+constant_schema: [area]
+
+unit_mismatch_policy: warn
+allow_mixed_time_steps: false
+
+dataset_defaults:
+  basins: all
+  time_range: all
+  relevant_cols: [precipitation]
+  target_cols: [streamflow]
+  constant_cols: [area]
+  weight: 1.0
+
+datasets:
+  - dataset_id: camels_us
+  - dataset_id: camels_gb
+  - dataset_id: camels_aus

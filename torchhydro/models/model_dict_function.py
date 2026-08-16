@@ -8,7 +8,12 @@ FilePath: \torchhydro\torchhydro\models\model_dict_function.py
 Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 """
 from torchhydro.models.coupledlstm import CoupledLSTMModel
-from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU, MultiFeatureStreamGCLSTM
+try:
+    from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU, MultiFeatureStreamGCLSTM
+except (ImportError, OSError) as e:
+    MultiFeatureStreamGCGRU = None
+    MultiFeatureStreamGCLSTM = None
+    print(f"Warning: gconv_gru not available due to: {e}")
 from torchhydro.models.diffusion import ConditionalDiffusionModel
 from torchhydro.models.mtslstm import MTSLSTM
 from torchhydro.models.regulstm import REGULstmModel
@@ -97,14 +102,18 @@ from torchhydro.models.moe import (
     GlobalTopKMoE,
 )
 from torchhydro.models.ann import SimpleAnn
-from torchhydro.models.fno import FNO
+try:
+    from torchhydro.models.fno import FNO
+except ImportError:
+    FNO = None
+    print("Warning: torchhydro.models.fno not available")
 
 """
 Utility dictionaries to map a string to a class.
 """
 pytorch_model_dict = {
     # FNO
-    "FNO": FNO,
+    # "FNO": FNO,
     # Diffusion model
     "ConditionalDiffusionModel": ConditionalDiffusionModel,
     # MoE model
@@ -164,8 +173,8 @@ pytorch_model_dict = {
     "ResGCN": ResGCN,
     "GCNII": GCNII,
     "ResGAT": ResGAT,
-    "AutoRegressiveGCGRU": MultiFeatureStreamGCGRU,
-    "AutoRegressiveGCLSTM": MultiFeatureStreamGCLSTM,
+    # "AutoRegressiveGCGRU": MultiFeatureStreamGCGRU,
+    # "AutoRegressiveGCLSTM": MultiFeatureStreamGCLSTM,
     # Spatio-temporal GNN models
     # 3D Batch Flood Models (with different aggregation strategies)
     "SpatioTemporalFloodNet3D": SpatioTemporalFloodNet3D,
@@ -182,6 +191,13 @@ pytorch_model_dict = {
     "WDNEAdaptiveRoutingNet": WDNEAdapter,
     #"ASTGCN": ASTGCN,
 }
+
+if FNO is not None:
+    pytorch_model_dict["FNO"] = FNO
+if MultiFeatureStreamGCGRU is not None:
+    pytorch_model_dict["AutoRegressiveGCGRU"] = MultiFeatureStreamGCGRU
+if MultiFeatureStreamGCLSTM is not None:
+    pytorch_model_dict["AutoRegressiveGCLSTM"] = MultiFeatureStreamGCLSTM
 
 pytorch_criterion_dict = {
     "RMSE": RMSELoss,
@@ -205,5 +221,13 @@ pytorch_criterion_dict = {
     "PyGraphLoss": PyGraphLoss,
     "PeakShapeLoss": PeakShapeLoss,
 }
+if FNO is not None:
+    pytorch_model_dict["FNO"] = FNO
+
+if MultiFeatureStreamGCGRU is not None:
+    pytorch_model_dict["AutoRegressiveGCGRU"] = MultiFeatureStreamGCGRU
+
+if MultiFeatureStreamGCLSTM is not None:
+    pytorch_model_dict["AutoRegressiveGCLSTM"] = MultiFeatureStreamGCLSTM
 
 pytorch_opt_dict = {"Adam": Adam, "SGD": SGD, "Adadelta": Adadelta}

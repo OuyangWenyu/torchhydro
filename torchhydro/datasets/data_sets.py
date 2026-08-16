@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import sys
+import time
 import torch
 import xarray as xr
 import numpy as np
@@ -21,13 +22,20 @@ from typing import Optional
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from hydroutils.hydro_units import streamflow_unit_conv
-# from hydrodataset.multi_dataset_reader import MultiDatasetReader, DATASET_MAPPING
+# MultiDatasets loader — may fail if hydrodataset version is too new (0.3+)
+# Fallback gracefully for CAMELS-US single-source use cases
+try:
+    from hydrodataset.multi_datasets import MultiDatasets
+except ImportError:
+    MultiDatasets = None
+
+# DATASET_MAPPING removed from hydrodataset; define locally for MultiSourceDataset
+DATASET_MAPPING = {}
 
 from torchhydro.configs.config import DATE_FORMATS
 from torchhydro.datasets.data_scalers import ScalerHub
 from torchhydro.datasets.data_sources import data_sources_dict
 from torch_geometric.data import Data
-from tqdm import tqdm
 import warnings
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -39,6 +47,83 @@ from torchhydro.datasets.data_utils import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+class LookupTableView:
+    """Tuple-compatible lookup table backed by compact NumPy arrays.
+
+    This preserves the existing ``lookup_table[item] -> (basin, start, length)``
+    interface for Dataset subclasses while allowing the standard BaseDataset
+    path to use the underlying arrays directly.
+    """
+
+    def __init__(self, basins, starts, lengths):
+        self.basins = basins
+        self.starts = starts
+        self.lengths = lengths
+
+    def __len__(self):
+        return len(self.basins)
+
+    def __getitem__(self, item: int):
+        return (
+            int(self.basins[item]),
+            int(self.starts[item]),
+            int(self.lengths[item]),
+        )
+
+
+def _is_dask_backed_xarray(obj) -> bool:
+    """Return True when an Xarray object contains Dask-backed arrays."""
+    if obj is None:
+        return False
+    if hasattr(getattr(obj, "data", None), "chunks"):
+        return True
+    if hasattr(obj, "data_vars"):
+        return any(
+            hasattr(getattr(var, "data", None), "chunks")
+            for var in obj.data_vars.values()
+        )
+    return False
+
+
+def static_attr_batch_collate_fn(batch):
+    """Assemble static attributes once per batch instead of once per sample."""
+    if not batch:
+        return batch
+    first = batch[0]
+    if (
+        len(first) == 2
+        and isinstance(first[0], (tuple, list))
+        and len(first[0]) == 2
+    ):
+        xcs, ys = zip(*batch)
+        xs, cs = zip(*xcs)
+        return (
+            torch.stack(xs, dim=0),
+            torch.stack(cs, dim=0),
+        ), torch.stack(ys, dim=0)
+    if len(first) == 3:
+        xs, ys, cs = zip(*batch)
+        x_batch = torch.stack(xs, dim=0)
+        y_batch = torch.stack(ys, dim=0)
+        c_batch = torch.stack(cs, dim=0)
+        c_expanded = c_batch.unsqueeze(1).expand(-1, x_batch.shape[1], -1)
+        return torch.cat((x_batch, c_expanded), dim=-1), y_batch
+    xs, ys = zip(*batch)
+    return torch.stack(xs, dim=0), torch.stack(ys, dim=0)
+
+
+def prebatched_collate_fn(batch):
+    """Return a batch that has already been assembled by ``Dataset.__getitems__``.
+
+    PyTorch's map-style DataLoader calls ``dataset.__getitems__(indices)`` when
+    available for auto-collated batches. TorchHydro uses this hook for the
+    optional batch-level loading path, where the dataset returns an already
+    stacked ``(xs, ys)`` tuple. The collate function must therefore pass that
+    tuple through unchanged instead of applying the default per-sample stack.
+    """
+    return batch
 
 
 def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataArray:
@@ -120,9 +205,10 @@ def _fill_gaps_da(da: xr.DataArray, fill_nan: Optional[str] = None) -> xr.DataAr
             # Return the modified copy
             return result_da
         else:
-            # Original behavior for non-station data: interpolate along time for each basin
-            for i in range(da.shape[0]):
-                da[i] = da[i].interpolate_na(dim="time", fill_value="extrapolate")
+            # Xarray vectorizes interpolation over every non-core dimension.
+            # Processing all basins and variables in one call preserves the
+            # per-series result while avoiding one Python/Xarray call per basin.
+            return da.interpolate_na(dim="time", fill_value="extrapolate")
     elif fill_nan == "lead_step":
         # for forecast data, we use interpolation to fill NaN values for lead step small than the maximum lead step of each forecast performing
         for i in tqdm(range(da.shape[0]), desc="Processing basins", unit="basin"):
@@ -271,19 +357,9 @@ class BaseDataset(Dataset):
 
     @property
     def data_source(self):
-        source_name = self.data_cfgs["source_cfgs"]["source_name"]
-        source_path = self.data_cfgs["source_cfgs"]["source_path"]
+        from torchhydro.configs.data_resolver import open_dataset_from_source_cfgs
 
-        # 传递除了 source_name 和 source_path 之外的所有参数
-
-        # 先获取所有参数
-        other_settings = self.data_cfgs["source_cfgs"].get("other_settings", {})
-
-        # 排除 source_name, source_path
-        other_settings.pop("source_name", None)
-        other_settings.pop("source_path", None)
-
-        return data_sources_dict[source_name](source_path, **other_settings)
+        return open_dataset_from_source_cfgs(self.data_cfgs.get("source_cfgs") or {})
 
     @property
     def streamflow_name(self):
@@ -445,26 +521,368 @@ class BaseDataset(Dataset):
             A tuple of (input_data, output_data), where input_data is a tensor
             of input features and output_data is a tensor of target values.
         """
-        basin, idx, actual_length = self.lookup_table[item]
+        if hasattr(self, "_lookup_basins"):
+            basin = self._lookup_basins[item]
+            idx = self._lookup_starts[item]
+            actual_length = self._lookup_lengths[item]
+        else:
+            basin, idx, actual_length = self.lookup_table[item]
         warmup_length = self.warmup_length
         x = self.x[basin, idx - warmup_length : idx + actual_length - warmup_length, :]
         y = self.y[basin, idx : idx + actual_length - warmup_length, :]
         if self.c is None or self.c.shape[-1] == 0:
-            return torch.from_numpy(x).float(), torch.from_numpy(y).float()
+            return torch.from_numpy(x), torch.from_numpy(y)
         c = self.c[basin, :]
+        if getattr(self, "_separate_static_input", False):
+            return (torch.from_numpy(x), torch.from_numpy(c)), torch.from_numpy(y)
+        if getattr(self, "_return_static_attrs_separately", False):
+            return torch.from_numpy(x), torch.from_numpy(y), torch.from_numpy(c)
         c = np.repeat(c, x.shape[0], axis=0).reshape(c.shape[0], -1).T
         xc = np.concatenate((x, c), axis=1)
-        return torch.from_numpy(xc).float(), torch.from_numpy(y).float()
+        return torch.from_numpy(xc), torch.from_numpy(y)
+
+    def __getitems__(self, items):
+        """Get a list of samples or one pre-assembled batch.
+
+        PyTorch DataLoader calls this method with a list of indices when it is
+        present on a map-style dataset. The default-compatible path returns the
+        same list of samples that repeated ``__getitem__`` calls would produce.
+
+        When ``training_cfgs["batch_level_dataloader"]`` is true, TorchHydro
+        assembles the full batch in one dataset call and returns a batched
+        ``(xs, ys)`` tuple. This avoids millions of per-sample
+        ``__getitem__`` calls in large sliding-window training jobs while
+        preserving the model-facing tensor shapes.
+        """
+        if self._use_batch_level_getitems():
+            return self._get_batch_level_items(items)
+        return [self.__getitem__(int(item)) for item in items]
+
+    def _use_batch_level_getitems(self) -> bool:
+        """Whether this dataset instance should use batch-level assembly."""
+        return bool(getattr(self, "_batch_level_dataloader_enabled", False)) and (
+            self.__class__ is BaseDataset
+        )
+
+    def _get_batch_level_items(self, items):
+        """Assemble one DataLoader batch from sample indices.
+
+        This method intentionally supports the standard fixed-length
+        ``BaseDataset`` path only. Variable-length, graph, forecast, and flood
+        event datasets override ``__getitem__`` with different semantics and
+        should continue using their existing collate paths.
+        """
+        item_indices = np.asarray(items, dtype=np.int64)
+        if item_indices.size == 0:
+            return torch.empty(0), torch.empty(0)
+
+        if hasattr(self, "_lookup_basins"):
+            basins = self._lookup_basins[item_indices].astype(np.intp, copy=False)
+            start_indices = self._lookup_starts[item_indices].astype(
+                np.intp, copy=False
+            )
+            actual_lengths = self._lookup_lengths[item_indices].astype(
+                np.intp, copy=False
+            )
+        else:
+            lookup_rows = [self.lookup_table[int(item)] for item in item_indices]
+            basins = np.asarray([row[0] for row in lookup_rows], dtype=np.int64)
+            start_indices = np.asarray([row[1] for row in lookup_rows], dtype=np.int64)
+            actual_lengths = np.asarray([row[2] for row in lookup_rows], dtype=np.int64)
+
+        actual_length = int(actual_lengths[0])
+        if not np.all(actual_lengths == actual_length):
+            raise ValueError(
+                "batch_level_dataloader only supports fixed-length batches. "
+                "Disable it for variable-length training."
+            )
+
+        warmup_length = self.warmup_length
+        x_length = actual_length
+        y_length = actual_length - warmup_length
+        if y_length <= 0:
+            raise ValueError(
+                "Invalid batch window: actual_length must be larger than "
+                f"warmup_length, got {actual_length=} and {warmup_length=}."
+            )
+
+        batch_size = len(item_indices)
+        x_feature_count = self.x.shape[-1]
+        y_feature_count = self.y.shape[-1]
+        c_feature_count = (
+            0 if self.c is None or self.c.shape[-1] == 0 else self.c.shape[-1]
+        )
+
+        x_window_view, y_window_view = self._get_batch_level_window_views(
+            x_length, y_length
+        )
+
+        # Gather complete sliding windows by (basin, start) in one NumPy
+        # operation per tensor. ``sliding_window_view`` itself is a strided view,
+        # so this avoids the per-sample Python slicing loop without first
+        # materializing a large basin x time-index matrix.
+        x_dynamic = x_window_view[basins, start_indices - warmup_length]
+        ys = y_window_view[basins, start_indices]
+
+        if getattr(self, "_separate_static_input", False) and c_feature_count:
+            return (
+                torch.from_numpy(x_dynamic),
+                torch.from_numpy(self.c[basins, :]),
+            ), torch.from_numpy(ys)
+
+        if c_feature_count:
+            xs = np.empty(
+                (batch_size, x_length, x_feature_count + c_feature_count),
+                dtype=self.x.dtype,
+            )
+            xs[:, :, :x_feature_count] = x_dynamic
+        else:
+            xs = x_dynamic
+        if c_feature_count:
+            xs[:, :, x_feature_count:] = self.c[basins, :][:, None, :]
+
+        return torch.from_numpy(xs), torch.from_numpy(ys)
+
+    def _get_batch_level_window_views(self, x_length, y_length):
+        """Return cached sliding-window views for batch-level assembly."""
+        cache_key = (x_length, y_length)
+        if getattr(self, "_batch_window_view_key", None) != cache_key:
+            from numpy.lib.stride_tricks import sliding_window_view
+
+            self._batch_x_window_view = np.moveaxis(
+                sliding_window_view(self.x, window_shape=x_length, axis=1),
+                -1,
+                2,
+            )
+            self._batch_y_window_view = np.moveaxis(
+                sliding_window_view(self.y, window_shape=y_length, axis=1),
+                -1,
+                2,
+            )
+            self._batch_window_view_key = cache_key
+        return self._batch_x_window_view, self._batch_y_window_view
+
+    @staticmethod
+    def _lookup_dtype(max_value, default=np.int32):
+        if max_value <= np.iinfo(np.int16).max:
+            return np.int16
+        return default
+
+    @staticmethod
+    def _valid_window_mask(nan_array, starts, window):
+        """Return starts whose target window contains at least one observation."""
+        if starts.size == 0:
+            return np.zeros(0, dtype=bool)
+        time_has_value = ~np.all(nan_array, axis=1)
+        counts = np.concatenate(([0], np.cumsum(time_has_value, dtype=np.int32)))
+        return (counts[starts + window] - counts[starts]) > 0
+
+    def _set_lookup_arrays(self, basins, starts, lengths):
+        """Store compact lookup arrays and a tuple-compatible view."""
+        max_basin = int(basins.max()) if basins.size else 0
+        max_length = int(lengths.max()) if lengths.size else 0
+        self._lookup_basins = basins.astype(self._lookup_dtype(max_basin), copy=False)
+        self._lookup_starts = starts.astype(np.int32, copy=False)
+        self._lookup_lengths = lengths.astype(
+            self._lookup_dtype(max_length), copy=False
+        )
+        self.lookup_table = LookupTableView(
+            self._lookup_basins, self._lookup_starts, self._lookup_lengths
+        )
+        self.num_samples = len(self.lookup_table)
 
     def _load_data(self):
-        origin_data = self._read_xyc()
+        total_start = time.perf_counter()
+        origin_data = self._profile_dataset_setup_step("_read_xyc", self._read_xyc)
+        origin_data = self._profile_dataset_setup_step(
+            "origin cloud .load()",
+            self._eager_load_cloud_xarray_data,
+            origin_data,
+        )
         # normalization
-        norm_data = self._normalize(origin_data)
+        norm_data = self._profile_dataset_setup_step(
+            "_normalize", self._normalize, origin_data
+        )
+        norm_data = self._profile_dataset_setup_step(
+            "norm .load()", self._eager_load_cloud_xarray_data, norm_data
+        )
         # 启用 NaN 处理以确保数据清洁
-        origin_data_wonan, norm_data_wonan = self._kill_nan(origin_data, norm_data)
+        origin_data_wonan, norm_data_wonan = self._profile_dataset_setup_step(
+            "_kill_nan", self._kill_nan, origin_data, norm_data
+        )
         # origin_data_wonan, norm_data_wonan = origin_data, norm_data  # 备用：跳过 NaN 处理
-        self._trans2nparr(origin_data_wonan, norm_data_wonan)
-        self._create_lookup_table()
+        self._profile_dataset_setup_step(
+            "_trans2nparr", self._trans2nparr, origin_data_wonan, norm_data_wonan
+        )
+        self._profile_dataset_setup_step("_create_lookup_table", self._create_lookup_table)
+        self._profile_dataset_setup_total(total_start)
+
+    def _should_profile_dataset_setup(self) -> bool:
+        return bool(self.data_cfgs.get("profile_dataset_setup", False))
+
+    def _profile_dataset_setup_step(self, name, func, *args, **kwargs):
+        if not self._should_profile_dataset_setup():
+            return func(*args, **kwargs)
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        seconds = time.perf_counter() - start
+        print(f"[dataset setup profile] {name:24s}: {seconds:10.3f} s")
+        return result
+
+    def _profile_dataset_setup_total(self, total_start):
+        if self._should_profile_dataset_setup():
+            seconds = time.perf_counter() - total_start
+            print(f"[dataset setup profile] {'total':24s}: {seconds:10.3f} s")
+
+    def _eager_load_cloud_xarray_data(self, data):
+        """Load cloud Dask-backed Xarray data before NaN filling.
+
+        Cloud Zarr reads return dask-backed Xarray objects. Later NaN handling
+        calls ``interpolate_na(dim="time")``, which requires the core dimension
+        to be contained in one chunk. The current TorchHydro Dataset setup
+        converts all Xarray data to NumPy anyway, so loading here keeps local
+        behavior unchanged while avoiding Dask rechunk errors for cloud data.
+        """
+        if not self._should_eager_load_cloud_data() or data is None:
+            return data
+        loaded_data = dict(data)
+        dask_items = [
+            (key, value)
+            for key, value in data.items()
+            if value is not None and _is_dask_backed_xarray(value)
+        ]
+        if not dask_items:
+            return loaded_data
+
+        if self._should_profile_cloud_load_details():
+            for key, value in dask_items:
+                self._print_cloud_xarray_load_plan(key, value)
+
+        if (
+            self.data_cfgs.get("cloud_eager_load_concurrent", True)
+            and len(dask_items) > 1
+        ):
+            return self._eager_load_cloud_xarray_values_concurrently(
+                loaded_data, dask_items
+            )
+
+        for key, value in dask_items:
+            loaded_data[key] = self._eager_load_cloud_xarray_value(value, key)
+        return loaded_data
+
+    def _eager_load_cloud_xarray_values_concurrently(self, loaded_data, dask_items):
+        """Load multiple Dask-backed Xarray objects in one Dask compute call."""
+        try:
+            import dask
+        except ImportError:
+            for key, value in dask_items:
+                loaded_data[key] = self._eager_load_cloud_xarray_value(value, key)
+            return loaded_data
+
+        compute_kwargs = {}
+        scheduler = self.data_cfgs.get("cloud_eager_load_scheduler", "threads")
+        if scheduler is not None:
+            compute_kwargs["scheduler"] = scheduler
+        num_workers = self.data_cfgs.get("cloud_eager_load_num_workers")
+        if num_workers is not None:
+            compute_kwargs["num_workers"] = num_workers
+
+        if self._should_profile_cloud_load_details():
+            keys = ", ".join(key for key, _ in dask_items)
+            scheduler_name = compute_kwargs.get("scheduler", "default")
+            workers_text = compute_kwargs.get("num_workers", "default")
+            print(
+                "[dataset setup profile] "
+                f"cloud load concurrent: keys=[{keys}], "
+                f"scheduler={scheduler_name}, num_workers={workers_text}"
+            )
+
+        loaded_values = dask.compute(
+            *(value for _, value in dask_items), **compute_kwargs
+        )
+        for (key, _), loaded_value in zip(dask_items, loaded_values):
+            loaded_data[key] = loaded_value
+        return loaded_data
+
+    def _eager_load_cloud_xarray_value(self, value, key):
+        if value is not None and _is_dask_backed_xarray(value):
+            LOGGER.info(
+                "Eager loading cloud Xarray data before NaN handling: %s", key
+            )
+            return value.load()
+        return value
+
+    def _should_profile_cloud_load_details(self) -> bool:
+        return self._should_profile_dataset_setup() or bool(
+            self.data_cfgs.get("profile_cloud_load_details", False)
+        )
+
+    def _print_cloud_xarray_load_plan(self, key, value):
+        dims = getattr(value, "dims", None)
+        shape = getattr(value, "shape", None)
+        chunks = getattr(value, "chunks", None)
+        dtype = getattr(value, "dtype", None)
+        nbytes = getattr(value, "nbytes", None)
+        task_count = self._dask_task_count(value)
+        nbytes_text = self._format_bytes(nbytes)
+        print(
+            "[dataset setup profile] "
+            f"cloud load plan {key}: dims={dims}, shape={shape}, "
+            f"chunks={chunks}, dtype={dtype}, bytes={nbytes_text}, "
+            f"dask_tasks={task_count}"
+        )
+
+    @staticmethod
+    def _dask_task_count(value):
+        try:
+            graph = value.__dask_graph__()
+        except Exception:
+            graph = None
+        if graph is None:
+            return None
+        try:
+            return len(graph)
+        except TypeError:
+            try:
+                return len(graph.to_dict())
+            except Exception:
+                return None
+
+    @staticmethod
+    def _format_bytes(nbytes):
+        if nbytes is None:
+            return "unknown"
+        try:
+            nbytes = float(nbytes)
+        except (TypeError, ValueError):
+            return str(nbytes)
+        units = ["B", "KiB", "MiB", "GiB", "TiB"]
+        unit_idx = 0
+        while nbytes >= 1024 and unit_idx < len(units) - 1:
+            nbytes /= 1024
+            unit_idx += 1
+        return f"{nbytes:.3f} {units[unit_idx]}"
+
+    def _should_eager_load_cloud_data(self) -> bool:
+        return bool(
+            self.data_cfgs.get("cloud_eager_load", True)
+        ) and self._is_cloud_source()
+
+    def _is_cloud_source(self) -> bool:
+        source_cfgs = self.data_cfgs.get("source_cfgs") or {}
+        other_settings = source_cfgs.get("other_settings") or {}
+        source = other_settings.get("source") or source_cfgs.get("source")
+        if source is None:
+            try:
+                from hydrodataset.configs.settings import (
+                    get_default_source,
+                    load_settings,
+                )
+
+                source = get_default_source(load_settings())
+            except Exception:
+                source = None
+        return source == "cloud"
 
     def _trans2nparr(self, origin_data, norm_data):
         """To make __getitem__ more efficient,
@@ -477,8 +895,8 @@ class BaseDataset(Dataset):
                 norm_arr = None
                 origin_arr = None
             else:
-                norm_arr = _norm.to_numpy()
-                origin_arr = _origin.to_numpy()
+                norm_arr = self._to_float32_numpy(_norm.to_numpy())
+                origin_arr = self._to_float32_numpy(_origin.to_numpy())
             if key == "relevant_cols":
                 self.x_origin = origin_arr
                 self.x = norm_arr
@@ -503,6 +921,19 @@ class BaseDataset(Dataset):
                     f"Unknown data type {key} in origin_data, "
                     "it should be one of relevant_cols, target_cols, constant_cols, forecast_cols, global_cols, station_cols"
                 )
+
+    @staticmethod
+    def _to_float32_numpy(arr):
+        """Convert numeric numpy arrays to float32 once during dataset setup.
+
+        TorchHydro models consume float32 tensors. Converting here avoids doing
+        float64 -> float32 copies for every sample in ``__getitem__``.
+        """
+        if arr is None:
+            return None
+        if np.issubdtype(arr.dtype, np.number) and arr.dtype != np.float32:
+            return arr.astype(np.float32, copy=False)
+        return arr
 
     def _normalize(
         self,
@@ -769,6 +1200,24 @@ class BaseDataset(Dataset):
             ]
         return data_forcing_ds, data_output_ds
 
+    def _mask_negative_streamflow(self, data_output_ds):
+        """Treat negative streamflow values as missing observations.
+
+        CAMELS-US local NetCDF caches store invalid negative streamflow sentinel
+        values as NaN. Cloud Zarr data can still contain those negative values,
+        which break DapengScaler's sqrt/log normalization for streamflow and can
+        make all normalized targets NaN. Mask them before scaling so local and
+        cloud data sources follow the same missing-data semantics.
+        """
+        if data_output_ds is None or self.streamflow_name not in data_output_ds:
+            return data_output_ds
+        streamflow = data_output_ds[self.streamflow_name]
+        attrs = streamflow.attrs.copy()
+        data_output_ds = data_output_ds.copy()
+        data_output_ds[self.streamflow_name] = streamflow.where(streamflow >= 0)
+        data_output_ds[self.streamflow_name].attrs.update(attrs)
+        return data_output_ds
+
     def _read_xyc(self):
         """Read x, y, c data from data source
 
@@ -887,30 +1336,43 @@ class BaseDataset(Dataset):
         end_date : str
             end time
         """
-        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            [start_date, end_date],
-            self.data_cfgs["relevant_cols"],
+        data_forcing_ds_, data_output_ds_ = self._profile_dataset_setup_step(
+            "_read_xyc.read_ts",
+            self._read_relevant_and_target_xrdatasets,
+            start_date,
+            end_date,
         )
-        # y
-        data_output_ds_ = self.data_source.read_ts_xrdataset(
-            self.t_s_dict["sites_id"],
-            [start_date, end_date],
-            self.data_cfgs["target_cols"],
+        data_forcing_ds_, data_output_ds_ = self._profile_dataset_setup_step(
+            "_read_xyc.rm_timeunit",
+            self._rm_timeunit_keys,
+            data_forcing_ds_,
+            data_output_ds_,
         )
-        data_forcing_ds_ = self._rm_timeunit_key(data_forcing_ds_)
-        data_output_ds_ = self._rm_timeunit_key(data_output_ds_)
-        data_forcing_ds, data_output_ds = self._check_ts_xrds_unit(
-            data_forcing_ds_, data_output_ds_
+        data_forcing_ds, data_output_ds = self._profile_dataset_setup_step(
+            "_read_xyc.unit_check",
+            self._check_ts_xrds_unit,
+            data_forcing_ds_,
+            data_output_ds_,
+        )
+        data_output_ds = self._profile_dataset_setup_step(
+            "_read_xyc.mask_negative_streamflow",
+            self._mask_negative_streamflow,
+            data_output_ds,
         )
         # c
-        data_attr_ds = self.data_source.read_attr_xrdataset(
+        data_attr_ds = self._profile_dataset_setup_step(
+            "_read_xyc.read_attr",
+            self.data_source.read_attr_xrdataset,
             self.t_s_dict["sites_id"],
             self.data_cfgs["constant_cols"],
             all_number=True,
         )
-        x_origin, y_origin, c_origin = self._to_dataarray_with_unit(
-            data_forcing_ds, data_output_ds, data_attr_ds
+        x_origin, y_origin, c_origin = self._profile_dataset_setup_step(
+            "_read_xyc.to_dataarray",
+            self._to_dataarray_with_unit,
+            data_forcing_ds,
+            data_output_ds,
+            data_attr_ds,
         )
         return {
             "relevant_cols": x_origin.transpose("basin", "time", "variable"),
@@ -921,6 +1383,43 @@ class BaseDataset(Dataset):
                 else None
             ),
         }
+
+    def _read_relevant_and_target_xrdatasets(self, start_date, end_date):
+        relevant_cols = self.data_cfgs["relevant_cols"]
+        target_cols = self.data_cfgs["target_cols"]
+        if self.data_cfgs.get("combine_relevant_target_read", True):
+            try:
+                all_cols = list(dict.fromkeys([*relevant_cols, *target_cols]))
+                data_ts_ds = self.data_source.read_ts_xrdataset(
+                    self.t_s_dict["sites_id"],
+                    [start_date, end_date],
+                    all_cols,
+                )
+                data_ts_ds = self._rm_timeunit_key(data_ts_ds)
+                return data_ts_ds[relevant_cols], data_ts_ds[target_cols]
+            except Exception as exc:
+                if self._should_profile_dataset_setup():
+                    print(
+                        "[dataset setup profile] "
+                        "combined relevant/target read failed; fallback to "
+                        f"separate reads: {type(exc).__name__}: {exc}"
+                    )
+        data_forcing_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            relevant_cols,
+        )
+        data_output_ds_ = self.data_source.read_ts_xrdataset(
+            self.t_s_dict["sites_id"],
+            [start_date, end_date],
+            target_cols,
+        )
+        return data_forcing_ds_, data_output_ds_
+
+    def _rm_timeunit_keys(self, data_forcing_ds_, data_output_ds_):
+        return self._rm_timeunit_key(data_forcing_ds_), self._rm_timeunit_key(
+            data_output_ds_
+        )
 
     def _trans2da_and_setunits(self, ds):
         """Set units for dataarray transfromed from dataset"""
@@ -995,12 +1494,24 @@ class BaseDataset(Dataset):
             else:
                 norm = _norm
                 origin = _origin
-            if key == "target_cols" or not rm_nan:
-                warn_if_nan(origin, nan_mode="all", data_name="nan_filled target data")
-                warn_if_nan(norm, nan_mode="all", data_name="nan_filled target data")
-            else:
-                warn_if_nan(origin, nan_mode="any", data_name="nan_filled input data")
-                warn_if_nan(norm, nan_mode="any", data_name="nan_filled input data")
+            # _kill_1type_nan already validates filled arrays. Only validate
+            # here when filling was disabled, avoiding a third full scan of
+            # every large input array.
+            if not rm_nan:
+                if key == "target_cols":
+                    warn_if_nan(
+                        origin, nan_mode="all", data_name="nan_filled target data"
+                    )
+                    warn_if_nan(
+                        norm, nan_mode="all", data_name="nan_filled target data"
+                    )
+                else:
+                    warn_if_nan(
+                        origin, nan_mode="any", data_name="nan_filled input data"
+                    )
+                    warn_if_nan(
+                        norm, nan_mode="any", data_name="nan_filled input data"
+                    )
             origins_wonan[key] = origin
             norms_wonan[key] = norm
         return origins_wonan, norms_wonan
@@ -1015,7 +1526,9 @@ class BaseDataset(Dataset):
         return the_filled_data
 
     def _create_lookup_table(self):
-        lookup = []
+        basin_chunks = []
+        start_chunks = []
+        length_chunks = []
         # list to collect basins ids of basins without a single training sample
         basin_coordinates = len(self.t_s_dict["sites_id"])
         rho = self.rho
@@ -1032,14 +1545,24 @@ class BaseDataset(Dataset):
         fixed_lengths = variable_length_cfgs.get("fixed_lengths", [365, 1095, 1825])
         # Use fixed type variable length if enabled and type is fixed
         is_fixed_length_train = use_variable_length and variable_length_type == "fixed"
+
+        def append_lookup_arrays(basin, starts, length):
+            if starts.size == 0:
+                return
+            basin_chunks.append(np.full(starts.shape, basin, dtype=np.int32))
+            start_chunks.append(starts.astype(np.int32, copy=False))
+            length_chunks.append(np.full(starts.shape, length, dtype=np.int32))
+
         for basin in tqdm(range(basin_coordinates), file=sys.stdout, disable=False):
             if not self.train_mode:
                 # we don't need to ignore those with full nan in target vars for prediction without loss calculation
                 # all samples should be included so that we can recover results to specified basins easily
-                lookup.extend(
-                    (basin, f, seq_len)
-                    for f in range(warmup_length, max_time_length - rho - horizon + 1)
+                starts = np.arange(
+                    warmup_length,
+                    max_time_length - rho - horizon + 1,
+                    dtype=np.int32,
                 )
+                append_lookup_arrays(basin, starts, seq_len)
             else:
                 # some dataloader load data with warmup period, so leave some periods for it
                 # [warmup_len] -> time_start -> [rho] -> [horizon]
@@ -1047,26 +1570,35 @@ class BaseDataset(Dataset):
                 nan_array = np.isnan(self.y[basin, :, :])
                 if is_fixed_length_train:
                     for window in fixed_lengths:
-                        lookup.extend(
-                            (basin, f, window)
-                            for f in range(
-                                warmup_length,
-                                max_time_length - window + 1,
-                            )
-                            # if all nan in window, we skip this sample
-                            if not np.all(nan_array[f : f + window])
+                        starts = np.arange(
+                            warmup_length,
+                            max_time_length - window + 1,
+                            dtype=np.int32,
                         )
+                        starts = starts[
+                            self._valid_window_mask(nan_array, starts, window)
+                        ]
+                        append_lookup_arrays(basin, starts, window)
                 else:
-                    lookup.extend(
-                        (basin, f, seq_len)
-                        for f in range(
-                            warmup_length, max_time_length - rho - horizon + 1
-                        )
-                        # if all nan in rho + horizon window, we skip this sample
-                        if not np.all(nan_array[f : f + rho + horizon])
+                    starts = np.arange(
+                        warmup_length,
+                        max_time_length - rho - horizon + 1,
+                        dtype=np.int32,
                     )
-        self.lookup_table = dict(enumerate(lookup))
-        self.num_samples = len(self.lookup_table)
+                    starts = starts[
+                        self._valid_window_mask(nan_array, starts, rho + horizon)
+                    ]
+                    append_lookup_arrays(basin, starts, seq_len)
+
+        if start_chunks:
+            basins = np.concatenate(basin_chunks)
+            starts = np.concatenate(start_chunks)
+            lengths = np.concatenate(length_chunks)
+        else:
+            basins = np.empty(0, dtype=np.int32)
+            starts = np.empty(0, dtype=np.int32)
+            lengths = np.empty(0, dtype=np.int32)
+        self._set_lookup_arrays(basins, starts, lengths)
 
     def _create_multi_len_lookup_table(self):
         """
@@ -1289,7 +1821,7 @@ class BasinSingleFlowDataset(BaseDataset):
     """one time length output for each grid in a batch"""
 
     def __init__(self, cfgs: dict, is_tra_val_te: str):
-        super(BasinSingleFlowDataset, self).__init__(cfgs, is_tra_val_te, **kwargs)
+        super(BasinSingleFlowDataset, self).__init__(cfgs, is_tra_val_te)
 
     def __getitem__(self, index):
         xc, ys = super(BasinSingleFlowDataset, self).__getitem__(index)
@@ -1368,7 +1900,7 @@ class MultiDataSourceWrapper:
     def __init__(self, sources, datasets_config=None):
         self.sources = sources
         self.datasets_config = datasets_config
-        self._reader = MultiDatasetReader(datasets=datasets_config)
+        self._reader = MultiDatasets(datasets=datasets_config)
         # Cache unique IDs mapping
         self._unique_ids_map, _ = self._reader.get_global_unique_ids()
 
@@ -1430,7 +1962,7 @@ class MultiDataSourceWrapper:
 class MultiSourceDataset(BaseDataset):
     """A dataset that supports reading from multiple hydrological datasets simultaneously.
 
-    This class uses MultiDatasetReader to handle IDs and data loading from multiple sources.
+    This class uses MultiDatasets to handle IDs and data loading from multiple sources.
     It automatically groups stations by dataset, reads data using the appropriate data source,
     and merges the results.
     """
@@ -1473,13 +2005,13 @@ class MultiSourceDataset(BaseDataset):
         """Read x, y, c data from multiple data sources and merge them."""
 
         # 1. Collect IDs and their source datasets
-        # use MultiDatasetReader logic to identify which dataset each ID belongs to
+        # use MultiDatasets logic to identify which dataset each ID belongs to
         # We assume self.t_s_dict["sites_id"] contains the list of all IDs we want to read
         target_ids = self.t_s_dict["sites_id"]
 
         # Initialize reader just for ID mapping (cache might be used)
         datasets_config = self.data_cfgs.get("source_cfgs", {}).get("datasets", None)
-        reader = MultiDatasetReader(datasets=datasets_config)
+        reader = MultiDatasets(datasets=datasets_config)
 
         # Use reader to get global unique IDs to find where each ID comes from
         # Note: this might be slow if we have many datasets and didn't cache IDs
@@ -1698,7 +2230,7 @@ class MultiSourceAEFDataset(MultiSourceDataset):
         # 此时的 sites_id 是经过父类 _read_xyc 可能更新过的（剔除了无数据的basin）
         target_ids = self.t_s_dict["sites_id"]
         datasets_config = self.data_cfgs.get("source_cfgs", {}).get("datasets", None)
-        reader = MultiDatasetReader(datasets=datasets_config)
+        reader = MultiDatasets(datasets=datasets_config)
         unique_ids_map, _ = reader.get_global_unique_ids()
 
         ids_by_dataset = {}

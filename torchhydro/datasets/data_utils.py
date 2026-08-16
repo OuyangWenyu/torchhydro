@@ -14,6 +14,7 @@ import numpy as np
 import xarray as xr
 import pint_xarray  # noqa: F401
 import warnings
+import pandas as pd
 
 
 def warn_if_nan(dataarray, max_display=5, nan_mode="any", data_name=""):
@@ -38,28 +39,20 @@ def warn_if_nan(dataarray, max_display=5, nan_mode="any", data_name=""):
     if nan_mode not in ["any", "all"]:
         raise ValueError("nan_mode must be 'any' or 'all'")
 
-    if np.all(np.isnan(dataarray.values)):
+    # Build the NaN mask once. The previous implementation evaluated
+    # ``np.isnan`` repeatedly and materialized every NaN coordinate with
+    # ``argwhere``, even though detailed warning output is disabled. That is
+    # expensive for basin x time x variable arrays and can allocate a large
+    # temporary integer array.
+    nan_mask = np.isnan(dataarray.values)
+    if not np.any(nan_mask):
+        return False
+
+    if np.all(nan_mask):
         if nan_mode == "any":
             raise ValueError("The dataarray contains only NaN values!")
         else:
             return True
-
-    nan_indices = np.argwhere(np.isnan(dataarray.values))
-    total_nans = len(nan_indices)
-
-    if total_nans <= 0:
-        return False
-    message = f"The {data_name} dataarray contains {total_nans} NaN values!"
-
-    # Displaying only the first few NaN locations if there are too many
-    display_indices = nan_indices[:max_display].tolist()
-    message += (
-        f" Here are the indices of the first {max_display} NaNs: {display_indices}..."
-        if total_nans > max_display
-        else f" Here are the indices of the NaNs: {display_indices}"
-    )
-    # warnings.warn(message)  # 注释掉NaN警告，减少训练时的详细输出
-
     return True
 
 
@@ -125,6 +118,86 @@ def wrap_t_s_dict(data_cfgs: dict, is_tra_val_te: str) -> OrderedDict:
     return OrderedDict(sites_id=basins_id, t_final_range=t_range_list)
 
 
+def validate_split_ranges(config: dict) -> dict:
+    """Validate inclusive train/validation/test target intervals.
+
+    ``t_range_*`` values describe target timestamps, not the source's full
+    available time span.  TorchHydro currently uses inclusive endpoints, so a
+    validation period beginning on the train end date is an overlap.  Explicit
+    overlap is retained for in-sample evaluation only when
+    ``data_cfgs.allow_split_overlap`` is true.
+
+    The function is deliberately small and side-effect free apart from adding
+    the derived evaluation metadata to the supplied normalized config when it
+    has an ``evaluation_cfgs`` section.
+    """
+
+    data_cfgs = config.get("data_cfgs", config)
+    if not isinstance(data_cfgs, dict):
+        raise TypeError("split configuration must be a mapping")
+
+    ranges = {}
+    for split in ("train", "valid", "test"):
+        value = data_cfgs.get(f"t_range_{split}")
+        if value is None:
+            continue
+        if not isinstance(value, (list, tuple)) or len(value) != 2:
+            raise ValueError(
+                f"t_range_{split} must be [start, end] or None; got {value!r}"
+            )
+        start = pd.Timestamp(value[0])
+        end = pd.Timestamp(value[1])
+        if start > end:
+            raise ValueError(f"t_range_{split} start must not exceed end")
+        ranges[split] = (start, end)
+
+    overlaps = []
+    split_order = ("train", "valid", "test")
+    for left_idx, left in enumerate(split_order):
+        if left not in ranges:
+            continue
+        for right in split_order[left_idx + 1 :]:
+            if right not in ranges:
+                continue
+            left_start, left_end = ranges[left]
+            right_start, right_end = ranges[right]
+            if max(left_start, right_start) <= min(left_end, right_end):
+                overlaps.append((left, right))
+
+    allow_overlap = bool(data_cfgs.get("allow_split_overlap", False))
+    semantics = "in_sample" if overlaps else "out_of_sample"
+    if overlaps and not allow_overlap:
+        overlap_text = ", ".join(f"{left}/{right}" for left, right in overlaps)
+        raise ValueError(
+            "Overlapping target split ranges detected for "
+            f"{overlap_text}. Set data_cfgs.allow_split_overlap=true only "
+            "for explicit in-sample evaluation."
+        )
+    if overlaps and allow_overlap:
+        warnings.warn(
+            "Overlapping target split ranges are enabled explicitly; results "
+            "are in-sample and must not be interpreted as out-of-sample "
+            "generalization performance.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    result = {
+        "overlaps": tuple(overlaps),
+        "evaluation_semantics": semantics,
+        "target_ranges": {
+            split: (start.isoformat(), end.isoformat())
+            for split, (start, end) in ranges.items()
+        },
+    }
+    if "evaluation_cfgs" in config:
+        config["evaluation_cfgs"]["split_evaluation_semantics"] = semantics
+        config["evaluation_cfgs"]["overlapping_splits"] = [
+            list(pair) for pair in overlaps
+        ]
+    return result
+
+
 def _trans_norm(
     x: xr.DataArray,
     var_lst: list,
@@ -179,8 +252,12 @@ def _trans_norm(
     out = xr.full_like(x, np.nan)
     for item in var_lst:
         stat = stat_dict[item]
-        arr = x.sel(variable=item).to_numpy()
-        print(f"[DEBUG] {item}: mean={stat[2]}, std={stat[3]}, arr_sample={arr[:10]}")
+        if kwargs.get("debug", False):
+            arr = x.sel(variable=item).to_numpy()
+            print(
+                f"[DEBUG] {item}: mean={stat[2]}, std={stat[3]}, "
+                f"arr_sample={arr[:10]}"
+            )
         if to_norm:
             if item in maxmin_norm_cols:
                 out.loc[dict(variable=item)] = (x.sel(variable=item) - stat[0]) / (stat[1] - stat[0])
@@ -251,8 +328,10 @@ def _prcp_norm(x: np.array, mean_prep: np.array, to_norm: bool) -> np.array:
     np.array
         normalized or denormalized data
     """
-    tempprep = np.tile(mean_prep, (1, x.shape[1]))
-    return x / tempprep if to_norm else x * tempprep
+    prep = mean_prep
+    while prep.ndim < x.ndim:
+        prep = np.expand_dims(prep, axis=-1)
+    return x / prep if to_norm else x * prep
 
 
 def dor_reservoirs_chosen(gages, usgs_id, dor_chosen) -> list:

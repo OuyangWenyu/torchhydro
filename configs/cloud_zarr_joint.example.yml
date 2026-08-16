@@ -1,0 +1,48 @@
+# hydrodataset 云端 Zarr 日尺度可监督数据集联合训练清单。
+# `basins: all` 使用全部流域，`time_range: all` 使用每个 Zarr 的完整时间轴。
+input_schema: [precipitation]
+target_schema: [streamflow]
+constant_schema: [area]
+
+unit_mismatch_policy: warn
+allow_mixed_time_steps: false
+
+dataset_defaults:
+  basins: all
+  time_range: all
+  relevant_cols: [precipitation]
+  target_cols: [streamflow]
+  constant_cols: [area]
+  weight: 1.0
+
+# 这些 ID 来自 hydrodataset 当前内置 registry 中具有可用径流目标的日尺度数据集。
+# 每个 reader 会把标准变量 precipitation/streamflow/area 映射到自己的物理字段。
+datasets:
+  - dataset_id: bull
+  - dataset_id: camels_aus
+  - dataset_id: camels_br
+  - dataset_id: camels_ch
+  - dataset_id: camels_cl
+  - dataset_id: camels_col
+  - dataset_id: camels_de
+  - dataset_id: camels_dk
+  - dataset_id: camels_fi
+  - dataset_id: camels_fr
+  - dataset_id: camels_gb
+  - dataset_id: camels_ind
+  - dataset_id: camels_lux
+  - dataset_id: camels_se
+  - dataset_id: camels_us
+  - dataset_id: caravan
+  - dataset_id: caravan_dk
+  - dataset_id: grdc_caravan
+  - dataset_id: hysets
+  - dataset_id: lamah_ce
+  - dataset_id: lamah_ice
+  - dataset_id: simbi
+
+# 条目可以覆盖 dataset_defaults，例如指定不同变量、权重或 URI。
+# estreams 未列入训练：云端 estreams_timeseries.zarr 当前只有气象变量，
+# 没有 streamflow/discharge 目标。目标数据加入 Zarr 后才能用于监督训练。
+# camels_nz、camelsh、camelsh_kr 未列入本清单：其云端 Zarr 是小时尺度，
+# 需要先按变量语义聚合为日尺度，或使用独立的小时尺度模型训练。

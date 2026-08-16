@@ -1,19 +1,19 @@
 """
 This is a simple example of training a standard LSTM model on the CAMELS-US dataset.
 
-To run this script, you need to:
-Set up your data path in your `hydro_setting.yml` file.
-This file should be in your user directory. If not, create one.
-Refer to the __init__.py file in the torchhydro package to ensure `local_data_path` is set correctly.
-For example:
-   local_data_path:
-       root: 'D:/data'
-       datasets-origin: 'D:/data'
+To run this script, you need to configure your data path in `~/hydro_setting.yml`.
+Create this file in your home directory with the following format:
+
+    storage:
+      local:
+        root: D:/data/hydrodatasets
+
+The path to individual datasets (e.g., CAMELS-US) is resolved automatically
+from the registry — no need to set individual dataset paths.
 """
 
 import os
 from hydrodataset.hydro_dataset import StandardVariable
-from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -25,12 +25,11 @@ def main():
     """
     # 1. Define parameters for the experiment
     # You can refer to the `cmd` function in `torchhydro.configs.config` for more details.
-    source_path = SETTING["local_data_path"]["datasets-origin"]
     args = cmd(
         # Experiment name and output directory
         sub=os.path.join("results", "lstm_camels"),
-        # Data source configuration
-        source_cfgs={"source_name": "camels_us", "source_path": source_path},
+        # Data source — dataset_id auto-resolves path from ~/hydro_setting.yml
+        source_cfgs={"dataset_id": "camels_us"},
         # Use CPU for this example. To use GPU, set it to [0], [0, 1], etc.
         ctx=[-1],
         # Model selection and hyperparameters

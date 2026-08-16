@@ -55,17 +55,37 @@ class TrainLogger:
             self.model_cfgs["continue_train"]
             and self.model_cfgs["weight_path"] is not None
         ):
-            the_logger_file = hydro_file.get_lastest_file_in_a_dir(self.training_save_dir)
-            if the_logger_file is not None:
-                with open(the_logger_file, "r") as f:
-                    logs = json.load(f)
-            start_epoch = self.training_cfgs["start_epoch"]
-            # read the logs before start_epoch and load them to session_params, train_time, epoch_loss
-            for log in logs["run"]:
-                if log["epoch"] < start_epoch:
-                    self.session_params.append(log)
-                    self.train_time.append(log["train_time"])
-                    self.epoch_loss.append(float(log["train_loss"]))
+            # Find the latest JSON log file from a prior training run (contains "run" key)
+            json_files = sorted(
+                [
+                    f
+                    for f in os.listdir(self.training_save_dir)
+                    if f.endswith(".json")
+                ],
+                key=lambda f: os.path.getmtime(
+                    os.path.join(self.training_save_dir, f)
+                ),
+                reverse=True,
+            )
+            logs = None
+            for filename in json_files:
+                candidate = os.path.join(self.training_save_dir, filename)
+                try:
+                    with open(candidate, "r", encoding="utf-8") as f:
+                        loaded = json.load(f)
+                    if "run" in loaded:
+                        logs = loaded
+                        break
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    continue
+            if logs is not None:
+                start_epoch = self.training_cfgs["start_epoch"]
+                # read the logs before start_epoch and load them to session_params, train_time, epoch_loss
+                for log in logs["run"]:
+                    if log["epoch"] < start_epoch:
+                        self.session_params.append(log)
+                        self.train_time.append(log["train_time"])
+                        self.epoch_loss.append(float(log["train_loss"]))
 
     def save_session_param(
         self, epoch, total_loss, n_iter_ep, valid_loss=None, valid_metrics=None
