@@ -19,6 +19,7 @@ for logger_name in logging.root.manager.loggerDict:
     logger.setLevel(logging.INFO)
 
 
+@pytest.mark.requires_data
 def test_balstm(BALSTM_config):
     train_and_evaluate(BALSTM_config)
 

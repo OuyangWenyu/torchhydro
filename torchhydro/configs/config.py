@@ -11,6 +11,7 @@ Copyright (c) 2021-2022 Wenyu Ouyang. All rights reserved.
 import argparse
 import fnmatch
 import json
+import re
 import warnings
 import os
 from typing import Dict, List, Any, Optional
@@ -1233,7 +1234,8 @@ def update_cfg(cfg_file: Dict[str, Any], new_args: argparse.Namespace) -> None:
     if os.path.exists(result_dir) is False:
         os.makedirs(result_dir)
     if new_args.sub is not None:
-        subset, subexp = new_args.sub.split(os.sep)
+        # sub may use "/" or "\" as separator depending on how it was built
+        subset, subexp = re.split(r"[\\/]", new_args.sub)[-2:]
         cfg_file["data_cfgs"]["case_dir"] = os.path.join(result_dir, subset, subexp)
     if new_args.source_cfgs is not None:
         cfg_file["data_cfgs"]["source_cfgs"] = new_args.source_cfgs

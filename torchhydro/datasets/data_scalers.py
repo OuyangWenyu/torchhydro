@@ -386,10 +386,15 @@ class DapengScaler(object):
             mean_prcp = self.data_source.read_mean_prcp(
                 self.t_s_dict["sites_id"], unit=final_unit
             )
-            # read_mean_prcp returns xarray Dataset; extract p_mean as numpy array
+            # read_mean_prcp returns xarray Dataset; extract the prcp variable
             if hasattr(mean_prcp, "data_vars"):
-                # xarray Dataset — extract the p_mean variable
-                arr = mean_prcp["p_mean"].to_numpy()
+                # new hydrodataset uses "mean_prcp"; older versions used "p_mean"
+                var = (
+                    "mean_prcp"
+                    if "mean_prcp" in mean_prcp.data_vars
+                    else "p_mean"
+                )
+                arr = mean_prcp[var].to_numpy()
             elif hasattr(mean_prcp, "to_numpy"):
                 # xarray DataArray or other
                 arr = mean_prcp.to_numpy()

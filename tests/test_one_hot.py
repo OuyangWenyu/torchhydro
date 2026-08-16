@@ -57,6 +57,7 @@ def vars_data(camels_source, gage_ids, var_c):
 def case_dir(tmpdir):
     return str(tmpdir)
 
+@pytest.mark.requires_data
 def test_one_hot_encoding(camels_source, vars_data, gage_ids, one_hot_cols, var_c, case_dir):
     # --- Run 1: WITH One-Hot Encoding ---
     data_cfgs_one_hot = {

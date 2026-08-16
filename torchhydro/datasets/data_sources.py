@@ -58,7 +58,7 @@ class SupData4Camels:
 
     def __init__(self, supdata_dir=None) -> None:
         self.camels = Camels(
-            data_path=os.path.join(
+            uri=os.path.join(
                 SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
             )
         )
@@ -982,6 +982,18 @@ class Gages(HydroDataset):
         if download:
             self.download_data_source()
         self.gages_sites = self.read_site_info()
+
+    @property
+    def _attributes_cache_filename(self):
+        return "gages_attributes.nc"
+
+    @property
+    def _timeseries_cache_filename(self):
+        return "gages_timeseries.nc"
+
+    @property
+    def default_t_range(self):
+        return ["1980-01-01", "2014-12-31"]
 
     def get_name(self):
         return "GAGES"
@@ -2238,6 +2250,18 @@ class Mopex(HydroDataset):
         self.data_source_description = self.set_data_source_describe()
         self.mopex_sites = self.read_site_info()
 
+    @property
+    def _attributes_cache_filename(self):
+        return "mopex_attributes.nc"
+
+    @property
+    def _timeseries_cache_filename(self):
+        return "mopex_timeseries.nc"
+
+    @property
+    def default_t_range(self):
+        return ["1948-01-01", "2003-12-31"]
+
     def get_name(self):
         return "MOPEX"
 
@@ -2486,6 +2510,18 @@ class GagesMopexPrepFusion(HydroDataset):
     def get_name(self):
         return "GagesMopexPrepFusion"
 
+    @property
+    def _attributes_cache_filename(self):
+        return "gagesmopexprepfusion_attributes.nc"
+
+    @property
+    def _timeseries_cache_filename(self):
+        return "gagesmopexprepfusion_timeseries.nc"
+
+    @property
+    def default_t_range(self):
+        return ["1980-01-01", "2014-12-31"]
+
     def read_forcing_ts(
         self,
         gage_id_lst: list = None,
@@ -2618,6 +2654,18 @@ class MopexPrepGagesAttrFusion(HydroDataset):
 
     def get_name(self):
         return "MopexPrepGagesAttrFusion"
+
+    @property
+    def _attributes_cache_filename(self):
+        return "mopexprepgagesattrfusion_attributes.nc"
+
+    @property
+    def _timeseries_cache_filename(self):
+        return "mopexprepgagesattrfusion_timeseries.nc"
+
+    @property
+    def default_t_range(self):
+        return ["1980-01-01", "2014-12-31"]
 
     def read_forcing_ts(
         self,

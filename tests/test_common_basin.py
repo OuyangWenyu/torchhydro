@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 from torchhydro import CACHE_DIR
 import xarray as xr
 from torchhydro.configs.config import update_cfg
@@ -42,6 +44,7 @@ def find_common_files_in_subdirs(main_dir, compare_dir):
 # df.to_excel(excel_path, index=False, engine='openpyxl')
 
 # 读取训练数据
+@pytest.mark.requires_data
 def test_train_data(fusion_lstm_args, config_data):
     update_cfg(config_data, fusion_lstm_args)
     target_cols = config_data["data_cfgs"]["target_cols"]
@@ -93,6 +96,7 @@ def test_train_data(fusion_lstm_args, config_data):
         # average_constant_over_basin.to_excel(writer, sheet_name='Constant Average')
 
 # 读取nc径流数据
+@pytest.mark.requires_data
 def test_nc_streamflow(fusion_lstm_args, config_data):
     update_cfg(config_data, fusion_lstm_args)
     target_cols = config_data["data_cfgs"]["target_cols"]

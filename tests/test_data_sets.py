@@ -61,10 +61,15 @@ class MockDatasource:
         )
 
 
-def test_create_lookup_table(tmp_path):
+def test_create_lookup_table(tmp_path, mocker):
     temp_test_path = tmp_path / "test_datasets"
     os.makedirs(temp_test_path, exist_ok=True)
-    data_sources_dict.update({"mockdatasource": MockDatasource})
+    # New resolver path delegates to hydrodatasource.open_dataset; patch it to
+    # return the mock reader instead of registering in the legacy registry.
+    mocker.patch(
+        "torchhydro.configs.data_resolver.open_dataset_from_source_cfgs",
+        return_value=MockDatasource(str(temp_test_path)),
+    )
     data_cfgs = {
         "source_cfgs": {
             "source_name": "mockdatasource",

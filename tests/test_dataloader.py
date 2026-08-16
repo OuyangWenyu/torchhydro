@@ -133,7 +133,7 @@ class MockGraphStreamDataset:
 
 
 @pytest.fixture
-def complete_config(tmp_path):
+def complete_config(tmp_path, mocker):
     """Provides a complete and valid configuration dictionary for tests."""
     temp_test_path = tmp_path / "test_dataloader"
     temp_test_path.mkdir()
@@ -193,8 +193,12 @@ def complete_config(tmp_path):
         },
     }
 
-    # Setup: Register mock datasource
-    data_sources_dict.update({"mockdatasource": MockDatasource})
+    # New resolver path delegates to hydrodatasource.open_dataset; patch it to
+    # return the mock reader instead of registering in the legacy registry.
+    mocker.patch(
+        "torchhydro.configs.data_resolver.open_dataset_from_source_cfgs",
+        return_value=MockDatasource(str(temp_test_path)),
+    )
 
     yield {
         "data_cfgs": data_cfgs,
@@ -202,10 +206,6 @@ def complete_config(tmp_path):
         "evaluation_cfgs": evaluation_cfgs,
         "model_cfgs": model_cfgs,
     }
-
-    # Teardown: Clean up to avoid side effects
-    if "mockdatasource" in data_sources_dict:
-        del data_sources_dict["mockdatasource"]
 
 
 # ==========================================

@@ -19,6 +19,7 @@ from torchhydro.trainers.trainer import train_and_evaluate
 
 DEVICE = 1
 
+@pytest.mark.requires_data
 def test_transfer_gages_lstm_model():
     """
     ========== 迁移学习微调：输入通道扩展 + 缺失值掩码 ==========

@@ -11,6 +11,7 @@ Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 import os
 import pytest
 import hydrodataset as hds
+from hydrodataset.camels_us import CamelsUs
 from hydrodataset.caravan import Caravan
 from torch.utils.data import Dataset
 from torchhydro.datasets.data_sources import Gages
@@ -66,6 +67,7 @@ def test_sampler_randomness(sampler):
     ), "Expected different samples for different epochs"
 
 
+@pytest.mark.requires_data
 def test_cache_file():
     """
     Test whether the cache file is generated correctly
@@ -73,10 +75,11 @@ def test_cache_file():
     camels_dir = os.path.join(
         SETTING["local_data_path"]["datasets-origin"], "camels", "camels_us"
     )
-    camels_us = hds.Camels(camels_dir)
+    camels_us = CamelsUs(uri=camels_dir)
     camels_us.cache_xrdataset()
 
 
+@pytest.mark.requires_data
 def test_cache_caravan():
     """
     Test whether the cache file is generated correctly
@@ -86,6 +89,7 @@ def test_cache_caravan():
     )
     caravan.cache_xrdataset()
 
+@pytest.mark.requires_data
 def test_cache_fusion():
     """
     Test whether the cache file is generated correctly

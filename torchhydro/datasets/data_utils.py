@@ -53,6 +53,18 @@ def warn_if_nan(dataarray, max_display=5, nan_mode="any", data_name=""):
             raise ValueError("The dataarray contains only NaN values!")
         else:
             return True
+
+    # Warn with a bounded list of NaN locations (max_display caps the output
+    # so this stays cheap even for basin x time x variable arrays).
+    nan_indices = np.argwhere(nan_mask)
+    total_nan = nan_indices.shape[0]
+    display_count = min(max_display, total_nan)
+    indices_str = ", ".join(str(tuple(idx)) for idx in nan_indices[:display_count])
+    warnings.warn(
+        f"The {data_name} dataarray contains {total_nan} NaN values! "
+        f"Here are the indices of the first {display_count} NaNs: {indices_str}",
+        UserWarning,
+    )
     return True
 
 

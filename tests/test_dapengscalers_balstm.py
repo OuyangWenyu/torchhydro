@@ -65,6 +65,7 @@ def sample_data():
     return target_vars, relevant_vars, constant_vars, global_vars, data_cfgs
 
 
+@pytest.mark.requires_data
 def test_dapeng_scaler_initialization(sample_data):
     target_vars, relevant_vars, constant_vars, global_vars, data_cfgs = sample_data
     scaler = DapengScaler(
@@ -74,7 +75,7 @@ def test_dapeng_scaler_initialization(sample_data):
         data_cfgs=data_cfgs,
         is_tra_val_te="train",
         data_source=LongTermDataset(
-            data_path=SETTING["local_data_path"]["datasets-interim"], time_unit=["1MS"]
+            uri=SETTING["local_data_path"]["datasets-interim"], time_unit=["1M"]
         ), 
         global_vars=global_vars,
     )
@@ -85,6 +86,7 @@ def test_dapeng_scaler_initialization(sample_data):
     assert scaler.stat_dict is not None
 
 
+@pytest.mark.requires_data
 def test_dapeng_scaler_cal_stat_all(sample_data):
     target_vars, relevant_vars, constant_vars, global_vars, data_cfgs = sample_data
     scaler = DapengScaler(
@@ -94,7 +96,7 @@ def test_dapeng_scaler_cal_stat_all(sample_data):
         data_cfgs=data_cfgs,
         is_tra_val_te="train",
         data_source=LongTermDataset(
-            data_path=SETTING["local_data_path"]["datasets-interim"], time_unit=["1MS"]
+            uri=SETTING["local_data_path"]["datasets-interim"], time_unit=["1M"]
         ), 
         global_vars=global_vars,
     )
@@ -106,6 +108,7 @@ def test_dapeng_scaler_cal_stat_all(sample_data):
     assert all(key in stat_dict for key in data_cfgs["global_cols"])
 
 
+@pytest.mark.requires_data
 def test_dapeng_scaler_load_data_and_denorm(sample_data):
     target_vars, relevant_vars, constant_vars, global_vars, data_cfgs = sample_data
     scaler = DapengScaler(
@@ -115,7 +118,7 @@ def test_dapeng_scaler_load_data_and_denorm(sample_data):
         data_cfgs=data_cfgs,
         is_tra_val_te="train",
         data_source=LongTermDataset(
-            data_path=SETTING["local_data_path"]["datasets-interim"], time_unit=["1MS"]
+            uri=SETTING["local_data_path"]["datasets-interim"], time_unit=["1M"]
         ), 
         global_vars=global_vars,
     )
