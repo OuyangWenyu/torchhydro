@@ -1445,7 +1445,7 @@ def selfmadehydrodataset_args() -> Any:
             "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
                 "time_unit": ["1D"],
-                "dataset_name": "songliaorrevent",
+                "dataset_name": "songliaorrevents",
                 "offset_to_utc": True,  # if you use Chinese dataset with start time 08:00, you need to set it to True
             },
         },
@@ -1519,7 +1519,7 @@ def selfmadehydrodataset_dpl4xaj_args() -> Any:
             "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
                 "time_unit": ["1D"],
-                "dataset_name": "songliaorrevent",
+                "dataset_name": "songliaorrevents",
                 "offset_to_utc": True,  # if you use Chinese dataset with start time 08:00, you need to set it to True
             },
         },
@@ -1612,7 +1612,7 @@ def flood_event_datasource_args() -> Any:
             "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
                 "time_unit": ["3h"],
-                "dataset_name": "songliaorrevent",
+                "dataset_name": "songliaorrevents",
                 "net_rain_key": "net_rain",
                 "obs_flow_key": "inflow",
                 "delta_t_hours": 3.0,
@@ -1706,7 +1706,7 @@ def flood_event_datasource_score_args() -> Any:
             "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
                 "time_unit": ["3h"],
-                "dataset_name": "songliaorrevent",
+                "dataset_name": "songliaorrevents",
                 "net_rain_key": "net_rain",
                 "obs_flow_key": "inflow",
                 "delta_t_hours": 3.0,
@@ -1809,7 +1809,7 @@ def flood_event_seq2seq_noforecast_args() -> Any:
             "source_path": SETTING["local_data_path"]["datasets-interim"],
             "other_settings": {
                 "time_unit": ["3h"],
-                "dataset_name": "songliaorrevent",
+                "dataset_name": "songliaorrevents",
                 "net_rain_key": "net_rain",
                 "obs_flow_key": "inflow",
                 "delta_t_hours": 3.0,
