@@ -40,6 +40,10 @@ _IGNORED_SOURCE_CFG_KEYS = {
     "path",
     "local_path",
     "root",
+    # legacy reader keys replaced by the unified uri= interface
+    "dataset_name",
+    "data_path",
+    "data_folder",
 }
 
 
@@ -137,7 +141,34 @@ def open_dataset_from_source_cfgs(
     """
     dataset_id, source, reader_kwargs = normalize_source_cfgs(source_cfgs)
     reader_kwargs.update(extra_reader_kwargs)
-    return open_dataset(dataset_id, source=source, **reader_kwargs)
+    try:
+        return open_dataset(dataset_id, source=source, **reader_kwargs)
+    except DatasetResolutionError:
+        # torchhydro-specific sources (self-made datasets, reservoirs, ...) are
+        # not in the hydrodatasource resolver registry; fall back to the
+        # torchhydro data_sources_dict registry.
+        return _open_from_data_sources_dict(source_cfgs, dataset_id, reader_kwargs)
+
+
+def _open_from_data_sources_dict(
+    source_cfgs: Dict[str, Any],
+    dataset_id: str,
+    reader_kwargs: Dict[str, Any],
+):
+    from torchhydro.datasets.data_sources import data_sources_dict
+
+    if dataset_id not in data_sources_dict:
+        raise DatasetResolutionError(
+            f"Unknown dataset id {dataset_id!r}. Neither the hydrodataset/"
+            "hydrodatasource resolver nor torchhydro's data_sources_dict "
+            "recognises it."
+        )
+    constructor = data_sources_dict[dataset_id]
+    # self-made sources locate their data via the legacy source_path/path key
+    path = source_cfgs.get("source_path") or source_cfgs.get("path")
+    if path is not None:
+        return constructor(path, **reader_kwargs)
+    return constructor(**reader_kwargs)
 
 
 def resolve_dataset(dataset_id: str):
