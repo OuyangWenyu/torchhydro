@@ -21,7 +21,11 @@ import os
 import numpy as np
 import xarray as xr
 import torch
-from torch.optim.lr_scheduler import *
+from torch.optim.lr_scheduler import (
+    ExponentialLR,
+    LambdaLR,
+    ReduceLROnPlateau,
+)
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
