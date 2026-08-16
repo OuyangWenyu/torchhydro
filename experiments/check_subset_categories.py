@@ -2,11 +2,10 @@
 import xarray as xr
 import numpy as np
 import os
-from torchhydro.datasets.data_sources import CamelsUs
+from torchhydro.configs.data_resolver import open_dataset
 
 def check_categories_subset():
-    camels_dir = "/Volumes/Untitled/data"
-    source = CamelsUs(camels_dir, download=False, region="US")
+    source = open_dataset("camels_us", region="US")
     
     # The 5 gages specified by the user
     gage_id = ['01013500', '01022500', '01030500', '01031500', '01047000']

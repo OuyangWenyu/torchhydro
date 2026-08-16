@@ -3,13 +3,12 @@ import xarray as xr
 import numpy as np
 import os
 import sys
-from torchhydro.datasets.data_sources import CamelsUs
 from torchhydro.configs.config import default_config_file
+from torchhydro.configs.data_resolver import open_dataset
 
 def calculate_input_size():
-    # Initialize CamelsUS data source
-    camels_dir = "/Volumes/Untitled/data"
-    source = CamelsUs(camels_dir, download=False, region="US")
+    # Initialize CamelsUS data source via the unified resolver
+    source = open_dataset("camels_us", region="US")
     
     # Attributes to check
     one_hot_cols = ["dom_land_cover", "geol_1st_class", "geol_2nd_class"]
