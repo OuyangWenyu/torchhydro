@@ -11,7 +11,7 @@ Copyright (c) 2021-2025 Wenyu Ouyang. All rights reserved.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Any, Dict, Mapping, Type
+from typing import Any, Dict, List, Mapping, Type
 
 
 class MoE(nn.Module):

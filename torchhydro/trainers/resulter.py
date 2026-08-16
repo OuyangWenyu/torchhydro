@@ -26,7 +26,6 @@ except (ImportError, OSError) as e:
     print(f"Warning: SHAP not available, skipping explainer functionality: {e}")
 from torchhydro.trainers.train_utils import (
     calculate_and_record_metrics,
-    cellstates_when_inference,
     read_pth_from_model_loader,
     model_infer,
 )
@@ -255,8 +254,10 @@ class Resulter:
         training_cfgs = cfgs["training_cfgs"]
         seq_first = training_cfgs["which_first_tensor"] == "sequence"
         if is_cell_states:
-            # TODO: not support return_cell_states yet
-            return cellstates_when_inference(seq_first, data_cfgs, pred)
+            raise NotImplementedError(
+                "return_cell_states is not supported yet "
+                "(save_intermediate_results)"
+            )
         if is_pbm_params:
             self._save_pbm_params(cfgs, seq_first)
 

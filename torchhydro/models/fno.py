@@ -1,4 +1,6 @@
 import torch
+import itertools
+from copy import deepcopy
 from typing import List, Union, Optional, Tuple
 from torch import nn
 import torch.fft
@@ -11,6 +13,13 @@ from numbers import Number
 tl.set_backend("pytorch")
 use_opt_einsum("optimal")
 einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+class CGELU(nn.Module):
+    """GELU applied separately to the real and imaginary parts of a complex tensor."""
+
+    def forward(self, x):
+        return torch.complex(F.gelu(x.real), F.gelu(x.imag))
 Number = Union[int, float]
 
 
@@ -89,10 +98,6 @@ def einsum_complexhalf(eq, *args):
     Because torch.einsum currently does not support complex32 (complexhalf) types.
     The inputs and outputs are the same as in torch.einsum
     """
-    if len(args) == 2:
-        # if there are two inputs, it is faster to call this method
-        return einsum_complexhalf_two_input(eq, *args)
-
     # find the optimal path
     _, path_info = opt_einsum.contract_path(eq, *args)
     partial_eqns = [
@@ -1087,7 +1092,7 @@ class FNOBlocks(nn.Module):
 
         # 逻辑：实数用原激活函数，复数用 CGELU
         if self.complex_data:
-            self.non_linearity = CGELU
+            self.non_linearity = CGELU()
         else:
             self.non_linearity = non_linearity
 

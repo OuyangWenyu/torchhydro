@@ -3,7 +3,6 @@ import pytest
 import numpy as np
 from torchhydro.trainers.train_utils import (
     _recover_samples_to_3d_by_4d_ensembles,
-    _recover_samples_to_4d,
     _recover_samples_to_4d_by_basins,
     _recover_samples_to_4d_by_forecast,
     read_pth_from_model_loader,

@@ -34,7 +34,6 @@ from hydroutils.hydro_stat import stat_error
 from hydroutils.hydro_file import (
     get_lastest_file_in_a_dir,
     unserialize_json,
-    get_latest_file_in_a_lst,
 )
 from torchhydro.models.crits import (
     FloodBaseLoss,
@@ -892,136 +891,13 @@ def _recover_samples_to_4d_by_basins(
     return result
 
 
-def _place_bybasins_last_forecast(the_array, basin_idx, start, pred_3d):
-    """Place basin *basin_idx*'s LAST forecast step time series into the array.
-
-    ``pred_3d`` is ``(T, forecast_length, nf)`` for one basin; the bybasins
-    evaluation keeps only the last forecast step per basin, so the placed
-    slice is ``pred_3d[:, -1, :]`` (length ``T``) at
-    ``the_array[basin_idx, start : start + T, :]``.  This avoids the old shape
-    mismatch where a ``(T, forecast, nf)`` block was assigned to a
-    ``(basin, forecast, nf)`` slice (only broadcast when ``T == basin``).
-    """
-    end = start + pred_3d.shape[0]  # T (time length), not forecast_length
-    the_array[basin_idx, start:end, :] = pred_3d[:, -1, :]
-
-
-def _recover_samples_to_3d_by_basins(
-    valorte_data_loader,
-    arr_3d,
-):
-    """将模型输出按照流域和实际起始时间重组为3D数组
-
-    参数
-    -------
-    valorte_data_loader : DataLoader
-        验证或测试数据加载器
-    arr_3d : np.ndarray
-        3D数组，形状为 (样本数, 预测步长, 特征数)
-
-    返回
-    -------
-    np.ndarray
-        重组后的3D数组，形状为 (流域数, 时间长度, 特征数)
-    """
-    dataset = valorte_data_loader.dataset
-    basin_num = len(dataset.t_s_dict["sites_id"])
-    nt = dataset.nt
-    rho = dataset.rho
-    warmup_len = dataset.warmup_length
-    horizon = dataset.horizon
-    nf = dataset.noutputvar
-
-    result = np.full((basin_num, nt, nf), np.nan)
-
-    for sample_idx in range(arr_3d.shape[0]):
-        # lookup_table: (basin_idx, start_idx, seq_len)
-        basin_idx, start_idx, _ = dataset.lookup_table[sample_idx]
-        base_time = start_idx + warmup_len + rho
-        # 将该样本的各预见期写入对应的绝对时间位置
-        for j in range(min(horizon, arr_3d.shape[1])):
-            t_abs = base_time + j
-            if 0 <= t_abs < nt:
-                result[basin_idx, t_abs, :] = arr_3d[sample_idx, j, :]
-
-    return result
-
-
-def _recover_samples_to_4d(
-    data_shape,
-    valorte_data_loader,
-    stride,
-    hindcast_output_window,
-    arr_3d,
-):
-    """Reorganize the 3D prediction results to 4D
-
-    Prepare rolling result for the following two ways to calculate rolling evaluation results:
-    1. We can organize data according to forecast horizons, with each horizon having a set of evaluation results
-    2. For each rolling prediction result, calculate a set of metrics, with each basin having one set of metrics, and all basins stored in a 2D array containing all metrics.
-
-    TODO: to be finished
-
-    Parameters
-    ----------
-    arr_3d : np.ndarray
-        A 3D prediction array with the shape (total number of samples, number of time steps, number of features).
-    valorte_data_loader: DataLoader
-        The corresponding data loader used to obtain the basin-time index mapping.
-    stride: int
-        The stride of the rolling.
-
-    Returns
-        -------
-        np.ndarray
-            The reorganized 4D array with the shape (number of basins, length of time, forecast steps, number of features).
-    """
-    basin_num, nt, nf = data_shape
-    dataset = valorte_data_loader.dataset
-    batch_size = valorte_data_loader.batch_size
-    basin_num = len(dataset.t_s_dict["sites_id"])
-    nt = dataset.nt
-    rho = dataset.rho
-    warmup_len = dataset.warmup_length
-    horizon = dataset.horizon
-    nf = dataset.noutputvar
-
-    # Initialize the 4D array with NaN values
-    basin_array = np.full((basin_num, nt - warmup_len - rho, horizon, nf), np.nan)
-
-    for sample_idx in range(arr_3d.shape[0]):
-        # Get the basin and start time index corresponding to this sample
-        basin, start_time = dataset.lookup_table[sample_idx]
-        # Take the value at the last time step of this sample (at the position of rho + horizon)
-        value = arr_3d[sample_idx, warmup_len + rho :, :]
-        # Calculate the time position in the result array
-        result_time_idx = start_time + warmup_len + stride * (sample_idx % batch_size)
-        # Fill in the corresponding position
-        basin_array[basin, result_time_idx, :, :] = value
-
-    return basin_array
-
-
 def _recover_samples_to_basin(arr_3d, valorte_data_loader, pace_idx):
-    """Reorganize the 3D prediction results by basin
+    """Reorganize a 3D prediction array by basin for a chosen forecast pace.
 
-    Parameters
-    ----------
-    arr_3d : np.ndarray
-        A 3D prediction array with the shape (total number of samples, number of time steps, number of features).
-    valorte_data_loader: DataLoader
-        The corresponding data loader used to obtain the basin-time index mapping.
-    pace_idx: int
-        Which time step was chosen to show.
-        -1 means we chose the final value for one prediction
-        positive values means we chose the results during horzion periods
-        we ignore 0, because it may lead to confusion. 1 means the 1st horizon period
-        TODO: when hindcast_output is not None, this part need to be modified.
+    For each sample, the *pace_idx*-th forecast step is placed at the sample's
+    absolute time position (start + warmup + rho + horizon + pace_idx).
 
-    Returns
-        -------
-        np.ndarray
-            The reorganized 3D array with the shape (number of basins, length of time, number of features).
+    Returns (basin_num, nt, nf) with NaN where nothing was recovered.
     """
     dataset = valorte_data_loader.dataset
     basin_num = len(dataset.t_s_dict["sites_id"])
@@ -1034,19 +910,27 @@ def _recover_samples_to_basin(arr_3d, valorte_data_loader, pace_idx):
     basin_array = np.full((basin_num, nt, nf), np.nan)
 
     for sample_idx in range(arr_3d.shape[0]):
-        # Get the basin and start time index corresponding to this sample
-        basin, start_time, _ = dataset.lookup_table[sample_idx]
-        # Calculate the time position in the result array
-        if pace_idx < 0:
-            value = arr_3d[sample_idx, pace_idx, :]
-            result_time_idx = start_time + warmup_len + rho + horizon + pace_idx
-        else:
-            value = arr_3d[sample_idx, pace_idx - 1, :]
-            result_time_idx = start_time + warmup_len + rho + pace_idx - 1
-        # Fill in the corresponding position
-        basin_array[basin, result_time_idx, :] = value
+        basin, start_time = dataset.lookup_table[sample_idx]
+        value = arr_3d[sample_idx, pace_idx, :]
+        result_time_idx = start_time + warmup_len + rho + horizon + pace_idx
+        if 0 <= result_time_idx < nt:
+            basin_array[basin, result_time_idx, :] = value
 
     return basin_array
+
+
+def _place_bybasins_last_forecast(the_array, basin_idx, start, pred_3d):
+    """Place basin *basin_idx*'s LAST forecast step time series into the array.
+
+    ``pred_3d`` is ``(T, forecast_length, nf)`` for one basin; the bybasins
+    evaluation keeps only the last forecast step per basin, so the placed
+    slice is ``pred_3d[:, -1, :]`` (length ``T``) at
+    ``the_array[basin_idx, start : start + T, :]``.  This avoids the old shape
+    mismatch where a ``(T, forecast, nf)`` block was assigned to a
+    ``(basin, forecast, nf)`` slice (only broadcast when ``T == basin``).
+    """
+    end = start + pred_3d.shape[0]  # T (time length), not forecast_length
+    the_array[basin_idx, start:end, :] = pred_3d[:, -1, :]
 
 
 def _recover_samples_to_3d_by_4d_ensembles(
@@ -2209,9 +2093,9 @@ def read_pth_from_model_loader(model_loader, model_pth_dir):
 def cellstates_when_inference(seq_first, data_cfgs, pred):
     """get cell states when inference"""
     cs_out = (
-        cs_cat_lst.detach().cpu().numpy().swapaxes(0, 1)
+        pred.detach().cpu().numpy().swapaxes(0, 1)
         if seq_first
-        else cs_cat_lst.detach().cpu().numpy()
+        else pred.detach().cpu().numpy()
     )
     cs_out_lst = [cs_out]
     cell_state = reduce(lambda a, b: np.vstack((a, b)), cs_out_lst)
