@@ -659,26 +659,21 @@ def get_preds_to_be_eval(
         elif evaluator["eval_way"] == "rolling" and recover_mode == "bybasins":
             # 对于其他情况，可以考虑将四维数据转换为三维
             # 例如，取最后一个预测步长
-            preds_xr_list = []
-            obss_xr_list = []
+            # 每个流域取最后一个预测步长 j = forecast_length-1,其绝对时间为
+            # warmup + τ + rho + (forecast_length-1),与 byforecast 分支对
+            # 最后一个步长(start_idx = rho + i)的放置一致。
+            selected_data = target_scaler.data_target
+            the_array_pred_ = np.full(selected_data.shape, np.nan)
+            the_array_obs_ = np.full(selected_data.shape, np.nan)
+            start = rho + pred.shape[2] - 1  # pred.shape[2] = forecast_length
+            assert (
+                start + pred.shape[1] <= the_array_pred_.shape[1]
+            ), "填充范围超出目标数组的边界"
             for i in range(pred.shape[0]):
-                pred_3d = pred[i, :, :, :]  # (T, forecast_length, nf)
-                obs_3d = obs[i, :, :, :]
-                selected_data = target_scaler.data_target
-                the_array_pred_ = np.full(selected_data.shape, np.nan)
-                the_array_obs_ = np.full(selected_data.shape, np.nan)
-                start = rho  # TODO:need check
-
-                # 每个流域取最后一个预测步长的时间序列,放置到该流域的 target 区间
-                assert (
-                    start + pred_3d.shape[0] <= the_array_pred_.shape[1]
-                ), "填充范围超出目标数组的边界"
-
-                _place_bybasins_last_forecast(the_array_pred_, i, start, pred_3d)
-                _place_bybasins_last_forecast(the_array_obs_, i, start, obs_3d)
-
-                preds_xr = valte_dataset.denormalize(the_array_pred_, -1)
-                obss_xr = valte_dataset.denormalize(the_array_obs_, -1)
+                _place_bybasins_last_forecast(the_array_pred_, i, start, pred[i])
+                _place_bybasins_last_forecast(the_array_obs_, i, start, obs[i])
+            preds_xr = valte_dataset.denormalize(the_array_pred_, -1)
+            obss_xr = valte_dataset.denormalize(the_array_obs_, -1)
     else:
         # for 3d data, directly process
         # TODO: maybe need more test for the pace_idx case

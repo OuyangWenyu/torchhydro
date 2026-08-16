@@ -636,3 +636,28 @@ def test_place_bybasins_last_forecast_step():
     # different basin -> its own last forecast step
     expected_1 = pred[1, :, -1, :]
     assert np.allclose(target[1, rho : rho + T, :], expected_1)
+
+
+def test_bybasins_offset_matches_last_forecast_step():
+    """The bybasins eval places the LAST forecast step (j = forecast_length-1)
+    whose absolute time is warmup + tau + rho + (forecast_length-1), so the
+    placement offset must be rho + forecast_length - 1 (not rho)."""
+    from torchhydro.trainers.train_utils import _place_bybasins_last_forecast
+
+    basin_num, T, forecast, nf = 1, 3, 2, 1
+    rho = 2
+    # branch computes start = rho + pred.shape[2] - 1
+    start = rho + forecast - 1  # = 3
+    T_total = start + T  # target time length large enough
+
+    pred = np.arange(basin_num * T * forecast * nf).reshape(
+        basin_num, T, forecast, nf
+    )
+    target = np.full((basin_num, T_total, nf), np.nan)
+    _place_bybasins_last_forecast(target, 0, start, pred[0])
+
+    # the last forecast step (j = forecast-1) time series placed at offset start
+    expected = pred[0, :, -1, :]
+    assert np.allclose(target[0, start : start + T, :], expected)
+    # nothing before the offset
+    assert np.all(np.isnan(target[0, :start, :]))
