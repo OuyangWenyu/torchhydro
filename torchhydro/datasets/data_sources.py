@@ -763,6 +763,18 @@ class Reservoirs(HydroDataset):
     def get_name(self):
         return "Reservoirs"
 
+    @property
+    def _attributes_cache_filename(self):
+        return "reservoirs_attributes.nc"
+
+    @property
+    def _timeseries_cache_filename(self):
+        return "reservoirs_timeseries.nc"
+
+    @property
+    def default_t_range(self):
+        return ["1980-01-01", "2014-12-31"]
+
     def set_data_source_describe(self):
         """
         the files in the dataset and their location in file system
@@ -2771,6 +2783,18 @@ class Reservoir(HydroDataset):
 
     def get_name(self):
         return "Reservoir"
+
+    @property
+    def _attributes_cache_filename(self):
+        return "reservoir_attributes.nc"
+
+    @property
+    def _timeseries_cache_filename(self):
+        return "reservoir_timeseries.nc"
+
+    @property
+    def default_t_range(self):
+        return ["1980-01-01", "2014-12-31"]
 
     def set_data_source_describe(self):
         """
