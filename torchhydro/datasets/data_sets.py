@@ -426,14 +426,14 @@ class BaseDataset(Dataset):
         min_time_unit = self.data_cfgs["min_time_unit"]
         min_time_interval = self.data_cfgs["min_time_interval"]
 
-        # 计算时间步长（以小时为单位）
+        # 计算时间步长（以小时为单位）—— 月度单位(ME/MS/M)走下方
+        # 日历感知分支,不在此表内;'M' 在 pandas 2.x 表示月末而非分钟。
         unit_to_hours = {
             "h": 1,
             "H": 1,
             "d": 24,
             "D": 24,
             "m": 1 / 60,
-            "M": 1 / 60,
             "s": 1 / 3600,
             "S": 1 / 3600,
         }
