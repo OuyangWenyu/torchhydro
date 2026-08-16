@@ -633,12 +633,12 @@ def parse_list(s: str):
 def main():
     # ===== 可修改区域 =====
     model_dirs = [
-        './results/3d_gnn_only',
-        './results/3d_lstm_only',
-        './results/3d_lstm_gnn'
+        './results/3d_gnn_only_e40_basin2',
+        './results/3d_lstm_only_e40_basin2',
+        './results/3d_lstm_gnn_e40_basin2'
     ]
     model_names = ['GNN-Only','LSTM-Only','LSTM+GNN']
-    epoch = 'best_model.pth'   # 可换成数字如 '40'
+    epoch = 'best_model.pth'   # 可换成数字如 '40''best_model.pth'
     output_dir = None          # 或者指定一个新目录，如 './results/model_compare_custom'
     Songliao_path = '/mnt/data/ClassC/songliaorrevent'
     verbose = True
