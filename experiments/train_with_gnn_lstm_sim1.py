@@ -15,7 +15,6 @@ import sys
 
 from torchhydro.configs.config import default_config_file, cmd, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-from torchhydro import SETTING
 
 # 配置日志和警告 - 最大限度减少详细输出
 logging.basicConfig(level=logging.WARNING)  # 只显示WARNING及以上级别的日志
@@ -129,8 +128,7 @@ def create_spatiotemporal_config(test_mode="normal", model_name="SpatioTemporalF
         sub=project_name,
         # 数据源配置 - 使用正确的松辽流域数据路径
         source_cfgs={
-            "source_name": "stationhydrodataset",
-            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "dataset_id": "stationhydrodataset",
             "time_unit": ["3h"],
         },
         station_cfgs={

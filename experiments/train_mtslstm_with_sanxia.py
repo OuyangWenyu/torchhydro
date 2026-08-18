@@ -108,8 +108,7 @@ def config():
     args = cmd(
         sub=project_sub,
         source_cfgs={
-            "source_name": "selfmadehydrodataset",
-            "source_path": sanxia_dir,
+            "dataset_id": "selfmadehydrodataset",
             "other_settings": {"dataset_name": "sanxia", "time_unit": ["1h"]},
         },
         ctx=[0],
@@ -256,9 +255,7 @@ def config():
         #project_dir="D:\\torchhydro\\text2attr",
         sub=project_name,
         source_cfgs={
-            "source_name": "selfmadehydrodataset",
-            "source_path": sanxia_dir,
-            #"other_settings": {"download": False, "region": "US"},
+            "dataset_id": "selfmadehydrodataset",
             "other_settings": {"time_unit": ["1h"]},
         },
         ctx=[1],

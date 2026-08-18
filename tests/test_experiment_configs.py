@@ -145,6 +145,39 @@ def test_adapted_selfmade_no_setting_dependency(experiment_path: str):
 
 
 # ---------------------------------------------------------------------------
+# P2 adapted (3 tests each)
+# ---------------------------------------------------------------------------
+
+P2_ADAPTED = [
+    "experiments/train_with_gpm_streamflow.py",
+    "experiments/evaluate_with_gpm.py",
+    "experiments/evaluate_with_gpm_streamflow.py",
+    "experiments/evaluate_with_era5land.py",
+    "experiments/train_with_era5land_gnn_ddp.py",
+    "experiments/train_with_era5land_trans.py",
+    "experiments/train_with_gnn_lstm_sim1.py",
+    "experiments/train_seq2seq_noforecast_floodevent.py",
+    "experiments/train_mtslstm_with_sanxia.py",
+]
+
+
+@pytest.mark.parametrize("experiment_path", P2_ADAPTED)
+def test_p2_adapted_imports(experiment_path: str):
+    mod = _import_experiment(experiment_path.replace("/", "_").replace(".py", ""), experiment_path)
+    assert mod is not None
+
+
+@pytest.mark.parametrize("experiment_path", P2_ADAPTED)
+def test_p2_adapted_no_old_source_name(experiment_path: str):
+    _check_no_old_source_name(experiment_path)
+
+
+@pytest.mark.parametrize("experiment_path", P2_ADAPTED)
+def test_p2_adapted_no_setting_dependency(experiment_path: str):
+    _check_no_setting_data_path(experiment_path)
+
+
+# ---------------------------------------------------------------------------
 # Import-only (not yet adapted or missing data, import test only)
 # ---------------------------------------------------------------------------
 
@@ -166,6 +199,22 @@ IMPORT_ONLY = [
     "experiments/evaluate_with_mclstm_longseq.py",
     # P1 — longtermdataset missing data
     "experiments/train_with_lstm.py",
+    # P2 — missing data/CSV/pretrained models
+    "experiments/3h_events_run_regional_weighted_mse_loss.py",
+    "experiments/train_with_gpm.py",
+    "experiments/train_with_gpm_dis.py",
+    "experiments/train_with_aus.py",
+    "experiments/train_with_Enc_Dec_BALSTM.py",
+    "experiments/train_moe_multi.py",
+    "experiments/tune_wdne.py",
+    # P3 — missing data/CSV
+    "experiments/train_lstm_with_sanxia.py",
+    "experiments/train_lstm_with_sanxia_copy.py",
+    "experiments/train_mtslstm_with_sanxia_all.py",
+    "experiments/train_mtslstm_with_sanxia_all_floodEvent.py",
+    "experiments/train_mtslstm_with_sanxia_all_floodEvent_nosc.py",
+    "experiments/train_mtslstm_with_sanxia_all_longseq.py",
+    "experiments/train_mtslstm_with_sanxia_all_scaler.py",
 ]
 
 

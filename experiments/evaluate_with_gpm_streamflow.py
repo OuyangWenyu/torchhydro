@@ -12,7 +12,6 @@ import os
 import warnings
 import logging
 import pandas as pd
-from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.deep_hydro import DeepHydro
 from torchhydro.trainers.trainer import set_random_seed
@@ -36,8 +35,7 @@ def get_config_data():
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "selfmadehydrodataset",
-            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "dataset_id": "selfmadehydrodataset",
             "other_settings": {
                 "time_unit": ["3h"],
             },

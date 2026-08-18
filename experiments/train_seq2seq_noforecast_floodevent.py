@@ -11,7 +11,6 @@ import logging
 
 from torchhydro.configs.config import default_config_file, cmd, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-from torchhydro import SETTING
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -44,8 +43,7 @@ def create_seq2seq_noforecast_config():
         sub=project_name,
         # ========== 数据源配置 ==========
         source_cfgs={
-            "source_name": "floodeventdatasource",
-            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "dataset_id": "floodeventdatasource",
             "other_settings": {
                 "time_unit": ["3h"],
                 "dataset_name": "songliaorrevent",

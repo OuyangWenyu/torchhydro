@@ -24,12 +24,7 @@ def create_config_Transformer():
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source": "HydroMean",
-            "source_path": {
-                "forcing": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "target": "basins-origin/hour_data/1h/mean_data/data_forcing_era5land_streamflow",
-                "attributes": "basins-origin/attributes.nc",
-            },
+            "dataset_id": "selfmadehydrodataset",
         },
         ctx=[1],
         model_name="Transformer",

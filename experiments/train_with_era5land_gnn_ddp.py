@@ -57,8 +57,7 @@ def create_gnn_config():
         sub=project_name,
         # 数据源配置
         source_cfgs={
-            "source_name": "selfmadehydrodataset",
-            "source_path": "/ftproot/basins-interim/",
+            "dataset_id": "selfmadehydrodataset",
         },
         # 站点配置
         gage_id=example_gage_ids,  # 指定训练站点
@@ -156,11 +155,10 @@ def train_gnn_model():
 if __name__ == "__main__":
     """
     使用说明：
-    1. 根据你的数据路径修改 source_cfgs 中的 source_path
-    2. 根据你的站点修改 example_gage_ids 列表
-    3. 根据你的数据特征修改 var_t, var_c, var_out 变量
-    4. 根据需要调整模型超参数 model_hyperparam
-    5. 根据需要调整站点数据配置 station_cfgs：
+    1. 根据你的站点修改 example_gage_ids 列表
+    2. 根据你的数据特征修改 var_t, var_c, var_out 变量
+    3. 根据需要调整模型超参数 model_hyperparam
+    4. 根据需要调整站点数据配置 station_cfgs：
        {
            "station_cols": ["列名1", "列名2", ...],  # 站点数据的列名
            "station_rm_nan": True/False,  # 是否移除NaN值
