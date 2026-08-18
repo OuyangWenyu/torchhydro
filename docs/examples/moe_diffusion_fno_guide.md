@@ -498,3 +498,39 @@ DenseMoE、GlobalTopKMoE、HydrologyTopKMoE 使用 17 个静态属性作为门�
 | 负载均衡 | 无 | 无 | 有 (0.02) | 有 (0.01) | 有 (0.01) |
 | 分布式支持 | 否 | 否 | 否 | 否 | FSDP |
 | 序列级 MoE | 否 | 否 | 否 | 否 | 是 |
+
+---
+
+## 8. AEF（注意力增强）变体
+
+AEF（Attention Enhancement Framework）为标准模型添加注意力机制，提升对关键时间步的捕获能力。
+
+### 8.1 LSTMMoE + AEF
+
+```bash
+# 训练
+uv run python experiments/train_lstmmoe_aef.py --ctx 0,1,2
+
+# 评估
+uv run python experiments/evaluate_lstmmoe_aef.py
+```
+
+- 模型：`LSTMMoE`（8 个 SimpleAnn 专家 + AEF 注意力门控）
+- 数据：CAMELS-Hourly（`dataset_id: "camelsh"`）
+- 输入：23 个动态变量 + 静态属性
+- 特点：注意力机制增强门控网络对关键时间步的识别
+
+### 8.2 SimpleLSTM + AEF（CAMELS-US）
+
+```bash
+# 训练
+uv run python experiments/train_with_us_aef.py --ctx 0
+
+# 评估
+uv run python experiments/evaluate_with_us_aef.py
+```
+
+- 模型：`SimpleLSTM` + AEF 注意力层
+- 数据：CAMELS-US（`dataset_id: "camels_us"`）
+- 输入：71 个特征（23 动态 + 48 静态属性）
+- 隐藏层：128

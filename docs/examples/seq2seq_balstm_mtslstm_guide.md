@@ -347,3 +347,41 @@ python experiments/train_with_mtslstm.py
 | MTSLSTM | `camelsh` (dataset_id) | CAMELS-Hourly | 小时级全球流域数据, 通过 hydrodataset 统一路径解析 |
 
 **注意**: Seq2Seq 和 SimpleLSTM 的洪水场次实验仍使用 legacy `source_name` 格式 (非 `dataset_id`), 因为 `floodeventdatasource` 是 torchhydro 特有的数据源, 尚未迁移到 hydrodatasource 统一注册表。其余模型 (BALSTM, MTSLSTM) 均使用 `dataset_id` 格式。
+
+---
+
+## 7. MCLSTM（多时间尺度卷积 LSTM）
+
+MCLSTM 通过多尺度卷积核捕获不同时间尺度的径流响应模式。
+
+### 7.1 CAMELS-US 训练
+
+```bash
+uv run python experiments/train_with_mclstm.py
+```
+
+- 模型：`MCLSTM`
+- 数据：CAMELS-US（`dataset_id: "camels_us"`）
+- 输入：2 个动态变量
+- 输出：1 个目标变量（streamflow）
+- 隐藏层：128
+
+### 7.2 长序列训练
+
+```bash
+uv run python experiments/train_mclstm_longseq.py
+```
+
+- 模型：`MCLSTM`
+- 数据：自建数据（`dataset_id: "selfmadehydrodataset"`）
+- 特点：支持更长的输入序列
+
+### 7.3 MTSLSTM 三峡评估
+
+```bash
+uv run python experiments/evaluate_with_mtslstm.py
+```
+
+- 模型：`MTSLSTM`
+- 数据：自建数据（`dataset_id: "selfmadehydrodataset"`）
+- 用途：评估 MTSLSTM 在三峡流域的表现
