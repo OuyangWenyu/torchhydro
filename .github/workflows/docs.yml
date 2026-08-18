@@ -9,7 +9,7 @@ jobs:
         permissions:
             contents: write
         env:
-            UV_NO_SOURCES: "1"
+            UV_NO_SOURCES: "0"
         steps:
             - name: Checkout code
               uses: actions/checkout@v4

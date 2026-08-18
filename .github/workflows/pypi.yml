@@ -12,7 +12,7 @@ jobs:
     permissions:
       id-token: write # This is required for trusted publishing
     env:
-      UV_NO_SOURCES: "1"
+      UV_NO_SOURCES: "0"
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
