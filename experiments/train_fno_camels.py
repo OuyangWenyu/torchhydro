@@ -1,7 +1,6 @@
 import os
 import torch
 from hydrodataset.hydro_dataset import StandardVariable
-from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -11,7 +10,6 @@ def main():
     针对 HydroFNO 适配的 CAMELS-US 训练脚本。
     输入维度约定为 (sequence, batch, features)。
     """
-    source_path = SETTING["local_data_path"]["datasets-origin"]
 
     # 1. 确定输入特征数
     # 基础变量 6 个 + 提前注入的位置编码（假设你注入了 1 维时间编码） = 7
@@ -22,7 +20,7 @@ def main():
 
     args = cmd(
         sub=os.path.join("results", "fno_camels"),
-        source_cfgs={"source_name": "camels_us", "source_path": source_path},
+        source_cfgs={"dataset_id": "camels_us"},
         ctx=[-1],  # 指定 GPU ID
         model_name="FNO",  # 确保此名称已在 torchhydro 的模型注册表中
         model_hyperparam={

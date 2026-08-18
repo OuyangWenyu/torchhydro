@@ -19,7 +19,6 @@ from pathlib import Path
 
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-from hydrodataset.camelsh import Camelsh
 
 logging.basicConfig(level=logging.INFO)
 for logger_name in logging.root.manager.loggerDict:
@@ -30,8 +29,6 @@ for logger_name in logging.root.manager.loggerDict:
 PRETRAIN_DAY_PTH = "/Users/cylenlc/work/torchhydro/experiments/best_model.pth"
 
 # === Dataset setup ===
-camels_dir = "/Users/cylenlc/data/camels_hourly"
-camels = Camelsh(camels_dir)
 gage_id = ['01022500', '01031500']
 gage_id = sorted(gage_id)
 assert all(x < y for x, y in zip(gage_id, gage_id[1:])), "gage_id should be sorted"
@@ -116,11 +113,7 @@ def config():
 
     args = cmd(
         sub=project_sub,
-        source_cfgs={
-            "source_name": "camels_hourly",
-            "source_path": camels_dir,
-            "other_settings": {"download": False, "region": "US"},
-        },
+        source_cfgs={"dataset_id": "camelsh"},
         ctx=[0],
         model_name="MTSLSTM",
 

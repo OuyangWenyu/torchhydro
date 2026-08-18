@@ -20,7 +20,6 @@ import copy
 import torch
 import torch.nn as nn
 
-from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import _get_deep_hydro
 from torchhydro.explainers.loss_landscape import (
@@ -121,13 +120,12 @@ def main():
     # ------------------------------------------------------------------------
     # Configure your model and data here
     # ------------------------------------------------------------------------
-    source_path = SETTING["local_data_path"]["datasets-origin"]
 
     config_args = cmd(
         train_mode=False,
         stat_dict_file=r"/Users/cylenlc/work/torchhydro/results/results/SimpleLSTM/dapengscaler_stat.json",
         sub=os.path.join("results", "SimpleLSTM"),
-        source_cfgs={"source_name": "camels_us", "source_path": source_path},
+        source_cfgs={"dataset_id": "camels_us"},
         ctx=[-1] if device == "cpu" else [0],
         model_name="SimpleLSTM",
         model_hyperparam={

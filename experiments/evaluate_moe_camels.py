@@ -12,7 +12,6 @@ This file should be in your user directory. If not, create one.
 
 import os
 from hydrodataset.hydro_dataset import StandardVariable
-from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -23,7 +22,6 @@ def main():
     and then runs the training and evaluation pipeline for the MoE Model.
     """
     # 1. Define parameters for the experiment
-    source_path = SETTING["local_data_path"]["datasets-origin"]
 
     # Define common model parameters
     n_input_features = 23
@@ -37,7 +35,7 @@ def main():
         # Experiment name and output directory
         sub=os.path.join("results", "moe_camels_attr"),
         # Data source configuration
-        source_cfgs={"source_name": "camels_us", "source_path": source_path},
+        source_cfgs={"dataset_id": "camels_us"},
         # Use CPU for this example. To use GPU, set it to [0], [0, 1], etc.
         ctx=[0, 1],
         # --- Model selection and hyperparameters for MoE Model ---
@@ -55,7 +53,7 @@ def main():
                         "n_hidden_states": n_hidden_states,
                     },
                 }
-                for _ in range(num_experts)
+                for _ in range(8)
             ],
             # Configuration for the gating network (a simple MLP)
             "gating_cfgs": {

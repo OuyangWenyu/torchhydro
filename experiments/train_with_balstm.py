@@ -46,10 +46,7 @@ def create_config_LongTerm():
     config_data = default_config_file()
     args = cmd(
         sub=project_name,
-        source_cfgs={
-            "source_name": "longtermdataset",
-            "source_path": SETTING["local_data_path"]["datasets-interim"],
-        },
+        source_cfgs={"dataset_id": "longtermdataset"},
         ctx=[2],
         model_name="SimpleBALSTM",
         model_hyperparam={
