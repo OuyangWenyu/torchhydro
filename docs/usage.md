@@ -263,12 +263,28 @@ A strict overlap between train/valid/test is reported as an advisory warning (re
 
 To train on large cloud Zarr stores without loading them fully into memory, use the `CloudZarrLazyDataset` dataset and `CloudZarrChunkBatchSampler` sampler. See the [Cloud-Zarr Joint Training guide](advanced/cloud_zarr_lazy_loading.md) and `experiments/train_cloud_zarr_lazy_joint.py` for details.
 
-## Future Development
+## Explore More
 
-This guide provides a starting point. `torchhydro` is designed to be flexible and supports a growing number of models, datasets, and data sources.
+`torchhydro` supports a wide range of models, datasets, and data sources beyond the examples above.
 
--   The full list of available **models** can be found in `torchhydro/models/model_dict_function.py`.
--   The full list of available **dataset** types is in `torchhydro/datasets/data_dict.py`.
--   The supported **data sources** are defined in `torchhydro/datasets/data_sources.py` (and resolved through `torchhydro/configs/data_resolver.py`).
+### Example Guides
 
-Future versions of this documentation will provide a comprehensive API reference and more detailed examples for all supported components.
+- **[LSTM on CAMELS-US](examples/lstm_camels_results.md)**: Benchmark results on 671 US basins
+- **[Songliao Flood Models](examples/songliao_flood_guide.md)**: LSTM / LSTM+GNN / WDNE flood forecasting
+- **[Sanxia Multi-Site](examples/sanxia_guide.md)**: LSTM / MTSLSTM multi-site experiments
+- **[MoE / Diffusion / FNO](examples/moe_diffusion_fno_guide.md)**: Mixture-of-Experts, Diffusion, and Fourier Neural Operator models
+- **[Seq2Seq / BALSTM / MTSLSTM](examples/seq2seq_balstm_mtslstm_guide.md)**: Encoder-decoder, attention-based LSTM, multi-timescale models
+
+### Advanced Topics
+
+- **[Cloud-Zarr Joint Training](advanced/cloud_zarr_lazy_loading.md)**: Lazy loading from cloud Zarr stores
+- **[Lightning Fabric](advanced/fabric_debug_guide.md)**: Distributed training with Fabric
+- **[ERA5-Land & GPM](advanced/era5land_gpm_guide.md)**: ERA5-Land reanalysis and GPM satellite precipitation
+- **[Model Interpretability](advanced/model_interpretability.md)**: SHAP analysis and loss landscape visualization
+
+### API Reference
+
+- **[Models API](api/models.md)**: All registered model architectures and loss functions
+- **[Datasets API](api/datasets.md)**: Dataset classes, data sources, samplers, and scalers
+- **[Trainers API](api/trainers.md)**: Training and evaluation pipeline
+- **[Configs API](api/configs.md)**: Configuration system and data resolver
