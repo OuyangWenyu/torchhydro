@@ -47,10 +47,11 @@ jobs:
 
             - name: Install dependencies
               run: |
-                  # setuptools is needed to build torch-scatter from source
-                  uv pip install setuptools --system
+                  # Create venv and install setuptools first (needed for torch-scatter build)
+                  uv venv
+                  uv pip install setuptools
 
-                  # 使用 uv 安装依赖 (--no-build-isolation for torch-scatter)
+                  # 使用 uv 安装依赖
                   uv sync --extra dev
 
                   # 针对 PyTorch Geometric 编译问题的解决方案
