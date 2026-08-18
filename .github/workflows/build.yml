@@ -22,7 +22,7 @@ jobs:
                     - { os: ubuntu-latest, py: "3.12" }
 
         env:
-            UV_NO_SOURCES: "0"
+            UV_NO_SOURCES: "1"
 
         steps:
             - name: CHECKOUT CODE
@@ -47,7 +47,10 @@ jobs:
 
             - name: Install dependencies
               run: |
-                  # 使用 uv 安装依赖
+                  # setuptools is needed to build torch-scatter from source
+                  uv pip install setuptools --system
+
+                  # 使用 uv 安装依赖 (--no-build-isolation for torch-scatter)
                   uv sync --extra dev
 
                   # 针对 PyTorch Geometric 编译问题的解决方案

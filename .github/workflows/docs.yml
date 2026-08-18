@@ -9,7 +9,7 @@ jobs:
         permissions:
             contents: write
         env:
-            UV_NO_SOURCES: "0"
+            UV_NO_SOURCES: "1"
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -25,6 +25,9 @@ jobs:
             
             - name: Install dependencies
               run: |
+                  # setuptools is needed to build torch-scatter from source
+                  uv pip install setuptools --system
+
                   # Install project dependencies with documentation extras
                   uv sync --extra dev --extra docs
             
