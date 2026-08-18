@@ -47,6 +47,9 @@ jobs:
 
             - name: Install dependencies
               run: |
+                  # setuptools is needed to build torch-scatter from source
+                  uv pip install setuptools
+
                   # 使用 uv 安装依赖
                   uv sync --extra dev
 
