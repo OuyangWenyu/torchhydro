@@ -1,0 +1,2060 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://OuyangWenyu.github.io/torchhydro/examples/songliao_flood_guide/">
+      
+      
+        <link rel="prev" href="../lstm_camels_results/">
+      
+      
+        <link rel="next" href="../sanxia_guide/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.17">
+    
+    
+      
+        <title>Songliao Flood Models - torchhydro</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.7e37652d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="preference" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="torchhydro" class="md-header__button md-logo" aria-label="torchhydro" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            torchhydro
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Songliao Flood Models
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/OuyangWenyu/torchhydro" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="torchhydro" class="md-nav__button md-logo" aria-label="torchhydro" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    torchhydro
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/OuyangWenyu/torchhydro" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Usage
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Examples & Results
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Examples & Results
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lstm_camels_results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    LSTM on CAMELS-US
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Songliao Flood Models
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Songliao Flood Models
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. 四模型对比总览
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. 模型架构详解
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. 模型架构详解">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-basin-lstm" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.1 Basin LSTM — 最简单基线
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-lstm-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2 LSTM-only — 站点级无图
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-lstmgnn" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.3 LSTM+GNN — 密集时空交互 (当前最优基线)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-wdne" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.4 WDNE — 自适应路由图网络
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. 配置文件说明
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 配置文件说明">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-train_with_wdnepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.1 当前配置 (train_with_wdne.py)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.1 当前配置 (train_with_wdne.py)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      必须根据流域修改的参数:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      模型超参数:
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.2 根据流域实际情况修改指南
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.2 根据流域实际情况修改指南">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#route_decay" class="md-nav__link">
+    <span class="md-ellipsis">
+      衰减系数 route_decay 的设置
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      其他关键参数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#33" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.3 四种模型分别如何配置
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.3 四种模型分别如何配置">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basin-lstm" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basin LSTM — 不需要图和站点
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lstm-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      LSTM-only — 有站点，不要图
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lstmgnn" class="md-nav__link">
+    <span class="md-ellipsis">
+      LSTM+GNN — 密集时空交互(当前最优)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wdne" class="md-nav__link">
+    <span class="md-ellipsis">
+      WDNE — 自适应路由
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.4 单流域训练
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.5 空间敏感性测试
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. 快速开始
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. 当前已知限制
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-wdne" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. WDNE 超参数调优
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sanxia_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Sanxia Multi-Site
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../moe_diffusion_fno_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    MoE / Diffusion / FNO
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../seq2seq_balstm_mtslstm_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Seq2Seq / BALSTM / MTSLSTM
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Advanced Topics
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Advanced Topics
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/cloud_zarr_lazy_loading/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cloud-Zarr Joint Training
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/fabric_debug_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Lightning Fabric
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/era5land_gpm_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    ERA5-Land & GPM
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/model_interpretability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Model Interpretability
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    FAQ
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Changelog
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/OuyangWenyu/torchhydro/issues" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Report Issues
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../torchhydro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Models
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Datasets
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/trainers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Trainers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/explainers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Explainers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. 四模型对比总览
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. 模型架构详解
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. 模型架构详解">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-basin-lstm" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.1 Basin LSTM — 最简单基线
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-lstm-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2 LSTM-only — 站点级无图
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-lstmgnn" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.3 LSTM+GNN — 密集时空交互 (当前最优基线)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-wdne" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.4 WDNE — 自适应路由图网络
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. 配置文件说明
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 配置文件说明">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-train_with_wdnepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.1 当前配置 (train_with_wdne.py)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.1 当前配置 (train_with_wdne.py)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      必须根据流域修改的参数:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      模型超参数:
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.2 根据流域实际情况修改指南
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.2 根据流域实际情况修改指南">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#route_decay" class="md-nav__link">
+    <span class="md-ellipsis">
+      衰减系数 route_decay 的设置
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      其他关键参数
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#33" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.3 四种模型分别如何配置
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.3 四种模型分别如何配置">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basin-lstm" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basin LSTM — 不需要图和站点
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lstm-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      LSTM-only — 有站点，不要图
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lstmgnn" class="md-nav__link">
+    <span class="md-ellipsis">
+      LSTM+GNN — 密集时空交互(当前最优)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wdne" class="md-nav__link">
+    <span class="md-ellipsis">
+      WDNE — 自适应路由
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.4 单流域训练
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.5 空间敏感性测试
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. 快速开始
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. 当前已知限制
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-wdne" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. WDNE 超参数调优
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+
+
+
+                  
+
+
+  
+  
+
+
+<h1 id="_1">松辽流域洪水预报实验案例<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>基于 <code>experiments/train_with_wdne.py</code> 配置文件</p>
+</blockquote>
+<hr />
+<h2 id="1">1. 四模型对比总览<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>文件</th>
+<th style="text-align: center;">图结构</th>
+<th style="text-align: center;">站点数据</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Basin LSTM</strong></td>
+<td><code>train_basin_lstm.py</code></td>
+<td style="text-align: center;">无</td>
+<td style="text-align: center;">不需要</td>
+<td>只有流域平均降雨，无站点数据</td>
+</tr>
+<tr>
+<td><strong>LSTM-only</strong></td>
+<td><code>train_with_wdne.py</code> → <code>Baseline_LSTM_only</code></td>
+<td style="text-align: center;">无</td>
+<td style="text-align: center;">需要</td>
+<td>有站点但图结构不明确</td>
+</tr>
+<tr>
+<td><strong>LSTM+GNN</strong></td>
+<td><code>train_with_wdne.py</code> → <code>Baseline_LSTM_GNN</code></td>
+<td style="text-align: center;">静态GCN</td>
+<td style="text-align: center;">需要</td>
+<td>密集时空交互，稳定首选</td>
+</tr>
+<tr>
+<td><strong>WDNE</strong></td>
+<td><code>train_with_wdne.py</code> → <code>WDNEAdaptiveRoutingNet</code></td>
+<td style="text-align: center;">自适应路由</td>
+<td style="text-align: center;">需要</td>
+<td>有静态属性+复杂河网</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2">2. 模型架构详解<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
+<h3 id="21-basin-lstm">2.1 Basin LSTM — 最简单基线<a class="headerlink" href="#21-basin-lstm" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>流域平均降雨 → LSTM → 输出
+</code></pre></div></td></tr></table></div>
+<ul>
+<li><strong>输入</strong>: 流域级 <code>rain</code> (CSV文件中的basin平均降雨)</li>
+<li><strong>不使用站点数据</strong>, 不使用图结构</li>
+<li><strong>数据集</strong>: <code>FloodEventDataset</code>，<code>source_cfgs={"dataset_id": "selfmadehydrodataset"}</code></li>
+<li><strong>模型</strong>: <code>SimpleLSTM</code></li>
+<li><strong>运行</strong>: <code>python experiments/train_basin_lstm.py</code></li>
+<li><strong>优点</strong>: 最简单，1.5s/epoch，不需要图和站点</li>
+<li><strong>缺点</strong>: 无法利用空间信息</li>
+</ul>
+<h3 id="22-lstm-only">2.2 LSTM-only — 站点级无图<a class="headerlink" href="#22-lstm-only" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>站点DRP [N,84,1] → LSTM → [N,84,hidden] → mean_pool → [B,12,1]
+</code></pre></div></td></tr></table></div>
+<ul>
+<li><strong>输入</strong>: 站点级 DRP (每个站点独立)</li>
+<li><strong>无图结构</strong>, 所有站点独立 LSTM 编码后平均池化</li>
+<li><strong>模型</strong>: <code>SpatioTemporalFloodNet3D</code>, <code>use_gnn=False, use_lstm=True</code></li>
+<li><strong>优点</strong>: 利用了站点数据，比 Basin LSTM 信息更丰富</li>
+</ul>
+<h3 id="23-lstmgnn">2.3 LSTM+GNN — 密集时空交互 (当前最优基线)<a class="headerlink" href="#23-lstmgnn" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span></pre></div></td><td class="code"><div><pre><span></span><code>站点DRP [N,84,1]
+  → LSTM → [N,84,H]
+  → 每个时间步独立GCN (84次空间交互)
+  → mean_pool → [B,12,1]
+</code></pre></div></td></tr></table></div>
+<ul>
+<li><strong>图结构</strong>: 静态 GCNConv，每个时间步做一次（84次/序列）</li>
+<li><strong>边方向</strong>: <code>downstream</code> = 上游→下游（原始 <code>ID→NEXTDOWNID</code>）</li>
+<li><strong>模型</strong>: <code>SpatioTemporalFloodNet3D</code>, <code>use_gnn=True, use_lstm=True</code></li>
+<li><strong>关键参数</strong>: <code>num_hidden=2</code> (GCN层数), <code>gnn_type="gcn2"</code>, <code>aggregation="mean"</code></li>
+<li><strong>优点</strong>: 密集时空交互，最稳定（avg NSE 0.58）</li>
+</ul>
+<h3 id="24-wdne">2.4 WDNE — 自适应路由图网络<a class="headerlink" href="#24-wdne" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span></pre></div></td><td class="code"><div><pre><span></span><code>站点DRP [N,84,1]
+  → 拓扑特征计算 (入度/出度/上游深度/到出口距离)
+  → 结构嵌入 [N,16]
+  → LSTM逐步 → base_prediction [N,12,1]
+  → 自适应图传播 (route_steps=4次) → graph_correction
+  → output = base_prediction + correction
+  → root_output: 取出度=0的节点(出口)预测
+</code></pre></div></td></tr></table></div>
+<ul>
+<li><strong>核心创新</strong>: </li>
+<li>拓扑编码: 每个节点的河流角色被编码为向量</li>
+<li>自适应路由: 边权重不是固定的，由当前气象条件+节点状态动态计算</li>
+<li>门控更新: sigmoid gate 控制新旧信息比例</li>
+<li>结构分离: LSTM做基础预测, 图传播做修正</li>
+<li><strong>模型</strong>: <code>WDNEAdaptiveRoutingNet</code> (继承自 <code>WDNEInspiredFloodNet</code>)</li>
+<li><strong>优点</strong>: 加静态属性后 avg NSE 0.64, 21401550达0.89</li>
+<li><strong>注意</strong>: 需要 route_steps≥图深度才能让上游信息传到出口</li>
+</ul>
+<hr />
+<h2 id="3">3. 配置文件说明<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<h3 id="31-train_with_wdnepy">3.1 当前配置 (<code>train_with_wdne.py</code>)<a class="headerlink" href="#31-train_with_wdnepy" title="Permanent link">&para;</a></h3>
+<h4 id="_2">必须根据流域修改的参数:<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h4>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span>
+<span class="normal">16</span>
+<span class="normal">17</span>
+<span class="normal">18</span>
+<span class="normal">19</span>
+<span class="normal">20</span>
+<span class="normal">21</span>
+<span class="normal">22</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># ===== 数据 =====</span>
+<span class="n">gage_id</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;songliao_20800900&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>       <span class="c1"># 流域ID列表</span>
+<span class="n">train_period</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;1980-01-01-02&quot;</span><span class="p">,</span> <span class="s2">&quot;2014-12-31-23&quot;</span><span class="p">]</span>  <span class="c1"># 训练时段</span>
+<span class="n">valid_period</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;2015-01-01-02&quot;</span><span class="p">,</span> <span class="s2">&quot;2018-12-31-23&quot;</span><span class="p">]</span>  <span class="c1"># 验证时段</span>
+<span class="n">test_period</span>  <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;2019-01-01-02&quot;</span><span class="p">,</span> <span class="s2">&quot;2024-12-31-23&quot;</span><span class="p">]</span>  <span class="c1"># 测试时段</span>
+
+<span class="c1"># ===== 特征 =====</span>
+<span class="n">var_t</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;rain&quot;</span><span class="p">]</span>                            <span class="c1"># 时序输入变量</span>
+<span class="n">var_c</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;None&quot;</span><span class="p">]</span>                            <span class="c1"># 静态属性(实验2用)</span>
+<span class="n">var_out</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;inflow&quot;</span><span class="p">,</span> <span class="s2">&quot;flood_event&quot;</span><span class="p">]</span>         <span class="c1"># 输出变量</span>
+<span class="n">station_cols</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;DRP&quot;</span><span class="p">]</span>                      <span class="c1"># 站点级变量</span>
+
+<span class="c1"># ===== 图结构 =====</span>
+<span class="n">edge_orientation</span> <span class="o">=</span> <span class="s2">&quot;downstream&quot;</span>             <span class="c1"># 边方向: downstream=上→下</span>
+<span class="n">adjacency_src_col</span> <span class="o">=</span> <span class="s2">&quot;ID&quot;</span>                    <span class="c1"># 邻接矩阵源列</span>
+<span class="n">adjacency_dst_col</span> <span class="o">=</span> <span class="s2">&quot;NEXTDOWNID&quot;</span>            <span class="c1"># 邻接矩阵目标列</span>
+<span class="n">adjacency_weight_col</span> <span class="o">=</span> <span class="kc">None</span>                 <span class="c1"># 边权重列(None=等权重)</span>
+
+<span class="c1"># ===== 时间窗口 =====</span>
+<span class="n">warmup_length</span> <span class="o">=</span> <span class="mi">72</span>      <span class="c1"># 预热步数 (72×3h=216h=9天)</span>
+<span class="n">hindcast_length</span> <span class="o">=</span> <span class="mi">0</span>     <span class="c1"># 回望步数</span>
+<span class="n">forecast_length</span> <span class="o">=</span> <span class="mi">12</span>    <span class="c1"># 预测步数 (12×3h=36h)</span>
+</code></pre></div></td></tr></table></div>
+<h4 id="_3">模型超参数:<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h4>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span>
+<span class="normal">16</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># Baseline (LSTM-only / LSTM+GNN)</span>
+<span class="n">hidden_channels</span> <span class="o">=</span> <span class="mi">32</span>   <span class="c1"># LSTM隐藏维度</span>
+<span class="n">num_hidden</span> <span class="o">=</span> <span class="mi">2</span>         <span class="c1"># GNN层数</span>
+<span class="n">gnn_type</span> <span class="o">=</span> <span class="s2">&quot;gcn2&quot;</span>      <span class="c1"># GNN类型: gcn/gat/gcn2</span>
+<span class="n">aggregation</span> <span class="o">=</span> <span class="s2">&quot;mean&quot;</span>   <span class="c1"># 节点聚合: mean/attention/multiscale</span>
+
+<span class="c1"># WDNE 专属</span>
+<span class="n">route_steps</span> <span class="o">=</span> <span class="mi">4</span>        <span class="c1"># 图传播步数 (应 ≥ 流域最大深度)</span>
+<span class="n">route_decay</span> <span class="o">=</span> <span class="mf">0.5</span>      <span class="c1"># 远距离衰减系数 (0-1, 越小越激进)</span>
+<span class="n">route_residual_scale</span> <span class="o">=</span> <span class="mf">1.0</span>  <span class="c1"># 图修正权重</span>
+<span class="n">structure_embedding_dim</span> <span class="o">=</span> <span class="mi">16</span>  <span class="c1"># 结构嵌入维度</span>
+<span class="n">topology_encoder_type</span> <span class="o">=</span> <span class="s2">&quot;mlp&quot;</span>  <span class="c1"># 拓扑编码器: mlp/gcn</span>
+<span class="n">graph_output_mode</span> <span class="o">=</span> <span class="s2">&quot;residual&quot;</span>  <span class="c1"># 输出模式: residual/blend_residual/main</span>
+<span class="n">root_output_mode</span> <span class="o">=</span> <span class="s2">&quot;root&quot;</span>       <span class="c1"># 提取模式: root(出口)/mean(平均)</span>
+<span class="n">local_lstm_layers</span> <span class="o">=</span> <span class="mi">1</span>   <span class="c1"># 局部LSTM层数</span>
+<span class="n">dropout</span> <span class="o">=</span> <span class="mf">0.3</span>           <span class="c1"># Dropout比例</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="32">3.2 根据流域实际情况修改指南<a class="headerlink" href="#32" title="Permanent link">&para;</a></h3>
+<h4 id="route_decay">衰减系数 <code>route_decay</code> 的设置<a class="headerlink" href="#route_decay" title="Permanent link">&para;</a></h4>
+<p><code>route_decay</code> 控制信息每跳衰减多少：<code>decay^hops</code> = 剩余信号比例。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: center;">河网最大深度</th>
+<th style="text-align: center;">建议 decay</th>
+<th style="text-align: center;">最深节点衰减</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;">2-3跳</td>
+<td style="text-align: center;">0.5</td>
+<td style="text-align: center;">0.5²=25%</td>
+<td>浅河网,低衰减足够</td>
+</tr>
+<tr>
+<td style="text-align: center;">4-5跳</td>
+<td style="text-align: center;">0.6-0.7</td>
+<td style="text-align: center;">0.7⁴=24%</td>
+<td>中等深度</td>
+</tr>
+<tr>
+<td style="text-align: center;">6-7跳</td>
+<td style="text-align: center;">0.7-0.8</td>
+<td style="text-align: center;">0.8⁶=26%</td>
+<td>深河网,需高衰减系数</td>
+</tr>
+<tr>
+<td style="text-align: center;">8跳以上</td>
+<td style="text-align: center;">0.8-0.85</td>
+<td style="text-align: center;">0.85⁸=27%</td>
+<td>非常深的河网</td>
+</tr>
+</tbody>
+</table>
+<p><strong>原则</strong>: 最上游节点到出口的信号剩余应≥20-30%，否则上游信息传不到。</p>
+<h4 id="_4">其他关键参数<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>流域特征</th>
+<th>修改参数</th>
+<th style="text-align: center;">建议值</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>河网深度大</strong></td>
+<td><code>route_steps</code></td>
+<td style="text-align: center;">≥深度</td>
+<td>保证上游信息传到底</td>
+</tr>
+<tr>
+<td><strong>河网深度小</strong></td>
+<td><code>route_steps</code></td>
+<td style="text-align: center;">2-3, decay可低</td>
+<td>避免过拟合</td>
+</tr>
+<tr>
+<td><strong>站点数多</strong> (&gt;50)</td>
+<td><code>hidden_channels</code></td>
+<td style="text-align: center;">64-128</td>
+<td>更大容量</td>
+</tr>
+<tr>
+<td><strong>站点数少</strong> (&lt;10)</td>
+<td><code>hidden_channels</code></td>
+<td style="text-align: center;">16-32</td>
+<td>防过拟合</td>
+</tr>
+<tr>
+<td><strong>有静态属性</strong></td>
+<td><code>var_c</code> + <code>use_basin_features</code></td>
+<td style="text-align: center;">设为True</td>
+<td>WDNE可利用</td>
+</tr>
+<tr>
+<td><strong>无站点数据</strong></td>
+<td>使用Basin LSTM</td>
+<td style="text-align: center;">—</td>
+<td>不需要图结构</td>
+</tr>
+<tr>
+<td><strong>边方向不确定</strong></td>
+<td><code>edge_orientation</code></td>
+<td style="text-align: center;"><code>downstream</code></td>
+<td>上→下, 当前默认</td>
+</tr>
+<tr>
+<td><strong>训练数据少</strong></td>
+<td><code>dropout</code> + <code>patience</code></td>
+<td style="text-align: center;">0.3-0.5, 15</td>
+<td>强正则化</td>
+</tr>
+<tr>
+<td><strong>预报时长不同</strong></td>
+<td><code>forecast_length</code></td>
+<td style="text-align: center;">自定义</td>
+<td>输出长度对应</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="33">3.3 四种模型分别如何配置<a class="headerlink" href="#33" title="Permanent link">&para;</a></h2>
+<h3 id="basin-lstm">Basin LSTM — 不需要图和站点<a class="headerlink" href="#basin-lstm" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># 直接运行</span>
+<span class="n">python</span> <span class="n">experiments</span><span class="o">/</span><span class="n">train_basin_lstm</span><span class="o">.</span><span class="n">py</span>
+
+<span class="c1"># 核心配置 (train_basin_lstm.py 中)</span>
+<span class="n">model_name</span> <span class="o">=</span> <span class="s2">&quot;SimpleLSTM&quot;</span>
+<span class="n">dataset</span> <span class="o">=</span> <span class="s2">&quot;FloodEventDataset&quot;</span>
+<span class="n">var_t</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;rain&quot;</span><span class="p">]</span>        <span class="c1"># 流域平均降雨</span>
+<span class="n">var_c</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;None&quot;</span><span class="p">]</span>        <span class="c1"># 不加静态属性</span>
+<span class="n">source_cfgs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;dataset_id&quot;</span><span class="p">:</span> <span class="s2">&quot;selfmadehydrodataset&quot;</span><span class="p">}</span>  <span class="c1"># 数据源</span>
+<span class="n">batch_size</span> <span class="o">=</span> <span class="mi">8</span>
+<span class="n">model_hyperparam</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;input_size&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>     <span class="c1"># 降雨特征数</span>
+    <span class="s2">&quot;output_size&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>    <span class="c1"># 输出径流</span>
+    <span class="s2">&quot;hidden_size&quot;</span><span class="p">:</span> <span class="mi">64</span><span class="p">,</span>   <span class="c1"># LSTM隐藏维度</span>
+<span class="p">}</span>
+</code></pre></div></td></tr></table></div>
+<p><strong>何时选择</strong>: 没有站点数据，只有流域平均降雨。最快，1.5s/epoch。</p>
+<h3 id="lstm-only">LSTM-only — 有站点，不要图<a class="headerlink" href="#lstm-only" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">python</span> <span class="n">experiments</span><span class="o">/</span><span class="n">train_with_wdne</span><span class="o">.</span><span class="n">py</span> <span class="n">Baseline_LSTM_only</span> <span class="n">normal</span>
+
+<span class="c1"># 配置 (train_with_wdne.py 中)</span>
+<span class="s2">&quot;Baseline_LSTM_only&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">&quot;model_name&quot;</span><span class="p">:</span> <span class="s2">&quot;SpatioTemporalFloodNet3D&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;model_type&quot;</span><span class="p">:</span> <span class="s2">&quot;baseline&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;hidden_channels&quot;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span>   <span class="c1"># LSTM隐藏维度</span>
+    <span class="s2">&quot;use_gnn&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>        <span class="c1"># 关闭GNN ← 关键!</span>
+    <span class="s2">&quot;use_lstm&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">&quot;aggregation&quot;</span><span class="p">:</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span>   <span class="c1"># 所有站点平均池化</span>
+<span class="p">}</span>
+</code></pre></div></td></tr></table></div>
+<p><strong>何时选择</strong>: 有站点数据但河网结构不清晰，或者简单流域不需要空间交互。</p>
+<h3 id="lstmgnn">LSTM+GNN — 密集时空交互(当前最优)<a class="headerlink" href="#lstmgnn" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">python</span> <span class="n">experiments</span><span class="o">/</span><span class="n">train_with_wdne</span><span class="o">.</span><span class="n">py</span> <span class="n">Baseline_LSTM_GNN</span> <span class="n">normal</span>
+
+<span class="c1"># 配置</span>
+<span class="s2">&quot;Baseline_LSTM_GNN&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">&quot;model_name&quot;</span><span class="p">:</span> <span class="s2">&quot;SpatioTemporalFloodNet3D&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;model_type&quot;</span><span class="p">:</span> <span class="s2">&quot;baseline&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;hidden_channels&quot;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span>
+    <span class="s2">&quot;use_gnn&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>         <span class="c1"># 开启GNN ← 关键!</span>
+    <span class="s2">&quot;use_lstm&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">&quot;num_hidden&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>         <span class="c1"># GCN层数</span>
+    <span class="s2">&quot;gnn_type&quot;</span><span class="p">:</span> <span class="s2">&quot;gcn2&quot;</span><span class="p">,</span>      <span class="c1"># GCN/GAT/GCN2</span>
+    <span class="s2">&quot;aggregation&quot;</span><span class="p">:</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span>   <span class="c1"># 聚合方式</span>
+    <span class="s2">&quot;edge_orientation&quot;</span><span class="p">:</span> <span class="s2">&quot;downstream&quot;</span><span class="p">,</span>  <span class="c1"># 上→下</span>
+<span class="p">}</span>
+</code></pre></div></td></tr></table></div>
+<p><strong>何时选择</strong>: 有站点+河网，需要空间交互但不需要复杂路由。<strong>默认首选</strong>。</p>
+<h3 id="wdne">WDNE — 自适应路由<a class="headerlink" href="#wdne" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span>
+<span class="normal">16</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">python</span> <span class="n">experiments</span><span class="o">/</span><span class="n">train_with_wdne</span><span class="o">.</span><span class="n">py</span> <span class="n">WDNEAdaptiveRoutingNet</span> <span class="n">normal</span>
+
+<span class="c1"># 配置</span>
+<span class="s2">&quot;WDNEAdaptiveRoutingNet&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">&quot;model_name&quot;</span><span class="p">:</span> <span class="s2">&quot;WDNEAdaptiveRoutingNet&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;model_type&quot;</span><span class="p">:</span> <span class="s2">&quot;wdne_adaptive&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;hidden_channels&quot;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span>
+    <span class="s2">&quot;structure_embedding_dim&quot;</span><span class="p">:</span> <span class="mi">16</span><span class="p">,</span>   <span class="c1"># 结构嵌入维度</span>
+    <span class="s2">&quot;route_steps&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>                <span class="c1"># 图传播步数 ← 根据流域深度!</span>
+    <span class="s2">&quot;route_decay&quot;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span>              <span class="c1"># 衰减系数 ← 根据流域深度!</span>
+    <span class="s2">&quot;graph_output_mode&quot;</span><span class="p">:</span> <span class="s2">&quot;residual&quot;</span><span class="p">,</span> <span class="c1"># residual/blend_residual/main</span>
+    <span class="s2">&quot;root_output_mode&quot;</span><span class="p">:</span> <span class="s2">&quot;root&quot;</span><span class="p">,</span>      <span class="c1"># root(出口)/mean(平均)</span>
+    <span class="s2">&quot;topology_encoder_type&quot;</span><span class="p">:</span> <span class="s2">&quot;mlp&quot;</span><span class="p">,</span>  <span class="c1"># mlp/gcn</span>
+    <span class="s2">&quot;local_lstm_layers&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s2">&quot;dropout&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div></td></tr></table></div>
+<p><strong>何时选择</strong>: 有静态属性+复杂河网+多流域，自适应路由能利用流域特征差异。</p>
+<p><strong>route_steps + route_decay 联动设置</strong>:
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># 浅河网 (2-3跳)</span>
+<span class="n">route_steps</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">route_decay</span> <span class="o">=</span> <span class="mf">0.5</span>
+
+<span class="c1"># 中等河网 (4-5跳)</span>
+<span class="n">route_steps</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="n">route_decay</span> <span class="o">=</span> <span class="mf">0.7</span>
+
+<span class="c1"># 深河网 (6-8跳)  </span>
+<span class="n">route_steps</span> <span class="o">=</span> <span class="mi">8</span>
+<span class="n">route_decay</span> <span class="o">=</span> <span class="mf">0.8</span>
+</code></pre></div></td></tr></table></div></p>
+<p><strong>加静态属性的WDNE</strong>:
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">python</span> <span class="n">experiments</span><span class="o">/</span><span class="n">train_with_wdne</span><span class="o">.</span><span class="n">py</span> <span class="n">WDNE_static</span> <span class="n">normal</span>
+<span class="c1"># 自动使用5个流域 + 5个静态属性字段</span>
+<span class="c1"># attribute_encoder 会把静态属性编码到结构嵌入中</span>
+</code></pre></div></td></tr></table></div></p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># 在 train_with_wdne.py 中</span>
+<span class="n">use_static</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">var_c</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;ele_mt_sav&quot;</span><span class="p">,</span> <span class="s2">&quot;slp_dg_sav&quot;</span><span class="p">,</span> <span class="s2">&quot;for_pc_sse&quot;</span><span class="p">,</span> <span class="s2">&quot;pre_mm_syr&quot;</span><span class="p">,</span> <span class="s2">&quot;run_mm_syr&quot;</span><span class="p">]</span>
+<span class="n">use_basin_features</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">num_static_features</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">var_c</span><span class="p">)</span>  <span class="c1"># = 5</span>
+<span class="n">in_channels</span> <span class="o">=</span> <span class="n">num_features</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">var_t</span><span class="p">)</span>  <span class="c1"># DRP + rain</span>
+<span class="c1"># num_static_features 会自动传给 WDNE 的 attribute_encoder</span>
+</code></pre></div></td></tr></table></div>
+<p>可用静态属性（从 <code>attributes/attributes.csv</code>）:
+- <code>area</code> — 面积 (km²)
+- <code>ele_mt_sav</code> — 平均海拔 (m)
+- <code>slp_dg_sav</code> — 平均坡度 (°)
+- <code>for_pc_sse</code> — 森林覆盖率 (%)
+- <code>pre_mm_syr</code> — 年均降水 (mm)
+- <code>run_mm_syr</code> — 年均径流 (mm)
+- <code>pet_mm_syr</code> — 年均潜在蒸散发 (mm)
+- <code>soc_th_sav</code> — 土壤有机碳
+- <code>cly_pc_sav</code> — 黏土含量</p>
+<h3 id="34">3.4 单流域训练<a class="headerlink" href="#34" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># 方法1: 命令行参数</span>
+<span class="n">python</span> <span class="n">experiments</span><span class="o">/</span><span class="n">train_with_wdne</span><span class="o">.</span><span class="n">py</span> <span class="n">WDNEAdaptiveRoutingNet</span> <span class="n">normal</span> <span class="o">--</span><span class="n">gage_id</span> <span class="n">songliao_21401550</span>
+
+<span class="c1"># 方法2: 修改配置</span>
+<span class="n">example_gage_ids</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;songliao_21401550&quot;</span><span class="p">]</span>  <span class="c1"># 只保留一个</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="35">3.5 空间敏感性测试<a class="headerlink" href="#35" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># 1. 定义流域拓扑 (data_sets.py WATERSHED_TOPOLOGY)</span>
+<span class="s1">&#39;21401550&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;upstream_stations&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;21422650&#39;</span><span class="p">],</span>    <span class="c1"># 上游站点</span>
+    <span class="s1">&#39;midstream_stations&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;21401500&#39;</span><span class="p">],</span>    <span class="c1"># 中游站点</span>
+    <span class="s1">&#39;downstream_stations&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;21401550&#39;</span><span class="p">],</span>   <span class="c1"># 下游站点(出口)</span>
+<span class="p">}</span>
+
+<span class="c1"># 2. 运行测试</span>
+<span class="n">python</span> <span class="n">experiments</span><span class="o">/</span><span class="n">eval_spatial</span><span class="o">.</span><span class="n">py</span>
+<span class="c1"># 生成 normal/sim1/sim2/sim3 四种情景的预测结果</span>
+</code></pre></div></td></tr></table></div>
+<hr />
+<h2 id="4">4. 快速开始<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span>
+<span class="normal">15</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># 训练所有模型</span>
+python<span class="w"> </span>experiments/train_with_wdne.py<span class="w"> </span>Baseline_LSTM_only<span class="w"> </span>normal
+python<span class="w"> </span>experiments/train_with_wdne.py<span class="w"> </span>Baseline_LSTM_GNN<span class="w"> </span>normal
+python<span class="w"> </span>experiments/train_with_wdne.py<span class="w"> </span>WDNEAdaptiveRoutingNet<span class="w"> </span>normal
+
+<span class="c1"># 加静态属性</span>
+python<span class="w"> </span>experiments/train_with_wdne.py<span class="w"> </span>LSTM_only_static<span class="w"> </span>normal
+python<span class="w"> </span>experiments/train_with_wdne.py<span class="w"> </span>LSTM_GNN_static<span class="w"> </span>normal
+python<span class="w"> </span>experiments/train_with_wdne.py<span class="w"> </span>WDNE_static<span class="w"> </span>normal
+
+<span class="c1"># 查看结果</span>
+cat<span class="w"> </span>results/<span class="o">{</span>模型名<span class="o">}</span>/songliao_3h_normal/metric_inflow.csv
+
+<span class="c1"># 绘图</span>
+python<span class="w"> </span>plot_all_final.py<span class="w">  </span><span class="c1"># 在项目根目录</span>
+</code></pre></div></td></tr></table></div>
+<h2 id="5">5. 当前已知限制<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>站点DRP高度相关</strong>: 同流域所有站点降雨几乎一致，限制自适应路由发挥</li>
+<li><strong>6个流域偏少</strong>: WDNE需要更多样化的河网来泛化</li>
+<li><strong>21100150深度7</strong>: route_steps=4不够，需针对性调参</li>
+<li><strong>无历史径流输入</strong>: 纯降雨驱动，可考虑加入lag inflow</li>
+<li><strong>Basin LSTM未随edge fix更新</strong>: 无图结构，不受影响</li>
+</ol>
+<hr />
+<h2 id="6-wdne">6. WDNE 超参数调优<a class="headerlink" href="#6-wdne" title="Permanent link">&para;</a></h2>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>experiments/tune_wdne.py
+</code></pre></div></td></tr></table></div>
+<ul>
+<li>模型：<code>WDNEAdaptiveRoutingNet</code></li>
+<li>数据：stationhydrodataset（松辽站点数据）</li>
+<li>用途：网格搜索 <code>hidden_channels</code>、<code>route_steps</code>、<code>route_decay</code> 等超参数</li>
+<li>支持 MPI 并行：<code>mpirun -n 4 python experiments/tune_wdne.py</code></li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    2026-08-18
+  </span>
+
+    
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.instant", "search.highlight"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.92b07e13.min.js"></script>
+      
+    
+  </body>
+</html>
