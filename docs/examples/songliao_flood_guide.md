@@ -346,3 +346,16 @@ python plot_all_final.py  # 在项目根目录
 3. **21100150深度7**: route_steps=4不够，需针对性调参
 4. **无历史径流输入**: 纯降雨驱动，可考虑加入lag inflow
 5. **Basin LSTM未随edge fix更新**: 无图结构，不受影响
+
+---
+
+## 6. WDNE 超参数调优
+
+```bash
+uv run python experiments/tune_wdne.py
+```
+
+- 模型：`WDNEAdaptiveRoutingNet`
+- 数据：stationhydrodataset（松辽站点数据）
+- 用途：网格搜索 `hidden_channels`、`route_steps`、`route_decay` 等超参数
+- 支持 MPI 并行：`mpirun -n 4 python experiments/tune_wdne.py`

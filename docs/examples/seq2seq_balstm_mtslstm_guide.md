@@ -385,3 +385,15 @@ uv run python experiments/evaluate_with_mtslstm.py
 - 模型：`MTSLSTM`
 - 数据：自建数据（`dataset_id: "selfmadehydrodataset"`）
 - 用途：评估 MTSLSTM 在三峡流域的表现
+
+---
+
+## 8. MCLSTM Encoder-Decoder 变体
+
+```bash
+uv run python experiments/train_with_Enc_Dec_BALSTM.py
+```
+
+- 模型：`SimpleBALSTM_EncDec`（或 `Attn_SimpleBALSTM_EncDec`）
+- 数据：longtermdataset（GRDC 全球月尺度）
+- 特点：编码器-解码器架构的 BALSTM，支持注意力机制

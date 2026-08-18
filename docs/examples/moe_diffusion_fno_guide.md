@@ -534,3 +534,26 @@ uv run python experiments/evaluate_with_us_aef.py
 - 数据：CAMELS-US（`dataset_id: "camels_us"`）
 - 输入：71 个特征（23 动态 + 48 静态属性）
 - 隐藏层：128
+
+---
+
+## 9. CAMELS-AUS 实验
+
+```bash
+uv run python experiments/train_with_aus.py
+```
+
+- 模型：`KuaiLSTM`
+- 数据：CAMELS-Australia（`dataset_id: "selfmadehydrodataset"` + source_path）
+- 输入：16 个特征
+- 用途：在澳大利亚流域验证 LSTM 性能
+
+## 10. MoE 多任务学习
+
+```bash
+uv run python experiments/train_moe_multi.py
+```
+
+- 模型：MoE 多任务配置
+- 数据：CAMELS-US（`dataset_id: "camels_us"`）
+- 用途：多数据源联合训练的 MoE 变体
