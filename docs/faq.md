@@ -11,10 +11,10 @@ A: No, torchhydro can run on CPU environments, but using a GPU will significantl
 ## 2. Data Related
 
 ### Q: What data formats are supported?
-A: Currently, we support CAMELS dataset format, NetCDF format, and common CSV formats. For other formats, you can refer to the documentation to create custom data loaders.
+A: Data access goes through the unified resolver backed by [hydrodataset](https://github.com/OuyangWenyu/hydrodataset) and [hydrodatasource](https://github.com/iHeadWater/hydrodatasource). Supported datasets include CAMELS-US/Hourly, Caravan/GRDC-Caravan, and multiple national CAMELS variants (Australia, Brazil, Chile, Great Britain, Colombia), plus custom/self-made datasets and cloud-Zarr stores. For unsupported formats, you can implement a custom data source reader.
 
 ### Q: How to handle missing values?
-A: torchhydro provides various missing value handling strategies, including mean filling, forward filling, and interpolation. You can use the `MissingValueFiller` transformer to handle missing values.
+A: torchhydro provides various missing value handling strategies in `torchhydro/datasets/data_utils.py` (NaN handling, interpolation, and time-series wrapping helpers). Missing values can also be handled during normalization with the chosen scaler (e.g., `DapengScaler`).
 
 ## 3. Model Related
 

@@ -15,7 +15,7 @@ from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
 # 1. Define parameters for your experiment
-args = cmd(...) 
+args = cmd(...)
 
 # 2. Load default config and update it with your parameters
 config_data = default_config_file()
@@ -24,6 +24,25 @@ update_cfg(config_data, args)
 # 3. Run the training and evaluation pipeline
 train_and_evaluate(config_data)
 ```
+
+### Data configuration
+
+Before running anything, create `hydro_setting.yml` in your home directory so the data resolver can locate datasets (see [Installation](installation.md)):
+
+```yaml
+storage:
+  default_source: local
+  local:
+    root: 'D:/data/hydrodatasets'
+```
+
+In `source_cfgs`, select a dataset with the `dataset_id` key:
+
+```python
+source_cfgs={"dataset_id": "camels_us"}
+```
+
+Paths are resolved centrally from `hydro_setting.yml` — there is no per-dataset path to configure. The legacy `source_name` + `source_path` form is still accepted for backward compatibility, but `source_path` is ignored in favor of central resolution.
 
 Below are two practical examples demonstrating this workflow.
 
@@ -37,26 +56,19 @@ First, we define all the necessary parameters for our experiment. This includes 
 
 ```python
 import os
+from hydrodataset.hydro_dataset import StandardVariable
 from torchhydro.configs.config import cmd
-from torchhydro import SETTING
-
-# It's recommended to set your local data path in SETTING
-# For example: SETTING["local_data_path"]["datasets-origin"] = "/path/to/your/data"
-source_path = SETTING["local_data_path"]["datasets-origin"]
 
 args = cmd(
     # Experiment name and output directory
-    sub="test_camels/exp1",
-    
-    # Data source configuration
-    source_cfgs={
-        "source_name": "camels_us",
-        "source_path": source_path,
-    },
-    
-    # Use CPU for this example
+    sub=os.path.join("results", "lstm_camels"),
+
+    # Data source — dataset_id auto-resolves the path from ~/hydro_setting.yml
+    source_cfgs={"dataset_id": "camels_us"},
+
+    # Use CPU for this example; to use GPU, set ctx=[0], [0, 1], ...
     ctx=[-1],
-    
+
     # Model selection and hyperparameters
     model_name="CpuLSTM",
     model_hyperparam={
@@ -64,51 +76,52 @@ args = cmd(
         "n_output_features": 1,
         "n_hidden_states": 256,
     },
-    
+
     # Basin IDs for training and evaluation
     gage_id=[
         "01013500", "01022500", "01030500", "01031500", "01047000",
         "01052500", "01054200", "01055000", "01057000", "01170100",
     ],
-    
+
     # Training settings
     batch_size=8,
     train_epoch=2,
     save_epoch=1,
-    
+
     # Sequence lengths
     hindcast_length=0,
     forecast_length=20,
-    
+
     # Time settings
     min_time_unit="D",
     min_time_interval="1",
-    
+
     # Input and output variables
     var_t=[
-        "precipitation", "daylight_duration", "solar_radiation",
-        "temperature_max", "temperature_min", "vapor_pressure",
+        StandardVariable.PRECIPITATION, StandardVariable.DAYLIGHT_DURATION,
+        StandardVariable.SOLAR_RADIATION, StandardVariable.TEMPERATURE_MAX,
+        StandardVariable.TEMPERATURE_MIN, StandardVariable.VAPOR_PRESSURE,
     ],
-    var_out=["streamflow"],
-    
+    var_out=[StandardVariable.STREAMFLOW],
+
     # Data components
     dataset="StreamflowDataset",
     sampler="KuaiSampler",
     scaler="DapengScaler",
-    
+
     # Model loading configuration for evaluation
     model_loader={"load_way": "specified", "test_epoch": 2},
-    
+
     # Date ranges for training, validation, and testing
     train_period=["2000-10-01", "2001-10-01"],
     valid_period=["2001-10-01", "2002-10-01"],
     test_period=["2002-10-01", "2003-10-01"],
-    
+
     # Loss function and optimizer
     loss_func="RMSESum",
     opt="Adam",
     lr_scheduler={0: 1, 1: 0.5, 2: 0.2},
-    
+
     # Tensor layout
     which_first_tensor="sequence",
 )
@@ -130,7 +143,7 @@ update_cfg(config_data, args)
 train_and_evaluate(config_data)
 ```
 
-The library will now handle data loading, preprocessing, model training, and finally, evaluation on the test set. Results will be saved in the directory specified by the `sub` parameter (e.g., `results/test_camels/exp1`).
+The library will now handle data loading, preprocessing, model training, and finally, evaluation on the test set. Results will be saved in the directory specified by the `sub` parameter (e.g., `results/lstm_camels`).
 
 ## Example 2: Training a Physics-Informed Model (DPL-XAJ)
 
@@ -142,44 +155,39 @@ The parameter definition is similar, but we specify a different model (`DplAttrX
 
 ```python
 import os
-from torchhydro.configs.config import cmd
 from hydrodataset.hydro_dataset import StandardVariable
-from torchhydro import SETTING
-
-source_path = SETTING["local_data_path"]["datasets-origin"]
+from torchhydro.configs.config import cmd
 
 dpl_args = cmd(
-    sub="test_camels/expdpl001",
-    source_cfgs={
-        "source_name": "camels_us",
-        "source_path": source_path,
-    },
+    sub=os.path.join("results", "dpl_xaj_camels"),
+    source_cfgs={"dataset_id": "camels_us"},
     ctx=[0],  # Use GPU 0
-    
+
     # DPL model selection
     model_name="DplAttrXaj",
     model_hyperparam={
         "n_input_features": 17,
-        "n_output_features": 15, # Number of XAJ model parameters
+        "n_output_features": 15,  # Number of XAJ model parameters
         "n_hidden_states": 256,
         "kernel_size": 15,
-        "warmup_length": 30, # Warm-up period for the hydrological model
+        "warmup_length": 30,  # Warm-up period for the hydrological model
         "param_limit_func": "clamp",
     },
-    
+
     # DPL models often require a specialized dataset
     dataset="DplDataset",
-    
+    constant_only=True,  # DplAttrXaj uses only static attributes as ANN input
+
     # Use a hybrid loss function for multiple outputs
     loss_func="MultiOutLoss",
     loss_param={
         "loss_funcs": "RMSESum",
         "data_gap": [0, 0],
         "device": [0],
-        "item_weight": [1, 0], # Weight for streamflow vs. other outputs
+        "item_weight": [1, 0],  # Weight for streamflow vs. other outputs
         "limit_part": [1],
     },
-    
+
     # Special scaler settings for physical models
     scaler="DapengScaler",
     scaler_params={
@@ -190,27 +198,31 @@ dpl_args = cmd(
         ],
         "pbm_norm": True,
     },
-    
-    gage_id=["01013500", "01022500", "01030500", "01031500"],
+
+    gage_id=["01013500", "01022500", "01030500", "01031500", "01047000"],
     train_period=["1985-10-01", "1986-04-01"],
     test_period=["2000-10-01", "2001-10-01"],
     valid_period=None,
-    
+
     batch_size=50,
     forecast_length=60,
     warmup_length=30,
-    
+
     # Input variables for the neural network part
     var_t=[
         StandardVariable.PRECIPITATION,
         StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
     ],
-    # Output variables (streamflow from XAJ, plus a dummy variable)
-    var_out=[StandardVariable.STREAMFLOW, StandardVariable.EVAPOTRANSPIRATION],
-    n_output=2,
-    
+    # Output variable: only streamflow (CAMELS-US has no ET observations).
+    # DplAttrXaj internally computes ET via the XAJ physics model, but
+    # training loss is only computed against observed streamflow.
+    var_out=[StandardVariable.STREAMFLOW],
+    n_output=1,
+
     train_epoch=2,
+    model_loader={"load_way": "specified", "test_epoch": 2},
     opt="Adadelta",
+    which_first_tensor="sequence",
 )
 ```
 
@@ -230,12 +242,33 @@ update_cfg(config_data, dpl_args)
 train_and_evaluate(config_data)
 ```
 
+## Conventions and Additional Features
+
+### Time ranges are left-closed, right-open
+
+Each period `["start", "end"]` includes `start` and excludes `end`. Adjacent periods therefore do **not** overlap:
+
+```python
+train_period=["2000-10-01", "2001-10-01"]
+valid_period=["2001-10-01", "2002-10-01"]  # starts exactly where train ends
+```
+
+A strict overlap between train/valid/test is reported as an advisory warning (results are labelled in-sample); it never blocks execution. Set `allow_split_overlap: True` to suppress the warning when the in-sample intent is explicit.
+
+### Time units
+
+`min_time_unit` accepts `h`/`H` (hourly), `d`/`D` (daily), and `ME`/`MS`/`M` (monthly). Use `min_time_interval` for sub-daily intervals (e.g. `"3"` with unit `"h"` for 3-hourly data).
+
+### Cloud-Zarr lazy loading
+
+To train on large cloud Zarr stores without loading them fully into memory, use the `CloudZarrLazyDataset` dataset and `CloudZarrChunkBatchSampler` sampler. See the [Cloud-Zarr Joint Training guide](advanced/cloud_zarr_lazy_loading.md) and `experiments/train_cloud_zarr_lazy_joint.py` for details.
+
 ## Future Development
 
 This guide provides a starting point. `torchhydro` is designed to be flexible and supports a growing number of models, datasets, and data sources.
 
 -   The full list of available **models** can be found in `torchhydro/models/model_dict_function.py`.
 -   The full list of available **dataset** types is in `torchhydro/datasets/data_dict.py`.
--   The supported **data sources** are defined in `torchhydro/datasets/data_sources.py`.
+-   The supported **data sources** are defined in `torchhydro/datasets/data_sources.py` (and resolved through `torchhydro/configs/data_resolver.py`).
 
 Future versions of this documentation will provide a comprehensive API reference and more detailed examples for all supported components.

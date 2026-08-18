@@ -1,3 +1,7 @@
 # Explainers API
 
-::: torchhydro.explainers
+::: torchhydro.explainers.shap
+
+::: torchhydro.explainers.uncertainty_analysis
+
+::: torchhydro.explainers.weight_anlysis

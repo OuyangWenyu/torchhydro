@@ -14,7 +14,6 @@ import sys
 
 from torchhydro.configs.config import default_config_file, cmd, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-from torchhydro import SETTING
 
 logging.basicConfig(level=logging.WARNING)
 for logger_name in logging.root.manager.loggerDict:
@@ -257,8 +256,8 @@ def create_wdne_config(test_mode="normal", model_name="WDNEAdaptiveRoutingNet", 
     args = cmd(
         sub=project_name,
         source_cfgs={
-            "source_name": "stationhydrodataset",
-            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "dataset_id": "stationhydrodataset",
+            "source_path": "E:/data/ClassC/songliaorrevent",
             "time_unit": ["3h"],
         },
         station_cfgs={

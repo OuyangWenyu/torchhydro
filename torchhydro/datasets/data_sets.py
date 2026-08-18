@@ -72,6 +72,18 @@ class LookupTableView:
         return len(self.basins)
 
     def __getitem__(self, item: int):
+        """Return the sample at index ``item``.
+
+        Parameters
+        ----------
+        item
+            Sample index into the windows built by :class:`BaseDataset`.
+
+        Returns
+        -------
+        tuple[int, int, int]
+            Basin id, start index, and sequence length of the sample.
+        """
         return (
             int(self.basins[item]),
             int(self.starts[item]),
@@ -525,14 +537,14 @@ class BaseDataset(Dataset):
     def __len__(self):
         return self.num_samples
 
-    def __getitem__(self, item: int):
+    def __getitem__(self, item: int) -> tuple:
         """Get one sample from the dataset with a unified return format.
 
         Args:
             item: The index of the sample to retrieve.
 
         Returns:
-            A tuple of (input_data, output_data), where input_data is a tensor
+            tuple: (input_data, output_data), where input_data is a tensor
             of input features and output_data is a tensor of target values.
         """
         if hasattr(self, "_lookup_basins"):

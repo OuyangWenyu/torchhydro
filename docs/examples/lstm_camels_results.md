@@ -144,8 +144,8 @@ Results are saved in `results/lstm_results/camels_all/`:
 
 - `best_model.pth`: Model checkpoint with best validation performance
 - `metric_streamflow.csv`: Per-basin evaluation metrics (671 rows)
-- `epochbest_model.pthflow_obs.nc`: Observed streamflow (NetCDF)
-- `epochbest_model.pthflow_pred.nc`: Predicted streamflow (NetCDF)
+- `epochbest_model_flow_obs.nc`: Observed streamflow (NetCDF)
+- `epochbest_model_flow_pred.nc`: Predicted streamflow (NetCDF)
 - `dapengscaler_stat.json`: Normalization statistics
 - `*.json`: Complete configuration snapshot
 
@@ -164,9 +164,10 @@ uv sync --all-extras
 Create `~/hydro_setting.yml`:
 
 ```yaml
-local_data_path:
-  root: 'D:/data'
-  datasets-origin: 'D:/data'
+storage:
+  default_source: local
+  local:
+    root: 'D:/data/hydrodatasets'
   cache: 'D:/data/.cache'
 ```
 
@@ -210,7 +211,7 @@ $$\text{RMSE} = \sqrt{\frac{1}{T}\sum_{t=1}^{T}(Q_{\text{obs}}(t) - Q_{\text{sim
 ## Further Resources
 
 - **[torchhydro Documentation](https://OuyangWenyu.github.io/torchhydro)**: Complete API reference
-- **[Example Scripts](../../examples/)**: Training examples for different models
+- **[Example Scripts](https://github.com/OuyangWenyu/torchhydro/tree/main/examples)**: Training examples for different models
 - **[Models API](../api/models.md)**: Available model architectures
 - **[Datasets API](../api/datasets.md)**: Data handling and preprocessing
 

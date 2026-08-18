@@ -13,7 +13,6 @@ import logging
 
 from torchhydro.configs.config import default_config_file, cmd, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-from torchhydro import SETTING
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -67,8 +66,8 @@ def create_simple_gnn_config():
         sub=project_name,
         # 数据源配置 - 使用正确的松辽流域数据路径
         source_cfgs={
-            "source_name": "stationhydrodataset",
-            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "dataset_id": "stationhydrodataset",
+            "source_path": "E:/data/ClassC/songliaorrevent",
             "time_unit": ["3h"],
         },
         # station_cfgs={

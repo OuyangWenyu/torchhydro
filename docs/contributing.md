@@ -50,26 +50,25 @@ Ready to contribute? Here's how to set up torchhydro for local development.
 
 1.  Fork the torchhydro repo on GitHub.
 
-2.  Clone your fork locally:
+2.  Clone your fork locally (with the sister packages in sibling directories):
 
     ```shell
     $ git clone git@github.com:your_name_here/torchhydro.git
+    $ git clone git@github.com:iHeadWater/hydrodataset.git
+    $ git clone git@github.com:iHeadWater/hydrodatasource.git
+    $ git clone git@github.com:iHeadWater/hydroutils.git
     ```
 
-3.  Install your local copy into a conda virtual environment. 
-    this is how you set up your fork for local development:
+3.  Install your local copy using `uv` (recommended; Python >= 3.10):
 
     ```shell
-    $ conda create -n torchhydro
-    $ conda activate torchhydro
-    $ conda install  -c pytorch pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=10.2
-    $ conda install -c conda-forge mamba
-    $ conda install -c pyg pytorch-scatter
-    $ mamba install -c conda-forge numpy xarray netcdf4 geopandas scikit-learn tensorboard tqdm pytest black flake8 pip
-    $ pip install tbparse setuptools wheel twine hydroutils hydrodataset 
+    $ cd torchhydro
+    $ uv sync --all-extras
     ```
 
-1.  Create a branch for local development:
+    > The sister packages `hydrodataset`, `hydrodatasource`, and `hydroutils` are configured as editable local dependencies in `pyproject.toml`. They must live in sibling directories of the clone above.
+
+4.  Create a branch for local development:
 
     ```shell
     $ git checkout -b name-of-your-bugfix-or-feature
@@ -77,18 +76,17 @@ Ready to contribute? Here's how to set up torchhydro for local development.
 
     Now you can make your changes locally.
 
-2.  When you're done making changes, check that your changes pass flake8
-    and the tests, including testing other Python versions with tox:
+5.  When you're done making changes, check that your changes pass the linters and the tests:
 
     ```shell
-    $ flake8 torchhydro tests
-    $ python setup.py test or pytest
-    $ tox
+    $ uv run flake8 torchhydro tests
+    $ uv run black torchhydro tests
+    $ uv run isort torchhydro tests
+    $ uv run mypy torchhydro
+    $ uv run pytest tests
     ```
 
-    To get flake8 and tox, just pip install them into your virtualenv.
-
-3.  Commit your changes and push your branch to GitHub:
+6.  Commit your changes and push your branch to GitHub:
 
     ```shell
     $ git add .
@@ -96,7 +94,7 @@ Ready to contribute? Here's how to set up torchhydro for local development.
     $ git push origin name-of-your-bugfix-or-feature
     ```
 
-4.  Submit a pull request through the GitHub website.
+7.  Submit a pull request through the GitHub website.
 
 ## Pull Request Guidelines
 
@@ -105,7 +103,5 @@ Before you submit a pull request, check that it meets these guidelines:
 1.  The pull request should include tests.
 2.  If the pull request adds functionality, the docs should be updated.
     Put your new functionality into a function with a docstring, and add
-    the feature to the list in README.rst.
-3.  The pull request should work for Python 3.5, 3.6, 3.7 and 3.8, and
-    for PyPy. Check <https://github.com/OuyangWenyu/torchhydro/pull_requests> and make sure that the tests pass for all
-    supported Python versions.
+    the feature to the relevant sections of `README.md`.
+3.  The pull request should work for Python >= 3.10. Check the CI results and make sure that the tests pass.

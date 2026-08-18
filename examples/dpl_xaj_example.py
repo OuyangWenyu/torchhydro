@@ -3,20 +3,20 @@ This is an advanced example of training a differentiable model.
 An LSTM is coupled with the Xinanjiang (XAJ) hydrological model, where the neural network
 learns to output the parameters of the XAJ model.
 
-To run this script, you need to:
-Set up your data path in your `hydro_setting.yml` file.
-This file should be in your user directory. If not, create one.
-Refer to the __init__.py file in the torchhydro package to ensure `local_data_path` is set correctly.
-For example:
-   local_data_path:
-       root: 'D:/data'
-       datasets-origin: 'D:/data'
+To run this script, you need to configure your data path in `~/hydro_setting.yml`.
+Create this file in your home directory with the following format:
+
+    storage:
+      local:
+        root: D:/data/hydrodatasets
+
+The path to individual datasets (e.g., CAMELS-US) is resolved automatically
+from the registry — no need to set individual dataset paths.
 """
 
 import os
 from hydrodataset.hydro_dataset import StandardVariable
 
-from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -27,10 +27,10 @@ def main():
     and then runs the training and evaluation pipeline.
     """
     # 1. Define parameters for the DPL experiment
-    source_path = SETTING["local_data_path"]["datasets-origin"]
     dpl_args = cmd(
         sub=os.path.join("results", "dpl_xaj_camels"),
-        source_cfgs={"source_name": "camels_us", "source_path": source_path},
+        # Data source — dataset_id auto-resolves path from ~/hydro_setting.yml
+        source_cfgs={"dataset_id": "camels_us"},
         ctx=[0],  # Use GPU 0 if available, otherwise it will fall back to CPU
         # DPL model selection
         model_name="DplAttrXaj",
@@ -82,14 +82,15 @@ def main():
             StandardVariable.PRECIPITATION,
             StandardVariable.POTENTIAL_EVAPOTRANSPIRATION,
         ],
-        # Output variables (streamflow from XAJ, plus a dummy variable)
-        var_out=[StandardVariable.STREAMFLOW , StandardVariable.POTENTIAL_EVAPOTRANSPIRATION],
-        n_output=2,
+        # Output variable: only streamflow (CAMELS-US has no ET observations).
+        # DplAttrXaj internally computes ET via the XAJ physics model, but
+        # training loss is only computed against observed streamflow.
+        var_out=[StandardVariable.STREAMFLOW],
+        n_output=1,
         train_epoch=2,  # Set a small number of epochs for quick testing
         model_loader={"load_way": "specified", "test_epoch": 2},
         opt="Adadelta",
         which_first_tensor="sequence",
-        constant_only=1,  # DplAttrXaj uses only static attributes as ANN input
     )
 
     # 2. Load default config and update it with your parameters

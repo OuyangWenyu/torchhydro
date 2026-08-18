@@ -10,7 +10,6 @@ warnings.filterwarnings("ignore")
 
 from torchhydro.configs.config import default_config_file, cmd, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-from torchhydro import SETTING
 
 
 def create_config():
@@ -24,8 +23,8 @@ def create_config():
     args = cmd(
         sub="basin_lstm/test",
         source_cfgs={
-            "source_name": "selfmadehydrodataset",
-            "source_path": SETTING["local_data_path"]["datasets-interim"],
+            "dataset_id": "selfmadehydrodataset",
+            "source_path": "E:/data/ClassC/songliaorrevent",
             "time_unit": ["3h"],
         },
         ctx=[-1],

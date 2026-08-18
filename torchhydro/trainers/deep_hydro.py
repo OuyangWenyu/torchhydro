@@ -504,16 +504,21 @@ class DeepHydro(DeepHydroInterface):
 
         with torch.no_grad():
             for batch in dataloader:
-                # Handle Seq2Seq format: batch[0] might be a list [encoder_input, decoder_input]
-                if isinstance(batch[0], list):
-                    # Seq2Seq format: move each element to device and transpose to (seq, batch, feature)
-                    x = [inp.permute(1, 0, 2).to(self.device) for inp in batch[0]]
-                    # if x[0].shape[0] == 0:
-                    # Handle empty batch case
-                    # continue
+                # Handle Seq2Seq / multi-input format: batch[0] might be a
+                # list or tuple of inputs (e.g., [encoder, decoder] or (x, z)).
+                if isinstance(batch[0], (list, tuple)):
+                    # Multi-input format: move each element to device and
+                    # transpose time-series tensors to (seq, batch, feature).
+                    x = [
+                        inp.permute(1, 0, 2).to(self.device)
+                        if inp.ndim == 3
+                        else inp.to(self.device)
+                        for inp in batch[0]
+                    ]
                     pred = self.model(*x)
                     # Transpose prediction back to (batch, seq, feature)
-                    pred = pred.permute(1, 0, 2)
+                    if isinstance(pred, torch.Tensor) and pred.ndim == 3:
+                        pred = pred.permute(1, 0, 2)
 
                 else:
                     # Traditional tensor or separated static-input tuple.

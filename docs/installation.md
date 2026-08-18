@@ -2,8 +2,8 @@
 
 ## Requirements
 
-- Python >= 3.11
-- PyTorch >= 2.6.0
+- Python >= 3.10
+- PyTorch >= 2.0
 - CUDA (optional, for GPU acceleration)
 
 ## Stable Release
@@ -14,32 +14,37 @@ The recommended way to install the latest stable version is using pip:
 pip install torchhydro
 ```
 
-If you don't have [pip](https://pip.pypa.io) installed, you can follow this [Python installation guide](http://docs.python-guide.org/en/latest/starting/installation/).
+or with [uv](https://docs.astral.sh/uv/) (faster):
+
+```bash
+uv pip install torchhydro
+```
 
 ## Development Version
 
-For the latest development version, you can install directly from the GitHub repository:
+For the latest development version, install directly from the repository. We recommend `uv` for environment management:
 
 ```bash
 git clone https://github.com/OuyangWenyu/torchhydro.git
 cd torchhydro
-pip install -e .
+uv sync --all-extras
 ```
 
-## Optional Dependencies
+> **Sister packages.** `hydrodataset`, `hydrodatasource`, and `hydroutils` are configured as editable local dependencies in `pyproject.toml`. For local development they must be cloned into sibling directories (`../hydrodataset`, `../hydrodatasource`, `../hydroutils`). When installing from PyPI, released versions are used instead.
 
-For specific functionality, you might need to install the following optional dependencies:
+## Configure Data Path
 
-```bash
-# For data visualization
-pip install matplotlib seaborn
+Before running any example, create a `hydro_setting.yml` file in your user home directory (`C:\Users\YourUsername` on Windows, `~/` on Linux/macOS) pointing to your data folders:
 
-# For data processing
-pip install pandas numpy
-
-# For geographic data processing
-pip install geopandas rasterio
+```yaml
+storage:
+  default_source: local
+  local:
+    root: 'D:/data/hydrodatasets'
+  cache: 'D:/data/hydrodatasets/cache'
 ```
+
+Standard dataset paths (e.g., CAMELS-US) are resolved automatically from `storage.local.root` by the unified data resolver — no per-dataset path configuration is needed.
 
 ## Verify Installation
 

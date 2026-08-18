@@ -1,4 +1,4 @@
-# 松辽流域洪水预报模型使用指南
+# 松辽流域洪水预报实验案例
 
 > 基于 `experiments/train_with_wdne.py` 配置文件
 
@@ -25,7 +25,7 @@
 
 - **输入**: 流域级 `rain` (CSV文件中的basin平均降雨)
 - **不使用站点数据**, 不使用图结构
-- **数据集**: `FloodEventDataset`，`source_name="selfmadehydrodataset"`
+- **数据集**: `FloodEventDataset`，`source_cfgs={"dataset_id": "selfmadehydrodataset"}`
 - **模型**: `SimpleLSTM`
 - **运行**: `python experiments/train_basin_lstm.py`
 - **优点**: 最简单，1.5s/epoch，不需要图和站点
@@ -176,7 +176,7 @@ model_name = "SimpleLSTM"
 dataset = "FloodEventDataset"
 var_t = ["rain"]        # 流域平均降雨
 var_c = ["None"]        # 不加静态属性
-source_name = "selfmadehydrodataset"  # 数据源
+source_cfgs = {"dataset_id": "selfmadehydrodataset"}  # 数据源
 batch_size = 8
 model_hyperparam = {
     "input_size": 1,     # 降雨特征数
@@ -336,7 +336,7 @@ python experiments/train_with_wdne.py WDNE_static normal
 cat results/{模型名}/songliao_3h_normal/metric_inflow.csv
 
 # 绘图
-python plot_all_final.py
+python plot_all_final.py  # 在项目根目录
 ```
 
 ## 5. 当前已知限制

@@ -6,7 +6,6 @@ import os, shutil, logging, warnings
 logging.basicConfig(level=logging.WARNING); warnings.filterwarnings('ignore')
 from torchhydro.configs.config import default_config_file, cmd, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
-from torchhydro import SETTING
 
 BASIN = 'songliao_21401550'
 WDNE_WEIGHT = '/home/lizilin/code/torchhydro/results/wdne_adaptive/songliao_3h_normal/best_model.pth'
@@ -20,7 +19,7 @@ for mode in ['normal', 'sim1', 'sim2', 'sim3']:
 
     config_data = default_config_file()
     args = cmd(sub=f'spatial_test/{mode}',
-        source_cfgs={'source_name':'stationhydrodataset','source_path':SETTING['local_data_path']['datasets-interim'],'time_unit':['3h']},
+        source_cfgs={"dataset_id": "stationhydrodataset", "source_path": "E:/data/ClassC/songliaorrevent", "time_unit": ["3h"]},
         ctx=[0], model_name='WDNEAdaptiveRoutingNet',
         model_hyperparam={'in_channels':1,'hidden_channels':32,'output_size':1,'seq_len':84,'output_time':12,
             'model_type':'wdne_adaptive','num_static_features':0,'structure_embedding_dim':16,
