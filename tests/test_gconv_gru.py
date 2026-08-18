@@ -1,7 +1,10 @@
 import torch
 import pytest
 
-from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU, MultiFeatureStreamGCLSTM
+try:
+    from torchhydro.models.gconv_gru import MultiFeatureStreamGCGRU, MultiFeatureStreamGCLSTM
+except ImportError:
+    pytest.skip("torch_sparse not available", allow_module_level=True)
 
 
 @pytest.fixture
