@@ -25,12 +25,13 @@ jobs:
             
             - name: Install dependencies
               run: |
-                  # Create venv and install setuptools first (needed for torch-scatter build)
-                  uv venv
-                  uv pip install setuptools
-
                   # Install project dependencies with documentation extras
                   uv sync --extra dev --extra docs
+
+                  # Install torch-geometric-temporal after sync (needs torch-scatter)
+                  uv pip install torch-geometric-temporal
+                  uv pip uninstall torch-scatter torch-sparse torch-cluster -y || true
+                  uv pip install torch-geometric
             
             - name: Run tests
               run: |

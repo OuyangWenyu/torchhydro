@@ -52,9 +52,7 @@ dependencies = [
     "hydrodataset>=0.3.0",
     # PyTorch Geometric 包（核心包及扩展）
     "torch-geometric",
-    "torch-geometric-temporal",
-    # 注意：torch-scatter, torch-sparse, torch-cluster 等会作为依赖自动安装
-    # 它们需要在构建时使用 torch（已在 [tool.uv.extra-build-dependencies] 配置）
+    # torch-geometric-temporal installed separately in CI (needs torch-scatter build)
     "cartopy>=0.23.0",
     "rich>=14.0.0",
     "boto3>=1.39.4",
