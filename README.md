@@ -1,147 +1,180 @@
 <!--
  * @Author: Wenyu Ouyang
- * @Date: 2024-04-13 18:29:19
- * @LastEditTime: 2026-08-17
- * @LastEditors: Wenyu Ouyang
+ * @LastEditTime: 2026-08-18
  * @Description: English version of the README
- * @FilePath: \torchhydro\README.md
- * Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 -->
-# Torchhydro
+# TorchHydro
 
-[![image](https://img.shields.io/pypi/v/torchhydro.svg)](https://pypi.python.org/pypi/torchhydro)
-[![image](https://img.shields.io/conda/vn/conda-forge/torchhydro.svg)](https://anaconda.org/conda-forge/torchhydro)
+[![PyPI version](https://img.shields.io/pypi/v/torchhydro.svg)](https://pypi.python.org/pypi/torchhydro)
+[![Python](https://img.shields.io/pypi/pyversions/torchhydro.svg)](https://pypi.python.org/pypi/torchhydro)
+[![License](https://img.shields.io/github/license/OuyangWenyu/torchhydro.svg)](https://github.com/OuyangWenyu/torchhydro/blob/main/LICENSE)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://OuyangWenyu.github.io/torchhydro)
 
-- License: BSD license
-- Documentation: https://OuyangWenyu.github.io/torchhydro
+A PyTorch-based deep learning framework for hydrological modeling. Supports Normal, Transfer Learning, Multi-Task Learning, and Federated Learning modes.
 
-`torchhydro` provides datasets and models for applying deep learning to hydrological modeling. It supports Normal, Transfer Learning, Multi-Task Learning, and Federated Learning modes.
+**Documentation**: https://OuyangWenyu.github.io/torchhydro
 
 ## Installation
 
-### For Users
-
-You can install `torchhydro` using `pip` or `uv` (which is faster).
+**Python 3.10+** required.
 
 ```shell
 pip install torchhydro
 ```
-or
+
+or with [uv](https://docs.astral.sh/uv/) (faster):
+
 ```shell
 uv pip install torchhydro
 ```
 
-### For Developers
+See the [Installation Guide](https://OuyangWenyu.github.io/torchhydro/installation/) for developer setup.
 
-If you want to contribute to the project, we recommend using `uv` for environment management.
+## Quick Start
 
-```shell
-# Clone the repository
-git clone https://github.com/OuyangWenyu/torchhydro.git
-cd torchhydro
+### 1. Configure data path
 
-# Create a virtual environment and install all dependencies
-uv sync --all-extras
-```
-
-> **Note for local development:** the sister packages `hydrodataset`, `hydrodatasource`, and `hydroutils` are configured in `pyproject.toml` as editable local dependencies. They must be cloned into sibling directories (`../hydrodataset`, `../hydrodatasource`, `../hydroutils`) for `uv sync` to resolve them. When published to PyPI, released versions are used instead.
-
-## Usage
-
-### 1. Configure Data Path
-
-Before running any examples, you need to tell `torchhydro` where your data is located.
-
-Create a file named `hydro_setting.yml` in your user home directory (`C:\Users\YourUsername` on Windows or `~/` on Linux/macOS). Then add the following content, pointing to your data folders:
+Create `hydro_setting.yml` in your home directory (`~/` or `%USERPROFILE%`):
 
 ```yaml
 storage:
   default_source: local
   local:
-    root: 'D:/data/hydrodatasets' # Update with your root data directory
+    root: 'D:/data/hydrodatasets'  # your data directory
   cache: 'D:/data/hydrodatasets/cache'
 ```
 
-The path to each standard dataset (e.g., CAMELS-US) is resolved automatically from this root by the unified data resolver — you do **not** need to set individual dataset paths. `storage.default_source` selects the storage backend (`local` by default, or `s3`/`cloud` for cloud storage).
+Standard dataset paths (e.g., CAMELS-US) are resolved automatically from this root by the unified data resolver.
 
-### 2. Run Examples
+### 2. Run a model
 
-We provide standalone scripts in the `examples/` directory to help you get started.
+```python
+from hydrodataset.hydro_dataset import StandardVariable
+from torchhydro.configs.config import cmd, default_config_file, update_cfg
+from torchhydro.trainers.trainer import train_and_evaluate
 
-- **`examples/lstm_camels_example.py`**: A basic example of training a standard LSTM model on the CAMELS-US dataset.
-- **`examples/dpl_xaj_example.py`**: An advanced example of training a differentiable model based on the Xinanjiang (XAJ) hydrological model.
+# Build config for LSTM on CAMELS-US
+args = cmd(
+    source_cfgs={"dataset_id": "camels_us"},
+    model_name="CpuLSTM",
+    model_hyperparam={"n_input_features": 23, "n_output_features": 1, "n_hidden_states": 256},
+    gage_id=["01013500", "01022500", "01030500"],
+    train_period=["2000-10-01", "2001-10-01"],
+    valid_period=["2001-10-01", "2002-10-01"],
+    test_period=["2002-10-01", "2003-10-01"],
+    var_t=[
+        StandardVariable.PRECIPITATION,
+        StandardVariable.SOLAR_RADIATION,
+        StandardVariable.TEMPERATURE_MAX,
+    ],
+    var_out=[StandardVariable.STREAMFLOW],
+    dataset="StreamflowDataset",
+    sampler="KuaiSampler",
+    scaler="DapengScaler",
+)
 
-To run an example:
-```shell
-python examples/lstm_camels_example.py
+config_data = default_config_file()
+update_cfg(config_data, args)
+train_and_evaluate(config_data)
 ```
 
-Feel free to modify these scripts to experiment with different models, datasets, and parameters.
+See `examples/` for runnable scripts:
+- **`examples/lstm_camels_example.py`** — Standard LSTM on CAMELS-US
+- **`examples/dpl_xaj_example.py`** — Differentiable Xinanjiang (XAJ) model
 
-## Data Sources
+## Features
 
-All data access goes through a **unified data resolver** (`torchhydro.configs.data_resolver`), which delegates to the hydrodataset/hydrodatasource registry. In your `source_cfgs`, use the `dataset_id` key to select a dataset; paths are resolved centrally from `hydro_setting.yml` (legacy `source_name`/`source_path` keys are still accepted for backward compatibility, but `source_path` is ignored in favor of central resolution).
+### Models
 
-Standard datasets resolved by the registry:
+| Category | Models |
+|---|---|
+| **LSTM variants** | SimpleLSTM, CudaLSTM, CNNLSTM, MCLSTM, SPPLSTM, BALSTM, MTSLSTM |
+| **Seq2Seq / Encoder-Decoder** | GeneralSeq2Seq, Transformer, DataFusionModel, SeqForecast |
+| **Differentiable physical models** | DPL-XAJ, DPL-HBV, DPL-GR4J, DPL-MC-Reservoir |
+| **Graph neural networks** | GCN, ResGCN, GCNII, ResGAT, GCGRU, GCLSTM, STGCN |
+| **Mixture of Experts** | DenseMoE, SparseMoE, SwitchMoE, HydrologyTopKMoE, GlobalTopKMoE |
+| **Generative / spectral** | Diffusion, FNO (Fourier Neural Operator) |
+| **Specialized** | WDNE (3D flood), CoupledLSTM, RegulLSTM |
+
+### Datasets
+
+Standard datasets resolved via [hydrodataset](https://github.com/OuyangWenyu/hydrodataset) and [hydrodatasource](https://github.com/iHeadWater/hydrodatasource):
 
 | `dataset_id` | Description |
 |---|---|
 | `camels_us` | CAMELS-US (671 US basins) |
 | `camelsh` | CAMELS-Hourly |
-| `caravan` / `grdc_caravan` | Caravan / GRDC-Caravan multi-dataset collections |
-| `camels_aus` / `camels_br` / `camels_cl` / `camels_gb` / `camels_col` | CAMELS-Australia / Brazil / Chile / Great Britain / Colombia |
+| `caravan` / `grdc_caravan` | Caravan / GRDC-Caravan collections |
+| `camels_aus` / `camels_br` / `camels_cl` / `camels_gb` / `camels_col` | CAMELS regional datasets |
 
-Custom data readers (provided by `hydrodatasource`): `selfmadehydrodataset`, `selfmadeforecastdataset`, `longtermdataset`, `floodeventdatasource`, `stationhydrodataset`, `tghydrodatasource`.
+Custom data sources: `selfmadehydrodataset`, `selfmadeforecastdataset`, `longtermdataset`, `floodeventdatasource`, `stationhydrodataset`, `tghydrodatasource`.
 
-> GAGES-II, MOPEX, and reservoir data-source readers were moved out of `torchhydro` into `hydrodatasource`; `torchhydro` no longer re-implements them.
+### Training modes
 
-## Benchmark Results
+- **Standard supervised learning** — single basin or regional training
+- **Transfer learning** — cross-basin model adaptation
+- **Multi-task learning** — shared backbone, task-specific heads
+- **Federated learning** — decentralized basin-level training
 
-We provide benchmark results on the CAMELS-US dataset to demonstrate the performance of our models. The figure below shows the NSE (Nash-Sutcliffe Efficiency) distribution comparison between two CAMELS data processing approaches:
+### Key capabilities
 
-<img src="docs/images/nse_comparison_camels.png" alt="NSE Comparison" width="600"/>
+- Unified data resolver — all dataset paths from one `hydro_setting.yml` config
+- Monthly and sub-daily (hourly) time units
+- Cloud-Zarr lazy loading for joint training on remote data
+- Lightning Fabric integration for debugging and distributed training
+- SHAP-based model interpretability and loss landscape visualization
+- Advanced dropout strategies and data augmentation
 
-**Figure**: NSE comparison of LSTM model trained on CAMELS-US dataset. The left box plot (red) shows results using `hydrodataset.Camels` class for data processing, while the right box plot (yellow-green) shows results using `hydrodataset.CamelsUS` class. Both approaches achieve a median NSE of 0.72, demonstrating robust and consistent performance across 671 basins.
+## Guides & Documentation
 
-For detailed training results, methodology, and comprehensive performance analysis, see:
-- **[LSTM Training Results on CAMELS-US](docs/examples/lstm_camels_results.md)**: Complete experiment documentation including model configuration, training progress, and basin-level performance statistics.
+### Examples & Results
 
-## Explore More Features
+- [LSTM on CAMELS-US](https://OuyangWenyu.github.io/torchhydro/examples/lstm_camels_results/) — baseline benchmark and basin-level performance
+- [Songliao Flood Models](https://OuyangWenyu.github.io/torchhydro/examples/songliao_flood_guide/) — LSTM, MCLSTM, GNN, WDNE flood forecasting
+- [Sanxia Multi-Site](https://OuyangWenyu.github.io/torchhydro/examples/sanxia_guide/) — reservoir and multi-site experiments
+- [MoE / Diffusion / FNO](https://OuyangWenyu.github.io/torchhydro/examples/moe_diffusion_fno_guide/) — advanced model experiments
+- [Seq2Seq / BALSTM / MTSLSTM](https://OuyangWenyu.github.io/torchhydro/examples/seq2seq_balstm_mtslstm_guide/) — encoder-decoder and spatial-temporal models
 
-The examples above cover two primary use cases, but `torchhydro` is much more flexible. We support a variety of models, datasets, and data sources out of the box. Explore the full public API to see all available components:
+### Advanced Topics
 
-- **[Models API](docs/api/models.md)**: Discover all available model architectures.
-- **[Datasets API](docs/api/datasets.md)**: See all dataset classes, data sources, and samplers.
-- **[Trainers API](docs/api/trainers.md)**: Understand the core training and evaluation pipeline.
+- [Cloud-Zarr Joint Training](https://OuyangWenyu.github.io/torchhydro/advanced/cloud_zarr_lazy_loading/) — lazy loading for large-scale remote data
+- [Lightning Fabric](https://OuyangWenyu.github.io/torchhydro/advanced/fabric_debug_guide/) — debugging and distributed training
+- [ERA5-Land & GPM](https://OuyangWenyu.github.io/torchhydro/advanced/era5land_gpm_guide/) — gridded meteorological data experiments
+- [Model Interpretability](https://OuyangWenyu.github.io/torchhydro/advanced/model_interpretability/) — SHAP and loss landscape analysis
 
-Notable capabilities include: LSTM-family and Seq2Seq/Transformer models; differentiable physical models (XAJ/HBV/GR4J); graph neural networks (GCN/GAT/STGCN/WDNE) and 3D flood-event models; MoE (mixture of experts) models; Diffusion and FNO models; cloud-Zarr lazy loading for joint training on remote data; monthly and sub-daily time units.
+### API Reference
 
-We are continuously working to expand the documentation with more examples.
+[Models](https://OuyangWenyu.github.io/torchhydro/api/models/) · [Datasets](https://OuyangWenyu.github.io/torchhydro/api/datasets/) · [Trainers](https://OuyangWenyu.github.io/torchhydro/api/trainers/) · [Configs](https://OuyangWenyu.github.io/torchhydro/api/configs/) · [Explainers](https://OuyangWenyu.github.io/torchhydro/api/explainers/)
 
-## Main Modules
+## Architecture
 
-The project is organized into several key modules:
+```
+configs/          config.py, model_config.py, data_resolver.py (unified data layer)
+  │ drives
+  ├── datasets/   data_sets.py, data_sources.py, sampler.py, scalers.py
+  ├── models/     20+ architectures registered in model_dict_function.py
+  ├── trainers/   deep_hydro.py (orchestrator), trainer.py, fabric_wrapper.py
+  ├── explainers/ shap.py, loss_landscape/, uncertainty_analysis.py
+  └── utils/      dist_utils.py (MPI distributed computing)
+```
 
-- **Trainers**: Manages the end-to-end training and evaluation pipeline. The core `DeepHydro` class handles data loading, model initialization, training loops, and evaluation. It is designed to be extensible for various learning paradigms like transfer learning or multi-task learning.
-- **Models**: Contains all available model architectures, including standard neural networks (e.g., LSTM) and differentiable models. A central dictionary allows for easy configuration and selection of models and loss functions.
-- **Datasets**: Provides data handling capabilities. Standard datasets are opened through the unified data resolver backed by [hydrodataset](https://github.com/OuyangWenyu/hydrodataset) and [hydrodatasource](https://github.com/iHeadWater/hydrodatasource); `torchhydro.datasets.data_sources` is a thin layer exposing the registry to datasets and PyTorch `Dataset` classes.
-- **Configs**: Manages all experiment configurations, including settings for the model, data (time periods, variables), training (epochs, batch size), and evaluation. `torchhydro.configs.data_resolver` centralizes dataset path/URI resolution.
+## Why TorchHydro?
 
-## Why Torchhydro?
+- **Decoupled data layer** — a unified resolver supports 10+ datasets, custom sources, and cloud storage; data tooling is usable even without a deep-learning model
+- **Flexible learning paradigms** — transfer, multi-task, and federated learning are first-class, not afterthoughts
+- **Deep configuration** — fine-grained control over data traversal, normalization, batch sampling, and advanced dropout
+- **Extensible** — configuration is externalized so new data sources and models plug in without modifying core code
 
-While mature tools like [NeuralHydrology](https://github.com/neuralhydrology/neuralhydrology) exist, `torchhydro` was developed with a different architectural philosophy:
+## Contributing
 
-1.  **Decoupled Data Sources**: We believe data handling, especially for complex or private datasets, requires a separate abstraction layer. Our approach routes all standard datasets through a unified resolver (hydrodataset/hydrodatasource) that manages data access first, which then feeds into a PyTorch `Dataset`. This modularity promotes code reuse and allows the data source tools to be used even without a deep learning model.
-2.  **Flexible Learning Paradigms**: The framework is explicitly designed to support not just standard supervised learning, but also more complex modes like transfer learning, multi-task learning, and federated learning from the ground up.
-3.  **Deep Configuration**: We provide fine-grained control over many aspects of the pipeline, including data traversal, normalization methods, batch sampling strategies, and advanced dropout techniques, allowing for greater flexibility in experimentation.
-4.  **Extensibility**: The core design principle is to externalize as much configuration as possible, enabling flexible matching and calling of different data sources and models.
+See the [Contributing Guide](https://OuyangWenyu.github.io/torchhydro/contributing/) for development setup, code standards, and pull request workflow.
 
-## Additional Information
+## License
 
-This package was inspired by:
+BSD License. See [LICENSE](LICENSE).
 
-- [TorchGeo](https://torchgeo.readthedocs.io/en/stable/)
+## Acknowledgments
+
 - [NeuralHydrology](https://github.com/neuralhydrology/neuralhydrology)
+- [TorchGeo](https://torchgeo.readthedocs.io/en/stable/)
 - [hydroDL](https://github.com/mhpi/hydroDL)
-
-This package was created using the [Cookiecutter](https://github.com/cookiecutter/cookiecutter) and the [giswqs/pypackage](https://github.com/giswqs/pypackage) project template.

@@ -1,147 +1,180 @@
 <!--
  * @Author: Wenyu Ouyang
- * @Date: 2024-04-13 18:29:19
- * @LastEditTime: 2026-08-17
- * @LastEditors: Wenyu Ouyang
+ * @LastEditTime: 2026-08-18
  * @Description: Chinese version of the README
- * @FilePath: \torchhydro\README.zh.md
- * Copyright (c) 2023-2024 Wenyu Ouyang. All rights reserved.
 -->
-# Torchhydro
+# TorchHydro
 
-[![image](https://img.shields.io/pypi/v/torchhydro.svg)](https://pypi.python.org/pypi/torchhydro)
-[![image](https://img.shields.io/conda/vn/conda-forge/torchhydro.svg)](https://anaconda.org/conda-forge/torchhydro)
+[![PyPI version](https://img.shields.io/pypi/v/torchhydro.svg)](https://pypi.python.org/pypi/torchhydro)
+[![Python](https://img.shields.io/pypi/pyversions/torchhydro.svg)](https://pypi.python.org/pypi/torchhydro)
+[![License](https://img.shields.io/github/license/OuyangWenyu/torchhydro.svg)](https://github.com/OuyangWenyu/torchhydro/blob/main/LICENSE)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://OuyangWenyu.github.io/torchhydro)
 
-- 许可证: BSD license
-- 文档: https://OuyangWenyu.github.io/torchhydro
+一个基于 PyTorch 的水文建模深度学习框架，支持常规、迁移学习、多任务学习与联邦学习等模式。
 
-`torchhydro` 为水文水资源领域的深度学习应用提供数据集和模型,支持常规、迁移学习、多任务学习与联邦学习等模式。
+**文档**: https://OuyangWenyu.github.io/torchhydro
 
 ## 安装
 
-### 普通用户
-
-您可以使用 `pip` 或更快的 `uv` 来安装 `torchhydro`。
+需要 **Python 3.10+**。
 
 ```shell
 pip install torchhydro
 ```
-或
+
+或使用更快的 [uv](https://docs.astral.sh/uv/):
+
 ```shell
 uv pip install torchhydro
 ```
 
-### 开发者
+开发者环境配置请参阅 [安装指南](https://OuyangWenyu.github.io/torchhydro/installation/)。
 
-如果您想为本项目做出贡献，我们推荐使用 `uv` 进行环境管理。
-
-```shell
-# 克隆仓库
-git clone https://github.com/OuyangWenyu/torchhydro.git
-cd torchhydro
-
-# 创建虚拟环境并安装所有依赖
-uv sync --all-extras
-```
-
-> **本地开发提示**:姊妹包 `hydrodataset`、`hydrodatasource`、`hydroutils` 在 `pyproject.toml` 中配置为 editable 本地依赖,需克隆到并行目录(`../hydrodataset`、`../hydrodatasource`、`../hydroutils`)才能被 `uv sync` 解析。发布到 PyPI 时使用正式版本。
-
-## 使用方法
+## 快速开始
 
 ### 1. 配置数据路径
 
-在运行任何示例之前，您需要告诉 `torchhydro` 您的数据存放位置。
-
-在您的用户主目录(Windows 下为 `C:\Users\YourUsername`,Linux/macOS 下为 `~/`)下创建一个名为 `hydro_setting.yml` 的文件。然后添加以下内容,并将其指向您的数据文件夹:
+在用户主目录(`~/` 或 `%USERPROFILE%`)下创建 `hydro_setting.yml`:
 
 ```yaml
 storage:
   default_source: local
   local:
-    root: 'D:/data/hydrodatasets' # 更新为您的根数据目录
+    root: 'D:/data/hydrodatasets'  # 您的数据目录
   cache: 'D:/data/hydrodatasets/cache'
 ```
 
-每个标准数据集(如 CAMELS-US)的路径由统一数据 resolver 从该 root 自动解析,您**无需**为每个数据集单独配置路径。`storage.default_source` 用于选择存储后端(默认为 `local`,也可选 `s3`/`cloud`)。
+标准数据集(如 CAMELS-US)的路径由统一数据 resolver 从该 root 自动解析。
 
-### 2. 运行示例
+### 2. 运行模型
 
-我们在 `examples/` 目录中提供了独立的脚本来帮助您入门。
+```python
+from hydrodataset.hydro_dataset import StandardVariable
+from torchhydro.configs.config import cmd, default_config_file, update_cfg
+from torchhydro.trainers.trainer import train_and_evaluate
 
-- **`examples/lstm_camels_example.py`**: 在 CAMELS-US 数据集上训练一个标准 LSTM 模型的基础示例。
-- **`examples/dpl_xaj_example.py`**: 一个基于新安江(XAJ)水文模型训练可微分模型的高级示例。
+# 构建 LSTM on CAMELS-US 的配置
+args = cmd(
+    source_cfgs={"dataset_id": "camels_us"},
+    model_name="CpuLSTM",
+    model_hyperparam={"n_input_features": 23, "n_output_features": 1, "n_hidden_states": 256},
+    gage_id=["01013500", "01022500", "01030500"],
+    train_period=["2000-10-01", "2001-10-01"],
+    valid_period=["2001-10-01", "2002-10-01"],
+    test_period=["2002-10-01", "2003-10-01"],
+    var_t=[
+        StandardVariable.PRECIPITATION,
+        StandardVariable.SOLAR_RADIATION,
+        StandardVariable.TEMPERATURE_MAX,
+    ],
+    var_out=[StandardVariable.STREAMFLOW],
+    dataset="StreamflowDataset",
+    sampler="KuaiSampler",
+    scaler="DapengScaler",
+)
 
-运行一个示例:
-```shell
-python examples/lstm_camels_example.py
+config_data = default_config_file()
+update_cfg(config_data, args)
+train_and_evaluate(config_data)
 ```
 
-您可以随时修改这些脚本来试验不同的模型、数据集和参数。
+`examples/` 目录提供了可直接运行的脚本:
+- **`examples/lstm_camels_example.py`** — 在 CAMELS-US 上训练标准 LSTM
+- **`examples/dpl_xaj_example.py`** — 可微分新安江(XAJ)水文模型
 
-## 数据源
+## 功能特性
 
-所有数据访问都通过**统一数据 resolver**(`torchhydro.configs.data_resolver`),它委托给 hydrodataset/hydrodatasource 注册表。在 `source_cfgs` 中使用 `dataset_id` 键选择数据集;路径统一从 `hydro_setting.yml` 解析(为向后兼容仍接受旧的 `source_name`/`source_path` 键,但 `source_path` 会被忽略,以统一解析为准)。
+### 模型
 
-由注册表解析的标准数据集:
+| 类别 | 模型 |
+|---|---|
+| **LSTM 变体** | SimpleLSTM, CudaLSTM, CNNLSTM, MCLSTM, SPPLSTM, BALSTM, MTSLSTM |
+| **Seq2Seq / 编码器-解码器** | GeneralSeq2Seq, Transformer, DataFusionModel, SeqForecast |
+| **可微分物理模型** | DPL-XAJ, DPL-HBV, DPL-GR4J, DPL-MC-水库 |
+| **图神经网络** | GCN, ResGCN, GCNII, ResGAT, GCGRU, GCLSTM, STGCN |
+| **专家混合 (MoE)** | DenseMoE, SparseMoE, SwitchMoE, HydrologyTopKMoE, GlobalTopKMoE |
+| **生成式 / 谱方法** | Diffusion, FNO (Fourier Neural Operator) |
+| **专用模型** | WDNE (三维洪水), CoupledLSTM, RegulLSTM |
+
+### 数据集
+
+由 [hydrodataset](https://github.com/OuyangWenyu/hydrodataset) 和 [hydrodatasource](https://github.com/iHeadWater/hydrodatasource) 解析的标准数据集:
 
 | `dataset_id` | 说明 |
 |---|---|
 | `camels_us` | CAMELS-US(美国 671 个流域) |
 | `camelsh` | CAMELS-Hourly(小时尺度) |
-| `caravan` / `grdc_caravan` | Caravan / GRDC-Caravan 多数据集集合 |
-| `camels_aus` / `camels_br` / `camels_cl` / `camels_gb` / `camels_col` | CAMELS-澳大利亚 / 巴西 / 智利 / 英国 / 哥伦比亚 |
+| `caravan` / `grdc_caravan` | Caravan / GRDC-Caravan 数据集集合 |
+| `camels_aus` / `camels_br` / `camels_cl` / `camels_gb` / `camels_col` | CAMELS 区域数据集 |
 
-自定义数据读取器(由 `hydrodatasource` 提供):`selfmadehydrodataset`、`selfmadeforecastdataset`、`longtermdataset`、`floodeventdatasource`、`stationhydrodataset`、`tghydrodatasource`。
+自定义数据源: `selfmadehydrodataset`、`selfmadeforecastdataset`、`longtermdataset`、`floodeventdatasource`、`stationhydrodataset`、`tghydrodatasource`。
 
-> GAGES-II、MOPEX 与水库数据源读取器已从 `torchhydro` 移交至 `hydrodatasource`,`torchhydro` 不再复现。
+### 训练模式
 
-## 基准测试结果
+- **常规监督学习** — 单流域或区域训练
+- **迁移学习** — 跨流域模型适配
+- **多任务学习** — 共享骨干网络,任务专属输出头
+- **联邦学习** — 去中心化流域级训练
 
-我们提供了在 CAMELS-US 数据集上的基准测试结果，以展示模型的性能表现。下图展示了两种 CAMELS 数据处理方式的 NSE(纳什效率系数)分布对比:
+### 关键能力
 
-<img src="docs/images/nse_comparison_camels.png" alt="NSE 对比" width="600"/>
+- 统一数据 resolver — 所有数据集路径由一个 `hydro_setting.yml` 配置
+- 支持月度与亚日(小时)时间单位
+- Cloud-Zarr 懒加载,支持远程数据联合训练
+- Lightning Fabric 集成,支持调试与分布式训练
+- SHAP 模型可解释性与损失面可视化
+- 高级 dropout 策略与数据增强
 
-**图示**: 在 CAMELS-US 数据集上训练的 LSTM 模型的 NSE 对比。左侧箱线图(红色)展示了使用 `hydrodataset.Camels` 类进行数据处理的结果，右侧箱线图(黄绿色)展示了使用 `hydrodataset.CamelsUS` 类的结果。两种方法都达到了 0.72 的中位数 NSE，证明了在 671 个流域上稳健且一致的性能表现。
+## 指南与文档
 
-详细的训练结果、方法说明和全面的性能分析，请参阅:
-- **[LSTM 在 CAMELS-US 上的训练结果](docs/examples/lstm_camels_results.md)**: 完整的实验文档，包括模型配置、训练过程和流域级别的性能统计。
+### 示例与结果
 
-## 探索更多功能
+- [CAMELS-US 上的 LSTM](https://OuyangWenyu.github.io/torchhydro/examples/lstm_camels_results/) — 基准测试与流域级性能
+- [松辽流域洪水模型](https://OuyangWenyu.github.io/torchhydro/examples/songliao_flood_guide/) — LSTM, MCLSTM, GNN, WDNE 洪水预报
+- [三峡多站点](https://OuyangWenyu.github.io/torchhydro/examples/sanxia_guide/) — 水库与多站点实验
+- [MoE / Diffusion / FNO](https://OuyangWenyu.github.io/torchhydro/examples/moe_diffusion_fno_guide/) — 高级模型实验
+- [Seq2Seq / BALSTM / MTSLSTM](https://OuyangWenyu.github.io/torchhydro/examples/seq2seq_balstm_mtslstm_guide/) — 编码器-解码器与时空模型
 
-以上示例涵盖了两个主要用例，但 `torchhydro` 的功能远不止于此，它原生支持多种模型、数据集和数据源。您可以通过我们完整的公共 API 文档来探索所有可用的组件:
+### 高级主题
 
-- **[模型 API](docs/api/models.md)**: 发现所有可用的模型架构。
-- **[数据集 API](docs/api/datasets.md)**: 查看所有的数据集类、数据源和采样器。
-- **[训练器 API](docs/api/trainers.md)**: 理解核心的训练和评估流程。
+- [Cloud-Zarr 联合训练](https://OuyangWenyu.github.io/torchhydro/advanced/cloud_zarr_lazy_loading/) — 大规模远程数据懒加载
+- [Lightning Fabric](https://OuyangWenyu.github.io/torchhydro/advanced/fabric_debug_guide/) — 调试与分布式训练
+- [ERA5-Land 与 GPM](https://OuyangWenyu.github.io/torchhydro/advanced/era5land_gpm_guide/) — 格网气象数据实验
+- [模型可解释性](https://OuyangWenyu.github.io/torchhydro/advanced/model_interpretability/) — SHAP 与损失面分析
 
-值得注意的能力包括:LSTM 家族与 Seq2Seq/Transformer 模型;可微分物理模型(XAJ/HBV/GR4J);图神经网络(GCN/GAT/STGCN/WDNE)与三维洪水场次模型;MoE(专家混合)模型;Diffusion 与 FNO 模型;云端 Zarr 懒加载以支持远程数据联合训练;月度与亚日时间单位。
+### API 参考
 
-我们正持续努力扩展文档，以包含更多示例。
+[模型](https://OuyangWenyu.github.io/torchhydro/api/models/) · [数据集](https://OuyangWenyu.github.io/torchhydro/api/datasets/) · [训练器](https://OuyangWenyu.github.io/torchhydro/api/trainers/) · [配置](https://OuyangWenyu.github.io/torchhydro/api/configs/) · [可解释性](https://OuyangWenyu.github.io/torchhydro/api/explainers/)
 
-## 主要模块
+## 架构
 
-项目由几个关键模块组成:
+```
+configs/          config.py, model_config.py, data_resolver.py(统一数据层)
+  │ 驱动
+  ├── datasets/   data_sets.py, data_sources.py, sampler.py, scalers.py
+  ├── models/     20+ 种架构, 注册于 model_dict_function.py
+  ├── trainers/   deep_hydro.py(编排器), trainer.py, fabric_wrapper.py
+  ├── explainers/ shap.py, loss_landscape/, uncertainty_analysis.py
+  └── utils/      dist_utils.py(MPI 分布式计算)
+```
 
-- **Trainers(训练器)**: 管理端到端的训练和评估流程。核心的 `DeepHydro` 类处理数据加载、模型初始化、训练循环和评估。其设计具有可扩展性，以支持如迁移学习或多任务学习等多种学习范式。
-- **Models(模型)**: 包含所有可用的模型架构，包括标准神经网络(如 LSTM)和可微分模型。一个中央字典使得通过配置来选择模型和损失函数变得简单。
-- **Datasets(数据集)**: 提供数据处理能力。标准数据集通过由 [hydrodataset](https://github.com/OuyangWenyu/hydrodataset) 与 [hydrodatasource](https://github.com/iHeadWater/hydrodatasource) 支撑的统一数据 resolver 打开;`torchhydro.datasets.data_sources` 是向数据集与 PyTorch `Dataset` 类暴露注册表的薄层。
-- **Configs(配置)**: 管理所有实验配置，包括模型、数据(时间周期、变量)、训练(轮次、批量大小)和评估的设置。`torchhydro.configs.data_resolver` 集中负责数据集路径/URI 解析。
+## 为什么选择 TorchHydro?
 
-## 为什么选择 Torchhydro?
+- **解耦的数据层** — 统一 resolver 支持 10+ 数据集、自定义数据源与云存储;数据处理工具甚至可以不依赖深度学习模型单独使用
+- **灵活的学习范式** — 迁移学习、多任务学习、联邦学习是一等公民,而非事后添加
+- **深度配置** — 对数据遍历、归一化、批采样与高级 dropout 提供细粒度控制
+- **可扩展** — 配置高度外部化,新数据源与新模型无需修改核心代码即可接入
 
-尽管已有像 [NeuralHydrology](https://github.com/neuralhydrology/neuralhydrology) 这样成熟的工具，但 `torchhydro` 的开发基于一套不同的架构理念:
+## 参与贡献
 
-1.  **解耦的数据源**: 我们认为数据处理，特别是对于复杂或私有数据集，需要一个独立的抽象层。我们的方法是让所有标准数据集都通过统一 resolver(hydrodataset/hydrodatasource)先管理数据访问，然后再将其送入 PyTorch `Dataset`。这种模块化设计促进了代码复用，并使得数据源工具可以在没有深度学习模型的情况下被使用。
-2.  **灵活的学习范式**: 该框架从一开始就明确设计为不仅支持标准的监督学习，还支持更复杂的模式，如迁移学习、多任务学习和联邦学习。
-3.  **深度配置**: 我们对流程的许多方面提供了细粒度的控制，包括数据遍历、归一化方法、批处理采样策略和高级的 dropout 技术，从而为实验提供了更大的灵活性。
-4.  **可扩展性**: 核心设计原则是尽可能地将配置外部化，以实现不同数据源和模型的灵活匹配与调用。
+请参阅 [贡献指南](https://OuyangWenyu.github.io/torchhydro/contributing/) 了解开发环境配置、代码规范与 Pull Request 流程。
 
-## 其他信息
+## 许可证
 
-本软件包的灵感来源于:
+BSD License。详见 [LICENSE](LICENSE)。
 
-- [TorchGeo](https://torchgeo.readthedocs.io/en/stable/)
+## 致谢
+
 - [NeuralHydrology](https://github.com/neuralhydrology/neuralhydrology)
+- [TorchGeo](https://torchgeo.readthedocs.io/en/stable/)
 - [hydroDL](https://github.com/mhpi/hydroDL)
-
-本软件包是使用 [Cookiecutter](https://github.com/cookiecutter/cookiecutter) 和 [giswqs/pypackage](https://github.com/giswqs/pypackage) 项目模板创建的。
