@@ -38,8 +38,8 @@
 
 ```python
 source_cfgs={
-    "source_name": "floodeventdatasource",
-    "source_path": SETTING["local_data_path"]["datasets-interim"],
+    "source_name": "floodeventdatasource",  # 旧格式，尚未迁移到 dataset_id
+    "source_path": "E:/data/ClassC/songliaorrevent",  # 实际数据路径
     "other_settings": {
         "time_unit": ["3h"],
         "dataset_name": "songliaorrevent",
@@ -88,8 +88,8 @@ loss_param={
 
 ```python
 source_cfgs={
-    "source_name": "floodeventdatasource",
-    "source_path": SETTING["local_data_path"]["datasets-interim"],
+    "source_name": "floodeventdatasource",  # 旧格式，尚未迁移到 dataset_id
+    "source_path": "E:/data/ClassC/songliaorrevent",  # 实际数据路径
     "other_settings": {
         "time_unit": ["3h"],
         "dataset_name": "songliaorrevent",

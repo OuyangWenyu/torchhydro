@@ -291,7 +291,7 @@ ERA5-Land 和 GPM 数据均为自定义数据集（`selfmadehydrodataset`），�
 ```python
 source_cfgs={
     "dataset_id": "selfmadehydrodataset",
-    "source_path": SETTING["local_data_path"]["datasets-interim"],  # 可选，显式指定路径
+    # source_path 可选：resolver 从 ~/hydro_setting.yml 自动解析
     "other_settings": {
         "time_unit": ["1h"],  # 或 ["3h"]
     },
