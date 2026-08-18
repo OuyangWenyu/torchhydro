@@ -105,11 +105,7 @@ def config():
         stat_dict_file=f"{_train_results_root}/results/camels/simplelstm_{scaler}_{dim}_{dr}_ens_{train_hru_delete}/dapengscaler_stat.json",
         project_dir=_eval_project_dir,
         sub=project_name,
-        source_cfgs={
-            "source_name": "camels_us",
-            "source_path": camels_dir,
-            "other_settings": {"download": False, "region": "US"},
-        },
+        source_cfgs={"dataset_id": "camels_us"},
         ctx=[int(x) for x in CLI.ctx.split(",")] if CLI.ctx else [0],
         model_name="SimpleLSTM",
         model_hyperparam={

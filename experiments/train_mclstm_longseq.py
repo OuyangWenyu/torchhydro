@@ -40,15 +40,7 @@ def create_mclstm_config():
 
     args = cmd(
         sub="mclstm_longseq/223",
-        source_cfgs={
-            "source_name": "selfmadehydrodataset",
-            "source_path": sanxia_dir,
-            "other_settings": {
-                "time_unit": ["1h"],
-                "dataset_name": "223_FloodEvents_for_shap",
-                "delta_t_hours": 1.0,
-            },
-        },
+        source_cfgs={"dataset_id": "selfmadehydrodataset"},
         ctx=[1],
         model_name="MCLSTM",
         model_hyperparam={

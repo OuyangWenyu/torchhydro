@@ -1,6 +1,5 @@
 import os
 import logging
-from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
@@ -12,11 +11,10 @@ for logger_name in logging.root.manager.loggerDict:
 
 def create_mclstm_config():
     config_data = default_config_file()
-    source_path = SETTING["local_data_path"]["datasets-origin"]
 
     args = cmd(
         sub=os.path.join("results", "mclstm_camels"),
-        source_cfgs={"source_name": "camels_us", "source_path": source_path},
+        source_cfgs={"dataset_id": "camels_us"},
         ctx=[-1],
         model_name="MCLSTM",
         model_hyperparam={

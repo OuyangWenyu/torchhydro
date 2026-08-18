@@ -111,12 +111,7 @@ def config():
         stat_dict_file=r"/Users/cylenlc/work/torchhydro/experiments/results/camels/mtslstm_DapengScaler_d-h_2freq_14dwin/dapengscaler_stat.json",
         project_dir=r"experiments",
         sub=project_sub,
-        source_cfgs={
-            "source_name": "selfmadehydrodataset",
-            "source_path": sanxia_dir,
-            #"other_settings": {"download": False, "region": "US"},
-            "other_settings": {"time_unit": ["1h"]},
-        },
+        source_cfgs={"dataset_id": "selfmadehydrodataset"},
         ctx=[0],
         model_name="MTSLSTM",
 

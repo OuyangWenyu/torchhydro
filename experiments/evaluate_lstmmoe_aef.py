@@ -10,14 +10,12 @@ Before running:
 
 import os
 from hydrodataset.hydro_dataset import StandardVariable
-from torchhydro import SETTING
 from torchhydro.configs.config import cmd, default_config_file, update_cfg
 from torchhydro.trainers.trainer import train_and_evaluate
 
 
 def main():
     # 1. Define parameters for the experiment
-    source_path = SETTING["local_data_path"]["datasets-origin"]
 
     # Common model parameters
     n_input_features = 70
@@ -29,7 +27,7 @@ def main():
         # Experiment name and output directory
         sub=os.path.join("results", "lstm_moe_aef"),
         # Data source configuration
-        source_cfgs={"source_name": "camels_us", "source_path": source_path},
+        source_cfgs={"dataset_id": "camels_us"},
         # GPU: [0] 表示单卡; [0,1,2] 多卡
         ctx=[0, 1, 2],
         # --- Model selection and hyperparameters ---

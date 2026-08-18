@@ -83,11 +83,7 @@ def config():
     args = cmd(
         project_dir=CLI.project_dir or _PATHS.get("project_dir"),
         sub=project_name,
-        source_cfgs={
-            "source_name": "camels_us",
-            "source_path": camels_dir,
-            "other_settings": {"download": False, "region": "US"},
-        },
+        source_cfgs={"dataset_id": "camels_us"},
         ctx=[int(x) for x in CLI.ctx.split(",")] if CLI.ctx else [0],
         model_name="SimpleLSTM",
         model_hyperparam={
