@@ -48,9 +48,12 @@ nav:
     - Examples & Results:
           - LSTM on CAMELS-US: examples/lstm_camels_results.md
           - Songliao Flood Models: examples/songliao_flood_guide.md
+          - MoE / Diffusion / FNO: examples/moe_diffusion_fno_guide.md
+          - Seq2Seq / BALSTM / MTSLSTM: examples/seq2seq_balstm_mtslstm_guide.md
     - Advanced Topics:
           - Cloud-Zarr Joint Training: advanced/cloud_zarr_lazy_loading.md
           - Lightning Fabric: advanced/fabric_debug_guide.md
+          - Model Interpretability: advanced/model_interpretability.md
     - Contributing: contributing.md
     - FAQ: faq.md
     - Changelog: changelog.md
