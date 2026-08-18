@@ -5,12 +5,6 @@ from typing import List, Union, Optional, Tuple
 from torch import nn
 import torch.fft
 from torch.nn import functional as F
-import opt_einsum
-import tensorly as tl
-from tensorly.plugins import use_opt_einsum
-
-tl.set_backend("pytorch")
-use_opt_einsum("optimal")
 einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
@@ -84,6 +78,9 @@ def einsum_complexhalf(eq, *args):
     Because torch.einsum currently does not support complex32 (complexhalf) types.
     The inputs and outputs are the same as in torch.einsum
     """
+    import opt_einsum
+    import tensorly as tl
+
     # find the optimal path
     _, path_info = opt_einsum.contract_path(eq, *args)
     partial_eqns = [
