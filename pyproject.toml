@@ -239,6 +239,10 @@ no-build-isolation-package = [
     "torch-spline-conv",
 ]
 
+# torch-scatter needs setuptools to build from source (UV_NO_SOURCES=1 CI)
+[tool.uv.extra-build-dependencies]
+torch-scatter = ["setuptools"]
+
 # Hatch version management
 [tool.hatch.version]
 source = "vcs"
